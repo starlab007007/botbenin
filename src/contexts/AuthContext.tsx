@@ -109,158 +109,132 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const { toast } = useToast();
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-    
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        // Clear any existing timeout
-        if (timeoutId) clearTimeout(timeoutId);
-        
-        // Safety timeout: force loading to false after 5 seconds
-        timeoutId = setTimeout(() => {
-          console.warn('[Auth] Forcing isLoading to false after timeout');
-          setIsLoading(false);
-        }, 5000);
+    let cancelled = false;
 
-        // On every fresh login or token refresh tied to a different user, force a
-        // brand-new WAOUH per-browser session id so chat/notifications history
-        // never bleeds between accounts sharing the same browser.
-        if (event === "SIGNED_IN") {
-          try {
-            localStorage.removeItem("waouh_web_session_id");
-            Object.keys(localStorage)
-              .filter((k) =>
-                k.startsWith("waouh_notifs_") ||
-                k.startsWith("waouh_open_matches_") ||
-                k.startsWith("waouh_active_match_") ||
-                k.startsWith("waouh_archived_matches_")
-              )
-              .forEach((k) => localStorage.removeItem(k));
-          } catch {}
-        }
-
-        setSession(session);
-        setSupabaseUser(session?.user ?? null);
-        
-        if (session?.user) {
-          setIsGuest(false);
-          setGuestUser(null);
-          
-          let userRole: AuthRole = 'user';
-          let permissions: string[] = rolePermissions.user;
-
-          try {
-            // Récupérer les rôles sans .single(): certains comptes ont plusieurs rôles en production.
-            const rolePromise = supabase
-              .from('user_roles')
-              .select(`
-                roles (
-                  name
-                )
-              `)
-              .eq('user_id', session.user.id)
-              .limit(10);
-
-            const { data: roleData, error: roleError } = await withTimeout(rolePromise, 2500, 'Role fetch') as any;
-            
-            if (roleError) {
-              console.error('Error fetching role:', roleError);
-            }
-
-            userRole = getHighestRole(roleData);
-          } catch (error) {
-            console.error('Error fetching role:', error);
-          }
-
-          try {
-            // Récupérer les permissions depuis la fonction get_user_permissions avec timeout
-            const permissionsPromise = supabase.rpc('get_user_permissions', { 
-              user_uuid: session.user.id 
-            });
-            
-            const { data: permissionsData, error: permissionsError } = await withTimeout(permissionsPromise, 2500, 'Permissions fetch') as any;
-
-            if (permissionsError) {
-              console.error('Error fetching permissions:', permissionsError);
-            }
-
-            permissions = permissionsData?.map((p: any) => p.permission_name) || rolePermissions[userRole];
-          } catch (error) {
-            console.error('Error fetching permissions:', error);
-            permissions = rolePermissions[userRole];
-          }
-
-          try {
-            // Create AuthUser from Supabase user with DB role and permissions
-            const authUser: AuthUser = {
-              id: session.user.id,
-              name: session.user.user_metadata?.full_name || 
-                    session.user.user_metadata?.name || 
-                    session.user.email?.split('@')[0] || 
-                    'Utilisateur',
-              email: session.user.email || '',
-              avatar: session.user.user_metadata?.avatar_url || 
-                      session.user.user_metadata?.picture,
-              role: userRole,
-              permissions: permissions,
-              status: 'active',
-              createdAt: new Date(session.user.created_at),
-              lastLogin: new Date(),
-              subscription: {
-                type: 'free',
-                status: 'active'
-              },
-              chatHistory: []
-            };
-            setUser(authUser);
-          } catch (error) {
-            console.error('Error fetching role and permissions:', error);
-            // Fallback to default user role if DB fetch fails
-            const authUser: AuthUser = {
-              id: session.user.id,
-              name: session.user.user_metadata?.full_name || 
-                    session.user.user_metadata?.name || 
-                    session.user.email?.split('@')[0] || 
-                    'Utilisateur',
-              email: session.user.email || '',
-              avatar: session.user.user_metadata?.avatar_url || 
-                      session.user.user_metadata?.picture,
-              role: 'user',
-              permissions: rolePermissions.user,
-              status: 'active',
-              createdAt: new Date(session.user.created_at),
-              lastLogin: new Date(),
-              subscription: {
-                type: 'free',
-                status: 'active'
-              },
-              chatHistory: []
-            };
-            setUser(authUser);
-          } finally {
-            clearTimeout(timeoutId);
-            setIsLoading(false);
-          }
-        } else {
-          // Pas de session : conserver l'état guest si configuré
-          setUser(null);
-          clearTimeout(timeoutId);
-          setIsLoading(false);
-        }
-      }
-    );
-
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        setIsLoading(false);
-      }
+    const buildBaseUser = (sUser: SupabaseUser, role: AuthRole, perms: string[]): AuthUser => ({
+      id: sUser.id,
+      name:
+        sUser.user_metadata?.full_name ||
+        sUser.user_metadata?.name ||
+        sUser.email?.split('@')[0] ||
+        'Utilisateur',
+      email: sUser.email || '',
+      avatar: sUser.user_metadata?.avatar_url || sUser.user_metadata?.picture,
+      role,
+      permissions: perms,
+      status: 'active',
+      createdAt: new Date(sUser.created_at),
+      lastLogin: new Date(),
+      subscription: { type: 'free', status: 'active' },
+      chatHistory: [],
     });
 
+    // Background enrichment — NEVER blocks isLoading. Runs after session is set.
+    const enrichUser = async (sUser: SupabaseUser) => {
+      let userRole: AuthRole = 'user';
+      let permissions: string[] = rolePermissions.user;
+
+      try {
+        const [roleRes, permRes] = await Promise.allSettled([
+          withTimeout(
+            supabase
+              .from('user_roles')
+              .select(`roles ( name )`)
+              .eq('user_id', sUser.id)
+              .limit(10),
+            4000,
+            'Role fetch',
+          ),
+          withTimeout(
+            supabase.rpc('get_user_permissions', { user_uuid: sUser.id }),
+            4000,
+            'Permissions fetch',
+          ),
+        ]);
+
+        if (roleRes.status === 'fulfilled') {
+          const { data, error } = roleRes.value as any;
+          if (!error) userRole = getHighestRole(data);
+        } else {
+          console.warn('[Auth] role enrichment skipped:', roleRes.reason?.message);
+        }
+
+        if (permRes.status === 'fulfilled') {
+          const { data, error } = permRes.value as any;
+          if (!error && Array.isArray(data) && data.length) {
+            permissions = data.map((p: any) => p.permission_name);
+          } else {
+            permissions = rolePermissions[userRole];
+          }
+        } else {
+          console.warn('[Auth] permissions enrichment skipped:', permRes.reason?.message);
+          permissions = rolePermissions[userRole];
+        }
+      } catch (e) {
+        console.warn('[Auth] enrichment error:', e);
+      }
+
+      if (cancelled) return;
+      setUser((prev) => (prev && prev.id === sUser.id ? { ...prev, role: userRole, permissions } : prev));
+    };
+
+    const handleSession = (event: string, session: Session | null) => {
+      if (event === 'SIGNED_IN') {
+        try {
+          localStorage.removeItem('waouh_web_session_id');
+          Object.keys(localStorage)
+            .filter(
+              (k) =>
+                k.startsWith('waouh_notifs_') ||
+                k.startsWith('waouh_open_matches_') ||
+                k.startsWith('waouh_active_match_') ||
+                k.startsWith('waouh_archived_matches_'),
+            )
+            .forEach((k) => localStorage.removeItem(k));
+        } catch {}
+      }
+
+      setSession(session);
+      setSupabaseUser(session?.user ?? null);
+
+      if (session?.user) {
+        setIsGuest(false);
+        setGuestUser(null);
+        // Set user immediately with defaults — UI no longer waits on DB roundtrips.
+        setUser((prev) =>
+          prev && prev.id === session.user.id
+            ? prev
+            : buildBaseUser(session.user, 'user', rolePermissions.user),
+        );
+        setIsLoading(false);
+        // Defer enrichment to avoid the Supabase onAuthStateChange deadlock pattern.
+        setTimeout(() => {
+          if (!cancelled) enrichUser(session.user);
+        }, 0);
+      } else {
+        setUser(null);
+        setIsLoading(false);
+      }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      handleSession(event, session);
+    });
+
+    // Initial session load
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        if (cancelled) return;
+        handleSession('INITIAL', session);
+      })
+      .catch(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
     return () => {
+      cancelled = true;
       subscription.unsubscribe();
-      if (timeoutId) clearTimeout(timeoutId);
     };
   }, []);
 
