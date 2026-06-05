@@ -822,7 +822,9 @@ serve(async (req) => {
         returnedActions = [];
         const promotedRadarMatches: any[] = [];
         for (const r of radarSellers) {
-          const art = await promoteRadarSeller(sb, r, criteriaCategory);
+          const art = r._from_external
+            ? await promoteExternalListing(sb, r, criteriaCategory)
+            : await promoteRadarSeller(sb, r, criteriaCategory);
           if (art?.id) promotedRadarMatches.push({ ...art, radar: true });
         }
         const combinedMatches = [
