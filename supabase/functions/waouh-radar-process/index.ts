@@ -235,9 +235,11 @@ Deno.serve(async (req) => {
             const { data: wu } = await sb.from("waouh_users").select("id, phone_number, web_session_id").eq("id", b.user_id).maybeSingle();
             const notifWebSession = wu?.web_session_id ?? null;
 
+            const promotedArticleId = promotedSignal?.kind === "article" ? promotedSignal.id : null;
             await sb.from("waouh_notifications").insert({
               user_id: b.user_id,
               notification_type: "radar_match",
+              article_id: promotedArticleId,
               title,
               body,
               photos: signalPhotos,
@@ -250,10 +252,11 @@ Deno.serve(async (req) => {
                 city: sig.city,
                 photos: signalPhotos,
                 signal_id: sig.id,
+                article_id: promotedArticleId,
                 raw_url: sig.raw_url,
                 match_id: m?.id,
               },
-              meta: { signal_id: sig.id, raw_url: sig.raw_url, match_id: m?.id },
+              meta: { signal_id: sig.id, article_id: promotedArticleId, raw_url: sig.raw_url, match_id: m?.id },
             });
 
             if (wu) {
