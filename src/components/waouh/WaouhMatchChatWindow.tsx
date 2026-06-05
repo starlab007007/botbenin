@@ -13,6 +13,7 @@ export type MatchChatMeta = {
   key: string;
   article_id: string | null;
   notification_id?: string | null;
+  notification_ids?: string[];
   seed_text?: string | null;
   buyer_profile_id?: string | null;
   counterpart_user_id?: string | null;
@@ -23,6 +24,7 @@ export type MatchChatMeta = {
   kind: "buyer" | "seller";
   closed?: boolean;
 };
+
 
 
 type Msg = {
