@@ -430,7 +430,8 @@ serve(async (req) => {
         user_id: user.id, channel, direction: "out", text: negReply,
         web_session_id: sessionId, phone_number: phone,
         attachments: negAttachments,
-        meta: { intent: negIntent, transaction_id: negTxId, actions: negActions },
+        article_id: clientMeta?.article_id ?? null,
+        meta: { intent: negIntent, transaction_id: negTxId, article_id: clientMeta?.article_id ?? null, actions: negActions },
       });
       if (convId) {
         await sb.from("waouh_conversations")
