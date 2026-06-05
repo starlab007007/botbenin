@@ -38,10 +38,12 @@ export async function resolveContact(
   const channel = (row?.source_channel || "waouh_app") as WaouhChannel;
   const userId = opts.kind === "seller" ? row?.seller_id : row?.user_id;
 
-  // Direct whatsapp from row
+  // Direct whatsapp from row (any channel) — si un numéro est présent sur la ligne,
+  // on l'utilise pour pousser une notification WhatsApp, y compris pour les
+  // utilisateurs « waouh_app » qui ont aussi un numéro renseigné.
   const rowWa = normalizeBeninPhone(row?.contact_whatsapp);
-  if (channel === "whatsapp" && rowWa) {
-    return { channel, whatsapp: rowWa, waouhUserId: userId ?? null, partnerId: row?.partner_id ?? null };
+  if (rowWa && (channel === "whatsapp" || channel === "waouh_app")) {
+    return { channel: "whatsapp", whatsapp: rowWa, waouhUserId: userId ?? null, partnerId: row?.partner_id ?? null };
   }
 
   // Partner WhatsApp
