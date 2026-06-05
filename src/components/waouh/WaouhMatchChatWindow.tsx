@@ -357,17 +357,25 @@ export function WaouhMatchChatWindow({
     }
   }, [active, closed]);
 
-  // When the user opens this match (clicks notification/list), mark it read
+  // When the user opens this match, mark all related notifications as read
   useEffect(() => {
-    if (!active || !match.notification_id) return;
+    if (!active) return;
+    const ids = Array.from(
+      new Set<string>([
+        ...(match.notification_ids || []),
+        ...(match.notification_id ? [match.notification_id] : []),
+      ])
+    );
+    if (!ids.length) return;
     supabase
       .from("waouh_notifications" as any)
       .update({ opened: true })
-      .eq("id", match.notification_id)
+      .in("id", ids)
       .then(({ error }) => {
         if (error) console.warn("[waouh-match] markRead error", error);
       });
-  }, [active, match.notification_id]);
+  }, [active, match.notification_id, (match.notification_ids || []).join(",")]);
+
 
   const send = async () => {
     const text = input.trim();
