@@ -13,6 +13,7 @@ export type MatchChatMeta = {
   key: string;
   article_id: string | null;
   notification_id?: string | null;
+  notification_ids?: string[];
   seed_text?: string | null;
   buyer_profile_id?: string | null;
   counterpart_user_id?: string | null;
@@ -23,6 +24,7 @@ export type MatchChatMeta = {
   kind: "buyer" | "seller";
   closed?: boolean;
 };
+
 
 
 type Msg = {
@@ -132,6 +134,8 @@ export function WaouhMatchChatWindow({
   };
 
   // Load initial 10 + seed notification + article status. Merge, never overwrite.
+  // Skip the messages refetch if we already have >= PAGE_INITIAL cached messages
+  // recent enough that realtime will keep them fresh.
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -146,8 +150,12 @@ export function WaouhMatchChatWindow({
         });
       }
 
+      const cached = getCached?.(match.key) ?? [];
+      const cachedHasMore = getHasMore?.(match.key) ?? true;
+      const skipMsgFetch = cached.length >= PAGE_INITIAL;
+
       const promises: Promise<any>[] = [
-        fetchArticlePage(null, PAGE_INITIAL),
+        skipMsgFetch ? Promise.resolve([] as Msg[]) : fetchArticlePage(null, PAGE_INITIAL),
         (supabase.from("waouh_articles") as any)
           .select("status")
           .eq("id", match.article_id)
@@ -174,8 +182,12 @@ export function WaouhMatchChatWindow({
       const notifRes = hasInlineSeed ? null : results[2];
 
       if (!alive) return;
-      setMessages((prev) => mergeMsgs(prev, pageMsgs));
-      setHasMore(pageMsgs.length === PAGE_INITIAL);
+      if (!skipMsgFetch) {
+        setMessages((prev) => mergeMsgs(prev, pageMsgs));
+        // Don't downgrade a persisted hasMore=false to true on a partial fetch.
+        if (pageMsgs.length === PAGE_INITIAL) setHasMore(true);
+        else if (cachedHasMore !== false) setHasMore(false);
+      }
       setArticleStatus((artRes?.data as any)?.status ?? null);
       if (!hasInlineSeed) {
         const raw = notifRes?.data;
@@ -197,6 +209,7 @@ export function WaouhMatchChatWindow({
     // Reload only when the article identity changes, NOT when waouhIds is enriched.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [match.article_id, match.notification_id, match.seed_text]);
+
 
   // Load older messages on top-scroll
   const loadOlder = async () => {
@@ -344,17 +357,25 @@ export function WaouhMatchChatWindow({
     }
   }, [active, closed]);
 
-  // When the user opens this match (clicks notification/list), mark it read
+  // When the user opens this match, mark all related notifications as read
   useEffect(() => {
-    if (!active || !match.notification_id) return;
+    if (!active) return;
+    const ids = Array.from(
+      new Set<string>([
+        ...(match.notification_ids || []),
+        ...(match.notification_id ? [match.notification_id] : []),
+      ])
+    );
+    if (!ids.length) return;
     supabase
       .from("waouh_notifications" as any)
       .update({ opened: true })
-      .eq("id", match.notification_id)
+      .in("id", ids)
       .then(({ error }) => {
         if (error) console.warn("[waouh-match] markRead error", error);
       });
-  }, [active, match.notification_id]);
+  }, [active, match.notification_id, (match.notification_ids || []).join(",")]);
+
 
   const send = async () => {
     const text = input.trim();

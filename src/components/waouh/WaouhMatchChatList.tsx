@@ -4,10 +4,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { ShoppingBag, Target, Archive, ArchiveRestore, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatMatchLabel } from "@/app-mobile/utils/chatLabel";
+import { matchKey } from "./useWaouhMatchChats";
+
+const PENDING_OPEN_KEY = "waouh_pending_open";
+
 
 type MatchItem = {
-  key: string; // notification.id (or msg_<articleId>_<role> for message-only fallback)
-  notification_id: string | null;
+  key: string; // canonical: art_<articleId>_<role>
+  notification_id: string | null; // most-recent notification (for legacy display/markRead)
+  notification_ids: string[]; // all notifications merged into this canonical row
   seed_text: string | null;
   article_id: string;
   buyer_profile_id: string | null;
@@ -20,6 +25,7 @@ type MatchItem = {
   unread: boolean;
   last_at: string;
 };
+
 
 const VISIBLE_DEFAULT = 3;
 const AUTO_ARCHIVE_DAYS = 7;
@@ -126,23 +132,30 @@ export function WaouhMatchChatList({
             (Array.isArray(n.payload?.photos) && n.payload.photos[0]) ||
             n.payload?.image_url ||
             null;
-          map.set(n.id, {
-            key: n.id,
-            notification_id: n.id,
-            seed_text: n.payload?.text ?? null,
+          const ck = matchKey(articleId, role);
+          const prev = map.get(ck);
+          // Most-recent notification wins for display; accumulate notif ids.
+          const isNewer = !prev || new Date(n.sent_at) > new Date(prev.last_at);
+          const accIds = new Set<string>([...(prev?.notification_ids || []), n.id]);
+          map.set(ck, {
+            key: ck,
+            notification_id: isNewer ? n.id : prev!.notification_id,
+            notification_ids: Array.from(accIds),
+            seed_text: isNewer ? (n.payload?.text ?? null) : prev!.seed_text,
             article_id: articleId,
-            buyer_profile_id: n.payload?.buyer_profile_id ?? null,
-            counterpart_user_id: n.payload?.counterpart_user_id ?? n.payload?.buyer_user_id ?? null,
+            buyer_profile_id: isNewer ? (n.payload?.buyer_profile_id ?? null) : prev!.buyer_profile_id,
+            counterpart_user_id: isNewer ? (n.payload?.counterpart_user_id ?? n.payload?.buyer_user_id ?? null) : prev!.counterpart_user_id,
             role,
-            title: n.payload?.title || "Annonce",
-            price: n.payload?.price ?? null,
-            city: n.payload?.city ?? null,
-            photo,
-            unread: !n.opened,
-            last_at: n.sent_at,
+            title: isNewer ? (n.payload?.title || "Annonce") : prev!.title,
+            price: isNewer ? (n.payload?.price ?? null) : prev!.price,
+            city: isNewer ? (n.payload?.city ?? null) : prev!.city,
+            photo: isNewer ? photo : prev!.photo,
+            unread: (prev?.unread ?? false) || !n.opened,
+            last_at: isNewer ? n.sent_at : prev!.last_at,
           });
         }
       }
+
 
       // 2) Fallback: recent article-scoped messages (last 48h) — only create stubs
       // for articles that have NO notification row at all (keeps notifications dominant).
@@ -180,10 +193,12 @@ export function WaouhMatchChatList({
             const artById = new Map<string, any>((arts ?? []).map((a: any) => [a.id, a]));
             for (const [articleId, info] of seenArt.entries()) {
               const art = artById.get(articleId);
-              const stubKey = `msg_${articleId}_${info.role}`;
+              const stubKey = matchKey(articleId, info.role);
               map.set(stubKey, {
                 key: stubKey,
                 notification_id: null,
+                notification_ids: [],
+
                 seed_text: null,
                 article_id: articleId,
                 buyer_profile_id: null,
@@ -276,39 +291,59 @@ export function WaouhMatchChatList({
   if (items.length === 0) return null;
 
   const open = async (item: MatchItem) => {
-    // Mark THIS notification as read (by id)
-    try {
-      if (item.notification_id) {
+    // Mark all related notifications for this canonical match as read
+    const allNotifIds = Array.from(
+      new Set<string>([
+        ...(item.notification_ids || []),
+        ...(item.notification_id ? [item.notification_id] : []),
+      ])
+    );
+    if (allNotifIds.length) {
+      try {
         await supabase
           .from("waouh_notifications" as any)
           .update({ opened: true })
-          .eq("id", item.notification_id);
-      }
+          .in("id", allNotifIds);
+      } catch {}
+    }
+
+    const detail = {
+      notification_id: item.notification_id,
+      notification_ids: allNotifIds,
+      seed_text: item.seed_text,
+      article_id: item.article_id,
+      buyer_profile_id: item.buyer_profile_id,
+      counterpart_user_id: item.counterpart_user_id,
+      kind: item.role,
+      title: item.title,
+      price: item.price,
+      city: item.city,
+      photo: item.photo,
+    };
+
+    // Buffer the open intent in localStorage so the target screen picks it up
+    // at mount-time even if it isn't mounted yet (no race with navigate).
+    try {
+      const raw = localStorage.getItem(PENDING_OPEN_KEY);
+      const arr = raw ? (JSON.parse(raw) as any[]) : [];
+      const canonical = matchKey(item.article_id, item.role);
+      const filtered = arr.filter(
+        (d: any) => matchKey(d?.article_id, d?.kind === "seller" ? "seller" : "buyer") !== canonical
+      );
+      filtered.push(detail);
+      localStorage.setItem(PENDING_OPEN_KEY, JSON.stringify(filtered.slice(-10)));
     } catch {}
 
     navigate("/app/chat/waouh");
+    // Also dispatch for the case where the screen is already mounted.
     setTimeout(() => {
-      window.dispatchEvent(
-        new CustomEvent("waouh:open-match-chat", {
-          detail: {
-            notification_id: item.notification_id,
-            seed_text: item.seed_text,
-            article_id: item.article_id,
-            buyer_profile_id: item.buyer_profile_id,
-            counterpart_user_id: item.counterpart_user_id,
-            kind: item.role,
-            title: item.title,
-            price: item.price,
-            city: item.city,
-            photo: item.photo,
-          },
-        })
-      );
+      window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));
     }, 50);
 
     // Locally mark read
     setItems((prev) => prev.map((p) => (p.key === item.key ? { ...p, unread: false } : p)));
   };
+
 
   const archive = (key: string, e: React.MouseEvent) => {
     e.stopPropagation();

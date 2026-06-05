@@ -1,70 +1,74 @@
-## Objectif
+# Stabilisation des fenêtres de chat WAOUH (WaouhMatchChatList → WaouhMatchChatWindow)
 
-Trois chantiers indépendants sur la couche chat WAOUH :
+## Causes racines identifiées
 
-1. Charger seulement les **10 derniers messages** à l'ouverture du chat, puis paginer vers le haut au scroll.
-2. Stabiliser `WaouhMatchChatWindow` pour qu'il **conserve tout l'historique** d'une discussion produit, sans perte ni re-fetch destructif.
-3. **Fiabiliser** l'envoi/réception des messages et notifications (in-app + WhatsApp), avec retries, dédup et statuts.
+### 1. Tabs ouvertes peuvent être perdues lors de la navigation
+- `WaouhMatchChatList.open()` appelle `navigate("/app/chat/waouh")` puis dispatche `waouh:open-match-chat` après un `setTimeout(50)`.
+- Le listener est enregistré dans `useWaouhMatchChats` (dans `WaouhChatScreen`). Si la transition route est plus lente que 50ms (montage React, lazy-load, etc.), **l'événement est perdu** → la fenêtre ne s'ouvre jamais ou s'ouvre vide.
 
----
+### 2. Clés instables : même article = plusieurs tabs avec historiques différents
+- Quand la liste a un `notification_id` → key = `n_<notifId>`.
+- Quand elle a un fallback message → key = `msg_<articleId>_<role>`.
+- Quand le hook `useWaouhMatchChats` crée la tab → key = `n_<notifId>` ou `${role[0]}_${articleId}`.
+- **3 préfixes différents pour le même article** (`n_`, `msg_`, `b_`/`s_`). Chaque clé a son propre snapshot localStorage → l'historique semble disparaître quand on rouvre depuis un autre point d'entrée.
 
-## Chantier 1 — Pagination lazy du chat (WaouhWebChat + WaouhMatchChatWindow)
+### 3. Snapshot localStorage tronqué à 50 messages
+- `setCached` écrit `msgs.slice(-SNAPSHOT_LIMIT=50)` dans localStorage.
+- Après remount de `WaouhChatScreen` (sortie/retour de l'écran), le cache mémoire est vide → on relit uniquement les 50 derniers. Si l'utilisateur avait scrollé pour charger 200 messages plus anciens, ils disparaissent.
 
-Aujourd'hui `WaouhWebChat.loadHistory()` tire jusqu'à 500 messages, et `WaouhMatchChatWindow` jusqu'à 300, en un seul `select`. Sur les comptes actifs cela charge tout l'historique à chaque ouverture.
+### 4. Cache mémoire perdu au remount du hook
+- `msgCacheRef` (Map) est défini dans `useWaouhMatchChats`. Démontage de `WaouhChatScreen` → Map perdue. Le fallback localStorage est tronqué (cf. #3).
 
-Changements :
-- `waouh-history` edge function : ajouter params `limit` (défaut 10) et `before` (ISO timestamp). Tri DESC côté DB, re-tri ASC à l'envoi.
-- `WaouhWebChat.loadHistory(ids, { initial: true })` : premier appel → 10 messages les plus récents. Affichage immédiat en bas (scroll-to-bottom).
-- Ajout `loadOlder()` : récupère les 20 suivants `created_at < oldestLoaded.created_at`. Préserve la position de scroll (mesure `scrollHeight` avant/après et compense `scrollTop`).
-- Sentinelle `IntersectionObserver` en haut de la liste : déclenche `loadOlder()` quand visible, avec garde `loadingOlder` + `hasMore` (false si la dernière page renvoie < pageSize).
-- `WaouhMatchChatWindow` : même logique, pagination scopée par `article_id`. Premier load → 10 derniers messages du fil produit.
-- Realtime INSERT continue d'append en bas (inchangé). Dédup par `id`.
+### 5. Effet de rechargement écrase `hasMore`
+- Le `useEffect` initial appelle `setHasMore(pageMsgs.length === PAGE_INITIAL)` à chaque remount, écrasant le `hasMore` mémorisé (qui pouvait être `false` après avoir tout chargé). Pas critique mais provoque des appels inutiles à `loadOlder()`.
 
-## Chantier 2 — Stabilité de WaouhMatchChatWindow
-
-Causes identifiées de la "perte" d'historique :
-- L'effect de chargement se re-déclenche quand `waouhIds.join(",")` change (l'identité se résout en plusieurs étapes au login), et `setMessages(data ?? [])` **écrase** la liste, y compris les `temp-*` optimistes et tout message déjà reçu par realtime.
-- `WaouhMatchChatList` démonte/remonte la fenêtre quand on bascule entre tabs : la liste repart de zéro.
-- Le scope de la requête (`web_session_id` OR `user_id`) loupe les messages où `article_id` est porté uniquement par `meta.article_id` (anciens enregistrements).
-
-Changements :
-- Cache mémoire **par `match.key`** dans `useWaouhMatchChats` (Map en ref) — la fenêtre lit depuis ce cache et y persiste ses ajouts (optimistic + realtime). Démonter/remonter ne vide plus rien.
-- Sur reload, **merge** au lieu d'écraser : dédupe par `id`, conserve les `temp-*` non encore confirmés, re-tri par `created_at`.
-- Requête article-scope : `or(article_id.eq.X, meta->>article_id.eq.X)` pour rattraper les anciens messages.
-- Garde l'effect "réinitialisation" uniquement quand `match.article_id` change réellement, pas quand `waouhIds` est juste enrichi (compare avec ref précédente).
-- Persistance locale optionnelle : snapshot des 50 derniers messages du fil dans `localStorage` clé `waouh_match_msgs_${sessionId}_${match.key}` → restauration instantanée à la prochaine ouverture en attendant le fetch.
-
-## Chantier 3 — Fiabilité messages & notifications
-
-État actuel : `waouh-channel-in` appelle WAHA puis `waouh-notify-dispatch` en fire-and-forget ; `waouh-notify-dispatch` envoie WhatsApp puis insère la notif in-app. Pas de retry, pas d'idempotence côté envoi WA, statuts seulement `delivered/queued/failed` sans relance.
-
-Changements :
-- **Outbound queue** : toute notif/message sortant passe par `waouh_outbound_queue` (déjà existant). `waouh-notify-dispatch` enregistre l'intent avec `status='pending'`, puis tente l'envoi ; si KO → `status='retry'` + `retry_after`. Edge function planifiée existante (`waouh-outbound-dispatch`) reprend les `retry`/`pending`.
-- **Idempotence WhatsApp** : clé `dedupe_key = ${kind}:${article_id}:${recipient}:${dayBucket}` déjà côté `waouh_notifications`. Étendre la même clé à l'outbound queue pour éviter les doubles envois WA si la queue retry après succès silencieux.
-- **Ack côté WAHA** : `sendImage`/`sendText` retournent un id message ; le stocker dans `waouh_outbound_queue.provider_message_id`. `waha-webhook` met à jour le statut `delivered/read` quand WA push l'event.
-- **In-app garanti** : aujourd'hui la notif in-app n'est insérée que si `notifTargetUserId` est résolu. Fallback : si non résolu mais `phone_number` connu → résoudre/créer un `waouh_users` puis insérer. Sinon insérer une notif "orpheline" scopée par `phone_number` que le front lit en plus de `user_id`.
-- **Notif d'intérêt acheteur** : `waouh-buyer-interest` doit toujours appeler `waouh-notify-dispatch` même si la 1ère insertion `waouh_interests` est un duplicate (sinon le vendeur ne reçoit rien lors d'un 2e clic légitime). Gérer le dédup uniquement au niveau notification, pas au niveau dispatch.
-- **Frontend** : `useWaouhMatchNotifications` et `WaouhNotificationsBell` s'abonnent déjà au realtime — vérifier qu'ils écoutent aussi sur `web_session_id=eq.<sid>` (utile pour les comptes anonymes) et sur `phone_number=eq.<phone>` si renseigné.
-- **Retry envoi message utilisateur** : `WaouhWebChat.send()` et `WaouhMatchChatWindow.send()` — sur timeout (>20s) ou erreur, conserver le message optimiste avec badge "⚠️ Renvoyer", bouton manuel. Pas de perte côté UI.
-- **Observabilité** : logguer dans `waouh_pipeline_events` chaque étape (`outbound_queued`, `wa_sent`, `wa_failed`, `inapp_inserted`) avec `dedupe_key` pour pouvoir diagnostiquer en SQL.
+### 6. Pas de retry/fiabilité si l'événement open est dispatché avant montage
+- Aucun buffer d'événements pending.
 
 ---
 
-## Détails techniques
+## Plan de correction
 
-**Fichiers édités :**
-- `supabase/functions/waouh-history/index.ts` — params `limit`, `before`, tri DESC + reverse.
-- `src/components/waouh/WaouhWebChat.tsx` — `loadInitial(10)`, `loadOlder()`, IO sentinelle, conservation `scrollTop`.
-- `src/components/waouh/WaouhMatchChatWindow.tsx` — pareil + cache externalisé.
-- `src/components/waouh/useWaouhMatchChats.ts` — ajoute `messagesCache: Map<string, Msg[]>` exposé via ref, helpers `getCached/setCached/append`.
-- `supabase/functions/waouh-notify-dispatch/index.ts` — passage par `waouh_outbound_queue`, dédup étendu, fallback user resolution.
-- `supabase/functions/waouh-channel-in/index.ts` — n'attend plus le notify (déjà), mais logue pipeline_event.
-- `supabase/functions/waouh-buyer-interest/index.ts` — découple insertion intérêt et dispatch.
-- `supabase/functions/waouh-outbound-dispatch/index.ts` — gère retry/backoff.
-- `supabase/functions/waha-webhook/index.ts` — update `provider_message_id` → `delivered_at/read_at`.
+### A. Clé canonique par article+rôle (fichier : `useWaouhMatchChats.ts` + `WaouhMatchChatList.tsx`)
+- Helper partagé `matchKey({article_id, role})` → toujours `art_<articleId>_<role>`.
+- `WaouhMatchChatList.renderRow` utilise cette clé pour `item.key` ET pour les opérations d'archivage.
+- `useWaouhMatchChats.onOpen` calcule la même clé canonique. Le `notification_id` est stocké dans la meta de la tab (pour mark-as-read) mais n'influe plus sur la clé.
+- **Migration douce des anciennes clés** : au boot du hook, parcourir les tabs `loadOpen()` et anciens snapshots `waouh_match_msgs_*`, renommer `n_<id>` / `msg_<art>_<role>` / `b_<art>` / `s_<art>` → `art_<art>_<role>` (en mergeant les snapshots existants par tri created_at + dédupe par id, garder le plus complet).
 
-**Pas de migration nécessaire** : les tables `waouh_outbound_queue`, `waouh_pipeline_events`, `waouh_notifications.dedupe_key` existent déjà. Ajout éventuel d'une colonne `provider_message_id` sur `waouh_outbound_queue` si absente — à vérifier au moment du build.
+### B. Buffer d'événements `waouh:open-match-chat`
+- Dans `WaouhMatchChatList.open()` : avant de dispatcher, écrire le payload dans `localStorage["waouh_pending_open"]` puis naviguer.
+- Dans `useWaouhMatchChats` (au montage) : lire `waouh_pending_open`, traiter immédiatement, puis le supprimer. Conserver aussi le listener `window.addEventListener` pour les cas où on est déjà sur l'écran.
+- Élimine le race condition `setTimeout(50)`.
 
-**Questions ouvertes :**
-1. Pour la pagination, préfères-tu 10 messages initiaux + 20 par page, ou un autre couple (ex. 15/30) ?
-2. Pour les messages échoués côté UI, garde-t-on un bouton "Renvoyer" manuel, ou un retry automatique silencieux (3 tentatives) avant d'afficher l'erreur ?
+### C. Persistance complète de l'historique (pas seulement 50 messages)
+- Augmenter `SNAPSHOT_LIMIT` à **300** (couvre largement les conversations actives).
+- Pour les très longues conversations : ajouter un compteur `loadedCount` par key. À la restauration, le snapshot reste source de vérité jusqu'à `loadedCount`, puis pagination DB prend le relais.
+- Sauvegarder le `hasMore` final dans localStorage (`waouh_match_hasmore_${sid}_${key}`) pour ne pas re-trigger un fetch initial alors qu'on sait qu'on a tout.
+
+### D. Stabilité du remount de `WaouhMatchChatWindow`
+- Dans l'effet initial : ne PAS écraser `hasMore` si on a déjà des messages cachés ET un `hasMore=false` persisté.
+- Garder la logique merge actuelle (déjà OK).
+- Bonus : si `getCached(match.key)` retourne ≥ 10 messages, ne pas re-fetcher le PAGE_INITIAL au montage — laisser le realtime gérer les nouveaux messages. Refetch seulement après un délai (>30s) depuis la dernière activité connue.
+
+### E. Tab list stable entre sessions anonymes/auth
+- Si `authUserId` existe : utiliser une clé `waouh_open_matches_user_<authUserId>` en plus de la clé session. Au login, **migrer** les tabs de la session anonyme vers la clé user (merge + dédupe par clé canonique).
+
+### F. Mark-as-read découplé de la clé
+- Stocker `notification_ids: string[]` (tableau) sur chaque tab pour pouvoir marquer plusieurs notifications du même article comme lues quand on ouvre la tab unique.
+
+---
+
+## Fichiers modifiés
+
+- `src/components/waouh/useWaouhMatchChats.ts` — clé canonique, buffer pending, migration snapshots, SNAPSHOT_LIMIT=300, persistance hasMore, support multi-notification.
+- `src/components/waouh/WaouhMatchChatList.tsx` — clé canonique (`art_<id>_<role>`) au lieu de `n_<id>` / `msg_<id>_<role>`, écrit `waouh_pending_open` avant `navigate`.
+- `src/components/waouh/WaouhMatchChatWindow.tsx` — saute le fetch initial si cache suffisant, respecte hasMore persisté, support `notification_ids[]` pour markRead.
+- `src/components/waouh/WaouhMatchChatWindow.tsx` — type `MatchChatMeta` : ajout `notification_ids?: string[]`.
+
+## Pas de migration DB nécessaire.
+
+---
+
+## Question
+
+Veux-tu aussi que je purge les anciennes clés snapshot (`n_*`, `msg_*`, `b_*`, `s_*`) après migration, ou les conserver "au cas où" pendant 30 jours ?
