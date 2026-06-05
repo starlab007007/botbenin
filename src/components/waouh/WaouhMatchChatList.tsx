@@ -4,6 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { ShoppingBag, Target, Archive, ArchiveRestore, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { formatMatchLabel } from "@/app-mobile/utils/chatLabel";
+import { matchKey } from "./useWaouhMatchChats";
+
+const PENDING_OPEN_KEY = "waouh_pending_open";
+
 
 type MatchItem = {
   key: string; // notification.id (or msg_<articleId>_<role> for message-only fallback)
