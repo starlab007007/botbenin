@@ -66,7 +66,17 @@ export type WaouhWebChatHandle = { triggerQuickAction: (a: QuickAction) => void;
 
 export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean; fullscreen?: boolean; variant?: "web" | "native"; composerTopSlot?: React.ReactNode }>(({ embedded = false, fullscreen = false, variant = "web", composerTopSlot }, externalRef) => {
   const [open, setOpen] = useState(embedded || fullscreen);
-  const [messages, setMessages] = useState<Msg[]>([]);
+  const sessionId = useRef(getSessionId()).current;
+  // Cache-first hydration: load last snapshot synchronously so the chat
+  // renders fully on first paint, before any network call.
+  const MAIN_SNAPSHOT_KEY = `waouh_main_msgs_${sessionId}`;
+  const readMainSnapshot = (): Msg[] => {
+    try {
+      const raw = localStorage.getItem(MAIN_SNAPSHOT_KEY);
+      return raw ? (JSON.parse(raw) as Msg[]) : [];
+    } catch { return []; }
+  };
+  const [messages, setMessages] = useState<Msg[]>(() => readMainSnapshot());
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [pendingAtts, setPendingAtts] = useState<Att[]>([]);
@@ -74,7 +84,6 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   const [authOpen, setAuthOpen] = useState(false);
   const [sellOpen, setSellOpen] = useState(false);
   const [focusMsgId, setFocusMsgId] = useState<string | null>(null);
-  const sessionId = useRef(getSessionId()).current;
   const scrollRef = useRef<HTMLDivElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
@@ -93,6 +102,21 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   const [hasMore, setHasMore] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const topSentinelRef = useRef<HTMLDivElement>(null);
+
+  // Throttled snapshot persistence — keep last 300 messages.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem(
+          MAIN_SNAPSHOT_KEY,
+          JSON.stringify(messages.slice(-300))
+        );
+      } catch {}
+    }, 300);
+    return () => clearTimeout(t);
+  }, [messages, MAIN_SNAPSHOT_KEY]);
+
+
 
   // Merge helper: dedupe by id, preserve optimistic temp-* until persisted, re-sort ASC.
   const mergeMessages = (prev: Msg[], incoming: Msg[]): Msg[] => {

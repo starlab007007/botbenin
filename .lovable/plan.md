@@ -1,31 +1,64 @@
-## Diagnostic confirmé
+# Objectif
 
-Les messages "Oui" envoyés par l'utilisateur sont bien sauvegardés en base (`meta->>article_id` contient l'ID de l'article), mais **la colonne `article_id` n'existe pas** sur la table `waouh_messages`. Conséquences :
+Ouvrir toutes les fenêtres de chat (WAOUH principal + fenêtres `WaouhMatchChatWindow`) en quasi-instantané (<100 ms perçues), sans changer le fonctionnement ni la persistance.
 
-1. La requête de rechargement dans `WaouhMatchChatWindow.fetchArticlePage` utilise :
-   ```
-   .or(`article_id.eq.<id>,meta->>article_id.eq.<id>`)
-   ```
-   La référence à la colonne inexistante `article_id` fait échouer (ou ignorer) la clause `.or()` selon le pilote → au remount, **aucun message n'est rechargé** depuis la DB. Seul l'état optimiste en mémoire reste visible, et il disparaît dès qu'on ferme/rouvre l'onglet.
-2. Les inserts dans `waouh-channel-in` envoient un champ `article_id` qui est silencieusement perdu (donc seul `meta.article_id` est réellement stocké), ce qui rend le filtrage par colonne impossible.
-3. Les réponses automatiques visibles dans la capture ("Désolé, je n'ai pas compris") sont des bulles **out** déjà historisées différemment ou rejouées par la logique — c'est pourquoi seules les sorties semblent persister.
+# Diagnostic actuel
 
-## Correction
+À chaque ouverture, on attend des requêtes réseau **avant** d'afficher quoi que ce soit :
 
-### 1. Migration SQL — ajouter la colonne et backfill
-- Ajouter `article_id uuid NULL` sur `public.waouh_messages`.
-- Créer un index `idx_waouh_messages_article_id` (filtré `WHERE article_id IS NOT NULL`).
-- Backfill : `UPDATE waouh_messages SET article_id = (meta->>'article_id')::uuid WHERE article_id IS NULL AND meta ? 'article_id'`.
-- Conserver `meta.article_id` pour rétro-compatibilité.
+1. `WaouhMatchChatWindow` (lignes 139-211) : 1 requête `waouh_messages` + 1 requête `waouh_articles` + 1 requête `waouh_notifications` — bloquantes même quand un snapshot localStorage existe déjà.
+2. `WaouhWebChat` (lignes 196-264) : ne montre rien tant que `waouh_users` puis `waouh-history` n'ont pas répondu, alors qu'il pourrait hydrater depuis un snapshot local.
+3. Pas de pré-rendu : les onglets inactifs sont déjà montés (bien), mais le 1er affichage attend toujours le réseau.
+4. `WaouhChatScreen` recharge le bundle complet (`WaouhMatchChatWindow`, `WaouhUnifiedInbox`, etc.) en un seul chunk — pas de pré-chargement quand on est sur `/app/chat`.
 
-### 2. Aucune modification frontend nécessaire
-- `WaouhMatchChatWindow` utilise déjà `or(article_id.eq.X, meta->>article_id.eq.X)` : la requête fonctionnera dès que la colonne existera.
-- `WaouhMatchChatList` lit déjà `meta->>article_id`.
-- L'edge `waouh-channel-in` envoie déjà `article_id` dans l'insert et dans `meta` : la colonne sera correctement renseignée sans changement de code.
+# Plan
 
-### 3. Vérification
-- Confirmer côté DB que les nouveaux messages `in` (utilisateur) ont bien la colonne `article_id` remplie.
-- Tester : ouvrir un match, envoyer "Oui", attendre la réponse, fermer l'onglet, rouvrir → "Oui" et la réponse doivent persister.
-- Vérifier que l'historique ancien (messages où seul `meta.article_id` existait) reste accessible grâce au backfill et au fallback `meta->>article_id`.
+## 1. Affichage cache-first (instantané)
 
-Aucun changement de code applicatif n'est requis ; une seule migration résout le problème pour toutes les fenêtres de `WaouhMatchChatList`/`WaouhMatchChatWindow`.
+**`WaouhMatchChatWindow.tsx`**
+- Au mount, afficher immédiatement `getCached(match.key)` (déjà fait) **et** rendre la zone messages dès le 1er paint, sans attendre `fetchArticlePage`.
+- Déplacer les 3 requêtes initiales dans un `setTimeout(..., 0)` / `requestIdleCallback` pour ne pas bloquer le 1er paint.
+- Si le cache contient ≥ 1 message, ne pas afficher de skeleton ; juste rafraîchir en arrière-plan et merger.
+- Mettre en cache `articleStatus` et `seedNotif` dans `localStorage` (clés `waouh_match_status_*` et `waouh_match_seed_*`) et hydrater synchronement au mount.
+
+**`WaouhWebChat.tsx`**
+- Ajouter un snapshot localStorage des derniers messages WAOUH principal (`waouh_main_msgs_<sid>`), hydraté synchronement dans le `useState` initial.
+- Démarrer le rendu sans attendre `waouh_users` ni `waouh-history` ; lancer ces requêtes en arrière-plan et merger à l'arrivée.
+- Persister chaque mise à jour de `messages` (throttlée) dans le snapshot.
+
+## 2. Préchauffage des requêtes (warm-up)
+
+**`useWaouhMatchChats.ts`**
+- Quand un onglet match s'ouvre (`openMatchFromDetail`), déclencher en arrière-plan le `fetchArticlePage` et stocker le résultat dans le cache **avant** que l'utilisateur clique sur l'onglet → ouverture instantanée.
+- Idem pour `waouh_articles.status`.
+
+## 3. Code-splitting & préchargement de route
+
+**`AppMobile.tsx` / routing**
+- Vérifier que `WaouhChatScreen` est en `lazy()` (sinon le faire).
+- Sur la route précédente `/app/chat`, ajouter un `<link rel="prefetch">` ou un import dynamique pré-chauffé (`import('./screens/WaouhChatScreen')`) au hover/mount du bouton "Nouveau chat WAOUH" pour que le chunk soit déjà en cache au clic.
+
+## 4. Suppression des coûts de 1er paint
+
+- `WaouhMatchChatWindow` : retirer le `setTimeout(focus, 50)` du chemin critique (déjà différé), mais s'assurer que l'`IntersectionObserver` n'est créé qu'après le 1er paint (`useEffect` est déjà OK — vérifier qu'il ne s'exécute pas avant `messages` du cache).
+- Éviter le re-render initial inutile en supprimant la double mise à jour `setMessagesState` + `setCached` synchrone (déjà inline, OK).
+
+## 5. Vérification
+
+- Mesurer le temps "click → 1er message visible" via `performance.mark` en dev (logs `console.time("waouh-open")`).
+- Tester : (a) ouvrir un chat déjà visité = instantané (0 spinner), (b) ouvrir un nouveau chat = squelette puis remplissage <300 ms, (c) WAOUH principal = même comportement.
+- Confirmer que la persistance d'historique reste intacte (test : envoyer "oui", fermer, rouvrir).
+
+# Détails techniques
+
+- Tailles snapshot : conserver la limite actuelle (300 messages).
+- `requestIdleCallback` avec fallback `setTimeout(0)` pour Safari iOS.
+- Pas de changement de schéma DB, pas de changement aux edge functions.
+- Pas de changement du protocole realtime — uniquement le chemin d'affichage initial.
+
+# Fichiers modifiés
+
+- `src/components/waouh/WaouhMatchChatWindow.tsx`
+- `src/components/waouh/WaouhWebChat.tsx`
+- `src/components/waouh/useWaouhMatchChats.ts` (warm-up)
+- `src/AppMobile.tsx` ou fichier de routes (lazy/prefetch si manquant)
