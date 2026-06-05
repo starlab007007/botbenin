@@ -164,6 +164,21 @@ Deno.serve(async (req) => {
         dropoff_address: (buyer as any)?.city ?? null,
       }).select("id").maybeSingle();
 
+      // 🛑 Marquer l'article comme vendu pour bloquer toute nouvelle négociation
+      // (couvre les 3 parcours : C2C, partenaire, radar IA).
+      try {
+        await sb.from("waouh_articles").update({ status: "sold" }).eq("id", neg.article_id);
+      } catch (e) { console.warn("[neg-router] mark sold failed", e); }
+
+      // 💼 Attribution automatique de la commission partenaire si transaction liée
+      if (neg.transaction_id) {
+        fetch(`${SUPABASE_URL}/functions/v1/waouh-partner-attribute-sale`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ transaction_id: neg.transaction_id }),
+        }).catch((e) => console.warn("[neg-router] partner-attribute-sale failed", e));
+      }
+
       // Wording neutre, sans aucun numéro
       const buildSynthese = (heading: string) =>
         `${waouhHeader(heading)}\n\n` +
