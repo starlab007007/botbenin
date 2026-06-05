@@ -90,7 +90,14 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'no item resolved' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    const { data: profiles } = await supabase.from('waouh_buyer_profiles').select('*').eq('is_active', true);
+    // Cap the scan to avoid full-table scans as buyer_profiles grows.
+    // 2000 active profiles per item is a generous ceiling for now.
+    const { data: profiles } = await supabase
+      .from('waouh_buyer_profiles')
+      .select('*')
+      .eq('is_active', true)
+      .order('updated_at', { ascending: false })
+      .limit(2000);
     const matched: string[] = [];
     const dispatchedRecipients = new Set<string>();
 
