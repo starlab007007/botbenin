@@ -10,8 +10,9 @@ const PENDING_OPEN_KEY = "waouh_pending_open";
 
 
 type MatchItem = {
-  key: string; // notification.id (or msg_<articleId>_<role> for message-only fallback)
-  notification_id: string | null;
+  key: string; // canonical: art_<articleId>_<role>
+  notification_id: string | null; // most-recent notification (for legacy display/markRead)
+  notification_ids: string[]; // all notifications merged into this canonical row
   seed_text: string | null;
   article_id: string;
   buyer_profile_id: string | null;
@@ -24,6 +25,7 @@ type MatchItem = {
   unread: boolean;
   last_at: string;
 };
+
 
 const VISIBLE_DEFAULT = 3;
 const AUTO_ARCHIVE_DAYS = 7;
