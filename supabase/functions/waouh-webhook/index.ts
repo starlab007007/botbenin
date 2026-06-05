@@ -636,6 +636,45 @@ serve(async (req) => {
         radarSellers = rs || [];
       } catch (e) { console.warn("[radar SELL search]", e); }
 
+      // 🛰️ SerpAPI / annonces externes (waouh_external_listings) — non promues encore.
+      // Normalisées au même schéma que radarSellers pour la suite du pipeline.
+      let externalListings: any[] = [];
+      try {
+        let eq = sb.from("waouh_external_listings")
+          .select("id,title,description,category,price,city,seller_phone,seller_name,image_url,source_url,promoted_article_id")
+          .eq("status", "active")
+          .is("promoted_article_id", null);
+        if (criteriaCategory && criteriaCategory !== "autre") {
+          eq = eq.or(`category.ilike.%${criteriaCategory}%,title.ilike.%${criteriaCategory}%`);
+        }
+        if (criteria.price_max) eq = eq.lte("price", criteria.price_max);
+        if (kws.length > 0) {
+          const orFilter = kws.map((k) => `title.ilike.%${k}%,description.ilike.%${k}%`).join(",");
+          eq = eq.or(orFilter);
+        }
+        const { data: el } = await eq.order("scraped_at", { ascending: false }).limit(8);
+        // Normalise vers la forme « radar signal » attendue par le reste du flow
+        externalListings = (el || []).map((e: any) => ({
+          id: `ext:${e.id}`,
+          external_listing_id: e.id,
+          product: { title: e.title, name: e.title, price: e.price },
+          category: e.category,
+          price: e.price,
+          city: e.city,
+          contact_phone: e.seller_phone,
+          contact_handle: e.seller_name,
+          raw_url: e.source_url,
+          raw_text: e.description || e.title,
+          image_url: e.image_url,
+          _from_external: true,
+        }));
+      } catch (e) { console.warn("[external listings search]", e); }
+
+      // Fusionne — radarSellers garde priorité chronologique
+      radarSellers = [...radarSellers, ...externalListings].slice(0, 8);
+
+
+
       await sb.from("waouh_buyer_profiles").insert({
         user_id: user!.id, query_text: text,
         category: criteriaCategory, keywords: kws,
