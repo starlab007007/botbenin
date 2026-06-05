@@ -193,10 +193,12 @@ export function WaouhMatchChatList({
             const artById = new Map<string, any>((arts ?? []).map((a: any) => [a.id, a]));
             for (const [articleId, info] of seenArt.entries()) {
               const art = artById.get(articleId);
-              const stubKey = `msg_${articleId}_${info.role}`;
+              const stubKey = matchKey(articleId, info.role);
               map.set(stubKey, {
                 key: stubKey,
                 notification_id: null,
+                notification_ids: [],
+
                 seed_text: null,
                 article_id: articleId,
                 buyer_profile_id: null,
