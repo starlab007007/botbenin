@@ -262,7 +262,22 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     const suffix = Math.random().toString(36).slice(2, 8);
     const onInsert = (payload: any) => {
       const m = payload.new as any;
-      setMessages((prev) => (prev.find((x) => x.id === m.id) ? prev : [...prev, m]));
+      setMessages((prev) => {
+        if (prev.find((x) => x.id === m.id)) return prev;
+        // Remplace l'éventuel optimiste temp-* (même direction/texte, < 30 s)
+        const incomingTs = new Date(m.created_at).getTime();
+        const filtered = prev.filter((p) => {
+          if (!p.id.startsWith("temp-")) return true;
+          if (p.direction !== m.direction) return true;
+          const sameText = (p.text || "") === (m.text || "");
+          const pImg = Array.isArray(p.attachments) ? p.attachments[0]?.url : null;
+          const mImg = Array.isArray(m.attachments) ? m.attachments[0]?.url : null;
+          const sameImg = !!pImg && pImg === mImg;
+          const close = Math.abs(new Date(p.created_at).getTime() - incomingTs) < 30000;
+          return !(close && (sameText || sameImg));
+        });
+        return [...filtered, m];
+      });
     };
     const channels: any[] = [];
     channels.push(
