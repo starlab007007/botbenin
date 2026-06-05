@@ -143,6 +143,62 @@ async function promoteRadarSeller(sb: any, sig: any, fallbackCategory = "autre")
   return art;
 }
 
+/**
+ * Promeut une annonce SerpAPI (`waouh_external_listings`) en `waouh_articles`,
+ * en créant un stub vendeur si besoin. Idempotent via `promoted_article_id`.
+ */
+async function promoteExternalListing(sb: any, ext: any, fallbackCategory = "autre") {
+  if (!ext?.external_listing_id) return null;
+  // Source-of-truth ré-lue pour idempotence concurrente
+  const { data: row } = await sb.from("waouh_external_listings")
+    .select("id,title,description,category,price,city,seller_phone,seller_name,image_url,source_url,promoted_article_id,seller_user_id")
+    .eq("id", ext.external_listing_id).maybeSingle();
+  if (!row) return null;
+  if (row.promoted_article_id) {
+    const { data: art } = await sb.from("waouh_articles")
+      .select("id,title,price,seller_id,photos,market_price_min,market_price_max")
+      .eq("id", row.promoted_article_id).maybeSingle();
+    if (art) return art;
+  }
+  const phone = normalizeBeninPhone(row.seller_phone);
+  let sellerId: string | null = row.seller_user_id || null;
+  if (!sellerId && phone) {
+    const { data: existing } = await sb.from("waouh_users").select("id").eq("phone_number", phone).maybeSingle();
+    sellerId = existing?.id ?? null;
+  }
+  if (!sellerId) {
+    const { data: created } = await sb.from("waouh_users").insert({
+      phone_number: phone,
+      display_name: row.seller_name || "Vendeur SerpAPI",
+      channel: "whatsapp",
+      city: row.city,
+    }).select("id").single();
+    sellerId = created?.id ?? null;
+  }
+  if (!sellerId) return null;
+  const photos = [row.image_url].filter((u: any) => typeof u === "string" && /^https?:\/\//i.test(u));
+  const { data: art, error } = await sb.from("waouh_articles").insert({
+    seller_id: sellerId,
+    title: row.title || "Annonce SerpAPI",
+    description: row.description,
+    category: normalizeCategory(row.category || fallbackCategory),
+    price: Number(row.price || 0),
+    currency: "XOF",
+    city: row.city,
+    photos,
+    status: "active",
+    origin: "radar",
+    source_channel: "radar_ia",
+    contact_whatsapp: phone,
+  }).select("id,title,price,seller_id,photos,market_price_min,market_price_max").single();
+  if (error) { console.warn("[promote external]", error); return null; }
+  await sb.from("waouh_external_listings").update({
+    promoted_article_id: art.id,
+    seller_user_id: sellerId,
+    status: "promoted",
+  }).eq("id", row.id);
+  return art;
+
 async function ai(system: string, user: string, json = true) {
   const res = await fetch(AI_URL, {
     method: "POST",
