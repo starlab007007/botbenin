@@ -6096,6 +6096,7 @@ export type Database = {
       }
       waouh_messages: {
         Row: {
+          article_id: string | null
           attachments: Json | null
           channel: string
           conversation_id: string | null
@@ -6109,6 +6110,7 @@ export type Database = {
           web_session_id: string | null
         }
         Insert: {
+          article_id?: string | null
           attachments?: Json | null
           channel?: string
           conversation_id?: string | null
@@ -6122,6 +6124,7 @@ export type Database = {
           web_session_id?: string | null
         }
         Update: {
+          article_id?: string | null
           attachments?: Json | null
           channel?: string
           conversation_id?: string | null
