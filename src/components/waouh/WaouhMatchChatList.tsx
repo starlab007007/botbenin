@@ -130,23 +130,30 @@ export function WaouhMatchChatList({
             (Array.isArray(n.payload?.photos) && n.payload.photos[0]) ||
             n.payload?.image_url ||
             null;
-          map.set(n.id, {
-            key: n.id,
-            notification_id: n.id,
-            seed_text: n.payload?.text ?? null,
+          const ck = matchKey(articleId, role);
+          const prev = map.get(ck);
+          // Most-recent notification wins for display; accumulate notif ids.
+          const isNewer = !prev || new Date(n.sent_at) > new Date(prev.last_at);
+          const accIds = new Set<string>([...(prev?.notification_ids || []), n.id]);
+          map.set(ck, {
+            key: ck,
+            notification_id: isNewer ? n.id : prev!.notification_id,
+            notification_ids: Array.from(accIds),
+            seed_text: isNewer ? (n.payload?.text ?? null) : prev!.seed_text,
             article_id: articleId,
-            buyer_profile_id: n.payload?.buyer_profile_id ?? null,
-            counterpart_user_id: n.payload?.counterpart_user_id ?? n.payload?.buyer_user_id ?? null,
+            buyer_profile_id: isNewer ? (n.payload?.buyer_profile_id ?? null) : prev!.buyer_profile_id,
+            counterpart_user_id: isNewer ? (n.payload?.counterpart_user_id ?? n.payload?.buyer_user_id ?? null) : prev!.counterpart_user_id,
             role,
-            title: n.payload?.title || "Annonce",
-            price: n.payload?.price ?? null,
-            city: n.payload?.city ?? null,
-            photo,
-            unread: !n.opened,
-            last_at: n.sent_at,
+            title: isNewer ? (n.payload?.title || "Annonce") : prev!.title,
+            price: isNewer ? (n.payload?.price ?? null) : prev!.price,
+            city: isNewer ? (n.payload?.city ?? null) : prev!.city,
+            photo: isNewer ? photo : prev!.photo,
+            unread: (prev?.unread ?? false) || !n.opened,
+            last_at: isNewer ? n.sent_at : prev!.last_at,
           });
         }
       }
+
 
       // 2) Fallback: recent article-scoped messages (last 48h) — only create stubs
       // for articles that have NO notification row at all (keeps notifications dominant).
