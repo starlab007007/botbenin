@@ -198,6 +198,9 @@ async function promoteExternalListing(sb: any, ext: any, fallbackCategory = "aut
     status: "promoted",
   }).eq("id", row.id);
   return art;
+}
+
+
 
 async function ai(system: string, user: string, json = true) {
   const res = await fetch(AI_URL, {
