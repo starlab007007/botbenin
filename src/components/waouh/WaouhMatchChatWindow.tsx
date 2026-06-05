@@ -89,12 +89,35 @@ export function WaouhMatchChatWindow({
   getHasMore?: (key: string) => boolean;
   setHasMoreCached?: (key: string, v: boolean) => void;
 }) {
+  // Synchronous hydration of meta (status + seed) from localStorage so the first
+  // paint shows the full bubble immediately — no spinner, no layout shift.
+  const STATUS_KEY = `waouh_match_status_${match.key}`;
+  const SEED_KEY = `waouh_match_seed_${match.key}`;
+  const readStatus = (): string | null => {
+    try { return localStorage.getItem(STATUS_KEY); } catch { return null; }
+  };
+  const readSeed = (): SeedNotif | null => {
+    try {
+      const raw = localStorage.getItem(SEED_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
+  };
+
   // Bootstrap from cache so closing/reopening or switching tabs keeps history.
   const [messages, setMessagesState] = useState<Msg[]>(() => getCached?.(match.key) ?? []);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [seedNotif, setSeedNotif] = useState<SeedNotif | null>(null);
-  const [articleStatus, setArticleStatus] = useState<string | null>(null);
+  const [seedNotif, setSeedNotif] = useState<SeedNotif | null>(() => {
+    if (match.seed_text) {
+      return {
+        sent_at: new Date().toISOString(),
+        notification_type: match.kind === "seller" ? "new_buyer" : "match_buyer",
+        text: match.seed_text,
+      };
+    }
+    return readSeed();
+  });
+  const [articleStatus, setArticleStatus] = useState<string | null>(() => readStatus());
   const [hasMore, setHasMoreState] = useState<boolean>(() => getHasMore?.(match.key) ?? true);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -115,6 +138,7 @@ export function WaouhMatchChatWindow({
   };
 
   const closed = useMemo(
+
     () => !!match.closed || (articleStatus ? CLOSED_STATUSES.has(articleStatus.toLowerCase()) : false),
     [match.closed, articleStatus]
   );
@@ -133,12 +157,12 @@ export function WaouhMatchChatWindow({
     return ((data ?? []) as Msg[]).slice().reverse();
   };
 
-  // Load initial 10 + seed notification + article status. Merge, never overwrite.
-  // Skip the messages refetch if we already have >= PAGE_INITIAL cached messages
-  // recent enough that realtime will keep them fresh.
+  // Defer initial fetches off the critical paint path. Cache-first: if a
+  // snapshot already exists we render it immediately and silently refresh
+  // in the background — no spinner, no wait.
   useEffect(() => {
     let alive = true;
-    (async () => {
+    const run = async () => {
       if (!match.article_id) return;
 
       const hasInlineSeed = !!match.seed_text;
@@ -184,31 +208,45 @@ export function WaouhMatchChatWindow({
       if (!alive) return;
       if (!skipMsgFetch) {
         setMessages((prev) => mergeMsgs(prev, pageMsgs));
-        // Don't downgrade a persisted hasMore=false to true on a partial fetch.
         if (pageMsgs.length === PAGE_INITIAL) setHasMore(true);
         else if (cachedHasMore !== false) setHasMore(false);
       }
-      setArticleStatus((artRes?.data as any)?.status ?? null);
+      const newStatus = (artRes?.data as any)?.status ?? null;
+      setArticleStatus(newStatus);
+      try {
+        if (newStatus) localStorage.setItem(STATUS_KEY, newStatus);
+      } catch {}
       if (!hasInlineSeed) {
         const raw = notifRes?.data;
         const n = Array.isArray(raw) ? raw[0] : raw;
         if (n) {
-          setSeedNotif({
+          const seed = {
             sent_at: n.sent_at,
             notification_type: n.notification_type,
             text: (n.payload as any)?.text ?? null,
-          });
-        } else {
+          };
+          setSeedNotif(seed);
+          try { localStorage.setItem(SEED_KEY, JSON.stringify(seed)); } catch {}
+        } else if (!readSeed()) {
           setSeedNotif(null);
         }
       }
-    })();
+    };
+
+    // Yield to the browser so the first paint shows cached content instantly.
+    const ric: any = (typeof window !== "undefined" && (window as any).requestIdleCallback) || null;
+    const handle = ric
+      ? ric(() => { void run(); }, { timeout: 200 })
+      : setTimeout(() => { void run(); }, 0);
+
     return () => {
       alive = false;
+      if (ric && (window as any).cancelIdleCallback) (window as any).cancelIdleCallback(handle);
+      else clearTimeout(handle as any);
     };
-    // Reload only when the article identity changes, NOT when waouhIds is enriched.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [match.article_id, match.notification_id, match.seed_text]);
+
 
 
   // Load older messages on top-scroll
