@@ -291,39 +291,59 @@ export function WaouhMatchChatList({
   if (items.length === 0) return null;
 
   const open = async (item: MatchItem) => {
-    // Mark THIS notification as read (by id)
-    try {
-      if (item.notification_id) {
+    // Mark all related notifications for this canonical match as read
+    const allNotifIds = Array.from(
+      new Set<string>([
+        ...(item.notification_ids || []),
+        ...(item.notification_id ? [item.notification_id] : []),
+      ])
+    );
+    if (allNotifIds.length) {
+      try {
         await supabase
           .from("waouh_notifications" as any)
           .update({ opened: true })
-          .eq("id", item.notification_id);
-      }
+          .in("id", allNotifIds);
+      } catch {}
+    }
+
+    const detail = {
+      notification_id: item.notification_id,
+      notification_ids: allNotifIds,
+      seed_text: item.seed_text,
+      article_id: item.article_id,
+      buyer_profile_id: item.buyer_profile_id,
+      counterpart_user_id: item.counterpart_user_id,
+      kind: item.role,
+      title: item.title,
+      price: item.price,
+      city: item.city,
+      photo: item.photo,
+    };
+
+    // Buffer the open intent in localStorage so the target screen picks it up
+    // at mount-time even if it isn't mounted yet (no race with navigate).
+    try {
+      const raw = localStorage.getItem(PENDING_OPEN_KEY);
+      const arr = raw ? (JSON.parse(raw) as any[]) : [];
+      const canonical = matchKey(item.article_id, item.role);
+      const filtered = arr.filter(
+        (d: any) => matchKey(d?.article_id, d?.kind === "seller" ? "seller" : "buyer") !== canonical
+      );
+      filtered.push(detail);
+      localStorage.setItem(PENDING_OPEN_KEY, JSON.stringify(filtered.slice(-10)));
     } catch {}
 
     navigate("/app/chat/waouh");
+    // Also dispatch for the case where the screen is already mounted.
     setTimeout(() => {
-      window.dispatchEvent(
-        new CustomEvent("waouh:open-match-chat", {
-          detail: {
-            notification_id: item.notification_id,
-            seed_text: item.seed_text,
-            article_id: item.article_id,
-            buyer_profile_id: item.buyer_profile_id,
-            counterpart_user_id: item.counterpart_user_id,
-            kind: item.role,
-            title: item.title,
-            price: item.price,
-            city: item.city,
-            photo: item.photo,
-          },
-        })
-      );
+      window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));
     }, 50);
 
     // Locally mark read
     setItems((prev) => prev.map((p) => (p.key === item.key ? { ...p, unread: false } : p)));
   };
+
 
   const archive = (key: string, e: React.MouseEvent) => {
     e.stopPropagation();
