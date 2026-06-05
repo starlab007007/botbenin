@@ -408,18 +408,22 @@ export function WaouhMatchChatWindow({
       );
       const { data } = (await Promise.race([invokeP, timeoutP])) as any;
       const realId = (data as any)?.inbound_message_id;
+      const outboundId = (data as any)?.outbound_message_id;
       setMessages((prev) => {
         const f = prev.filter((m) => m.id !== tempId);
         if (realId && !f.some((m) => m.id === realId)) {
           f.push({ id: realId, direction: "in", text, created_at: now });
         }
         if ((data as any)?.reply) {
-          f.push({
-            id: `temp-out-${Date.now()}`,
-            direction: "out",
-            text: (data as any).reply,
-            created_at: new Date().toISOString(),
-          });
+          const replyId = outboundId || `temp-out-${Date.now()}`;
+          if (!f.some((m) => m.id === replyId)) {
+            f.push({
+              id: replyId,
+              direction: "out",
+              text: (data as any).reply,
+              created_at: new Date().toISOString(),
+            });
+          }
         }
         return f;
       });

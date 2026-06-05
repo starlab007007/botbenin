@@ -1,74 +1,41 @@
-# Stabilisation des fenêtres de chat WAOUH (WaouhMatchChatList → WaouhMatchChatWindow)
+## Objectif
+Corriger la disparition des messages dans toutes les fenêtres produit ouvertes depuis `WaouhMatchChatList`, afin qu’après fermeture/réouverture de la fenêtre ou retour sur l’écran WAOUH, l’utilisateur retrouve toujours l’historique complet lié à l’article.
 
-## Causes racines identifiées
-
-### 1. Tabs ouvertes peuvent être perdues lors de la navigation
-- `WaouhMatchChatList.open()` appelle `navigate("/app/chat/waouh")` puis dispatche `waouh:open-match-chat` après un `setTimeout(50)`.
-- Le listener est enregistré dans `useWaouhMatchChats` (dans `WaouhChatScreen`). Si la transition route est plus lente que 50ms (montage React, lazy-load, etc.), **l'événement est perdu** → la fenêtre ne s'ouvre jamais ou s'ouvre vide.
-
-### 2. Clés instables : même article = plusieurs tabs avec historiques différents
-- Quand la liste a un `notification_id` → key = `n_<notifId>`.
-- Quand elle a un fallback message → key = `msg_<articleId>_<role>`.
-- Quand le hook `useWaouhMatchChats` crée la tab → key = `n_<notifId>` ou `${role[0]}_${articleId}`.
-- **3 préfixes différents pour le même article** (`n_`, `msg_`, `b_`/`s_`). Chaque clé a son propre snapshot localStorage → l'historique semble disparaître quand on rouvre depuis un autre point d'entrée.
-
-### 3. Snapshot localStorage tronqué à 50 messages
-- `setCached` écrit `msgs.slice(-SNAPSHOT_LIMIT=50)` dans localStorage.
-- Après remount de `WaouhChatScreen` (sortie/retour de l'écran), le cache mémoire est vide → on relit uniquement les 50 derniers. Si l'utilisateur avait scrollé pour charger 200 messages plus anciens, ils disparaissent.
-
-### 4. Cache mémoire perdu au remount du hook
-- `msgCacheRef` (Map) est défini dans `useWaouhMatchChats`. Démontage de `WaouhChatScreen` → Map perdue. Le fallback localStorage est tronqué (cf. #3).
-
-### 5. Effet de rechargement écrase `hasMore`
-- Le `useEffect` initial appelle `setHasMore(pageMsgs.length === PAGE_INITIAL)` à chaque remount, écrasant le `hasMore` mémorisé (qui pouvait être `false` après avoir tout chargé). Pas critique mais provoque des appels inutiles à `loadOlder()`.
-
-### 6. Pas de retry/fiabilité si l'événement open est dispatché avant montage
-- Aucun buffer d'événements pending.
-
----
+## Diagnostic principal
+- La fenêtre affiche d’abord le cache local, puis recharge depuis `waouh_messages` par `article_id`.
+- À l’envoi depuis `WaouhMatchChatWindow`, les messages sont sauvegardés uniquement dans `meta.article_id`, pas dans la colonne `article_id`.
+- La liste `WaouhMatchChatList` cherche les messages récents avec `.not("article_id", "is", null)`, donc elle peut ne pas retrouver une conversation si les messages sont seulement dans `meta.article_id`.
+- Les réponses IA temporaires utilisent des IDs `temp-out-*`; si la fenêtre est fermée avant que le realtime/DB remplace ou confirme ces messages, elles peuvent rester uniquement en cache local ou disparaître selon la clé/session.
+- Quand on ferme un onglet, il est retiré de `waouh_open_matches_*`; à la réouverture, la reconstruction dépend trop de notifications/fallbacks DB, donc elle n’est pas assez robuste.
 
 ## Plan de correction
 
-### A. Clé canonique par article+rôle (fichier : `useWaouhMatchChats.ts` + `WaouhMatchChatList.tsx`)
-- Helper partagé `matchKey({article_id, role})` → toujours `art_<articleId>_<role>`.
-- `WaouhMatchChatList.renderRow` utilise cette clé pour `item.key` ET pour les opérations d'archivage.
-- `useWaouhMatchChats.onOpen` calcule la même clé canonique. Le `notification_id` est stocké dans la meta de la tab (pour mark-as-read) mais n'influe plus sur la clé.
-- **Migration douce des anciennes clés** : au boot du hook, parcourir les tabs `loadOpen()` et anciens snapshots `waouh_match_msgs_*`, renommer `n_<id>` / `msg_<art>_<role>` / `b_<art>` / `s_<art>` → `art_<art>_<role>` (en mergeant les snapshots existants par tri created_at + dédupe par id, garder le plus complet).
+### 1. Sauvegarder les messages produit avec `article_id` réel
+Dans `supabase/functions/waouh-channel-in/index.ts` :
+- Lors de l’insert du message entrant, renseigner aussi la colonne `article_id` avec `clientMeta.article_id` quand elle existe.
+- Lors de l’insert de la réponse sortante, conserver `article_id` depuis `clientMeta.article_id` si le moteur core ne renvoie pas `core.article_id`.
+- Retourner aussi l’identifiant de la réponse sortante (`outbound_message_id`) dans la réponse de l’edge function, pour remplacer les bulles temporaires par des lignes persistées.
 
-### B. Buffer d'événements `waouh:open-match-chat`
-- Dans `WaouhMatchChatList.open()` : avant de dispatcher, écrire le payload dans `localStorage["waouh_pending_open"]` puis naviguer.
-- Dans `useWaouhMatchChats` (au montage) : lire `waouh_pending_open`, traiter immédiatement, puis le supprimer. Conserver aussi le listener `window.addEventListener` pour les cas où on est déjà sur l'écran.
-- Élimine le race condition `setTimeout(50)`.
+### 2. Rendre `WaouhMatchChatWindow` persistant après envoi
+Dans `src/components/waouh/WaouhMatchChatWindow.tsx` :
+- À l’envoi, remplacer le message utilisateur temporaire par l’ID DB réel déjà retourné.
+- Remplacer la réponse IA temporaire par `outbound_message_id` quand disponible.
+- Mettre `article_id` aussi au niveau racine du message local pour aligner cache, realtime et rechargement.
+- Éviter qu’un fetch initial vide ou partiel écrase implicitement l’état déjà en cache.
 
-### C. Persistance complète de l'historique (pas seulement 50 messages)
-- Augmenter `SNAPSHOT_LIMIT` à **300** (couvre largement les conversations actives).
-- Pour les très longues conversations : ajouter un compteur `loadedCount` par key. À la restauration, le snapshot reste source de vérité jusqu'à `loadedCount`, puis pagination DB prend le relais.
-- Sauvegarder le `hasMore` final dans localStorage (`waouh_match_hasmore_${sid}_${key}`) pour ne pas re-trigger un fetch initial alors qu'on sait qu'on a tout.
+### 3. Rendre `WaouhMatchChatList` capable de retrouver toutes les conversations produit
+Dans `src/components/waouh/WaouhMatchChatList.tsx` :
+- Modifier le fallback messages pour lire les conversations où `article_id` est en colonne OU dans `meta->>article_id`.
+- Lire le bon champ `meta` au lieu de `metadata`, car `waouh_messages` utilise `meta` dans ce module.
+- Ne pas limiter la reconstruction aux seules dernières 48h pour les conversations déjà connues/localement ; garder au moins les tabs/historiques fermés récemment retrouvables automatiquement.
 
-### D. Stabilité du remount de `WaouhMatchChatWindow`
-- Dans l'effet initial : ne PAS écraser `hasMore` si on a déjà des messages cachés ET un `hasMore=false` persisté.
-- Garder la logique merge actuelle (déjà OK).
-- Bonus : si `getCached(match.key)` retourne ≥ 10 messages, ne pas re-fetcher le PAGE_INITIAL au montage — laisser le realtime gérer les nouveaux messages. Refetch seulement après un délai (>30s) depuis la dernière activité connue.
+### 4. Garder une trace des chats fermés pour réouverture stable
+Dans `src/components/waouh/useWaouhMatchChats.ts` et/ou `WaouhMatchChatList.tsx` :
+- Quand une fenêtre est fermée, ne pas supprimer son historique local ; conserver une entrée minimale de conversation connue par clé canonique `art_<articleId>_<role>`.
+- À la réouverture depuis la liste, réutiliser la même clé canonique et restaurer d’abord le snapshot local avant les requêtes DB.
+- Maintenir la pagination actuelle : 10 derniers messages au départ, anciens messages au scroll vers le haut.
 
-### E. Tab list stable entre sessions anonymes/auth
-- Si `authUserId` existe : utiliser une clé `waouh_open_matches_user_<authUserId>` en plus de la clé session. Au login, **migrer** les tabs de la session anonyme vers la clé user (merge + dédupe par clé canonique).
-
-### F. Mark-as-read découplé de la clé
-- Stocker `notification_ids: string[]` (tableau) sur chaque tab pour pouvoir marquer plusieurs notifications du même article comme lues quand on ouvre la tab unique.
-
----
-
-## Fichiers modifiés
-
-- `src/components/waouh/useWaouhMatchChats.ts` — clé canonique, buffer pending, migration snapshots, SNAPSHOT_LIMIT=300, persistance hasMore, support multi-notification.
-- `src/components/waouh/WaouhMatchChatList.tsx` — clé canonique (`art_<id>_<role>`) au lieu de `n_<id>` / `msg_<id>_<role>`, écrit `waouh_pending_open` avant `navigate`.
-- `src/components/waouh/WaouhMatchChatWindow.tsx` — saute le fetch initial si cache suffisant, respecte hasMore persisté, support `notification_ids[]` pour markRead.
-- `src/components/waouh/WaouhMatchChatWindow.tsx` — type `MatchChatMeta` : ajout `notification_ids?: string[]`.
-
-## Pas de migration DB nécessaire.
-
----
-
-## Question
-
-Veux-tu aussi que je purge les anciennes clés snapshot (`n_*`, `msg_*`, `b_*`, `s_*`) après migration, ou les conserver "au cas où" pendant 30 jours ?
+### 5. Vérification
+- Vérifier le scénario des captures : ouvrir une fenêtre, envoyer “Oui”, recevoir la réponse, fermer l’onglet, revenir dans la liste, rouvrir la même conversation, confirmer que “Oui” et la réponse restent affichés.
+- Vérifier que cela fonctionne pour les deux rôles : acheteur (`ACH-*`) et vendeur (`VEN-*`).
+- Vérifier que l’historique ancien se charge toujours progressivement au scroll vers le haut.

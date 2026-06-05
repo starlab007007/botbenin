@@ -404,15 +404,10 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
         return next;
       });
       setActiveKey((cur) => (cur === key ? "main" : cur));
-      try {
-        const aKey = `waouh_archived_matches_${sessionId}`;
-        const raw = localStorage.getItem(aKey);
-        const arr: string[] = raw ? JSON.parse(raw) : [];
-        if (!arr.includes(key)) {
-          arr.push(key);
-          localStorage.setItem(aKey, JSON.stringify(arr));
-        }
-      } catch {}
+      // NOTE: We intentionally do NOT delete the cached snapshot
+      // (SNAPSHOT_KEY/HASMORE_KEY) so reopening from the list restores the
+      // full chat history. We also no longer auto-archive on close — the
+      // conversation remains visible in WaouhMatchChatList.
     },
     [sessionId, setActiveKey]
   );

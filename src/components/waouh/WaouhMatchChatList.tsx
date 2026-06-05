@@ -160,27 +160,28 @@ export function WaouhMatchChatList({
       // 2) Fallback: recent article-scoped messages (last 48h) — only create stubs
       // for articles that have NO notification row at all (keeps notifications dominant).
       try {
-        const since = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+        const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
         const mOrs: string[] = [];
         if (sessionId) mOrs.push(`web_session_id.eq.${sessionId}`);
         if (waouhIds.length) mOrs.push(`user_id.in.(${waouhIds.join(",")})`);
         if (mOrs.length) {
           const { data: msgs } = await supabase
             .from("waouh_messages" as any)
-            .select("article_id,created_at,metadata")
-            .not("article_id", "is", null)
+            .select("article_id,created_at,meta")
+            .or("article_id.not.is.null,meta->>article_id.not.is.null")
             .gte("created_at", since)
             .or(mOrs.join(","))
             .order("created_at", { ascending: false })
-            .limit(120);
+            .limit(300);
           const articlesWithNotif = new Set(
             Array.from(map.values()).map((it) => it.article_id)
           );
           const seenArt = new Map<string, { role: "buyer" | "seller"; created_at: string }>();
           for (const m of (msgs ?? []) as any[]) {
-            const articleId: string | null = m.article_id;
+            const articleId: string | null = m.article_id || m.meta?.article_id || null;
             if (!articleId || seenArt.has(articleId) || articlesWithNotif.has(articleId)) continue;
-            const role: "buyer" | "seller" = m.metadata?.role === "seller" ? "seller" : "buyer";
+            const role: "buyer" | "seller" =
+              m.meta?.role === "seller" ? "seller" : "buyer";
             seenArt.set(articleId, { role, created_at: m.created_at });
           }
           // Batch fetch article metadata in one query

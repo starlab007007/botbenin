@@ -346,11 +346,13 @@ serve(async (req) => {
     }
 
     // Persist incoming
+    const inboundArticleId: string | null = clientMeta?.article_id ?? null;
     const { data: inboundRow } = await sb.from("waouh_messages").insert({
       conversation_id: convId,
       user_id: user.id, channel, direction: "in", text: text || "(image)",
       web_session_id: sessionId, phone_number: phone,
       attachments,
+      article_id: inboundArticleId,
       meta: { ...clientMeta, to_phone: toPhone || WAOUH_BUSINESS_PHONE, session: wahaSession },
     }).select("id").maybeSingle();
     const inboundMessageId: string | null = inboundRow?.id ?? null;
@@ -428,7 +430,8 @@ serve(async (req) => {
         user_id: user.id, channel, direction: "out", text: negReply,
         web_session_id: sessionId, phone_number: phone,
         attachments: negAttachments,
-        meta: { intent: negIntent, transaction_id: negTxId, actions: negActions },
+        article_id: clientMeta?.article_id ?? null,
+        meta: { intent: negIntent, transaction_id: negTxId, article_id: clientMeta?.article_id ?? null, actions: negActions },
       });
       if (convId) {
         await sb.from("waouh_conversations")
@@ -464,13 +467,16 @@ serve(async (req) => {
     const actions: WaouhAction[] = Array.isArray(core.actions) ? core.actions : [];
 
     // Persist outgoing
-    await sb.from("waouh_messages").insert({
+    const outboundArticleId: string | null = core.article_id ?? inboundArticleId ?? null;
+    const { data: outboundRow } = await sb.from("waouh_messages").insert({
       conversation_id: convId,
       user_id: user.id, channel, direction: "out", text: reply,
       web_session_id: sessionId, phone_number: phone,
       attachments: Array.isArray(core.attachments) ? core.attachments : [],
-      meta: { intent: core.intent ?? null, transaction_id: core.transaction_id ?? null, article_id: core.article_id ?? null, actions },
-    });
+      article_id: outboundArticleId,
+      meta: { intent: core.intent ?? null, transaction_id: core.transaction_id ?? null, article_id: outboundArticleId, actions },
+    }).select("id").maybeSingle();
+    const outboundMessageId: string | null = outboundRow?.id ?? null;
     if (convId) {
       await sb.from("waouh_conversations")
         .update({ last_message: reply, last_intent: core.intent ?? null, updated_at: new Date().toISOString() })
@@ -485,7 +491,7 @@ serve(async (req) => {
       } catch (e) { console.error("WAHA send failed", e); }
     }
 
-    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, actions, inbound_message_id: inboundMessageId, conversation_id: convId, user_id: user.id, article_id: core.article_id ?? null, transaction_id: core.transaction_id ?? null }), {
+    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, actions, inbound_message_id: inboundMessageId, outbound_message_id: outboundMessageId, conversation_id: convId, user_id: user.id, article_id: outboundArticleId, transaction_id: core.transaction_id ?? null }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
