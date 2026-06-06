@@ -52,13 +52,18 @@ Deno.serve(async (req) => {
     if (!target) return;
     if (target.id === payload?.from_user_id) return;
     let insertedMsgId: string | null = null;
-    if (target.web_session_id) {
+    if (target.id) {
+      const articleIdCol = (payload as any)?.article_id ?? (directMeta as any)?.article_id ?? null;
       try {
         const { data: msg } = await sb.from("waouh_messages").insert({
-          user_id: target.id, channel: "web", direction: "out",
-          text: directText, web_session_id: target.web_session_id,
+          user_id: target.id,
+          channel: target.web_session_id ? "web" : "system",
+          direction: "out",
+          text: directText,
+          web_session_id: target.web_session_id ?? null,
+          article_id: articleIdCol,
           attachments,
-          meta: { ...(directMeta || {}), transaction_id: transactionId ?? directMeta?.transaction_id ?? null, actions },
+          meta: { ...(directMeta || {}), article_id: articleIdCol, transaction_id: transactionId ?? directMeta?.transaction_id ?? null, actions },
         }).select("id").maybeSingle();
         insertedMsgId = msg?.id ?? null;
       } catch (e) { console.warn("[neg-router] msg", e); }
