@@ -1136,7 +1136,7 @@ serve(async (req) => {
         } else {
           // DECIDE_NO
           await sb.from("waouh_negotiations").update({
-            state: "refused", last_actor: myRole,
+            state: "refused", last_actor: myRole, closed_at: new Date().toISOString(),
           }).eq("id", neg.id);
           if (otherId) {
             const otherText = `${waouhHeader("❌ Négociation terminée")}\n\n${isBuyer ? "L'acheteur n'a pas accepté la dernière offre." : "Le vendeur n'a pas accepté votre offre."}\nVous pouvez relancer une recherche à tout moment.\n\n${waouhFooter()}`;
