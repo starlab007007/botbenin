@@ -9,6 +9,7 @@
 // les deux parties à chaque évènement de négociation.
 
 import { resolveRealPhoneE164 } from "./waouh-format.ts";
+import { traceEvent, newTraceId } from "./waouh-trace.ts";
 
 export type SyncedRole = "buyer" | "seller";
 
@@ -38,6 +39,8 @@ export interface PushSyncedEventArgs {
   forcePhoneE164?: string | null;
   // Suffix to disambiguate same intent for same user (ex: actor vs recipient)
   dedupSuffix?: string;
+  // Trace correlation id (propagated end-to-end)
+  traceId?: string | null;
 }
 
 export interface PushSyncedEventResult {
@@ -59,7 +62,9 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
     negotiationId = null, transactionId = null, dealId = null,
     template, eventType, attachments = [], imageUrl = null,
     payloadExtra = {}, forcePhoneE164 = null, dedupSuffix = "",
+    traceId: traceIdIn = null,
   } = args;
+  const traceId = traceIdIn || newTraceId();
 
   const result: PushSyncedEventResult = {
     message_id: null,
@@ -78,6 +83,7 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
     transaction_id: transactionId,
     deal_id: dealId,
     role,
+    trace_id: traceId,
     ...payloadExtra,
   };
 
@@ -127,7 +133,24 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
     attachments,
     intent,
     role,
+    trace_id: traceId,
   };
+
+  // Trace: sync stage (per party)
+  traceEvent(sb, {
+    trace_id: traceId,
+    article_id: articleId ?? null,
+    negotiation_id: negotiationId,
+    transaction_id: transactionId,
+    deal_id: dealId,
+    actor_user_id: user.id,
+    role,
+    stage: "sync",
+    status: result.message_id ? "ok" : "error",
+    intent,
+    dedup_key: dedupBase,
+    payload: { phone_resolved: !!phone, message_id: result.message_id, dedupSuffix },
+  });
 
   // 3) Enqueue WhatsApp si numéro résolu.
   if (phone) {
@@ -146,8 +169,10 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
         p_event_type: eventType ?? intent,
       });
       result.enqueued_whatsapp = true;
-    } catch (e) {
+      traceEvent(sb, { trace_id: traceId, article_id: articleId ?? null, negotiation_id: negotiationId, transaction_id: transactionId, deal_id: dealId, actor_user_id: user.id, role, stage: "queue_enqueue", status: "ok", intent, dedup_key: `wa:${dedupBase}`, payload: { channel: "whatsapp", phone } });
+    } catch (e: any) {
       console.warn("[pushSyncedEvent] enqueue wa", e);
+      traceEvent(sb, { trace_id: traceId, article_id: articleId ?? null, negotiation_id: negotiationId, transaction_id: transactionId, actor_user_id: user.id, role, stage: "queue_enqueue", status: "error", intent, dedup_key: `wa:${dedupBase}`, error: String(e?.message ?? e) });
     }
   }
 
@@ -168,8 +193,10 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
         p_event_type: eventType ?? intent,
       });
       result.enqueued_web_mirror = true;
-    } catch (e) {
+      traceEvent(sb, { trace_id: traceId, article_id: articleId ?? null, negotiation_id: negotiationId, transaction_id: transactionId, actor_user_id: user.id, role, stage: "web_mirror", status: "ok", intent, dedup_key: `web:${dedupBase}` });
+    } catch (e: any) {
       console.warn("[pushSyncedEvent] enqueue web mirror", e);
+      traceEvent(sb, { trace_id: traceId, article_id: articleId ?? null, negotiation_id: negotiationId, transaction_id: transactionId, actor_user_id: user.id, role, stage: "web_mirror", status: "error", intent, dedup_key: `web:${dedupBase}`, error: String(e?.message ?? e) });
     }
   }
 
