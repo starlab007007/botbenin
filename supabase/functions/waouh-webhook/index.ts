@@ -277,9 +277,15 @@ serve(async (req) => {
 
     // Pré-détection règles déterministes (avant AI)
     const lower = (text || "").toLowerCase();
-    const numMatch = lower.match(/(?:n[°o]?\s*|#)(\d+)/i) || lower.match(/(?:int[ée]ress[ée]|interesse|choix|article)\s*(\d+)/i);
-    const literalInterest = /int[ée]ress[ée]\s*n[°o]?\s*x/i.test(lower);
-    const interestedKw = /(int[ée]ress[ée]|je veux|je prends|d'accord|ok\b|oui\b|acheter|contacte|contact)/i.test(lower);
+    // Tolérant aux fautes : intéressé / interesse / interressé / interesé / interrese …
+    const INTEREST_RE = /\bint[eé]r{1,2}[eé]ss?[eé]?[se]?\b/i;
+    const interestedKw = INTEREST_RE.test(lower)
+      || /\b(je\s+veux|je\s+prends|d'accord|ok|oui|acheter|contacte|contact)\b/i.test(lower);
+    // Numéro associé : #1, n°1, intéressé 1, choix 1, article 1
+    const numFromMarker   = lower.match(/(?:n[°o]\s*|#)(\d{1,2})/i);
+    const numFromInterest = INTEREST_RE.test(lower) ? lower.match(/\b(\d{1,2})\b/) : null;
+    const numFromChoice   = lower.match(/(?:choix|article)\s*(\d{1,2})/i);
+    const numMatch = numFromMarker || numFromInterest || numFromChoice;
     const payKw = /(payer|paiement|payement|momo|mobile money|j'ach[èe]te maintenant|\bje paye\b|\bje paie\b)/i.test(lower);
     const receivedKw = /(j.?ai\s+(bien\s+)?re[cç]u|re[cç]u\s+l.?article|livraison\s+re[cç]ue|confirmer\s+la\s+r[ée]ception)/i.test(lower);
     const sellKw = /\b(?:je\s+)?(?:vends?|vend|vendre|vente|publier|annonce)\b/i.test(lower);
@@ -305,26 +311,33 @@ serve(async (req) => {
     const fcfaOffer = lower.match(/(\d{2,3}(?:[\s.,]?\d{3})+|\d{3,9})\s*(?:fcfa|cfa|f\s*cfa)\b/i);
     const offerMatch = (!payKw && (explicitOffer || fcfaOffer)) || null;
 
-    let intent: any = {};
-    // CONFIRM_RECEIVED et PAY sont désactivés : pas de paiement dans le nouveau parcours.
-    if (numMatch && interestedKw) intent = { intent: "CONFIRM", article_index: parseInt(numMatch[1], 10) };
-    else if (literalInterest) intent = { intent: "CONFIRM", article_index: 1 };
-
-    else if (sellKw) intent = { intent: "SELL" };
-    else if (buyKw) intent = { intent: "BUY" };
-    else if (negotiateKw) intent = { intent: "NEGOTIATE" };
-    else {
-      intent = await ai(
-        "Tu es WAOUH, assistant commerce IA. Détecte l'intention parmi: SELL, BUY, NEGOTIATE, PAY, CONFIRM, RATE, HELP, UNKNOWN. Retourne JSON {intent}.",
-        text
-      );
-    }
-
-    // Charge la conversation existante (pour récupérer le contexte des matches)
+    // Charge la conversation existante AVANT la détection d'intent (utile pour le fallback contextuel "1" seul)
     const { data: conv } = await sb.from("waouh_conversations")
       .select("*")
       .eq("phone_number", phone || `web:${webSessionId}`)
       .maybeSingle();
+
+    let intent: any = {};
+    // CONFIRM_RECEIVED et PAY sont désactivés : pas de paiement dans le nouveau parcours.
+    if (numMatch && interestedKw) intent = { intent: "CONFIRM", article_index: parseInt(numMatch[1], 10) };
+    else if (INTEREST_RE.test(lower)) intent = { intent: "CONFIRM", article_index: 1 };
+    else if (sellKw) intent = { intent: "SELL" };
+    else if (buyKw) intent = { intent: "BUY" };
+    else if (negotiateKw) intent = { intent: "NEGOTIATE" };
+    else {
+      // Fallback contextuel : un simple "1", "2"… juste après une liste de résultats = CONFIRM
+      const digitsOnly = lower.trim().match(/^(\d{1,2})$/);
+      const lastMatches = Array.isArray((conv?.context as any)?.last_matches) ? (conv?.context as any).last_matches : [];
+      if (digitsOnly && conv?.last_intent === "BUY" && lastMatches.length > 0) {
+        intent = { intent: "CONFIRM", article_index: parseInt(digitsOnly[1], 10) };
+      } else {
+        intent = await ai(
+          "Tu es WAOUH, assistant commerce IA. Détecte l'intention parmi: SELL, BUY, NEGOTIATE, PAY, CONFIRM, RATE, HELP, UNKNOWN. Retourne JSON {intent}.",
+          text
+        );
+      }
+    }
+
 
     let reply = "Désolé, je n'ai pas compris. Tapez 'aide' pour les commandes.";
     let returnedArticleId: string | null = null;
