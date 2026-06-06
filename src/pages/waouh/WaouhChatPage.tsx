@@ -91,7 +91,7 @@ function computeSidebarWidth(): number {
   return 320;
 }
 
-export default function WaouhChatPage() {
+export default function WaouhChatPage({ embedded = false }: { embedded?: boolean } = {}) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
