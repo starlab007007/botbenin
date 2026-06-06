@@ -213,7 +213,7 @@ export default function WaouhChatPage() {
         <section className="grid lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
             <Card className="overflow-hidden border-gray-200 shadow-xl">
-              <WaouhWebChat embedded />
+              <WaouhWebChat ref={chatRef} embedded />
             </Card>
           </div>
 
