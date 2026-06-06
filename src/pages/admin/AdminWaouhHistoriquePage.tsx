@@ -91,12 +91,12 @@ const AdminWaouhHistoriquePage: React.FC = () => {
       if (!list.error && list.data?.ok) {
         setNegotiations((prev) => append ? [...prev, ...(list.data.negotiations || [])] : (list.data.negotiations || []));
         setArticles((prev) => {
-          const merged = append ? [...prev, ...(list.data.articles || [])] : (list.data.articles || []);
-          return Array.from(new Map(merged.map((a: Article) => [a.id, a])).values());
+          const merged: Article[] = append ? [...prev, ...((list.data.articles || []) as Article[])] : ((list.data.articles || []) as Article[]);
+          return Array.from(new Map(merged.map((a) => [a.id, a])).values());
         });
         setUsers((prev) => {
-          const merged = append ? [...prev, ...(list.data.users || [])] : (list.data.users || []);
-          return Array.from(new Map(merged.map((u: User) => [u.id, u])).values());
+          const merged: User[] = append ? [...prev, ...((list.data.users || []) as User[])] : ((list.data.users || []) as User[]);
+          return Array.from(new Map(merged.map((u) => [u.id, u])).values());
         });
         setCompleteness((prev) => append ? { ...prev, ...(list.data.completeness || {}) } : (list.data.completeness || {}));
         setStats(list.data.stats || {});
