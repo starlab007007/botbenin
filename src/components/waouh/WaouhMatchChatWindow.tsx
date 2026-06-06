@@ -8,6 +8,7 @@ import { ChatImage } from "@/app-mobile/components/ChatImage";
 import { cn } from "@/lib/utils";
 import { formatMatchLabel } from "@/app-mobile/utils/chatLabel";
 import "@/app-mobile/theme/chat-bg.css";
+import { engageWaouhChatSyncLock } from "./waouhChatSyncLock";
 
 export type MatchChatMeta = {
   key: string;
@@ -121,7 +122,11 @@ export function WaouhMatchChatWindow({
   const [hasMore, setHasMoreState] = useState<boolean>(() => getHasMore?.(match.key) ?? true);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
+  const [dbMsgCount, setDbMsgCount] = useState<number>(() => (getCached?.(match.key) ?? []).length);
   const [initialLoading, setInitialLoading] = useState<boolean>(() => (getCached?.(match.key) ?? []).length === 0);
+
+  // Verrou flux WAOUH chat — sentinelle runtime (voir waouhChatSyncLock.ts)
+  useEffect(() => { engageWaouhChatSyncLock(); }, []);
   const scrollRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -196,6 +201,7 @@ export function WaouhMatchChatWindow({
 
     const res = await fetchHistory({ limit: PAGE_INITIAL, includeMeta: true });
     setMessages((prev) => mergeMsgs(prev, res.messages));
+    setDbMsgCount(res.messages.length);
     setHasMore(res.messages.length >= PAGE_INITIAL ? res.hasMore : false);
     if (res.articleStatus) {
       setArticleStatus(res.articleStatus);
@@ -505,10 +511,10 @@ export function WaouhMatchChatWindow({
             {syncedAt && !closed && (
               <span
                 className="inline-flex items-center gap-1 text-[10px] bg-white/15 text-white/90 px-1.5 py-0.5 rounded"
-                title={`Historique synchronisé depuis la base à ${new Date(syncedAt).toLocaleTimeString("fr-FR")}`}
+                title={`Historique synchronisé depuis la base à ${new Date(syncedAt).toLocaleTimeString("fr-FR")} — ${dbMsgCount} message${dbMsgCount > 1 ? "s" : ""} chargé${dbMsgCount > 1 ? "s" : ""} depuis la DB · Flux verrouillé v1`}
               >
                 <CheckCircle2 className="w-3 h-3" />
-                Sync · {new Date(syncedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                Sync · {new Date(syncedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })} · {dbMsgCount} msg
               </span>
             )}
             {initialLoading && !syncedAt && (
