@@ -83,6 +83,7 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
     transaction_id: transactionId,
     deal_id: dealId,
     role,
+    trace_id: traceId,
     ...payloadExtra,
   };
 
