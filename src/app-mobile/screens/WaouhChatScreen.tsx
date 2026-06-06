@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, Navigate } from "react-router-dom";
 import { ShoppingBag, Info, User, MessageSquareText, Search, Handshake, ArrowLeft, Plus } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +42,10 @@ const PAYLOADS: { key: "sell" | "buy" | "negotiate"; label: string; Icon: any; t
  * WhatsApp-style composer with payload chips sitting JUST above the input.
  */
 export default function WaouhChatScreen() {
+  // Desktop/tablet → redirect to dedicated 2-column WhatsApp-style page
+  if (typeof window !== "undefined" && window.innerWidth >= 768) {
+    return <Navigate to="/waouh-chat" replace />;
+  }
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useMobileAuth();

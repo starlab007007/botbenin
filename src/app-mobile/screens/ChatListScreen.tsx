@@ -56,13 +56,13 @@ export default function ChatListScreen() {
   // Listen for window resize -> redirect if user expands to desktop
   useEffect(() => {
     if (!isMobile) {
-      navigate("/app/chat/waouh", { replace: true });
+      navigate("/waouh-chat", { replace: true });
     }
   }, [isMobile, navigate]);
 
   // Synchronous first-render redirect: avoids mobile-list flash on desktop
   if (typeof window !== "undefined" && window.innerWidth >= 768) {
-    return <Navigate to="/app/chat/waouh" replace />;
+    return <Navigate to="/waouh-chat" replace />;
   }
 
   const { user } = useMobileAuth();
