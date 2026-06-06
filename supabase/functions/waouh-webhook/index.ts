@@ -317,12 +317,19 @@ serve(async (req) => {
       .eq("phone_number", phone || `web:${webSessionId}`)
       .maybeSingle();
 
+    // Détection OUI/NON simple (réponse à une négociation en cours)
+    const yesKw = /^(oui|ok|d['']accord|j['']accepte|accepte|deal|ça\s+marche|ca\s+marche)\s*[.!]?$/i.test(lower.trim());
+    const noKw  = /^(non|refuse|refus[ée]|pas\s+d['']accord|nope)\s*[.!]?$/i.test(lower.trim());
+
     let intent: any = {};
     // CONFIRM_RECEIVED et PAY sont désactivés : pas de paiement dans le nouveau parcours.
     if (numMatch && interestedKw) intent = { intent: "CONFIRM", article_index: parseInt(numMatch[1], 10) };
     else if (INTEREST_RE.test(lower)) intent = { intent: "CONFIRM", article_index: 1 };
     else if (sellKw) intent = { intent: "SELL" };
     else if (buyKw) intent = { intent: "BUY" };
+    else if (offerMatch) intent = { intent: "NEGOTIATE" };
+    else if (yesKw)  intent = { intent: "DECIDE_YES" };
+    else if (noKw)   intent = { intent: "DECIDE_NO" };
     else if (negotiateKw) intent = { intent: "NEGOTIATE" };
     else {
       // Fallback contextuel : un simple "1", "2"… juste après une liste de résultats = CONFIRM
@@ -935,8 +942,8 @@ serve(async (req) => {
         // Négociation seule, AUCUNE transaction n'est créée (plus de paiement)
         const { data: neg } = await sb.from("waouh_negotiations").insert({
           article_id: pick.id, buyer_user_id: user!.id, seller_user_id: pick.seller_id,
-          state: "proposed", last_offer_price: askPrice, last_actor: "buyer",
-          meta: { source: pickSource },
+          state: "proposed", last_offer_price: askPrice, last_actor: "system",
+          meta: { source: pickSource, stage: "awaiting_buyer_decision", rounds: 0 },
         }).select().single();
         returnedArticleId = pick.id;
         returnedTransactionId = null;
@@ -948,7 +955,7 @@ serve(async (req) => {
         }
         const vendorPhoneForPush = phonesToPush[0] || null;
         const distLineSeller = distKm != null ? `\n${fmtDistance(distKm)}` : "";
-        const sellerText = `${waouhHeader("📩 Nouvel acheteur intéressé")}\n\n📦 *${pick.title}*\n💰 *Prix demandé* : ${fmt(askPrice)}${distLineSeller}\n🏙️ *Acheteur* : ${user!.city || "?"}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou écrivez *Je propose ${fmt(Math.round(askPrice * 0.9))}* pour contre-offrir.\n\n${waouhFooter()}`;
+        const sellerText = `${waouhHeader("📩 Nouvel acheteur intéressé")}\n\n📦 *${pick.title}*\n💰 *Prix affiché* : ${fmt(askPrice)}${distLineSeller}\n🏙️ *Acheteur* : ${user!.city || "?"}\n\nL'acheteur va indiquer s'il *accepte ce prix* ou s'il *propose un autre montant*.\n⏳ *Vous serez notifié dès qu'il aura répondu* — pas besoin d'agir pour l'instant.\n\n${waouhFooter()}`;
         if (seller?.id || phonesToPush.length > 0 || vendorContacts.web_sessions.length > 0) {
           try {
             await pushToOther({
@@ -1040,7 +1047,7 @@ serve(async (req) => {
         replyAttachments = firstPhoto ? [{ url: firstPhoto, type: "image/jpeg", caption: pick.title }] : [];
         returnedActions = [];
         const distLineBuyer = distKm != null ? `\n${fmtDistance(distKm)}` : "";
-        reply = `${waouhHeader("✅ Demande envoyée au vendeur")}\n\n📦 *${pick.title}*\n💰 *Prix* : ${fmt(askPrice)}${distLineBuyer}\n${firstPhoto ? "📸 *Photo transmise au vendeur*\n" : ""}\nLe vendeur va recevoir votre intérêt. Pour proposer un prix différent, écrivez (Ex : *Je propose ${fmt(Math.round(askPrice * 0.9))}*).\n\n${waouhFooter()}`;
+        reply = `${waouhHeader("✅ Demande envoyée au vendeur")}\n\n📦 *${pick.title}*\n💰 *Prix du vendeur* : ${fmt(askPrice)}${distLineBuyer}\n${firstPhoto ? "📸 *Photo transmise au vendeur*\n" : ""}\n*Que souhaitez-vous faire ?*\n1️⃣ Répondez *OUI* pour accepter ce prix (${fmt(askPrice)}).\n2️⃣ Ou proposez votre prix : *Je propose ${fmt(Math.round(askPrice * 0.9))}*.\n\nLe vendeur attend votre décision.\n\n${waouhFooter()}`;
         }
       }
 
@@ -1064,7 +1071,8 @@ serve(async (req) => {
         }).eq("id", neg.id);
         returnedTransactionId = null;
         if (otherId) {
-          const counterText = `${waouhHeader(`🤝 ${isBuyer ? "Nouvelle offre acheteur" : "Contre-offre vendeur"}`)}\n\n💰 *Montant proposé* : ${fmt(amount)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou écrivez *Je propose XXX FCFA* pour une autre offre.\n\n${waouhFooter()}`;
+          const refPrice = Number(neg.last_offer_price || 0);
+          const counterText = `${waouhHeader(isBuyer ? "💬 Nouvelle offre de l'acheteur" : "💬 Contre-offre du vendeur")}\n\n💰 *Montant proposé* : ${fmt(amount)}${refPrice ? `\n📊 *Précédent* : ${fmt(refPrice)}` : ""}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou écrivez *Je propose XXX FCFA* pour une autre offre.\n\n${waouhFooter()}`;
           await pushToOther({
             to_user_id: otherId,
             template: "negotiation_open",
@@ -1079,6 +1087,72 @@ serve(async (req) => {
         reply = `💬 ${isBuyer ? "Offre" : "Contre-offre"} de *${fmt(amount)}* transmise. Vous serez notifié de la réponse.`;
       } else {
         reply = `💬 Indiquez votre prix : « *Je propose ${fmt(neg.last_offer_price || 0)}* »`;
+      }
+    } else if (intent.intent === "DECIDE_YES" || intent.intent === "DECIDE_NO") {
+      // Réponse OUI/NON à une négociation en cours (acheteur OU vendeur)
+      const { data: neg } = await sb.from("waouh_negotiations")
+        .select("*")
+        .or(`buyer_user_id.eq.${user!.id},seller_user_id.eq.${user!.id}`)
+        .in("state", ["proposed", "countered"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!neg) {
+        reply = "🤔 Aucune négociation en cours. Recherchez d'abord un produit puis dites *intéressé 1*.";
+      } else {
+        const isBuyer = neg.buyer_user_id === user!.id;
+        const myRole: "buyer" | "seller" = isBuyer ? "buyer" : "seller";
+        const otherId = isBuyer ? neg.seller_user_id : neg.buyer_user_id;
+        // Garde-fou : on ne peut pas accepter sa propre offre
+        if (neg.last_actor === myRole) {
+          reply = "⏳ Vous attendez la réponse de l'autre partie. Patientez quelques instants.";
+        } else if (intent.intent === "DECIDE_YES") {
+          const agreed = Number(neg.last_offer_price || 0);
+          await sb.from("waouh_negotiations").update({
+            state: "accepted", last_offer_price: agreed, last_actor: myRole, closed_at: new Date().toISOString(),
+            meta: { ...(neg.meta || {}), agreed_price: agreed, accepted_by: myRole },
+          }).eq("id", neg.id);
+          const { data: art } = await sb.from("waouh_articles").select("title,photos").eq("id", neg.article_id).maybeSingle();
+          const title = art?.title || "Article";
+          const photo = Array.isArray(art?.photos) && art!.photos.length ? art!.photos[0] : null;
+          // Notifier l'autre partie
+          if (otherId) {
+            const otherIsSeller = isBuyer; // l'autre = vendeur si moi = acheteur
+            const otherText = `${waouhHeader("🎉 Accord conclu")}\n\n📦 *${title}*\n💰 *Prix final* : ${fmt(agreed)}\n\n${otherIsSeller ? "L'acheteur accepte votre prix. Contactez-le pour organiser la remise." : "Le vendeur accepte votre offre. Contactez-le pour organiser la remise."}\n\n${waouhFooter()}`;
+            await pushToOther({
+              to_user_id: otherId,
+              template: "deal_accepted",
+              payload: { neg_id: neg.id, article_id: neg.article_id, price: agreed, actions: [] },
+              directText: otherText,
+              directAtts: photo ? [{ url: photo, type: "image/jpeg", caption: title }] : [],
+              directMeta: { intent: "deal_accepted", negotiation_id: neg.id },
+              transaction_id: null,
+              dedupe_key: `deal_accepted:${neg.id}:${otherId}`,
+              event_type: "deal_accepted",
+            });
+          }
+          reply = `${waouhHeader("🎉 Accord conclu")}\n\n📦 *${title}*\n💰 *Prix final* : ${fmt(agreed)}\n\nL'autre partie a été notifiée. Vous pouvez maintenant vous contacter pour organiser la remise.\n\n${waouhFooter()}`;
+          returnedArticleId = neg.article_id;
+        } else {
+          // DECIDE_NO
+          await sb.from("waouh_negotiations").update({
+            state: "refused", last_actor: myRole, closed_at: new Date().toISOString(),
+          }).eq("id", neg.id);
+          if (otherId) {
+            const otherText = `${waouhHeader("❌ Négociation terminée")}\n\n${isBuyer ? "L'acheteur n'a pas accepté la dernière offre." : "Le vendeur n'a pas accepté votre offre."}\nVous pouvez relancer une recherche à tout moment.\n\n${waouhFooter()}`;
+            await pushToOther({
+              to_user_id: otherId,
+              template: "deal_refused",
+              payload: { neg_id: neg.id, article_id: neg.article_id, actions: [] },
+              directText: otherText,
+              directMeta: { intent: "deal_refused", negotiation_id: neg.id },
+              transaction_id: null,
+              dedupe_key: `deal_refused:${neg.id}:${otherId}`,
+              event_type: "deal_refused",
+            });
+          }
+          reply = `❌ Négociation terminée. L'autre partie a été notifiée.`;
+        }
       }
     } else if (intent.intent === "HELP") {
       reply = `${waouhHeader("🤖 WAOUH — Commandes")}\n\n• *Je vends ...* — publier une annonce\n• *Je cherche ...* — trouver un produit\n• *intéressé 1* — contacter un vendeur\n• *Je propose X FCFA* — négocier\n• *OUI* / *NON* — répondre au vendeur ou à l'acheteur\n\n${waouhFooter()}`;
