@@ -942,8 +942,8 @@ serve(async (req) => {
         // Négociation seule, AUCUNE transaction n'est créée (plus de paiement)
         const { data: neg } = await sb.from("waouh_negotiations").insert({
           article_id: pick.id, buyer_user_id: user!.id, seller_user_id: pick.seller_id,
-          state: "proposed", last_offer_price: askPrice, last_actor: "buyer",
-          meta: { source: pickSource },
+          state: "proposed", last_offer_price: askPrice, last_actor: "system",
+          meta: { source: pickSource, stage: "awaiting_buyer_decision", rounds: 0 },
         }).select().single();
         returnedArticleId = pick.id;
         returnedTransactionId = null;
