@@ -1078,12 +1078,13 @@ serve(async (req) => {
             template: "negotiation_open",
             payload: { neg_id: neg.id, article_id: neg.article_id, offer: amount, price: amount, actions: [] },
             directText: counterText,
-            directMeta: { intent: "negotiation_open", negotiation_id: neg.id },
+            directMeta: { intent: "negotiation_open", negotiation_id: neg.id, article_id: neg.article_id },
             transaction_id: null,
             dedupe_key: `neg:${neg.id}:offer:${amount}:${otherId}`,
             event_type: "negotiation_counter",
           });
         }
+        returnedArticleId = neg.article_id;
         reply = `💬 ${isBuyer ? "Offre" : "Contre-offre"} de *${fmt(amount)}* transmise. Vous serez notifié de la réponse.`;
       } else {
         reply = `💬 Indiquez votre prix : « *Je propose ${fmt(neg.last_offer_price || 0)}* »`;
@@ -1125,7 +1126,7 @@ serve(async (req) => {
               payload: { neg_id: neg.id, article_id: neg.article_id, price: agreed, actions: [] },
               directText: otherText,
               directAtts: photo ? [{ url: photo, type: "image/jpeg", caption: title }] : [],
-              directMeta: { intent: "deal_accepted", negotiation_id: neg.id },
+              directMeta: { intent: "deal_accepted", negotiation_id: neg.id, article_id: neg.article_id },
               transaction_id: null,
               dedupe_key: `deal_accepted:${neg.id}:${otherId}`,
               event_type: "deal_accepted",
@@ -1145,12 +1146,13 @@ serve(async (req) => {
               template: "deal_refused",
               payload: { neg_id: neg.id, article_id: neg.article_id, actions: [] },
               directText: otherText,
-              directMeta: { intent: "deal_refused", negotiation_id: neg.id },
+              directMeta: { intent: "deal_refused", negotiation_id: neg.id, article_id: neg.article_id },
               transaction_id: null,
               dedupe_key: `deal_refused:${neg.id}:${otherId}`,
               event_type: "deal_refused",
             });
           }
+          returnedArticleId = neg.article_id;
           reply = `❌ Négociation terminée. L'autre partie a été notifiée.`;
         }
       }
