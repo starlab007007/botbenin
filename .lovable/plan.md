@@ -1,107 +1,63 @@
-# Plan — Dashboard Historique WAOUH + Persistance Chat + Traces structurées
 
-## Décisions validées
-- Dashboard **admin only** (`AdminRoute`).
-- Profondeur d'historique par défaut **30 jours** (filtre période ajustable).
+# Persistance fiable de l'historique WaouhMatchChatWindow (acheteur / vendeur)
 
-## Objectifs
-1. Page admin **Dashboard Historique** : négociations + messages chat & WhatsApp, avec filtres par article et statut.
-2. Garantir la persistance et le rechargement automatique de tous les chats (WaouhMatchChatWindow acheteur/vendeur, WAOUH principal acheteur/vendeur, WhatsApp acheteur/vendeur).
-3. Trace structurée par `article_id` + `transaction_id` pour suivre le pipeline complet : chat → router → sync → queue → WhatsApp.
+## Diagnostic
 
-Aucune modification du flux WAOUH chat verrouillé. Ajout d'observabilité + vue admin en lecture seule.
+L'historique EST déjà écrit en base (`waouh_messages.article_id` est rempli, côté `waouh-channel-in` pour les messages entrants/sortants et côté `_shared/waouh-sync.ts` pour les events synchronisés). Le problème vient du **chargement côté client**, pas du stockage.
 
----
+Bugs identifiés dans `src/components/waouh/WaouhMatchChatWindow.tsx` + `useWaouhMatchChats.ts` :
 
-## 1) Page Dashboard Historique
+1. **Filtre "viewer" incomplet au premier rendu.** `fetchArticlePage` filtre par `web_session_id.eq.<sessionId> OR user_id.in.(waouhIds)`. Or `waouhIds` est résolu dans un `useEffect` séparé et arrive **après** le premier fetch. Au premier mount, `waouhIds = []` → seuls les messages portant `web_session_id` sont récupérés. Tous les messages côté vendeur/acheteur authentifié dont `web_session_id IS NULL` mais `user_id` pointe vers un `waouh_users.id` sont **invisibles**.
 
-- Route : `/admin/waouh/historique` (AdminRoute).
-- Fichier : `src/pages/waouh/AdminWaouhHistoriquePage.tsx`.
-- Composants `src/components/waouh/historique/` :
-  - `HistoriqueFilters.tsx` — article (autocomplete `waouh_articles` + `waouh_unified_catalog`), statut négociation (`open`, `counter`, `accepted`, `refused`, `paid`, `closed`), canal (`web` / `whatsapp` / `all`), période (défaut 30 j), rôle, recherche texte.
-  - `HistoriqueStatsCards.tsx` — KPI (négos ouvertes, contre-offres, deals, taux livraison WA, erreurs trace).
-  - `HistoriqueNegotiationsTable.tsx` — liste paginée `waouh_negotiations` enrichie (article, acheteur, vendeur, dernier prix, statut, dernier évènement). Mobile = cards empilées.
-  - `HistoriqueTimelineDrawer.tsx` — timeline fusionnée triée chronologiquement : `waouh_messages` (web+WA, in+out) + `waouh_outbound_queue` + `waouh_notifications` + `waouh_pipeline_events`.
-  - `HistoriqueTraceDrawer.tsx` — vue regroupée par `trace_id` (timeline visuelle par stage, badges erreurs, export JSON/CSV vers `/mnt/documents`).
-- Source : nouvelle edge `waouh-historique` (agrégateur lecture admin). Vérifie `has_role(auth.uid(),'admin')`.
+2. **Pas de refetch quand `waouhIds` arrive.** Les deps de l'effet de fetch sont `[match.article_id, match.notification_id, match.seed_text]`. Donc même quand l'id viewer est résolu plus tard, la liste n'est jamais relue.
 
----
+3. **Skip-fetch si cache local ≥ 10 messages.** `skipMsgFetch = cached.length >= PAGE_INITIAL` empêche complètement la relecture serveur tant que le cache localStorage contient ≥10 messages, même s'il est obsolète ou incomplet (cf. bug #1). Si l'utilisateur change d'appareil / vide son cache / passe en navigation privée → 0 message visible.
 
-## 2) Persistance & rechargement des chats
+4. **Source de vérité = localStorage.** Tout l'état (`messages`, `hasMore`, scroll, statut article, seed) bootstrappe depuis localStorage. Si le storage est vidé (cleanup navigateur, autre device, mode privé), la conversation paraît "perdue" même si la DB est intacte.
 
-Audit + corrections ciblées, sans toucher le flux d'envoi verrouillé.
+5. **Filtre côté client fragile.** Chaîner deux `.or()` Supabase + une condition `meta->>article_id` mélangée à du SQL inline expose à des bugs subtils (PostgREST échappe mal certains caractères dans `.or`). Mieux vaut centraliser côté edge function.
 
-| Chat | Composant | Source persistante | Action |
-|---|---|---|---|
-| WAOUH principal (vendeur & acheteur) | `WaouhWebChat.tsx` | `waouh_messages` via `waouh-history` | Vérifier chargement initial + realtime sur `user_id`. |
-| WaouhMatchChatWindow (acheteur & vendeur) | `WaouhMatchChatWindow.tsx` | `waouh_messages` filtrés `article_id` | S'assurer du fetch historique complet à l'ouverture (pas que les nouveaux). Pas de changement de flux. |
-| WhatsApp (vendeur & acheteur) | inbox + détails | `waouh_messages` (channel=`whatsapp`) | Vérifier que `waha-webhook` + `waouh-outbound-dispatch` écrivent systématiquement `direction`, `channel='whatsapp'`, `article_id`, `meta.intent`. Compléter résolution `article_id` sur INBOUND via `lid_phone_map` + négociation active si manquant. |
+## Plan
 
-Hook partagé : `src/hooks/useWaouhPersistedHistory.ts`
-- Params `{ articleId?, userIds?, channel?, limit, before }`.
-- Appelle `waouh-history` (étendu) + réabonnement realtime.
-- Retourne `{ messages, hasMore, loadOlder, refresh }`.
-- Utilisé par WaouhMatchChatWindow (chargement initial) et la timeline du dashboard.
+### 1. Nouvelle edge function `waouh-match-history` (source de vérité serveur)
+Endpoint dédié au chargement d'une fenêtre match :
+- Entrée : `{ articleId, sessionId, authUserId?, role, before?, limit?: 30 }`
+- Côté serveur (service-role) :
+  - Résout tous les `waouh_users.id` liés à `(authUserId, sessionId, et leur phone_number éventuel)`.
+  - Query `waouh_messages` filtré par `article_id = $1 OR meta->>article_id = $1` AND (`user_id IN (...)` OR `web_session_id = $sessionId`).
+  - Tri DESC, `limit`, pagination par `created_at < before`.
+  - Renvoie `{ messages, hasMore, articleStatus, seedNotification }` en une seule réponse.
+- Avantage : un seul aller-retour, scoping fait côté serveur, pas d'attente de `waouhIds`.
 
-Extension `waouh-history` : ajouter filtres optionnels `articleId`, `negotiationId`, `channel` sans casser les appelants existants.
+### 2. Refactor `WaouhMatchChatWindow.tsx` — DB = vérité, cache = peinture rapide
+- À chaque mount (ou changement de `match.article_id`/`match.key`) : appel `waouh-match-history` **systématiquement**, même si cache présent. Le cache sert uniquement à peindre instantanément, puis on réconcilie via `mergeMsgs`.
+- Supprimer `skipMsgFetch`.
+- Ajouter un refetch quand `active` redevient true (réouverture d'onglet) avec throttle ~2s.
+- Pagination "load older" passe aussi par l'edge function (paramètre `before`).
+- Realtime inchangé (déjà branché sur `web_session_id` + chaque `user_id`).
 
----
+### 3. Rendre le cache non-obligatoire
+- `getCached` reste optionnel ; si vide, on n'affiche pas d'écran vide : un spinner discret apparait pendant le premier fetch DB.
+- Snapshot localStorage continue d'être écrit (perf), mais n'est plus "skip condition".
 
-## 3) Trace structurée article_id + transaction_id
+### 4. Garantir que toute écriture porte `article_id`
+Audit rapide des chemins d'insertion :
+- `waouh-channel-in` ✅ (inbound + outbound + negotiation reply)
+- `_shared/waouh-sync.ts` ✅
+- Vérifier `waouh-negotiation-router`, `waouh-buyer-interest`, `waouh-notify-dispatch` — si un insert oublie `article_id`, l'ajouter (et au moins dans `meta.article_id`).
+- Migration légère : backfill `waouh_messages.article_id` depuis `meta->>article_id` pour les lignes existantes où la colonne est NULL.
 
-Nouvelle table `waouh_pipeline_events` :
-- `id uuid PK`, `trace_id uuid` (indexé)
-- `article_id uuid`, `negotiation_id uuid`, `transaction_id uuid`, `deal_id uuid` (indexés)
-- `actor_user_id uuid`, `recipient_user_id uuid`, `role text`
-- `stage text` — `chat_in`, `router`, `sync`, `queue_enqueue`, `queue_dispatch`, `whatsapp_send`, `whatsapp_delivered`, `whatsapp_error`, `web_mirror`
-- `status text` — `ok` / `error` / `skipped`
-- `intent text`, `dedup_key text`
-- `payload jsonb`, `error text`
-- `created_at timestamptz default now()`
-- GRANTS conformes ; RLS : lecture admin via `has_role`, insert `service_role`.
+### 5. Indicateur "synchronisé"
+Petit badge dans le header de la fenêtre : "Synchronisé · HH:mm" mis à jour après chaque fetch réussi, pour rassurer l'utilisateur que l'historique vient bien du serveur.
 
-Helper partagé `supabase/functions/_shared/waouh-trace.ts` :
-```ts
-await traceEvent(sb, { trace_id, article_id, negotiation_id, transaction_id, stage, status, intent, actor_user_id, recipient_user_id, payload, error });
-```
-- Insert fire-and-forget, jamais bloquant.
-- Génère/propage un `trace_id` (uuid) inséré dans `waouh_messages.meta.trace_id` et `waouh_outbound_queue.payload.trace_id` pour corrélation de bout en bout.
+## Détails techniques
 
-Points d'instrumentation (5 stages obligatoires) :
-1. `chat_in` — `waouh-webhook` (web), `waha-webhook` / `whatsapp-waha-webhook` (WA).
-2. `router` — `waouh-negotiation-router`.
-3. `sync` — `_shared/waouh-sync.ts pushSyncedEvent` (1 entrée par partie).
-4. `queue_enqueue` / `queue_dispatch` — `waouh-outbound-dispatch`.
-5. `whatsapp_send` / `whatsapp_delivered` / `whatsapp_error` — callbacks WAHA.
+- Nouveau fichier : `supabase/functions/waouh-match-history/index.ts`
+- Modifs : `src/components/waouh/WaouhMatchChatWindow.tsx` (effet de fetch, suppression skip), `src/components/waouh/useWaouhMatchChats.ts` (rien à changer côté cache, juste s'assurer que `close()` ne supprime pas non plus les snapshots — déjà OK)
+- Migration : `UPDATE waouh_messages SET article_id = (meta->>'article_id')::uuid WHERE article_id IS NULL AND meta ? 'article_id';`
+- Pas de changement de schéma, pas de changement RLS (service-role côté edge function)
 
----
-
-## 4) Sécurité & non-régression
-- Flux WAOUH chat verrouillé inchangé (`mem://features/waouh-chat-sync-flow`).
-- `pushSyncedEvent` : ajout d'un `traceEvent` non bloquant uniquement.
-- `waouh_pipeline_events` : RLS admin lecture, pas de secrets stockés.
-- Dashboard : `AdminRoute` côté front + check `has_role` côté edge.
-
----
-
-## Fichiers
-
-Migration
-- `waouh_pipeline_events` (CREATE + GRANT + RLS + index sur trace_id, article_id, negotiation_id, created_at).
-
-Edge functions
-- New : `supabase/functions/_shared/waouh-trace.ts`
-- New : `supabase/functions/waouh-historique/index.ts`
-- Edit (filtres) : `waouh-history/index.ts`
-- Edit (instrumentation trace uniquement) : `waouh-webhook`, `waouh-negotiation-router`, `_shared/waouh-sync.ts`, `waouh-outbound-dispatch`, `waha-webhook`, `whatsapp-waha-webhook`, `waouh-buyer-interest`.
-
-Frontend
-- New : `src/pages/waouh/AdminWaouhHistoriquePage.tsx`
-- New : `src/components/waouh/historique/{HistoriqueFilters,HistoriqueStatsCards,HistoriqueNegotiationsTable,HistoriqueTimelineDrawer,HistoriqueTraceDrawer}.tsx`
-- New : `src/hooks/useWaouhPersistedHistory.ts`
-- Edit : `src/App.tsx` (route `/admin/waouh/historique`)
-- Edit : `src/components/waouh/WaouhMatchChatWindow.tsx` (chargement initial via hook ; pas de changement d'envoi).
-
-Mémoire
-- Mise à jour `mem://features/waouh-chat-sync-flow` pour mentionner que le hook `useWaouhPersistedHistory` est la voie officielle de chargement (sans modifier le flux).
-- Nouvelle entrée mémoire `mem://features/waouh-historique-dashboard`.
+## Hors scope
+- Aucune modification du dashboard admin Historique
+- Aucune modification de la fenêtre WAOUH principale (non-match)
+- Pas de migration de clés localStorage (déjà gérée par `migrateLegacyKeys`)
