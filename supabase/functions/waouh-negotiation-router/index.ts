@@ -214,7 +214,7 @@ Deno.serve(async (req) => {
           "deal_created",
           { neg_id: neg.id, deal_id: deal?.id, article_id: neg.article_id, accepted: true, price: amount, from_user_id: user.id, target_role: isBuyer ? "seller" : "buyer" },
           targetReply,
-          { intent: "deal_created", negotiation_id: neg.id, deal_id: deal?.id },
+          { intent: "deal_created", negotiation_id: neg.id, deal_id: deal?.id, article_id: neg.article_id },
           null,
           [],
           `neg:${neg.id}:deal:${otherUserId}`,
