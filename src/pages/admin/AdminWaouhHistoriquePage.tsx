@@ -277,17 +277,18 @@ const AdminWaouhHistoriquePage: React.FC = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Article</TableHead><TableHead>Acheteur</TableHead><TableHead>Vendeur</TableHead>
-                <TableHead>Statut</TableHead><TableHead>Prix</TableHead><TableHead>MAJ</TableHead><TableHead></TableHead>
+                <TableHead>Statut</TableHead><TableHead>Prix</TableHead><TableHead>Complétude</TableHead><TableHead>MAJ</TableHead><TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {negotiations.length === 0 && (
-                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Aucune négociation sur la période.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Aucune négociation sur la période.</TableCell></TableRow>
               )}
               {negotiations.map((n) => {
                 const a = articleMap.get(n.article_id);
                 const buyer = userMap.get(n.buyer_user_id);
                 const seller = userMap.get(n.seller_user_id);
+                const comp = completeness[n.id];
                 return (
                   <TableRow key={n.id} className="cursor-pointer" onClick={() => setSelectedNeg(n)}>
                     <TableCell className="font-medium">{a?.title || n.article_id?.slice(0, 8)}</TableCell>
@@ -295,6 +296,12 @@ const AdminWaouhHistoriquePage: React.FC = () => {
                     <TableCell className="text-xs">{seller?.display_name || seller?.phone_number || n.seller_user_id?.slice(0, 8)}</TableCell>
                     <TableCell><Badge variant="outline">{n.status}</Badge></TableCell>
                     <TableCell className="font-mono text-xs">{n.current_price?.toLocaleString() || "-"} {n.currency || "XOF"}</TableCell>
+                    <TableCell className="w-32">
+                      <div className="flex items-center gap-2">
+                        <Progress value={comp?.pct ?? 0} className="h-1.5 w-16" />
+                        <span className={`text-[10px] font-mono ${(comp?.pct ?? 0) >= 80 ? "text-green-600" : (comp?.pct ?? 0) >= 40 ? "text-amber-600" : "text-red-600"}`}>{comp?.pct ?? 0}%</span>
+                      </div>
+                    </TableCell>
                     <TableCell className="text-xs">{format(new Date(n.updated_at), "dd MMM HH:mm", { locale: fr })}</TableCell>
                     <TableCell><Eye className="h-4 w-4 text-muted-foreground" /></TableCell>
                   </TableRow>
