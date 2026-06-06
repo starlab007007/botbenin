@@ -149,6 +149,11 @@ export default function WaouhPage() {
                   <MessageCircle className="w-4 h-4 mr-2" /> Ouvrir le chat public
                 </Button>
               </Link>
+              <Link to="/admin/waouh/historique">
+                <Button variant="secondary" className="bg-white/15 hover:bg-white/25 text-white border-white/30">
+                  <MessageCircle className="w-4 h-4 mr-2" /> Historique
+                </Button>
+              </Link>
               <Link to="/admin/waouh/demo">
                 <Button variant="secondary" className="bg-white text-blue-600 hover:bg-white/90">
                   <Play className="w-4 h-4 mr-2" /> Démo conversation
