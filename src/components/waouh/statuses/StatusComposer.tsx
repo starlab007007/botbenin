@@ -340,9 +340,7 @@ export function StatusComposer({ trigger, defaultType = "sell" }: Props) {
                   <div key={i} className="relative aspect-square w-full rounded-lg overflow-hidden border border-border bg-muted">
                     <img
                       src={url}
-                      alt=""
-                      loading="lazy"
-                      decoding="async"
+                      alt={`photo-${i + 1}`}
                       onClick={() => setZoomedIndex(i)}
                       className="absolute inset-0 w-full h-full object-cover cursor-zoom-in"
                     />
