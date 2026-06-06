@@ -44,6 +44,7 @@ export function StatusComposer({ trigger, defaultType = "sell" }: Props) {
   const [caption, setCaption] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [zoomedIndex, setZoomedIndex] = useState<number | null>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
 
