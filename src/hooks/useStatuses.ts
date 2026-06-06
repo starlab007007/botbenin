@@ -101,24 +101,25 @@ export function useStatuses(filter?: StatusType | "all") {
       media_urls.push(pub.publicUrl);
     }
 
-    const { error } = await (supabase as any).from("waouh_statuses").insert({
-      user_id: user.id,
-      author_name: user.user_metadata?.full_name ?? user.email ?? null,
-      author_avatar_url: user.user_metadata?.avatar_url ?? null,
-      type: input.type,
-      title: input.title,
-      caption: input.caption ?? null,
-      price_fcfa: input.price_fcfa ?? null,
-      location: input.location ?? null,
-      lat: input.lat ?? null,
-      lng: input.lng ?? null,
-      article_id: input.article_id ?? null,
-      waouh_code: input.waouh_code ?? null,
-      media_url: media_urls[0] ?? null,
-      media_urls,
-      media_kind: media_urls.length > 0 ? "image" : null,
+    // Promote status through unified pipeline (creates waouh_articles row for type='sell')
+    const { data, error } = await supabase.functions.invoke("waouh-status-publish", {
+      body: {
+        type: input.type,
+        title: input.title,
+        caption: input.caption ?? null,
+        price_fcfa: input.price_fcfa ?? null,
+        location: input.location ?? null,
+        lat: input.lat ?? null,
+        lng: input.lng ?? null,
+        media_urls,
+        media_kind: media_urls.length > 0 ? "image" : null,
+        author_name: user.user_metadata?.full_name ?? user.email ?? null,
+        author_avatar_url: user.user_metadata?.avatar_url ?? null,
+        waouh_code: input.waouh_code ?? null,
+      },
     });
     if (error) throw error;
+    if ((data as any)?.error) throw new Error((data as any).error);
     await load();
   }, [load]);
 
