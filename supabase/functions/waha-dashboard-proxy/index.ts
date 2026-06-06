@@ -117,17 +117,24 @@ serve(async (req) => {
 
     console.log(`Proxying ${finalMethod} request to: ${fullWahaUrl}`);
 
-    // Fonction helper pour essayer plusieurs méthodes d'authentification
+    // Helper: fetch avec timeout pour éviter les IDLE_TIMEOUT (150s)
+    const fetchWithTimeout = async (input: string, init: RequestInit, timeoutMs = 20000) => {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), timeoutMs);
+      try {
+        return await fetch(input, { ...init, signal: ctrl.signal });
+      } finally {
+        clearTimeout(t);
+      }
+    };
+
     const tryWAHARequest = async (headers: Record<string, string>, authMethod: string) => {
       console.log(`Trying ${authMethod} authentication method`);
-      console.log('Request headers:', { ...headers, Authorization: headers.Authorization ? '[REDACTED]' : 'None' });
-      
-      const response = await fetch(fullWahaUrl, {
+      const response = await fetchWithTimeout(fullWahaUrl, {
         method: finalMethod,
         headers,
         body: bodyData ? JSON.stringify(bodyData) : null,
-      });
-      
+      }, 25000);
       console.log(`${authMethod} response status: ${response.status}`);
       return response;
     };
@@ -174,7 +181,7 @@ serve(async (req) => {
         'Accept': 'application/json'
       };
       
-      wahaResponse = await fetch(altUrl, { method: 'GET', headers: retryHeaders });
+      wahaResponse = await fetchWithTimeout(altUrl, { method: 'GET', headers: retryHeaders }, 20000);
       console.log(`Fallback to /api/v2/sessions status: ${wahaResponse.status}`);
     }
 
@@ -214,7 +221,7 @@ serve(async (req) => {
               'Accept': 'application/json'
             } as Record<string, string>;
             console.log(`➡️ QR fallback try: ${c.method} ${tryUrl}`);
-            const resp = await fetch(tryUrl, { method: c.method, headers: tryHeaders });
+            const resp = await fetchWithTimeout(tryUrl, { method: c.method, headers: tryHeaders }, 15000);
             console.log(`⬅️ QR fallback status: ${resp.status}`);
             if (resp.ok) {
               console.log('✅ QR fallback succeeded');
@@ -289,16 +296,13 @@ serve(async (req) => {
       responseData = { data: textResponse, type: 'text' };
     }
 
-    // Synchroniser les données avec notre base de données si c'est une requête de sessions
+    // Synchroniser les sessions en arrière-plan (ne bloque pas la réponse)
     if ((pathNormalized === '/api/sessions' || pathNormalized === '/api/v2/sessions') && finalMethod === 'GET' && wahaResponse.ok) {
-      try {
-        const sessions = Array.isArray(responseData) ? responseData : [];
-        console.log(`Synchronizing ${sessions.length} sessions with database`);
-        
-        for (const session of sessions) {
-          const { error: upsertError } = await supabase
-            .from('waha_sessions_data')
-            .upsert({
+      const sessions = Array.isArray(responseData) ? responseData : [];
+      const syncTask = (async () => {
+        try {
+          await Promise.all(sessions.map((session: any) =>
+            supabase.from('waha_sessions_data').upsert({
               session_name: session.name,
               status: session.status || 'DISCONNECTED',
               phone_number: session.config?.metadata?.phone_number || null,
@@ -307,18 +311,14 @@ serve(async (req) => {
               server_name: 'WAHA',
               last_activity: new Date().toISOString(),
               updated_at: new Date().toISOString()
-            }, { 
-              onConflict: 'session_name',
-              ignoreDuplicates: false 
-            });
-
-          if (upsertError) {
-            console.error('Error upserting session:', session.name, upsertError);
-          }
+            }, { onConflict: 'session_name', ignoreDuplicates: false })
+          ));
+        } catch (syncError) {
+          console.error('Error synchronizing sessions:', syncError);
         }
-      } catch (syncError) {
-        console.error('Error synchronizing sessions:', syncError);
-      }
+      })();
+      // @ts-ignore - EdgeRuntime is available in Supabase edge runtime
+      try { (globalThis as any).EdgeRuntime?.waitUntil?.(syncTask); } catch { /* ignore */ }
     }
 
     return new Response(JSON.stringify(responseData), {
