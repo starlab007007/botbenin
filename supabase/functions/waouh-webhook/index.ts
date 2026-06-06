@@ -277,9 +277,15 @@ serve(async (req) => {
 
     // Pré-détection règles déterministes (avant AI)
     const lower = (text || "").toLowerCase();
-    const numMatch = lower.match(/(?:n[°o]?\s*|#)(\d+)/i) || lower.match(/(?:int[ée]ress[ée]|interesse|choix|article)\s*(\d+)/i);
-    const literalInterest = /int[ée]ress[ée]\s*n[°o]?\s*x/i.test(lower);
-    const interestedKw = /(int[ée]ress[ée]|je veux|je prends|d'accord|ok\b|oui\b|acheter|contacte|contact)/i.test(lower);
+    // Tolérant aux fautes : intéressé / interesse / interressé / interesé / interrese …
+    const INTEREST_RE = /\bint[eé]r{1,2}[eé]ss?[eé]?[se]?\b/i;
+    const interestedKw = INTEREST_RE.test(lower)
+      || /\b(je\s+veux|je\s+prends|d'accord|ok|oui|acheter|contacte|contact)\b/i.test(lower);
+    // Numéro associé : #1, n°1, intéressé 1, choix 1, article 1
+    const numFromMarker   = lower.match(/(?:n[°o]\s*|#)(\d{1,2})/i);
+    const numFromInterest = INTEREST_RE.test(lower) ? lower.match(/\b(\d{1,2})\b/) : null;
+    const numFromChoice   = lower.match(/(?:choix|article)\s*(\d{1,2})/i);
+    const numMatch = numFromMarker || numFromInterest || numFromChoice;
     const payKw = /(payer|paiement|payement|momo|mobile money|j'ach[èe]te maintenant|\bje paye\b|\bje paie\b)/i.test(lower);
     const receivedKw = /(j.?ai\s+(bien\s+)?re[cç]u|re[cç]u\s+l.?article|livraison\s+re[cç]ue|confirmer\s+la\s+r[ée]ception)/i.test(lower);
     const sellKw = /\b(?:je\s+)?(?:vends?|vend|vendre|vente|publier|annonce)\b/i.test(lower);
