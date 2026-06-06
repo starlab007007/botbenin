@@ -424,6 +424,7 @@ export function WaouhMatchChatList({
                 </span>
               )}
             </div>
+          </div>
           <p className="text-xs text-muted-foreground truncate">
             {previewLine}
             {it.price ? ` · ${Number(it.price).toLocaleString("fr-FR")} FCFA` : ""}
