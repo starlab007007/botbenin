@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import WaouhChatPage from "@/pages/waouh/WaouhChatPage";
+import { ChatRightPane, ChatRightPaneEmpty } from "../components/ChatRightPane";
+import { useWaouhMatchChats } from "@/components/waouh/useWaouhMatchChats";
 import { supabase } from "@/integrations/supabase/client";
 import { useMobileAuth } from "../hooks/useMobileAuth";
 import { useMobileProfile } from "../hooks/useMobileProfile";
@@ -54,12 +55,14 @@ export default function ChatListScreen() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
 
-  // Desktop/tablet (≥768px) → render embedded WaouhChatPage inside /app shell
-  // so the BottomTabBar remains visible for navigation to Bots, WhatsApp IA, etc.
-  if (typeof window !== "undefined" && window.innerWidth >= 768) {
-    return <WaouhChatPage embedded />;
-  }
-
+  // Force re-render on viewport changes so the 2-col layout toggles smoothly
+  const [, setVw] = useState<number>(() => (typeof window !== "undefined" ? window.innerWidth : 0));
+  useEffect(() => {
+    const onResize = () => setVw(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 768;
 
   const { user } = useMobileAuth();
   const { profile } = useMobileProfile();
@@ -69,6 +72,22 @@ export default function ChatListScreen() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<"chats" | "statuses">("chats");
+
+  // Desktop right-pane state
+  const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const [newWaouhCounter, setNewWaouhCounter] = useState(0);
+
+  // Lift the WAOUH match chats hook so we can set the active key from the list.
+  const matchChats = useWaouhMatchChats(sessionId ?? "", user?.id ?? null);
+
+  // When a match-chat open intent is dispatched/buffered, clear conv selection
+  // so the WaouhMatchChatWindow takes over the right pane.
+  useEffect(() => {
+    if (!isDesktop) return;
+    const onMatch = () => setActiveConvId(null);
+    window.addEventListener("waouh:open-match-chat", onMatch);
+    return () => window.removeEventListener("waouh:open-match-chat", onMatch);
+  }, [isDesktop]);
 
   const isGuest = !user;
 
@@ -164,13 +183,36 @@ export default function ChatListScreen() {
 
   const initials = (profile?.full_name ?? profile?.phone ?? "U").slice(0, 2).toUpperCase();
 
-  const openWaouh = () => navigate("/app/chat/waouh");
-  const openNewWaouh = () => navigate("/app/chat/waouh?new=1");
+  const openWaouh = () => {
+    if (isDesktop) {
+      setActiveConvId(null);
+      matchChats.setActiveKey("main");
+    } else {
+      navigate("/app/chat/waouh");
+    }
+  };
+  const openNewWaouh = () => {
+    if (isDesktop) {
+      setActiveConvId(null);
+      matchChats.setActiveKey("main");
+      setNewWaouhCounter((n) => n + 1);
+    } else {
+      navigate("/app/chat/waouh?new=1");
+    }
+  };
+  const openConv = (id: string) => {
+    if (isDesktop) {
+      setActiveConvId(id);
+    } else {
+      navigate(`/app/chat/${id}`);
+    }
+  };
   const { unread: notifUnread } = useNotifications();
 
-  return (
-    <div className="min-h-[100dvh] waouh-chat-list-bg">
+  const listContent = (
+    <>
       <header className="sticky top-0 z-10 bg-[hsl(165_91%_18%)] text-white">
+
         <div className="px-4 py-3 flex items-center justify-between">
           {isGuest ? (
             <div className="flex items-center gap-2">
@@ -313,11 +355,15 @@ export default function ChatListScreen() {
         <ul className="divide-y">
           {filtered.map((c) => {
             const n = unread[c.id] ?? 0;
+            const isActive = isDesktop && activeConvId === c.id;
             return (
               <li
                 key={c.id}
-                onClick={() => navigate(`/app/chat/${c.id}`)}
-                className="flex items-center gap-3 px-4 py-3 active:bg-muted cursor-pointer bg-background/70 backdrop-blur-sm"
+                onClick={() => openConv(c.id)}
+                className={
+                  "flex items-center gap-3 px-4 py-3 active:bg-muted cursor-pointer backdrop-blur-sm " +
+                  (isActive ? "bg-[hsl(165_91%_25%)]/10" : "bg-background/70")
+                }
               >
                 <Avatar className="h-12 w-12">
                   <AvatarFallback className="bg-[hsl(165_91%_25%)] text-white">{convInitials(c._label)}</AvatarFallback>
@@ -349,6 +395,35 @@ export default function ChatListScreen() {
         </ul>
       </main>
       )}
+    </>
+  );
+
+  if (isDesktop && !isGuest) {
+    return (
+      <div className="flex h-[calc(100dvh-64px)] w-full bg-background">
+        <aside className="w-[380px] shrink-0 border-r border-border overflow-y-auto waouh-chat-list-bg">
+          {listContent}
+        </aside>
+        <section className="flex-1 min-w-0 overflow-hidden">
+          {sessionId ? (
+            <ChatRightPane
+              sessionId={sessionId}
+              authUserId={user?.id ?? null}
+              activeConvId={activeConvId}
+              newWaouhCounter={newWaouhCounter}
+              matchChats={matchChats}
+            />
+          ) : (
+            <ChatRightPaneEmpty />
+          )}
+        </section>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-[100dvh] waouh-chat-list-bg">
+      {listContent}
     </div>
   );
 }

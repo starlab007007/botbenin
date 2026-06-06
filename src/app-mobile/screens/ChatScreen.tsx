@@ -43,8 +43,12 @@ type ConvMeta = {
   user_id: string | null;
 };
 
-export default function ChatScreen() {
-  const { id: convId } = useParams();
+export default function ChatScreen({
+  embedded = false,
+  convIdOverride,
+}: { embedded?: boolean; convIdOverride?: string } = {}) {
+  const params = useParams();
+  const convId = convIdOverride ?? params.id;
   const navigate = useNavigate();
   const { user } = useMobileAuth();
   const { sessionId } = useWaouhIdentity();
@@ -184,9 +188,11 @@ export default function ChatScreen() {
   };
 
   return (
-    <div className="min-h-[100dvh] flex flex-col waouh-chat-bg">
+    <div className={embedded ? "h-full flex flex-col waouh-chat-bg" : "min-h-[100dvh] flex flex-col waouh-chat-bg"}>
       <header className="bg-[hsl(165_91%_18%)] text-white px-2 py-2 flex items-center gap-2 sticky top-0 z-10">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/app/chat")} className="text-white hover:bg-white/15"><ArrowLeft /></Button>
+        {!embedded && (
+          <Button variant="ghost" size="icon" onClick={() => navigate("/app/chat")} className="text-white hover:bg-white/15"><ArrowLeft /></Button>
+        )}
         <div className="flex-1 min-w-0">
           <div className="font-semibold truncate flex items-center gap-2">
             {headerLabel}
