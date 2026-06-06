@@ -92,13 +92,18 @@ export function StatusComposer({ trigger, defaultType = "sell" }: Props) {
     if (remaining <= 0) { toast.error(`Maximum ${MAX_PHOTOS} photos`); return; }
     const next = Array.from(incoming).slice(0, remaining).filter((f) => f.type.startsWith("image/"));
     if (next.length === 0) { toast.error("Seules les photos sont acceptées"); return; }
-    const newPreviews = next.map((f) => URL.createObjectURL(f));
     setFiles((prev) => [...prev, ...next]);
-    setPreviews((prev) => [...prev, ...newPreviews]);
+    next.forEach((f) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const url = String(reader.result || "");
+        if (url) setPreviews((prev) => [...prev, url]);
+      };
+      reader.readAsDataURL(f);
+    });
   };
 
   const removeFile = (i: number) => {
-    URL.revokeObjectURL(previews[i]);
     setFiles((prev) => prev.filter((_, idx) => idx !== i));
     setPreviews((prev) => prev.filter((_, idx) => idx !== i));
   };
