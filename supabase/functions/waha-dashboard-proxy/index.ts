@@ -117,17 +117,24 @@ serve(async (req) => {
 
     console.log(`Proxying ${finalMethod} request to: ${fullWahaUrl}`);
 
-    // Fonction helper pour essayer plusieurs méthodes d'authentification
+    // Helper: fetch avec timeout pour éviter les IDLE_TIMEOUT (150s)
+    const fetchWithTimeout = async (input: string, init: RequestInit, timeoutMs = 20000) => {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), timeoutMs);
+      try {
+        return await fetch(input, { ...init, signal: ctrl.signal });
+      } finally {
+        clearTimeout(t);
+      }
+    };
+
     const tryWAHARequest = async (headers: Record<string, string>, authMethod: string) => {
       console.log(`Trying ${authMethod} authentication method`);
-      console.log('Request headers:', { ...headers, Authorization: headers.Authorization ? '[REDACTED]' : 'None' });
-      
-      const response = await fetch(fullWahaUrl, {
+      const response = await fetchWithTimeout(fullWahaUrl, {
         method: finalMethod,
         headers,
         body: bodyData ? JSON.stringify(bodyData) : null,
-      });
-      
+      }, 25000);
       console.log(`${authMethod} response status: ${response.status}`);
       return response;
     };
