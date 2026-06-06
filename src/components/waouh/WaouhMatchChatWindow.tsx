@@ -152,6 +152,11 @@ export function WaouhMatchChatWindow({
       .or(`article_id.eq.${match.article_id},meta->>article_id.eq.${match.article_id}`)
       .order("created_at", { ascending: false })
       .limit(limit);
+    // Scope to the viewer so we never display messages owned by the other party
+    const viewerOrs: string[] = [];
+    if (sessionId) viewerOrs.push(`web_session_id.eq.${sessionId}`);
+    if (waouhIds.length) viewerOrs.push(`user_id.in.(${waouhIds.join(",")})`);
+    if (viewerOrs.length) q = q.or(viewerOrs.join(","));
     if (before) q = q.lt("created_at", before);
     const { data } = await q;
     return ((data ?? []) as Msg[]).slice().reverse();
