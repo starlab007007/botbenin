@@ -330,6 +330,17 @@ const AdminWaouhHistoriquePage: React.FC = () => {
         </div>
       </Card>
 
+      {/* Load more */}
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>{negotiations.length} affichées{pagination.total ? ` / ${pagination.total} sur ${sinceDays}j` : ""}</span>
+        {pagination.hasMore && (
+          <Button onClick={loadMore} disabled={loadingMore} variant="outline" size="sm">
+            {loadingMore ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ChevronDown className="h-4 w-4 mr-2" />}
+            Charger plus
+          </Button>
+        )}
+      </div>
+
       <TimelineDrawer
         negotiation={selectedNeg}
         article={selectedNeg ? articleMap.get(selectedNeg.article_id) : null}
