@@ -200,7 +200,7 @@ export default function ChatListScreen() {
                     </span>
                   )}
                 </button>
-                <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={openWaouh} aria-label="Nouveau chat WAOUH">
+                <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={openNewWaouh} aria-label="Nouveau chat WAOUH">
                   <Plus className="h-5 w-5" />
                 </Button>
               </>
