@@ -592,6 +592,14 @@ export function WaouhMatchChatWindow({
             <div className="whitespace-pre-wrap">{m.text}</div>
           </div>
         ))}
+
+        {/* Empty-state hint: sync done but no message reachable for this viewer */}
+        {!initialLoading && syncedAt && messages.length === 0 && (
+          <div className="mx-auto max-w-[92%] rounded-xl border border-dashed border-muted-foreground/30 bg-muted/40 px-3 py-3 text-center text-xs text-muted-foreground">
+            Aucun message chargé depuis la base pour cette session.
+            {closed ? " La conversation est clôturée." : " Essayez de vous reconnecter avec le compte d'origine pour retrouver l'historique."}
+          </div>
+        )}
       </div>
 
       {/* Composer */}

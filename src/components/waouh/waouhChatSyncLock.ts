@@ -48,6 +48,8 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
         "m?.article_id !== match.article_id && m?.meta?.article_id !== match.article_id",
         // seed bubble suppression comment
         "Bulle \"seedNotif.text\" supprim",
+        // identity-aware history loader (auth user + session)
+        "authUserId: authUserId ?? null",
       ],
       mustNotContain: [
         // Ensure the raw seed text is never rendered as its own bubble
