@@ -181,7 +181,7 @@ serve(async (req) => {
         'Accept': 'application/json'
       };
       
-      wahaResponse = await fetch(altUrl, { method: 'GET', headers: retryHeaders });
+      wahaResponse = await fetchWithTimeout(altUrl, { method: 'GET', headers: retryHeaders }, 20000);
       console.log(`Fallback to /api/v2/sessions status: ${wahaResponse.status}`);
     }
 
