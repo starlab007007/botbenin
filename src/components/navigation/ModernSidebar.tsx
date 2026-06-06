@@ -20,6 +20,7 @@ import {
   Activity,
   Truck,
   Sparkles,
+  History,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -243,6 +244,7 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
               <NavItem item={{ title: 'Monitoring', path: '/admin/waouh/monitoring', icon: Activity, color: 'from-rose-500 to-red-600', description: 'Santé & métriques temps réel' }} showDescription />
               <NavItem item={{ title: 'Livraisons (Deals)', path: '/admin/waouh/deals', icon: Truck, color: 'from-orange-500 to-amber-600', description: 'Assigner livreurs & suivi' }} showDescription />
               <NavItem item={{ title: 'Commerces', path: '/admin/waouh/businesses', icon: Building2, color: 'from-blue-500 to-indigo-600', description: 'Catalogue des commerces' }} showDescription />
+              <NavItem item={{ title: 'Historique WAOUH', path: '/admin/waouh/historique', icon: History, color: 'from-slate-500 to-slate-700', description: 'Négociations, chat & traces', badge: 'New' }} showDescription />
               <NavItem item={{ title: 'Démo WAOUH', path: '/admin/waouh/demo', icon: Sparkles, color: 'from-fuchsia-500 to-purple-600', description: 'Page démo / showcase' }} showDescription />
             </div>
           </div>
