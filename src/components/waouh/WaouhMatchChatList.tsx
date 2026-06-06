@@ -495,14 +495,14 @@ export function WaouhMatchChatList({
         {visible.map((it) => renderRow(it, { pinned: it.key === latestKey }))}
       </ul>
 
-      {(archivedItems.length > 0 || autoOld.length > 0) && (
+      {(filteredArchived.length > 0 || autoOld.length > 0) && (
         <div className="px-4 py-2 border-t bg-muted/30">
           <button
             onClick={() => setShowArchived((s) => !s)}
             className="text-[11px] text-muted-foreground font-semibold flex items-center gap-1"
           >
             <Archive className="h-3 w-3" />
-            {showArchived ? "Masquer" : "Voir"} archivés ({archivedItems.length + autoOld.length})
+            {showArchived ? "Masquer" : "Voir"} archivés ({filteredArchived.length + autoOld.length})
             {showArchived ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           </button>
         </div>
@@ -510,7 +510,7 @@ export function WaouhMatchChatList({
 
       {showArchived && (
         <ul className="divide-y opacity-80">
-          {[...archivedItems, ...autoOld].map((it) => renderRow(it, { archivedRow: true }))}
+          {[...filteredArchived, ...autoOld].map((it) => renderRow(it, { archivedRow: true }))}
         </ul>
       )}
     </div>
