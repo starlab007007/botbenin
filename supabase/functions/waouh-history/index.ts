@@ -51,6 +51,7 @@ serve(async (req) => {
       .order("created_at", { ascending: false })
       .limit(limit);
     if (before) msgQuery = msgQuery.lt("created_at", before);
+    if (since) msgQuery = msgQuery.gte("created_at", since);
     const msgOrs: string[] = [];
     if (userIds.length) msgOrs.push(`user_id.in.(${userIds.join(",")})`);
     if (!useAuth && sessionId) msgOrs.push(`web_session_id.eq.${sessionId}`);
