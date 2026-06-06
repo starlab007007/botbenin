@@ -5,6 +5,7 @@ import { useMobileAuth } from "../hooks/useMobileAuth";
 import { useMobileProfile } from "../hooks/useMobileProfile";
 import { useUnreadCounts } from "../hooks/useUnreadCounts";
 import { useWaouhIdentity } from "../hooks/useWaouhIdentity";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Search, Plus, ShoppingBag, Bell } from "lucide-react";
 import { useNotifications } from "../hooks/useNotifications";
