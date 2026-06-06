@@ -231,7 +231,7 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
   };
 
   return (
-    <div className="h-[100dvh] flex flex-col bg-background overflow-hidden">
+    <div className={cn("flex flex-col bg-background overflow-hidden", embedded ? "h-full" : "h-[100dvh]")}>
       <header className="shrink-0 h-14 border-b border-border bg-card/95 backdrop-blur flex items-center justify-between px-4">
         <Link to="/" className="flex items-center gap-2.5 group">
           <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shadow-sm group-hover:scale-105 transition">
