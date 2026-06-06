@@ -133,7 +133,24 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
     attachments,
     intent,
     role,
+    trace_id: traceId,
   };
+
+  // Trace: sync stage (per party)
+  traceEvent(sb, {
+    trace_id: traceId,
+    article_id: articleId ?? null,
+    negotiation_id: negotiationId,
+    transaction_id: transactionId,
+    deal_id: dealId,
+    actor_user_id: user.id,
+    role,
+    stage: "sync",
+    status: result.message_id ? "ok" : "error",
+    intent,
+    dedup_key: dedupBase,
+    payload: { phone_resolved: !!phone, message_id: result.message_id, dedupSuffix },
+  });
 
   // 3) Enqueue WhatsApp si numéro résolu.
   if (phone) {
