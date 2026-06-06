@@ -52,13 +52,18 @@ Deno.serve(async (req) => {
     if (!target) return;
     if (target.id === payload?.from_user_id) return;
     let insertedMsgId: string | null = null;
-    if (target.web_session_id) {
+    if (target.id) {
+      const articleIdCol = (payload as any)?.article_id ?? (directMeta as any)?.article_id ?? null;
       try {
         const { data: msg } = await sb.from("waouh_messages").insert({
-          user_id: target.id, channel: "web", direction: "out",
-          text: directText, web_session_id: target.web_session_id,
+          user_id: target.id,
+          channel: target.web_session_id ? "web" : "system",
+          direction: "out",
+          text: directText,
+          web_session_id: target.web_session_id ?? null,
+          article_id: articleIdCol,
           attachments,
-          meta: { ...(directMeta || {}), transaction_id: transactionId ?? directMeta?.transaction_id ?? null, actions },
+          meta: { ...(directMeta || {}), article_id: articleIdCol, transaction_id: transactionId ?? directMeta?.transaction_id ?? null, actions },
         }).select("id").maybeSingle();
         insertedMsgId = msg?.id ?? null;
       } catch (e) { console.warn("[neg-router] msg", e); }
@@ -209,7 +214,7 @@ Deno.serve(async (req) => {
           "deal_created",
           { neg_id: neg.id, deal_id: deal?.id, article_id: neg.article_id, accepted: true, price: amount, from_user_id: user.id, target_role: isBuyer ? "seller" : "buyer" },
           targetReply,
-          { intent: "deal_created", negotiation_id: neg.id, deal_id: deal?.id },
+          { intent: "deal_created", negotiation_id: neg.id, deal_id: deal?.id, article_id: neg.article_id },
           null,
           [],
           `neg:${neg.id}:deal:${otherUserId}`,
@@ -241,7 +246,7 @@ Deno.serve(async (req) => {
     if (intent.kind === "no") {
       await sb.from("waouh_negotiations").update({ state: "closed", last_actor: isBuyer ? "buyer" : "seller" }).eq("id", neg.id);
       if (otherUserId) {
-        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, article_id: neg.article_id, closed: true, from_user_id: user.id, target_role: isBuyer ? "seller" : "buyer" }, `❌ ${isBuyer ? "L'acheteur" : "Le vendeur"} a refusé. Négociation clôturée.`, { intent: "negotiation_closed", negotiation_id: neg.id }, null, [], `neg:${neg.id}:closed:${otherUserId}`, "negotiation_closed");
+        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, article_id: neg.article_id, closed: true, from_user_id: user.id, target_role: isBuyer ? "seller" : "buyer" }, `❌ ${isBuyer ? "L'acheteur" : "Le vendeur"} a refusé. Négociation clôturée.`, { intent: "negotiation_closed", negotiation_id: neg.id, article_id: neg.article_id }, null, [], `neg:${neg.id}:closed:${otherUserId}`, "negotiation_closed");
       }
       return new Response(JSON.stringify({ ok: true, reply: "OK, négociation fermée. Merci !" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -260,7 +265,7 @@ Deno.serve(async (req) => {
         await pushToOther(otherUserId, "negotiation_open",
           { neg_id: neg.id, article_id: neg.article_id, offer: intent.price, transaction_id: neg.transaction_id, from_user_id: user.id, target_role: isBuyer ? "seller" : "buyer" },
           `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(intent.price)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant ( Ex: je propose ${fmt(intent.price)} CFA).`,
-          { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: neg.transaction_id },
+          { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: neg.transaction_id, article_id: neg.article_id },
           neg.transaction_id,
           negotiationActions(neg.id),
           `neg:${neg.id}:offer:${intent.price}:${otherUserId}`,
