@@ -26,6 +26,7 @@ function relativeTime(iso?: string | null) {
 }
 
 export function WaouhUnifiedInbox({ sessionId, authUserId, triggerClassName }: Props) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const { items, totalUnread, markRead } = useWaouhInbox(sessionId, authUserId);
 
