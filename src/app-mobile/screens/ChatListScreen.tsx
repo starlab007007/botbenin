@@ -54,12 +54,14 @@ export default function ChatListScreen() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
 
-  // Desktop/tablet (≥768px) → render embedded WaouhChatPage inside /app shell
-  // so the BottomTabBar remains visible for navigation to Bots, WhatsApp IA, etc.
-  if (typeof window !== "undefined" && window.innerWidth >= 768) {
-    return <WaouhChatPage embedded />;
-  }
-
+  // Force re-render on viewport changes so the 2-col layout toggles smoothly
+  const [, setVw] = useState<number>(() => (typeof window !== "undefined" ? window.innerWidth : 0));
+  useEffect(() => {
+    const onResize = () => setVw(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  const isDesktop = typeof window !== "undefined" && window.innerWidth >= 768;
 
   const { user } = useMobileAuth();
   const { profile } = useMobileProfile();
@@ -69,6 +71,19 @@ export default function ChatListScreen() {
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<"chats" | "statuses">("chats");
+
+  // Desktop right-pane state
+  const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const [newWaouhCounter, setNewWaouhCounter] = useState(0);
+
+  // When a match-chat open intent is dispatched/buffered, clear conv selection
+  // so the WaouhMatchChatWindow takes over the right pane.
+  useEffect(() => {
+    if (!isDesktop) return;
+    const onMatch = () => setActiveConvId(null);
+    window.addEventListener("waouh:open-match-chat", onMatch);
+    return () => window.removeEventListener("waouh:open-match-chat", onMatch);
+  }, [isDesktop]);
 
   const isGuest = !user;
 
