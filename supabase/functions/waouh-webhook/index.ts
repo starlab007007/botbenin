@@ -311,26 +311,33 @@ serve(async (req) => {
     const fcfaOffer = lower.match(/(\d{2,3}(?:[\s.,]?\d{3})+|\d{3,9})\s*(?:fcfa|cfa|f\s*cfa)\b/i);
     const offerMatch = (!payKw && (explicitOffer || fcfaOffer)) || null;
 
-    let intent: any = {};
-    // CONFIRM_RECEIVED et PAY sont désactivés : pas de paiement dans le nouveau parcours.
-    if (numMatch && interestedKw) intent = { intent: "CONFIRM", article_index: parseInt(numMatch[1], 10) };
-    else if (literalInterest) intent = { intent: "CONFIRM", article_index: 1 };
-
-    else if (sellKw) intent = { intent: "SELL" };
-    else if (buyKw) intent = { intent: "BUY" };
-    else if (negotiateKw) intent = { intent: "NEGOTIATE" };
-    else {
-      intent = await ai(
-        "Tu es WAOUH, assistant commerce IA. Détecte l'intention parmi: SELL, BUY, NEGOTIATE, PAY, CONFIRM, RATE, HELP, UNKNOWN. Retourne JSON {intent}.",
-        text
-      );
-    }
-
-    // Charge la conversation existante (pour récupérer le contexte des matches)
+    // Charge la conversation existante AVANT la détection d'intent (utile pour le fallback contextuel "1" seul)
     const { data: conv } = await sb.from("waouh_conversations")
       .select("*")
       .eq("phone_number", phone || `web:${webSessionId}`)
       .maybeSingle();
+
+    let intent: any = {};
+    // CONFIRM_RECEIVED et PAY sont désactivés : pas de paiement dans le nouveau parcours.
+    if (numMatch && interestedKw) intent = { intent: "CONFIRM", article_index: parseInt(numMatch[1], 10) };
+    else if (INTEREST_RE.test(lower)) intent = { intent: "CONFIRM", article_index: 1 };
+    else if (sellKw) intent = { intent: "SELL" };
+    else if (buyKw) intent = { intent: "BUY" };
+    else if (negotiateKw) intent = { intent: "NEGOTIATE" };
+    else {
+      // Fallback contextuel : un simple "1", "2"… juste après une liste de résultats = CONFIRM
+      const digitsOnly = lower.trim().match(/^(\d{1,2})$/);
+      const lastMatches = Array.isArray((conv?.context as any)?.last_matches) ? (conv?.context as any).last_matches : [];
+      if (digitsOnly && conv?.last_intent === "BUY" && lastMatches.length > 0) {
+        intent = { intent: "CONFIRM", article_index: parseInt(digitsOnly[1], 10) };
+      } else {
+        intent = await ai(
+          "Tu es WAOUH, assistant commerce IA. Détecte l'intention parmi: SELL, BUY, NEGOTIATE, PAY, CONFIRM, RATE, HELP, UNKNOWN. Retourne JSON {intent}.",
+          text
+        );
+      }
+    }
+
 
     let reply = "Désolé, je n'ai pas compris. Tapez 'aide' pour les commandes.";
     let returnedArticleId: string | null = null;
