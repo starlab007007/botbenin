@@ -1,57 +1,46 @@
-# Plan — Bouton "Nouveau chat WAOUH" (discussion vierge)
 
 ## Objectif
 
-Quand l'utilisateur clique sur **+ Nouveau chat WAOUH** (header `ChatListScreen` et CTA invité), ouvrir le chat principal WAOUH **vide**, prêt à démarrer une nouvelle vente/achat, **sans afficher** l'historique des messages précédents. L'historique reste préservé (base + snapshot local) et reste accessible via les conversations produit listées en dessous.
+Côté **vendeur**, dans la fenêtre ouverte depuis la notification produit :
+1. Ajouter la **date + heure** directement visible sur la ligne de notification (capture 2).
+2. **Supprimer** le bloc texte brut `📩 Nouvel acheteur intéressé … Répondez OUI / NON / Je propose …` qui se duplique dans la fenêtre (capture 3).
+3. **Conserver** le bloc `✅ Annonce publiée` ainsi que tout le flux de négociation dans cette même fenêtre (notifications d'intérêt entrantes + contre-offres + accord), sans rien casser côté acheteur.
 
-## Principe (aucun changement de schéma)
+## Constats techniques
 
-Introduire un **curseur de thread** côté client : un timestamp `waouh_main_thread_started_at` stocké en `localStorage`. Le chat principal n'affiche que les messages dont `created_at >= thread_started_at`. Les anciens messages restent en base et restent visibles dans les fenêtres produit (`WaouhMatchChatWindow`) et les conversations existantes — on ne supprime rien.
+- `src/components/waouh/WaouhMatchChatList.tsx` — la ligne "Annonce / WAOUH-VEN-…" n'affiche que titre + label, sans horodatage. `MatchItem.last_at` est déjà disponible.
+- `src/components/waouh/WaouhMatchChatWindow.tsx` lignes 560-567 — affiche `seedNotif.text` (le message brut "📩 Nouvel acheteur intéressé …"). C'est ce qui apparaît en double sous la bannière jaune dans la capture 3.
+- La bannière jaune (lignes 537-558) reprend déjà titre, photo, prix, ville et date → suffisant comme en-tête.
+- La fenêtre reçoit déjà les messages réalisme (`waouh_messages`), composer + send sont en place → la négociation se poursuit naturellement dans la même fenêtre.
 
-Le `web_session_id` (identité `waouh_users`) ne change pas → les vendeurs, notifications, négociations en cours continuent de fonctionner normalement.
+## Modifications
 
-## Changements
+### 1. `src/components/waouh/WaouhMatchChatList.tsx` (renderRow)
+Ajouter, à droite ou sous le label, une petite date courte basée sur `it.last_at` :
 
-### 1. `src/components/waouh/WaouhWebChat.tsx`
-- Lire `waouh_main_thread_started_at` depuis `localStorage` (fallback : `0` = tout afficher pour les utilisateurs existants).
-- Filtrer le snapshot local au chargement initial : `readMainSnapshot().filter(m => m.created_at >= cutoff)`.
-- Passer `since: cutoff` à `supabase.functions.invoke("waouh-history", …)` et au fallback direct (`.gte("created_at", cutoff)`).
-- Filtrer la souscription realtime entrante : ignorer les messages `< cutoff` (sécurité si un autre onglet rejoue).
-- Exposer via `WaouhWebChatHandle` une méthode `startNewThread()` qui :
-  1. écrit `Date.now().toISOString()` dans `waouh_main_thread_started_at`,
-  2. vide `messages` en state,
-  3. réécrit un snapshot vide,
-  4. focus le textarea.
+```tsx
+<span className="text-[10px] text-muted-foreground shrink-0">
+  {new Date(it.last_at).toLocaleString("fr-FR", {
+    day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+  })}
+</span>
+```
 
-### 2. `src/app-mobile/screens/WaouhChatScreen.tsx`
-- Quand la route est ouverte avec `?new=1` (ou un state `{ newThread: true }`), appeler `chatRef.current?.startNewThread()` au mount.
-- Ajouter un bouton **"Nouvelle discussion"** dans le header (icône `Plus` ou menu kebab) qui rappelle la même méthode — pratique pour démarrer un autre échange depuis l'écran WAOUH lui-même.
+Placée sous le badge `WAOUH-VEN-…` (deuxième ligne de la zone droite) pour rester lisible sans casser le layout.
 
-### 3. `src/app-mobile/screens/ChatListScreen.tsx`
-- `openWaouh` → `navigate("/app/chat/waouh")` reste le comportement par défaut (reprend là où on en était).
-- Les boutons **+ Nouveau chat WAOUH** (header `+`, CTA invité, CTA liste vide) → `navigate("/app/chat/waouh?new=1")`.
-- La carte "WAOUH" épinglée en haut continue d'ouvrir le chat sans `?new=1` (continuité).
+### 2. `src/components/waouh/WaouhMatchChatWindow.tsx`
+Supprimer le rendu du bloc brut **uniquement côté vendeur** (le côté acheteur conserve le texte original utile à la recherche/radar) :
 
-### 4. `src/pages/waouh/WaouhChatPage.tsx` (web/desktop)
-- Lire `?new=1` au montage et appeler `startNewThread()` via un ref sur `WaouhWebChat`.
+```tsx
+{seedNotif?.text && match.kind !== "seller" && (
+  <div className="mr-auto …">…</div>
+)}
+```
 
-## Comportements préservés
+Aucune autre suppression : la bannière jaune (titre + photo + prix + ville + date) reste, le message `✅ Annonce publiée` (envoyé séparément dans `waouh_messages`) continue de s'afficher dans le fil normal, et toutes les notifications d'intérêt suivantes + contre-offres arrivent déjà dans cette même fenêtre via le canal realtime existant.
 
-- ✅ Le bouton **"intéressé N"** continue de créer une négociation et notifier le vendeur (logique `waouh-webhook` inchangée).
-- ✅ La fenêtre `WaouhMatchChatWindow` continue de s'ouvrir côté vendeur et acheteur dès qu'un intérêt est confirmé.
-- ✅ Les conversations produit listées sous l'avatar WAOUH (capture 1) restent accessibles et complètes.
-- ✅ Les notifications, négociations, paiements en cours ne sont pas perturbés (identité `waouh_users` stable).
+## Hors scope
 
-## Validation
-
-1. Envoyer plusieurs messages dans WAOUH → ils s'affichent normalement.
-2. Cliquer **+ Nouveau chat WAOUH** → écran vide, focus sur l'input, rien d'autre.
-3. Envoyer "Je vends mon iPhone…" → la conversation démarre proprement, l'IA répond.
-4. Recharger la page → seul le nouveau thread est visible.
-5. Ouvrir une conversation produit existante → l'historique est intact.
-6. Tester sur mobile (`/app/chat`) et desktop (`/waouh`).
-
-## Hors scope (à confirmer si tu veux les ajouter ensuite)
-
-- Liste/sélecteur de threads WAOUH passés (aujourd'hui : un seul thread courant, les précédents restent accessibles via les conversations produit).
-- Persistance des threads en DB (table `waouh_threads`) — non nécessaire pour ce besoin, mais possible plus tard si tu veux pouvoir nommer/retrouver chaque session.
+- Aucune modification d'edge function ni de format de message.
+- Pas de changement côté acheteur.
+- Pas de refonte du composer ni de la logique de négociation (déjà fonctionnelle dans cette fenêtre).
