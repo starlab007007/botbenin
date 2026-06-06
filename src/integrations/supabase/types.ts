@@ -7373,6 +7373,63 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_trace_events: {
+        Row: {
+          actor_user_id: string | null
+          article_id: string | null
+          created_at: string
+          deal_id: string | null
+          dedup_key: string | null
+          error: string | null
+          id: string
+          intent: string | null
+          negotiation_id: string | null
+          payload: Json | null
+          recipient_user_id: string | null
+          role: string | null
+          stage: string
+          status: string
+          trace_id: string | null
+          transaction_id: string | null
+        }
+        Insert: {
+          actor_user_id?: string | null
+          article_id?: string | null
+          created_at?: string
+          deal_id?: string | null
+          dedup_key?: string | null
+          error?: string | null
+          id?: string
+          intent?: string | null
+          negotiation_id?: string | null
+          payload?: Json | null
+          recipient_user_id?: string | null
+          role?: string | null
+          stage: string
+          status?: string
+          trace_id?: string | null
+          transaction_id?: string | null
+        }
+        Update: {
+          actor_user_id?: string | null
+          article_id?: string | null
+          created_at?: string
+          deal_id?: string | null
+          dedup_key?: string | null
+          error?: string | null
+          id?: string
+          intent?: string | null
+          negotiation_id?: string | null
+          payload?: Json | null
+          recipient_user_id?: string | null
+          role?: string | null
+          stage?: string
+          status?: string
+          trace_id?: string | null
+          transaction_id?: string | null
+        }
+        Relationships: []
+      }
       waouh_transactions: {
         Row: {
           amount: number
