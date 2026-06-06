@@ -193,8 +193,10 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
         p_event_type: eventType ?? intent,
       });
       result.enqueued_web_mirror = true;
-    } catch (e) {
+      traceEvent(sb, { trace_id: traceId, article_id: articleId ?? null, negotiation_id: negotiationId, transaction_id: transactionId, actor_user_id: user.id, role, stage: "web_mirror", status: "ok", intent, dedup_key: `web:${dedupBase}` });
+    } catch (e: any) {
       console.warn("[pushSyncedEvent] enqueue web mirror", e);
+      traceEvent(sb, { trace_id: traceId, article_id: articleId ?? null, negotiation_id: negotiationId, transaction_id: transactionId, actor_user_id: user.id, role, stage: "web_mirror", status: "error", intent, dedup_key: `web:${dedupBase}`, error: String(e?.message ?? e) });
     }
   }
 
