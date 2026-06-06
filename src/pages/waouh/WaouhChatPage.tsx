@@ -69,6 +69,22 @@ const HelpContent = () => (
   </div>
 );
 
+const LAYOUT_KEY = "waouh_chat_layout_mode";
+type LayoutMode = "split" | "list";
+
+function getInitialLayout(): LayoutMode {
+  if (typeof window === "undefined") return "split";
+  const v = localStorage.getItem(LAYOUT_KEY);
+  return v === "list" ? "list" : "split";
+}
+
+function computeSidebarWidth(): number {
+  if (typeof window === "undefined") return 340;
+  const w = window.innerWidth;
+  if (w >= 1280) return 360;
+  return 320;
+}
+
 export default function WaouhChatPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -76,7 +92,20 @@ export default function WaouhChatPage() {
   const isMobile = useIsMobile();
   const sessionId = getSessionId();
   const chatRef = useRef<WaouhWebChatHandle>(null);
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>(getInitialLayout);
+  const [sidebarWidth, setSidebarWidth] = useState<number>(computeSidebarWidth);
   const { permission, requestPermission, notifications, unreadCount, markAllRead, markRead, clearAll } = useWaouhMatchNotifications(sessionId, user?.id ?? null);
+
+  useEffect(() => {
+    const onResize = () => setSidebarWidth(computeSidebarWidth());
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const updateLayout = (mode: LayoutMode) => {
+    setLayoutMode(mode);
+    try { localStorage.setItem(LAYOUT_KEY, mode); } catch {}
+  };
 
   useEffect(() => {
     document.title = "WAOUH Chat — Achetez, Vendez, Négociez, Payez | bot.bj";
