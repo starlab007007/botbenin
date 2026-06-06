@@ -16,6 +16,8 @@ const FILTERS: { key: StatusType | "all"; label: string; dot: string }[] = [
 interface Props {
   /** mobile: vertical list ; web: 2-col grid ; web-strip: horizontal scroller (stories) */
   variant?: "mobile" | "web" | "web-strip";
+  /** Optional search query to filter statuses */
+  query?: string;
 }
 
 function CardSkeleton({ compact }: { compact?: boolean }) {
