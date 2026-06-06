@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { type WaouhStatus } from "@/hooks/useStatuses";
 import { StatusCountdown } from "./StatusCountdown";
+import { supabase } from "@/integrations/supabase/client";
 
 const TYPE_STYLES: Record<WaouhStatus["type"], { bg: string; label: string; accent: string }> = {
   sell: {
