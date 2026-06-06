@@ -412,18 +412,29 @@ const TimelineDrawer: React.FC<{
   onClose: () => void;
   sinceDays: number;
 }> = ({ negotiation, article, onClose, sinceDays }) => {
-  const [data, setData] = useState<any>({ messages: [], queue: [], notifications: [], traces: [], divergences: {} });
+  const [data, setData] = useState<any>({ messages: [], queue: [], notifications: [], traces: [], divergences: {}, completeness: { pct: 0, stages: [], missing: [] }, pagination: { hasMore: false, offset: 0, limit: 500 } });
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  useEffect(() => {
+  const loadTimeline = useCallback(async (offset: number, append: boolean) => {
     if (!negotiation) return;
-    setLoading(true);
-    supabase.functions.invoke("waouh-historique", {
-      body: { action: "timeline", negotiationId: negotiation.id, articleId: negotiation.article_id, sinceDays },
-    }).then(({ data, error }) => {
-      if (!error && data?.ok) setData(data);
-    }).finally(() => setLoading(false));
+    const setLoad = append ? setLoadingMore : setLoading;
+    setLoad(true);
+    const { data: res, error } = await supabase.functions.invoke("waouh-historique", {
+      body: { action: "timeline", negotiationId: negotiation.id, articleId: negotiation.article_id, sinceDays, limit: 500, offset },
+    });
+    if (!error && res?.ok) {
+      setData((prev: any) => append ? {
+        ...res,
+        messages: [...(prev.messages || []), ...(res.messages || [])],
+        queue: [...(prev.queue || []), ...(res.queue || [])],
+        traces: [...(prev.traces || []), ...(res.traces || [])],
+      } : res);
+    }
+    setLoad(false);
   }, [negotiation, sinceDays]);
+
+  useEffect(() => { loadTimeline(0, false); }, [loadTimeline]);
 
   const tracesByTrace = useMemo(() => {
     const map = new Map<string, any[]>();
