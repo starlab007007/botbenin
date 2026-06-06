@@ -298,11 +298,13 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
               <div className="mt-4"><HelpContent /></div>
             </SheetContent>
           </Sheet>
-          <Link to="/">
-            <Button variant="ghost" size="sm">
-              <X className="w-4 h-4 mr-1.5" /> Fermer
-            </Button>
-          </Link>
+          {!embedded && (
+            <Link to="/">
+              <Button variant="ghost" size="sm">
+                <X className="w-4 h-4 mr-1.5" /> Fermer
+              </Button>
+            </Link>
+          )}
           {!user && (
             <Link to="/auth">
               <Button size="sm" className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white hover:opacity-90">
