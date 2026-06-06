@@ -267,7 +267,7 @@ export default function ChatListScreen() {
         </button>
 
         {/* Per-product chat windows (buyer-found & interested-buyer) appear directly under WAOUH */}
-        <WaouhMatchChatList sessionId={sessionId} authUserId={profile?.id ?? null} />
+        <WaouhMatchChatList sessionId={sessionId} authUserId={profile?.id ?? null} query={q} />
 
 
         {isGuest && (
