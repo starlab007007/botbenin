@@ -181,8 +181,44 @@ serve(async (req) => {
 
     const skipWhatsapp = !!body.skip_whatsapp;
     if (!skipWhatsapp && (target.channel === "whatsapp" || target.channel === "partner" || target.channel === "radar_ia") && target.whatsapp) {
-      const chatId = `${target.whatsapp}@c.us`;
-      waResult = await sendWhatsAppCard(chatId, text, photos);
+      // 🔁 Unifié : passe par la queue (waouh_enqueue_outbound_v2 → waouh-outbound-dispatch)
+      // au lieu d'un appel direct WAHA. Évite les doublons avec waouh-webhook et
+      // garantit la même dédup / le même tracking que les autres évènements.
+      try {
+        const dayBucket = new Date().toISOString().slice(0, 10);
+        const dedupeKey = `notify:${kind}:${article_id}:${target.whatsapp}:${recipient}:${dayBucket}${buyer_profile_id ? `:${buyer_profile_id}` : ""}`;
+        const { error: enqErr } = await sb.rpc("waouh_enqueue_outbound_v2", {
+          p_to_phone: target.whatsapp,
+          p_to_user_id: notifTargetUserId,
+          p_template: kind,
+          p_payload: {
+            text,
+            actions: [],
+            article_id,
+            recipient,
+            photos,
+            buyer_profile_id: buyer_profile_id ?? null,
+          },
+          p_web_session_id: null,
+          p_image_url: photos?.[0] ?? null,
+          p_channel: "whatsapp",
+          p_dedupe_key: dedupeKey,
+          p_event_type: kind,
+        });
+        if (enqErr) {
+          waResult = { ok: false, error: String(enqErr.message || enqErr) };
+        } else {
+          waResult = { ok: true, queued: true };
+          // Fire-and-forget worker trigger
+          fetch(`${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ limit: 20 }),
+          }).catch(() => {});
+        }
+      } catch (e) {
+        waResult = { ok: false, error: String(e) };
+      }
       channelUsed = target.channel;
     } else if (skipWhatsapp) {
       // Caller already delivered via WhatsApp (e.g. inline reply) — just log the in-app row.

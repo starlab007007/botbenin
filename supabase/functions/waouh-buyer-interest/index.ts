@@ -7,6 +7,7 @@
 
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -93,6 +94,33 @@ Deno.serve(async (req) => {
       dispatched = true;
     } catch (e) {
       console.warn("[waouh-buyer-interest] dispatch failed", e);
+    }
+
+    // 🔁 Écho côté acheteur : bulle chat + WhatsApp (si numéro acheteur résolu)
+    if (buyerUserId) {
+      try {
+        const { data: buyerUser } = await sb
+          .from("waouh_users")
+          .select("id, phone_number, web_session_id, auth_user_id")
+          .eq("id", buyerUserId)
+          .maybeSingle();
+        if (buyerUser) {
+          const title = (article as any)?.title || "votre annonce";
+          await pushSyncedEvent({
+            sb,
+            user: buyerUser,
+            role: "buyer",
+            articleId: article_id,
+            text: `✅ Demande envoyée au vendeur\n\n📦 ${title}\n\nLe vendeur sera notifié et reviendra vers vous très vite via WAOUH.`,
+            intent: "buyer_interest",
+            eventType: "buyer_interest",
+            template: "buyer_interest_ack",
+            dedupSuffix: "actor",
+          });
+        }
+      } catch (e) {
+        console.warn("[waouh-buyer-interest] buyer echo failed", e);
+      }
     }
 
 
