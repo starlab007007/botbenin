@@ -101,7 +101,7 @@ export default function NotificationsScreen() {
         }
       />
 
-      <div className="flex gap-2 px-4 py-2 border-b bg-muted/30">
+      <div className="flex gap-2 px-4 py-2 border-b bg-muted/30 shrink-0">
         <Button
           size="sm"
           variant={showAll ? "ghost" : "default"}
@@ -120,7 +120,7 @@ export default function NotificationsScreen() {
         </Button>
       </div>
 
-      <main className="pb-20">
+      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain pb-20">
         {loading && <div className="p-8 text-center text-muted-foreground">Chargement…</div>}
         {!loading && visible.length === 0 && (
           <div className="p-10 text-center text-muted-foreground">
