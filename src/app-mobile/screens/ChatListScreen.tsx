@@ -179,13 +179,37 @@ export default function ChatListScreen() {
 
   const initials = (profile?.full_name ?? profile?.phone ?? "U").slice(0, 2).toUpperCase();
 
-  const openWaouh = () => navigate("/app/chat/waouh");
-  const openNewWaouh = () => navigate("/app/chat/waouh?new=1");
+  const openWaouh = () => {
+    if (isDesktop) {
+      setActiveConvId(null);
+      // Hook clears activeKey to "main" via dispatch
+      window.dispatchEvent(new CustomEvent("waouh:set-active-match", { detail: { key: "main" } }));
+    } else {
+      navigate("/app/chat/waouh");
+    }
+  };
+  const openNewWaouh = () => {
+    if (isDesktop) {
+      setActiveConvId(null);
+      setNewWaouhCounter((n) => n + 1);
+      window.dispatchEvent(new CustomEvent("waouh:set-active-match", { detail: { key: "main" } }));
+    } else {
+      navigate("/app/chat/waouh?new=1");
+    }
+  };
+  const openConv = (id: string) => {
+    if (isDesktop) {
+      setActiveConvId(id);
+    } else {
+      navigate(`/app/chat/${id}`);
+    }
+  };
   const { unread: notifUnread } = useNotifications();
 
-  return (
-    <div className="min-h-[100dvh] waouh-chat-list-bg">
+  const listContent = (
+    <>
       <header className="sticky top-0 z-10 bg-[hsl(165_91%_18%)] text-white">
+
         <div className="px-4 py-3 flex items-center justify-between">
           {isGuest ? (
             <div className="flex items-center gap-2">
