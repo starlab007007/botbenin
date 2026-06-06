@@ -119,7 +119,7 @@ export const WaouhNotificationsBell: React.FC<{
             Historique
           </button>
         </div>
-        <ScrollArea className="max-h-80">
+        <ScrollArea className="h-[min(70vh,500px)]">
           {visibleNotifs.length === 0 ? (
             <div className="text-sm text-muted-foreground text-center py-8 px-4">
               {view === "active" ? "Aucune notification active." : "Aucune notification dans l'historique."}
