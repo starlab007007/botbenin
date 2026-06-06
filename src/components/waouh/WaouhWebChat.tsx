@@ -160,6 +160,8 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       .order("created_at", { ascending: false })
       .limit(limit);
     if (before) q = q.lt("created_at", before);
+    const cutoff = threadCutoffRef.current;
+    if (cutoff) q = q.gte("created_at", cutoff);
     const { data, error } = await q;
     if (error) {
       console.warn("[waouh-chat] direct page load error", error);
@@ -177,6 +179,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           authUserId: user?.id ?? null,
           limit,
           before,
+          since: threadCutoffRef.current,
           includeMeta: !before, // notifications/conversations only on the very first call
         },
       });
