@@ -292,7 +292,7 @@ const AppContent = () => {
                   <Route path="/bot/:botId" element={<PublicBotChatPage />} />
                   <Route path="/documentation" element={<DocumentationPortalPage />} />
                   <Route path="/yovo-gallery" element={<YovoGallery />} />
-                  <Route path="/waouh-chat" element={<WaouhChatPage />} />
+                  <Route path="/waouh-chat" element={<Navigate to="/app/chat" replace />} />
 
                   {/* WaouhApp — Mobile shell (Capacitor + web preview) */}
                   <Route path="/app/auth" element={<MobileAuthHome />} />
