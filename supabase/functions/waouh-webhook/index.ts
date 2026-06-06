@@ -1084,6 +1084,7 @@ serve(async (req) => {
             event_type: "negotiation_counter",
           });
         }
+        returnedArticleId = neg.article_id;
         reply = `💬 ${isBuyer ? "Offre" : "Contre-offre"} de *${fmt(amount)}* transmise. Vous serez notifié de la réponse.`;
       } else {
         reply = `💬 Indiquez votre prix : « *Je propose ${fmt(neg.last_offer_price || 0)}* »`;
