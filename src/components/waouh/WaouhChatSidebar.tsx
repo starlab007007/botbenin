@@ -131,19 +131,21 @@ export function WaouhChatSidebar({
                     }}
                     className={
                       "px-3 py-2 rounded-md cursor-pointer hover:bg-muted/60 transition-colors " +
-                      (!n.opened ? "bg-primary/5" : "")
+                      (!n.read ? "bg-primary/5" : "")
                     }
                   >
                     <div className="flex items-start gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 bg-primary"
-                        style={{ opacity: n.opened ? 0 : 1 }} />
+                      <div
+                        className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 bg-primary"
+                        style={{ opacity: n.read ? 0 : 1 }}
+                      />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-baseline justify-between gap-2">
                           <p className="text-sm font-medium truncate text-foreground">
                             {n.title ?? "Notification"}
                           </p>
                           <span className="text-[10px] text-muted-foreground shrink-0">
-                            {new Date(n.sent_at).toLocaleString("fr-FR", {
+                            {new Date(n.created_at).toLocaleString("fr-FR", {
                               day: "2-digit",
                               month: "short",
                               hour: "2-digit",
