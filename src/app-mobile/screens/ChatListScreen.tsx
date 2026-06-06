@@ -186,8 +186,7 @@ export default function ChatListScreen() {
   const openWaouh = () => {
     if (isDesktop) {
       setActiveConvId(null);
-      // Hook clears activeKey to "main" via dispatch
-      window.dispatchEvent(new CustomEvent("waouh:set-active-match", { detail: { key: "main" } }));
+      matchChats.setActiveKey("main");
     } else {
       navigate("/app/chat/waouh");
     }
@@ -195,8 +194,8 @@ export default function ChatListScreen() {
   const openNewWaouh = () => {
     if (isDesktop) {
       setActiveConvId(null);
+      matchChats.setActiveKey("main");
       setNewWaouhCounter((n) => n + 1);
-      window.dispatchEvent(new CustomEvent("waouh:set-active-match", { detail: { key: "main" } }));
     } else {
       navigate("/app/chat/waouh?new=1");
     }
