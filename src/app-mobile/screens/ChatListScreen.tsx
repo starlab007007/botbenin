@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChatRightPane, ChatRightPaneEmpty } from "../components/ChatRightPane";
+import { useWaouhMatchChats } from "@/components/waouh/useWaouhMatchChats";
 import { supabase } from "@/integrations/supabase/client";
 import { useMobileAuth } from "../hooks/useMobileAuth";
 import { useMobileProfile } from "../hooks/useMobileProfile";
