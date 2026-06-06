@@ -1,12 +1,17 @@
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2, ArrowLeft, ArrowRight, Check, ShoppingBag, Search, Megaphone } from "lucide-react";
+import {
+  Plus, Loader2, ArrowLeft, ArrowRight, Check, ShoppingBag, Search, Megaphone,
+  MapPin, Camera, ImageIcon, X
+} from "lucide-react";
 import { toast } from "sonner";
 import { useStatuses, type StatusType } from "@/hooks/useStatuses";
+import { useWaouhGeolocation } from "@/hooks/useWaouhGeolocation";
+import { BENIN_CITIES, getQuartiersForCity } from "@/data/beninLocations";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -22,10 +27,12 @@ const TYPE_OPTIONS: { value: StatusType; label: string; sub: string; Icon: any; 
   { value: "announce", label: "J'annonce",  sub: "Promo · info",       Icon: Megaphone,   tint: "from-amber-500 to-amber-700" },
 ];
 
-const QUICK_CITIES = ["Cotonou", "Calavi", "Porto-Novo", "Parakou", "Bohicon", "Abomey"];
+const ALL_CITY_NAMES = BENIN_CITIES.map((c) => c.ville);
+const MAX_PHOTOS = 2;
 
 export function StatusComposer({ trigger, defaultType = "sell" }: Props) {
   const { publishStatus } = useStatuses();
+  const { geo, loading: geoLoading } = useWaouhGeolocation();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState<Step>("type");
@@ -33,16 +40,66 @@ export function StatusComposer({ trigger, defaultType = "sell" }: Props) {
   const [title, setTitle] = useState("");
   const [price, setPrice] = useState("");
   const [location, setLocation] = useState("");
+  const [usingGps, setUsingGps] = useState(false);
   const [caption, setCaption] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
+  const galleryRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+
+  // Suggestions intelligentes : villes + quartiers, filtrées par saisie
+  const suggestions = useMemo(() => {
+    const q = location.trim().toLowerCase();
+    const pool: string[] = [];
+    for (const c of BENIN_CITIES) {
+      pool.push(c.ville);
+      for (const qt of c.quartiers) pool.push(`${qt}, ${c.ville}`);
+    }
+    const filtered = q
+      ? pool.filter((p) => p.toLowerCase().includes(q)).slice(0, 8)
+      : ALL_CITY_NAMES.slice(0, 6);
+    return Array.from(new Set(filtered));
+  }, [location]);
 
   const reset = () => {
-    setStep("type"); setTitle(""); setPrice(""); setLocation(""); setCaption(""); setFile(null);
+    setStep("type"); setTitle(""); setPrice(""); setLocation(""); setCaption("");
+    setFiles([]); setPreviews([]); setUsingGps(false);
   };
 
   const close = (v: boolean) => {
     setOpen(v);
-    if (!v) reset();
+    if (!v) {
+      previews.forEach((u) => URL.revokeObjectURL(u));
+      reset();
+    }
+  };
+
+  const useGpsLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error("Géolocalisation indisponible sur cet appareil");
+      return;
+    }
+    setUsingGps(true);
+    const label = geo.district ? `${geo.district}, ${geo.city}` : geo.city;
+    setLocation(label);
+    toast.success(`Position : ${label}`);
+  };
+
+  const addFiles = (incoming: FileList | null) => {
+    if (!incoming || incoming.length === 0) return;
+    const remaining = MAX_PHOTOS - files.length;
+    if (remaining <= 0) { toast.error(`Maximum ${MAX_PHOTOS} photos`); return; }
+    const next = Array.from(incoming).slice(0, remaining).filter((f) => f.type.startsWith("image/"));
+    if (next.length === 0) { toast.error("Seules les photos sont acceptées"); return; }
+    const newPreviews = next.map((f) => URL.createObjectURL(f));
+    setFiles((prev) => [...prev, ...next]);
+    setPreviews((prev) => [...prev, ...newPreviews]);
+  };
+
+  const removeFile = (i: number) => {
+    URL.revokeObjectURL(previews[i]);
+    setFiles((prev) => prev.filter((_, idx) => idx !== i));
+    setPreviews((prev) => prev.filter((_, idx) => idx !== i));
   };
 
   const submit = async () => {
@@ -55,7 +112,9 @@ export function StatusComposer({ trigger, defaultType = "sell" }: Props) {
         caption: caption.trim() || undefined,
         price_fcfa: price ? parseInt(price.replace(/\D/g, ""), 10) : undefined,
         location: location.trim() || undefined,
-        media_file: file,
+        lat: usingGps ? geo.lat : undefined,
+        lng: usingGps ? geo.lng : undefined,
+        media_files: files,
       });
       toast.success("Statut publié — visible 24h");
       close(false);
@@ -100,7 +159,6 @@ export function StatusComposer({ trigger, defaultType = "sell" }: Props) {
           <DialogTitle>Publier un statut · 24h</DialogTitle>
         </DialogHeader>
 
-        {/* progress dots */}
         <div className="flex items-center gap-1.5 mb-1">
           {[0,1,2,3].map((i) => (
             <span key={i} className={cn("h-1 rounded-full flex-1", i <= stepIndex ? "bg-emerald-600" : "bg-muted")} />
@@ -154,44 +212,145 @@ export function StatusComposer({ trigger, defaultType = "sell" }: Props) {
         {step === "where" && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">Où êtes-vous ?</p>
+
+            {/* GPS auto */}
+            <button
+              type="button"
+              onClick={useGpsLocation}
+              disabled={geoLoading}
+              className={cn(
+                "w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left",
+                usingGps ? "border-emerald-600 bg-emerald-50 dark:bg-emerald-950/30" : "border-border bg-card hover:bg-muted"
+              )}
+            >
+              <span className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shrink-0">
+                {geoLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <MapPin className="w-5 h-5" />}
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="block font-semibold text-foreground text-sm">Utiliser ma position GPS</span>
+                <span className="block text-xs text-muted-foreground truncate">
+                  {geo.district ? `${geo.district}, ${geo.city}` : geo.city}
+                  {geo.accuracy ? ` · ±${Math.round(geo.accuracy)}m` : ""}
+                </span>
+              </span>
+              {usingGps && <Check className="w-5 h-5 text-emerald-600" />}
+            </button>
+
+            <div className="flex items-center gap-2">
+              <div className="h-px bg-border flex-1" />
+              <span className="text-xs text-muted-foreground">ou saisir manuellement</span>
+              <div className="h-px bg-border flex-1" />
+            </div>
+
             <div>
-              <Label htmlFor="loc">Ville</Label>
-              <Input id="loc" autoFocus value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Cotonou" />
+              <Label htmlFor="loc">Ville ou quartier</Label>
+              <Input
+                id="loc"
+                value={location}
+                onChange={(e) => { setLocation(e.target.value); setUsingGps(false); }}
+                placeholder="Ex: Cadjèhoun, Cotonou"
+                autoComplete="off"
+              />
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {QUICK_CITIES.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setLocation(c)}
-                  className={cn(
-                    "text-xs px-2.5 py-1 rounded-full border",
-                    location === c
-                      ? "bg-emerald-600 text-white border-emerald-600"
-                      : "bg-card text-foreground border-border"
-                  )}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
+
+            {/* Suggestions intelligentes */}
+            {suggestions.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                {suggestions.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => { setLocation(s); setUsingGps(false); }}
+                    className={cn(
+                      "text-xs px-2.5 py-1 rounded-full border transition-colors",
+                      location === s
+                        ? "bg-emerald-600 text-white border-emerald-600"
+                        : "bg-card text-foreground border-border hover:border-emerald-400"
+                    )}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
         {step === "media" && (
           <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">Ajoutez une photo (optionnel)</p>
+            <p className="text-sm text-muted-foreground">
+              Ajoutez jusqu'à {MAX_PHOTOS} photos (optionnel)
+            </p>
+
             <div>
               <Label htmlFor="caption">Détail (optionnel)</Label>
               <Textarea id="caption" value={caption} onChange={(e) => setCaption(e.target.value)} rows={2} maxLength={240} placeholder="Précisions, état, Mobile Money…" />
             </div>
-            <div>
-              <Label htmlFor="media">Photo ou vidéo</Label>
-              <Input id="media" type="file" accept="image/*,video/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-              {file && <p className="text-xs text-muted-foreground mt-1">{file.name}</p>}
+
+            {/* Boutons capture / galerie */}
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                ref={cameraRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                multiple
+                hidden
+                onChange={(e) => { addFiles(e.target.files); e.currentTarget.value = ""; }}
+              />
+              <input
+                ref={galleryRef}
+                type="file"
+                accept="image/*"
+                multiple
+                hidden
+                onChange={(e) => { addFiles(e.target.files); e.currentTarget.value = ""; }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => cameraRef.current?.click()}
+                disabled={files.length >= MAX_PHOTOS}
+                className="h-20 flex-col gap-1"
+              >
+                <Camera className="w-5 h-5" />
+                <span className="text-xs">Prendre photo</span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => galleryRef.current?.click()}
+                disabled={files.length >= MAX_PHOTOS}
+                className="h-20 flex-col gap-1"
+              >
+                <ImageIcon className="w-5 h-5" />
+                <span className="text-xs">Depuis galerie</span>
+              </Button>
             </div>
 
-            {/* preview message */}
+            {/* Prévisualisation */}
+            {previews.length > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                {previews.map((url, i) => (
+                  <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-border">
+                    <img src={url} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeFile(i)}
+                      className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black"
+                      aria-label="Supprimer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {files.length} / {MAX_PHOTOS} photo{files.length > 1 ? "s" : ""}
+            </p>
+
+            {/* Aperçu message */}
             <div className="rounded-lg bg-muted/50 border border-border p-2 text-xs text-foreground">
               <span className="font-semibold">Aperçu : </span>
               {TYPE_OPTIONS.find((t) => t.value === type)?.label} — <strong>{title || "…"}</strong>

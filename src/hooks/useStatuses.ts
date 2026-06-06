@@ -13,8 +13,11 @@ export interface WaouhStatus {
   caption: string | null;
   price_fcfa: number | null;
   location: string | null;
+  lat: number | null;
+  lng: number | null;
   media_url: string | null;
   media_kind: "image" | "video" | null;
+  media_urls: string[];
   article_id: string | null;
   waouh_code: string | null;
   views_count: number;
@@ -28,10 +31,17 @@ export interface PublishStatusInput {
   caption?: string;
   price_fcfa?: number;
   location?: string;
+  lat?: number;
+  lng?: number;
   article_id?: string;
   waouh_code?: string;
+  /** Up to 2 photos */
+  media_files?: File[];
+  /** @deprecated use media_files */
   media_file?: File | null;
 }
+
+const STORAGE_BUCKET = "waouh-statuses";
 
 export function useStatuses(filter?: StatusType | "all") {
   const [statuses, setStatuses] = useState<WaouhStatus[]>([]);
@@ -70,18 +80,25 @@ export function useStatuses(filter?: StatusType | "all") {
     const user = auth.user;
     if (!user) throw new Error("Connectez-vous pour publier un statut");
 
-    let media_url: string | null = null;
-    let media_kind: "image" | "video" | null = null;
-    if (input.media_file) {
-      const ext = input.media_file.name.split(".").pop() || "bin";
-      const path = `${user.id}/${Date.now()}.${ext}`;
+    const filesToUpload: File[] = input.media_files && input.media_files.length > 0
+      ? input.media_files.slice(0, 2)
+      : input.media_file ? [input.media_file] : [];
+
+    const media_urls: string[] = [];
+    for (const f of filesToUpload) {
+      const ext = (f.name.split(".").pop() || "jpg").toLowerCase();
+      const path = `${user.id}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
       const { error: upErr } = await supabase.storage
-        .from("waouh-statuses")
-        .upload(path, input.media_file, { upsert: false });
-      if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from("waouh-statuses").getPublicUrl(path);
-      media_url = pub.publicUrl;
-      media_kind = input.media_file.type.startsWith("video") ? "video" : "image";
+        .from(STORAGE_BUCKET)
+        .upload(path, f, { upsert: false, contentType: f.type || "image/jpeg" });
+      if (upErr) {
+        if (/bucket.*not.*found/i.test(upErr.message)) {
+          throw new Error("Stockage indisponible. Veuillez réessayer dans un instant.");
+        }
+        throw upErr;
+      }
+      const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+      media_urls.push(pub.publicUrl);
     }
 
     const { error } = await (supabase as any).from("waouh_statuses").insert({
@@ -93,10 +110,13 @@ export function useStatuses(filter?: StatusType | "all") {
       caption: input.caption ?? null,
       price_fcfa: input.price_fcfa ?? null,
       location: input.location ?? null,
+      lat: input.lat ?? null,
+      lng: input.lng ?? null,
       article_id: input.article_id ?? null,
       waouh_code: input.waouh_code ?? null,
-      media_url,
-      media_kind,
+      media_url: media_urls[0] ?? null,
+      media_urls,
+      media_kind: media_urls.length > 0 ? "image" : null,
     });
     if (error) throw error;
     await load();
