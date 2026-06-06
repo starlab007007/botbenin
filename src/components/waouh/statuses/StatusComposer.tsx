@@ -385,6 +385,28 @@ export function StatusComposer({ trigger, defaultType = "sell" }: Props) {
             </Button>
           )}
         </div>
+        </div>
+
+        {zoomedIndex !== null && previews[zoomedIndex] && (
+          <div
+            onClick={() => setZoomedIndex(null)}
+            className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4 cursor-zoom-out"
+          >
+            <img
+              src={previews[zoomedIndex]}
+              alt=""
+              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+            />
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setZoomedIndex(null); }}
+              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center"
+              aria-label="Fermer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
