@@ -104,7 +104,7 @@ serve(async (req) => {
 
       const counts = filteredNeg.reduce((acc: any, n: any) => {
         acc.total++;
-        acc.byStatus[n.status] = (acc.byStatus[n.status] || 0) + 1;
+        acc.byStatus[n.state] = (acc.byStatus[n.state] || 0) + 1;
         return acc;
       }, { total: 0, byStatus: {} as Record<string, number> });
 
