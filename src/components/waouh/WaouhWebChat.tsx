@@ -275,6 +275,8 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     const suffix = Math.random().toString(36).slice(2, 8);
     const onInsert = (payload: any) => {
       const m = payload.new as any;
+      const cutoff = threadCutoffRef.current;
+      if (cutoff && m.created_at && m.created_at < cutoff) return;
       setMessages((prev) => {
         if (prev.find((x) => x.id === m.id)) return prev;
         // Remplace l'éventuel optimiste temp-* (même direction/texte, < 30 s)
