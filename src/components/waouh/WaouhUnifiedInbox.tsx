@@ -46,7 +46,7 @@ export function WaouhUnifiedInbox({ sessionId, authUserId, triggerClassName }: P
           )}
         </button>
       </SheetTrigger>
-      <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto rounded-t-2xl p-0">
+      <SheetContent side="bottom" className="max-h-[85dvh] flex flex-col rounded-t-2xl p-0">
         <SheetHeader className="px-4 pt-4 pb-2 border-b">
           <SheetTitle className="flex items-center gap-2">
             <Inbox className="w-4 h-4" /> Inbox unifiée
