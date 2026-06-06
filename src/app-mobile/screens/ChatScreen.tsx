@@ -43,8 +43,12 @@ type ConvMeta = {
   user_id: string | null;
 };
 
-export default function ChatScreen() {
-  const { id: convId } = useParams();
+export default function ChatScreen({
+  embedded = false,
+  convIdOverride,
+}: { embedded?: boolean; convIdOverride?: string } = {}) {
+  const params = useParams();
+  const convId = convIdOverride ?? params.id;
   const navigate = useNavigate();
   const { user } = useMobileAuth();
   const { sessionId } = useWaouhIdentity();
