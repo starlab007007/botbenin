@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import WaouhChatPage from "@/pages/waouh/WaouhChatPage";
+import { ChatRightPane, ChatRightPaneEmpty } from "../components/ChatRightPane";
 import { supabase } from "@/integrations/supabase/client";
 import { useMobileAuth } from "../hooks/useMobileAuth";
 import { useMobileProfile } from "../hooks/useMobileProfile";
