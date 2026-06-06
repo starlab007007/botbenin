@@ -217,7 +217,17 @@ export default function WaouhChatPage() {
 
   // === DESKTOP / TABLET: WhatsApp-style 2-column layout ===
   const handleNewConversation = () => {
+    if (layoutMode === "list") updateLayout("split");
+    setActiveKey("main");
     chatRef.current?.startNewThread();
+  };
+
+  const handleOpenNotification = (n: typeof notifications[number]) => {
+    if (layoutMode === "list") updateLayout("split");
+    openNotificationTarget(n, {
+      beforeOpen: () => markRead(n.id),
+      onPayDialog: (args) => setPayDialog(args),
+    });
   };
 
   return (
@@ -317,19 +327,56 @@ export default function WaouhChatPage() {
             onMarkAllRead={markAllRead}
             onMarkRead={markRead}
             onClearAll={clearAll}
+            onOpenNotification={handleOpenNotification}
             onNewConversation={handleNewConversation}
           />
         </div>
 
-        {/* Chat area */}
+        {/* Chat area — tabs + main WAOUH + per-match conversations */}
         {layoutMode === "split" && (
           <main className="flex-1 min-w-0 h-full flex flex-col bg-background">
-            <div className="flex-1 min-h-0">
-              <WaouhWebChat ref={chatRef} fullscreen />
+            <WaouhChatTabs
+              matches={matches}
+              activeKey={activeKey}
+              onSelect={setActiveKey}
+              onClose={close}
+              sessionId={sessionId ?? ""}
+            />
+            <div className="flex-1 min-h-0 relative">
+              <div className={cn("absolute inset-0 flex flex-col", activeKey === "main" ? "" : "hidden")}>
+                <WaouhWebChat ref={chatRef} fullscreen />
+              </div>
+              {matches.map((m) => (
+                <div
+                  key={m.key}
+                  className={cn("absolute inset-0", activeKey === m.key ? "" : "hidden")}
+                >
+                  <WaouhMatchChatWindow
+                    match={m}
+                    sessionId={sessionId ?? ""}
+                    authUserId={user?.id ?? null}
+                    waouhIds={waouhIds}
+                    active={activeKey === m.key}
+                    getCached={getCached}
+                    setCached={setCached}
+                    getHasMore={getHasMore}
+                    setHasMoreCached={setHasMoreCached}
+                  />
+                </div>
+              ))}
             </div>
           </main>
         )}
       </div>
+
+      {payDialog && (
+        <WaouhDealPaymentDialog
+          open={!!payDialog}
+          onOpenChange={(v) => { if (!v) setPayDialog(null); }}
+          dealId={payDialog.dealId}
+          amount={payDialog.amount}
+        />
+      )}
     </div>
   );
 }
