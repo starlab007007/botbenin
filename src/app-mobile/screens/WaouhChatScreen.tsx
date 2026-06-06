@@ -214,6 +214,18 @@ export default function WaouhChatScreen() {
           </Sheet>
 
           <button
+            onClick={() => {
+              chatRef.current?.startNewThread();
+              setActiveKey("main");
+            }}
+            className="p-2 rounded-lg hover:bg-white/15 active:bg-white/25"
+            aria-label="Nouvelle discussion WAOUH"
+            title="Nouvelle discussion"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+
+          <button
             onClick={() => navigate("/app/profile")}
             className="p-2 rounded-lg hover:bg-white/15 active:bg-white/25"
             aria-label="Profil"
