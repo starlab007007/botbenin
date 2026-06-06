@@ -89,12 +89,12 @@ export function WaouhChatSidebar({
           </ScrollArea>
         </TabsContent>
 
-        <TabsContent value="notifs" className="flex-1 min-h-0 mt-2 mx-0">
-          <div className="px-3 pb-2 flex items-center justify-between gap-2">
-            <span className="text-xs text-muted-foreground">
+        <TabsContent value="notifs" className="flex-1 min-h-0 mt-2 mx-0 flex flex-col">
+          <div className="px-3 pb-2 flex items-center justify-between gap-2 shrink-0">
+            <span className="text-xs text-muted-foreground truncate">
               {notifications.length} notification{notifications.length > 1 ? "s" : ""}
             </span>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 shrink-0">
               {unreadCount > 0 && (
                 <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={onMarkAllRead}>
                   <CheckCheck className="h-3.5 w-3.5 mr-1" /> Tout lu
@@ -107,7 +107,7 @@ export function WaouhChatSidebar({
               )}
             </div>
           </div>
-          <ScrollArea className="h-[calc(100%-2rem)]">
+          <ScrollArea className="flex-1 min-h-0">
             <ul className="px-2 pb-4 space-y-1">
               {notifications.length === 0 && (
                 <li className="text-center text-xs text-muted-foreground py-8 px-4">
@@ -134,14 +134,14 @@ export function WaouhChatSidebar({
                       (!n.read ? "bg-primary/5" : "")
                     }
                   >
-                    <div className="flex items-start gap-2">
+                    <div className="flex items-start gap-2 min-w-0">
                       <div
                         className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 bg-primary"
                         style={{ opacity: n.read ? 0 : 1 }}
                       />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <p className="text-sm font-medium truncate text-foreground">
+                        <div className="flex items-baseline justify-between gap-2 min-w-0">
+                          <p className="text-sm font-medium truncate text-foreground min-w-0">
                             {n.title ?? "Notification"}
                           </p>
                           <span className="text-[10px] text-muted-foreground shrink-0">
@@ -154,7 +154,7 @@ export function WaouhChatSidebar({
                           </span>
                         </div>
                         {n.body && (
-                          <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5 whitespace-pre-line">
+                          <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5 whitespace-pre-line break-words">
                             {n.body}
                           </p>
                         )}
