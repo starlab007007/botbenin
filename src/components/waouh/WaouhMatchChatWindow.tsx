@@ -495,11 +495,25 @@ export function WaouhMatchChatWindow({
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <div className="text-[10px] uppercase tracking-wider opacity-80 font-mono truncate">{matchLabel}</div>
             {closed && (
               <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-white/95 text-emerald-700 px-1.5 py-0.5 rounded">
                 <CheckCircle2 className="w-3 h-3" /> Vente finalisée
+              </span>
+            )}
+            {syncedAt && !closed && (
+              <span
+                className="inline-flex items-center gap-1 text-[10px] bg-white/15 text-white/90 px-1.5 py-0.5 rounded"
+                title={`Historique synchronisé depuis la base à ${new Date(syncedAt).toLocaleTimeString("fr-FR")}`}
+              >
+                <CheckCircle2 className="w-3 h-3" />
+                Sync · {new Date(syncedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            )}
+            {initialLoading && !syncedAt && (
+              <span className="inline-flex items-center gap-1 text-[10px] bg-white/15 text-white/90 px-1.5 py-0.5 rounded">
+                <Loader2 className="w-3 h-3 animate-spin" /> Chargement…
               </span>
             )}
           </div>
