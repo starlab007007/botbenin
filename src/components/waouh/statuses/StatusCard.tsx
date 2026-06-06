@@ -1,7 +1,8 @@
-import { Clock, Eye, MapPin, MessageCircle, Tag, Trash2 } from "lucide-react";
+import { Eye, MapPin, MessageCircle, Tag, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { expiresInLabel, type WaouhStatus } from "@/hooks/useStatuses";
+import { type WaouhStatus } from "@/hooks/useStatuses";
+import { StatusCountdown } from "./StatusCountdown";
 
 const TYPE_STYLES: Record<WaouhStatus["type"], { bg: string; label: string; accent: string }> = {
   sell: {
@@ -73,10 +74,7 @@ export function StatusCard({ status, canDelete, onDelete, compact }: Props) {
             <span className="text-[11px] font-mono uppercase tracking-wide text-white/80 truncate">
               WAOUH · {code}
             </span>
-            <span className="flex items-center gap-1 text-[11px] bg-white/15 px-1.5 py-0.5 rounded-full shrink-0">
-              <Clock className="w-3 h-3" />
-              {expiresInLabel(status.expires_at)}
-            </span>
+            <StatusCountdown expiresAt={status.expires_at} />
           </div>
 
           <h3 className={cn("font-bold leading-tight truncate", compact ? "text-sm mt-0.5" : "text-base mt-1")}>
