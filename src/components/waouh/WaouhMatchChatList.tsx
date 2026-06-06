@@ -291,6 +291,17 @@ export function WaouhMatchChatList({
     [items, archived]
   );
 
+  const matchesQuery = useCallback((it: MatchItem) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return [it.title, it.city, it.seed_text, it.price?.toString()]
+      .filter(Boolean)
+      .some((v) => String(v).toLowerCase().includes(q));
+  }, [query]);
+
+  const filteredFresh = useMemo(() => fresh.filter(matchesQuery), [fresh, matchesQuery]);
+  const filteredArchived = useMemo(() => archivedItems.filter(matchesQuery), [archivedItems, matchesQuery]);
+
   if (items.length === 0) return null;
 
   const open = async (item: MatchItem) => {
