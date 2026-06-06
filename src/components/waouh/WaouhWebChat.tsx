@@ -501,9 +501,24 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
+  const startNewThread = () => {
+    const ts = new Date().toISOString();
+    try {
+      localStorage.setItem(THREAD_CUTOFF_KEY, ts);
+      localStorage.setItem(MAIN_SNAPSHOT_KEY, "[]");
+    } catch {}
+    threadCutoffRef.current = ts;
+    setThreadCutoff(ts);
+    setMessages([]);
+    setHasMore(false);
+    setInput("");
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
   useImperativeHandle(externalRef, () => ({
     triggerQuickAction: handleQuickAction,
     focusInput: () => inputRef.current?.focus(),
+    startNewThread,
   }), []);
 
 
