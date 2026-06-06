@@ -9,9 +9,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import { toast } from "@/hooks/use-toast";
 import {
   Loader2, RefreshCw, History, Activity, AlertCircle, MessageSquare,
-  Smartphone, Globe, ArrowRight, Download, Search, AlertTriangle, Eye,
+  Smartphone, Globe, ArrowRight, Download, Search, AlertTriangle, Eye, Database, ChevronDown,
 } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -47,12 +49,18 @@ function downloadFile(name: string, content: string, mime = "text/csv;charset=ut
   URL.revokeObjectURL(url);
 }
 
+const PAGE_SIZE = 50;
+
 const AdminWaouhHistoriquePage: React.FC = () => {
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
   const [negotiations, setNegotiations] = useState<Negotiation[]>([]);
   const [articles, setArticles] = useState<Article[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [completeness, setCompleteness] = useState<Record<string, { pct: number; stages: string[] }>>({});
+  const [pagination, setPagination] = useState<{ offset: number; total: number; hasMore: boolean }>({ offset: 0, total: 0, hasMore: false });
   const [stats, setStats] = useState<any>({ total: 0, byStatus: {}, traceErrors: 0, waSent: 0, waFailed: 0, waDeliveryRate: 100 });
   const [divergences, setDivergences] = useState<any | null>(null);
 
@@ -68,26 +76,40 @@ const AdminWaouhHistoriquePage: React.FC = () => {
   const articleMap = useMemo(() => new Map(articles.map(a => [a.id, a])), [articles]);
   const userMap = useMemo(() => new Map(users.map(u => [u.id, u])), [users]);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const fetchPage = useCallback(async (offset: number, append: boolean) => {
+    const setLoad = append ? setLoadingMore : setLoading;
+    setLoad(true);
     try {
       const [list, div] = await Promise.all([
         supabase.functions.invoke("waouh-historique", {
-          body: { action: "list", status: filterStatus, articleId: filterArticleId || null, search: search || null, sinceDays, limit: 100 },
+          body: { action: "list", status: filterStatus, articleId: filterArticleId || null, search: search || null, sinceDays, limit: PAGE_SIZE, offset },
         }),
-        supabase.functions.invoke("waouh-historique", { body: { action: "divergences", sinceDays } }),
+        offset === 0
+          ? supabase.functions.invoke("waouh-historique", { body: { action: "divergences", sinceDays } })
+          : Promise.resolve({ data: null, error: null } as any),
       ]);
       if (!list.error && list.data?.ok) {
-        setNegotiations(list.data.negotiations || []);
-        setArticles(list.data.articles || []);
-        setUsers(list.data.users || []);
+        setNegotiations((prev) => append ? [...prev, ...(list.data.negotiations || [])] : (list.data.negotiations || []));
+        setArticles((prev) => {
+          const merged: Article[] = append ? [...prev, ...((list.data.articles || []) as Article[])] : ((list.data.articles || []) as Article[]);
+          return Array.from(new Map(merged.map((a) => [a.id, a])).values());
+        });
+        setUsers((prev) => {
+          const merged: User[] = append ? [...prev, ...((list.data.users || []) as User[])] : ((list.data.users || []) as User[]);
+          return Array.from(new Map(merged.map((u) => [u.id, u])).values());
+        });
+        setCompleteness((prev) => append ? { ...prev, ...(list.data.completeness || {}) } : (list.data.completeness || {}));
         setStats(list.data.stats || {});
+        setPagination(list.data.pagination || { offset, total: 0, hasMore: false });
       }
       if (!div.error && div.data?.ok) setDivergences(div.data);
     } finally {
-      setLoading(false);
+      setLoad(false);
     }
   }, [filterStatus, filterArticleId, search, sinceDays]);
+
+  const refresh = useCallback(() => fetchPage(0, false), [fetchPage]);
+  const loadMore = useCallback(() => fetchPage(pagination.offset + PAGE_SIZE, true), [fetchPage, pagination.offset]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -136,6 +158,24 @@ const AdminWaouhHistoriquePage: React.FC = () => {
     if (data?.ok) setTraceLookup(data);
   };
 
+  const runBackfill = async () => {
+    if (!confirm("Lancer le backfill des traces sur les négociations existantes ? Cette opération crée des événements synthétiques pour les données historiques.")) return;
+    setBackfilling(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("waouh-historique", {
+        body: { action: "backfill", days: Math.max(sinceDays, 90) },
+      });
+      if (error || !data?.ok) {
+        toast({ title: "Backfill échoué", description: error?.message || data?.error || "Erreur inconnue", variant: "destructive" });
+      } else {
+        toast({ title: "Backfill terminé", description: `${data.inserted} événements créés (négo: ${data.scanned?.negotiations}, msg: ${data.scanned?.messages}, queue: ${data.scanned?.queue})` });
+        refresh();
+      }
+    } finally {
+      setBackfilling(false);
+    }
+  };
+
   const divSummary = divergences?.summary;
   const hasDivergence = divSummary && (
     divSummary.messages_without_trace > 0 || divSummary.orphan_queue_items > 0 ||
@@ -152,7 +192,11 @@ const AdminWaouhHistoriquePage: React.FC = () => {
           </h1>
           <p className="text-sm text-muted-foreground">Historique persistant chat + WhatsApp avec traces structurées (article_id / transaction).</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button onClick={runBackfill} disabled={backfilling} variant="outline" size="sm">
+            {backfilling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Database className="h-4 w-4 mr-2" />}
+            Backfill traces
+          </Button>
           <Button onClick={exportAll} disabled={exporting || !negotiations.length} variant="outline" size="sm">
             {exporting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
             Export CSV
@@ -233,17 +277,18 @@ const AdminWaouhHistoriquePage: React.FC = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Article</TableHead><TableHead>Acheteur</TableHead><TableHead>Vendeur</TableHead>
-                <TableHead>Statut</TableHead><TableHead>Prix</TableHead><TableHead>MAJ</TableHead><TableHead></TableHead>
+                <TableHead>Statut</TableHead><TableHead>Prix</TableHead><TableHead>Complétude</TableHead><TableHead>MAJ</TableHead><TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {negotiations.length === 0 && (
-                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Aucune négociation sur la période.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Aucune négociation sur la période.</TableCell></TableRow>
               )}
               {negotiations.map((n) => {
                 const a = articleMap.get(n.article_id);
                 const buyer = userMap.get(n.buyer_user_id);
                 const seller = userMap.get(n.seller_user_id);
+                const comp = completeness[n.id];
                 return (
                   <TableRow key={n.id} className="cursor-pointer" onClick={() => setSelectedNeg(n)}>
                     <TableCell className="font-medium">{a?.title || n.article_id?.slice(0, 8)}</TableCell>
@@ -251,6 +296,12 @@ const AdminWaouhHistoriquePage: React.FC = () => {
                     <TableCell className="text-xs">{seller?.display_name || seller?.phone_number || n.seller_user_id?.slice(0, 8)}</TableCell>
                     <TableCell><Badge variant="outline">{n.status}</Badge></TableCell>
                     <TableCell className="font-mono text-xs">{n.current_price?.toLocaleString() || "-"} {n.currency || "XOF"}</TableCell>
+                    <TableCell className="w-32">
+                      <div className="flex items-center gap-2">
+                        <Progress value={comp?.pct ?? 0} className="h-1.5 w-16" />
+                        <span className={`text-[10px] font-mono ${(comp?.pct ?? 0) >= 80 ? "text-green-600" : (comp?.pct ?? 0) >= 40 ? "text-amber-600" : "text-red-600"}`}>{comp?.pct ?? 0}%</span>
+                      </div>
+                    </TableCell>
                     <TableCell className="text-xs">{format(new Date(n.updated_at), "dd MMM HH:mm", { locale: fr })}</TableCell>
                     <TableCell><Eye className="h-4 w-4 text-muted-foreground" /></TableCell>
                   </TableRow>
@@ -278,6 +329,17 @@ const AdminWaouhHistoriquePage: React.FC = () => {
           })}
         </div>
       </Card>
+
+      {/* Load more */}
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span>{negotiations.length} affichées{pagination.total ? ` / ${pagination.total} sur ${sinceDays}j` : ""}</span>
+        {pagination.hasMore && (
+          <Button onClick={loadMore} disabled={loadingMore} variant="outline" size="sm">
+            {loadingMore ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ChevronDown className="h-4 w-4 mr-2" />}
+            Charger plus
+          </Button>
+        )}
+      </div>
 
       <TimelineDrawer
         negotiation={selectedNeg}
@@ -350,18 +412,29 @@ const TimelineDrawer: React.FC<{
   onClose: () => void;
   sinceDays: number;
 }> = ({ negotiation, article, onClose, sinceDays }) => {
-  const [data, setData] = useState<any>({ messages: [], queue: [], notifications: [], traces: [], divergences: {} });
+  const [data, setData] = useState<any>({ messages: [], queue: [], notifications: [], traces: [], divergences: {}, completeness: { pct: 0, stages: [], missing: [] }, pagination: { hasMore: false, offset: 0, limit: 500 } });
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  useEffect(() => {
+  const loadTimeline = useCallback(async (offset: number, append: boolean) => {
     if (!negotiation) return;
-    setLoading(true);
-    supabase.functions.invoke("waouh-historique", {
-      body: { action: "timeline", negotiationId: negotiation.id, articleId: negotiation.article_id, sinceDays },
-    }).then(({ data, error }) => {
-      if (!error && data?.ok) setData(data);
-    }).finally(() => setLoading(false));
+    const setLoad = append ? setLoadingMore : setLoading;
+    setLoad(true);
+    const { data: res, error } = await supabase.functions.invoke("waouh-historique", {
+      body: { action: "timeline", negotiationId: negotiation.id, articleId: negotiation.article_id, sinceDays, limit: 500, offset },
+    });
+    if (!error && res?.ok) {
+      setData((prev: any) => append ? {
+        ...res,
+        messages: [...(prev.messages || []), ...(res.messages || [])],
+        queue: [...(prev.queue || []), ...(res.queue || [])],
+        traces: [...(prev.traces || []), ...(res.traces || [])],
+      } : res);
+    }
+    setLoad(false);
   }, [negotiation, sinceDays]);
+
+  useEffect(() => { loadTimeline(0, false); }, [loadTimeline]);
 
   const tracesByTrace = useMemo(() => {
     const map = new Map<string, any[]>();
@@ -407,6 +480,20 @@ const TimelineDrawer: React.FC<{
           <div className="text-xs text-muted-foreground">
             Négo: {negotiation?.id?.slice(0, 8)} · Article: {negotiation?.article_id?.slice(0, 8)}
           </div>
+          <div className="flex items-center gap-2 mt-2">
+            <Button size="sm" variant="outline" onClick={() => loadTimeline(0, false)} disabled={loading}>
+              {loading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+              Ré-synchroniser
+            </Button>
+            <div className="flex items-center gap-2 flex-1">
+              <span className="text-[10px] text-muted-foreground">Complétude</span>
+              <Progress value={data.completeness?.pct ?? 0} className="h-1.5 flex-1" />
+              <span className={`text-xs font-mono ${(data.completeness?.pct ?? 0) >= 80 ? "text-green-600" : (data.completeness?.pct ?? 0) >= 40 ? "text-amber-600" : "text-red-600"}`}>{data.completeness?.pct ?? 0}%</span>
+            </div>
+          </div>
+          {(data.completeness?.missing || []).length > 0 && (
+            <div className="text-[10px] text-amber-600 mt-1">Étapes manquantes: {data.completeness.missing.join(", ")}</div>
+          )}
         </SheetHeader>
 
         {hasDiv && (
@@ -416,6 +503,13 @@ const TimelineDrawer: React.FC<{
               {div.messages_without_trace || 0} msg sans trace · {div.orphan_queue_items || 0} queue orphelin · {div.error_traces || 0} erreurs
             </AlertDescription>
           </Alert>
+        )}
+
+        {data.pagination?.hasMore && (
+          <Button onClick={() => loadTimeline((data.pagination?.offset || 0) + (data.pagination?.limit || 500), true)} disabled={loadingMore} variant="outline" size="sm" className="mt-2 w-full">
+            {loadingMore ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <ChevronDown className="h-3 w-3 mr-1" />}
+            Charger plus d'événements
+          </Button>
         )}
 
         <Tabs defaultValue="chain" className="mt-4">
