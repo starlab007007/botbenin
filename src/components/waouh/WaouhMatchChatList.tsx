@@ -372,8 +372,8 @@ export function WaouhMatchChatList({
     persistArchived(next);
   };
 
-  const visible = expanded ? fresh : fresh.slice(0, VISIBLE_DEFAULT);
-  const latestKey = fresh[0]?.key;
+  const visible = expanded ? filteredFresh : filteredFresh.slice(0, VISIBLE_DEFAULT);
+  const latestKey = filteredFresh[0]?.key;
 
   const toggleExpanded = () => {
     const next = !expanded;
