@@ -84,7 +84,7 @@ export function useStatuses(filter?: StatusType | "all") {
       media_kind = input.media_file.type.startsWith("video") ? "video" : "image";
     }
 
-    const { error } = await supabase.from("waouh_statuses").insert({
+    const { error } = await (supabase as any).from("waouh_statuses").insert({
       user_id: user.id,
       author_name: user.user_metadata?.full_name ?? user.email ?? null,
       author_avatar_url: user.user_metadata?.avatar_url ?? null,
@@ -103,7 +103,7 @@ export function useStatuses(filter?: StatusType | "all") {
   }, [load]);
 
   const deleteStatus = useCallback(async (id: string) => {
-    await supabase.from("waouh_statuses").delete().eq("id", id);
+    await (supabase as any).from("waouh_statuses").delete().eq("id", id);
     await load();
   }, [load]);
 
