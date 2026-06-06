@@ -46,7 +46,7 @@ export function StatusCard({ status, canDelete, onDelete, compact }: Props) {
   const counterpartLabel =
     status.type === "buy" ? "l'acheteur" : status.type === "announce" ? "l'annonceur" : "le vendeur";
 
-  const openChat = () => {
+  const openChat = async () => {
     const article_id = status.article_id ?? status.id;
     const kind: "buyer" | "seller" = status.type === "buy" ? "seller" : "buyer";
     const priceLine =
