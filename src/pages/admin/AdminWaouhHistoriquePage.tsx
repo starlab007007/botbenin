@@ -192,7 +192,11 @@ const AdminWaouhHistoriquePage: React.FC = () => {
           </h1>
           <p className="text-sm text-muted-foreground">Historique persistant chat + WhatsApp avec traces structurées (article_id / transaction).</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button onClick={runBackfill} disabled={backfilling} variant="outline" size="sm">
+            {backfilling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Database className="h-4 w-4 mr-2" />}
+            Backfill traces
+          </Button>
           <Button onClick={exportAll} disabled={exporting || !negotiations.length} variant="outline" size="sm">
             {exporting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
             Export CSV
