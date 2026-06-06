@@ -42,6 +42,7 @@ const PAYLOADS: { key: "sell" | "buy" | "negotiate"; label: string; Icon: any; t
  */
 export default function WaouhChatScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { profile } = useMobileProfile();
   const isNative = useIsNative();
   const sessionId = getSessionId();
@@ -57,6 +58,21 @@ export default function WaouhChatScreen() {
   useEffect(() => {
     document.title = "WAOUH Chat — bot.bj";
   }, []);
+
+  // If navigated with ?new=1, reset the main thread (empty view, no history).
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("new") === "1") {
+      // Defer to next tick so the chat ref is mounted.
+      const t = setTimeout(() => {
+        chatRef.current?.startNewThread();
+        // Clean the URL so a refresh doesn't re-trigger.
+        navigate("/app/chat/waouh", { replace: true });
+      }, 0);
+      return () => clearTimeout(t);
+    }
+  }, [location.search, navigate]);
+
 
   useEffect(() => {
     if (!isNative) return;
