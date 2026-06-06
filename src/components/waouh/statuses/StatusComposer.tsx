@@ -44,6 +44,7 @@ export function StatusComposer({ trigger, defaultType = "sell" }: Props) {
   const [caption, setCaption] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [zoomedIndex, setZoomedIndex] = useState<number | null>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
 
@@ -332,12 +333,19 @@ export function StatusComposer({ trigger, defaultType = "sell" }: Props) {
             {previews.length > 0 && (
               <div className="grid grid-cols-2 gap-2">
                 {previews.map((url, i) => (
-                  <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-border">
-                    <img src={url} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                  <div key={i} className="relative aspect-square w-full rounded-lg overflow-hidden border border-border bg-muted">
+                    <img
+                      src={url}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      onClick={() => setZoomedIndex(i)}
+                      className="absolute inset-0 w-full h-full object-cover cursor-zoom-in"
+                    />
                     <button
                       type="button"
                       onClick={() => removeFile(i)}
-                      className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black"
+                      className="absolute top-1 right-1 z-10 w-6 h-6 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black"
                       aria-label="Supprimer"
                     >
                       <X className="w-3.5 h-3.5" />
@@ -377,6 +385,27 @@ export function StatusComposer({ trigger, defaultType = "sell" }: Props) {
             </Button>
           )}
         </div>
+
+        {zoomedIndex !== null && previews[zoomedIndex] && (
+          <div
+            onClick={() => setZoomedIndex(null)}
+            className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center p-4 cursor-zoom-out"
+          >
+            <img
+              src={previews[zoomedIndex]}
+              alt=""
+              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+            />
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setZoomedIndex(null); }}
+              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 text-white flex items-center justify-center"
+              aria-label="Fermer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

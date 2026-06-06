@@ -49,9 +49,11 @@ function saveArchived(sid: string | null, set: Set<string>) {
 export function WaouhMatchChatList({
   sessionId,
   authUserId,
+  query = "",
 }: {
   sessionId: string | null;
   authUserId?: string | null;
+  query?: string;
 }) {
   const navigate = useNavigate();
   const [items, setItems] = useState<MatchItem[]>([]);
@@ -289,6 +291,17 @@ export function WaouhMatchChatList({
     [items, archived]
   );
 
+  const matchesQuery = useCallback((it: MatchItem) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return [it.title, it.city, it.seed_text, it.price?.toString()]
+      .filter(Boolean)
+      .some((v) => String(v).toLowerCase().includes(q));
+  }, [query]);
+
+  const filteredFresh = useMemo(() => fresh.filter(matchesQuery), [fresh, matchesQuery]);
+  const filteredArchived = useMemo(() => archivedItems.filter(matchesQuery), [archivedItems, matchesQuery]);
+
   if (items.length === 0) return null;
 
   const open = async (item: MatchItem) => {
@@ -359,8 +372,8 @@ export function WaouhMatchChatList({
     persistArchived(next);
   };
 
-  const visible = expanded ? fresh : fresh.slice(0, VISIBLE_DEFAULT);
-  const latestKey = fresh[0]?.key;
+  const visible = expanded ? filteredFresh : filteredFresh.slice(0, VISIBLE_DEFAULT);
+  const latestKey = filteredFresh[0]?.key;
 
   const toggleExpanded = () => {
     const next = !expanded;
@@ -454,12 +467,12 @@ export function WaouhMatchChatList({
 
   return (
     <div className="border-b">
-      {fresh.length > 0 && (
+      {filteredFresh.length > 0 && (
         <div className="px-4 pt-2 pb-1 flex items-center justify-between">
           <span className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">
             Conversations produit
           </span>
-          {fresh.length > VISIBLE_DEFAULT && (
+          {filteredFresh.length > VISIBLE_DEFAULT && (
             <button
               onClick={toggleExpanded}
               className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1"
@@ -470,7 +483,7 @@ export function WaouhMatchChatList({
                 </>
               ) : (
                 <>
-                  Voir tout ({fresh.length}) <ChevronDown className="h-3 w-3" />
+                  Voir tout ({filteredFresh.length}) <ChevronDown className="h-3 w-3" />
                 </>
               )}
             </button>
@@ -482,14 +495,14 @@ export function WaouhMatchChatList({
         {visible.map((it) => renderRow(it, { pinned: it.key === latestKey }))}
       </ul>
 
-      {(archivedItems.length > 0 || autoOld.length > 0) && (
+      {(filteredArchived.length > 0 || autoOld.length > 0) && (
         <div className="px-4 py-2 border-t bg-muted/30">
           <button
             onClick={() => setShowArchived((s) => !s)}
             className="text-[11px] text-muted-foreground font-semibold flex items-center gap-1"
           >
             <Archive className="h-3 w-3" />
-            {showArchived ? "Masquer" : "Voir"} archivés ({archivedItems.length + autoOld.length})
+            {showArchived ? "Masquer" : "Voir"} archivés ({filteredArchived.length + autoOld.length})
             {showArchived ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           </button>
         </div>
@@ -497,7 +510,7 @@ export function WaouhMatchChatList({
 
       {showArchived && (
         <ul className="divide-y opacity-80">
-          {[...archivedItems, ...autoOld].map((it) => renderRow(it, { archivedRow: true }))}
+          {[...filteredArchived, ...autoOld].map((it) => renderRow(it, { archivedRow: true }))}
         </ul>
       )}
     </div>

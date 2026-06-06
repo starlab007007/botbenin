@@ -1,25 +1,48 @@
-Le bouton **Allow** ne peut pas être cliqué par moi directement : c’est une validation de sécurité dans ton interface Lovable. S’il paraît inactif ou ne réagit pas, la cause probable est que la migration actuelle tente de créer le bucket avec `INSERT INTO storage.buckets`, alors que Supabase Storage doit être géré via l’API Storage, pas via une migration SQL directe.
 
-Plan de correction :
+## 1. Aperçu photo visible dans le composer de statut
 
-1. **Remplacer la migration bloquée**
-   - Ne plus utiliser `INSERT INTO storage.buckets`.
-   - Créer le bucket `waouh-statuses` avec le mécanisme Supabase Storage approprié.
-   - Configurer le bucket pour accepter uniquement les images, jusqu’à 50 MB.
+Dans `src/components/waouh/statuses/StatusComposer.tsx` (étape "media") :
 
-2. **Garder uniquement les policies nécessaires en SQL**
-   - Lecture publique des fichiers du bucket `waouh-statuses`.
-   - Upload autorisé uniquement aux utilisateurs connectés.
-   - Modification/suppression autorisée uniquement dans le dossier de l’utilisateur connecté.
+- La balise `<img>` actuelle ne s'affiche pas correctement (icône cassée + alt visible). Corriger l'aperçu :
+  - Garantir un rendu carré stable : `aspect-square w-full` sur le conteneur, `<img loading="lazy" decoding="async" className="w-full h-full object-cover">`.
+  - Vérifier que `URL.createObjectURL` est appelé sur un `File` image valide (filtre déjà présent) et que `URL.revokeObjectURL` n'est appelé qu'à la fermeture du dialog (ne pas révoquer pendant le rendu).
+  - Ajouter un fond `bg-muted` pendant le chargement et masquer le texte alt (alt vide visuellement, `alt=""`).
+- Ajouter un **lightbox** : cliquer sur une vignette ouvre un overlay plein écran (`fixed inset-0 z-[60] bg-black/90`) affichant l'image en grand avec bouton de fermeture. Géré par un petit state local `zoomedIndex: number | null`.
 
-3. **Vérifier la base et le stockage**
-   - Confirmer que le bucket existe.
-   - Confirmer que les policies Storage sont présentes.
-   - Vérifier que la table `waouh_statuses` reste accessible selon ses règles actuelles.
+## 2. Bouton "Discutez avec l'acheteur / le vendeur" → WaouhMatchChatWindow
 
-4. **Tester le flux de bout en bout**
-   - Publier un statut avec photo.
-   - Vérifier que l’image est uploadée sans erreur “Bucket not found”.
-   - Vérifier que le statut apparaît dans l’onglet mobile `Statuts · 24h` et dans la section au-dessus du chat WAOUH.
+Dans `src/components/waouh/statuses/StatusCard.tsx`, remplacer `openChat` actuel (qui navigue simplement) par le même mécanisme que `WaouhMatchChatList.open()` :
 
-Après approbation de ce plan, je lancerai la correction proprement sans te demander de cliquer sur cette migration bloquée.
+- Construire un `detail` à partir du statut :
+  - `article_id`: `status.article_id ?? status.id` (utiliser l'id du statut comme article virtuel si pas d'article lié)
+  - `kind`: `status.type === "buy" ? "seller" : "buyer"` (si c'est une recherche, l'interlocuteur est vendeur ; sinon acheteur)
+  - `title`, `price: status.price_fcfa`, `city: status.location`, `photo: status.media_url`
+  - `counterpart_user_id`: `status.user_id`
+  - `seed_text`: court message contextuel (ex: « Bonjour, je suis intéressé(e) par votre statut "{title}". »)
+- Pousser ce `detail` dans `localStorage["waouh_pending_open"]` (même clé que la liste).
+- `navigate("/app/chat/waouh")` puis `window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }))` après 50 ms.
+- Résultat : `WaouhChatPage` ouvre une nouvelle `WaouhMatchChatWindow` (même flux validé que pour les notifications) — bout en bout identique.
+
+## 3. Barre de recherche fonctionnelle (discussions + statuts)
+
+Dans `src/app-mobile/screens/ChatListScreen.tsx` :
+
+- L'état `q` filtre déjà `enriched` (convs IA). Étendre :
+  - **Onglet "Discussions"** : passer `q` en prop à `WaouhMatchChatList` pour filtrer `items` par `title`, `city`, `seed_text`, `price`.
+  - **Onglet "Statuts · 24h"** : passer `q` en prop à `StatusesPanel`.
+
+Dans `WaouhMatchChatList.tsx` : ajouter prop `query?: string`, et appliquer un filtre côté rendu sur `fresh`/`archivedItems`.
+
+Dans `StatusesPanel.tsx` et `useStatuses` : ajouter prop `query?: string` sur `StatusesPanel`, filtrer la liste `statuses` côté client (title / caption / location / waouh_code / price).
+
+Le placeholder de l'`Input` devient `"Rechercher discussions, statuts…"`.
+
+## Fichiers modifiés
+
+- `src/components/waouh/statuses/StatusComposer.tsx` — aperçu fixe + lightbox
+- `src/components/waouh/statuses/StatusCard.tsx` — bouton "Discutez" ouvre WaouhMatchChatWindow
+- `src/app-mobile/screens/ChatListScreen.tsx` — propage `q` aux deux panneaux
+- `src/components/waouh/WaouhMatchChatList.tsx` — prop `query`, filtre
+- `src/components/waouh/statuses/StatusesPanel.tsx` — prop `query`, filtre
+
+Aucune migration DB nécessaire (le bucket `waouh-statuses` reste à créer côté Storage selon le message précédent).

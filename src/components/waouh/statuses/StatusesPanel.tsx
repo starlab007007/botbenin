@@ -16,6 +16,8 @@ const FILTERS: { key: StatusType | "all"; label: string; dot: string }[] = [
 interface Props {
   /** mobile: vertical list ; web: 2-col grid ; web-strip: horizontal scroller (stories) */
   variant?: "mobile" | "web" | "web-strip";
+  /** Optional search query to filter statuses */
+  query?: string;
 }
 
 function CardSkeleton({ compact }: { compact?: boolean }) {
@@ -29,7 +31,7 @@ function CardSkeleton({ compact }: { compact?: boolean }) {
   );
 }
 
-export function StatusesPanel({ variant = "mobile" }: Props) {
+export function StatusesPanel({ variant = "mobile", query = "" }: Props) {
   const [filter, setFilter] = useState<StatusType | "all">("all");
   const { statuses, loading, deleteStatus } = useStatuses(filter);
   const [uid, setUid] = useState<string | null>(null);
@@ -38,7 +40,15 @@ export function StatusesPanel({ variant = "mobile" }: Props) {
     supabase.auth.getUser().then(({ data }) => setUid(data.user?.id ?? null));
   }, []);
 
-  const list = useMemo(() => statuses, [statuses]);
+  const list = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return statuses;
+    return statuses.filter((s) =>
+      [s.title, s.caption, s.location, s.waouh_code, s.author_name, s.price_fcfa?.toString()]
+        .filter(Boolean)
+        .some((v) => String(v).toLowerCase().includes(q))
+    );
+  }, [statuses, query]);
   const isStrip = variant === "web-strip";
 
   return (
