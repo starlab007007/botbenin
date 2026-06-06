@@ -1,72 +1,107 @@
-## Objectif
+# Plan — Dashboard Historique WAOUH + Persistance Chat + Traces structurées
 
-Reproduire **exactement** le flux chat WAOUH verrouillé (chat principal ↔ WaouhMatchChatWindow, acheteur + vendeur) sur **WhatsApp**, dès qu'un numéro est résolu — quelle que soit la source : `chat`, `partner` (waouh_partner_businesses / waouh_partners), ou `radar ia` (waouh_external_listings / waouh_radar_signals / waouh_lid_phone_map).
+## Décisions validées
+- Dashboard **admin only** (`AdminRoute`).
+- Profondeur d'historique par défaut **30 jours** (filtre période ajustable).
 
-**Règle d'or** : chaque évènement de négociation produit, pour **chaque partie**, le même message au même moment dans :
-- (a) `waouh_messages` côté chat web (avec `article_id` rempli),
-- (b) WhatsApp via `waouh_outbound_queue` si un numéro WA est résolu pour cette partie.
+## Objectifs
+1. Page admin **Dashboard Historique** : négociations + messages chat & WhatsApp, avec filtres par article et statut.
+2. Garantir la persistance et le rechargement automatique de tous les chats (WaouhMatchChatWindow acheteur/vendeur, WAOUH principal acheteur/vendeur, WhatsApp acheteur/vendeur).
+3. Trace structurée par `article_id` + `transaction_id` pour suivre le pipeline complet : chat → router → sync → queue → WhatsApp.
 
-Texte identique sur les deux canaux. L'acteur reçoit l'écho de sa propre action (ex. acheteur qui envoie « 1500 » via WA reçoit `✅ Contre-offre envoyée au vendeur`).
+Aucune modification du flux WAOUH chat verrouillé. Ajout d'observabilité + vue admin en lecture seule.
 
-## Évènements synchronisés
+---
 
-| Évènement | Acheteur (chat + WA) | Vendeur (chat + WA) |
-|---|---|---|
-| 📩 Nouvel acheteur intéressé | ✅ Demande envoyée | 📩 Nouvel acheteur intéressé |
-| 🤝 Contre-offre acheteur | ✅ Offre envoyée | 🤝 Nouvelle offre acheteur |
-| 💬 Contre-offre vendeur | 💬 Contre-offre du vendeur | ✅ Contre-offre envoyée |
-| ❌ Refus | ❌ Notification refus | ❌ Notification refus |
-| 🎉 Vente conclue | 🎉 Vente conclue | 🎉 Vente conclue |
+## 1) Page Dashboard Historique
 
-## Cause des écarts actuels
+- Route : `/admin/waouh/historique` (AdminRoute).
+- Fichier : `src/pages/waouh/AdminWaouhHistoriquePage.tsx`.
+- Composants `src/components/waouh/historique/` :
+  - `HistoriqueFilters.tsx` — article (autocomplete `waouh_articles` + `waouh_unified_catalog`), statut négociation (`open`, `counter`, `accepted`, `refused`, `paid`, `closed`), canal (`web` / `whatsapp` / `all`), période (défaut 30 j), rôle, recherche texte.
+  - `HistoriqueStatsCards.tsx` — KPI (négos ouvertes, contre-offres, deals, taux livraison WA, erreurs trace).
+  - `HistoriqueNegotiationsTable.tsx` — liste paginée `waouh_negotiations` enrichie (article, acheteur, vendeur, dernier prix, statut, dernier évènement). Mobile = cards empilées.
+  - `HistoriqueTimelineDrawer.tsx` — timeline fusionnée triée chronologiquement : `waouh_messages` (web+WA, in+out) + `waouh_outbound_queue` + `waouh_notifications` + `waouh_pipeline_events`.
+  - `HistoriqueTraceDrawer.tsx` — vue regroupée par `trace_id` (timeline visuelle par stage, badges erreurs, export JSON/CSV vers `/mnt/documents`).
+- Source : nouvelle edge `waouh-historique` (agrégateur lecture admin). Vérifie `has_role(auth.uid(),'admin')`.
 
-1. `waouh-notify-dispatch` envoie directement via `sendWhatsAppCard()` → contourne `waouh_outbound_queue` → doublons possibles avec `waouh-webhook`.
-2. `waouh-buyer-interest` n'insère pas la bulle `✅ Demande envoyée` côté acheteur ni d'écho WA acheteur.
-3. `waouh-negotiation-router` : l'écho WA de l'acteur (web ou WA) n'est pas garanti symétriquement.
-4. Résolution numéro pas systématique pour les **deux** parties à chaque évènement (chaîne radar/partner non tentée partout).
+---
 
-## Plan de correction
+## 2) Persistance & rechargement des chats
 
-### 1) Nouveau helper partagé `pushSyncedEvent`
+Audit + corrections ciblées, sans toucher le flux d'envoi verrouillé.
 
-Fichier : `supabase/functions/_shared/waouh-sync.ts` (nouveau).
+| Chat | Composant | Source persistante | Action |
+|---|---|---|---|
+| WAOUH principal (vendeur & acheteur) | `WaouhWebChat.tsx` | `waouh_messages` via `waouh-history` | Vérifier chargement initial + realtime sur `user_id`. |
+| WaouhMatchChatWindow (acheteur & vendeur) | `WaouhMatchChatWindow.tsx` | `waouh_messages` filtrés `article_id` | S'assurer du fetch historique complet à l'ouverture (pas que les nouveaux). Pas de changement de flux. |
+| WhatsApp (vendeur & acheteur) | inbox + détails | `waouh_messages` (channel=`whatsapp`) | Vérifier que `waha-webhook` + `waouh-outbound-dispatch` écrivent systématiquement `direction`, `channel='whatsapp'`, `article_id`, `meta.intent`. Compléter résolution `article_id` sur INBOUND via `lid_phone_map` + négociation active si manquant. |
 
-Signature : `pushSyncedEvent(sb, { party: { user, role, text }, articleId, intent, negotiationId, dedupSuffix })`.
+Hook partagé : `src/hooks/useWaouhPersistedHistory.ts`
+- Params `{ articleId?, userIds?, channel?, limit, before }`.
+- Appelle `waouh-history` (étendu) + réabonnement realtime.
+- Retourne `{ messages, hasMore, loadOlder, refresh }`.
+- Utilisé par WaouhMatchChatWindow (chargement initial) et la timeline du dashboard.
 
-Pour **chaque partie** (appel séparé pour acheteur et vendeur) :
-- Résout le numéro WA via `resolveRealPhoneE164(sb, user, { article_id, role })` (utilise toute la chaîne chat → partner → radar/lid_phone_map déjà en place).
-- Insère un `waouh_messages` (colonne `article_id` remplie, `meta.intent`, `meta.article_id` de secours, `direction='out'`, `channel = phone ? 'whatsapp' : 'web'`).
-- Si numéro WA résolu : `waouh_enqueue_outbound_v2` avec `dedup_key = ${article_id}:${intent}:${user.id}:${negotiation_id}:${dedupSuffix}`, payload texte (ou boutons si fourni).
-- Si pas de numéro : insert chat seulement (la fenêtre web reçoit en realtime).
+Extension `waouh-history` : ajouter filtres optionnels `articleId`, `negotiationId`, `channel` sans casser les appelants existants.
 
-### 2) Câblage des chemins d'émission
+---
 
-- **`waouh-webhook/index.ts`** (CONFIRM, NEGOTIATE, DECIDE_YES/NO) : remplacer chaque `pushToOther` par **deux** appels `pushSyncedEvent` (acteur + destinataire), avec textes distincts adaptés au rôle.
-- **`waouh-negotiation-router/index.ts`** (refus, contre-offre, deal_created) : idem, échos symétriques.
-- **`waouh-buyer-interest/index.ts`** : ajouter `pushSyncedEvent` acheteur (`✅ Demande envoyée`) en plus de la notif vendeur.
-- **`waouh-notify-dispatch/index.ts`** : remplacer l'appel direct `sendWhatsAppCard()` par `waouh_enqueue_outbound_v2` (payload `kind: "buttons"` pour conserver les cartes OUI/NON déjà supportées par `waouh-outbound-dispatch`). Élimine les doublons et unifie le tracking.
+## 3) Trace structurée article_id + transaction_id
 
-### 3) Résolution numéro
+Nouvelle table `waouh_pipeline_events` :
+- `id uuid PK`, `trace_id uuid` (indexé)
+- `article_id uuid`, `negotiation_id uuid`, `transaction_id uuid`, `deal_id uuid` (indexés)
+- `actor_user_id uuid`, `recipient_user_id uuid`, `role text`
+- `stage text` — `chat_in`, `router`, `sync`, `queue_enqueue`, `queue_dispatch`, `whatsapp_send`, `whatsapp_delivered`, `whatsapp_error`, `web_mirror`
+- `status text` — `ok` / `error` / `skipped`
+- `intent text`, `dedup_key text`
+- `payload jsonb`, `error text`
+- `created_at timestamptz default now()`
+- GRANTS conformes ; RLS : lecture admin via `has_role`, insert `service_role`.
 
-Aucun changement de signature. Tous les appelants doivent passer `{ article_id, role: "buyer" | "seller" }` à `resolveRealPhoneE164`. La chaîne complète est :
-- **Vendeur** : article → `waouh_external_listings.seller_phone` (radar) → `waouh_partner_businesses.whatsapp` → `waouh_partners.whatsapp` → `waouh_users.phone_number` → `waouh_lid_phone_map` → `profiles.phone` → `auth.users.phone`.
-- **Acheteur** : `waouh_users.phone_number` → `waouh_lid_phone_map` → `auth.users.phone` → `profiles.phone` → `waouh_partners.whatsapp` (si acheteur partenaire).
+Helper partagé `supabase/functions/_shared/waouh-trace.ts` :
+```ts
+await traceEvent(sb, { trace_id, article_id, negotiation_id, transaction_id, stage, status, intent, actor_user_id, recipient_user_id, payload, error });
+```
+- Insert fire-and-forget, jamais bloquant.
+- Génère/propage un `trace_id` (uuid) inséré dans `waouh_messages.meta.trace_id` et `waouh_outbound_queue.payload.trace_id` pour corrélation de bout en bout.
 
-### 4) Anti-doublon
+Points d'instrumentation (5 stages obligatoires) :
+1. `chat_in` — `waouh-webhook` (web), `waha-webhook` / `whatsapp-waha-webhook` (WA).
+2. `router` — `waouh-negotiation-router`.
+3. `sync` — `_shared/waouh-sync.ts pushSyncedEvent` (1 entrée par partie).
+4. `queue_enqueue` / `queue_dispatch` — `waouh-outbound-dispatch`.
+5. `whatsapp_send` / `whatsapp_delivered` / `whatsapp_error` — callbacks WAHA.
 
-`dedup_key` systématique sur `waouh_enqueue_outbound_v2`. `waouh_outbound_dispatch` ignore les entrées déjà envoyées pour le même `dedup_key`.
+---
 
-### 5) Préservé (verrouillé)
+## 4) Sécurité & non-régression
+- Flux WAOUH chat verrouillé inchangé (`mem://features/waouh-chat-sync-flow`).
+- `pushSyncedEvent` : ajout d'un `traceEvent` non bloquant uniquement.
+- `waouh_pipeline_events` : RLS admin lecture, pas de secrets stockés.
+- Dashboard : `AdminRoute` côté front + check `has_role` côté edge.
 
-- Flux chat WAOUH (mémoire `waouh-chat-sync-flow`) intact.
-- Logique métier `waouh_negotiations` / `waouh_deals` inchangée.
-- Aucune migration SQL (colonnes `article_id`, `meta`, `direction` existantes ; RPC `waouh_enqueue_outbound_v2` existante).
-- Pas de changement frontend.
+---
 
-## Fichiers modifiés
+## Fichiers
 
-- `supabase/functions/_shared/waouh-sync.ts` (nouveau)
-- `supabase/functions/waouh-webhook/index.ts`
-- `supabase/functions/waouh-negotiation-router/index.ts`
-- `supabase/functions/waouh-buyer-interest/index.ts`
-- `supabase/functions/waouh-notify-dispatch/index.ts`
+Migration
+- `waouh_pipeline_events` (CREATE + GRANT + RLS + index sur trace_id, article_id, negotiation_id, created_at).
+
+Edge functions
+- New : `supabase/functions/_shared/waouh-trace.ts`
+- New : `supabase/functions/waouh-historique/index.ts`
+- Edit (filtres) : `waouh-history/index.ts`
+- Edit (instrumentation trace uniquement) : `waouh-webhook`, `waouh-negotiation-router`, `_shared/waouh-sync.ts`, `waouh-outbound-dispatch`, `waha-webhook`, `whatsapp-waha-webhook`, `waouh-buyer-interest`.
+
+Frontend
+- New : `src/pages/waouh/AdminWaouhHistoriquePage.tsx`
+- New : `src/components/waouh/historique/{HistoriqueFilters,HistoriqueStatsCards,HistoriqueNegotiationsTable,HistoriqueTimelineDrawer,HistoriqueTraceDrawer}.tsx`
+- New : `src/hooks/useWaouhPersistedHistory.ts`
+- Edit : `src/App.tsx` (route `/admin/waouh/historique`)
+- Edit : `src/components/waouh/WaouhMatchChatWindow.tsx` (chargement initial via hook ; pas de changement d'envoi).
+
+Mémoire
+- Mise à jour `mem://features/waouh-chat-sync-flow` pour mentionner que le hook `useWaouhPersistedHistory` est la voie officielle de chargement (sans modifier le flux).
+- Nouvelle entrée mémoire `mem://features/waouh-historique-dashboard`.
