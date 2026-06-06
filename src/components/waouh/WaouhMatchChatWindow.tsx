@@ -120,9 +120,12 @@ export function WaouhMatchChatWindow({
   const [articleStatus, setArticleStatus] = useState<string | null>(() => readStatus());
   const [hasMore, setHasMoreState] = useState<boolean>(() => getHasMore?.(match.key) ?? true);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  const [syncedAt, setSyncedAt] = useState<string | null>(null);
+  const [initialLoading, setInitialLoading] = useState<boolean>(() => (getCached?.(match.key) ?? []).length === 0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lastFetchRef = useRef<number>(0);
 
   // Wrap setters to persist into the per-tab cache.
   const setMessages = (updater: Msg[] | ((prev: Msg[]) => Msg[])) => {
@@ -138,121 +141,94 @@ export function WaouhMatchChatWindow({
   };
 
   const closed = useMemo(
-
     () => !!match.closed || (articleStatus ? CLOSED_STATUSES.has(articleStatus.toLowerCase()) : false),
     [match.closed, articleStatus]
   );
 
-  // Article-scoped query helper. Widened to catch messages where article_id is
-  // only carried in meta->>article_id (legacy rows).
-  const fetchArticlePage = async (before: string | null, limit: number): Promise<Msg[]> => {
-    if (!match.article_id) return [];
-    let q: any = (supabase.from("waouh_messages") as any)
-      .select("id,direction,text,created_at,attachments,meta,article_id")
-      .or(`article_id.eq.${match.article_id},meta->>article_id.eq.${match.article_id}`)
-      .order("created_at", { ascending: false })
-      .limit(limit);
-    // Scope to the viewer so we never display messages owned by the other party
-    const viewerOrs: string[] = [];
-    if (sessionId) viewerOrs.push(`web_session_id.eq.${sessionId}`);
-    if (waouhIds.length) viewerOrs.push(`user_id.in.(${waouhIds.join(",")})`);
-    if (viewerOrs.length) q = q.or(viewerOrs.join(","));
-    if (before) q = q.lt("created_at", before);
-    const { data } = await q;
-    return ((data ?? []) as Msg[]).slice().reverse();
+  // Server-side history fetcher (source of truth). Replaces the previous
+  // client-side OR-chained query whose viewer scoping was racy (depended
+  // on waouhIds being resolved before the first mount and could miss
+  // messages owned by linked waouh_users rows).
+  const fetchHistory = async (
+    opts: { before?: string | null; limit?: number; includeMeta?: boolean } = {}
+  ): Promise<{ messages: Msg[]; hasMore: boolean; articleStatus: string | null; seedNotification: SeedNotif | null }> => {
+    if (!match.article_id) return { messages: [], hasMore: false, articleStatus: null, seedNotification: null };
+    const { data, error } = await supabase.functions.invoke("waouh-match-history", {
+      body: {
+        articleId: match.article_id,
+        sessionId,
+        role: match.kind,
+        notificationId: match.notification_id ?? null,
+        before: opts.before ?? null,
+        limit: opts.limit ?? PAGE_INITIAL,
+        includeMeta: opts.includeMeta !== false,
+      },
+    });
+    if (error || !(data as any)?.ok) {
+      console.warn("[waouh-match-history] error", error || (data as any)?.error);
+      return { messages: [], hasMore: false, articleStatus: null, seedNotification: null };
+    }
+    return {
+      messages: ((data as any).messages ?? []) as Msg[],
+      hasMore: !!(data as any).hasMore,
+      articleStatus: (data as any).articleStatus ?? null,
+      seedNotification: (data as any).seedNotification ?? null,
+    };
   };
 
-  // Defer initial fetches off the critical paint path. Cache-first: if a
-  // snapshot already exists we render it immediately and silently refresh
-  // in the background — no spinner, no wait.
+  // Authoritative load on mount / when target article or session changes.
+  // Cache (if any) gives the instant first paint; the network response
+  // reconciles authoritatively against DB.
+  const runInitialLoad = async () => {
+    if (!match.article_id) return;
+    const now = Date.now();
+    if (now - lastFetchRef.current < 1500) return; // throttle
+    lastFetchRef.current = now;
+
+    const hasInlineSeed = !!match.seed_text;
+    if (hasInlineSeed) {
+      setSeedNotif({
+        sent_at: new Date().toISOString(),
+        notification_type: match.kind === "seller" ? "new_buyer" : "match_buyer",
+        text: match.seed_text!,
+      });
+    }
+
+    const res = await fetchHistory({ limit: PAGE_INITIAL, includeMeta: true });
+    setMessages((prev) => mergeMsgs(prev, res.messages));
+    setHasMore(res.messages.length >= PAGE_INITIAL ? res.hasMore : false);
+    if (res.articleStatus) {
+      setArticleStatus(res.articleStatus);
+      try { localStorage.setItem(STATUS_KEY, res.articleStatus); } catch {}
+    }
+    if (!hasInlineSeed && res.seedNotification) {
+      setSeedNotif(res.seedNotification);
+      try { localStorage.setItem(SEED_KEY, JSON.stringify(res.seedNotification)); } catch {}
+    }
+    setSyncedAt(new Date().toISOString());
+    setInitialLoading(false);
+  };
+
   useEffect(() => {
     let alive = true;
-    const run = async () => {
-      if (!match.article_id) return;
-
-      const hasInlineSeed = !!match.seed_text;
-      if (hasInlineSeed) {
-        setSeedNotif({
-          sent_at: new Date().toISOString(),
-          notification_type: match.kind === "seller" ? "new_buyer" : "match_buyer",
-          text: match.seed_text!,
-        });
-      }
-
-      const cached = getCached?.(match.key) ?? [];
-      const cachedHasMore = getHasMore?.(match.key) ?? true;
-      const skipMsgFetch = cached.length >= PAGE_INITIAL;
-
-      const promises: Promise<any>[] = [
-        skipMsgFetch ? Promise.resolve([] as Msg[]) : fetchArticlePage(null, PAGE_INITIAL),
-        (supabase.from("waouh_articles") as any)
-          .select("status")
-          .eq("id", match.article_id)
-          .maybeSingle(),
-      ];
-      if (!hasInlineSeed) {
-        const seedQuery = match.notification_id
-          ? (supabase.from("waouh_notifications") as any)
-              .select("sent_at,notification_type,payload")
-              .eq("id", match.notification_id)
-              .maybeSingle()
-          : (supabase.from("waouh_notifications") as any)
-              .select("sent_at,notification_type,payload")
-              .eq("article_id", match.article_id)
-              .in("notification_type", ["match", "match_buyer", "match_seller", "new_buyer", "radar_match"])
-              .order("sent_at", { ascending: false })
-              .limit(1);
-        promises.push(seedQuery);
-      }
-
-      const results = await Promise.all(promises);
-      const pageMsgs = results[0] as Msg[];
-      const artRes = results[1];
-      const notifRes = hasInlineSeed ? null : results[2];
-
-      if (!alive) return;
-      if (!skipMsgFetch) {
-        setMessages((prev) => mergeMsgs(prev, pageMsgs));
-        if (pageMsgs.length === PAGE_INITIAL) setHasMore(true);
-        else if (cachedHasMore !== false) setHasMore(false);
-      }
-      const newStatus = (artRes?.data as any)?.status ?? null;
-      setArticleStatus(newStatus);
-      try {
-        if (newStatus) localStorage.setItem(STATUS_KEY, newStatus);
-      } catch {}
-      if (!hasInlineSeed) {
-        const raw = notifRes?.data;
-        const n = Array.isArray(raw) ? raw[0] : raw;
-        if (n) {
-          const seed = {
-            sent_at: n.sent_at,
-            notification_type: n.notification_type,
-            text: (n.payload as any)?.text ?? null,
-          };
-          setSeedNotif(seed);
-          try { localStorage.setItem(SEED_KEY, JSON.stringify(seed)); } catch {}
-        } else if (!readSeed()) {
-          setSeedNotif(null);
-        }
-      }
-    };
-
-    // Yield to the browser so the first paint shows cached content instantly.
     const ric: any = (typeof window !== "undefined" && (window as any).requestIdleCallback) || null;
     const handle = ric
-      ? ric(() => { void run(); }, { timeout: 200 })
-      : setTimeout(() => { void run(); }, 0);
-
+      ? ric(() => { if (alive) void runInitialLoad(); }, { timeout: 200 })
+      : setTimeout(() => { if (alive) void runInitialLoad(); }, 0);
     return () => {
       alive = false;
       if (ric && (window as any).cancelIdleCallback) (window as any).cancelIdleCallback(handle);
       else clearTimeout(handle as any);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [match.article_id, match.notification_id, match.seed_text]);
+  }, [match.article_id, match.notification_id, match.seed_text, sessionId]);
 
-
+  // Refetch when the tab becomes active again (reopen / tab switch back).
+  useEffect(() => {
+    if (!active) return;
+    void runInitialLoad();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
 
   // Load older messages on top-scroll
   const loadOlder = async () => {
@@ -264,10 +240,10 @@ export function WaouhMatchChatWindow({
     const prevHeight = el?.scrollHeight ?? 0;
     const prevTop = el?.scrollTop ?? 0;
     try {
-      const page = await fetchArticlePage(oldest, PAGE_OLDER);
-      setHasMore(page.length === PAGE_OLDER);
-      if (page.length) {
-        setMessages((prev) => mergeMsgs(prev, page));
+      const res = await fetchHistory({ before: oldest, limit: PAGE_OLDER, includeMeta: false });
+      setHasMore(res.messages.length >= PAGE_OLDER ? res.hasMore : false);
+      if (res.messages.length) {
+        setMessages((prev) => mergeMsgs(prev, res.messages));
         requestAnimationFrame(() => {
           const el2 = scrollRef.current;
           if (!el2) return;
@@ -278,6 +254,7 @@ export function WaouhMatchChatWindow({
       setLoadingOlder(false);
     }
   };
+
 
   useEffect(() => {
     const node = topSentinelRef.current;
