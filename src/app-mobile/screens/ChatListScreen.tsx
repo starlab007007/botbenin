@@ -411,6 +411,7 @@ export default function ChatListScreen() {
               authUserId={user?.id ?? null}
               activeConvId={activeConvId}
               newWaouhCounter={newWaouhCounter}
+              matchChats={matchChats}
             />
           ) : (
             <ChatRightPaneEmpty />
