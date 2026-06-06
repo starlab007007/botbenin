@@ -48,13 +48,39 @@ export function StatusCard({ status, canDelete, onDelete, compact }: Props) {
   const openChat = () => {
     const article_id = status.article_id ?? status.id;
     const kind: "buyer" | "seller" = status.type === "buy" ? "seller" : "buyer";
+    const priceLine =
+      status.price_fcfa != null
+        ? `💰 *Prix demandé* : ${status.price_fcfa.toLocaleString("fr-FR")} FCFA`
+        : `💰 *Prix demandé* : à négocier`;
+    const distanceLine = (status as any).distance_km != null
+      ? `📏 *à ${Number((status as any).distance_km).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} km de vous*`
+      : null;
+    const partyLabel = status.type === "buy" ? "Vendeur" : status.type === "announce" ? "Annonceur" : "Acheteur";
+    const cityLine = status.location ? `🏙️ *${partyLabel}* : ${status.location}` : null;
+    const counterExample =
+      status.price_fcfa != null
+        ? `*Je propose ${Math.max(1, Math.round(status.price_fcfa * 0.9)).toLocaleString("fr-FR")} FCFA*`
+        : `*Je propose [votre prix] FCFA*`;
+    const seed_text = [
+      `*📩 Nouvel acheteur intéressé*`,
+      `━━━━━━━━━━━━━━━━━━`,
+      ``,
+      `📦 *${status.title}*`,
+      priceLine,
+      distanceLine,
+      cityLine,
+      ``,
+      `Répondez *OUI* pour accepter, *NON* pour refuser, ou écrivez ${counterExample} pour contre-offrir.`,
+      ``,
+      `━━━━━━━━━━━━━━━━━━`,
+      `_✨ WAOUH — Achetez · Vendez · Négociez en confiance_`,
+    ]
+      .filter((l) => l !== null)
+      .join("\n");
     const detail = {
       notification_id: null,
       notification_ids: [],
-      seed_text:
-        status.type === "buy"
-          ? `📩 Nouvel acheteur intéressé\n\nBonjour, j'ai ce que vous cherchez : "${status.title}".`
-          : `📩 Nouvel acheteur intéressé\n\nBonjour, je suis intéressé(e) par votre statut : "${status.title}".`,
+      seed_text,
       article_id,
       buyer_profile_id: null,
       counterpart_user_id: status.user_id,
