@@ -230,7 +230,7 @@ export function WaouhMatchChatWindow({
       else clearTimeout(handle as any);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [match.article_id, match.notification_id, match.seed_text, sessionId]);
+  }, [match.article_id, match.notification_id, match.seed_text, sessionId, authUserId]);
 
   // Refetch when the tab becomes active again (reopen / tab switch back).
   useEffect(() => {
