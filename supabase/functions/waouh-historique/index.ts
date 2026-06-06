@@ -54,11 +54,11 @@ serve(async (req) => {
       const offset = Math.max(0, Number(body?.offset ?? 0));
 
       let q = sb.from("waouh_negotiations")
-        .select("id, article_id, buyer_user_id, seller_user_id, status, current_price, last_price, currency, created_at, updated_at, meta", { count: "exact" })
+        .select("id, article_id, buyer_user_id, seller_user_id, state, last_offer_price, transaction_id, created_at, updated_at, meta", { count: "exact" })
         .gte("updated_at", sinceIso)
         .order("updated_at", { ascending: false })
         .range(offset, offset + limit - 1);
-      if (status && status !== "all") q = q.eq("status", status);
+      if (status && status !== "all") q = q.eq("state", status);
       if (articleId) q = q.eq("article_id", articleId);
       const { data: negotiations, error: negErr, count: totalCount } = await q;
       if (negErr) throw negErr;
