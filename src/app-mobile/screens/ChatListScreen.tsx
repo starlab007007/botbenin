@@ -19,6 +19,7 @@ import {
 } from "../utils/chatLabel";
 import WaouhDemoMockup from "../components/WaouhDemoMockup";
 import { WaouhMatchChatList } from "@/components/waouh/WaouhMatchChatList";
+import { StatusesPanel } from "@/components/waouh/statuses/StatusesPanel";
 
 type Conv = {
   id: string;
@@ -56,6 +57,7 @@ export default function ChatListScreen() {
   const [users, setUsers] = useState<Record<string, WaouhUserLike>>({});
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
+  const [tab, setTab] = useState<"chats" | "statuses">("chats");
 
   const isGuest = !user;
 
@@ -217,6 +219,31 @@ export default function ChatListScreen() {
         )}
       </header>
 
+      {!isGuest && (
+        <div className="sticky top-[var(--waouh-tabs-top,0)] z-[9] flex bg-background border-b border-border">
+          {[
+            { k: "chats", label: "Discussions" },
+            { k: "statuses", label: "Statuts · 24h" },
+          ].map((t) => (
+            <button
+              key={t.k}
+              onClick={() => setTab(t.k as "chats" | "statuses")}
+              className={
+                "flex-1 py-2.5 text-sm font-semibold transition-colors " +
+                (tab === t.k
+                  ? "text-[hsl(165_91%_25%)] border-b-2 border-[hsl(165_91%_25%)]"
+                  : "text-muted-foreground border-b-2 border-transparent")
+              }
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {tab === "statuses" && !isGuest ? (
+        <StatusesPanel variant="mobile" />
+      ) : (
       <main>
         {/* Pinned WAOUH conversation — default AI assistant chat */}
         <button
@@ -310,6 +337,7 @@ export default function ChatListScreen() {
           })}
         </ul>
       </main>
+      )}
     </div>
   );
 }

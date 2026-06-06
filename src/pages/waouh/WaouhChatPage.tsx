@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useWaouhMatchNotifications } from "@/hooks/useWaouhMatchNotifications";
 import { WaouhNotificationsBell } from "@/components/waouh/WaouhNotificationsBell";
+import { StatusesPanel } from "@/components/waouh/statuses/StatusesPanel";
 
 const SESSION_KEY = "waouh_web_session_id";
 
@@ -208,6 +209,18 @@ export default function WaouhChatPage() {
               <p className="text-xs text-gray-500 mt-0.5">{a.desc}</p>
             </Card>
           ))}
+        </section>
+
+        <section className="mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-500" /> Statuts urgents · 24h
+            </h3>
+            <span className="text-xs text-gray-500">Vente · Recherche · Promo expirent automatiquement</span>
+          </div>
+          <Card className="p-2 bg-white border-gray-200">
+            <StatusesPanel variant="web" />
+          </Card>
         </section>
 
         <section className="grid lg:grid-cols-3 gap-4">
