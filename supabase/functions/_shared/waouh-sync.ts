@@ -169,8 +169,10 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
         p_event_type: eventType ?? intent,
       });
       result.enqueued_whatsapp = true;
-    } catch (e) {
+      traceEvent(sb, { trace_id: traceId, article_id: articleId ?? null, negotiation_id: negotiationId, transaction_id: transactionId, deal_id: dealId, actor_user_id: user.id, role, stage: "queue_enqueue", status: "ok", intent, dedup_key: `wa:${dedupBase}`, payload: { channel: "whatsapp", phone } });
+    } catch (e: any) {
       console.warn("[pushSyncedEvent] enqueue wa", e);
+      traceEvent(sb, { trace_id: traceId, article_id: articleId ?? null, negotiation_id: negotiationId, transaction_id: transactionId, actor_user_id: user.id, role, stage: "queue_enqueue", status: "error", intent, dedup_key: `wa:${dedupBase}`, error: String(e?.message ?? e) });
     }
   }
 
