@@ -246,7 +246,7 @@ export default function ChatListScreen() {
         {isGuest && (
           <div className="px-4 pt-5 pb-2 flex flex-col items-center text-center">
             <Button
-              onClick={openWaouh}
+              onClick={openNewWaouh}
               size="lg"
               className="w-full max-w-sm bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)] shadow-md"
             >
