@@ -467,12 +467,12 @@ export function WaouhMatchChatList({
 
   return (
     <div className="border-b">
-      {fresh.length > 0 && (
+      {filteredFresh.length > 0 && (
         <div className="px-4 pt-2 pb-1 flex items-center justify-between">
           <span className="text-[11px] uppercase tracking-wide text-muted-foreground font-semibold">
             Conversations produit
           </span>
-          {fresh.length > VISIBLE_DEFAULT && (
+          {filteredFresh.length > VISIBLE_DEFAULT && (
             <button
               onClick={toggleExpanded}
               className="text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1"
@@ -483,7 +483,7 @@ export function WaouhMatchChatList({
                 </>
               ) : (
                 <>
-                  Voir tout ({fresh.length}) <ChevronDown className="h-3 w-3" />
+                  Voir tout ({filteredFresh.length}) <ChevronDown className="h-3 w-3" />
                 </>
               )}
             </button>
