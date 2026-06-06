@@ -1146,7 +1146,7 @@ serve(async (req) => {
               template: "deal_refused",
               payload: { neg_id: neg.id, article_id: neg.article_id, actions: [] },
               directText: otherText,
-              directMeta: { intent: "deal_refused", negotiation_id: neg.id },
+              directMeta: { intent: "deal_refused", negotiation_id: neg.id, article_id: neg.article_id },
               transaction_id: null,
               dedupe_key: `deal_refused:${neg.id}:${otherId}`,
               event_type: "deal_refused",
