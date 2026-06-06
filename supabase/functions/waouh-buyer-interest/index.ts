@@ -96,6 +96,33 @@ Deno.serve(async (req) => {
       console.warn("[waouh-buyer-interest] dispatch failed", e);
     }
 
+    // 🔁 Écho côté acheteur : bulle chat + WhatsApp (si numéro acheteur résolu)
+    if (buyerUserId) {
+      try {
+        const { data: buyerUser } = await sb
+          .from("waouh_users")
+          .select("id, phone_number, web_session_id, auth_user_id")
+          .eq("id", buyerUserId)
+          .maybeSingle();
+        if (buyerUser) {
+          const title = (article as any)?.title || "votre annonce";
+          await pushSyncedEvent({
+            sb,
+            user: buyerUser,
+            role: "buyer",
+            articleId: article_id,
+            text: `✅ Demande envoyée au vendeur\n\n📦 ${title}\n\nLe vendeur sera notifié et reviendra vers vous très vite via WAOUH.`,
+            intent: "buyer_interest",
+            eventType: "buyer_interest",
+            template: "buyer_interest_ack",
+            dedupSuffix: "actor",
+          });
+        }
+      } catch (e) {
+        console.warn("[waouh-buyer-interest] buyer echo failed", e);
+      }
+    }
+
 
     return new Response(JSON.stringify({
       ok: true,
