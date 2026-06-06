@@ -11,6 +11,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useWaouhMatchNotifications } from "@/hooks/useWaouhMatchNotifications";
 import { WaouhNotificationsBell } from "@/components/waouh/WaouhNotificationsBell";
 import { StatusesPanel } from "@/components/waouh/statuses/StatusesPanel";
+import { WaouhChatSidebar } from "@/components/waouh/WaouhChatSidebar";
 
 const SESSION_KEY = "waouh_web_session_id";
 
