@@ -1,100 +1,70 @@
-## Objectif
-
-Faire en sorte que la fenêtre `WaouhMatchChatWindow` (vendeur **et** acheteur) reçoive **exactement** les mêmes messages, actions et notifications que le `WAOUH chat principal`, sans fuite des messages destinés à l'autre partie.
+# Plan
 
 ## Diagnostic
 
-### Bug 1 — Fuite cross-party dans la fenêtre
-`WaouhMatchChatWindow.fetchArticlePage` (lignes 148-158) filtre uniquement par `article_id` / `meta->>article_id`. Comme `waouh_messages` contient les lignes des **deux** parties (vendeur + acheteur) pour le même article, tout est affiché des deux côtés. C'est pourquoi :
-- Côté vendeur : on voit en plus `✅ Demande envoyée au vendeur` (reply stocké sous le user_id de l'acheteur).
-- Côté acheteur : on voit `📩 Nouvel acheteur intéressé` et `✅ Annonce publiée` (stockés sous le user_id du vendeur).
+### Bug 1 — La fenêtre acheteur affiche la notif "📩 Nouvel acheteur intéressé"
 
-### Bug 2 — Contre-offres et "Vente conclue" absentes de la fenêtre
-Dans `waouh-webhook/index.ts`, les `pushToOther` pour :
-- contre-offre (`negotiation_open`, lignes 1076-1085),
-- accord (`deal_accepted`, lignes 1122-1132),
-- refus (`deal_refused`, lignes 1143-1152),
+`WaouhMatchChatWindow.tsx` ligne 569 rend `seedNotif?.text` pour tout le monde **sauf** le vendeur (`match.kind !== "seller"`). Côté acheteur, le `seed_text` injecté (depuis `useWaouhInbox` / `WaouhMatchChatList`) reprend le texte de la notification publiée — y compris la version "📩 Nouvel acheteur intéressé" — alors que l'acheteur ne doit voir que sa propre bulle "✅ Demande envoyée au vendeur" (qui arrive en realtime comme `reply` de son action).
 
-passent un `directMeta` qui **n'inclut pas** `article_id`. La ligne `waouh_messages` insérée par `pushToOther` (lignes 441-449) ne renseigne pas non plus la colonne `article_id`. Résultat : la fenêtre ne voit jamais ces messages (le filtre `article_id.eq.X OR meta->>article_id.eq.X` ne matche pas), mais le chat principal les voit (pas de filtre).
+### Bug 2 — La contre-offre de l'acheteur n'arrive pas dans la fenêtre vendeur
 
-Idem pour le `reply` local de l'acteur d'une `NEGOTIATE` (ligne 1087) : aucun `returnedArticleId` n'est défini → `outboundArticleId` est `null` dans `waouh-channel-in` (sauf si l'envoi vient déjà de la fenêtre, qui passe `clientMeta.article_id`). Depuis le chat principal, la contre-offre tapée par l'utilisateur ne porte donc pas d'`article_id` et n'apparaît pas dans la fenêtre.
+Dans `waouh-webhook/index.ts`, `pushToOther` (lignes 437-452) n'insère une ligne `waouh_messages` que si **les deux** conditions sont remplies : `webSession && target.id`. De plus, l'insert ne renseigne que `meta.article_id`, jamais la colonne `article_id`.
+
+Conséquences :
+- Si le vendeur n'a pas (ou plus) de `web_session_id` actif → aucune insertion DB → fenêtre vendeur ne reçoit jamais le message (ni realtime, ni reload).
+- Même avec une session, le filtre realtime (ligne 305) et `fetchArticlePage` (ligne 152) doivent retomber sur `meta->>article_id`, ce qui est fragile (le sous-canal realtime peut transmettre `meta` sans la clé attendue selon le payload). L'insert principal de l'annonce écrit bien `article_id` en colonne, d'où l'asymétrie avec les contre-offres.
 
 ## Modifications
 
-### 1. `src/components/waouh/WaouhMatchChatWindow.tsx`
+### 1. `src/components/waouh/WaouhMatchChatWindow.tsx` (ligne 569)
 
-**a) Scoper l'historique au visualisateur** dans `fetchArticlePage` :
+Masquer la bulle `seedNotif.text` **dans les deux camps** — le bandeau jaune (header) reste la seule synthèse pinned ; chaque partie ne voit ensuite que ses propres bulles et les messages reçus en realtime.
 
-```ts
-let q = supabase.from("waouh_messages")
-  .select("id,direction,text,created_at,attachments,meta,article_id")
-  .or(`article_id.eq.${match.article_id},meta->>article_id.eq.${match.article_id}`)
-  .order("created_at", { ascending: false })
-  .limit(limit);
-
-const viewerOrs: string[] = [];
-if (sessionId) viewerOrs.push(`web_session_id.eq.${sessionId}`);
-if (waouhIds.length) viewerOrs.push(`user_id.in.(${waouhIds.join(",")})`);
-if (viewerOrs.length) q = q.or(viewerOrs.join(","));
-
-if (before) q = q.lt("created_at", before);
+```tsx
+{/* Suppression complète de la bulle "seedNotif.text".
+    Le bandeau jaune ci-dessus suffit, et chaque partie ne voit plus
+    que ses propres bulles + les notifications qui lui sont adressées. */}
 ```
 
-Les deux `.or()` chaînés produisent `(article filter) AND (viewer filter)` — exactement ce qu'il faut. Le canal realtime est déjà scopé par `web_session_id` et `user_id`, donc aucune modification côté realtime.
+Effet :
+- Acheteur : la fenêtre affiche uniquement le bandeau jaune + `✅ Demande envoyée au vendeur` (sa propre bulle realtime). La notif "📩 Nouvel acheteur intéressé" disparaît.
+- Vendeur : inchangé (déjà masqué pour `match.kind === "seller"`).
 
-**Effet** :
-- Vendeur : disparition de `✅ Demande envoyée au vendeur` (appartient au session/user acheteur).
-- Acheteur : disparition de `📩 Nouvel acheteur intéressé` et `✅ Annonce publiée` (appartiennent au user vendeur).
-- Chacun ne voit plus que ses propres bulles + celles qui lui sont explicitement adressées.
+### 2. `supabase/functions/waouh-webhook/index.ts` — `pushToOther` (lignes 437-452)
 
-**b)** Aucun changement de la bannière jaune, du composer ni de la logique d'envoi.
+a) **Toujours insérer** dans `waouh_messages` dès que `target.id` est connu, indépendamment de `webSession`. Cela permet à la fenêtre vendeur (ouverte plus tard, ou rechargée) de retrouver la contre-offre via `fetchArticlePage`.
 
-### 2. `supabase/functions/waouh-webhook/index.ts`
-
-**a) Contre-offre — ligne 1081** : enrichir `directMeta` pour porter l'article :
+b) **Renseigner la colonne `article_id`** quand `directMeta.article_id` est présent, pour que le filtre realtime (`m.article_id === match.article_id`) matche directement sans dépendre de `meta->>article_id`.
 
 ```ts
-directMeta: { intent: "negotiation_open", negotiation_id: neg.id, article_id: neg.article_id },
+const articleIdCol = (opts.directMeta as any)?.article_id ?? null;
+let insertedMsgId: string | null = null;
+if (target.id) {
+  try {
+    const { data: msg } = await sb.from("waouh_messages").insert({
+      user_id: target.id,
+      channel: webSession ? "web" : "system",
+      direction: "out",
+      text: opts.directText,
+      web_session_id: webSession,
+      article_id: articleIdCol,
+      attachments: opts.directAtts ?? [],
+      meta: { ...(opts.directMeta ?? {}), transaction_id: opts.transaction_id ?? opts.directMeta?.transaction_id ?? null, source: opts.source ?? "chat" },
+    }).select("id").maybeSingle();
+    insertedMsgId = msg?.id ?? null;
+  } catch (e) { console.warn("[pushToOther] msg", e); }
+}
 ```
 
-**b) Accord conclu — ligne 1128** :
+Le canal realtime côté vendeur filtre sur `user_id=eq.<seller_uid>` (ligne 333) — l'insert ci-dessus déclenchera donc le handler, qui matchera `m.article_id === match.article_id` et ajoutera le message à la fenêtre.
 
-```ts
-directMeta: { intent: "deal_accepted", negotiation_id: neg.id, article_id: neg.article_id },
-```
+## Hors scope
 
-**c) Refus — ligne 1148** :
-
-```ts
-directMeta: { intent: "deal_refused", negotiation_id: neg.id, article_id: neg.article_id },
-```
-
-**d) NEGOTIATE / DECIDE_YES / DECIDE_NO — assurer `returnedArticleId`** pour que le `reply` de l'acteur (inséré par `waouh-channel-in`) porte aussi `article_id` et apparaisse dans la fenêtre côté actif :
-
-- Dans le bloc `NEGOTIATE` (ligne 1066, branche `amount`) : ajouter `returnedArticleId = neg.article_id;` juste après l'`update`.
-- Dans `DECIDE_YES` (déjà fait ligne 1135) : conserver.
-- Dans `DECIDE_NO` (ligne 1136-1155) : ajouter `returnedArticleId = neg.article_id;` après l'`update`.
-
-`waouh-channel-in` propage déjà `outboundArticleId` (lignes 470-477), donc le message sortant gagnera automatiquement la colonne `article_id` et arrivera dans la fenêtre du visualiseur.
-
-### 3. Hors scope
-
-- Pas de changement du composer ni de la séquence de négociation existante.
-- Pas de modification du `WAOUH chat principal` ni des notifications WhatsApp / `waouh_notifications`.
-- Pas de migration SQL.
+- Aucune modification du `WAOUH chat principal`, des notifications WhatsApp, du composer, ni de la logique de négociation.
+- Aucune migration SQL.
 
 ## Validation
 
-Après déploiement de l'edge function et rebuild front :
-
-1. **Vendeur publie** une annonce dans le chat principal :
-   - Chat principal vendeur : `✅ Annonce publiée` ✓
-   - Fenêtre vendeur : bannière jaune seule (pas de duplication, pas de "Demande envoyée").
-   - Fenêtre acheteur : rien (annonce non encore matchée).
-2. **Acheteur** dit « intéressé 1 » :
-   - Chat principal acheteur : `✅ Demande envoyée au vendeur` ✓
-   - Fenêtre acheteur : bannière + `✅ Demande envoyée au vendeur` (sa propre bulle).
-   - Chat principal vendeur : `📩 Nouvel acheteur intéressé` ✓
-   - Fenêtre vendeur : bannière + `📩 Nouvel acheteur intéressé` (sans "Demande envoyée").
-3. **Acheteur** propose un autre prix → fenêtre acheteur affiche sa bulle, fenêtre vendeur reçoit `💬 Nouvelle offre de l'acheteur` (grâce au `article_id` ajouté dans `directMeta`).
-4. **Vendeur** répond OUI → les deux côtés affichent `🎉 Accord conclu` dans la fenêtre comme dans le chat principal.
+1. Acheteur dit `intéressé 1` → fenêtre acheteur : bandeau jaune + uniquement `✅ Demande envoyée au vendeur`. Le texte "📩 Nouvel acheteur intéressé" n'apparaît plus.
+2. Acheteur écrit `Je propose 180 FCFA` → fenêtre vendeur : nouvelle bulle `💬 Nouvelle offre de l'acheteur ... 180 FCFA` apparaît en realtime ; identique à la bulle du chat principal vendeur.
+3. Vendeur répond `OUI` → les deux fenêtres affichent `🎉 Accord conclu`.

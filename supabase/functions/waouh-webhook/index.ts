@@ -435,21 +435,24 @@ serve(async (req) => {
 
 
       const webSession = target.web_session_id || opts.to_web_session_id || null;
+      const articleIdCol = (opts.directMeta as any)?.article_id ?? null;
       let insertedMsgId: string | null = null;
-      if (webSession && target.id) {
+      if (target.id) {
         try {
           const { data: msg } = await sb.from("waouh_messages").insert({
             user_id: target.id,
-            channel: "web",
+            channel: webSession ? "web" : "system",
             direction: "out",
             text: opts.directText,
             web_session_id: webSession,
+            article_id: articleIdCol,
             attachments: opts.directAtts ?? [],
             meta: { ...(opts.directMeta ?? {}), transaction_id: opts.transaction_id ?? opts.directMeta?.transaction_id ?? null, source: opts.source ?? "chat" },
           }).select("id").maybeSingle();
           insertedMsgId = msg?.id ?? null;
         } catch (e) { console.warn("[pushToOther] msg", e); }
       }
+
 
       const quickActions: Array<{ id: string; label: string }> = Array.isArray(opts.payload?.actions)
         ? opts.payload.actions.slice(0, 3)
