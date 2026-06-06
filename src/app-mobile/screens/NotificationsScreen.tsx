@@ -27,11 +27,39 @@ export default function NotificationsScreen() {
 
   const onOpen = (n: AppNotification) => {
     if (!n.read) markRead(n.id);
+    const m = n.metadata || {};
+    // If this notification is a WAOUH product match, open the match chat window.
+    if (m.article_id && (m.kind === "buyer" || m.kind === "seller" || m.match_kind)) {
+      const detail = {
+        notification_id: n.id,
+        notification_ids: [n.id],
+        seed_text: n.content ?? null,
+        article_id: m.article_id,
+        buyer_profile_id: m.buyer_profile_id ?? null,
+        counterpart_user_id: m.counterpart_user_id ?? m.buyer_user_id ?? null,
+        kind: (m.kind || m.match_kind) as "buyer" | "seller",
+        title: m.title || n.title,
+        price: m.price ?? null,
+        city: m.city ?? null,
+        photo: m.image_url ?? m.photo ?? null,
+      };
+      try {
+        const raw = localStorage.getItem("waouh_pending_open");
+        const arr = raw ? (JSON.parse(raw) as any[]) : [];
+        arr.push(detail);
+        localStorage.setItem("waouh_pending_open", JSON.stringify(arr.slice(-10)));
+      } catch {}
+      navigate("/app/chat/waouh");
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));
+      }, 50);
+      return;
+    }
     navigate(n.action_url || "/app/chat");
   };
 
   return (
-    <div className="min-h-[100dvh] bg-background">
+    <div className="flex flex-col h-[100dvh] bg-background overflow-hidden">
       <MobileScreenHeader
         title="Notifications"
         subtitle={unread > 0 ? `${unread} message${unread > 1 ? "s" : ""} non lu${unread > 1 ? "s" : ""}` : "Tout est lu"}
@@ -73,7 +101,7 @@ export default function NotificationsScreen() {
         }
       />
 
-      <div className="flex gap-2 px-4 py-2 border-b bg-muted/30">
+      <div className="flex gap-2 px-4 py-2 border-b bg-muted/30 shrink-0">
         <Button
           size="sm"
           variant={showAll ? "ghost" : "default"}
@@ -92,7 +120,7 @@ export default function NotificationsScreen() {
         </Button>
       </div>
 
-      <main className="pb-20">
+      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain pb-20">
         {loading && <div className="p-8 text-center text-muted-foreground">Chargement…</div>}
         {!loading && visible.length === 0 && (
           <div className="p-10 text-center text-muted-foreground">

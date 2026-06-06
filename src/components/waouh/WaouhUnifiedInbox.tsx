@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Inbox, MessageSquare, Phone, ChevronRight } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +26,7 @@ function relativeTime(iso?: string | null) {
 }
 
 export function WaouhUnifiedInbox({ sessionId, authUserId, triggerClassName }: Props) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const { items, totalUnread, markRead } = useWaouhInbox(sessionId, authUserId);
 
@@ -44,7 +46,7 @@ export function WaouhUnifiedInbox({ sessionId, authUserId, triggerClassName }: P
           )}
         </button>
       </SheetTrigger>
-      <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto rounded-t-2xl p-0">
+      <SheetContent side="bottom" className="max-h-[85dvh] flex flex-col rounded-t-2xl p-0">
         <SheetHeader className="px-4 pt-4 pb-2 border-b">
           <SheetTitle className="flex items-center gap-2">
             <Inbox className="w-4 h-4" /> Inbox unifiée
@@ -54,6 +56,7 @@ export function WaouhUnifiedInbox({ sessionId, authUserId, triggerClassName }: P
           </SheetTitle>
         </SheetHeader>
 
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
         {items.length === 0 ? (
           <div className="p-6 text-center text-sm text-muted-foreground">
             Aucune conversation pour le moment.
@@ -69,12 +72,8 @@ export function WaouhUnifiedInbox({ sessionId, authUserId, triggerClassName }: P
                     type="button"
                     onClick={async () => {
                       await markRead(it.id);
-                      window.dispatchEvent(
-                        new CustomEvent("waouh:open-conversation", {
-                          detail: { conversationId: it.id, channel: it.channel, phone: it.phone_number },
-                        })
-                      );
                       setOpen(false);
+                      navigate(`/app/chat/${it.id}`);
                     }}
                     className={cn(
                       "w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/60 active:bg-muted",
@@ -126,6 +125,7 @@ export function WaouhUnifiedInbox({ sessionId, authUserId, triggerClassName }: P
             })}
           </ul>
         )}
+        </div>
       </SheetContent>
     </Sheet>
   );
