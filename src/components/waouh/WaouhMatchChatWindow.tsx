@@ -74,6 +74,7 @@ function mergeMsgs(prev: Msg[], incoming: Msg[]): Msg[] {
 export function WaouhMatchChatWindow({
   match,
   sessionId,
+  authUserId,
   waouhIds,
   active,
   getCached,
@@ -83,6 +84,7 @@ export function WaouhMatchChatWindow({
 }: {
   match: MatchChatMeta;
   sessionId: string;
+  authUserId?: string | null;
   waouhIds: string[];
   active: boolean;
   getCached?: (key: string) => Msg[];
@@ -162,6 +164,7 @@ export function WaouhMatchChatWindow({
       body: {
         articleId: match.article_id,
         sessionId,
+        authUserId: authUserId ?? null,
         role: match.kind,
         notificationId: match.notification_id ?? null,
         before: opts.before ?? null,
