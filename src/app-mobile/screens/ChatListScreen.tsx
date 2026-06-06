@@ -152,6 +152,7 @@ export default function ChatListScreen() {
   const initials = (profile?.full_name ?? profile?.phone ?? "U").slice(0, 2).toUpperCase();
 
   const openWaouh = () => navigate("/app/chat/waouh");
+  const openNewWaouh = () => navigate("/app/chat/waouh?new=1");
   const { unread: notifUnread } = useNotifications();
 
   return (
