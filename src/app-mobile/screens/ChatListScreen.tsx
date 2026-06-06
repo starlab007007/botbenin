@@ -213,7 +213,7 @@ export default function ChatListScreen() {
           <div className="px-4 pb-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/60" />
-              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher" className="pl-9 bg-white/15 border-0 text-white placeholder:text-white/60" />
+              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher discussions, statuts…" className="pl-9 bg-white/15 border-0 text-white placeholder:text-white/60" />
             </div>
           </div>
         )}
