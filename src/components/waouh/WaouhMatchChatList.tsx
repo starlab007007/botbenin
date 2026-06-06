@@ -411,8 +411,19 @@ export function WaouhMatchChatList({
                 <Badge className="bg-emerald-500 text-white border-0 text-[9px] py-0 px-1.5 h-4">Nouveau</Badge>
               )}
             </span>
-            <span className="text-[10px] text-muted-foreground shrink-0">{label}</span>
-          </div>
+            <div className="flex flex-col items-end shrink-0 gap-0.5">
+              <span className="text-[10px] text-muted-foreground">{label}</span>
+              {it.last_at && (
+                <span className="text-[10px] text-muted-foreground/80">
+                  {new Date(it.last_at).toLocaleString("fr-FR", {
+                    day: "2-digit",
+                    month: "short",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              )}
+            </div>
           <p className="text-xs text-muted-foreground truncate">
             {previewLine}
             {it.price ? ` · ${Number(it.price).toLocaleString("fr-FR")} FCFA` : ""}
