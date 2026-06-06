@@ -1087,6 +1087,71 @@ serve(async (req) => {
       } else {
         reply = `💬 Indiquez votre prix : « *Je propose ${fmt(neg.last_offer_price || 0)}* »`;
       }
+    } else if (intent.intent === "DECIDE_YES" || intent.intent === "DECIDE_NO") {
+      // Réponse OUI/NON à une négociation en cours (acheteur OU vendeur)
+      const { data: neg } = await sb.from("waouh_negotiations")
+        .select("*")
+        .or(`buyer_user_id.eq.${user!.id},seller_user_id.eq.${user!.id}`)
+        .in("state", ["proposed", "countered"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!neg) {
+        reply = "🤔 Aucune négociation en cours. Recherchez d'abord un produit puis dites *intéressé 1*.";
+      } else {
+        const isBuyer = neg.buyer_user_id === user!.id;
+        const myRole: "buyer" | "seller" = isBuyer ? "buyer" : "seller";
+        const otherId = isBuyer ? neg.seller_user_id : neg.buyer_user_id;
+        // Garde-fou : on ne peut pas accepter sa propre offre
+        if (neg.last_actor === myRole) {
+          reply = "⏳ Vous attendez la réponse de l'autre partie. Patientez quelques instants.";
+        } else if (intent.intent === "DECIDE_YES") {
+          const agreed = Number(neg.last_offer_price || 0);
+          await sb.from("waouh_negotiations").update({
+            state: "accepted", agreed_price: agreed, last_actor: myRole,
+          }).eq("id", neg.id);
+          const { data: art } = await sb.from("waouh_articles").select("title,photos").eq("id", neg.article_id).maybeSingle();
+          const title = art?.title || "Article";
+          const photo = Array.isArray(art?.photos) && art!.photos.length ? art!.photos[0] : null;
+          // Notifier l'autre partie
+          if (otherId) {
+            const otherIsSeller = isBuyer; // l'autre = vendeur si moi = acheteur
+            const otherText = `${waouhHeader("🎉 Accord conclu")}\n\n📦 *${title}*\n💰 *Prix final* : ${fmt(agreed)}\n\n${otherIsSeller ? "L'acheteur accepte votre prix. Contactez-le pour organiser la remise." : "Le vendeur accepte votre offre. Contactez-le pour organiser la remise."}\n\n${waouhFooter()}`;
+            await pushToOther({
+              to_user_id: otherId,
+              template: "deal_accepted",
+              payload: { neg_id: neg.id, article_id: neg.article_id, price: agreed, actions: [] },
+              directText: otherText,
+              directAtts: photo ? [{ url: photo, type: "image/jpeg", caption: title }] : [],
+              directMeta: { intent: "deal_accepted", negotiation_id: neg.id },
+              transaction_id: null,
+              dedupe_key: `deal_accepted:${neg.id}:${otherId}`,
+              event_type: "deal_accepted",
+            });
+          }
+          reply = `${waouhHeader("🎉 Accord conclu")}\n\n📦 *${title}*\n💰 *Prix final* : ${fmt(agreed)}\n\nL'autre partie a été notifiée. Vous pouvez maintenant vous contacter pour organiser la remise.\n\n${waouhFooter()}`;
+          returnedArticleId = neg.article_id;
+        } else {
+          // DECIDE_NO
+          await sb.from("waouh_negotiations").update({
+            state: "refused", last_actor: myRole,
+          }).eq("id", neg.id);
+          if (otherId) {
+            const otherText = `${waouhHeader("❌ Négociation terminée")}\n\n${isBuyer ? "L'acheteur n'a pas accepté la dernière offre." : "Le vendeur n'a pas accepté votre offre."}\nVous pouvez relancer une recherche à tout moment.\n\n${waouhFooter()}`;
+            await pushToOther({
+              to_user_id: otherId,
+              template: "deal_refused",
+              payload: { neg_id: neg.id, article_id: neg.article_id, actions: [] },
+              directText: otherText,
+              directMeta: { intent: "deal_refused", negotiation_id: neg.id },
+              transaction_id: null,
+              dedupe_key: `deal_refused:${neg.id}:${otherId}`,
+              event_type: "deal_refused",
+            });
+          }
+          reply = `❌ Négociation terminée. L'autre partie a été notifiée.`;
+        }
+      }
     } else if (intent.intent === "HELP") {
       reply = `${waouhHeader("🤖 WAOUH — Commandes")}\n\n• *Je vends ...* — publier une annonce\n• *Je cherche ...* — trouver un produit\n• *intéressé 1* — contacter un vendeur\n• *Je propose X FCFA* — négocier\n• *OUI* / *NON* — répondre au vendeur ou à l'acheteur\n\n${waouhFooter()}`;
     }
