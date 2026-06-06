@@ -54,11 +54,11 @@ serve(async (req) => {
       const offset = Math.max(0, Number(body?.offset ?? 0));
 
       let q = sb.from("waouh_negotiations")
-        .select("id, article_id, buyer_user_id, seller_user_id, status, current_price, last_price, currency, created_at, updated_at, meta", { count: "exact" })
+        .select("id, article_id, buyer_user_id, seller_user_id, state, last_offer_price, transaction_id, created_at, updated_at, meta", { count: "exact" })
         .gte("updated_at", sinceIso)
         .order("updated_at", { ascending: false })
         .range(offset, offset + limit - 1);
-      if (status && status !== "all") q = q.eq("status", status);
+      if (status && status !== "all") q = q.eq("state", status);
       if (articleId) q = q.eq("article_id", articleId);
       const { data: negotiations, error: negErr, count: totalCount } = await q;
       if (negErr) throw negErr;
@@ -104,7 +104,7 @@ serve(async (req) => {
 
       const counts = filteredNeg.reduce((acc: any, n: any) => {
         acc.total++;
-        acc.byStatus[n.status] = (acc.byStatus[n.status] || 0) + 1;
+        acc.byStatus[n.state] = (acc.byStatus[n.state] || 0) + 1;
         return acc;
       }, { total: 0, byStatus: {} as Record<string, number> });
 
@@ -256,7 +256,7 @@ serve(async (req) => {
 
       // 1) From negotiations: ensure a "chat_in" + "router" event for each negotiation
       const { data: negs } = await sb.from("waouh_negotiations")
-        .select("id, article_id, buyer_user_id, seller_user_id, status, created_at, updated_at")
+        .select("id, article_id, buyer_user_id, seller_user_id, state, created_at, updated_at")
         .gte("updated_at", cutoff).limit(2000);
       scanned.negotiations = (negs || []).length;
 
@@ -265,14 +265,14 @@ serve(async (req) => {
       const existingKeys = new Set((existing || []).map((e: any) => `${e.negotiation_id}::${e.stage}`));
 
       for (const n of (negs || []) as any[]) {
-        const traceId = `backfill-${n.id}`;
-        const base = { trace_id: traceId, article_id: n.article_id, negotiation_id: n.id, status: "ok", payload: { backfill: true } };
+        const traceId = crypto.randomUUID();
+        const base = { trace_id: traceId, article_id: n.article_id, negotiation_id: n.id, status: "ok", payload: { backfill: true, backfill_key: `backfill-${n.id}` } };
         const seed: Array<{ stage: string; created_at: string }> = [
           { stage: "chat_in", created_at: n.created_at },
           { stage: "router", created_at: n.created_at },
           { stage: "sync", created_at: n.created_at },
         ];
-        if (["accepted", "paid", "closed"].includes(n.status)) {
+        if (["accepted", "closed", "paid", "completed"].includes(n.state)) {
           seed.push({ stage: "queue_enqueue", created_at: n.updated_at });
           seed.push({ stage: "whatsapp_send", created_at: n.updated_at });
         }
@@ -292,9 +292,9 @@ serve(async (req) => {
         const negId = m?.meta?.negotiation_id || null;
         const stage = m.channel === "whatsapp" ? "whatsapp_send" : "chat_in";
         events.push({
-          trace_id: `backfill-msg-${m.id}`, article_id: m.article_id, negotiation_id: negId,
+          trace_id: crypto.randomUUID(), article_id: m.article_id, negotiation_id: negId,
           stage, status: "ok", role: m.direction, intent: "backfill_message",
-          payload: { message_id: m.id, channel: m.channel, backfill: true },
+          payload: { message_id: m.id, channel: m.channel, backfill: true, backfill_key: `backfill-msg-${m.id}` },
           created_at: m.created_at,
         });
       }
@@ -308,11 +308,11 @@ serve(async (req) => {
         if (q?.payload?.trace_id) continue;
         const negId = q?.payload?.negotiation_id || null;
         const artId = q?.payload?.article_id || null;
-        const traceId = `backfill-q-${q.id}`;
+        const traceId = crypto.randomUUID();
         events.push({
           trace_id: traceId, article_id: artId, negotiation_id: negId, transaction_id: q.transaction_id,
           stage: "queue_enqueue", status: "ok", intent: "backfill_queue",
-          payload: { queue_id: q.id, channel: q.channel, backfill: true },
+          payload: { queue_id: q.id, channel: q.channel, backfill: true, backfill_key: `backfill-q-${q.id}` },
           created_at: q.created_at,
         });
         if (q.status === "sent" || q.status === "failed") {
@@ -322,7 +322,7 @@ serve(async (req) => {
             status: q.status === "failed" ? "error" : "ok",
             error: q.last_error || null,
             intent: "backfill_dispatch",
-            payload: { queue_id: q.id, backfill: true },
+            payload: { queue_id: q.id, backfill: true, backfill_key: `backfill-q-${q.id}-dispatch` },
             created_at: q.updated_at || q.created_at,
           });
         }
@@ -330,13 +330,25 @@ serve(async (req) => {
 
       // Insert in chunks
       let inserted = 0;
+      const insertErrors: string[] = [];
       for (let i = 0; i < events.length; i += 500) {
         const chunk = events.slice(i, i + 500);
         const { error } = await sb.from("waouh_trace_events").insert(chunk);
-        if (!error) inserted += chunk.length;
+        if (error) {
+          console.error("[waouh-historique] backfill insert error", error.message);
+          insertErrors.push(error.message);
+        } else {
+          inserted += chunk.length;
+        }
       }
 
-      return new Response(JSON.stringify({ ok: true, scanned, inserted, prepared: events.length }), {
+      if (events.length > 0 && inserted === 0) {
+        return new Response(JSON.stringify({ ok: false, error: insertErrors[0] || "all inserts failed", scanned, prepared: events.length }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ ok: true, scanned, inserted, prepared: events.length, errors: insertErrors.slice(0, 5) }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

@@ -166,7 +166,7 @@ const AdminWaouhHistoriquePage: React.FC = () => {
         body: { action: "backfill", days: Math.max(sinceDays, 90) },
       });
       if (error || !data?.ok) {
-        toast({ title: "Backfill échoué", description: error?.message || data?.error || "Erreur inconnue", variant: "destructive" });
+        toast({ title: "Backfill échoué", description: data?.error || error?.message || "Erreur inconnue", variant: "destructive" });
       } else {
         toast({ title: "Backfill terminé", description: `${data.inserted} événements créés (négo: ${data.scanned?.negotiations}, msg: ${data.scanned?.messages}, queue: ${data.scanned?.queue})` });
         refresh();

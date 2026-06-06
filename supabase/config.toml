@@ -216,3 +216,60 @@ verify_jwt = false
 
 [functions.waouh-negotiation-router]
 verify_jwt = false
+
+[functions.waouh-health-check]
+verify_jwt = false
+
+[functions.waouh-historique]
+verify_jwt = false
+
+[functions.waouh-history]
+verify_jwt = false
+
+[functions.waouh-match-history]
+verify_jwt = false
+
+[functions.waouh-buy-handler]
+verify_jwt = false
+
+[functions.waouh-sell-handler]
+verify_jwt = false
+
+[functions.waouh-buyer-interest]
+verify_jwt = false
+
+[functions.waouh-deal-dispatch]
+verify_jwt = false
+
+[functions.waouh-deal-ops]
+verify_jwt = false
+
+[functions.waouh-negotiate-handler]
+verify_jwt = false
+
+[functions.waouh-payment-handler]
+verify_jwt = false
+
+[functions.waouh-notify-buyers]
+verify_jwt = false
+
+[functions.waouh-notify-dispatch]
+verify_jwt = false
+
+[functions.waouh-replay-notification]
+verify_jwt = false
+
+[functions.waouh-operator-send]
+verify_jwt = false
+
+[functions.waouh-alerts-check]
+verify_jwt = false
+
+[functions.waouh-catalog-backup]
+verify_jwt = false
+
+[functions.waouh-price-compare]
+verify_jwt = false
+
+[functions.waouh-waha-sync-contacts]
+verify_jwt = false
