@@ -4,7 +4,6 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { contactExchangeText, waouhHeader, waouhFooter, waouhSep, distanceKm, formatDistance, resolveRealPhoneE164 } from "../_shared/waouh-format.ts";
-import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -225,22 +224,6 @@ Deno.serve(async (req) => {
         );
       }
 
-      // 🔁 Écho synchronisé pour l'ACTEUR (chat + WhatsApp si numéro résolu)
-      await pushSyncedEvent({
-        sb,
-        user: user as any,
-        role: isBuyer ? "buyer" : "seller",
-        articleId: neg.article_id,
-        text: myReply,
-        intent: "deal_created",
-        negotiationId: neg.id,
-        dealId: deal?.id ?? null,
-        transactionId: neg.transaction_id ?? null,
-        eventType: "deal_created",
-        attachments: replyAttachments,
-        dedupSuffix: "actor",
-      }).catch((e) => console.warn("[neg-router] actor echo deal", e));
-
       // Dispatch des notifications "livraison médiée" (vendeur + acheteur + équipe ops)
       if (deal?.id) {
         fetch(`${SUPABASE_URL}/functions/v1/waouh-deal-dispatch`, {
@@ -265,13 +248,6 @@ Deno.serve(async (req) => {
       if (otherUserId) {
         await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, article_id: neg.article_id, closed: true, from_user_id: user.id, target_role: isBuyer ? "seller" : "buyer" }, `❌ ${isBuyer ? "L'acheteur" : "Le vendeur"} a refusé. Négociation clôturée.`, { intent: "negotiation_closed", negotiation_id: neg.id, article_id: neg.article_id }, null, [], `neg:${neg.id}:closed:${otherUserId}`, "negotiation_closed");
       }
-      // 🔁 Écho acteur (chat + WhatsApp)
-      await pushSyncedEvent({
-        sb, user: user as any, role: isBuyer ? "buyer" : "seller",
-        articleId: neg.article_id, text: `❌ Vous avez refusé. Négociation clôturée.`,
-        intent: "negotiation_closed", negotiationId: neg.id,
-        eventType: "negotiation_closed", dedupSuffix: "actor",
-      }).catch((e) => console.warn("[neg-router] actor echo no", e));
       return new Response(JSON.stringify({ ok: true, reply: "OK, négociation fermée. Merci !" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
@@ -295,17 +271,6 @@ Deno.serve(async (req) => {
           `neg:${neg.id}:offer:${intent.price}:${otherUserId}`,
           "negotiation_counter");
       }
-      // 🔁 Écho acteur (chat + WhatsApp)
-      await pushSyncedEvent({
-        sb, user: user as any, role: isBuyer ? "buyer" : "seller",
-        articleId: neg.article_id,
-        text: `✅ ${isBuyer ? "Offre" : "Contre-offre"} envoyée au ${isBuyer ? "vendeur" : "acheteur"} : ${fmt(intent.price)}`,
-        intent: "negotiation_open", negotiationId: neg.id,
-        transactionId: neg.transaction_id ?? null,
-        eventType: "negotiation_counter",
-        payloadExtra: { offer: intent.price },
-        dedupSuffix: `actor:${intent.price}`,
-      }).catch((e) => console.warn("[neg-router] actor echo price", e));
       // Fire-and-forget dispatch
       fetch(`${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`, {
         method: "POST",
