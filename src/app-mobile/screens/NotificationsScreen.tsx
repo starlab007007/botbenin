@@ -27,6 +27,34 @@ export default function NotificationsScreen() {
 
   const onOpen = (n: AppNotification) => {
     if (!n.read) markRead(n.id);
+    const m = n.metadata || {};
+    // If this notification is a WAOUH product match, open the match chat window.
+    if (m.article_id && (m.kind === "buyer" || m.kind === "seller" || m.match_kind)) {
+      const detail = {
+        notification_id: n.id,
+        notification_ids: [n.id],
+        seed_text: n.content ?? null,
+        article_id: m.article_id,
+        buyer_profile_id: m.buyer_profile_id ?? null,
+        counterpart_user_id: m.counterpart_user_id ?? m.buyer_user_id ?? null,
+        kind: (m.kind || m.match_kind) as "buyer" | "seller",
+        title: m.title || n.title,
+        price: m.price ?? null,
+        city: m.city ?? null,
+        photo: m.image_url ?? m.photo ?? null,
+      };
+      try {
+        const raw = localStorage.getItem("waouh_pending_open");
+        const arr = raw ? (JSON.parse(raw) as any[]) : [];
+        arr.push(detail);
+        localStorage.setItem("waouh_pending_open", JSON.stringify(arr.slice(-10)));
+      } catch {}
+      navigate("/app/chat/waouh");
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));
+      }, 50);
+      return;
+    }
     navigate(n.action_url || "/app/chat");
   };
 
