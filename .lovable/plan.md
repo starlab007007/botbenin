@@ -1,101 +1,104 @@
-# Fix : "intéressé N" interprété comme nouvelle recherche
 
-## Diagnostic confirmé via logs
+# Parcours négociation WAOUH — après "Intéressé N"
 
-Trace réelle de la conversation `35fb557e…` :
+## Constat actuel
 
-```
-08:03:58  IN  "Je cherche briquet"     → BUY (1 résultat : BRIQUET)
-08:04:20  IN  "Interressé 1"           → BUY (Top 5 partenaires !)
-```
+Aujourd'hui, dès que l'acheteur dit "intéressé 1" :
+- ✅ Le vendeur reçoit la notification *"📩 Nouvel acheteur intéressé"* (WhatsApp + WaouhMatchChatWindow).
+- ✅ Une `waouh_negotiations` est créée en `state=proposed`, `last_offer_price = askPrice`, `last_actor = "buyer"`.
+- ⚠️ Mais le message envoyé à l'acheteur ne lui demande **rien explicitement** : il l'invite seulement à proposer un autre prix. Le vendeur est invité à *OUI / NON / contre-offre* alors que l'acheteur n'a encore rien confirmé.
+- ⚠️ Le vendeur peut donc accepter un prix… que l'acheteur n'a pas encore validé. Le rôle des deux parties est ambigu.
 
-La regex actuelle dans `supabase/functions/waouh-webhook/index.ts` (ligne 280-282) :
+L'utilisateur veut un parcours plus net : **l'acheteur décide d'abord** (accepter le prix affiché ou proposer son prix), **ensuite seulement** le vendeur entre en négociation.
 
-```ts
-const numMatch     = lower.match(/(?:n[°o]?\s*|#)(\d+)/i)
-                  || lower.match(/(?:int[ée]ress[ée]|interesse|choix|article)\s*(\d+)/i);
-const interestedKw = /(int[ée]ress[ée]|je veux|je prends|d'accord|ok\b|oui\b|acheter|contacte|contact)/i.test(lower);
-```
+## Parcours cible (expert vendeur-acheteur)
 
-Le motif `int[ée]ress[ée]` n'accepte **qu'un seul `r`** et **un seul `s`**. Donc :
-- ❌ "Interressé" (double r — faute fréquente)
-- ❌ "interesé" (un seul s)
-- ❌ "interressee"
+### Étape 0 — Découverte
+Acheteur : `Je cherche briquet` → liste des résultats.
 
-…tombent dans le fallback IA, qui retourne `BUY` et relance une recherche avec le texte brut → une autre liste de produits s'affiche.
+### Étape 1 — Manifestation d'intérêt
+Acheteur : `intéressé 1`.
+- ✅ Création `waouh_negotiations` (state `awaiting_buyer_decision`, last_actor = system).
+- ✅ Notification vendeur **"📩 Nouvel acheteur intéressé"** envoyée UNE SEULE FOIS ici (WhatsApp + WaouhMatchChatWindow + inbox).
+  - Texte vendeur : « Un acheteur de *Cotonou* s'intéresse à votre *BRIQUET* (5 000 FCFA). Il va vous indiquer s'il accepte ce prix ou s'il propose un autre montant. **Vous serez notifié dès qu'il aura répondu** — pas besoin d'agir pour l'instant. »
+  - ⚠️ **Plus de boutons OUI/NON/contre-offre côté vendeur à cette étape.** Le vendeur attend.
+- ✅ Réponse acheteur **"💬 Que souhaitez-vous faire ?"** :
+  > 📦 BRIQUET — 5 000 FCFA
+  >
+  > 1️⃣ Répondez *OUI* pour accepter le prix du vendeur (5 000 FCFA).
+  > 2️⃣ Ou proposez votre prix : *Je propose 4 000*.
+  >
+  > Le vendeur a été notifié et attend votre décision.
 
-Le flux côté notification est, lui, déjà correct : quand `CONFIRM` se déclenche, `last_matches[article_index-1]` cible bien le bon produit et seul son vendeur est notifié (anti self-notification + dedupe par `new_buyer:article:seller:buyer:jour`).
+### Étape 2a — L'acheteur accepte le prix (OUI)
+- Négo passe en `state=accepted`, `agreed_price=askPrice`.
+- Vendeur reçoit **"🎉 Accord conclu"** : « L'acheteur accepte votre prix de 5 000 FCFA. Contactez-le pour organiser la remise. »
+- Acheteur reçoit confirmation + coordonnées vendeur (selon politique actuelle).
 
-## Correctifs
+### Étape 2b — L'acheteur propose un prix (`Je propose X`)
+- Négo passe en `state=countered`, `last_offer_price=X`, `last_actor=buyer`.
+- Vendeur reçoit **"💬 Offre de l'acheteur : 4 000 FCFA"** :
+  > Acheteur propose *4 000 FCFA* (votre prix : 5 000 FCFA).
+  > Répondez *OUI* pour accepter, *NON* pour refuser, ou *Je propose 4 500* pour contre-offrir.
+- Acheteur reçoit : « Offre transmise. Vous serez notifié de la réponse du vendeur. »
 
-### 1. Regex tolérante aux variantes
+### Étape 3 — Ping-pong de négociation (déjà OK)
+La logique `NEGOTIATE` existante (lignes 1047-1082) gère bien le ping-pong une fois que les deux côtés se parlent. On ajoute uniquement :
+- Compteur `rounds` dans `meta` pour stopper poliment au-delà de 6 allers-retours.
+- Texte d'acceptation/refus standardisés (`OUI`/`NON` côté vendeur ET acheteur).
 
-Dans `supabase/functions/waouh-webhook/index.ts`, remplacer le bloc de détection (≈ lignes 280-282) par :
+### Étape 4 — Accord ou rupture
+- `OUI` du destinataire courant → `state=accepted`, notif "🎉 Accord conclu" aux deux côtés avec montant final + canal de contact.
+- `NON` → `state=refused`, notif "❌ Négociation terminée" aux deux côtés.
+- Inactivité 24 h → `state=expired`, notification douce.
 
-```ts
-// Tolérant : intéressé / interesse / interressé / interesé / interrese …
-const INTEREST_RE = /\bint[eé]r{1,2}[eé]ss?[eé]?[se]?\b/i;
-const interestedKw = INTEREST_RE.test(lower)
-  || /\b(je\s+veux|je\s+prends|d'accord|ok\b|oui\b|acheter|contacte|contact)\b/i.test(lower);
+## Changements techniques
 
-// Numéro associé : #1, n°1, intéressé 1, choix 1, article 1, ou nombre seul après mot d'intérêt
-const numFromMarker   = lower.match(/(?:n[°o]\s*|#)(\d{1,2})/i);
-const numFromInterest = INTEREST_RE.test(lower)
-  ? lower.match(/\b(\d{1,2})\b/)
-  : null;
-const numFromChoice   = lower.match(/(?:choix|article)\s*(\d{1,2})/i);
-const numMatch = numFromMarker || numFromInterest || numFromChoice;
-```
+Fichier principal : `supabase/functions/waouh-webhook/index.ts`.
 
-Et l'attribution d'intent (ligne 310-311) :
+### 1. Étape CONFIRM (lignes 881-1045) — split en deux moments
+- Garder la création de la négo et l'envoi de la notif vendeur "Nouvel acheteur intéressé", **mais** remplacer `sellerText` par la version *informative seulement* (pas d'action demandée), et ajouter `meta.stage = "awaiting_buyer_decision"` sur la négo.
+- Remplacer `reply` acheteur (ligne 1043) par le menu **OUI / Je propose X**.
+- Conserver `match_seller` mais pas de `actions` pour le vendeur à cette étape.
 
-```ts
-if (numMatch && interestedKw) {
-  intent = { intent: "CONFIRM", article_index: parseInt(numMatch[1], 10) };
-} else if (INTEREST_RE.test(lower)) {
-  // "intéressé" seul, sans numéro → on prend le 1er
-  intent = { intent: "CONFIRM", article_index: 1 };
-}
-```
+### 2. Nouveau handler `BUYER_DECISION`
+Avant la détection NEGOTIATE générique :
+- Si le `last_intent` de la conv est `CONFIRM` ET qu'il existe une négo `state in ('proposed','awaiting_buyer_decision')` où `buyer_user_id = user.id` ET `last_actor in ('buyer','system')` :
+  - `OUI` / `oui` / `j'accepte` → passe la négo en `accepted` avec `agreed_price=last_offer_price`, notifie vendeur + acheteur ("🎉 Accord conclu").
+  - `NON` / `non` → `refused`, notifie les deux.
+  - `Je propose X` → bascule vers le handler NEGOTIATE existant (qui notifiera le vendeur avec les actions OUI/NON/contre).
 
-(Le `literalInterest` actuel — `intéressé n°x` — n'est plus utile, supprimé.)
+### 3. Handler NEGOTIATE (lignes 1047-1082)
+- Inchangé pour le ping-pong, mais :
+  - Ajouter `meta.rounds = (meta.rounds||0)+1` et message poli si > 6.
+  - Standardiser le texte côté destinataire selon que c'est *vendeur* ou *acheteur* qui reçoit (déjà partiellement fait via `isBuyer`).
 
-### 2. Garde-fou : nombre seul comme confirmation contextuelle
+### 4. Handler OUI/NON post-négociation
+Réutiliser la même détection que BUYER_DECISION mais pour les deux rôles dès qu'il y a une négo en `countered` avec `last_actor` ≠ user courant. → `accepted` ou `refused`, notif "🎉 Accord conclu" / "❌ Négociation terminée" aux deux côtés.
 
-Quand le dernier `last_intent` enregistré est `BUY` et que `last_matches` n'est pas vide, accepter un simple `"1"`, `"2"`… comme `CONFIRM` (juste après la liste de résultats). À ajouter juste après le bloc précédent, avant le fallback IA :
+### 5. Notifications (audit + ajustement)
+- `new_buyer` (📩 Nouvel acheteur intéressé) : **émise uniquement à l'étape 1**, pas à chaque contre-offre. Dedupe déjà en place.
+- Nouveaux templates de notification (côté WhatsApp + inbox WaouhMatchChatWindow) :
+  - `buyer_offer` (vendeur reçoit l'offre acheteur)
+  - `seller_counter` (acheteur reçoit la contre-offre)
+  - `deal_accepted` (les deux côtés)
+  - `deal_refused` (les deux côtés)
+- Tous passent par `pushToOther` + insert `waouh_notifications` avec `dedupe_key` ciblé `(negotiation_id, stage, round, recipient)`.
 
-```ts
-if (!intent.intent) {
-  const digitsOnly = lower.trim().match(/^(\d{1,2})$/);
-  const prevBuy = (conv?.last_intent === "BUY")
-    && Array.isArray((conv?.context as any)?.last_matches)
-    && (conv?.context as any).last_matches.length > 0;
-  if (digitsOnly && prevBuy) {
-    intent = { intent: "CONFIRM", article_index: parseInt(digitsOnly[1], 10) };
-  }
-}
-```
-
-Remarque : `conv` est aujourd'hui chargé *après* la détection d'intent ; il faut donc déplacer le `select` de `waouh_conversations` (≈ ligne 324) **avant** ce bloc, ou faire une seconde évaluation après son chargement. Choix retenu : remonter le chargement de la conversation juste après l'upsert utilisateur.
-
-### 3. Audit notifications (vérification, pas de changement)
-
-Confirmer (via log temporaire dans la branche CONFIRM) que pour `"intéressé 2"` on a bien :
-- `pick.id === last_matches[1].id`
-- `vendorContacts.phone` ciblé = vendeur du produit 2 uniquement
-- `waouh_notifications` insert avec `recipient='seller'` et `user_id = pick.seller_id`
-
-Si la trace est propre, aucune correction supplémentaire. Sinon on adressera dans un sprint dédié.
-
-## Fichier touché
-
-- `supabase/functions/waouh-webhook/index.ts` — détection d'intent CONFIRM (tolérance typo + nombre seul contextuel)
+### 6. WaouhMatchChatWindow (frontend)
+Aucun changement structurel : la fenêtre lit déjà `waouh_notifications.payload.text`. Il suffit que les textes envoyés soient cohérents et que le `dedupe_key` empêche les doublons.
 
 ## Validation
 
-1. Tester via le chat web :
-   - `Je cherche briquet` → liste
-   - `Interressé 1` (double r) → ✅ doit afficher "Demande envoyée au vendeur" pour BRIQUET
-   - `1` seul → ✅ même comportement
-   - `intéressé 2` → produit 2 uniquement
-2. Vérifier `waouh_notifications` : une seule ligne `new_buyer` pour le `seller_id` du produit choisi.
+1. Acheteur : `Je cherche briquet` → liste.
+2. Acheteur : `intéressé 1` → reçoit menu *OUI / Je propose X*. Vendeur reçoit notif **info-only** (pas d'action).
+3. Acheteur : `Je propose 4000` → vendeur reçoit *4 000 FCFA* avec actions OUI/NON/contre.
+4. Vendeur : `Je propose 4500` → acheteur reçoit contre-offre.
+5. Acheteur : `OUI` → les deux reçoivent "🎉 Accord conclu" à 4 500 FCFA.
+6. Vérifier `waouh_notifications` : **une seule** ligne `new_buyer` par négociation, et les notifs suivantes bien typées.
+
+## Fichier touché
+
+- `supabase/functions/waouh-webhook/index.ts` (réécriture des blocs CONFIRM + NEGOTIATE + ajout BUYER_DECISION / OUI-NON).
+
+Pas de migration SQL nécessaire : on réutilise `waouh_negotiations.state` + `meta` jsonb. Une migration optionnelle pourra ajouter la valeur enum `awaiting_buyer_decision` si l'état est typé strictement (à confirmer après lecture du schéma de `waouh_negotiations`).
