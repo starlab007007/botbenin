@@ -5,6 +5,7 @@ import { useMobileAuth } from "../hooks/useMobileAuth";
 import { useMobileProfile } from "../hooks/useMobileProfile";
 import { useUnreadCounts } from "../hooks/useUnreadCounts";
 import { useWaouhIdentity } from "../hooks/useWaouhIdentity";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Search, Plus, ShoppingBag, Bell } from "lucide-react";
 import { useNotifications } from "../hooks/useNotifications";
@@ -50,6 +51,15 @@ function formatStamp(iso: string) {
 
 export default function ChatListScreen() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
+
+  // Desktop/tablet: render the WhatsApp-style 2-column layout from WaouhChatPage
+  useEffect(() => {
+    if (!isMobile) {
+      navigate("/app/chat/waouh", { replace: true });
+    }
+  }, [isMobile, navigate]);
+
   const { user } = useMobileAuth();
   const { profile } = useMobileProfile();
   const { waouhUserIds, sessionId, ready } = useWaouhIdentity();
