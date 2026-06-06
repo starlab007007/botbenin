@@ -1,6 +1,10 @@
 // Admin-only aggregator for WAOUH history dashboard.
-// Returns: negotiations list (with filters), and for a given negotiation/article:
-// merged timeline (messages + outbound queue + notifications + trace events).
+// Actions:
+//  - list: negotiations + KPIs (with status/article/search filters)
+//  - timeline: messages + queue + notifications + trace events for a negotiation/article/traceId
+//  - trace_search: lookup all events for a given trace_id
+//  - divergences: detect missing traces / unsync'd messages on the window
+//  - export: returns full filtered dataset for CSV (client serializes)
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
@@ -19,7 +23,6 @@ serve(async (req) => {
     const anon = Deno.env.get("SUPABASE_ANON_KEY")!;
     const svc = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Admin check via JWT
     const authHeader = req.headers.get("Authorization") ?? "";
     const userClient = createClient(url, anon, { global: { headers: { Authorization: authHeader } } });
     const { data: userData, error: userErr } = await userClient.auth.getUser();
@@ -29,7 +32,8 @@ serve(async (req) => {
       });
     }
     const sb = createClient(url, svc);
-    const { data: isAdmin } = await sb.rpc("has_role", { _user_id: userData.user.id, _role: "admin" });
+    // FIX: param name is `_role_name` not `_role`
+    const { data: isAdmin } = await sb.rpc("has_role", { _user_id: userData.user.id, _role_name: "admin" });
     if (!isAdmin) {
       return new Response(JSON.stringify({ ok: false, error: "forbidden" }), {
         status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -79,19 +83,16 @@ serve(async (req) => {
         });
       }
 
-      // KPIs (computed on filtered set)
       const counts = filteredNeg.reduce((acc: any, n: any) => {
         acc.total++;
         acc.byStatus[n.status] = (acc.byStatus[n.status] || 0) + 1;
         return acc;
       }, { total: 0, byStatus: {} as Record<string, number> });
 
-      // Trace errors in window
       const { count: errorCount } = await sb.from("waouh_trace_events")
         .select("*", { count: "exact", head: true })
         .eq("status", "error").gte("created_at", sinceIso);
 
-      // WhatsApp delivery rate
       const { count: waSent } = await sb.from("waouh_outbound_queue")
         .select("*", { count: "exact", head: true })
         .eq("channel", "whatsapp").eq("status", "sent").gte("created_at", sinceIso);
@@ -116,35 +117,54 @@ serve(async (req) => {
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    if (action === "timeline") {
+    if (action === "timeline" || action === "export") {
       const negotiationId: string | null = body?.negotiationId || null;
       const articleId: string | null = body?.articleId || null;
-      if (!negotiationId && !articleId) {
-        return new Response(JSON.stringify({ ok: false, error: "missing negotiationId or articleId" }), {
+      const transactionId: string | null = body?.transactionId || null;
+      const traceId: string | null = body?.traceId || null;
+
+      if (!negotiationId && !articleId && !transactionId && !traceId) {
+        return new Response(JSON.stringify({ ok: false, error: "missing negotiationId/articleId/transactionId/traceId" }), {
           status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      const buildIn = (col: string) => articleId ? `${col}.eq.${articleId}` : "";
-
-      // Messages by article (preferred) else by negotiation meta
       const msgQ = articleId
-        ? sb.from("waouh_messages").select("*").eq("article_id", articleId).gte("created_at", sinceIso).order("created_at", { ascending: true }).limit(500)
-        : sb.from("waouh_messages").select("*").contains("meta", { negotiation_id: negotiationId }).gte("created_at", sinceIso).order("created_at", { ascending: true }).limit(500);
+        ? sb.from("waouh_messages").select("*").eq("article_id", articleId).gte("created_at", sinceIso).order("created_at", { ascending: true }).limit(1000)
+        : negotiationId
+          ? sb.from("waouh_messages").select("*").contains("meta", { negotiation_id: negotiationId }).gte("created_at", sinceIso).order("created_at", { ascending: true }).limit(1000)
+          : traceId
+            ? sb.from("waouh_messages").select("*").contains("meta", { trace_id: traceId }).order("created_at", { ascending: true }).limit(1000)
+            : sb.from("waouh_messages").select("*").contains("meta", { transaction_id: transactionId }).order("created_at", { ascending: true }).limit(1000);
 
       const queueQ = articleId
-        ? sb.from("waouh_outbound_queue").select("*").contains("payload", { article_id: articleId }).gte("created_at", sinceIso).order("created_at", { ascending: true }).limit(500)
-        : sb.from("waouh_outbound_queue").select("*").contains("payload", { negotiation_id: negotiationId }).gte("created_at", sinceIso).order("created_at", { ascending: true }).limit(500);
+        ? sb.from("waouh_outbound_queue").select("*").contains("payload", { article_id: articleId }).gte("created_at", sinceIso).order("created_at", { ascending: true }).limit(1000)
+        : negotiationId
+          ? sb.from("waouh_outbound_queue").select("*").contains("payload", { negotiation_id: negotiationId }).gte("created_at", sinceIso).order("created_at", { ascending: true }).limit(1000)
+          : traceId
+            ? sb.from("waouh_outbound_queue").select("*").contains("payload", { trace_id: traceId }).order("created_at", { ascending: true }).limit(1000)
+            : sb.from("waouh_outbound_queue").select("*").eq("transaction_id", transactionId).order("created_at", { ascending: true }).limit(1000);
 
       const notifQ = articleId
         ? sb.from("waouh_notifications").select("*").eq("article_id", articleId).gte("sent_at", sinceIso).order("sent_at", { ascending: true }).limit(500)
-        : sb.from("waouh_notifications").select("*").contains("payload", { negotiation_id: negotiationId }).gte("sent_at", sinceIso).order("sent_at", { ascending: true }).limit(500);
+        : negotiationId
+          ? sb.from("waouh_notifications").select("*").contains("payload", { negotiation_id: negotiationId }).gte("sent_at", sinceIso).order("sent_at", { ascending: true }).limit(500)
+          : sb.from("waouh_notifications").select("*").contains("payload", { trace_id: traceId || transactionId }).order("sent_at", { ascending: true }).limit(500);
 
-      let traceQ = sb.from("waouh_trace_events").select("*").gte("created_at", sinceIso).order("created_at", { ascending: true }).limit(1000);
-      if (negotiationId) traceQ = traceQ.eq("negotiation_id", negotiationId);
-      else if (articleId) traceQ = traceQ.eq("article_id", articleId);
+      let traceQ = sb.from("waouh_trace_events").select("*").order("created_at", { ascending: true }).limit(2000);
+      if (traceId) traceQ = traceQ.eq("trace_id", traceId);
+      else if (transactionId) traceQ = traceQ.eq("transaction_id", transactionId);
+      else if (negotiationId) traceQ = traceQ.eq("negotiation_id", negotiationId).gte("created_at", sinceIso);
+      else if (articleId) traceQ = traceQ.eq("article_id", articleId).gte("created_at", sinceIso);
 
       const [msgs, queue, notifs, traces] = await Promise.all([msgQ, queueQ, notifQ, traceQ]);
+
+      // Divergence detection: messages without trace_id OR queue items missing matching trace_id, plus error traces.
+      const traceIds = new Set((traces.data || []).map((t: any) => t.trace_id).filter(Boolean));
+      const msgsNoTrace = (msgs.data || []).filter((m: any) => !m?.meta?.trace_id);
+      const queueNoTrace = (queue.data || []).filter((q: any) => !q?.payload?.trace_id);
+      const orphanQueue = (queue.data || []).filter((q: any) => q?.payload?.trace_id && !traceIds.has(q.payload.trace_id));
+      const errorTraces = (traces.data || []).filter((t: any) => t.status === "error");
 
       return new Response(JSON.stringify({
         ok: true,
@@ -152,6 +172,50 @@ serve(async (req) => {
         queue: queue.data || [],
         notifications: notifs.data || [],
         traces: traces.data || [],
+        divergences: {
+          messages_without_trace: msgsNoTrace.length,
+          queue_without_trace: queueNoTrace.length,
+          orphan_queue_items: orphanQueue.length,
+          error_traces: errorTraces.length,
+          samples: {
+            msgsNoTrace: msgsNoTrace.slice(0, 5).map((m: any) => ({ id: m.id, channel: m.channel, created_at: m.created_at })),
+            orphanQueue: orphanQueue.slice(0, 5).map((q: any) => ({ id: q.id, channel: q.channel, trace_id: q.payload?.trace_id })),
+            errorTraces: errorTraces.slice(0, 5).map((t: any) => ({ id: t.id, stage: t.stage, error: t.error })),
+          },
+        },
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    if (action === "divergences") {
+      // Window-wide divergences across all negotiations.
+      const [{ data: msgs }, { data: queue }, { data: traces }] = await Promise.all([
+        sb.from("waouh_messages").select("id, article_id, meta, channel, created_at").gte("created_at", sinceIso).limit(5000),
+        sb.from("waouh_outbound_queue").select("id, payload, channel, status, last_error, created_at").gte("created_at", sinceIso).limit(5000),
+        sb.from("waouh_trace_events").select("id, trace_id, article_id, negotiation_id, stage, status, error, created_at").gte("created_at", sinceIso).limit(10000),
+      ]);
+
+      const traceIds = new Set((traces || []).map((t: any) => t.trace_id).filter(Boolean));
+      const msgsNoTrace = (msgs || []).filter((m: any) => !m?.meta?.trace_id);
+      const queueNoTrace = (queue || []).filter((q: any) => !q?.payload?.trace_id);
+      const orphanQueue = (queue || []).filter((q: any) => q?.payload?.trace_id && !traceIds.has(q.payload.trace_id));
+      const errorTraces = (traces || []).filter((t: any) => t.status === "error");
+      const failedQueue = (queue || []).filter((q: any) => q.status === "failed");
+
+      return new Response(JSON.stringify({
+        ok: true,
+        summary: {
+          messages_without_trace: msgsNoTrace.length,
+          queue_without_trace: queueNoTrace.length,
+          orphan_queue_items: orphanQueue.length,
+          error_traces: errorTraces.length,
+          failed_queue: failedQueue.length,
+        },
+        samples: {
+          msgsNoTrace: msgsNoTrace.slice(0, 10),
+          orphanQueue: orphanQueue.slice(0, 10),
+          errorTraces: errorTraces.slice(0, 10),
+          failedQueue: failedQueue.slice(0, 10),
+        },
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
