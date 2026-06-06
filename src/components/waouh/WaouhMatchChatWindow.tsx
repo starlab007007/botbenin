@@ -557,8 +557,11 @@ export function WaouhMatchChatWindow({
           </div>
         </div>
 
-        {/* Full original notification message — pinned below seed header */}
-        {seedNotif?.text && (
+        {/* Full original notification message — pinned below seed header.
+            Hidden on the seller side: the yellow banner already summarizes
+            the buyer-interest notification, and the negotiation continues
+            in this same window via realtime messages. */}
+        {seedNotif?.text && match.kind !== "seller" && (
           <div className="mr-auto max-w-[92%] rounded-2xl rounded-bl-sm border bg-card px-3 py-2 text-sm shadow-sm">
             <div className="whitespace-pre-wrap break-words font-mono text-[12.5px] leading-relaxed">
               {seedNotif.text}
