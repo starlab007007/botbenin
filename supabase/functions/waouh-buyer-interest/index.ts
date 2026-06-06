@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
     // Load article + seller
     const { data: article } = await sb
       .from("waouh_articles")
-      .select("id, seller_id, title")
+      .select("id, seller_id, title, price")
       .eq("id", article_id)
       .maybeSingle();
     if (!article) {
@@ -72,6 +72,38 @@ Deno.serve(async (req) => {
     if (insErr && !isDuplicate) {
       console.error("[waouh-buyer-interest] insert error", insErr);
     }
+
+    // 🤝 Ensure an OPEN negotiation exists so the buyer can immediately reply
+    // OUI / NON / "je propose X" via waouh-negotiation-router. Without this
+    // the router answers "Aucune négociation en cours".
+    if (buyerUserId && article.seller_id) {
+      try {
+        const { data: openNeg } = await sb
+          .from("waouh_negotiations")
+          .select("id, state")
+          .eq("article_id", article_id)
+          .eq("buyer_user_id", buyerUserId)
+          .eq("seller_user_id", article.seller_id)
+          .in("state", ["proposed", "countered"])
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (!openNeg) {
+          await sb.from("waouh_negotiations").insert({
+            article_id,
+            buyer_user_id: buyerUserId,
+            seller_user_id: article.seller_id,
+            state: "proposed",
+            last_offer_price: (article as any).price ?? null,
+            last_actor: "buyer",
+            meta: { opened_via: "buyer_interest", source },
+          });
+        }
+      } catch (e) {
+        console.warn("[waouh-buyer-interest] open negotiation failed", e);
+      }
+    }
+
 
     // Always dispatch the seller notification. The dispatcher has its own
     // per-day dedupe_key, so a re-click won't create twin notifications, but
