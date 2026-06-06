@@ -476,9 +476,11 @@ export function WaouhMatchChatWindow({
     role: match.kind,
   });
 
+  const seedText = seedNotif?.text?.trim() || match.seed_text?.trim() || null;
+  const isNewBuyerSeed = !!seedText?.includes("Nouvel acheteur intéressé");
   const seedTitle =
-    match.kind === "seller"
-      ? "📩 Nouvel acheteur intéressé par votre annonce"
+    isNewBuyerSeed || match.kind === "seller"
+      ? "📩 Nouvel acheteur intéressé"
       : seedNotif?.notification_type === "radar_match"
         ? "🎯 Annonce détectée par le Radar IA"
         : "🎯 Annonce trouvée pour votre recherche";
@@ -562,10 +564,11 @@ export function WaouhMatchChatWindow({
           </div>
         </div>
 
-        {/* Bulle "seedNotif.text" supprimée des deux côtés.
-            Le bandeau jaune ci-dessus suffit comme synthèse pinned ;
-            chaque partie ne voit ensuite que ses propres bulles et
-            les messages reçus en realtime. */}
+        {seedText && (
+          <div className="mr-auto max-w-[88%] rounded-2xl rounded-bl-sm border bg-card px-3 py-2 text-sm shadow-sm">
+            <div className="whitespace-pre-wrap break-words leading-relaxed">{seedText}</div>
+          </div>
+        )}
 
 
         {hasMore && (
@@ -594,7 +597,7 @@ export function WaouhMatchChatWindow({
         ))}
 
         {/* Empty-state hint: sync done but no message reachable for this viewer */}
-        {!initialLoading && syncedAt && messages.length === 0 && (
+        {!initialLoading && syncedAt && messages.length === 0 && !seedText && (
           <div className="mx-auto max-w-[92%] rounded-xl border border-dashed border-muted-foreground/30 bg-muted/40 px-3 py-3 text-center text-xs text-muted-foreground">
             Aucun message chargé depuis la base pour cette session.
             {closed ? " La conversation est clôturée." : " Essayez de vous reconnecter avec le compte d'origine pour retrouver l'historique."}

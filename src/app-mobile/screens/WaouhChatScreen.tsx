@@ -13,6 +13,7 @@ import { WaouhNotificationsBell } from "@/components/waouh/WaouhNotificationsBel
 import { WaouhCityBadge } from "@/components/waouh/WaouhCityBadge";
 import { useWaouhMatchNotifications } from "@/hooks/useWaouhMatchNotifications";
 import { useWaouhGeolocation } from "@/hooks/useWaouhGeolocation";
+import { useMobileAuth } from "../hooks/useMobileAuth";
 import { useMobileProfile } from "../hooks/useMobileProfile";
 import { useIsNative } from "../hooks/useIsNative";
 import { supabase } from "@/integrations/supabase/client";
@@ -43,16 +44,18 @@ const PAYLOADS: { key: "sell" | "buy" | "negotiate"; label: string; Icon: any; t
 export default function WaouhChatScreen() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useMobileAuth();
   const { profile } = useMobileProfile();
   const isNative = useIsNative();
   const sessionId = getSessionId();
+  const authUserId = user?.id ?? null;
   const chatRef = useRef<WaouhWebChatHandle>(null);
   const { geo, loading: geoLoading, setCity, refresh } = useWaouhGeolocation();
   const { permission, requestPermission, notifications, unreadCount, markAllRead, markRead, clearAll } =
-    useWaouhMatchNotifications(sessionId, profile?.id ?? null);
+    useWaouhMatchNotifications(sessionId, authUserId);
   const { matches, waouhIds, activeKey, setActiveKey, close, getCached, setCached, getHasMore, setHasMoreCached } = useWaouhMatchChats(
     sessionId,
-    profile?.id ?? null
+    authUserId
   );
 
   useEffect(() => {
@@ -171,7 +174,7 @@ export default function WaouhChatScreen() {
         <div className="flex items-center gap-1">
           <WaouhCityBadge geo={geo} loading={geoLoading} onSetCity={setCity} onRefresh={refresh} compact />
           <div className="[&_button]:text-white [&_button:hover]:bg-white/15">
-            <WaouhUnifiedInbox sessionId={sessionId} authUserId={profile?.id ?? null} />
+            <WaouhUnifiedInbox sessionId={sessionId} authUserId={authUserId} />
           </div>
           <div className="[&_button]:text-white [&_button:hover]:bg-white/15">
             <WaouhNotificationsBell
@@ -259,7 +262,7 @@ export default function WaouhChatScreen() {
             <WaouhMatchChatWindow
               match={m}
               sessionId={sessionId}
-              authUserId={profile?.id ?? null}
+              authUserId={authUserId}
               waouhIds={waouhIds}
               active={activeKey === m.key}
               getCached={getCached}
