@@ -39,6 +39,8 @@ export interface PushSyncedEventArgs {
   forcePhoneE164?: string | null;
   // Suffix to disambiguate same intent for same user (ex: actor vs recipient)
   dedupSuffix?: string;
+  // Trace correlation id (propagated end-to-end)
+  traceId?: string | null;
 }
 
 export interface PushSyncedEventResult {
