@@ -13,6 +13,12 @@ import { useWaouhMatchNotifications } from "@/hooks/useWaouhMatchNotifications";
 import { WaouhNotificationsBell } from "@/components/waouh/WaouhNotificationsBell";
 import { StatusesPanel } from "@/components/waouh/statuses/StatusesPanel";
 import { WaouhChatSidebar } from "@/components/waouh/WaouhChatSidebar";
+import { WaouhChatTabs } from "@/components/waouh/WaouhChatTabs";
+import { WaouhMatchChatWindow } from "@/components/waouh/WaouhMatchChatWindow";
+import { useWaouhMatchChats } from "@/components/waouh/useWaouhMatchChats";
+import { openNotificationTarget } from "@/components/waouh/notificationActions";
+import { WaouhDealPaymentDialog } from "@/components/waouh/WaouhDealPaymentDialog";
+import { cn } from "@/lib/utils";
 
 const SESSION_KEY = "waouh_web_session_id";
 
@@ -94,7 +100,19 @@ export default function WaouhChatPage() {
   const chatRef = useRef<WaouhWebChatHandle>(null);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(getInitialLayout);
   const [sidebarWidth, setSidebarWidth] = useState<number>(computeSidebarWidth);
+  const [payDialog, setPayDialog] = useState<{ dealId: string; amount?: number } | null>(null);
   const { permission, requestPermission, notifications, unreadCount, markAllRead, markRead, clearAll } = useWaouhMatchNotifications(sessionId, user?.id ?? null);
+  const {
+    matches,
+    waouhIds,
+    activeKey,
+    setActiveKey,
+    close,
+    getCached,
+    setCached,
+    getHasMore,
+    setHasMoreCached,
+  } = useWaouhMatchChats(sessionId ?? "", user?.id ?? null);
 
   useEffect(() => {
     const onResize = () => setSidebarWidth(computeSidebarWidth());
@@ -106,6 +124,23 @@ export default function WaouhChatPage() {
     setLayoutMode(mode);
     try { localStorage.setItem(LAYOUT_KEY, mode); } catch {}
   };
+
+  // Auto-switch to split when something tries to open a chat while in list mode.
+  useEffect(() => {
+    const ensureSplit = () => {
+      setLayoutMode((cur) => {
+        if (cur === "split") return cur;
+        try { localStorage.setItem(LAYOUT_KEY, "split"); } catch {}
+        return "split";
+      });
+    };
+    window.addEventListener("waouh:open-match-chat", ensureSplit as EventListener);
+    window.addEventListener("waouh:focus-message", ensureSplit as EventListener);
+    return () => {
+      window.removeEventListener("waouh:open-match-chat", ensureSplit as EventListener);
+      window.removeEventListener("waouh:focus-message", ensureSplit as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     document.title = "WAOUH Chat — Achetez, Vendez, Négociez, Payez | bot.bj";
@@ -182,7 +217,17 @@ export default function WaouhChatPage() {
 
   // === DESKTOP / TABLET: WhatsApp-style 2-column layout ===
   const handleNewConversation = () => {
+    if (layoutMode === "list") updateLayout("split");
+    setActiveKey("main");
     chatRef.current?.startNewThread();
+  };
+
+  const handleOpenNotification = (n: typeof notifications[number]) => {
+    if (layoutMode === "list") updateLayout("split");
+    openNotificationTarget(n, {
+      beforeOpen: () => markRead(n.id),
+      onPayDialog: (args) => setPayDialog(args),
+    });
   };
 
   return (
@@ -282,19 +327,56 @@ export default function WaouhChatPage() {
             onMarkAllRead={markAllRead}
             onMarkRead={markRead}
             onClearAll={clearAll}
+            onOpenNotification={handleOpenNotification}
             onNewConversation={handleNewConversation}
           />
         </div>
 
-        {/* Chat area */}
+        {/* Chat area — tabs + main WAOUH + per-match conversations */}
         {layoutMode === "split" && (
           <main className="flex-1 min-w-0 h-full flex flex-col bg-background">
-            <div className="flex-1 min-h-0">
-              <WaouhWebChat ref={chatRef} fullscreen />
+            <WaouhChatTabs
+              matches={matches}
+              activeKey={activeKey}
+              onSelect={setActiveKey}
+              onClose={close}
+              sessionId={sessionId ?? ""}
+            />
+            <div className="flex-1 min-h-0 relative">
+              <div className={cn("absolute inset-0 flex flex-col", activeKey === "main" ? "" : "hidden")}>
+                <WaouhWebChat ref={chatRef} fullscreen />
+              </div>
+              {matches.map((m) => (
+                <div
+                  key={m.key}
+                  className={cn("absolute inset-0", activeKey === m.key ? "" : "hidden")}
+                >
+                  <WaouhMatchChatWindow
+                    match={m}
+                    sessionId={sessionId ?? ""}
+                    authUserId={user?.id ?? null}
+                    waouhIds={waouhIds}
+                    active={activeKey === m.key}
+                    getCached={getCached}
+                    setCached={setCached}
+                    getHasMore={getHasMore}
+                    setHasMoreCached={setHasMoreCached}
+                  />
+                </div>
+              ))}
             </div>
           </main>
         )}
       </div>
+
+      {payDialog && (
+        <WaouhDealPaymentDialog
+          open={!!payDialog}
+          onOpenChange={(v) => { if (!v) setPayDialog(null); }}
+          dealId={payDialog.dealId}
+          amount={payDialog.amount}
+        />
+      )}
     </div>
   );
 }
