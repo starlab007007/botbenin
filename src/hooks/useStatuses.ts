@@ -38,7 +38,7 @@ export function useStatuses(filter?: StatusType | "all") {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    let q = supabase
+    let q: any = (supabase as any)
       .from("waouh_statuses")
       .select("*")
       .gt("expires_at", new Date().toISOString())
