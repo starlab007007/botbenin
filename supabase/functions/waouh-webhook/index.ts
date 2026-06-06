@@ -317,12 +317,19 @@ serve(async (req) => {
       .eq("phone_number", phone || `web:${webSessionId}`)
       .maybeSingle();
 
+    // Détection OUI/NON simple (réponse à une négociation en cours)
+    const yesKw = /^(oui|ok|d['']accord|j['']accepte|accepte|deal|ça\s+marche|ca\s+marche)\s*[.!]?$/i.test(lower.trim());
+    const noKw  = /^(non|refuse|refus[ée]|pas\s+d['']accord|nope)\s*[.!]?$/i.test(lower.trim());
+
     let intent: any = {};
     // CONFIRM_RECEIVED et PAY sont désactivés : pas de paiement dans le nouveau parcours.
     if (numMatch && interestedKw) intent = { intent: "CONFIRM", article_index: parseInt(numMatch[1], 10) };
     else if (INTEREST_RE.test(lower)) intent = { intent: "CONFIRM", article_index: 1 };
     else if (sellKw) intent = { intent: "SELL" };
     else if (buyKw) intent = { intent: "BUY" };
+    else if (offerMatch) intent = { intent: "NEGOTIATE" };
+    else if (yesKw)  intent = { intent: "DECIDE_YES" };
+    else if (noKw)   intent = { intent: "DECIDE_NO" };
     else if (negotiateKw) intent = { intent: "NEGOTIATE" };
     else {
       // Fallback contextuel : un simple "1", "2"… juste après une liste de résultats = CONFIRM
