@@ -225,6 +225,22 @@ Deno.serve(async (req) => {
         );
       }
 
+      // 🔁 Écho synchronisé pour l'ACTEUR (chat + WhatsApp si numéro résolu)
+      await pushSyncedEvent({
+        sb,
+        user: user as any,
+        role: isBuyer ? "buyer" : "seller",
+        articleId: neg.article_id,
+        text: myReply,
+        intent: "deal_created",
+        negotiationId: neg.id,
+        dealId: deal?.id ?? null,
+        transactionId: neg.transaction_id ?? null,
+        eventType: "deal_created",
+        attachments: replyAttachments,
+        dedupSuffix: "actor",
+      }).catch((e) => console.warn("[neg-router] actor echo deal", e));
+
       // Dispatch des notifications "livraison médiée" (vendeur + acheteur + équipe ops)
       if (deal?.id) {
         fetch(`${SUPABASE_URL}/functions/v1/waouh-deal-dispatch`, {
