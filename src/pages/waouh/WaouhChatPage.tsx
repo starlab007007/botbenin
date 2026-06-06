@@ -13,6 +13,12 @@ import { useWaouhMatchNotifications } from "@/hooks/useWaouhMatchNotifications";
 import { WaouhNotificationsBell } from "@/components/waouh/WaouhNotificationsBell";
 import { StatusesPanel } from "@/components/waouh/statuses/StatusesPanel";
 import { WaouhChatSidebar } from "@/components/waouh/WaouhChatSidebar";
+import { WaouhChatTabs } from "@/components/waouh/WaouhChatTabs";
+import { WaouhMatchChatWindow } from "@/components/waouh/WaouhMatchChatWindow";
+import { useWaouhMatchChats } from "@/components/waouh/useWaouhMatchChats";
+import { openNotificationTarget } from "@/components/waouh/notificationActions";
+import { WaouhDealPaymentDialog } from "@/components/waouh/WaouhDealPaymentDialog";
+import { cn } from "@/lib/utils";
 
 const SESSION_KEY = "waouh_web_session_id";
 
