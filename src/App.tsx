@@ -94,7 +94,7 @@ const YovoGallery = lazy(() => import("./pages/YovoGallery"));
 // WAOUH module
 const WaouhPage = lazy(() => import("./pages/waouh/WaouhPage"));
 const WaouhDemoPage = lazy(() => import("./pages/waouh/WaouhDemoPage"));
-const WaouhChatPage = lazy(() => import("./pages/waouh/WaouhChatPage"));
+
 const WaouhRadarPage = lazy(() => import("./pages/admin/WaouhRadarPage"));
 const WaouhWhatsAppOpsPage = lazy(() => import("./pages/admin/WaouhWhatsAppOpsPage"));
 const AdminWaouhPartnersPage = lazy(() => import("./pages/admin/AdminWaouhPartnersPage"));
