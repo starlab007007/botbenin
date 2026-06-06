@@ -352,11 +352,15 @@ export default function ChatListScreen() {
         <ul className="divide-y">
           {filtered.map((c) => {
             const n = unread[c.id] ?? 0;
+            const isActive = isDesktop && activeConvId === c.id;
             return (
               <li
                 key={c.id}
-                onClick={() => navigate(`/app/chat/${c.id}`)}
-                className="flex items-center gap-3 px-4 py-3 active:bg-muted cursor-pointer bg-background/70 backdrop-blur-sm"
+                onClick={() => openConv(c.id)}
+                className={
+                  "flex items-center gap-3 px-4 py-3 active:bg-muted cursor-pointer backdrop-blur-sm " +
+                  (isActive ? "bg-[hsl(165_91%_25%)]/10" : "bg-background/70")
+                }
               >
                 <Avatar className="h-12 w-12">
                   <AvatarFallback className="bg-[hsl(165_91%_25%)] text-white">{convInitials(c._label)}</AvatarFallback>
@@ -388,6 +392,34 @@ export default function ChatListScreen() {
         </ul>
       </main>
       )}
+    </>
+  );
+
+  if (isDesktop && !isGuest) {
+    return (
+      <div className="flex h-[calc(100dvh-64px)] w-full bg-background">
+        <aside className="w-[380px] shrink-0 border-r border-border overflow-y-auto waouh-chat-list-bg">
+          {listContent}
+        </aside>
+        <section className="flex-1 min-w-0 overflow-hidden">
+          {sessionId ? (
+            <ChatRightPane
+              sessionId={sessionId}
+              authUserId={user?.id ?? null}
+              activeConvId={activeConvId}
+              newWaouhCounter={newWaouhCounter}
+            />
+          ) : (
+            <ChatRightPaneEmpty />
+          )}
+        </section>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-[100dvh] waouh-chat-list-bg">
+      {listContent}
     </div>
   );
 }
