@@ -259,6 +259,7 @@ export default function WaouhChatScreen() {
             <WaouhMatchChatWindow
               match={m}
               sessionId={sessionId}
+              authUserId={profile?.id ?? null}
               waouhIds={waouhIds}
               active={activeKey === m.key}
               getCached={getCached}

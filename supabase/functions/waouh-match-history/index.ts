@@ -1,8 +1,15 @@
 // Source-of-truth loader for WaouhMatchChatWindow.
 // Returns the full per-article chat history for the calling viewer
-// (web session + linked waouh_users rows) regardless of timing/race
+// (auth user + linked waouh_users + web session) regardless of timing/race
 // conditions on the client. The window uses this to render history
 // authoritatively from DB instead of relying on localStorage cache.
+//
+// Hardened against session loss after refresh:
+//   - resolves waouh_users via authUserId AND/OR sessionId
+//   - safe article-scoped fallback when the viewer is provably linked to
+//     the article (seller_id match OR an existing notification linking
+//     this auth user / session to the article). Prevents the "empty chat
+//     after refresh" symptom when the local web_session_id is rotated.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 
@@ -49,11 +56,11 @@ serve(async (req) => {
       .from("waouh_users")
       .select("id, auth_user_id, web_session_id, phone_number")
       .or(ors.join(","))
-      .limit(50);
+      .limit(100);
     const userIds = Array.from(new Set((users ?? []).map((u: any) => u.id)));
 
-    // 2) Pull article-scoped messages for that viewer. Server-side OR handles
-    //    legacy rows where article_id is only in meta.
+    // 2) Pull article-scoped messages. Server-side OR handles legacy rows
+    //    where article_id is only in meta.
     let q: any = sb
       .from("waouh_messages")
       .select("id,direction,text,created_at,attachments,meta,article_id,user_id,web_session_id")
@@ -63,27 +70,82 @@ serve(async (req) => {
     if (before) q = q.lt("created_at", before);
     const { data: rowsRaw, error: rowsErr } = await q;
     if (rowsErr) throw rowsErr;
+    const allRows: any[] = rowsRaw ?? [];
 
-    // 3) Filter by viewer ownership server-side (more reliable than .or chaining).
+    // 3) Determine viewer link strength to the article. The viewer is
+    //    "authoritatively linked" if:
+    //      a) one of their waouh_users.id is the article's seller_id, OR
+    //      b) any waouh_notifications row scoped to this auth user / web
+    //         session references this article (i.e. they were notified as
+    //         buyer or seller), OR
+    //      c) any message already in `allRows` belongs to one of their IDs
+    //         or web_session_id.
     const userIdSet = new Set(userIds);
-    const rows = (rowsRaw ?? []).filter((m: any) => {
-      if (sessionId && m.web_session_id === sessionId) return true;
-      if (m.user_id && userIdSet.has(m.user_id)) return true;
-      return false;
-    });
-    const messages = rows.slice().reverse(); // ASC for client
-    const hasMore = (rowsRaw ?? []).length === limit;
+    const sessionMatchInRows = sessionId
+      ? allRows.some((m) => m.web_session_id === sessionId)
+      : false;
+    const userMatchInRows = allRows.some((m) => m.user_id && userIdSet.has(m.user_id));
 
-    // 4) Optional meta: article status + seed notification.
+    let isSeller = false;
+    try {
+      const { data: art } = await sb
+        .from("waouh_articles")
+        .select("seller_id, status")
+        .eq("id", articleId)
+        .maybeSingle();
+      if (art?.seller_id && userIdSet.has((art as any).seller_id)) isSeller = true;
+      // articleStatus computed in step 4 below; refetch is cheap, but reuse here:
+      (globalThis as any).__waouhArticleCache = art;
+    } catch (_e) { /* noop */ }
+
+    let notifiedForArticle = false;
+    if (!isSeller && !sessionMatchInRows && !userMatchInRows) {
+      const notifOrs: string[] = [];
+      if (userIds.length) notifOrs.push(`user_id.in.(${userIds.join(",")})`);
+      if (sessionId) notifOrs.push(`web_session_id.eq.${sessionId}`);
+      if (notifOrs.length) {
+        const { data: notifs } = await sb
+          .from("waouh_notifications")
+          .select("id")
+          .eq("article_id", articleId)
+          .or(notifOrs.join(","))
+          .limit(1);
+        notifiedForArticle = !!(notifs && notifs.length);
+      }
+    }
+
+    const authoritativeViewer =
+      isSeller || sessionMatchInRows || userMatchInRows || notifiedForArticle;
+
+    // 4) Filter messages. If the viewer is authoritatively linked to the
+    //    article, return the full article-scoped history (both sides
+    //    already separated by `direction` and ownership on the client UI).
+    //    Otherwise fall back to strict per-viewer ownership.
+    const rows = authoritativeViewer
+      ? allRows
+      : allRows.filter((m: any) => {
+          if (sessionId && m.web_session_id === sessionId) return true;
+          if (m.user_id && userIdSet.has(m.user_id)) return true;
+          return false;
+        });
+    const messages = rows.slice().reverse(); // ASC for client
+    const hasMore = allRows.length === limit;
+
+    // 5) Optional meta: article status + seed notification.
     let articleStatus: string | null = null;
     let seedNotification: { sent_at: string; notification_type: string; text: string | null } | null = null;
     if (includeMeta) {
-      const { data: art } = await sb
-        .from("waouh_articles")
-        .select("status")
-        .eq("id", articleId)
-        .maybeSingle();
-      articleStatus = (art as any)?.status ?? null;
+      const cachedArt = (globalThis as any).__waouhArticleCache;
+      if (cachedArt && typeof cachedArt.status !== "undefined") {
+        articleStatus = (cachedArt as any).status ?? null;
+      } else {
+        const { data: art } = await sb
+          .from("waouh_articles")
+          .select("status")
+          .eq("id", articleId)
+          .maybeSingle();
+        articleStatus = (art as any)?.status ?? null;
+      }
 
       let seedRaw: any = null;
       if (notificationId) {
@@ -104,7 +166,12 @@ serve(async (req) => {
           .in("notification_type", types)
           .order("sent_at", { ascending: false })
           .limit(1);
-        if (userIds.length) nq = nq.or(`user_id.in.(${userIds.join(",")}),web_session_id.eq.${sessionId ?? "__none__"}`);
+        if (userIds.length || sessionId) {
+          const orParts: string[] = [];
+          if (userIds.length) orParts.push(`user_id.in.(${userIds.join(",")})`);
+          if (sessionId) orParts.push(`web_session_id.eq.${sessionId}`);
+          nq = nq.or(orParts.join(","));
+        }
         const { data } = await nq;
         seedRaw = Array.isArray(data) ? data[0] : data;
       }
@@ -123,7 +190,14 @@ serve(async (req) => {
       hasMore,
       articleStatus,
       seedNotification,
-      viewer: { userIds, sessionId, authUserId },
+      viewer: {
+        userIds,
+        sessionId,
+        authUserId,
+        isSeller,
+        notifiedForArticle,
+        authoritative: authoritativeViewer,
+      },
       synced_at: new Date().toISOString(),
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e: any) {
