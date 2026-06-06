@@ -216,10 +216,12 @@ export default function WaouhChatPage() {
             <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-amber-500" /> Statuts urgents · 24h
             </h3>
-            <span className="text-xs text-gray-500">Vente · Recherche · Promo expirent automatiquement</span>
+            <span className="text-xs text-gray-500 hidden sm:inline">
+              Vente · Recherche · Promo — expirent automatiquement
+            </span>
           </div>
-          <Card className="p-2 bg-white border-gray-200">
-            <StatusesPanel variant="web" />
+          <Card className="p-2 bg-white border-gray-200 shadow-sm">
+            <StatusesPanel variant="web-strip" />
           </Card>
         </section>
 
