@@ -69,13 +69,26 @@ const HelpContent = () => (
 export default function WaouhChatPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const isMobile = useIsMobile();
   const sessionId = getSessionId();
+  const chatRef = useRef<WaouhWebChatHandle>(null);
   const { permission, requestPermission, notifications, unreadCount, markAllRead, markRead, clearAll } = useWaouhMatchNotifications(sessionId, user?.id ?? null);
 
   useEffect(() => {
     document.title = "WAOUH Chat — Achetez, Vendez, Négociez, Payez | bot.bj";
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("new") === "1") {
+      const t = setTimeout(() => {
+        chatRef.current?.startNewThread();
+        navigate(location.pathname, { replace: true });
+      }, 0);
+      return () => clearTimeout(t);
+    }
+  }, [location.search, location.pathname, navigate]);
 
   const NotifButton = (
     <WaouhNotificationsBell
