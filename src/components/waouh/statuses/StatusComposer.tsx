@@ -70,7 +70,6 @@ export function StatusComposer({ trigger, defaultType = "sell" }: Props) {
   const close = (v: boolean) => {
     setOpen(v);
     if (!v) {
-      previews.forEach((u) => URL.revokeObjectURL(u));
       reset();
     }
   };
