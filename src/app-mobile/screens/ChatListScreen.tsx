@@ -242,7 +242,7 @@ export default function ChatListScreen() {
       )}
 
       {tab === "statuses" && !isGuest ? (
-        <StatusesPanel variant="mobile" />
+        <StatusesPanel variant="mobile" query={q} />
       ) : (
       <main>
         {/* Pinned WAOUH conversation — default AI assistant chat */}
