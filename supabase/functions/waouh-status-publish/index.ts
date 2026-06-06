@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
           title,
           description: caption,
           category: "autre",
-          condition: "bon",
+          condition: "good",
           price: price_fcfa ?? 0,
           currency: "XOF",
           photos,
