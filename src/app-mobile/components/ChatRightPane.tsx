@@ -2,13 +2,16 @@ import { useEffect, useRef } from "react";
 import { ShoppingBag } from "lucide-react";
 import WaouhWebChat, { type WaouhWebChatHandle } from "@/components/waouh/WaouhWebChat";
 import { WaouhMatchChatWindow } from "@/components/waouh/WaouhMatchChatWindow";
-import { useWaouhMatchChats } from "@/components/waouh/useWaouhMatchChats";
+import type { useWaouhMatchChats } from "@/components/waouh/useWaouhMatchChats";
 import ChatScreen from "@/app-mobile/screens/ChatScreen";
+
+type MatchChats = ReturnType<typeof useWaouhMatchChats>;
 
 type Props = {
   sessionId: string;
   authUserId: string | null;
   activeConvId: string | null;
+  matchChats: MatchChats;
   /** Bumped to force WAOUH chat to start a fresh thread. */
   newWaouhCounter?: number;
 };
@@ -20,9 +23,14 @@ type Props = {
  *  - WaouhMatchChatWindow for an open product match
  *  - ChatScreen (embedded) for a Supabase conversation by id
  */
-export function ChatRightPane({ sessionId, authUserId, activeConvId, newWaouhCounter = 0 }: Props) {
-  const { matches, waouhIds, activeKey, getCached, setCached, getHasMore, setHasMoreCached } =
-    useWaouhMatchChats(sessionId, authUserId);
+export function ChatRightPane({
+  sessionId,
+  authUserId,
+  activeConvId,
+  matchChats,
+  newWaouhCounter = 0,
+}: Props) {
+  const { matches, waouhIds, activeKey, getCached, setCached, getHasMore, setHasMoreCached } = matchChats;
 
   const waouhRef = useRef<WaouhWebChatHandle>(null);
   const lastNewRef = useRef<number>(newWaouhCounter);
