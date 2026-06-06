@@ -23,6 +23,7 @@ serve(async (req) => {
     const rawLimit = Number(body?.limit ?? 10);
     const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 10, 1), 200);
     const before: string | null = body?.before || null; // ISO timestamp cursor
+    const since: string | null = body?.since || null; // ISO timestamp lower bound (new-thread cutoff)
     const includeMeta = body?.includeMeta !== false; // notifications/conversations only on initial load
 
     if (!sessionId && !authUserId && !phoneNumber) {
@@ -50,6 +51,7 @@ serve(async (req) => {
       .order("created_at", { ascending: false })
       .limit(limit);
     if (before) msgQuery = msgQuery.lt("created_at", before);
+    if (since) msgQuery = msgQuery.gte("created_at", since);
     const msgOrs: string[] = [];
     if (userIds.length) msgOrs.push(`user_id.in.(${userIds.join(",")})`);
     if (!useAuth && sessionId) msgOrs.push(`web_session_id.eq.${sessionId}`);

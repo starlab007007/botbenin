@@ -1,11 +1,11 @@
-import React, { useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useEffect, useRef } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { ShoppingBag, Search, Handshake, CreditCard, X, Sparkles, Info } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import WaouhWebChat from "@/components/waouh/WaouhWebChat";
+import WaouhWebChat, { type WaouhWebChatHandle } from "@/components/waouh/WaouhWebChat";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useWaouhMatchNotifications } from "@/hooks/useWaouhMatchNotifications";
@@ -69,13 +69,26 @@ const HelpContent = () => (
 export default function WaouhChatPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const isMobile = useIsMobile();
   const sessionId = getSessionId();
+  const chatRef = useRef<WaouhWebChatHandle>(null);
   const { permission, requestPermission, notifications, unreadCount, markAllRead, markRead, clearAll } = useWaouhMatchNotifications(sessionId, user?.id ?? null);
 
   useEffect(() => {
     document.title = "WAOUH Chat — Achetez, Vendez, Négociez, Payez | bot.bj";
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("new") === "1") {
+      const t = setTimeout(() => {
+        chatRef.current?.startNewThread();
+        navigate(location.pathname, { replace: true });
+      }, 0);
+      return () => clearTimeout(t);
+    }
+  }, [location.search, location.pathname, navigate]);
 
   const NotifButton = (
     <WaouhNotificationsBell
@@ -129,7 +142,7 @@ export default function WaouhChatPage() {
           </div>
         </header>
         <div className="flex-1 min-h-0">
-          <WaouhWebChat fullscreen />
+          <WaouhWebChat ref={chatRef} fullscreen />
         </div>
       </div>
     );
@@ -200,7 +213,7 @@ export default function WaouhChatPage() {
         <section className="grid lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
             <Card className="overflow-hidden border-gray-200 shadow-xl">
-              <WaouhWebChat embedded />
+              <WaouhWebChat ref={chatRef} embedded />
             </Card>
           </div>
 

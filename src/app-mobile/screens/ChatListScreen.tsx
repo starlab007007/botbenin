@@ -152,6 +152,7 @@ export default function ChatListScreen() {
   const initials = (profile?.full_name ?? profile?.phone ?? "U").slice(0, 2).toUpperCase();
 
   const openWaouh = () => navigate("/app/chat/waouh");
+  const openNewWaouh = () => navigate("/app/chat/waouh?new=1");
   const { unread: notifUnread } = useNotifications();
 
   return (
@@ -199,7 +200,7 @@ export default function ChatListScreen() {
                     </span>
                   )}
                 </button>
-                <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={openWaouh} aria-label="Nouveau chat WAOUH">
+                <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={openNewWaouh} aria-label="Nouveau chat WAOUH">
                   <Plus className="h-5 w-5" />
                 </Button>
               </>
@@ -245,7 +246,7 @@ export default function ChatListScreen() {
         {isGuest && (
           <div className="px-4 pt-5 pb-2 flex flex-col items-center text-center">
             <Button
-              onClick={openWaouh}
+              onClick={openNewWaouh}
               size="lg"
               className="w-full max-w-sm bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)] shadow-md"
             >
@@ -265,7 +266,7 @@ export default function ChatListScreen() {
           <div className="p-10 text-center text-muted-foreground">
             <p className="font-medium mb-1">Aucune autre conversation</p>
             <p className="text-sm mb-4">Envoyez un message à WAOUH et le Monde achète. ☝️</p>
-            <Button onClick={openWaouh} className="bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)]">
+            <Button onClick={openNewWaouh} className="bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)]">
               <Plus className="h-4 w-4 mr-1" /> Nouveau chat WAOUH
             </Button>
           </div>

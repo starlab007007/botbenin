@@ -46,6 +46,7 @@ type Msg = {
 };
 
 const SESSION_KEY = "waouh_web_session_id";
+const THREAD_CUTOFF_KEY = "waouh_main_thread_started_at";
 
 function getSessionId() {
   let id = localStorage.getItem(SESSION_KEY);
@@ -56,13 +57,17 @@ function getSessionId() {
   return id;
 }
 
+function getThreadCutoff(): string | null {
+  try { return localStorage.getItem(THREAD_CUTOFF_KEY); } catch { return null; }
+}
+
 const QUICK_PROMPTS: Record<Exclude<QuickAction, "sell" | "pay">, string> = {
   buy: "Je cherche ",
   negotiate: "Je propose  FCFA pour ",
 };
 
 
-export type WaouhWebChatHandle = { triggerQuickAction: (a: QuickAction) => void; focusInput: () => void };
+export type WaouhWebChatHandle = { triggerQuickAction: (a: QuickAction) => void; focusInput: () => void; startNewThread: () => void };
 
 export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean; fullscreen?: boolean; variant?: "web" | "native"; composerTopSlot?: React.ReactNode }>(({ embedded = false, fullscreen = false, variant = "web", composerTopSlot }, externalRef) => {
   const [open, setOpen] = useState(embedded || fullscreen);
@@ -70,10 +75,15 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   // Cache-first hydration: load last snapshot synchronously so the chat
   // renders fully on first paint, before any network call.
   const MAIN_SNAPSHOT_KEY = `waouh_main_msgs_${sessionId}`;
+  const [threadCutoff, setThreadCutoff] = useState<string | null>(() => getThreadCutoff());
+  const threadCutoffRef = useRef<string | null>(threadCutoff);
+  threadCutoffRef.current = threadCutoff;
   const readMainSnapshot = (): Msg[] => {
     try {
       const raw = localStorage.getItem(MAIN_SNAPSHOT_KEY);
-      return raw ? (JSON.parse(raw) as Msg[]) : [];
+      const all = raw ? (JSON.parse(raw) as Msg[]) : [];
+      const cutoff = getThreadCutoff();
+      return cutoff ? all.filter((m) => m.created_at >= cutoff) : all;
     } catch { return []; }
   };
   const [messages, setMessages] = useState<Msg[]>(() => readMainSnapshot());
@@ -150,6 +160,8 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       .order("created_at", { ascending: false })
       .limit(limit);
     if (before) q = q.lt("created_at", before);
+    const cutoff = threadCutoffRef.current;
+    if (cutoff) q = q.gte("created_at", cutoff);
     const { data, error } = await q;
     if (error) {
       console.warn("[waouh-chat] direct page load error", error);
@@ -167,6 +179,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           authUserId: user?.id ?? null,
           limit,
           before,
+          since: threadCutoffRef.current,
           includeMeta: !before, // notifications/conversations only on the very first call
         },
       });
@@ -262,6 +275,8 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     const suffix = Math.random().toString(36).slice(2, 8);
     const onInsert = (payload: any) => {
       const m = payload.new as any;
+      const cutoff = threadCutoffRef.current;
+      if (cutoff && m.created_at && m.created_at < cutoff) return;
       setMessages((prev) => {
         if (prev.find((x) => x.id === m.id)) return prev;
         // Remplace l'éventuel optimiste temp-* (même direction/texte, < 30 s)
@@ -486,9 +501,24 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
+  const startNewThread = () => {
+    const ts = new Date().toISOString();
+    try {
+      localStorage.setItem(THREAD_CUTOFF_KEY, ts);
+      localStorage.setItem(MAIN_SNAPSHOT_KEY, "[]");
+    } catch {}
+    threadCutoffRef.current = ts;
+    setThreadCutoff(ts);
+    setMessages([]);
+    setHasMore(false);
+    setInput("");
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
   useImperativeHandle(externalRef, () => ({
     triggerQuickAction: handleQuickAction,
     focusInput: () => inputRef.current?.focus(),
+    startNewThread,
   }), []);
 
 
