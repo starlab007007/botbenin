@@ -75,10 +75,15 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   // Cache-first hydration: load last snapshot synchronously so the chat
   // renders fully on first paint, before any network call.
   const MAIN_SNAPSHOT_KEY = `waouh_main_msgs_${sessionId}`;
+  const [threadCutoff, setThreadCutoff] = useState<string | null>(() => getThreadCutoff());
+  const threadCutoffRef = useRef<string | null>(threadCutoff);
+  threadCutoffRef.current = threadCutoff;
   const readMainSnapshot = (): Msg[] => {
     try {
       const raw = localStorage.getItem(MAIN_SNAPSHOT_KEY);
-      return raw ? (JSON.parse(raw) as Msg[]) : [];
+      const all = raw ? (JSON.parse(raw) as Msg[]) : [];
+      const cutoff = getThreadCutoff();
+      return cutoff ? all.filter((m) => m.created_at >= cutoff) : all;
     } catch { return []; }
   };
   const [messages, setMessages] = useState<Msg[]>(() => readMainSnapshot());
