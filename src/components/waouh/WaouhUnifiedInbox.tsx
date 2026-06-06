@@ -125,6 +125,7 @@ export function WaouhUnifiedInbox({ sessionId, authUserId, triggerClassName }: P
             })}
           </ul>
         )}
+        </div>
       </SheetContent>
     </Sheet>
   );
