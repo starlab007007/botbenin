@@ -158,6 +158,24 @@ const AdminWaouhHistoriquePage: React.FC = () => {
     if (data?.ok) setTraceLookup(data);
   };
 
+  const runBackfill = async () => {
+    if (!confirm("Lancer le backfill des traces sur les négociations existantes ? Cette opération crée des événements synthétiques pour les données historiques.")) return;
+    setBackfilling(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("waouh-historique", {
+        body: { action: "backfill", days: Math.max(sinceDays, 90) },
+      });
+      if (error || !data?.ok) {
+        toast({ title: "Backfill échoué", description: error?.message || data?.error || "Erreur inconnue", variant: "destructive" });
+      } else {
+        toast({ title: "Backfill terminé", description: `${data.inserted} événements créés (négo: ${data.scanned?.negotiations}, msg: ${data.scanned?.messages}, queue: ${data.scanned?.queue})` });
+        refresh();
+      }
+    } finally {
+      setBackfilling(false);
+    }
+  };
+
   const divSummary = divergences?.summary;
   const hasDivergence = divSummary && (
     divSummary.messages_without_trace > 0 || divSummary.orphan_queue_items > 0 ||
