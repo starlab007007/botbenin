@@ -142,7 +142,7 @@ export default function WaouhChatPage() {
           </div>
         </header>
         <div className="flex-1 min-h-0">
-          <WaouhWebChat fullscreen />
+          <WaouhWebChat ref={chatRef} fullscreen />
         </div>
       </div>
     );
