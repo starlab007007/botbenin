@@ -7373,6 +7373,75 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_statuses: {
+        Row: {
+          article_id: string | null
+          author_avatar_url: string | null
+          author_name: string | null
+          caption: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          lat: number | null
+          lng: number | null
+          location: string | null
+          media_kind: string | null
+          media_url: string | null
+          media_urls: string[]
+          price_fcfa: number | null
+          title: string
+          type: string
+          updated_at: string
+          user_id: string
+          views_count: number
+          waouh_code: string | null
+        }
+        Insert: {
+          article_id?: string | null
+          author_avatar_url?: string | null
+          author_name?: string | null
+          caption?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          location?: string | null
+          media_kind?: string | null
+          media_url?: string | null
+          media_urls?: string[]
+          price_fcfa?: number | null
+          title: string
+          type: string
+          updated_at?: string
+          user_id: string
+          views_count?: number
+          waouh_code?: string | null
+        }
+        Update: {
+          article_id?: string | null
+          author_avatar_url?: string | null
+          author_name?: string | null
+          caption?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          location?: string | null
+          media_kind?: string | null
+          media_url?: string | null
+          media_urls?: string[]
+          price_fcfa?: number | null
+          title?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+          views_count?: number
+          waouh_code?: string | null
+        }
+        Relationships: []
+      }
       waouh_trace_events: {
         Row: {
           actor_user_id: string | null
