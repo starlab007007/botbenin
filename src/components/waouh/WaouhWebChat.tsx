@@ -46,6 +46,7 @@ type Msg = {
 };
 
 const SESSION_KEY = "waouh_web_session_id";
+const THREAD_CUTOFF_KEY = "waouh_main_thread_started_at";
 
 function getSessionId() {
   let id = localStorage.getItem(SESSION_KEY);
@@ -54,6 +55,10 @@ function getSessionId() {
     localStorage.setItem(SESSION_KEY, id);
   }
   return id;
+}
+
+function getThreadCutoff(): string | null {
+  try { return localStorage.getItem(THREAD_CUTOFF_KEY); } catch { return null; }
 }
 
 const QUICK_PROMPTS: Record<Exclude<QuickAction, "sell" | "pay">, string> = {
