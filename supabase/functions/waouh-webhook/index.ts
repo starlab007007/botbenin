@@ -1078,7 +1078,7 @@ serve(async (req) => {
             template: "negotiation_open",
             payload: { neg_id: neg.id, article_id: neg.article_id, offer: amount, price: amount, actions: [] },
             directText: counterText,
-            directMeta: { intent: "negotiation_open", negotiation_id: neg.id },
+            directMeta: { intent: "negotiation_open", negotiation_id: neg.id, article_id: neg.article_id },
             transaction_id: null,
             dedupe_key: `neg:${neg.id}:offer:${amount}:${otherId}`,
             event_type: "negotiation_counter",
