@@ -1109,7 +1109,8 @@ serve(async (req) => {
         } else if (intent.intent === "DECIDE_YES") {
           const agreed = Number(neg.last_offer_price || 0);
           await sb.from("waouh_negotiations").update({
-            state: "accepted", agreed_price: agreed, last_actor: myRole,
+            state: "accepted", last_offer_price: agreed, last_actor: myRole, closed_at: new Date().toISOString(),
+            meta: { ...(neg.meta || {}), agreed_price: agreed, accepted_by: myRole },
           }).eq("id", neg.id);
           const { data: art } = await sb.from("waouh_articles").select("title,photos").eq("id", neg.article_id).maybeSingle();
           const title = art?.title || "Article";
