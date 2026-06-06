@@ -94,7 +94,7 @@ const YovoGallery = lazy(() => import("./pages/YovoGallery"));
 // WAOUH module
 const WaouhPage = lazy(() => import("./pages/waouh/WaouhPage"));
 const WaouhDemoPage = lazy(() => import("./pages/waouh/WaouhDemoPage"));
-const WaouhChatPage = lazy(() => import("./pages/waouh/WaouhChatPage"));
+
 const WaouhRadarPage = lazy(() => import("./pages/admin/WaouhRadarPage"));
 const WaouhWhatsAppOpsPage = lazy(() => import("./pages/admin/WaouhWhatsAppOpsPage"));
 const AdminWaouhPartnersPage = lazy(() => import("./pages/admin/AdminWaouhPartnersPage"));
@@ -292,7 +292,7 @@ const AppContent = () => {
                   <Route path="/bot/:botId" element={<PublicBotChatPage />} />
                   <Route path="/documentation" element={<DocumentationPortalPage />} />
                   <Route path="/yovo-gallery" element={<YovoGallery />} />
-                  <Route path="/waouh-chat" element={<WaouhChatPage />} />
+                  <Route path="/waouh-chat" element={<Navigate to="/app/chat" replace />} />
 
                   {/* WaouhApp — Mobile shell (Capacitor + web preview) */}
                   <Route path="/app/auth" element={<MobileAuthHome />} />

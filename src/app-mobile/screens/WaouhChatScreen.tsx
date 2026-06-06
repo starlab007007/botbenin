@@ -43,8 +43,9 @@ const PAYLOADS: { key: "sell" | "buy" | "negotiate"; label: string; Icon: any; t
  */
 export default function WaouhChatScreen() {
   // Desktop/tablet → redirect to dedicated 2-column WhatsApp-style page
+  // Desktop/tablet → unified entry point is /app/chat (embedded WaouhChatPage)
   if (typeof window !== "undefined" && window.innerWidth >= 768) {
-    return <Navigate to="/waouh-chat" replace />;
+    return <Navigate to="/app/chat" replace />;
   }
   const navigate = useNavigate();
   const location = useLocation();
