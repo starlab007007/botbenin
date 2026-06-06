@@ -100,7 +100,19 @@ export default function WaouhChatPage() {
   const chatRef = useRef<WaouhWebChatHandle>(null);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(getInitialLayout);
   const [sidebarWidth, setSidebarWidth] = useState<number>(computeSidebarWidth);
+  const [payDialog, setPayDialog] = useState<{ dealId: string; amount?: number } | null>(null);
   const { permission, requestPermission, notifications, unreadCount, markAllRead, markRead, clearAll } = useWaouhMatchNotifications(sessionId, user?.id ?? null);
+  const {
+    matches,
+    waouhIds,
+    activeKey,
+    setActiveKey,
+    close,
+    getCached,
+    setCached,
+    getHasMore,
+    setHasMoreCached,
+  } = useWaouhMatchChats(sessionId ?? "", user?.id ?? null);
 
   useEffect(() => {
     const onResize = () => setSidebarWidth(computeSidebarWidth());
@@ -112,6 +124,23 @@ export default function WaouhChatPage() {
     setLayoutMode(mode);
     try { localStorage.setItem(LAYOUT_KEY, mode); } catch {}
   };
+
+  // Auto-switch to split when something tries to open a chat while in list mode.
+  useEffect(() => {
+    const ensureSplit = () => {
+      setLayoutMode((cur) => {
+        if (cur === "split") return cur;
+        try { localStorage.setItem(LAYOUT_KEY, "split"); } catch {}
+        return "split";
+      });
+    };
+    window.addEventListener("waouh:open-match-chat", ensureSplit as EventListener);
+    window.addEventListener("waouh:focus-message", ensureSplit as EventListener);
+    return () => {
+      window.removeEventListener("waouh:open-match-chat", ensureSplit as EventListener);
+      window.removeEventListener("waouh:focus-message", ensureSplit as EventListener);
+    };
+  }, []);
 
   useEffect(() => {
     document.title = "WAOUH Chat — Achetez, Vendez, Négociez, Payez | bot.bj";
