@@ -1047,7 +1047,7 @@ serve(async (req) => {
         replyAttachments = firstPhoto ? [{ url: firstPhoto, type: "image/jpeg", caption: pick.title }] : [];
         returnedActions = [];
         const distLineBuyer = distKm != null ? `\n${fmtDistance(distKm)}` : "";
-        reply = `${waouhHeader("✅ Demande envoyée au vendeur")}\n\n📦 *${pick.title}*\n💰 *Prix* : ${fmt(askPrice)}${distLineBuyer}\n${firstPhoto ? "📸 *Photo transmise au vendeur*\n" : ""}\nLe vendeur va recevoir votre intérêt. Pour proposer un prix différent, écrivez (Ex : *Je propose ${fmt(Math.round(askPrice * 0.9))}*).\n\n${waouhFooter()}`;
+        reply = `${waouhHeader("✅ Demande envoyée au vendeur")}\n\n📦 *${pick.title}*\n💰 *Prix du vendeur* : ${fmt(askPrice)}${distLineBuyer}\n${firstPhoto ? "📸 *Photo transmise au vendeur*\n" : ""}\n*Que souhaitez-vous faire ?*\n1️⃣ Répondez *OUI* pour accepter ce prix (${fmt(askPrice)}).\n2️⃣ Ou proposez votre prix : *Je propose ${fmt(Math.round(askPrice * 0.9))}*.\n\nLe vendeur attend votre décision.\n\n${waouhFooter()}`;
         }
       }
 
