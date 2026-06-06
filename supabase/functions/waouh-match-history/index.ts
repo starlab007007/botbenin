@@ -98,6 +98,26 @@ serve(async (req) => {
       (globalThis as any).__waouhArticleCache = art;
     } catch (_e) { /* noop */ }
 
+    // Status fallback: when articleId points to a waouh_statuses row (status-driven
+    // chat created via StatusCard) instead of a waouh_articles row, treat the
+    // status owner as the authoritative seller so they see all article-scoped
+    // history.
+    let isStatusOwner = false;
+    try {
+      const { data: st } = await sb
+        .from("waouh_statuses" as any)
+        .select("user_id")
+        .eq("id", articleId)
+        .maybeSingle();
+      if (st && (st as any).user_id) {
+        const ownerId = (st as any).user_id as string;
+        if (authUserId && ownerId === authUserId) {
+          isStatusOwner = true;
+          isSeller = true;
+        }
+      }
+    } catch (_e) { /* noop */ }
+
     let notifiedForArticle = false;
     if (!isSeller && !sessionMatchInRows && !userMatchInRows) {
       const notifOrs: string[] = [];
@@ -115,7 +135,7 @@ serve(async (req) => {
     }
 
     const authoritativeViewer =
-      isSeller || sessionMatchInRows || userMatchInRows || notifiedForArticle;
+      isSeller || isStatusOwner || sessionMatchInRows || userMatchInRows || notifiedForArticle;
 
     // 4) Filter messages. If the viewer is authoritatively linked to the
     //    article, return the full article-scoped history (both sides
