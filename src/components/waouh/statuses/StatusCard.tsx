@@ -35,11 +35,34 @@ export function StatusCard({ status, canDelete, onDelete, compact }: Props) {
   const code = status.waouh_code ?? status.article_id?.slice(0, 12).toUpperCase() ?? "WAOUH";
 
   const openChat = () => {
-    if (status.article_id) {
-      navigate(`/app/chat/waouh?article=${encodeURIComponent(status.article_id)}`);
-    } else {
-      navigate("/app/chat/waouh");
-    }
+    const article_id = status.article_id ?? status.id;
+    const kind: "buyer" | "seller" = status.type === "buy" ? "seller" : "buyer";
+    const detail = {
+      notification_id: null,
+      notification_ids: [],
+      seed_text:
+        status.type === "buy"
+          ? `Bonjour, j'ai ce que vous cherchez : "${status.title}".`
+          : `Bonjour, je suis intéressé(e) par votre statut : "${status.title}".`,
+      article_id,
+      buyer_profile_id: null,
+      counterpart_user_id: status.user_id,
+      kind,
+      title: status.title,
+      price: status.price_fcfa,
+      city: status.location,
+      photo: status.media_url,
+    };
+    try {
+      const raw = localStorage.getItem("waouh_pending_open");
+      const arr = raw ? (JSON.parse(raw) as any[]) : [];
+      arr.push(detail);
+      localStorage.setItem("waouh_pending_open", JSON.stringify(arr.slice(-10)));
+    } catch {}
+    navigate("/app/chat/waouh");
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));
+    }, 50);
   };
 
   return (
