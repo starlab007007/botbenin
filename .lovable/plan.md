@@ -1,46 +1,72 @@
+## Objectif
 
-## Diagnostic
+Reproduire **exactement** le flux chat WAOUH verrouillé (chat principal ↔ WaouhMatchChatWindow, acheteur + vendeur) sur **WhatsApp**, dès qu'un numéro est résolu — quelle que soit la source : `chat`, `partner` (waouh_partner_businesses / waouh_partners), ou `radar ia` (waouh_external_listings / waouh_radar_signals / waouh_lid_phone_map).
 
-J'ai inspecté la base et les logs. Le bug est confirmé côté DB :
+**Règle d'or** : chaque évènement de négociation produit, pour **chaque partie**, le même message au même moment dans :
+- (a) `waouh_messages` côté chat web (avec `article_id` rempli),
+- (b) WhatsApp via `waouh_outbound_queue` si un numéro WA est résolu pour cette partie.
 
-- Le vendeur reçoit bien le 1er message « 📩 Nouvel acheteur intéressé » (id `efd0af70…`, `article_id = 2ba18517…` ✅) — celui-ci passe par `waouh-webhook → pushToOther` qui a déjà été corrigé.
-- En revanche, les messages suivants destinés au vendeur :
-  - « 🤝 Nouvelle offre acheteur » (id `123639ec…`) → `article_id = NULL`, `meta` sans `article_id`
-  - « 🎉 Vente conclue ! » (id `9515eccd…`) → `article_id = NULL`, `meta` sans `article_id`
+Texte identique sur les deux canaux. L'acteur reçoit l'écho de sa propre action (ex. acheteur qui envoie « 1500 » via WA reçoit `✅ Contre-offre envoyée au vendeur`).
 
-`WaouhMatchChatWindow` filtre strictement sur `article_id.eq.X OR meta->>article_id.eq.X` (fetch + realtime). Sans cette colonne, ces messages sont invisibles dans la fenêtre produit du vendeur, alors qu'ils s'affichent quand même dans le chat principal (qui ne filtre pas par article).
+## Évènements synchronisés
 
-## Cause racine
+| Évènement | Acheteur (chat + WA) | Vendeur (chat + WA) |
+|---|---|---|
+| 📩 Nouvel acheteur intéressé | ✅ Demande envoyée | 📩 Nouvel acheteur intéressé |
+| 🤝 Contre-offre acheteur | ✅ Offre envoyée | 🤝 Nouvelle offre acheteur |
+| 💬 Contre-offre vendeur | 💬 Contre-offre du vendeur | ✅ Contre-offre envoyée |
+| ❌ Refus | ❌ Notification refus | ❌ Notification refus |
+| 🎉 Vente conclue | 🎉 Vente conclue | 🎉 Vente conclue |
 
-Le flux contre-offre / OUI / NON passe en réalité par une **autre edge function** : `waouh-negotiation-router` (et non la branche `NEGOTIATE` de `waouh-webhook` que j'avais corrigée). Son helper `pushToOther` :
-1. **N'insère le message que si `target.web_session_id` existe** → s'il manque, aucune ligne n'est créée et le vendeur ne reçoit jamais dans `WaouhMatchChatWindow`.
-2. **N'écrit jamais la colonne `article_id`** dans `waouh_messages`.
-3. **N'ajoute pas `article_id` dans `meta`** (le `directMeta` passé ne contient que `negotiation_id`, `deal_id`, `transaction_id`).
+## Cause des écarts actuels
 
-Conséquence : la fenêtre produit côté vendeur reste figée sur le bandeau seed et ne voit ni la contre-offre, ni la vente conclue.
+1. `waouh-notify-dispatch` envoie directement via `sendWhatsAppCard()` → contourne `waouh_outbound_queue` → doublons possibles avec `waouh-webhook`.
+2. `waouh-buyer-interest` n'insère pas la bulle `✅ Demande envoyée` côté acheteur ni d'écho WA acheteur.
+3. `waouh-negotiation-router` : l'écho WA de l'acteur (web ou WA) n'est pas garanti symétriquement.
+4. Résolution numéro pas systématique pour les **deux** parties à chaque évènement (chaîne radar/partner non tentée partout).
 
 ## Plan de correction
 
-### 1) `supabase/functions/waouh-negotiation-router/index.ts` — `pushToOther`
+### 1) Nouveau helper partagé `pushSyncedEvent`
 
-- Insérer **toujours** dans `waouh_messages` dès que `target.id` est connu (au lieu de conditionner à `web_session_id`). Mettre `channel = "web"` si web session, sinon `"system"`.
-- Renseigner la colonne `article_id` à partir de `payload.article_id ?? directMeta.article_id ?? null`.
-- Ajouter `article_id` dans `meta` en plus de la colonne, pour les rows legacy / sécurité du filtre realtime.
+Fichier : `supabase/functions/_shared/waouh-sync.ts` (nouveau).
 
-### 2) Ajouter `article_id` dans tous les `directMeta` du router
+Signature : `pushSyncedEvent(sb, { party: { user, role, text }, articleId, intent, negotiationId, dedupSuffix })`.
 
-Aux 3 appels `pushToOther` du router :
-- Refus (ligne 244) : `{ intent: "negotiation_closed", negotiation_id: neg.id, article_id: neg.article_id }`
-- Contre-offre (ligne 263) : `{ intent: "negotiation_open", negotiation_id: neg.id, transaction_id: neg.transaction_id, article_id: neg.article_id }`
-- Deal accepté (ligne 212) : `{ intent: "deal_created", negotiation_id: neg.id, deal_id: deal?.id, article_id: neg.article_id }`
+Pour **chaque partie** (appel séparé pour acheteur et vendeur) :
+- Résout le numéro WA via `resolveRealPhoneE164(sb, user, { article_id, role })` (utilise toute la chaîne chat → partner → radar/lid_phone_map déjà en place).
+- Insère un `waouh_messages` (colonne `article_id` remplie, `meta.intent`, `meta.article_id` de secours, `direction='out'`, `channel = phone ? 'whatsapp' : 'web'`).
+- Si numéro WA résolu : `waouh_enqueue_outbound_v2` avec `dedup_key = ${article_id}:${intent}:${user.id}:${negotiation_id}:${dedupSuffix}`, payload texte (ou boutons si fourni).
+- Si pas de numéro : insert chat seulement (la fenêtre web reçoit en realtime).
 
-### 3) Aucun changement frontend nécessaire
+### 2) Câblage des chemins d'émission
 
-Le filtre actuel de `WaouhMatchChatWindow` (`article_id.eq.X OR meta->>article_id.eq.X`, plus le realtime scopé sur `user_id=eq.<seller>`) fonctionne dès que la colonne `article_id` est correctement renseignée.
+- **`waouh-webhook/index.ts`** (CONFIRM, NEGOTIATE, DECIDE_YES/NO) : remplacer chaque `pushToOther` par **deux** appels `pushSyncedEvent` (acteur + destinataire), avec textes distincts adaptés au rôle.
+- **`waouh-negotiation-router/index.ts`** (refus, contre-offre, deal_created) : idem, échos symétriques.
+- **`waouh-buyer-interest/index.ts`** : ajouter `pushSyncedEvent` acheteur (`✅ Demande envoyée`) en plus de la notif vendeur.
+- **`waouh-notify-dispatch/index.ts`** : remplacer l'appel direct `sendWhatsAppCard()` par `waouh_enqueue_outbound_v2` (payload `kind: "buttons"` pour conserver les cartes OUI/NON déjà supportées par `waouh-outbound-dispatch`). Élimine les doublons et unifie le tracking.
 
-### Préservé
-- Chat principal vendeur, notifications WhatsApp, branche NEGOTIATE de `waouh-webhook` (déjà corrigée), composer, logique métier des négociations.
-- Aucune migration SQL nécessaire.
+### 3) Résolution numéro
 
-### Fichier modifié
+Aucun changement de signature. Tous les appelants doivent passer `{ article_id, role: "buyer" | "seller" }` à `resolveRealPhoneE164`. La chaîne complète est :
+- **Vendeur** : article → `waouh_external_listings.seller_phone` (radar) → `waouh_partner_businesses.whatsapp` → `waouh_partners.whatsapp` → `waouh_users.phone_number` → `waouh_lid_phone_map` → `profiles.phone` → `auth.users.phone`.
+- **Acheteur** : `waouh_users.phone_number` → `waouh_lid_phone_map` → `auth.users.phone` → `profiles.phone` → `waouh_partners.whatsapp` (si acheteur partenaire).
+
+### 4) Anti-doublon
+
+`dedup_key` systématique sur `waouh_enqueue_outbound_v2`. `waouh_outbound_dispatch` ignore les entrées déjà envoyées pour le même `dedup_key`.
+
+### 5) Préservé (verrouillé)
+
+- Flux chat WAOUH (mémoire `waouh-chat-sync-flow`) intact.
+- Logique métier `waouh_negotiations` / `waouh_deals` inchangée.
+- Aucune migration SQL (colonnes `article_id`, `meta`, `direction` existantes ; RPC `waouh_enqueue_outbound_v2` existante).
+- Pas de changement frontend.
+
+## Fichiers modifiés
+
+- `supabase/functions/_shared/waouh-sync.ts` (nouveau)
+- `supabase/functions/waouh-webhook/index.ts`
 - `supabase/functions/waouh-negotiation-router/index.ts`
+- `supabase/functions/waouh-buyer-interest/index.ts`
+- `supabase/functions/waouh-notify-dispatch/index.ts`
