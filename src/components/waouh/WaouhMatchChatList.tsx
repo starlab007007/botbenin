@@ -49,9 +49,11 @@ function saveArchived(sid: string | null, set: Set<string>) {
 export function WaouhMatchChatList({
   sessionId,
   authUserId,
+  query = "",
 }: {
   sessionId: string | null;
   authUserId?: string | null;
+  query?: string;
 }) {
   const navigate = useNavigate();
   const [items, setItems] = useState<MatchItem[]>([]);
