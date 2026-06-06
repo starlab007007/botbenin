@@ -9,6 +9,7 @@
 // les deux parties à chaque évènement de négociation.
 
 import { resolveRealPhoneE164 } from "./waouh-format.ts";
+import { traceEvent, newTraceId } from "./waouh-trace.ts";
 
 export type SyncedRole = "buyer" | "seller";
 
