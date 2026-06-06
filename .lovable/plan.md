@@ -1,63 +1,31 @@
+## Diagnostic confirmé
 
-# Persistance fiable de l'historique WaouhMatchChatWindow (acheteur / vendeur)
+- Les messages de la transaction visible dans la capture existent bien en base : `21` messages pour l’article `6e39e48d-bbec-4e45-9ae9-4cdf26c7e9c4` (`ACH-E9C4-F13`).
+- Le problème n’est pas une suppression de données : `waouh_messages.article_id` et `meta.article_id` sont bien remplis.
+- La cause probable est le chargeur `waouh-match-history` : il filtre l’historique par `web_session_id` courant et/ou `waouh_users` liés au viewer. Après actualisation/appareil/session différente, le `sessionId` local peut changer ou ne plus correspondre, donc l’Edge Function renvoie `messages: []` même si l’article a un historique complet.
+- J’ai vérifié que le flux verrouillé reste isolé : ne pas modifier `waouh-webhook`, `waouh-negotiation-router`, ni les invariants temps réel de `WaouhMatchChatWindow`.
 
-## Diagnostic
+## Plan de correction
 
-L'historique EST déjà écrit en base (`waouh_messages.article_id` est rempli, côté `waouh-channel-in` pour les messages entrants/sortants et côté `_shared/waouh-sync.ts` pour les events synchronisés). Le problème vient du **chargement côté client**, pas du stockage.
+1. Renforcer `waouh-match-history` sans modifier le flux verrouillé
+   - Ajouter `authUserId` dans l’appel depuis `WaouhMatchChatWindow` quand l’utilisateur est connecté.
+   - Dans l’Edge Function, résoudre tous les `waouh_users` liés à cet `authUserId`, pas seulement la session locale.
+   - Ajouter un fallback sécurisé pour les conversations clôturées/vendues : si aucun message n’est trouvé via le viewer, charger l’historique article-scopé seulement quand l’article/notification prouve que le viewer est vendeur ou acheteur lié.
 
-Bugs identifiés dans `src/components/waouh/WaouhMatchChatWindow.tsx` + `useWaouhMatchChats.ts` :
+2. Stabiliser le contexte d’identité côté frontend
+   - Passer `authUserId` de `WaouhChatScreen` vers `WaouhMatchChatWindow`.
+   - Garder `sessionId` pour les invités, mais ne plus dépendre uniquement du `sessionId` après reconnexion/refresh.
+   - Conserver le cache local uniquement comme affichage instantané, jamais comme source unique.
 
-1. **Filtre "viewer" incomplet au premier rendu.** `fetchArticlePage` filtre par `web_session_id.eq.<sessionId> OR user_id.in.(waouhIds)`. Or `waouhIds` est résolu dans un `useEffect` séparé et arrive **après** le premier fetch. Au premier mount, `waouhIds = []` → seuls les messages portant `web_session_id` sont récupérés. Tous les messages côté vendeur/acheteur authentifié dont `web_session_id IS NULL` mais `user_id` pointe vers un `waouh_users.id` sont **invisibles**.
+3. Améliorer l’état vide de la fenêtre
+   - Si l’Edge Function répond vide alors que l’article est chargé, afficher un état “Synchronisation…” / “Aucun message chargé depuis la base” au lieu d’un écran vierge silencieux.
+   - Garder l’indicateur existant `Sync · heure · N msg`, mais le rendre fiable avec le nombre réellement chargé depuis la base.
 
-2. **Pas de refetch quand `waouhIds` arrive.** Les deps de l'effet de fetch sont `[match.article_id, match.notification_id, match.seed_text]`. Donc même quand l'id viewer est résolu plus tard, la liste n'est jamais relue.
+4. Ajouter un test de non-régression ciblé
+   - Étendre le test verrouillé existant pour vérifier que `WaouhMatchChatWindow` transmet `authUserId` à `waouh-match-history`.
+   - Ajouter des invariants sur `waouh-match-history` : recherche par `auth_user_id`, fallback article-scopé contrôlé, pas de mutation des messages.
 
-3. **Skip-fetch si cache local ≥ 10 messages.** `skipMsgFetch = cached.length >= PAGE_INITIAL` empêche complètement la relecture serveur tant que le cache localStorage contient ≥10 messages, même s'il est obsolète ou incomplet (cf. bug #1). Si l'utilisateur change d'appareil / vide son cache / passe en navigation privée → 0 message visible.
-
-4. **Source de vérité = localStorage.** Tout l'état (`messages`, `hasMore`, scroll, statut article, seed) bootstrappe depuis localStorage. Si le storage est vidé (cleanup navigateur, autre device, mode privé), la conversation paraît "perdue" même si la DB est intacte.
-
-5. **Filtre côté client fragile.** Chaîner deux `.or()` Supabase + une condition `meta->>article_id` mélangée à du SQL inline expose à des bugs subtils (PostgREST échappe mal certains caractères dans `.or`). Mieux vaut centraliser côté edge function.
-
-## Plan
-
-### 1. Nouvelle edge function `waouh-match-history` (source de vérité serveur)
-Endpoint dédié au chargement d'une fenêtre match :
-- Entrée : `{ articleId, sessionId, authUserId?, role, before?, limit?: 30 }`
-- Côté serveur (service-role) :
-  - Résout tous les `waouh_users.id` liés à `(authUserId, sessionId, et leur phone_number éventuel)`.
-  - Query `waouh_messages` filtré par `article_id = $1 OR meta->>article_id = $1` AND (`user_id IN (...)` OR `web_session_id = $sessionId`).
-  - Tri DESC, `limit`, pagination par `created_at < before`.
-  - Renvoie `{ messages, hasMore, articleStatus, seedNotification }` en une seule réponse.
-- Avantage : un seul aller-retour, scoping fait côté serveur, pas d'attente de `waouhIds`.
-
-### 2. Refactor `WaouhMatchChatWindow.tsx` — DB = vérité, cache = peinture rapide
-- À chaque mount (ou changement de `match.article_id`/`match.key`) : appel `waouh-match-history` **systématiquement**, même si cache présent. Le cache sert uniquement à peindre instantanément, puis on réconcilie via `mergeMsgs`.
-- Supprimer `skipMsgFetch`.
-- Ajouter un refetch quand `active` redevient true (réouverture d'onglet) avec throttle ~2s.
-- Pagination "load older" passe aussi par l'edge function (paramètre `before`).
-- Realtime inchangé (déjà branché sur `web_session_id` + chaque `user_id`).
-
-### 3. Rendre le cache non-obligatoire
-- `getCached` reste optionnel ; si vide, on n'affiche pas d'écran vide : un spinner discret apparait pendant le premier fetch DB.
-- Snapshot localStorage continue d'être écrit (perf), mais n'est plus "skip condition".
-
-### 4. Garantir que toute écriture porte `article_id`
-Audit rapide des chemins d'insertion :
-- `waouh-channel-in` ✅ (inbound + outbound + negotiation reply)
-- `_shared/waouh-sync.ts` ✅
-- Vérifier `waouh-negotiation-router`, `waouh-buyer-interest`, `waouh-notify-dispatch` — si un insert oublie `article_id`, l'ajouter (et au moins dans `meta.article_id`).
-- Migration légère : backfill `waouh_messages.article_id` depuis `meta->>article_id` pour les lignes existantes où la colonne est NULL.
-
-### 5. Indicateur "synchronisé"
-Petit badge dans le header de la fenêtre : "Synchronisé · HH:mm" mis à jour après chaque fetch réussi, pour rassurer l'utilisateur que l'historique vient bien du serveur.
-
-## Détails techniques
-
-- Nouveau fichier : `supabase/functions/waouh-match-history/index.ts`
-- Modifs : `src/components/waouh/WaouhMatchChatWindow.tsx` (effet de fetch, suppression skip), `src/components/waouh/useWaouhMatchChats.ts` (rien à changer côté cache, juste s'assurer que `close()` ne supprime pas non plus les snapshots — déjà OK)
-- Migration : `UPDATE waouh_messages SET article_id = (meta->>'article_id')::uuid WHERE article_id IS NULL AND meta ? 'article_id';`
-- Pas de changement de schéma, pas de changement RLS (service-role côté edge function)
-
-## Hors scope
-- Aucune modification du dashboard admin Historique
-- Aucune modification de la fenêtre WAOUH principale (non-match)
-- Pas de migration de clés localStorage (déjà gérée par `migrateLegacyKeys`)
+5. Vérification
+   - Tester l’Edge Function sur l’article `ACH-E9C4-F13` avec : session vendeur, auth acheteur sans session d’origine, et session inconnue.
+   - Vérifier que les messages reviennent pour les identités liées et restent vides pour une identité inconnue.
+   - Ne pas toucher aux règles verrouillées NEGOTIATE / Router / realtime filter / suppression `seedNotif.text`.
