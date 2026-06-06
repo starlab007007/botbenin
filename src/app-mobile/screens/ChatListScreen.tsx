@@ -77,6 +77,9 @@ export default function ChatListScreen() {
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [newWaouhCounter, setNewWaouhCounter] = useState(0);
 
+  // Lift the WAOUH match chats hook so we can set the active key from the list.
+  const matchChats = useWaouhMatchChats(sessionId ?? "", user?.id ?? null);
+
   // When a match-chat open intent is dispatched/buffered, clear conv selection
   // so the WaouhMatchChatWindow takes over the right pane.
   useEffect(() => {
