@@ -97,6 +97,18 @@ export function StatusCard({ status, canDelete, onDelete, compact }: Props) {
       arr.push(detail);
       localStorage.setItem("waouh_pending_open", JSON.stringify(arr.slice(-10)));
     } catch {}
+
+    // Fire real buyer-interest so the seller is notified via the standard pipeline
+    // (only when the status is backed by a real waouh_articles row and the viewer
+    // is not the status owner).
+    if (status.article_id && kind === "buyer") {
+      supabase.functions
+        .invoke("waouh-buyer-interest", {
+          body: { article_id: status.article_id, source: "status" },
+        })
+        .catch(() => {});
+    }
+
     navigate("/app/chat/waouh");
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));
