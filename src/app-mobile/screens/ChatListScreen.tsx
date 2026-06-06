@@ -19,6 +19,7 @@ import {
 } from "../utils/chatLabel";
 import WaouhDemoMockup from "../components/WaouhDemoMockup";
 import { WaouhMatchChatList } from "@/components/waouh/WaouhMatchChatList";
+import { StatusesPanel } from "@/components/waouh/statuses/StatusesPanel";
 
 type Conv = {
   id: string;
@@ -56,6 +57,7 @@ export default function ChatListScreen() {
   const [users, setUsers] = useState<Record<string, WaouhUserLike>>({});
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
+  const [tab, setTab] = useState<"chats" | "statuses">("chats");
 
   const isGuest = !user;
 
