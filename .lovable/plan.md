@@ -1,48 +1,29 @@
+## Objectif
+Faire en sorte que `WaouhMatchChatWindow` affiche réellement l’historique existant, même quand la conversation vient d’un statut WAOUH dont l’`id` est utilisé comme `article_id` sans ligne correspondante dans `waouh_articles`.
 
-## 1. Aperçu photo visible dans le composer de statut
+## Diagnostic confirmé
+- La capture `test20` correspond à un `waouh_statuses.id = 963aee7d...` avec `article_id = null`.
+- Des messages existent bien dans `waouh_messages.article_id = 963aee7d...`.
+- L’Edge Function `waouh-match-history` cherche ensuite une preuve de lien via `waouh_articles` ou `waouh_notifications`; pour ce statut, il n’y a pas de ligne `waouh_articles` ni notification liée, donc le filtre strict peut retourner vide selon l’identité courante.
+- Côté mobile, `authUserId` transmis à `WaouhMatchChatWindow` vient de `profile?.id`, alors qu’il faut utiliser l’identifiant Supabase auth réel; si le profil n’est pas encore chargé ou absent, l’historique peut être filtré à tort.
 
-Dans `src/components/waouh/statuses/StatusComposer.tsx` (étape "media") :
+## Changements prévus
+1. **Côté écran WAOUH mobile**
+   - Récupérer aussi `user` via `useMobileAuth()`.
+   - Passer `user?.id` comme `authUserId` à `useWaouhMatchChats`, `useWaouhMatchNotifications`, `WaouhUnifiedInbox` et `WaouhMatchChatWindow`.
+   - Garder `profile` uniquement pour l’affichage du nom.
 
-- La balise `<img>` actuelle ne s'affiche pas correctement (icône cassée + alt visible). Corriger l'aperçu :
-  - Garantir un rendu carré stable : `aspect-square w-full` sur le conteneur, `<img loading="lazy" decoding="async" className="w-full h-full object-cover">`.
-  - Vérifier que `URL.createObjectURL` est appelé sur un `File` image valide (filtre déjà présent) et que `URL.revokeObjectURL` n'est appelé qu'à la fermeture du dialog (ne pas révoquer pendant le rendu).
-  - Ajouter un fond `bg-muted` pendant le chargement et masquer le texte alt (alt vide visuellement, `alt=""`).
-- Ajouter un **lightbox** : cliquer sur une vignette ouvre un overlay plein écran (`fixed inset-0 z-[60] bg-black/90`) affichant l'image en grand avec bouton de fermeture. Géré par un petit state local `zoomedIndex: number | null`.
+2. **Côté Edge Function `waouh-match-history`**
+   - Ajouter un fallback sécurisé pour les statuts : si aucun article n’est trouvé dans `waouh_articles`, chercher `waouh_statuses.id = articleId`.
+   - Considérer le viewer autorisé si le statut appartient à `authUserId`, ou si un message existant est déjà lié à sa session / son `waouh_user`.
+   - Charger les messages par `article_id` / `meta.article_id` comme aujourd’hui, mais ne pas les jeter quand le lien statut est valide.
+   - Retourner des métadonnées de debug utiles (`source: article/status`, flags viewer) sans exposer de secret.
 
-## 2. Bouton "Discutez avec l'acheteur / le vendeur" → WaouhMatchChatWindow
+3. **Côté `WaouhMatchChatWindow`**
+   - Améliorer le message d’état vide pour distinguer “aucun historique trouvé” de “historique non autorisé / identité non liée”.
+   - Conserver le cache local et le scroll existants.
 
-Dans `src/components/waouh/statuses/StatusCard.tsx`, remplacer `openChat` actuel (qui navigue simplement) par le même mécanisme que `WaouhMatchChatList.open()` :
-
-- Construire un `detail` à partir du statut :
-  - `article_id`: `status.article_id ?? status.id` (utiliser l'id du statut comme article virtuel si pas d'article lié)
-  - `kind`: `status.type === "buy" ? "seller" : "buyer"` (si c'est une recherche, l'interlocuteur est vendeur ; sinon acheteur)
-  - `title`, `price: status.price_fcfa`, `city: status.location`, `photo: status.media_url`
-  - `counterpart_user_id`: `status.user_id`
-  - `seed_text`: court message contextuel (ex: « Bonjour, je suis intéressé(e) par votre statut "{title}". »)
-- Pousser ce `detail` dans `localStorage["waouh_pending_open"]` (même clé que la liste).
-- `navigate("/app/chat/waouh")` puis `window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }))` après 50 ms.
-- Résultat : `WaouhChatPage` ouvre une nouvelle `WaouhMatchChatWindow` (même flux validé que pour les notifications) — bout en bout identique.
-
-## 3. Barre de recherche fonctionnelle (discussions + statuts)
-
-Dans `src/app-mobile/screens/ChatListScreen.tsx` :
-
-- L'état `q` filtre déjà `enriched` (convs IA). Étendre :
-  - **Onglet "Discussions"** : passer `q` en prop à `WaouhMatchChatList` pour filtrer `items` par `title`, `city`, `seed_text`, `price`.
-  - **Onglet "Statuts · 24h"** : passer `q` en prop à `StatusesPanel`.
-
-Dans `WaouhMatchChatList.tsx` : ajouter prop `query?: string`, et appliquer un filtre côté rendu sur `fresh`/`archivedItems`.
-
-Dans `StatusesPanel.tsx` et `useStatuses` : ajouter prop `query?: string` sur `StatusesPanel`, filtrer la liste `statuses` côté client (title / caption / location / waouh_code / price).
-
-Le placeholder de l'`Input` devient `"Rechercher discussions, statuts…"`.
-
-## Fichiers modifiés
-
-- `src/components/waouh/statuses/StatusComposer.tsx` — aperçu fixe + lightbox
-- `src/components/waouh/statuses/StatusCard.tsx` — bouton "Discutez" ouvre WaouhMatchChatWindow
-- `src/app-mobile/screens/ChatListScreen.tsx` — propage `q` aux deux panneaux
-- `src/components/waouh/WaouhMatchChatList.tsx` — prop `query`, filtre
-- `src/components/waouh/statuses/StatusesPanel.tsx` — prop `query`, filtre
-
-Aucune migration DB nécessaire (le bucket `waouh-statuses` reste à créer côté Storage selon le message précédent).
+## Validation
+- Tester en base avec l’exemple `test20` : l’appel `waouh-match-history` doit retourner les 2 messages existants.
+- Vérifier que la fenêtre affiche les bulles au lieu du message “Aucun message chargé...”.
+- Vérifier qu’un nouveau message envoyé dans cette fenêtre reste bien associé au même `article_id` de statut.
