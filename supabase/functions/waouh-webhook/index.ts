@@ -1152,6 +1152,7 @@ serve(async (req) => {
               event_type: "deal_refused",
             });
           }
+          returnedArticleId = neg.article_id;
           reply = `❌ Négociation terminée. L'autre partie a été notifiée.`;
         }
       }
