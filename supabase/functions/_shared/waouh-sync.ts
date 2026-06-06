@@ -62,7 +62,9 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
     negotiationId = null, transactionId = null, dealId = null,
     template, eventType, attachments = [], imageUrl = null,
     payloadExtra = {}, forcePhoneE164 = null, dedupSuffix = "",
+    traceId: traceIdIn = null,
   } = args;
+  const traceId = traceIdIn || newTraceId();
 
   const result: PushSyncedEventResult = {
     message_id: null,
