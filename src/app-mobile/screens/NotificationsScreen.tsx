@@ -59,7 +59,7 @@ export default function NotificationsScreen() {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-background">
+    <div className="flex flex-col h-[100dvh] bg-background overflow-hidden">
       <MobileScreenHeader
         title="Notifications"
         subtitle={unread > 0 ? `${unread} message${unread > 1 ? "s" : ""} non lu${unread > 1 ? "s" : ""}` : "Tout est lu"}
