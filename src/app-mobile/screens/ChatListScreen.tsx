@@ -54,17 +54,12 @@ export default function ChatListScreen() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
 
-  // Listen for window resize -> redirect if user expands to desktop
-  useEffect(() => {
-    if (!isMobile) {
-      navigate("/waouh-chat", { replace: true });
-    }
-  }, [isMobile, navigate]);
-
-  // Synchronous first-render redirect: avoids mobile-list flash on desktop
+  // Desktop/tablet (≥768px) → render embedded WaouhChatPage inside /app shell
+  // so the BottomTabBar remains visible for navigation to Bots, WhatsApp IA, etc.
   if (typeof window !== "undefined" && window.innerWidth >= 768) {
-    return <Navigate to="/waouh-chat" replace />;
+    return <WaouhChatPage embedded />;
   }
+
 
   const { user } = useMobileAuth();
   const { profile } = useMobileProfile();
