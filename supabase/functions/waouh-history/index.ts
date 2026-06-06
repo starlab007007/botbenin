@@ -23,6 +23,7 @@ serve(async (req) => {
     const rawLimit = Number(body?.limit ?? 10);
     const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 10, 1), 200);
     const before: string | null = body?.before || null; // ISO timestamp cursor
+    const since: string | null = body?.since || null; // ISO timestamp lower bound (new-thread cutoff)
     const includeMeta = body?.includeMeta !== false; // notifications/conversations only on initial load
 
     if (!sessionId && !authUserId && !phoneNumber) {
