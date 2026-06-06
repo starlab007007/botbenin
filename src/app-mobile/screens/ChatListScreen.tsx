@@ -51,6 +51,15 @@ function formatStamp(iso: string) {
 
 export default function ChatListScreen() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
+
+  // Desktop/tablet: render the WhatsApp-style 2-column layout from WaouhChatPage
+  useEffect(() => {
+    if (!isMobile) {
+      navigate("/app/chat/waouh", { replace: true });
+    }
+  }, [isMobile, navigate]);
+
   const { user } = useMobileAuth();
   const { profile } = useMobileProfile();
   const { waouhUserIds, sessionId, ready } = useWaouhIdentity();
