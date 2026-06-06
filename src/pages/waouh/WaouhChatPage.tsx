@@ -1,10 +1,11 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { ShoppingBag, Search, Handshake, CreditCard, X, Sparkles, Info } from "lucide-react";
+import { ShoppingBag, Search, Handshake, CreditCard, X, Sparkles, Info, PanelsTopLeft, Rows3 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import WaouhWebChat, { type WaouhWebChatHandle } from "@/components/waouh/WaouhWebChat";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -68,6 +69,22 @@ const HelpContent = () => (
   </div>
 );
 
+const LAYOUT_KEY = "waouh_chat_layout_mode";
+type LayoutMode = "split" | "list";
+
+function getInitialLayout(): LayoutMode {
+  if (typeof window === "undefined") return "split";
+  const v = localStorage.getItem(LAYOUT_KEY);
+  return v === "list" ? "list" : "split";
+}
+
+function computeSidebarWidth(): number {
+  if (typeof window === "undefined") return 340;
+  const w = window.innerWidth;
+  if (w >= 1280) return 360;
+  return 320;
+}
+
 export default function WaouhChatPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -75,7 +92,20 @@ export default function WaouhChatPage() {
   const isMobile = useIsMobile();
   const sessionId = getSessionId();
   const chatRef = useRef<WaouhWebChatHandle>(null);
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>(getInitialLayout);
+  const [sidebarWidth, setSidebarWidth] = useState<number>(computeSidebarWidth);
   const { permission, requestPermission, notifications, unreadCount, markAllRead, markRead, clearAll } = useWaouhMatchNotifications(sessionId, user?.id ?? null);
+
+  useEffect(() => {
+    const onResize = () => setSidebarWidth(computeSidebarWidth());
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  const updateLayout = (mode: LayoutMode) => {
+    setLayoutMode(mode);
+    try { localStorage.setItem(LAYOUT_KEY, mode); } catch {}
+  };
 
   useEffect(() => {
     document.title = "WAOUH Chat — Achetez, Vendez, Négociez, Payez | bot.bj";
@@ -172,6 +202,43 @@ export default function WaouhChatPage() {
             <span className="w-2 h-2 rounded-full bg-emerald-500 mr-1.5 animate-pulse" />
             IA en ligne
           </Badge>
+
+          {/* Layout toggle */}
+          <TooltipProvider delayDuration={300}>
+            <div className="hidden md:inline-flex items-center rounded-md border border-border bg-background p-0.5">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant={layoutMode === "split" ? "secondary" : "ghost"}
+                    className="h-7 px-2"
+                    onClick={() => updateLayout("split")}
+                    aria-label="Vue 2 colonnes"
+                    aria-pressed={layoutMode === "split"}
+                  >
+                    <PanelsTopLeft className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>2 colonnes</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant={layoutMode === "list" ? "secondary" : "ghost"}
+                    className="h-7 px-2"
+                    onClick={() => updateLayout("list")}
+                    aria-label="Liste uniquement"
+                    aria-pressed={layoutMode === "list"}
+                  >
+                    <Rows3 className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Liste uniquement</TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
+
           {NotifButton}
           <Sheet>
             <SheetTrigger asChild>
@@ -201,9 +268,12 @@ export default function WaouhChatPage() {
         </div>
       </header>
 
-      <div className="flex-1 min-h-0 flex">
-        {/* Sidebar */}
-        <div className="hidden md:flex w-[340px] lg:w-[360px] shrink-0 h-full">
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+        {/* Sidebar — JS-driven width to avoid media-query misdetection */}
+        <div
+          className="shrink-0 h-full min-h-0 flex"
+          style={{ width: layoutMode === "list" ? "100%" : `${sidebarWidth}px` }}
+        >
           <WaouhChatSidebar
             sessionId={sessionId ?? ""}
             authUserId={user?.id ?? null}
@@ -217,11 +287,13 @@ export default function WaouhChatPage() {
         </div>
 
         {/* Chat area */}
-        <main className="flex-1 min-w-0 h-full flex flex-col bg-background">
-          <div className="flex-1 min-h-0">
-            <WaouhWebChat ref={chatRef} fullscreen />
-          </div>
-        </main>
+        {layoutMode === "split" && (
+          <main className="flex-1 min-w-0 h-full flex flex-col bg-background">
+            <div className="flex-1 min-h-0">
+              <WaouhWebChat ref={chatRef} fullscreen />
+            </div>
+          </main>
+        )}
       </div>
     </div>
   );

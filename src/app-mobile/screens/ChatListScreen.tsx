@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useMobileAuth } from "../hooks/useMobileAuth";
 import { useMobileProfile } from "../hooks/useMobileProfile";
@@ -53,12 +53,17 @@ export default function ChatListScreen() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
 
-  // Desktop/tablet: render the WhatsApp-style 2-column layout from WaouhChatPage
+  // Listen for window resize -> redirect if user expands to desktop
   useEffect(() => {
     if (!isMobile) {
       navigate("/app/chat/waouh", { replace: true });
     }
   }, [isMobile, navigate]);
+
+  // Synchronous first-render redirect: avoids mobile-list flash on desktop
+  if (typeof window !== "undefined" && window.innerWidth >= 768) {
+    return <Navigate to="/app/chat/waouh" replace />;
+  }
 
   const { user } = useMobileAuth();
   const { profile } = useMobileProfile();
