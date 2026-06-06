@@ -6,7 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { WaouhMatchChatList } from "./WaouhMatchChatList";
-import type { MatchNotification } from "@/hooks/useWaouhMatchNotifications";
+import type { WaouhNotification } from "@/hooks/useWaouhMatchNotifications";
+
+type MatchNotification = WaouhNotification;
 
 type Props = {
   sessionId: string;
