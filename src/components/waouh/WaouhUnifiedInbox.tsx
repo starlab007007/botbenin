@@ -56,6 +56,7 @@ export function WaouhUnifiedInbox({ sessionId, authUserId, triggerClassName }: P
           </SheetTitle>
         </SheetHeader>
 
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
         {items.length === 0 ? (
           <div className="p-6 text-center text-sm text-muted-foreground">
             Aucune conversation pour le moment.
@@ -71,12 +72,8 @@ export function WaouhUnifiedInbox({ sessionId, authUserId, triggerClassName }: P
                     type="button"
                     onClick={async () => {
                       await markRead(it.id);
-                      window.dispatchEvent(
-                        new CustomEvent("waouh:open-conversation", {
-                          detail: { conversationId: it.id, channel: it.channel, phone: it.phone_number },
-                        })
-                      );
                       setOpen(false);
+                      navigate(`/app/chat/${it.id}`);
                     }}
                     className={cn(
                       "w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/60 active:bg-muted",
