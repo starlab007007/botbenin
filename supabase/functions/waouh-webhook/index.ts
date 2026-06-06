@@ -1126,7 +1126,7 @@ serve(async (req) => {
               payload: { neg_id: neg.id, article_id: neg.article_id, price: agreed, actions: [] },
               directText: otherText,
               directAtts: photo ? [{ url: photo, type: "image/jpeg", caption: title }] : [],
-              directMeta: { intent: "deal_accepted", negotiation_id: neg.id },
+              directMeta: { intent: "deal_accepted", negotiation_id: neg.id, article_id: neg.article_id },
               transaction_id: null,
               dedupe_key: `deal_accepted:${neg.id}:${otherId}`,
               event_type: "deal_accepted",
