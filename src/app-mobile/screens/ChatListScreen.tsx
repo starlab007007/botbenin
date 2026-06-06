@@ -266,7 +266,7 @@ export default function ChatListScreen() {
           <div className="p-10 text-center text-muted-foreground">
             <p className="font-medium mb-1">Aucune autre conversation</p>
             <p className="text-sm mb-4">Envoyez un message à WAOUH et le Monde achète. ☝️</p>
-            <Button onClick={openWaouh} className="bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)]">
+            <Button onClick={openNewWaouh} className="bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)]">
               <Plus className="h-4 w-4 mr-1" /> Nouveau chat WAOUH
             </Button>
           </div>
