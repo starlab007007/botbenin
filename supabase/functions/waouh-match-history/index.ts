@@ -215,6 +215,7 @@ serve(async (req) => {
         sessionId,
         authUserId,
         isSeller,
+        isStatusOwner,
         notifiedForArticle,
         authoritative: authoritativeViewer,
       },
