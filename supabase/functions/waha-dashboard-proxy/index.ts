@@ -296,16 +296,13 @@ serve(async (req) => {
       responseData = { data: textResponse, type: 'text' };
     }
 
-    // Synchroniser les données avec notre base de données si c'est une requête de sessions
+    // Synchroniser les sessions en arrière-plan (ne bloque pas la réponse)
     if ((pathNormalized === '/api/sessions' || pathNormalized === '/api/v2/sessions') && finalMethod === 'GET' && wahaResponse.ok) {
-      try {
-        const sessions = Array.isArray(responseData) ? responseData : [];
-        console.log(`Synchronizing ${sessions.length} sessions with database`);
-        
-        for (const session of sessions) {
-          const { error: upsertError } = await supabase
-            .from('waha_sessions_data')
-            .upsert({
+      const sessions = Array.isArray(responseData) ? responseData : [];
+      const syncTask = (async () => {
+        try {
+          await Promise.all(sessions.map((session: any) =>
+            supabase.from('waha_sessions_data').upsert({
               session_name: session.name,
               status: session.status || 'DISCONNECTED',
               phone_number: session.config?.metadata?.phone_number || null,
@@ -314,18 +311,14 @@ serve(async (req) => {
               server_name: 'WAHA',
               last_activity: new Date().toISOString(),
               updated_at: new Date().toISOString()
-            }, { 
-              onConflict: 'session_name',
-              ignoreDuplicates: false 
-            });
-
-          if (upsertError) {
-            console.error('Error upserting session:', session.name, upsertError);
-          }
+            }, { onConflict: 'session_name', ignoreDuplicates: false })
+          ));
+        } catch (syncError) {
+          console.error('Error synchronizing sessions:', syncError);
         }
-      } catch (syncError) {
-        console.error('Error synchronizing sessions:', syncError);
-      }
+      })();
+      // @ts-ignore - EdgeRuntime is available in Supabase edge runtime
+      try { (globalThis as any).EdgeRuntime?.waitUntil?.(syncTask); } catch { /* ignore */ }
     }
 
     return new Response(JSON.stringify(responseData), {
