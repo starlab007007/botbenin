@@ -385,7 +385,6 @@ export function StatusComposer({ trigger, defaultType = "sell" }: Props) {
             </Button>
           )}
         </div>
-        </div>
 
         {zoomedIndex !== null && previews[zoomedIndex] && (
           <div
