@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
     // Load article + seller
     const { data: article } = await sb
       .from("waouh_articles")
-      .select("id, seller_id, title")
+      .select("id, seller_id, title, price")
       .eq("id", article_id)
       .maybeSingle();
     if (!article) {
