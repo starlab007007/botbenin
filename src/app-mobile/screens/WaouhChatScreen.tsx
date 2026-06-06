@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import { ShoppingBag, Info, User, MessageSquareText, Search, Handshake, ArrowLeft } from "lucide-react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { ShoppingBag, Info, User, MessageSquareText, Search, Handshake, ArrowLeft, Plus } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import WaouhWebChat, { type WaouhWebChatHandle } from "@/components/waouh/WaouhWebChat";
