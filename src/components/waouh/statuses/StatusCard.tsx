@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { type WaouhStatus } from "@/hooks/useStatuses";
 import { StatusCountdown } from "./StatusCountdown";
+import { supabase } from "@/integrations/supabase/client";
 
 const TYPE_STYLES: Record<WaouhStatus["type"], { bg: string; label: string; accent: string }> = {
   sell: {
@@ -45,7 +46,7 @@ export function StatusCard({ status, canDelete, onDelete, compact }: Props) {
   const counterpartLabel =
     status.type === "buy" ? "l'acheteur" : status.type === "announce" ? "l'annonceur" : "le vendeur";
 
-  const openChat = () => {
+  const openChat = async () => {
     const article_id = status.article_id ?? status.id;
     const kind: "buyer" | "seller" = status.type === "buy" ? "seller" : "buyer";
     const priceLine =
@@ -96,6 +97,18 @@ export function StatusCard({ status, canDelete, onDelete, compact }: Props) {
       arr.push(detail);
       localStorage.setItem("waouh_pending_open", JSON.stringify(arr.slice(-10)));
     } catch {}
+
+    // Fire real buyer-interest so the seller is notified via the standard pipeline
+    // (only when the status is backed by a real waouh_articles row and the viewer
+    // is not the status owner).
+    if (status.article_id && kind === "buyer") {
+      supabase.functions
+        .invoke("waouh-buyer-interest", {
+          body: { article_id: status.article_id, source: "status" },
+        })
+        .catch(() => {});
+    }
+
     navigate("/app/chat/waouh");
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));
