@@ -480,6 +480,20 @@ const TimelineDrawer: React.FC<{
           <div className="text-xs text-muted-foreground">
             Négo: {negotiation?.id?.slice(0, 8)} · Article: {negotiation?.article_id?.slice(0, 8)}
           </div>
+          <div className="flex items-center gap-2 mt-2">
+            <Button size="sm" variant="outline" onClick={() => loadTimeline(0, false)} disabled={loading}>
+              {loading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+              Ré-synchroniser
+            </Button>
+            <div className="flex items-center gap-2 flex-1">
+              <span className="text-[10px] text-muted-foreground">Complétude</span>
+              <Progress value={data.completeness?.pct ?? 0} className="h-1.5 flex-1" />
+              <span className={`text-xs font-mono ${(data.completeness?.pct ?? 0) >= 80 ? "text-green-600" : (data.completeness?.pct ?? 0) >= 40 ? "text-amber-600" : "text-red-600"}`}>{data.completeness?.pct ?? 0}%</span>
+            </div>
+          </div>
+          {(data.completeness?.missing || []).length > 0 && (
+            <div className="text-[10px] text-amber-600 mt-1">Étapes manquantes: {data.completeness.missing.join(", ")}</div>
+          )}
         </SheetHeader>
 
         {hasDiv && (
@@ -489,6 +503,13 @@ const TimelineDrawer: React.FC<{
               {div.messages_without_trace || 0} msg sans trace · {div.orphan_queue_items || 0} queue orphelin · {div.error_traces || 0} erreurs
             </AlertDescription>
           </Alert>
+        )}
+
+        {data.pagination?.hasMore && (
+          <Button onClick={() => loadTimeline((data.pagination?.offset || 0) + (data.pagination?.limit || 500), true)} disabled={loadingMore} variant="outline" size="sm" className="mt-2 w-full">
+            {loadingMore ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <ChevronDown className="h-3 w-3 mr-1" />}
+            Charger plus d'événements
+          </Button>
         )}
 
         <Tabs defaultValue="chain" className="mt-4">
