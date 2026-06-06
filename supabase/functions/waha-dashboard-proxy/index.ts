@@ -221,7 +221,7 @@ serve(async (req) => {
               'Accept': 'application/json'
             } as Record<string, string>;
             console.log(`➡️ QR fallback try: ${c.method} ${tryUrl}`);
-            const resp = await fetch(tryUrl, { method: c.method, headers: tryHeaders });
+            const resp = await fetchWithTimeout(tryUrl, { method: c.method, headers: tryHeaders }, 15000);
             console.log(`⬅️ QR fallback status: ${resp.status}`);
             if (resp.ok) {
               console.log('✅ QR fallback succeeded');
