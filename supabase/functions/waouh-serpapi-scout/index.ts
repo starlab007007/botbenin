@@ -1,11 +1,13 @@
 // WAOUH SerpAPI scout - moissonne annonces publiques BJ et insère dans waouh_external_listings
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getRadarApiKey, incrementRadarUsage } from "../_shared/radar-api-config.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const SERPAPI_KEY = Deno.env.get("SERPAPI_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
+let SERPAPI_KEY = "";
+let SERPAPI_CFG_ID: string | undefined;
 
 const SITES = "site:jiji.bj OR site:jumia.com.bj OR site:expat.com OR site:tonaton.com OR site:cocolib.com OR site:afribaba.bj";
 const CATEGORIES = ["smartphone", "ordinateur", "voiture", "moto", "frigo", "télévision", "meuble", "vêtement"];
