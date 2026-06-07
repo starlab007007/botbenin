@@ -75,7 +75,7 @@ export function ChatRightPane({
   // Default: main WAOUH assistant
   return (
     <div className="h-full w-full flex flex-col">
-      <WaouhWebChat ref={waouhRef} fullscreen variant="native" />
+      <WaouhWebChat ref={waouhRef} fullscreen />
     </div>
   );
 }
