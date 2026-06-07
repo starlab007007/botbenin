@@ -7050,6 +7050,123 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_radar_api_configs: {
+        Row: {
+          active: boolean
+          api_key: string | null
+          created_at: string
+          daily_quota: number
+          extra_config: Json
+          id: string
+          last_test_at: string | null
+          last_test_message: string | null
+          last_test_status: string | null
+          provider: string
+          updated_at: string
+          updated_by: string | null
+          usage_reset_at: string
+          usage_today: number
+        }
+        Insert: {
+          active?: boolean
+          api_key?: string | null
+          created_at?: string
+          daily_quota?: number
+          extra_config?: Json
+          id?: string
+          last_test_at?: string | null
+          last_test_message?: string | null
+          last_test_status?: string | null
+          provider: string
+          updated_at?: string
+          updated_by?: string | null
+          usage_reset_at?: string
+          usage_today?: number
+        }
+        Update: {
+          active?: boolean
+          api_key?: string | null
+          created_at?: string
+          daily_quota?: number
+          extra_config?: Json
+          id?: string
+          last_test_at?: string | null
+          last_test_message?: string | null
+          last_test_status?: string | null
+          provider?: string
+          updated_at?: string
+          updated_by?: string | null
+          usage_reset_at?: string
+          usage_today?: number
+        }
+        Relationships: []
+      }
+      waouh_radar_contacts: {
+        Row: {
+          auto_notify: boolean
+          categories: string[]
+          cities: string[]
+          created_at: string
+          display_name: string | null
+          first_seen_at: string
+          id: string
+          intent_buy_count: number
+          intent_sell_count: number
+          last_message_at: string | null
+          last_seen_at: string
+          metadata: Json
+          notes: string | null
+          phone_e164: string
+          signal_count: number
+          source: string | null
+          status: string
+          tags: string[]
+          updated_at: string
+        }
+        Insert: {
+          auto_notify?: boolean
+          categories?: string[]
+          cities?: string[]
+          created_at?: string
+          display_name?: string | null
+          first_seen_at?: string
+          id?: string
+          intent_buy_count?: number
+          intent_sell_count?: number
+          last_message_at?: string | null
+          last_seen_at?: string
+          metadata?: Json
+          notes?: string | null
+          phone_e164: string
+          signal_count?: number
+          source?: string | null
+          status?: string
+          tags?: string[]
+          updated_at?: string
+        }
+        Update: {
+          auto_notify?: boolean
+          categories?: string[]
+          cities?: string[]
+          created_at?: string
+          display_name?: string | null
+          first_seen_at?: string
+          id?: string
+          intent_buy_count?: number
+          intent_sell_count?: number
+          last_message_at?: string | null
+          last_seen_at?: string
+          metadata?: Json
+          notes?: string | null
+          phone_e164?: string
+          signal_count?: number
+          source?: string | null
+          status?: string
+          tags?: string[]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       waouh_radar_matches: {
         Row: {
           created_at: string
