@@ -1,68 +1,62 @@
-# Corrections WAOUH
+# Plan — Isolation stricte des messages dans WaouhMatchChatWindow
 
-## 1. Géolocalisation précise lors de la vente
+## Contexte
 
-**Problème** : `WaouhSellWizard` affiche une ville en texte libre pré-remplie avec `geo.city` (cache potentiellement périmé). Le `lat/lng` envoyé à `waouh-sell-handler` provient de `sendCore` (cache geo global) — pas de la position réelle au moment de la publication.
+Le flux WAOUH chat sync est verrouillé (mem://features/waouh-chat-sync-flow). Les corrections déjà déployées garantissent que :
+- `waouh-webhook` (branche NEGOTIATE) et `waouh-negotiation-router` écrivent `article_id` en colonne et insèrent toujours dans `waouh_messages` dès que `target.id` est connu.
+- Tous les `directMeta` (`negotiation_open`, `deal_created`, `negotiation_closed`) portent `article_id`.
 
-**Fix** :
-- Dans `WaouhSellWizard`, à l'ouverture : appeler `navigator.geolocation.getCurrentPosition` (haute précision) + invoquer `waouh-geocode` pour reverse-geocoder lat/lng → ville/quartier.
-- Afficher la ville détectée (lecture seule par défaut, bouton "Corriger" pour basculer en texte libre).
-- Capturer la `{lat, lng, city}` réelle dans le state du wizard et la passer via `onSubmit` à un nouveau paramètre.
-- Modifier `WaouhWebChat.sendCore` pour accepter un override `locationOverride` et l'envoyer à `waouh-channel-in` (qui transmet à `sell-handler`).
-- Si l'utilisateur édite la ville manuellement, re-géocoder (forward) via `waouh-geocode` pour obtenir lat/lng cohérents avant submit.
+**Reste un seul bug** : la fenêtre affiche encore des messages destinés à l'autre partie parce que `fetchArticlePage` filtre uniquement par `article_id`, sans scoper au visualisateur. Les lignes `waouh_messages` des deux parties partagent le même `article_id`.
 
-## 2. Recherche "Je cherche" : rapidité + photos
+## Symptômes
 
-**Problème** : `waouh-buy-handler` fait AI extraction synchrone, query, puis dispatch in-loop avant de répondre. Les photos manquent parfois car le champ `photos` n'est pas garanti dans la réponse `matches`.
+- **Vendeur** : voit `✅ Demande envoyée au vendeur` (qui appartient à l'acheteur).
+- **Acheteur** : voit `📩 Nouvel acheteur intéressé` et `✅ Annonce publiée` (qui appartiennent au vendeur).
 
-**Fix dans `waouh-buy-handler/index.ts`** :
-- Renvoyer la réponse au client **immédiatement après** la requête SQL des `matches` (avec `photos`, `city`, `price`, `distance_km`, `lat`, `lng`).
-- Lancer les boucles `waouh-notify-dispatch` en `EdgeRuntime.waitUntil(...)` (fire-and-forget hors du chemin critique).
-- Sélectionner explicitement `photos` + coords dans la query (`select id,title,price,photos,city,location,...`) et garantir des URLs HTTPS publiques.
-- Côté UI (`WaouhWebChat` / bulle de résultats) : précharger les images via `loading="eager"` pour les 3 premiers résultats, `lazy` ensuite ; placeholder visuel pendant chargement.
+## Correction (1 seul fichier)
 
-## 3. Distances réelles dans les résultats
+### `src/components/waouh/WaouhMatchChatWindow.tsx` — `fetchArticlePage`
 
-**Problème** : la réponse texte de `buy-handler` n'inclut pas de distance par article. Le client n'a aucun calcul.
+Ajouter un second filtre `.or()` chaîné pour ne charger que les lignes appartenant au visualisateur (sa `web_session_id` ou son `user_id` waouh) :
 
-**Fix** :
-- Dans `waouh-buy-handler`, après la query, calculer pour chaque article `distanceKm(buyerLat, buyerLng, articleLat, articleLng)` en extrayant les coords depuis `location` (PostGIS POINT) — utiliser une RPC SQL `ST_Distance` ou parser `location` après select `ST_X(location), ST_Y(location)`.
-- Ajouter `distance_km` à chaque match retourné et l'inclure dans la `reply` texte : `• Titre — 12 000 FCFA · Cotonou · 📍 2,3 km`.
-- Trier les matches par `distance_km` croissant.
-- Mettre à jour la bulle UI pour afficher la distance sous chaque carte produit.
+```ts
+let q = supabase.from("waouh_messages")
+  .select("id,direction,text,created_at,attachments,meta,article_id")
+  .or(`article_id.eq.${match.article_id},meta->>article_id.eq.${match.article_id}`)
+  .order("created_at", { ascending: false })
+  .limit(limit);
 
-## 4. Double notification vendeur (Nouvel acheteur + Demande envoyée)
+const viewerOrs: string[] = [];
+if (sessionId) viewerOrs.push(`web_session_id.eq.${sessionId}`);
+if (waouhIds.length) viewerOrs.push(`user_id.in.(${waouhIds.join(",")})`);
+if (viewerOrs.length) q = q.or(viewerOrs.join(","));
 
-**Problème** : `waouh-buyer-interest` pousse `buyer_interest_ack` (côté acheteur via `pushSyncedEvent`) ET déclenche `waouh-notify-dispatch kind=new_buyer` (côté vendeur). Mais la fenêtre `WaouhMatchChatWindow` du vendeur reçoit aussi le message "✅ Demande envoyée au vendeur" — probablement parce que `pushSyncedEvent` ou le dispatcher écrit dans `waouh_messages` avec un `user_id` qui matche aussi le vendeur, ou que la requête de chargement du match ne filtre pas le `template`.
+if (before) q = q.lt("created_at", before);
+```
 
-**Fix** :
-- Vérifier dans `WaouhMatchChatWindow` / `useWaouhMatchChats` que le chargement filtre `meta.template != 'buyer_interest_ack'` (côté vendeur).
-- Confirmer dans `waouh-buyer-interest` que `pushSyncedEvent` cible bien `user: buyerUser` uniquement (déjà le cas) — auditer s'il y a une seconde insertion via le dispatcher qui répercute l'ack vers le vendeur. Si oui, ajouter un garde `recipient !== 'seller'` pour les templates `*_ack`.
-- Seul `new_buyer` doit apparaître dans la fenêtre vendeur.
+Les deux `.or()` chaînés produisent `(filtre article) AND (filtre visualisateur)` — exactement le scope voulu.
 
-## 5. Négociation : "Je propose X" ne fonctionne pas après une contre-offre
+Le canal realtime est déjà scopé par `web_session_id` / `user_id`, donc aucune modification realtime n'est nécessaire.
 
-**Problème** : Quand le vendeur tape "je propose 50000" dans `WaouhMatchChatWindow` (ou chat principal) après avoir reçu la contre-offre, le routeur répond `Aucune négociation en cours`. La négociation existe (créée par `waouh-buyer-interest`) mais :
-- Le message passe par `waouh-webhook` (chat principal) ou par un autre chemin qui ne route pas vers `waouh-negotiation-router` pour le vendeur ; OU
-- La lookup ne match pas parce que `seller_user_id` n'est pas posé sur l'enregistrement, ou parce que l'état est resté `proposed`/`countered` mais la condition `.or(buyer_user_id.eq...,seller_user_id.eq...)` exige que `user.id` soit l'un ou l'autre — et l'`user` résolu depuis le web session peut différer de `seller_user_id` (le vendeur web est identifié par `auth_user_id`/`web_session_id` plutôt que par `phone_number`).
+## Résultat attendu
 
-**Fix** :
-- Dans `waouh-negotiation-router`, élargir la résolution du `user` : si `user_id` est null, résoudre via `web_session_id` ou `auth_user_id` en plus du `phone_number`. Idem dans `waouh-webhook` au moment de router "je propose".
-- Dans `WaouhMatchChatWindow`, quand le vendeur envoie un message, appeler explicitement `waouh-negotiation-router` avec `user_id = sellerWaouhUserId` (pas seulement `phone`).
-- Dans `waouh-webhook` (chat principal), avant de répondre "Aucune négociation en cours", tenter la même lookup élargie + fallback : si une `waouh_negotiation` existe en `proposed|countered` pour cet utilisateur (côté acheteur OU vendeur), router vers `negotiation-router` avec l'intent `price`.
-- Vérifier que la création initiale dans `waouh-buyer-interest` pose bien `seller_user_id = article.seller_id` (déjà fait) ; ajouter un index/garantie que `seller_user_id` n'est jamais null.
+- Vendeur : voit `✅ Annonce publiée`, `📩 Nouvel acheteur intéressé`, contre-offre acheteur, `🎉 Vente conclue`.
+- Acheteur : voit `✅ Demande envoyée au vendeur`, ses propres contre-offres, `🎉 Vente conclue`.
+- Plus aucune fuite cross-party.
 
-## Détails techniques
+## Hors scope
 
-**Fichiers modifiés** :
-- `src/components/waouh/WaouhSellWizard.tsx` — géoloc temps réel + reverse geocode + champ ville verrouillé/éditable
-- `src/components/waouh/WaouhWebChat.tsx` — propager `locationOverride` depuis le wizard
-- `src/app-mobile/components/native/NativeSellSheet.tsx` — même traitement géoloc
-- `supabase/functions/waouh-buy-handler/index.ts` — réponse rapide, distance par match, photos garanties, dispatch async
-- `supabase/functions/waouh-negotiation-router/index.ts` — résolution user par web_session_id/auth_user_id
-- `supabase/functions/waouh-webhook/index.ts` — fallback négociation pour vendeur + lookup élargie
-- `supabase/functions/waouh-buyer-interest/index.ts` — confirmer pas de double-écriture côté vendeur
-- `src/components/waouh/WaouhMatchChatWindow.tsx` / `useWaouhMatchChats.ts` — filtrer `*_ack` côté vendeur, router "je propose" via `negotiation-router` avec `user_id`
-- `src/components/waouh/WaouhResultsBubble.tsx` (ou équivalent) — afficher distance par carte
+- Pas de changement edge functions (déjà corrigées et verrouillées).
+- Pas de changement du chat principal, du composer, du bandeau jaune, ni du realtime.
+- Pas de migration SQL.
 
-**Aucun changement de schéma DB requis** — `waouh_negotiations.seller_user_id` et `waouh_articles.location` existent déjà.
+## Préservation du verrou
+
+L'invariant runtime (`waouhChatSyncLock.ts`) et le test `waouh-chat-sync-flow.lock.test.ts` restent inchangés : on ne touche ni au filtre realtime existant (`m?.article_id !== match.article_id && m?.meta?.article_id !== match.article_id`), ni à la suppression de la bulle `seedNotif.text`, ni au passage `authUserId`.
+
+## Validation
+
+1. Vendeur publie → fenêtre vendeur affiche `✅ Annonce publiée`, fenêtre acheteur vide.
+2. Acheteur dit `intéressé 1` → fenêtre acheteur : `✅ Demande envoyée au vendeur` uniquement ; fenêtre vendeur : ajoute `📩 Nouvel acheteur intéressé` (pas de `✅ Demande envoyée`).
+3. Acheteur `je propose 180` → fenêtre vendeur reçoit la contre-offre en realtime.
+4. Vendeur `OUI` → les deux fenêtres affichent `🎉 Vente conclue`.
