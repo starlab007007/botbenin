@@ -398,7 +398,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     }
   };
 
-  const sendCore = async (text: string, atts: Att[]) => {
+  const sendCore = async (text: string, atts: Att[], locationOverride?: { lat: number | null; lng: number | null; city: string } | null) => {
     if (!text && atts.length === 0) return;
     setSending(true);
     const now = new Date().toISOString();
@@ -408,15 +408,18 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       { id: tempInId, direction: "in", text: text || "(image)", created_at: now, attachments: atts },
     ]);
     try {
+      const effLat = locationOverride?.lat ?? geo.lat;
+      const effLng = locationOverride?.lng ?? geo.lng;
+      const effCity = (locationOverride?.city && locationOverride.city.trim()) || geo.city;
       const { data, error } = await supabase.functions.invoke("waouh-channel-in", {
         body: {
           channel: "web",
           sessionId,
           text,
           attachments: atts,
-          lat: geo.lat,
-          lng: geo.lng,
-          city: geo.city,
+          lat: effLat,
+          lng: effLng,
+          city: effCity,
           authUserId: user?.id ?? null,
         },
       });
