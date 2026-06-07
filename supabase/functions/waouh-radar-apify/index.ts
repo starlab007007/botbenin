@@ -1,11 +1,13 @@
 // WAOUH Radar — moissonne Facebook Marketplace + groupes publics via Apify
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getRadarApiKey, incrementRadarUsage } from "../_shared/radar-api-config.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const APIFY_TOKEN = Deno.env.get("APIFY_TOKEN")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
+let APIFY_TOKEN = "";
+let APIFY_CFG_ID: string | undefined;
 
 const ACTORS = {
   fb_marketplace: "apify~facebook-marketplace-scraper",
