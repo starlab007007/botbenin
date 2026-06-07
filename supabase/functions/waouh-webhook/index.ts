@@ -848,46 +848,56 @@ serve(async (req) => {
         reply = `${waouhHeader(`🎯 Top ${totalShown} annonce${totalShown > 1 ? "s" : ""} trouvée${totalShown > 1 ? "s" : ""}`)}\n\n${[partnerList, officialList, radarList].filter(Boolean).join(`\n\n${waouhSep}\n\n`)}\n\n${waouhSep}\n\n💡 Pour discuter avec un vendeur, répondez : ${interestList}.${radarHint}\n\n${waouhFooter()}`;
         // Pas de boutons : tout passe par texte (intéressé 1, intéressé 2, …)
         returnedActions = [];
-        const promotedRadarMatches: any[] = [];
-        for (const r of radarSellers) {
-          const art = r._from_external
-            ? await promoteExternalListing(sb, r, criteriaCategory)
-            : await promoteRadarSeller(sb, r, criteriaCategory);
-          if (art?.id) promotedRadarMatches.push({ ...art, radar: true });
-        }
+        // Promotion radar + outreach: déférés via EdgeRuntime.waitUntil pour ne PAS
+        // ralentir la réponse au chat. La liste affichée (combinedMatches) reflète
+        // les matches officiels + partenaires immédiatement; les promotions radar
+        // arrivent en background et seront visibles au prochain message.
         const combinedMatches = [
           ...partnerTop.map((p: any) => ({ id: p.id, title: `🏪 ${p.titre}`, price: Number(p.prix_min || p.prix_max || 0), seller_id: null, partner_id: p.partner_id, business_id: p.business_id, vendeur_phone: p.vendeur_phone, vendeur_whatsapp: p.vendeur_whatsapp, photos: p.photos, source: "partner" })),
           ...(matches || []).map((m: any) => ({ id: m.id, title: m.title, price: m.price, seller_id: m.seller_id, photos: m.photos, market_price_min: m.market_price_min, market_price_max: m.market_price_max })),
-          ...promotedRadarMatches.map((m: any) => ({ id: m.id, title: `🛰️ ${m.title}`, price: m.price, seller_id: m.seller_id, photos: m.photos, market_price_min: m.market_price_min, market_price_max: m.market_price_max })),
         ];
         nextContext = { ...nextContext, last_matches: combinedMatches };
 
-        // 🚀 Outreach automatique WhatsApp aux vendeurs Radar IA (anti-spam: 1/24h)
-        for (const r of radarSellers) {
-          const e164 = normalizeBeninPhone(r.contact_phone || r.raw_text || r.contact_handle);
-          if (!e164) continue;
-          // Anti-spam: ne pas re-contacter si déjà notifié dans les 24h
-          const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-          const { data: recent } = await sb.from("waouh_outbound_queue")
-            .select("id").eq("to_phone", e164).eq("template", "radar_seller_outreach")
-            .gte("created_at", since).limit(1).maybeSingle();
-          if (recent) continue;
-          const title = r.product?.title || (r.raw_text || "").slice(0, 60) || "votre annonce";
-          const priceTxt = r.price ? ` à ${fmt(Number(r.price))}` : "";
+        const radarAsync = (async () => {
           try {
-            await sb.rpc("waouh_enqueue_outbound_v2", {
-              p_to_phone: e164,
-              p_to_user_id: null,
-              p_template: "radar_seller_outreach",
-              p_payload: {
-                text: `👋 Bonjour ! WAOUH a détecté votre annonce "${title}"${priceTxt}. Un acheteur dans ${user!.city || "votre zone"} est intéressé. Répondez *OUI* pour être mis en relation directement avec lui via WAOUH.`,
-                radar_signal_id: r.id,
-                source_url: r.raw_url,
-              },
-              p_channel: "whatsapp",
-              p_image_url: extractProductPhotos(r)[0] ?? null,
-            });
-          } catch (e) { console.warn("[radar outreach]", e); }
+            for (const r of radarSellers) {
+              try {
+                const art = r._from_external
+                  ? await promoteExternalListing(sb, r, criteriaCategory)
+                  : await promoteRadarSeller(sb, r, criteriaCategory);
+                if (!art?.id) continue;
+              } catch (e) { console.warn("[radar promote]", e); }
+              // 🚀 Outreach automatique WhatsApp aux vendeurs Radar IA (anti-spam: 1/24h)
+              const e164 = normalizeBeninPhone(r.contact_phone || r.raw_text || r.contact_handle);
+              if (!e164) continue;
+              const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+              const { data: recent } = await sb.from("waouh_outbound_queue")
+                .select("id").eq("to_phone", e164).eq("template", "radar_seller_outreach")
+                .gte("created_at", since).limit(1).maybeSingle();
+              if (recent) continue;
+              const title = r.product?.title || (r.raw_text || "").slice(0, 60) || "votre annonce";
+              const priceTxt = r.price ? ` à ${fmt(Number(r.price))}` : "";
+              try {
+                await sb.rpc("waouh_enqueue_outbound_v2", {
+                  p_to_phone: e164,
+                  p_to_user_id: null,
+                  p_template: "radar_seller_outreach",
+                  p_payload: {
+                    text: `👋 Bonjour ! WAOUH a détecté votre annonce "${title}"${priceTxt}. Un acheteur dans ${user!.city || "votre zone"} est intéressé. Répondez *OUI* pour être mis en relation directement avec lui via WAOUH.`,
+                    radar_signal_id: r.id,
+                    source_url: r.raw_url,
+                  },
+                  p_channel: "whatsapp",
+                  p_image_url: extractProductPhotos(r)[0] ?? null,
+                });
+              } catch (e) { console.warn("[radar outreach]", e); }
+            }
+          } catch (e) { console.warn("[radar async block]", e); }
+        })();
+        // @ts-ignore - EdgeRuntime fourni par Supabase
+        if (typeof EdgeRuntime !== "undefined" && (EdgeRuntime as any).waitUntil) {
+          // @ts-ignore
+          (EdgeRuntime as any).waitUntil(radarAsync);
         }
       }
     } else if (intent.intent === "CONFIRM" && intent.article_index) {
