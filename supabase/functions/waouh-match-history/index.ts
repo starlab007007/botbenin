@@ -141,13 +141,33 @@ serve(async (req) => {
     //    article, return the full article-scoped history (both sides
     //    already separated by `direction` and ownership on the client UI).
     //    Otherwise fall back to strict per-viewer ownership.
-    const rows = authoritativeViewer
+    // Self-acknowledgement templates: bulles confirmant à l'expéditeur que
+    // SON action a bien été enregistrée. Elles ne doivent JAMAIS apparaître
+    // chez l'autre partie (ex: le vendeur ne doit pas voir "✅ Demande
+    // envoyée au vendeur" qui est l'ack écrit côté acheteur).
+    const SELF_ACK_TEMPLATES = new Set([
+      "buyer_interest_ack",
+      "negotiation_ack",
+      "payment_ack",
+      "sale_published",
+    ]);
+    const isSelfAck = (m: any) => {
+      const tpl = m?.meta?.template;
+      if (!tpl) return false;
+      if (SELF_ACK_TEMPLATES.has(tpl)) return true;
+      return typeof tpl === "string" && /_ack$/.test(tpl);
+    };
+    const viewerOwnsMessage = (m: any) => {
+      if (sessionId && m.web_session_id === sessionId) return true;
+      if (m.user_id && userIdSet.has(m.user_id)) return true;
+      return false;
+    };
+
+    const baseRows = authoritativeViewer
       ? allRows
-      : allRows.filter((m: any) => {
-          if (sessionId && m.web_session_id === sessionId) return true;
-          if (m.user_id && userIdSet.has(m.user_id)) return true;
-          return false;
-        });
+      : allRows.filter(viewerOwnsMessage);
+    // Strip self-ack messages that don't belong to the current viewer.
+    const rows = baseRows.filter((m: any) => !isSelfAck(m) || viewerOwnsMessage(m));
     const messages = rows.slice().reverse(); // ASC for client
     const hasMore = allRows.length === limit;
 
