@@ -248,18 +248,20 @@ export default function ChatListScreen() {
               </Button>
             ) : (
               <>
-                <button
-                  onClick={() => navigate("/app/notifications")}
-                  className="relative p-2 rounded-full hover:bg-white/15 active:bg-white/20"
-                  aria-label="Notifications"
-                >
-                  <Bell className="h-5 w-5" />
-                  {notifUnread > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none shadow">
-                      {notifUnread > 99 ? "99+" : notifUnread}
-                    </span>
-                  )}
-                </button>
+                <div className="[&_button]:text-white [&_button:hover]:bg-white/15">
+                  <WaouhUnifiedInbox sessionId={sessionId ?? ""} authUserId={user?.id ?? null} />
+                </div>
+                <div className="[&_button]:text-white [&_button:hover]:bg-white/15">
+                  <WaouhNotificationsBell
+                    permission={permission}
+                    notifications={waouhNotifs}
+                    unreadCount={waouhUnread}
+                    onRequestPermission={requestPermission}
+                    onMarkAllRead={waouhMarkAllRead}
+                    onMarkRead={waouhMarkRead}
+                    onClearAll={waouhClearAll}
+                  />
+                </div>
                 <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={openNewWaouh} aria-label="Nouveau chat WAOUH">
                   <Plus className="h-5 w-5" />
                 </Button>
