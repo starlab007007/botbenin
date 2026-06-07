@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, RefreshCw, Play, Send, AlertTriangle } from "lucide-react";
+import RadarContactsTab from "@/components/admin/RadarContactsTab";
 
 type QueueRow = {
   id: string; status: string; event_type: string | null; template: string | null;
