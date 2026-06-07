@@ -1,62 +1,73 @@
-# Plan — Isolation stricte des messages dans WaouhMatchChatWindow
+# WAOUH — Photos de recherche + robustesse & performance du chat
 
-## Contexte
+## Diagnostic
 
-Le flux WAOUH chat sync est verrouillé (mem://features/waouh-chat-sync-flow). Les corrections déjà déployées garantissent que :
-- `waouh-webhook` (branche NEGOTIATE) et `waouh-negotiation-router` écrivent `article_id` en colonne et insèrent toujours dans `waouh_messages` dès que `target.id` est connu.
-- Tous les `directMeta` (`negotiation_open`, `deal_created`, `negotiation_closed`) portent `article_id`.
+### 1. Photos absentes dans les résultats de recherche
+- `waouh-webhook` (lignes ~817-840) construit déjà `replyAttachments` à partir de `photos[]`, mais filtre via `isPublicImageUrl` qui rejette tout ce qui contient `waha.bot.bj` ou `/api/files/`.
+- En BD, les photos des articles web sont des URLs publiques Supabase Storage : elles passeraient le filtre… **mais** la réponse texte est sortie via `core.reply` et les `attachments` ne sont propagés que si `waouh-webhook` les retourne dans son JSON. À vérifier : la branche "search" met `replyAttachments` en variable locale mais le retour final doit inclure `attachments: replyAttachments`. Si la réponse JSON ne contient pas `attachments`, `waouh-channel-in` enregistre `attachments: []` ⇒ aucune image dans la bulle.
+- `waouh-buy-handler` (chemin alternatif appelé directement par le mobile) ne retourne pas non plus de `matches[].photos[0]` sous forme d'attachments exploitables par le chat.
+- Le `WaouhWebChat` rend déjà `m.attachments` en grille (lignes 610-621) : il suffit de garantir que les attachments arrivent.
 
-**Reste un seul bug** : la fenêtre affiche encore des messages destinés à l'autre partie parce que `fetchArticlePage` filtre uniquement par `article_id`, sans scoper au visualisateur. Les lignes `waouh_messages` des deux parties partagent le même `article_id`.
+### 2. Lenteur du chargement (réponses + photos)
+- `waouh-webhook` exécute en **séquentiel** dans la boucle "officialList" : `marketNote()` (appel IA Gateway) + `rpc("waouh_point_distance_km")` par article. Pour 5 articles ⇒ ~5 appels IA sérialisés (déjà `Promise.all` côté map mais chaque `marketNote` peut prendre 1-3s).
+- `radarSellers` outreach + `promoteRadarSeller` sont aussi exécutés **avant** la réponse alors qu'ils peuvent être différés via `EdgeRuntime.waitUntil`.
+- Côté client, `WaouhWebChat` charge les images sans `loading="lazy"` ni `decoding="async"` ni dimensions explicites.
 
-## Symptômes
+### 3. Persistance fragile par article
+- Les photos sont bien en BD (`waouh_articles.photos`) mais l'historique chat (`waouh_messages.attachments`) ne stocke pas systématiquement les URLs de la liste de résultats. Au refresh, les images disparaissent de l'historique.
 
-- **Vendeur** : voit `✅ Demande envoyée au vendeur` (qui appartient à l'acheteur).
-- **Acheteur** : voit `📩 Nouvel acheteur intéressé` et `✅ Annonce publiée` (qui appartiennent au vendeur).
+### 4. Flux chat (déjà verrouillé)
+- Le contrat `WAOUH Chat Sync Flow (Locked)` interdit de toucher au mapping principal ↔ `WaouhMatchChatWindow`. Les modifications ci-dessous sont **additives** (attachments, lazy-loading, `waitUntil`) et ne changent pas la logique de routage/ownership déjà testée.
 
-## Correction (1 seul fichier)
+## Plan
 
-### `src/components/waouh/WaouhMatchChatWindow.tsx` — `fetchArticlePage`
+### A. `supabase/functions/waouh-webhook/index.ts`
+1. **Garantir que `replyAttachments` est inclus dans la réponse JSON** pour TOUTES les branches (search, sale_published, etc.). Vérifier la sérialisation finale et ajouter `attachments: replyAttachments` si manquant.
+2. **Assouplir `isPublicImageUrl`** : autoriser aussi les URLs Supabase Storage signées + les URLs `waha.bot.bj` rehébergées (ou les rehéberger via le bucket `waouh-uploads` au moment du match). Concrètement, ne filtrer que les blobs/data URIs et les schémas non-http.
+3. **Paralléliser** les `marketNote()` et `rpc("waouh_point_distance_km")` via un seul `Promise.all` global sur `[...partnerTop, ...matchesTop]` au lieu de séquences imbriquées.
+4. **Différer l'outreach Radar IA** (`waouh_enqueue_outbound_v2` + `promoteRadarSeller`) via `EdgeRuntime.waitUntil(...)` pour ne pas retarder la réponse au chat.
 
-Ajouter un second filtre `.or()` chaîné pour ne charger que les lignes appartenant au visualisateur (sa `web_session_id` ou son `user_id` waouh) :
+### B. `supabase/functions/waouh-buy-handler/index.ts`
+1. Ajouter dans la réponse `matches[]` la clé `cover_photo` (= `photos[0]`) et un tableau `attachments` parallèle au format `{url, type:"image/jpeg", caption:title}` pour les 5 premiers résultats, afin que le frontend puisse l'afficher de la même manière que le chat principal.
+2. Différer `dispatchAsync` est déjà fait — OK.
 
-```ts
-let q = supabase.from("waouh_messages")
-  .select("id,direction,text,created_at,attachments,meta,article_id")
-  .or(`article_id.eq.${match.article_id},meta->>article_id.eq.${match.article_id}`)
-  .order("created_at", { ascending: false })
-  .limit(limit);
+### C. `supabase/functions/waouh-channel-in/index.ts`
+1. Vérifier que `core.attachments` (renvoyé par `waouh-webhook`) est bien propagé dans :
+   - l'insert `waouh_messages.attachments` (pour la persistance)
+   - la réponse JSON au client (déjà fait via `attachments: negAttachments` côté négociation, à généraliser au core path).
+2. S'assurer que `waouh-match-history` retourne `attachments` (la colonne est déjà sélectionnée) — RAS, juste vérifier qu'on ne les filtre pas.
 
-const viewerOrs: string[] = [];
-if (sessionId) viewerOrs.push(`web_session_id.eq.${sessionId}`);
-if (waouhIds.length) viewerOrs.push(`user_id.in.(${waouhIds.join(",")})`);
-if (viewerOrs.length) q = q.or(viewerOrs.join(","));
+### D. `src/components/waouh/WaouhWebChat.tsx`
+1. Sur les `<img>` des attachments (lignes 610-621), ajouter :
+   - `loading="lazy"` `decoding="async"`
+   - `width`/`height` explicites (placeholder ratio 1:1) pour éviter le CLS
+   - `srcSet` Supabase transform (`?width=320` pour thumbnail, plein écran via gallery existante)
+2. Sur la prévisualisation des résultats inline (lignes ~650+ "Pas d'image"), utiliser `photos[0]` comme cover en `<img loading="lazy">`.
+3. Ajouter une intersection-observer cache pour éviter de re-décoder une image déjà vue dans la session.
 
-if (before) q = q.lt("created_at", before);
+### E. `src/components/waouh/WaouhMatchChatWindow.tsx`
+1. Mêmes optimisations d'`<img>` (lazy + dimensions).
+2. Pas de modification de la logique de sync (verrou en place).
+
+### F. Performance globale
+- Aucun changement DB requis (les photos sont déjà persistées dans `waouh_articles.photos` et `waouh_messages.attachments`).
+- Pas de migration.
+
+## Détails techniques
+
+```text
+Flux corrigé :
+client → channel-in → webhook (search)
+                      ├─ Promise.all([marketNote × N, distance × N])
+                      ├─ replyAttachments = photos[] filtrés (URLs http(s) valides)
+                      ├─ EdgeRuntime.waitUntil(radarOutreach + promote)
+                      └─ return { reply, attachments: replyAttachments }
+        ← channel-in insert waouh_messages(attachments=...) + return { attachments }
+client ← rend bulle texte + grille d'images (lazy)
 ```
 
-Les deux `.or()` chaînés produisent `(filtre article) AND (filtre visualisateur)` — exactement le scope voulu.
-
-Le canal realtime est déjà scopé par `web_session_id` / `user_id`, donc aucune modification realtime n'est nécessaire.
-
-## Résultat attendu
-
-- Vendeur : voit `✅ Annonce publiée`, `📩 Nouvel acheteur intéressé`, contre-offre acheteur, `🎉 Vente conclue`.
-- Acheteur : voit `✅ Demande envoyée au vendeur`, ses propres contre-offres, `🎉 Vente conclue`.
-- Plus aucune fuite cross-party.
-
-## Hors scope
-
-- Pas de changement edge functions (déjà corrigées et verrouillées).
-- Pas de changement du chat principal, du composer, du bandeau jaune, ni du realtime.
-- Pas de migration SQL.
-
-## Préservation du verrou
-
-L'invariant runtime (`waouhChatSyncLock.ts`) et le test `waouh-chat-sync-flow.lock.test.ts` restent inchangés : on ne touche ni au filtre realtime existant (`m?.article_id !== match.article_id && m?.meta?.article_id !== match.article_id`), ni à la suppression de la bulle `seedNotif.text`, ni au passage `authUserId`.
-
-## Validation
-
-1. Vendeur publie → fenêtre vendeur affiche `✅ Annonce publiée`, fenêtre acheteur vide.
-2. Acheteur dit `intéressé 1` → fenêtre acheteur : `✅ Demande envoyée au vendeur` uniquement ; fenêtre vendeur : ajoute `📩 Nouvel acheteur intéressé` (pas de `✅ Demande envoyée`).
-3. Acheteur `je propose 180` → fenêtre vendeur reçoit la contre-offre en realtime.
-4. Vendeur `OUI` → les deux fenêtres affichent `🎉 Vente conclue`.
+## Hors périmètre
+- Pas de refonte du contrat de sync chat principal ↔ WaouhMatchChatWindow (verrouillé).
+- Pas de changement de schéma BD.
+- Pas de modification de la géolocalisation (déjà OK selon dernier passage).
+- Pas de touchage aux edge functions de paiement / négociation core (uniquement propagation d'`attachments`).

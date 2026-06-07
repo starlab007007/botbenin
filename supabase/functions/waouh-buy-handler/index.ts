@@ -148,14 +148,30 @@ Deno.serve(async (req) => {
       (EdgeRuntime as any).waitUntil(dispatchAsync);
     }
 
-    const reply = matches.length
-      ? `🔎 ${matches.length} résultat(s):\n` + matches.slice(0, 5).map((a: any) => {
+    // Enrichir chaque match avec une cover_photo (1ère photo http(s))
+    const isHttpUrl = (u: any) => typeof u === "string" && /^https?:\/\//i.test(u) && !/^data:|^blob:/i.test(u);
+    const enrichedMatches = matches.map((a: any) => ({
+      ...a,
+      cover_photo: Array.isArray(a.photos) ? (a.photos.find(isHttpUrl) ?? null) : null,
+    }));
+    // Attachments parallèles (jusqu'à 12) pour rendu image inline dans le chat
+    const reply_attachments = enrichedMatches.slice(0, 5).flatMap((a: any) => {
+      const photos: string[] = Array.isArray(a.photos) ? a.photos.filter(isHttpUrl) : [];
+      return photos.slice(0, 4).map((url, k) => ({
+        url,
+        type: "image/jpeg",
+        caption: `${a.title || "Produit"}${photos.length > 1 ? ` — photo ${k + 1}/${photos.length}` : ""}`,
+      }));
+    }).slice(0, 12);
+
+    const reply = enrichedMatches.length
+      ? `🔎 ${enrichedMatches.length} résultat(s):\n` + enrichedMatches.slice(0, 5).map((a: any) => {
           const dist = a.distance_km != null ? ` · ${formatDistance(a.distance_km).replace(/^📏\s*\*?|\*?$/g, '')}` : '';
           return `• ${a.title} - ${a.price} FCFA (${a.city || 'N/A'})${dist}`;
         }).join('\n')
       : `🕵️ Aucun résultat pour le moment. Tu seras notifié dès qu\'une annonce correspond.`;
 
-    return new Response(JSON.stringify({ success: true, matches, reply }), {
+    return new Response(JSON.stringify({ success: true, matches: enrichedMatches, reply, attachments: reply_attachments }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (e) {

@@ -442,6 +442,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       // Realtime delivers persisted rows; no full reload needed.
 
       if ((data as any)?.reply) {
+        const replyAtts = Array.isArray((data as any)?.attachments) ? (data as any).attachments : null;
         setMessages((prev) => {
           const hasFresh = prev.some((m) => m.direction === "out" && m.created_at && new Date(m.created_at).getTime() > Date.now() - 15000);
           if (hasFresh) return prev;
@@ -452,7 +453,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
               direction: "out",
               text: (data as any).reply,
               created_at: new Date().toISOString(),
-              attachments: null,
+              attachments: replyAtts,
               meta: { intent: (data as any).intent ?? null, transaction_id: (data as any).transaction_id ?? null },
             },
           ];
