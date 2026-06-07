@@ -211,6 +211,8 @@ export default function ChatListScreen() {
     }
   };
   const { unread: notifUnread } = useNotifications();
+  const { permission, requestPermission, notifications: waouhNotifs, unreadCount: waouhUnread, markAllRead: waouhMarkAllRead, markRead: waouhMarkRead, clearAll: waouhClearAll } =
+    useWaouhMatchNotifications(sessionId ?? "", user?.id ?? null);
 
   const listContent = (
     <>
