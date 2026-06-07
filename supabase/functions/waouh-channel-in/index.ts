@@ -401,14 +401,45 @@ serve(async (req) => {
 
 
 
-    // Negotiation routing : si l'utilisateur a une négo ouverte, route vers negotiation-router
-    const { data: openNeg } = await sb
-      .from("waouh_negotiations")
-      .select("id")
-      .or(`buyer_user_id.eq.${user.id},seller_user_id.eq.${user.id}`)
-      .in("state", ["proposed", "countered"])
-      .limit(1)
-      .maybeSingle();
+    // Negotiation routing : si l'utilisateur a une négo ouverte, route vers negotiation-router.
+    // IMPORTANT : quand le message vient de WaouhMatchChatWindow (meta.article_id + meta.role),
+    // l'utilisateur web courant peut être un waouh_users DIFFÉRENT de celui qui possède la
+    // négociation (sessions multiples, auth_user_id non lié). On fait donc une lookup
+    // scoped par article_id + rôle, et on transmet le user_id réel de la négo à
+    // negotiation-router pour qu'il ne réponde jamais "Aucune négociation en cours".
+    const metaArticleId: string | null = clientMeta?.article_id ?? null;
+    const metaRole: "buyer" | "seller" | null =
+      clientMeta?.role === "seller" || clientMeta?.role === "buyer" ? clientMeta.role : null;
+
+    let openNeg: { id: string; buyer_user_id: string | null; seller_user_id: string | null } | null = null;
+
+    if (metaArticleId) {
+      const { data } = await sb
+        .from("waouh_negotiations")
+        .select("id, buyer_user_id, seller_user_id")
+        .eq("article_id", metaArticleId)
+        .in("state", ["proposed", "countered"])
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      openNeg = data as any;
+    }
+    if (!openNeg) {
+      const { data } = await sb
+        .from("waouh_negotiations")
+        .select("id, buyer_user_id, seller_user_id")
+        .or(`buyer_user_id.eq.${user.id},seller_user_id.eq.${user.id}`)
+        .in("state", ["proposed", "countered"])
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      openNeg = data as any;
+    }
+
+    const negUserId: string =
+      (openNeg && metaRole === "seller" && openNeg.seller_user_id) ||
+      (openNeg && metaRole === "buyer" && openNeg.buyer_user_id) ||
+      user.id;
 
     const lowerText = (text || "").toLowerCase();
     const shouldStayInCore = /(?:int[ée]ress[ée]|interesse)\s*(?:n[°o]?\s*)?(?:x|\d+)|\b(?:je\s+)?(?:cherche|vends)\b/i.test(lowerText);
@@ -417,7 +448,7 @@ serve(async (req) => {
       const negRes = await fetch(`${SUPABASE_URL}/functions/v1/waouh-negotiation-router`, {
         method: "POST",
         headers: { Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, text, user_id: user.id }),
+        body: JSON.stringify({ phone, text, user_id: negUserId }),
       });
       const negData = await negRes.json().catch(() => ({}));
       const negReply = negData?.reply || "OK";
