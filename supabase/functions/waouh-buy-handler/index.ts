@@ -128,18 +128,17 @@ Deno.serve(async (req) => {
     });
     const matches = enriched.slice(0, 10);
 
-    // Fire-and-forget seller/buyer notifications — never blocks the response.
+    // Fire-and-forget BUYER-side match notifications only.
+    // We intentionally do NOT dispatch `new_buyer` to the seller here:
+    // a keyword search is not an explicit interest. The seller is only
+    // notified when the buyer clicks "Intéressé" (waouh-buyer-interest)
+    // or sends a real chat message tagged with article_id (waouh-channel-in).
     const dispatchAsync = (async () => {
       for (const a of matches.slice(0, 5)) {
         fetch(`${SUPABASE_URL}/functions/v1/waouh-notify-dispatch`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${SERVICE_ROLE}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ kind: 'match', article_id: a.id, buyer_profile_id: profile?.id, recipient: 'buyer' }),
-        }).catch(() => {});
-        fetch(`${SUPABASE_URL}/functions/v1/waouh-notify-dispatch`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${SERVICE_ROLE}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ kind: 'new_buyer', article_id: a.id, buyer_profile_id: profile?.id, recipient: 'seller' }),
         }).catch(() => {});
       }
     })();
