@@ -286,9 +286,20 @@ export function WaouhMatchChatWindow({
   useEffect(() => {
     if (!match.article_id) return;
     const suffix = Math.random().toString(36).slice(2, 6);
+    const SELF_ACK_TEMPLATES = new Set([
+      "buyer_interest_ack", "negotiation_ack", "payment_ack", "sale_published",
+    ]);
     const handle = (payload: any) => {
       const m = payload.new;
       if (m?.article_id !== match.article_id && m?.meta?.article_id !== match.article_id) return;
+      // Drop self-ack templates that belong to the OTHER party (the seller
+      // must not see the buyer's "✅ Demande envoyée au vendeur").
+      const tpl = m?.meta?.template;
+      const isSelfAck = !!tpl && (SELF_ACK_TEMPLATES.has(tpl) || /_ack$/.test(tpl));
+      const ownedByViewer =
+        (sessionId && m.web_session_id === sessionId) ||
+        (m.user_id && waouhIds.includes(m.user_id));
+      if (isSelfAck && !ownedByViewer) return;
       setMessages((prev) => {
         if (prev.find((x) => x.id === m.id)) return prev;
         const tempIdx = prev.findIndex(
