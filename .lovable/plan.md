@@ -1,128 +1,68 @@
-# Objectif
+# Corrections WAOUH
 
-Sur desktop/tablette (≥ 768 px), `/app/chat` doit afficher **exactement la même page que la capture jointe** (`ChatListScreen` : en-tête vert, recherche, onglets Discussions/Statuts·24h, WAOUH épinglé, conversations produit, liste, archives) **mais présentée en 2 colonnes style WhatsApp Web** :
+## 1. Géolocalisation précise lors de la vente
 
-```text
-┌──────────────────────────┬───────────────────────────────────────────┐
-│  Colonne gauche (~380px) │  Colonne droite (flex-1)                  │
-│  = ChatListScreen actuel │  = Panneau de chat actif                  │
-│  (header vert, search,   │  (WAOUH par défaut, ou conv sélectionnée, │
-│   tabs, listes, statuts) │   ou match produit, ou statut)            │
-└──────────────────────────┴───────────────────────────────────────────┘
-+ BottomTabBar /app en bas (inchangé)
-```
+**Problème** : `WaouhSellWizard` affiche une ville en texte libre pré-remplie avec `geo.city` (cache potentiellement périmé). Le `lat/lng` envoyé à `waouh-sell-handler` provient de `sendCore` (cache geo global) — pas de la position réelle au moment de la publication.
 
-Mobile (< 768 px) : aucun changement, `ChatListScreen` reste plein écran avec navigation vers `/app/chat/:id` ou `/app/chat/waouh`.
+**Fix** :
+- Dans `WaouhSellWizard`, à l'ouverture : appeler `navigator.geolocation.getCurrentPosition` (haute précision) + invoquer `waouh-geocode` pour reverse-geocoder lat/lng → ville/quartier.
+- Afficher la ville détectée (lecture seule par défaut, bouton "Corriger" pour basculer en texte libre).
+- Capturer la `{lat, lng, city}` réelle dans le state du wizard et la passer via `onSubmit` à un nouveau paramètre.
+- Modifier `WaouhWebChat.sendCore` pour accepter un override `locationOverride` et l'envoyer à `waouh-channel-in` (qui transmet à `sell-handler`).
+- Si l'utilisateur édite la ville manuellement, re-géocoder (forward) via `waouh-geocode` pour obtenir lat/lng cohérents avant submit.
 
-**Pas de changement de fond** : aucune modification de la BDD, des hooks (`useWaouhIdentity`, `useUnreadCounts`, `useNotifications`), des composants de chat (`WaouhWebChat`, `WaouhMatchChatWindow`, `ChatScreen`), du `StatusesPanel`, ni des routes existantes.
+## 2. Recherche "Je cherche" : rapidité + photos
 
-# Diagnostic
+**Problème** : `waouh-buy-handler` fait AI extraction synchrone, query, puis dispatch in-loop avant de répondre. Les photos manquent parfois car le champ `photos` n'est pas garanti dans la réponse `matches`.
 
-Actuellement (`src/app-mobile/screens/ChatListScreen.tsx` lignes 57-61) :
+**Fix dans `waouh-buy-handler/index.ts`** :
+- Renvoyer la réponse au client **immédiatement après** la requête SQL des `matches` (avec `photos`, `city`, `price`, `distance_km`, `lat`, `lng`).
+- Lancer les boucles `waouh-notify-dispatch` en `EdgeRuntime.waitUntil(...)` (fire-and-forget hors du chemin critique).
+- Sélectionner explicitement `photos` + coords dans la query (`select id,title,price,photos,city,location,...`) et garantir des URLs HTTPS publiques.
+- Côté UI (`WaouhWebChat` / bulle de résultats) : précharger les images via `loading="eager"` pour les 3 premiers résultats, `lazy` ensuite ; placeholder visuel pendant chargement.
 
-```tsx
-if (typeof window !== "undefined" && window.innerWidth >= 768) {
-  return <WaouhChatPage embedded />;
-}
-```
+## 3. Distances réelles dans les résultats
 
-→ Sur desktop, `/app/chat` rend `WaouhChatPage` (sidebar WAOUH des conversations produit + chat 2 colonnes) **au lieu** de la page de la capture (ChatListScreen avec onglets Discussions/Statuts, WAOUH épinglé, archives, etc.).
+**Problème** : la réponse texte de `buy-handler` n'inclut pas de distance par article. Le client n'a aucun calcul.
 
-L'utilisateur veut l'inverse : garder la page de la capture comme **colonne gauche** et ouvrir un **panneau de droite** pour le chat actif.
+**Fix** :
+- Dans `waouh-buy-handler`, après la query, calculer pour chaque article `distanceKm(buyerLat, buyerLng, articleLat, articleLng)` en extrayant les coords depuis `location` (PostGIS POINT) — utiliser une RPC SQL `ST_Distance` ou parser `location` après select `ST_X(location), ST_Y(location)`.
+- Ajouter `distance_km` à chaque match retourné et l'inclure dans la `reply` texte : `• Titre — 12 000 FCFA · Cotonou · 📍 2,3 km`.
+- Trier les matches par `distance_km` croissant.
+- Mettre à jour la bulle UI pour afficher la distance sous chaque carte produit.
 
-# Cible
+## 4. Double notification vendeur (Nouvel acheteur + Demande envoyée)
 
-## 1. `src/app-mobile/screens/ChatListScreen.tsx`
+**Problème** : `waouh-buyer-interest` pousse `buyer_interest_ack` (côté acheteur via `pushSyncedEvent`) ET déclenche `waouh-notify-dispatch kind=new_buyer` (côté vendeur). Mais la fenêtre `WaouhMatchChatWindow` du vendeur reçoit aussi le message "✅ Demande envoyée au vendeur" — probablement parce que `pushSyncedEvent` ou le dispatcher écrit dans `waouh_messages` avec un `user_id` qui matche aussi le vendeur, ou que la requête de chargement du match ne filtre pas le `template`.
 
-- **Supprimer** le early-return desktop vers `WaouhChatPage embedded` (lignes 57-61).
-- Garder le composant **tel quel** mais l'envelopper conditionnellement quand desktop :
-  - Ajouter un état local `activePane: { kind: "waouh" } | { kind: "conv"; id: string } | { kind: "match"; key: string } | null` (défaut `{ kind: "waouh" }` sur desktop).
-  - Détecter desktop via `useIsMobile()` (déjà importé) + un effet de resize listener (pour basculer en SSR-safe).
-  - Sur desktop, rendre :
-    ```tsx
-    <div className="flex h-[calc(100dvh-64px)]">
-      <aside className="w-[380px] shrink-0 border-r border-border overflow-y-auto">
-        {/* JSX existant inchangé : header vert, search, tabs, listes, archives */}
-      </aside>
-      <section className="flex-1 min-w-0 overflow-hidden bg-muted/30">
-        <ChatRightPane active={activePane} sessionId={sessionId} authUserId={user?.id ?? null} />
-      </section>
-    </div>
-    ```
-  - Sur mobile : retour `<div className="min-h-[100dvh] waouh-chat-list-bg">…</div>` actuel, inchangé.
-- **Intercepter les clics sur desktop** :
-  - `openWaouh` → `setActivePane({ kind: "waouh" })` au lieu de `navigate("/app/chat/waouh")`.
-  - `openNewWaouh` → `setActivePane({ kind: "waouh" })` + ref pour `startNewThread`.
-  - Click sur une conv de `filtered.map` → `setActivePane({ kind: "conv", id: c.id })` au lieu de `navigate(\`/app/chat/${c.id}\`)`.
-  - Click sur un match dans `WaouhMatchChatList` → écouter l'event existant `waouh:open-match-chat` (déjà émis par la liste) et `setActivePane({ kind: "match", key })`.
-  - Sur mobile, les `navigate(...)` actuels restent.
-- Mettre en évidence la conv active dans la liste gauche (bg accent).
+**Fix** :
+- Vérifier dans `WaouhMatchChatWindow` / `useWaouhMatchChats` que le chargement filtre `meta.template != 'buyer_interest_ack'` (côté vendeur).
+- Confirmer dans `waouh-buyer-interest` que `pushSyncedEvent` cible bien `user: buyerUser` uniquement (déjà le cas) — auditer s'il y a une seconde insertion via le dispatcher qui répercute l'ack vers le vendeur. Si oui, ajouter un garde `recipient !== 'seller'` pour les templates `*_ack`.
+- Seul `new_buyer` doit apparaître dans la fenêtre vendeur.
 
-## 2. Nouveau composant `src/app-mobile/components/ChatRightPane.tsx`
+## 5. Négociation : "Je propose X" ne fonctionne pas après une contre-offre
 
-Petit routeur de panneau qui réutilise les composants existants **sans les modifier** :
+**Problème** : Quand le vendeur tape "je propose 50000" dans `WaouhMatchChatWindow` (ou chat principal) après avoir reçu la contre-offre, le routeur répond `Aucune négociation en cours`. La négociation existe (créée par `waouh-buyer-interest`) mais :
+- Le message passe par `waouh-webhook` (chat principal) ou par un autre chemin qui ne route pas vers `waouh-negotiation-router` pour le vendeur ; OU
+- La lookup ne match pas parce que `seller_user_id` n'est pas posé sur l'enregistrement, ou parce que l'état est resté `proposed`/`countered` mais la condition `.or(buyer_user_id.eq...,seller_user_id.eq...)` exige que `user.id` soit l'un ou l'autre — et l'`user` résolu depuis le web session peut différer de `seller_user_id` (le vendeur web est identifié par `auth_user_id`/`web_session_id` plutôt que par `phone_number`).
 
-```tsx
-type ActivePane =
-  | { kind: "waouh" }
-  | { kind: "conv"; id: string }
-  | { kind: "match"; key: string }
-  | null;
+**Fix** :
+- Dans `waouh-negotiation-router`, élargir la résolution du `user` : si `user_id` est null, résoudre via `web_session_id` ou `auth_user_id` en plus du `phone_number`. Idem dans `waouh-webhook` au moment de router "je propose".
+- Dans `WaouhMatchChatWindow`, quand le vendeur envoie un message, appeler explicitement `waouh-negotiation-router` avec `user_id = sellerWaouhUserId` (pas seulement `phone`).
+- Dans `waouh-webhook` (chat principal), avant de répondre "Aucune négociation en cours", tenter la même lookup élargie + fallback : si une `waouh_negotiation` existe en `proposed|countered` pour cet utilisateur (côté acheteur OU vendeur), router vers `negotiation-router` avec l'intent `price`.
+- Vérifier que la création initiale dans `waouh-buyer-interest` pose bien `seller_user_id = article.seller_id` (déjà fait) ; ajouter un index/garantie que `seller_user_id` n'est jamais null.
 
-export function ChatRightPane({ active, sessionId, authUserId }: Props) {
-  if (!active) return <EmptyState />; // illustration + "Sélectionnez une discussion"
-  if (active.kind === "waouh") {
-    return <WaouhWebChat fullscreen variant="native" />;
-  }
-  if (active.kind === "conv") {
-    // Réutiliser ChatScreen en injectant convId via MemoryRouter ou via une prop optionnelle
-    return <ConversationPane convId={active.id} />;
-  }
-  if (active.kind === "match") {
-    // Récupérer le match via useWaouhMatchChats, puis <WaouhMatchChatWindow match={...} />
-    return <MatchPane matchKey={active.key} sessionId={sessionId} authUserId={authUserId} />;
-  }
-}
-```
+## Détails techniques
 
-- `ConversationPane` : extrait léger qui rend les messages d'une conversation. Soit on factorise le corps de `ChatScreen.tsx` en `<ChatScreenBody convId={...} hideBackButton />`, soit on rend `<MemoryRouter initialEntries={[\`/app/chat/${id}\`]}><Routes><Route path="/app/chat/:id" element={<ChatScreen embedded />}/></Routes></MemoryRouter>`. Préférence : ajouter une prop `embedded?: boolean` + `convId?: string` à `ChatScreen` (override `useParams`) et masquer le bouton retour quand `embedded`. Aucune autre modif de logique.
-- `MatchPane` : utiliser le hook existant `useWaouhMatchChats` pour retrouver le match par `key`, puis rendre `<WaouhMatchChatWindow match={m} sessionId={sessionId} authUserId={authUserId} waouhIds={waouhIds} active={true} getCached={...} setCached={...} getHasMore={...} setHasMoreCached={...} />`.
-- `EmptyState` : visuel léger style WhatsApp Web ("Sélectionnez une discussion pour commencer à discuter") + logo WAOUH.
+**Fichiers modifiés** :
+- `src/components/waouh/WaouhSellWizard.tsx` — géoloc temps réel + reverse geocode + champ ville verrouillé/éditable
+- `src/components/waouh/WaouhWebChat.tsx` — propager `locationOverride` depuis le wizard
+- `src/app-mobile/components/native/NativeSellSheet.tsx` — même traitement géoloc
+- `supabase/functions/waouh-buy-handler/index.ts` — réponse rapide, distance par match, photos garanties, dispatch async
+- `supabase/functions/waouh-negotiation-router/index.ts` — résolution user par web_session_id/auth_user_id
+- `supabase/functions/waouh-webhook/index.ts` — fallback négociation pour vendeur + lookup élargie
+- `supabase/functions/waouh-buyer-interest/index.ts` — confirmer pas de double-écriture côté vendeur
+- `src/components/waouh/WaouhMatchChatWindow.tsx` / `useWaouhMatchChats.ts` — filtrer `*_ack` côté vendeur, router "je propose" via `negotiation-router` avec `user_id`
+- `src/components/waouh/WaouhResultsBubble.tsx` (ou équivalent) — afficher distance par carte
 
-## 3. `src/app-mobile/screens/ChatScreen.tsx`
-
-- Ajouter deux props optionnelles :
-  - `embedded?: boolean` (défaut `false`) → masque le bouton "ArrowLeft" et la nav `navigate("/app/chat")`.
-  - `convIdOverride?: string` → si fourni, utilisé à la place de `useParams().id`.
-- Aucun autre changement (réutilise `ChatBubble`, `ChatImage`, etc.).
-
-## 4. `src/App.tsx`
-
-- `/app/chat/:id` et `/app/chat/waouh` continuent d'exister pour mobile et liens directs. Aucun changement.
-- `/waouh-chat` déjà alias vers `/app/chat` (inchangé).
-
-## 5. `src/pages/waouh/WaouhChatPage.tsx`
-
-- **Inchangé**. La page standalone à `/waouh-chat` (redirigée vers `/app/chat`) reste exploitable, mais n'est plus rendue à l'intérieur de `/app/chat` desktop.
-
-# Comportement attendu
-
-- **Desktop ≥ 768 px + `/app/chat`** : 2 colonnes. Gauche = page de la capture (header vert "zimesongbian / Mon compte", recherche, onglets Discussions / Statuts·24h, carte WAOUH épinglée "Achetez · Vendez · Négociez par message", `CONVERSATIONS PRODUIT`, items "Annonce / test24", "Voir archivés"). Droite = panneau WAOUH par défaut ; cliquer une conv → panneau de cette conv ; cliquer un match → panneau du match ; cliquer "+ Nouveau chat WAOUH" → nouvelle session WAOUH dans le panneau. `BottomTabBar` toujours visible en bas.
-- **Desktop + onglet "Statuts · 24h"** : la colonne gauche affiche `StatusesPanel variant="mobile"` (inchangé), la colonne droite garde le panneau actif (ou empty state).
-- **Mobile < 768 px + `/app/chat`** : rendu actuel **inchangé** (plein écran, navigation vers `/app/chat/:id` et `/app/chat/waouh`).
-- **Liens directs** `/app/chat/:id` et `/app/chat/waouh` : continuent de marcher sur mobile comme sur desktop (sur desktop ils restent gérés par leurs écrans respectifs, qui redirigent déjà vers `/app/chat` sur desktop — donc l'utilisateur retombe sur le split avec le bon panneau si on enrichit la redirection avec un state `{ activePane }`. Optionnel, peut être ajouté ensuite.)
-
-# Non-objectifs
-
-- Pas de modif des hooks de données, BDD, edge functions, ni du `waouhChatSyncLock`.
-- Pas de redesign du header, des items de liste, ni des onglets : on **garde la même UI** que la capture pour la colonne gauche.
-- Pas de remplacement de `BottomTabBar` par une nav desktop (autre itération).
-
-# Validation
-
-1. Desktop ≥ 768 px → ouvrir `/app/chat` : voir la page de la capture à gauche (380px), panneau WAOUH à droite, `BottomTabBar` en bas.
-2. Cliquer sur "test24" dans la liste gauche → la colonne droite affiche la conversation, la gauche surligne l'item, l'URL **ne change pas** (reste `/app/chat`).
-3. Cliquer "Nouveau chat WAOUH" → panneau droit = WAOUH avec thread vierge.
-4. Basculer onglet "Statuts · 24h" → liste gauche bascule sur `StatusesPanel`, le panneau droit conserve son contenu.
-5. Mobile < 768 px → rien ne change : `/app/chat` rend plein écran, clic sur une conv navigue bien vers `/app/chat/:id`.
-6. `BottomTabBar` reste fonctionnelle (clic "Bots" → `/app/bots`).
+**Aucun changement de schéma DB requis** — `waouh_negotiations.seller_user_id` et `waouh_articles.location` existent déjà.
