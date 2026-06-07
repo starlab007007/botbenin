@@ -814,12 +814,14 @@ serve(async (req) => {
           const photoLine = photos.length > 0 ? `\n📸 ${photos.length} photo${photos.length > 1 ? "s" : ""}` : "";
           return `*${idx}. ${title}*\n💰 *${price}*\n🏙️ ${city}${photoLine}\n📡 Source : Radar IA`;
         }).join(`\n\n${waouhSep}\n\n`);
-        // Envoyer TOUTES les photos publiques (jusqu'à 4 par produit, plafond 12) avec caption
+        // Envoyer TOUTES les photos publiques (jusqu'à 4 par produit, plafond 12) avec caption.
+        // Toute URL http(s) est acceptée (Supabase Storage public, CDN partenaire, source externe rehébergée).
+        // Le rehosting des photos WAHA est censé être fait en amont (rehostPhotos).
         const isPublicImageUrl = (u: any): u is string =>
           typeof u === "string"
           && /^https?:\/\//i.test(u)
-          && !u.includes("waha.bot.bj")
-          && !u.includes("/api/files/");
+          && !/^data:/i.test(u)
+          && !/^blob:/i.test(u);
         const collectAtts = (items: any[], titleField: string) =>
           items.flatMap((p: any) => {
             const photos: string[] = Array.isArray(p.photos) ? p.photos : [];
