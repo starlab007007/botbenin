@@ -65,7 +65,7 @@ export default function RadarContactsTab() {
 
   const sync = async () => {
     setSyncing(true);
-    const { data, error } = await supabase.functions.invoke("waouh-radar-contacts-sync", { body: {} });
+    const { data, error } = await supabase.functions.invoke("waouh-radar-api-config", { body: { action: "contacts_sync" } });
     setSyncing(false);
     if (error) return toast.error(error.message);
     toast.success(`Sync OK — ${(data as any)?.upserted || 0} contacts`);
