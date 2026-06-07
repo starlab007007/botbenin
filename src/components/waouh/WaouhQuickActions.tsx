@@ -1,5 +1,5 @@
 import React from "react";
-import { ShoppingBag, Search, Handshake, CreditCard } from "lucide-react";
+import { ShoppingBag, Search, Handshake } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type QuickAction = "sell" | "buy" | "negotiate" | "pay";
@@ -8,7 +8,6 @@ const ACTIONS: { key: QuickAction; label: string; Icon: any }[] = [
   { key: "sell", label: "Vendre", Icon: ShoppingBag },
   { key: "buy", label: "Acheter", Icon: Search },
   { key: "negotiate", label: "Négocier", Icon: Handshake },
-  { key: "pay", label: "Payer", Icon: CreditCard },
 ];
 
 export const WaouhQuickActions: React.FC<{
