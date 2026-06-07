@@ -1,6 +1,7 @@
-// Admin CRUD + test for SerpAPI / Apify API configs
+// Admin endpoint for radar: API configs (SerpAPI/Apify) + contact sync + bulk notify.
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { normalizeBeninPhone } from "../_shared/waouhContact.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
