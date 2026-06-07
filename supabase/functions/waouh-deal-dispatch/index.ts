@@ -4,9 +4,14 @@
 //  - acheteur : "vous recevrez bientôt le délai, paiement à la livraison"
 //  - équipe ops WAOUH : récap complet avec contacts des 2 parties
 // Aucun numéro de téléphone n'est partagé entre acheteur et vendeur.
+//
+// 🔁 Acheteur + vendeur passent par `pushSyncedEvent` qui résout le numéro
+// WhatsApp via TOUTES les sources (chat / partenaire / radar IA) et garantit
+// le miroir chat + WhatsApp + trace + dedup.
 
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
