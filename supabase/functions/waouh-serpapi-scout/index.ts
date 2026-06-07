@@ -43,13 +43,21 @@ Deno.serve(async (req) => {
   let scanned = 0;
 
   try {
+    const keyRes = await getRadarApiKey(sb, "serpapi", "SERPAPI_KEY");
+    if (!keyRes.ok) {
+      return new Response(JSON.stringify({ ok: false, skipped: true, reason: keyRes.reason }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    SERPAPI_KEY = keyRes.key!;
+    SERPAPI_CFG_ID = keyRes.configId;
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     const cats: string[] = body.categories || CATEGORIES;
 
     for (const cat of cats) {
       const q = `"à vendre" ${cat} Bénin Cotonou ${SITES}`;
       let serp: any;
-      try { serp = await searchSerp(q); } catch (e) { console.error("serp", e); continue; }
+      try { serp = await searchSerp(q); await incrementRadarUsage(sb, SERPAPI_CFG_ID, 1); } catch (e) { console.error("serp", e); continue; }
       const results = serp.organic_results || [];
 
       for (const r of results) {
