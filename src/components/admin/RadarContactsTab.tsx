@@ -134,8 +134,8 @@ export default function RadarContactsTab() {
   const sendNotify = async () => {
     if (!selected.size || !notifyMsg.trim()) return toast.error("Sélection + message requis");
     setSending(true);
-    const { data, error } = await supabase.functions.invoke("waouh-radar-contacts-notify", {
-      body: { contact_ids: Array.from(selected), message: notifyMsg, article_id: notifyArticle || null, mode: notifyMode },
+    const { data, error } = await supabase.functions.invoke("waouh-radar-api-config", {
+      body: { action: "contacts_notify", contact_ids: Array.from(selected), message: notifyMsg, article_id: notifyArticle || null, mode: notifyMode },
     });
     setSending(false);
     if (error) return toast.error(error.message);
