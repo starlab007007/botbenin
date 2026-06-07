@@ -160,7 +160,11 @@ export default function WaouhWhatsAppOpsPage() {
           <TabsTrigger value="errors">Erreurs WAHA</TabsTrigger>
           <TabsTrigger value="replay">Replay</TabsTrigger>
           <TabsTrigger value="tests">Tests & Alertes</TabsTrigger>
+          <TabsTrigger value="radar-contacts">Contacts Radar</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="radar-contacts"><RadarContactsTab /></TabsContent>
+
 
         <TabsContent value="queue" className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
