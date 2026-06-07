@@ -4,9 +4,14 @@
 //  - acheteur : "vous recevrez bientôt le délai, paiement à la livraison"
 //  - équipe ops WAOUH : récap complet avec contacts des 2 parties
 // Aucun numéro de téléphone n'est partagé entre acheteur et vendeur.
+//
+// 🔁 Acheteur + vendeur passent par `pushSyncedEvent` qui résout le numéro
+// WhatsApp via TOUTES les sources (chat / partenaire / radar IA) et garantit
+// le miroir chat + WhatsApp + trace + dedup.
 
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -152,8 +157,8 @@ Deno.serve(async (req) => {
     }
 
     const [{ data: buyer }, { data: seller }, { data: article }] = await Promise.all([
-      sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id").eq("id", deal.buyer_user_id).maybeSingle(),
-      sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id").eq("id", deal.seller_user_id).maybeSingle(),
+      sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id, auth_user_id").eq("id", deal.buyer_user_id).maybeSingle(),
+      sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id, auth_user_id").eq("id", deal.seller_user_id).maybeSingle(),
       sb.from("waouh_articles").select("id, title, photos").eq("id", deal.article_id).maybeSingle(),
     ]);
 
@@ -180,17 +185,55 @@ Deno.serve(async (req) => {
 
     const results: Record<string, any> = {};
 
-    // 1) Vendeur — WhatsApp + in-app
-    if (seller?.phone_number && !/@lid$/i.test(seller.phone_number)) {
-      results.seller_wa = await sendWhatsApp(`${seller.phone_number}@c.us`, sellerText, firstPhoto);
+    // Build attachments[] for both parties (photos with type/caption).
+    const attachments = photos.slice(0, 4).map((url: string, k: number) => ({
+      url, type: "image/jpeg",
+      caption: `${title}${photos.length > 1 ? ` — photo ${k + 1}/${photos.length}` : ""}`,
+    }));
+
+    // 1) Vendeur — sync chat + WhatsApp (résolution multi-sources : chat / partenaire / radar IA)
+    if (seller?.id) {
+      try {
+        results.seller_sync = await pushSyncedEvent({
+          sb,
+          user: seller as any,
+          role: "seller",
+          articleId: deal.article_id,
+          text: sellerText,
+          intent: "deal_dispatch",
+          template: "deal_seller",
+          eventType: "deal_dispatch",
+          dealId: deal_id,
+          attachments,
+          imageUrl: firstPhoto,
+          dedupSuffix: "seller",
+          payloadExtra: { deal_id, article_id: deal.article_id, role: "seller" },
+        });
+      } catch (e) { results.seller_sync = { ok: false, error: String(e) }; }
     }
     await insertInAppNotif(sb, deal.seller_user_id, deal.article_id, "deal_seller", sellerText, photos, {
       deal_id, article_id: deal.article_id, role: "seller",
     });
 
-    // 2) Acheteur — WhatsApp + in-app
-    if (buyer?.phone_number && !/@lid$/i.test(buyer.phone_number)) {
-      results.buyer_wa = await sendWhatsApp(`${buyer.phone_number}@c.us`, buyerText, firstPhoto);
+    // 2) Acheteur — sync chat + WhatsApp (résolution multi-sources)
+    if (buyer?.id) {
+      try {
+        results.buyer_sync = await pushSyncedEvent({
+          sb,
+          user: buyer as any,
+          role: "buyer",
+          articleId: deal.article_id,
+          text: buyerText,
+          intent: "deal_dispatch",
+          template: "deal_buyer",
+          eventType: "deal_dispatch",
+          dealId: deal_id,
+          attachments,
+          imageUrl: firstPhoto,
+          dedupSuffix: "buyer",
+          payloadExtra: { deal_id, article_id: deal.article_id, role: "buyer" },
+        });
+      } catch (e) { results.buyer_sync = { ok: false, error: String(e) }; }
     }
     await insertInAppNotif(sb, deal.buyer_user_id, deal.article_id, "deal_buyer", buyerText, photos, {
       deal_id, article_id: deal.article_id, role: "buyer",

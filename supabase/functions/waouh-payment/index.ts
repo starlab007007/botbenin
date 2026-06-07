@@ -3,6 +3,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { contactExchangeText } from "../_shared/waouh-format.ts";
+import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -353,41 +354,43 @@ Deno.serve(async (req) => {
 
 async function pushSystemMessage(sb: any, waouhUserId: string | null, transaction_id: string, text: string, eventKey?: string) {
   if (!waouhUserId) return;
-  const { data: wu } = await sb.from("waouh_users").select("id, web_session_id, phone_number").eq("id", waouhUserId).maybeSingle();
+  // 🔁 Helper unifié : résolution multi-sources (chat / partenaire / radar IA)
+  // via pushSyncedEvent → insère chat + enqueue WhatsApp + trace + dedup.
+  const { data: wu } = await sb.from("waouh_users")
+    .select("id, web_session_id, phone_number, auth_user_id")
+    .eq("id", waouhUserId)
+    .maybeSingle();
   if (!wu) return;
-  const { data: conv } = await sb.from("waouh_conversations").select("id").eq("user_id", wu.id).limit(1).maybeSingle();
-  const { data: msg } = await sb.from("waouh_messages").insert({
-    conversation_id: conv?.id ?? null,
-    user_id: wu.id,
-    web_session_id: wu.web_session_id,
-    channel: wu.web_session_id ? "web" : "system",
-    direction: "out",
-    text,
-    meta: { transaction_id, event: eventKey || "post_payment_flow" },
-  }).select("id").maybeSingle();
+
+  // Récupère article_id depuis la transaction pour permettre la résolution
+  // partenaire/radar IA basée sur l'annonce.
+  let articleId: string | null = null;
   try {
-    // Hash court du texte pour différencier les notifs du même event
-    const txtHash = Array.from(text).reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0).toString(36);
-    const dedupeKey = `tx:${transaction_id}:${eventKey || "msg"}:${wu.id}:${txtHash}`;
-    await sb.rpc("waouh_enqueue_outbound_v2", {
-      p_to_phone: wu.phone_number,
-      p_to_user_id: wu.id,
-      p_template: "transaction_update",
-      p_payload: { text, transaction_id },
-      p_web_session_id: wu.web_session_id,
-      p_image_url: null,
-      p_channel: wu.phone_number ? "whatsapp" : "web",
-      p_message_id: msg?.id ?? null,
-      p_transaction_id: transaction_id,
-      p_dedupe_key: dedupeKey,
-      p_event_type: eventKey || "transaction_update",
+    const { data: tx } = await sb.from("waouh_transactions")
+      .select("article_id, buyer_id, seller_id")
+      .eq("id", transaction_id)
+      .maybeSingle();
+    articleId = tx?.article_id ?? null;
+  } catch (_) { /* ignore */ }
+
+  // Hash court du texte pour différencier les notifs successives du même event
+  const txtHash = Array.from(text).reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0).toString(36);
+
+  try {
+    await pushSyncedEvent({
+      sb,
+      user: wu,
+      role: "buyer", // role indicatif ; la résolution couvre buyer/seller via article_id
+      articleId,
+      text,
+      intent: eventKey || "transaction_update",
+      template: "transaction_update",
+      eventType: eventKey || "transaction_update",
+      transactionId: transaction_id,
+      dedupSuffix: txtHash,
+      payloadExtra: { transaction_id, event: eventKey || "post_payment_flow" },
     });
-    fetch(`${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ limit: 20 }),
-    }).catch(() => {});
-  } catch (e) { console.warn("[waouh-payment] enqueue", e); }
+  } catch (e) { console.warn("[waouh-payment] pushSyncedEvent", e); }
 }
 
 async function getWaouhUserContact(sb: any, id: string | null) {
