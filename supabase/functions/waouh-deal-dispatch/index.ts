@@ -157,8 +157,8 @@ Deno.serve(async (req) => {
     }
 
     const [{ data: buyer }, { data: seller }, { data: article }] = await Promise.all([
-      sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id").eq("id", deal.buyer_user_id).maybeSingle(),
-      sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id").eq("id", deal.seller_user_id).maybeSingle(),
+      sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id, auth_user_id").eq("id", deal.buyer_user_id).maybeSingle(),
+      sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id, auth_user_id").eq("id", deal.seller_user_id).maybeSingle(),
       sb.from("waouh_articles").select("id, title, photos").eq("id", deal.article_id).maybeSingle(),
     ]);
 
