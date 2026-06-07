@@ -47,6 +47,15 @@ Deno.serve(async (req) => {
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   try {
+    const keyRes = await getRadarApiKey(sb, "apify", "APIFY_TOKEN");
+    if (!keyRes.ok) {
+      return new Response(JSON.stringify({ ok: false, skipped: true, reason: keyRes.reason }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    APIFY_TOKEN = keyRes.key!;
+    APIFY_CFG_ID = keyRes.configId;
+
     // Get active sources
     const { data: sources } = await sb.from("waouh_radar_sources").select("*").eq("active", true).in("type", ["fb_marketplace", "fb_group"]);
     if (!sources || sources.length === 0) {
@@ -62,6 +71,7 @@ Deno.serve(async (req) => {
           : { startUrls: [{ url: src.identifier }], maxPosts: 30 };
 
         const items = await runActor(actor, input);
+        await incrementRadarUsage(sb, APIFY_CFG_ID, 1);
         for (const it of items.slice(0, 30)) {
           const url = it.url || it.postUrl || it.permalink;
           if (!url) continue;
