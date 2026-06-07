@@ -452,7 +452,8 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
     return () => { channels.forEach((ch) => supabase.removeChannel(ch)); };
   }, [sessionId, authUserId, upsertNotif]);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const visibleNotifications = notifications.filter((n) => !isSelfNotif(n.template));
+  const unreadCount = visibleNotifications.filter((n) => !n.read).length;
 
-  return { permission, requestPermission, notifications, unreadCount, markAllRead, markRead, clearAll };
+  return { permission, requestPermission, notifications: visibleNotifications, unreadCount, markAllRead, markRead, clearAll };
 }
