@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, RefreshCw, Play, Send, AlertTriangle } from "lucide-react";
+import RadarContactsTab from "@/components/admin/RadarContactsTab";
 
 type QueueRow = {
   id: string; status: string; event_type: string | null; template: string | null;
@@ -159,7 +160,11 @@ export default function WaouhWhatsAppOpsPage() {
           <TabsTrigger value="errors">Erreurs WAHA</TabsTrigger>
           <TabsTrigger value="replay">Replay</TabsTrigger>
           <TabsTrigger value="tests">Tests & Alertes</TabsTrigger>
+          <TabsTrigger value="radar-contacts">Contacts Radar</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="radar-contacts"><RadarContactsTab /></TabsContent>
+
 
         <TabsContent value="queue" className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">

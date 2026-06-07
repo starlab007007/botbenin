@@ -1,11 +1,13 @@
 // WAOUH SerpAPI scout - moissonne annonces publiques BJ et insère dans waouh_external_listings
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getRadarApiKey, incrementRadarUsage } from "../_shared/radar-api-config.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const SERPAPI_KEY = Deno.env.get("SERPAPI_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
+let SERPAPI_KEY = "";
+let SERPAPI_CFG_ID: string | undefined;
 
 const SITES = "site:jiji.bj OR site:jumia.com.bj OR site:expat.com OR site:tonaton.com OR site:cocolib.com OR site:afribaba.bj";
 const CATEGORIES = ["smartphone", "ordinateur", "voiture", "moto", "frigo", "télévision", "meuble", "vêtement"];
@@ -41,13 +43,21 @@ Deno.serve(async (req) => {
   let scanned = 0;
 
   try {
+    const keyRes = await getRadarApiKey(sb, "serpapi", "SERPAPI_KEY");
+    if (!keyRes.ok) {
+      return new Response(JSON.stringify({ ok: false, skipped: true, reason: keyRes.reason }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    SERPAPI_KEY = keyRes.key!;
+    SERPAPI_CFG_ID = keyRes.configId;
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     const cats: string[] = body.categories || CATEGORIES;
 
     for (const cat of cats) {
       const q = `"à vendre" ${cat} Bénin Cotonou ${SITES}`;
       let serp: any;
-      try { serp = await searchSerp(q); } catch (e) { console.error("serp", e); continue; }
+      try { serp = await searchSerp(q); await incrementRadarUsage(sb, SERPAPI_CFG_ID, 1); } catch (e) { console.error("serp", e); continue; }
       const results = serp.organic_results || [];
 
       for (const r of results) {

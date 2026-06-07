@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Plus, RefreshCw, Radar, Users, Activity, Trash2, ArrowUpRight, Target } from "lucide-react";
 import { toast } from "sonner";
+import RadarApiConfigPanel from "./RadarApiConfigPanel";
 
 type Source = { id: string; type: string; identifier: string; label: string | null; active: boolean; scan_freq_min: number; last_scan_at: string | null; last_signal_count: number };
 type Signal = { id: string; source_type: string; intent: string; product: any; price: number | null; city: string | null; contact_phone: string | null; contact_handle: string | null; confidence: number; status: string; captured_at: string; raw_url: string | null; raw_text: string | null; promoted_article_id: string | null; promoted_buyer_profile_id: string | null };
@@ -113,6 +114,8 @@ export default function WaouhRadarTab() {
         <Card className="p-3"><div className="text-xs text-muted-foreground">Profils détectés</div><div className="text-2xl font-bold">{profiles.length}</div></Card>
         <Card className="p-3"><div className="text-xs text-muted-foreground">Promus 24h</div><div className="text-2xl font-bold">{signals.filter(s => (s.promoted_article_id || s.promoted_buyer_profile_id) && Date.now() - new Date(s.captured_at).getTime() < 86400000).length}</div></Card>
       </div>
+      <RadarApiConfigPanel />
+
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
