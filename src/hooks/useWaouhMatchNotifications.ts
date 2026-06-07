@@ -66,6 +66,23 @@ const MATCH_TEMPLATES = new Set([
   "radar_match",
 ]);
 
+/**
+ * Templates that represent the user's OWN action (acks/echos), not an
+ * inbound event from someone else. The bell only shows incoming/received
+ * notifications, so these are filtered out.
+ */
+const SELF_TEMPLATES = new Set([
+  "sale_published",
+  "buyer_interest_ack",
+  "negotiation_ack",
+  "payment_ack",
+]);
+
+function isSelfNotif(template: string): boolean {
+  if (SELF_TEMPLATES.has(template)) return true;
+  return /_ack$/.test(template);
+}
+
 export function getMatchKind(template: string): "buyer" | "seller" | null {
   if (template === "match_seller" || template === "new_buyer") return "seller";
   if (template === "match" || template === "match_buyer" || template === "radar_match") return "buyer";
