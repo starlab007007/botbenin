@@ -810,7 +810,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           onOpenChange={setSellOpen}
           sessionId={sessionId}
           defaultCity={geo.city}
-          onSubmit={async (text, atts) => { await sendCore(text, atts); }}
+          onSubmit={async (text, atts, loc) => { await sendCore(text, atts, loc ?? null); }}
         />
       )}
     </Card>
