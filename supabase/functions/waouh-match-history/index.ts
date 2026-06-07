@@ -137,14 +137,14 @@ serve(async (req) => {
     const authoritativeViewer =
       isSeller || isStatusOwner || sessionMatchInRows || userMatchInRows || notifiedForArticle;
 
-    // 4) Filter messages. If the viewer is authoritatively linked to the
-    //    article, return the full article-scoped history (both sides
-    //    already separated by `direction` and ownership on the client UI).
-    //    Otherwise fall back to strict per-viewer ownership.
-    // Self-acknowledgement templates: bulles confirmant à l'expéditeur que
-    // SON action a bien été enregistrée. Elles ne doivent JAMAIS apparaître
-    // chez l'autre partie (ex: le vendeur ne doit pas voir "✅ Demande
-    // envoyée au vendeur" qui est l'ack écrit côté acheteur).
+    // 4) Filter messages STRICTLY by viewer ownership.
+    //    waouh_messages stores one row per recipient (pushToOther writes
+    //    a row for each side, each with user_id = the target waouh_user).
+    //    Returning all article-scoped rows to an "authoritative" viewer
+    //    leaked the other party's bubbles (seller saw "✅ Demande envoyée
+    //    au vendeur", buyer saw "📩 Nouvel acheteur intéressé" /
+    //    "✅ Annonce publiée"). Strict per-viewer ownership keeps the
+    //    fenêtre in sync with the chat principal without cross-party leak.
     const SELF_ACK_TEMPLATES = new Set([
       "buyer_interest_ack",
       "negotiation_ack",
@@ -163,10 +163,8 @@ serve(async (req) => {
       return false;
     };
 
-    const baseRows = authoritativeViewer
-      ? allRows
-      : allRows.filter(viewerOwnsMessage);
-    // Strip self-ack messages that don't belong to the current viewer.
+    const baseRows = allRows.filter(viewerOwnsMessage);
+    // Defensive: strip self-ack rows that somehow don't belong to viewer.
     const rows = baseRows.filter((m: any) => !isSelfAck(m) || viewerOwnsMessage(m));
     const messages = rows.slice().reverse(); // ASC for client
     const hasMore = allRows.length === limit;
