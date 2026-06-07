@@ -1,73 +1,91 @@
-# WAOUH — Photos de recherche + robustesse & performance du chat
+## Objectif
 
-## Diagnostic
+Étendre le **flux unique de synchronisation par partie** (`pushSyncedEvent` dans `_shared/waouh-sync.ts`) à **tous** les évènements du parcours WAOUH côté WhatsApp, pour les **deux parties** (acheteur + vendeur), quelle que soit la source du numéro WhatsApp :
 
-### 1. Photos absentes dans les résultats de recherche
-- `waouh-webhook` (lignes ~817-840) construit déjà `replyAttachments` à partir de `photos[]`, mais filtre via `isPublicImageUrl` qui rejette tout ce qui contient `waha.bot.bj` ou `/api/files/`.
-- En BD, les photos des articles web sont des URLs publiques Supabase Storage : elles passeraient le filtre… **mais** la réponse texte est sortie via `core.reply` et les `attachments` ne sont propagés que si `waouh-webhook` les retourne dans son JSON. À vérifier : la branche "search" met `replyAttachments` en variable locale mais le retour final doit inclure `attachments: replyAttachments`. Si la réponse JSON ne contient pas `attachments`, `waouh-channel-in` enregistre `attachments: []` ⇒ aucune image dans la bulle.
-- `waouh-buy-handler` (chemin alternatif appelé directement par le mobile) ne retourne pas non plus de `matches[].photos[0]` sous forme d'attachments exploitables par le chat.
-- Le `WaouhWebChat` rend déjà `m.attachments` en grille (lignes 610-621) : il suffit de garantir que les attachments arrivent.
+1. Identifié depuis le **chat WhatsApp** (`waouh_users.phone_number` ou `waouh_lid_phone_map`)
+2. Identifié depuis un **compte partenaire / business** (`waouh_partners`, `waouh_partner_businesses` via `article_id`)
+3. Identifié depuis le **Radar IA** (`waouh_external_listings.seller_phone` via `article_id`)
 
-### 2. Lenteur du chargement (réponses + photos)
-- `waouh-webhook` exécute en **séquentiel** dans la boucle "officialList" : `marketNote()` (appel IA Gateway) + `rpc("waouh_point_distance_km")` par article. Pour 5 articles ⇒ ~5 appels IA sérialisés (déjà `Promise.all` côté map mais chaque `marketNote` peut prendre 1-3s).
-- `radarSellers` outreach + `promoteRadarSeller` sont aussi exécutés **avant** la réponse alors qu'ils peuvent être différés via `EdgeRuntime.waitUntil`.
-- Côté client, `WaouhWebChat` charge les images sans `loading="lazy"` ni `decoding="async"` ni dimensions explicites.
+La résolution multi-sources est déjà centralisée dans `resolveRealPhoneE164` (✅ couvre les 3 cas). Il reste à brancher **toutes** les notifications de parcours dessus pour garantir la livraison WhatsApp duplex.
 
-### 3. Persistance fragile par article
-- Les photos sont bien en BD (`waouh_articles.photos`) mais l'historique chat (`waouh_messages.attachments`) ne stocke pas systématiquement les URLs de la liste de résultats. Au refresh, les images disparaissent de l'historique.
+## Diagnostic ciblé
 
-### 4. Flux chat (déjà verrouillé)
-- Le contrat `WAOUH Chat Sync Flow (Locked)` interdit de toucher au mapping principal ↔ `WaouhMatchChatWindow`. Les modifications ci-dessous sont **additives** (attachments, lazy-loading, `waitUntil`) et ne changent pas la logique de routage/ownership déjà testée.
+| Évènement | Acheteur WA | Vendeur WA | État actuel |
+|---|---|---|---|
+| Intérêt acheteur (`waouh-buyer-interest`) | ✅ | ✅ | OK — utilise déjà `pushSyncedEvent` |
+| Contre-offre / refus (`waouh-negotiation-router`) | ⚠️ partiel | ⚠️ partiel | Notifie **uniquement l'autre partie** via `pushToOther`. L'acteur ne reçoit pas de miroir WA |
+| Accord conclu / deal créé (`waouh-negotiation-router`) | ⚠️ | ⚠️ | Idem : seule l'autre partie est enqueuée |
+| Paiement init / succès / release (`waouh-payment` → `pushSystemMessage`) | ⚠️ | ⚠️ | Enqueue OK mais ne passe pas par le helper unifié → pas de trace, pas de dedup centralisé, pas de web-mirror systématique |
+| Deal dispatch (`waouh-deal-dispatch`) | à vérifier | à vérifier | À auditer rapidement |
+| Annonce publiée + 1er match radar (`waouh-sell-handler`, `waouh-radar-process`) | n/a | ⚠️ | Enqueue ad-hoc, pas via helper |
 
-## Plan
+## Plan d'action
 
-### A. `supabase/functions/waouh-webhook/index.ts`
-1. **Garantir que `replyAttachments` est inclus dans la réponse JSON** pour TOUTES les branches (search, sale_published, etc.). Vérifier la sérialisation finale et ajouter `attachments: replyAttachments` si manquant.
-2. **Assouplir `isPublicImageUrl`** : autoriser aussi les URLs Supabase Storage signées + les URLs `waha.bot.bj` rehébergées (ou les rehéberger via le bucket `waouh-uploads` au moment du match). Concrètement, ne filtrer que les blobs/data URIs et les schémas non-http.
-3. **Paralléliser** les `marketNote()` et `rpc("waouh_point_distance_km")` via un seul `Promise.all` global sur `[...partnerTop, ...matchesTop]` au lieu de séquences imbriquées.
-4. **Différer l'outreach Radar IA** (`waouh_enqueue_outbound_v2` + `promoteRadarSeller`) via `EdgeRuntime.waitUntil(...)` pour ne pas retarder la réponse au chat.
+### A. Migration vers `pushSyncedEvent` (par partie)
 
-### B. `supabase/functions/waouh-buy-handler/index.ts`
-1. Ajouter dans la réponse `matches[]` la clé `cover_photo` (= `photos[0]`) et un tableau `attachments` parallèle au format `{url, type:"image/jpeg", caption:title}` pour les 5 premiers résultats, afin que le frontend puisse l'afficher de la même manière que le chat principal.
-2. Différer `dispatchAsync` est déjà fait — OK.
+Refactor des 5 sites de notification, en remplaçant les `rpc('waouh_enqueue_outbound_v2', …)` directs et `pushToOther` locaux par **deux** appels `pushSyncedEvent` (un par partie) avec `dedupSuffix: 'actor' | 'recipient'` pour éviter tout doublon :
 
-### C. `supabase/functions/waouh-channel-in/index.ts`
-1. Vérifier que `core.attachments` (renvoyé par `waouh-webhook`) est bien propagé dans :
-   - l'insert `waouh_messages.attachments` (pour la persistance)
-   - la réponse JSON au client (déjà fait via `attachments: negAttachments` côté négociation, à généraliser au core path).
-2. S'assurer que `waouh-match-history` retourne `attachments` (la colonne est déjà sélectionnée) — RAS, juste vérifier qu'on ne les filtre pas.
+1. **`waouh-negotiation-router/index.ts`**
+   - Sur `intent === "yes"` → 2× `pushSyncedEvent({ role: 'buyer', intent: 'deal_created', ... })` et `{ role: 'seller', ... }`.
+   - Sur `intent === "no"` → 2× `pushSyncedEvent({ intent: 'negotiation_closed', ... })`.
+   - Sur `intent === "price"` → 2× `pushSyncedEvent({ intent: 'negotiation_counter', ... })`.
+   - Le texte de l'acteur reste l'ack court ; celui du destinataire reste la notification complète. Les `attachments` (photos de l'article) sont passés des deux côtés.
 
-### D. `src/components/waouh/WaouhWebChat.tsx`
-1. Sur les `<img>` des attachments (lignes 610-621), ajouter :
-   - `loading="lazy"` `decoding="async"`
-   - `width`/`height` explicites (placeholder ratio 1:1) pour éviter le CLS
-   - `srcSet` Supabase transform (`?width=320` pour thumbnail, plein écran via gallery existante)
-2. Sur la prévisualisation des résultats inline (lignes ~650+ "Pas d'image"), utiliser `photos[0]` comme cover en `<img loading="lazy">`.
-3. Ajouter une intersection-observer cache pour éviter de re-décoder une image déjà vue dans la session.
+2. **`waouh-payment/index.ts`**
+   - Remplacer `pushSystemMessage` par `pushSyncedEvent` avec `intent: 'payment_init' | 'payment_success' | 'payment_release' | 'contact_exchange'`.
+   - Garder la sémantique d'`exchangeContacts` (lock atomique `contacts_exchanged_at`) inchangée.
 
-### E. `src/components/waouh/WaouhMatchChatWindow.tsx`
-1. Mêmes optimisations d'`<img>` (lazy + dimensions).
-2. Pas de modification de la logique de sync (verrou en place).
+3. **`waouh-deal-dispatch/index.ts`** (à auditer puis migrer)
+   - Notifs acheteur + vendeur + ops → `pushSyncedEvent` avec `intent: 'deal_dispatch'`.
 
-### F. Performance globale
-- Aucun changement DB requis (les photos sont déjà persistées dans `waouh_articles.photos` et `waouh_messages.attachments`).
-- Pas de migration.
+4. **`waouh-sell-handler/index.ts`** + **`waouh-radar-process/index.ts`**
+   - Confirmation "✅ Annonce publiée" et 1ère notification radar côté vendeur → `pushSyncedEvent({ role: 'seller', intent: 'article_published' | 'radar_match' })`, avec photo de couverture.
+
+### B. Garanties transverses (déjà fournies par `pushSyncedEvent`)
+
+- Résolution multi-sources via `resolveRealPhoneE164` (chat / partenaire / business / radar IA) — **inchangée**.
+- Dedup central via `dedup_key` = `sync:{article}:{intent}:{user}:{neg}:{suffix}` → idempotence stricte même si l'évènement rejoue.
+- Trace bout-à-bout (`waouh_trace_events`) avec `trace_id` propagé.
+- Web mirror automatique pour les users ayant une `web_session_id` active (les sessions sont déjà synchronisées dans `WaouhMatchChatWindow` — contrat verrouillé non touché).
+- Déclenchement immédiat du worker `waouh-outbound-dispatch` en fire-and-forget.
+
+### C. Test E2E (3 scénarios) — exécuté via `supabase--curl_edge_functions` + `supabase--read_query`
+
+Préparer 3 articles de fixture (ou réutiliser les existants) :
+
+| # | Source vendeur | Provenance numéro vendeur | Acheteur |
+|---|---|---|---|
+| 1 | Vendeur app (`waouh_users`) | Chat WhatsApp (`phone_number`) | Acheteur WhatsApp |
+| 2 | Annonce partenaire (`waouh_partner_businesses`) | Compte partenaire | Acheteur app |
+| 3 | Annonce radar IA (`waouh_external_listings`) | `seller_phone` du listing | Acheteur app |
+
+Étapes scriptées par scénario, avec assertions sur `waouh_messages` (chat) **ET** `waouh_outbound_queue` (WA enqueue) **ET** `waouh_trace_events` (couverture):
+
+1. `POST /waouh-buy-handler` → recherche & sélection → attendu : 1 row WA pour acheteur (ack) + 1 row WA pour vendeur (notif intérêt).
+2. `POST /waouh-negotiation-router` (offre acheteur) → attendu : WA acheteur (ack) + WA vendeur (offre).
+3. `POST /waouh-negotiation-router` (acceptation vendeur) → attendu : WA acheteur (deal) + WA vendeur (deal) + insertion `waouh_deals`.
+4. `POST /waouh-payment` (init + succès simulé) → attendu : WA acheteur + WA vendeur sur chaque étape, et **un seul** `exchangeContacts`.
+5. Pour chaque scénario, vérifier l'absence de doublons via `count(*) GROUP BY dedup_key`.
+
+### D. Plan de déploiement
+
+Cas A — **Tests E2E concluants** :
+1. Déploiement automatique des 5 edge functions modifiées.
+2. Vérification post-deploy via `supabase--edge_function_logs` (recherche `pushSyncedEvent ok`).
+3. Smoke test sur les 3 scénarios en production-like.
+4. Verrouillage d'une snapshot mémoire `mem://features/waouh-whatsapp-sync-flow-locked-v1`.
+
+Cas B — **Tests E2E non concluants** : ajouter au plan de déploiement les corrections ciblées (typiquement : mauvais mapping `target_role` côté actor, doublons sur `dedup_key` insuffisamment unique, ou `attachments` non propagés pour les listings radar sans `photos[]` — fallback sur `external_listings.images`).
+
+## Hors scope
+
+- Contrat `waouhChatSyncLock` (synchro web `WaouhMatchChatWindow` ↔ chat principal) — verrouillé, non modifié.
+- Schéma DB : aucune migration nécessaire.
+- UI front : aucun changement.
 
 ## Détails techniques
 
-```text
-Flux corrigé :
-client → channel-in → webhook (search)
-                      ├─ Promise.all([marketNote × N, distance × N])
-                      ├─ replyAttachments = photos[] filtrés (URLs http(s) valides)
-                      ├─ EdgeRuntime.waitUntil(radarOutreach + promote)
-                      └─ return { reply, attachments: replyAttachments }
-        ← channel-in insert waouh_messages(attachments=...) + return { attachments }
-client ← rend bulle texte + grille d'images (lazy)
-```
-
-## Hors périmètre
-- Pas de refonte du contrat de sync chat principal ↔ WaouhMatchChatWindow (verrouillé).
-- Pas de changement de schéma BD.
-- Pas de modification de la géolocalisation (déjà OK selon dernier passage).
-- Pas de touchage aux edge functions de paiement / négociation core (uniquement propagation d'`attachments`).
+- Le helper `pushSyncedEvent` insère déjà dans `waouh_messages` (avec `article_id`, `meta.role`, `meta.trace_id`) **et** enqueue dans `waouh_outbound_queue` via `waouh_enqueue_outbound_v2`, **et** trace via `traceEvent`. Aucune logique nouvelle n'est introduite — uniquement de la convergence.
+- `dedupSuffix: 'actor'` vs `'recipient'` permet d'autoriser explicitement les deux miroirs (acteur + destinataire) sans collision sur le `dedup_key`.
+- Les attachments (photos article / cover) sont systématiquement passés des deux côtés ; le worker WAHA enverra l'image en première position puis le texte.
+- Pour les annonces radar IA sans `waouh_articles.photos`, fallback sur `waouh_external_listings.images[0]` avant l'enqueue.
