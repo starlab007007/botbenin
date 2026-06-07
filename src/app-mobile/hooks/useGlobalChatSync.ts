@@ -149,7 +149,13 @@ export function useGlobalChatSync() {
       const title = sender ?? "WAOUH";
       const body = (m.text ?? "").toString().slice(0, 140) || "📎 Message reçu";
       const route = m.conversation_id ? `/app/chat/${m.conversation_id}` : `/app/chat/waouh`;
-      const inThisChat = pathRef.current === route;
+      const currentPath = pathRef.current || "";
+      // On desktop, /app/chat already embeds the WAOUH right pane, so any
+      // /app/chat* surface counts as "in chat" — suppress the toast there.
+      const inThisChat =
+        currentPath === route ||
+        currentPath === "/app/chat" ||
+        currentPath.startsWith("/app/chat/");
       if (!inThisChat) {
         toast.message(title, {
           description: body,
