@@ -488,13 +488,23 @@ export function WaouhMatchChatWindow({
   });
 
   const seedText = seedNotif?.text?.trim() || match.seed_text?.trim() || null;
-  const isNewBuyerSeed = !!seedText?.includes("Nouvel acheteur intéressé");
+  const isNewBuyerSeed =
+    seedNotif?.notification_type === "new_buyer" ||
+    !!seedText?.includes("Nouvel acheteur intéressé");
+  // For the seller, only surface the "Nouvel acheteur intéressé" header when a
+  // real buyer-interest notification exists. Right after publishing — when
+  // only the seller's own "✅ Annonce publiée" ack is in the timeline — we
+  // show the publication header instead of inventing a phantom buyer.
   const seedTitle =
-    isNewBuyerSeed || match.kind === "seller"
-      ? "📩 Nouvel acheteur intéressé"
-      : seedNotif?.notification_type === "radar_match"
-        ? "🎯 Annonce détectée par le Radar IA"
-        : "🎯 Annonce trouvée pour votre recherche";
+    match.kind === "seller"
+      ? isNewBuyerSeed
+        ? "📩 Nouvel acheteur intéressé"
+        : "✅ Annonce publiée"
+      : isNewBuyerSeed
+        ? "📩 Nouvel acheteur intéressé"
+        : seedNotif?.notification_type === "radar_match"
+          ? "🎯 Annonce détectée par le Radar IA"
+          : "🎯 Annonce trouvée pour votre recherche";
 
   const seedDate = seedNotif?.sent_at
     ? new Date(seedNotif.sent_at).toLocaleString("fr-FR", {
