@@ -200,29 +200,35 @@ Deno.serve(async (req) => {
         } catch (_) { /* garde le to_phone déjà en file */ }
       }
 
-      // 🔁 LID anonyme → résolution via waouh_lid_phone_map avant tout envoi.
+      // 🔁 LID anonyme → résolution via waouh_lid_phone_map (cache) puis
+      // fallback live WAHA /api/contacts/all avant tout envoi.
       if (typeof toPhone === "string" && /@lid/i.test(toPhone)) {
-        const lid = toPhone.replace(/@lid$/i, "");
+        let resolved: string | null = null;
         try {
-          const { data: map } = await sb
-            .from("waouh_lid_phone_map")
-            .select("phone_e164, phone")
-            .or(`lid.eq.${lid},lid.eq.${toPhone}`)
-            .maybeSingle();
-          const resolved = (map?.phone_e164 || map?.phone || "").toString().replace(/\D/g, "");
-          if (resolved && resolved.length >= 10) {
-            toPhone = resolved;
-          } else {
-            // Pas de mapping → bascule en web si possible, sinon échec propre.
-            await sb.from("waouh_outbound_queue").update({
-              status: it.web_session_id ? "sent" : "failed",
-              last_error: it.web_session_id ? "lid unresolved → fallback web" : "lid unresolved (no phone)",
-              sent_at: new Date().toISOString(),
-            }).eq("id", it.id);
-            skipped++; continue;
+          resolved = await lidToPhoneInline(sb, toPhone, { session: WAHA_SESSION, wahaBase: WAHA_BASE_URL, wahaApiKey: WAHA_API_KEY });
+        } catch (_) { /* ignore */ }
+        if (resolved && resolved.length >= 10) {
+          toPhone = resolved;
+          // Backfill silencieux du waouh_user pour les prochains messages.
+          if (it.to_user_id) {
+            try {
+              await sb.from("waouh_users")
+                .update({ phone_number: resolved })
+                .eq("id", it.to_user_id)
+                .like("phone_number", "%@lid");
+            } catch (_) { /* ignore */ }
           }
-        } catch (_) { /* ignore et continue avec phone brut */ }
+        } else {
+          // Pas de mapping → bascule en web si possible, sinon échec propre.
+          await sb.from("waouh_outbound_queue").update({
+            status: it.web_session_id ? "sent" : "failed",
+            last_error: it.web_session_id ? "lid unresolved → fallback web" : "lid unresolved (no phone)",
+            sent_at: new Date().toISOString(),
+          }).eq("id", it.id);
+          skipped++; continue;
+        }
       }
+
 
       const phone = normalizeBeninPhone(toPhone);
       if (!phone || (phone.includes("@") && !phone.includes("@lid"))) {
