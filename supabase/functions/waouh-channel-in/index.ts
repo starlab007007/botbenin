@@ -263,6 +263,31 @@ serve(async (req) => {
       channel = "whatsapp";
       phone = normalizedFrom;
       fromChatId = raw.payload.from || `${normalizedFrom}@c.us`;
+
+      // 🔑 Si WAHA livre `<lid>@lid` (privacy mode), on résout immédiatement
+      // vers le vrai numéro E.164 pour que TOUT le downstream (notifications
+      // "📩 Nouvel acheteur intéressé", contre-offres, accord, livraison)
+      // atterrisse réellement sur le WhatsApp de la personne.
+      if (phone && /@lid$/i.test(phone)) {
+        try {
+          const lidDigits = await lidToPhoneInline(sb, phone, { session: wahaSession });
+          if (lidDigits && lidDigits.length >= 10) {
+            const resolved = lidDigits.startsWith("229") ? lidDigits : `229${lidDigits.replace(/^0/, "")}`;
+            const lidOrig = phone;
+            phone = resolved;
+            // Backfill: tout waouh_user historiquement stocké avec phone=<lid>@lid
+            // est rebasculé vers le vrai numéro pour ne pas casser les négos déjà ouvertes.
+            try {
+              await sb.from("waouh_users")
+                .update({ phone_number: resolved })
+                .eq("phone_number", lidOrig);
+            } catch (_) { /* ignore */ }
+            log("lid resolved", { lid: lidOrig, phone: resolved });
+          }
+        } catch (e) { console.warn("[waouh-channel-in] lid resolve failed", e); }
+      }
+
+
       text = extractInteractiveText(raw.payload);
       const mime = raw.payload.mimetype || raw.payload.media?.mimetype || raw.payload._data?.mimetype || "image/jpeg";
       const hasInboundMedia = raw.payload.hasMedia || raw.payload.media || raw.payload.mediaUrl || raw.payload._data?.deprecatedMms3Url;
