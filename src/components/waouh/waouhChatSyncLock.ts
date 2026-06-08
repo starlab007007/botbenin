@@ -18,8 +18,8 @@
  */
 
 export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
-  version: "v1",
-  lockedAt: "2026-06-06T00:00:00.000Z",
+  version: "v2",
+  lockedAt: "2026-06-08T00:00:00.000Z",
   memoryRef: "mem://features/waouh-chat-sync-flow",
   invariants: Object.freeze({
     webhook: {
@@ -44,21 +44,35 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
     chatWindow: {
       file: "src/components/waouh/WaouhMatchChatWindow.tsx",
       mustContain: [
-        // realtime filter (article_id OR meta.article_id)
         "m?.article_id !== match.article_id && m?.meta?.article_id !== match.article_id",
-        // seed bubble suppression comment
         "Bulle \"seedNotif.text\" supprim",
-        // identity-aware history loader (auth user + session)
         "authUserId: authUserId ?? null",
       ],
       mustNotContain: [
-        // Ensure the raw seed text is never rendered as its own bubble
         "{seedNotif?.text}",
         "{seedNotif.text}",
       ],
     },
+    // 🆕 v2 — Verrouille le flux 100 % WhatsApp (vendeur ↔ acheteur).
+    // Toute régression sur la résolution LID casse les notifications
+    // "📩 Nouvel acheteur intéressé", les contre-offres et l'accord final.
+    whatsappLidResolution: {
+      file: "supabase/functions/waouh-channel-in/index.ts",
+      mustContain: [
+        "lidToPhoneInline",
+        "lid resolved",
+      ],
+    },
+    whatsappOutboundDispatch: {
+      file: "supabase/functions/waouh-outbound-dispatch/index.ts",
+      mustContain: [
+        "lidToPhoneInline",
+        "lid unresolved",
+      ],
+    },
   }),
 });
+
 
 declare global {
   // eslint-disable-next-line no-var
