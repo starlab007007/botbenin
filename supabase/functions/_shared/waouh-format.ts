@@ -429,4 +429,78 @@ export function contactExchangeText(
   );
 }
 
+/**
+ * 🔑 LID → vrai numéro E.164 (cache DB `waouh_lid_phone_map` + fallback WAHA contacts/all).
+ * Retourne les chiffres bruts E.164 (sans `+`) ou null. Best-effort, ne lève jamais.
+ * Persiste la résolution pour les appels suivants.
+ */
+export async function lidToPhoneInline(
+  sb: any,
+  lidOrJid: string | null | undefined,
+  opts?: { session?: string | null; wahaBase?: string | null; wahaApiKey?: string | null }
+): Promise<string | null> {
+  if (!lidOrJid) return null;
+  const raw = String(lidOrJid).trim();
+  const lidId = raw.replace(/@lid$/i, "");
+  if (!lidId) return null;
+
+  // 1) Cache DB
+  try {
+    const { data } = await sb
+      .from("waouh_lid_phone_map")
+      .select("phone_e164, phone")
+      .or(`lid.eq.${lidId},lid.eq.${lidId}@lid`)
+      .maybeSingle();
+    const digits = (data?.phone_e164 || data?.phone || "")
+      .toString()
+      .replace(/^\+/, "")
+      .replace(/\D/g, "");
+    if (digits && digits.length >= 10) return digits;
+  } catch (_) { /* ignore */ }
+
+  // 2) Fallback WAHA live lookup
+  const wahaBase = (opts?.wahaBase ?? (typeof Deno !== "undefined" ? (Deno as any).env.get("WAHA_BASE_URL") : "") ?? "").toString().replace(/\/$/, "");
+  const wahaKey = opts?.wahaApiKey ?? (typeof Deno !== "undefined" ? (Deno as any).env.get("WAHA_API_KEY") : "") ?? null;
+  const session = opts?.session ?? (typeof Deno !== "undefined" ? (Deno as any).env.get("WAHA_SESSION") : "WaouhApp") ?? "WaouhApp";
+  if (!wahaBase) return null;
+
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (wahaKey) headers["X-Api-Key"] = String(wahaKey);
+
+  try {
+    const url = `${wahaBase}/api/contacts/all?session=${encodeURIComponent(String(session))}`;
+    const r = await fetch(url, { headers });
+    if (!r.ok) return null;
+    const all = await r.json().catch(() => []);
+    if (!Array.isArray(all)) return null;
+    const hit = all.find((c: any) => {
+      const cid = (c?.id || "").toString();
+      const clid = (c?.lid || "").toString();
+      return clid === lidId || clid === `${lidId}@lid` || cid === `${lidId}@lid`;
+    });
+    if (!hit) return null;
+    const rawPhone = hit.number || hit.phoneNumber || (hit.id ? String(hit.id).split("@")[0] : "");
+    const digits = String(rawPhone || "").replace(/\D/g, "");
+    if (!digits || digits.length < 10) return null;
+    const phoneE164 = digits.startsWith("229")
+      ? `+${digits}`
+      : (digits.length === 8 || (digits.length === 10 && digits.startsWith("01")) ? `+229${digits}` : `+${digits}`);
+    try {
+      await sb.from("waouh_lid_phone_map").upsert({
+        lid: lidId,
+        jid: hit.id || `${lidId}@lid`,
+        phone: digits,
+        phone_e164: phoneE164,
+        pushname: hit.pushname || null,
+        display_name: hit.name || hit.shortName || null,
+        session,
+        last_synced_at: new Date().toISOString(),
+      }, { onConflict: "lid" });
+    } catch (_) { /* ignore */ }
+    return digits;
+  } catch (_) { return null; }
+}
+
+
+
 
