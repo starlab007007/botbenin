@@ -18,8 +18,8 @@
  */
 
 export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
-  version: "v3",
-  lockedAt: "2026-06-09T00:00:00.000Z",
+  version: "v4",
+  lockedAt: "2026-06-09T23:00:00.000Z",
   memoryRef: "mem://features/waouh-chat-sync-flow",
   invariants: Object.freeze({
     webhook: {
@@ -98,6 +98,28 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
         "runCell",
         "scenarios",
         "waouh_e2e_test_runs",
+      ],
+    },
+    // 🔒 v4 — Idempotence du flux WhatsApp 100 % (acceptation + queue).
+    // Verrouille la non-duplication de "vente conclue" / "achat confirmé".
+    whatsappAcceptanceIdempotence: {
+      file: "supabase/functions/waouh-negotiation-router/index.ts",
+      mustContain: [
+        "deal_already_accepted",
+        "suppress_direct_reply",
+        "23505",
+      ],
+    },
+    whatsappChannelInSuppress: {
+      file: "supabase/functions/waouh-channel-in/index.ts",
+      mustContain: [
+        "suppress_direct_reply",
+      ],
+    },
+    whatsappQueueDedup: {
+      file: "supabase/functions/_shared/waouh-sync.ts",
+      mustContain: [
+        "${dealId ?? \"nodeal\"}",
       ],
     },
   }),
