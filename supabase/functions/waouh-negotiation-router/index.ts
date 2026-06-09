@@ -225,27 +225,6 @@ Deno.serve(async (req) => {
         }).catch((e) => console.warn("[neg-router] partner-attribute-sale failed", e));
       }
 
-      // Wording neutre, sans aucun numéro
-      const buildSynthese = (heading: string) =>
-        `${waouhHeader(heading)}\n\n` +
-        `📦 *${title}*\n` +
-        `💰 *Prix final* : ${fmt(amount)}\n\n`;
-
-      const replyToBuyer =
-        buildSynthese("🎉 Achat confirmé !") +
-        `🛵 Un *livreur WAOUH* a été assigné.\n` +
-        `⏱️ Vous recevrez sous peu une notification avec le *délai estimé de livraison*.\n` +
-        `💵 *Paiement à la livraison* (cash ou Mobile Money au livreur).\n\n` +
-        `🔒 Le contact du vendeur n'est pas partagé : WAOUH s'occupe de tout.\n\n` +
-        waouhFooter("WAOUH — Merci de votre confiance ✨");
-
-      const replyToSeller =
-        buildSynthese("🎉 Vente conclue !") +
-        `🛵 Un *livreur WAOUH* vous contactera dans quelques minutes pour convenir de la collecte du colis.\n` +
-        `⏱️ Préparez le colis dès maintenant.\n\n` +
-        `🔒 *Confidentialité* : le contact de l'acheteur n'est pas partagé. WAOUH coordonne la livraison.\n\n` +
-        waouhFooter("WAOUH — Merci de votre confiance ✨");
-
       // Les messages finaux "Vente conclue" / "Achat confirmé" sont envoyés
       // uniquement par waouh-deal-dispatch. Sinon l'acteur reçoit la réponse
       // directe du router + le dispatch, et l'autre partie reçoit deal_created
