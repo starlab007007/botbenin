@@ -18,8 +18,8 @@
  */
 
 export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
-  version: "v2",
-  lockedAt: "2026-06-08T00:00:00.000Z",
+  version: "v3",
+  lockedAt: "2026-06-09T00:00:00.000Z",
   memoryRef: "mem://features/waouh-chat-sync-flow",
   invariants: Object.freeze({
     webhook: {
@@ -68,6 +68,36 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
       mustContain: [
         "lidToPhoneInline",
         "lid unresolved",
+      ],
+    },
+    // 🆕 v3 — Tunnel partenaire (catalog → article) & fallback radar IA.
+    partnerCatalogPromotion: {
+      file: "supabase/functions/_shared/waouh-promote.ts",
+      mustContain: [
+        "promoteCatalogToArticle",
+        "promoted_article_id",
+      ],
+    },
+    notifyDispatchAcceptsCatalog: {
+      file: "supabase/functions/waouh-notify-dispatch/index.ts",
+      mustContain: [
+        "catalog_id",
+        "promoteCatalogToArticle",
+      ],
+    },
+    radarContactFallback: {
+      file: "supabase/functions/_shared/waouhContact.ts",
+      mustContain: [
+        "needs_enrichment",
+        "waouh_external_listings",
+      ],
+    },
+    e2eRunnerCoverage: {
+      file: "supabase/functions/waouh-e2e-test/index.ts",
+      mustContain: [
+        "runCell",
+        "scenarios",
+        "waouh_e2e_test_runs",
       ],
     },
   }),
