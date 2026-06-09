@@ -136,11 +136,16 @@ export default function WaouhE2ETestsTab() {
       toast({ title: "Numéros requis", description: "Renseignez vendeur et acheteur", variant: "destructive" });
       return;
     }
-    if (!confirm(`⚠️ Ce test enverra 30 messages WhatsApp RÉELS :\n- Vendeur ${sellerPhone}\n- Acheteur ${buyerPhone}\n\nContinuer ?`)) return;
+    if (waScenarios.length === 0) {
+      toast({ title: "Scénarios requis", description: "Sélectionnez au moins A, B ou C", variant: "destructive" });
+      return;
+    }
+    const expectedMsgs = waScenarios.length * 3 * 5 * 2;
+    if (!confirm(`⚠️ Ce test enverra jusqu'à ${expectedMsgs} messages (WhatsApp réels pour les parties WA, inserts in-app pour les parties App) :\n- Vendeur ${sellerPhone}\n- Acheteur ${buyerPhone}\n- Scénarios : ${waScenarios.join(", ")}\n\nContinuer ?`)) return;
     setWaRunning(true);
     setWaResult(null);
     const { data, error } = await supabase.functions.invoke("waouh-e2e-test", {
-      body: { mode: "whatsapp_full", seller_phone: sellerPhone, buyer_phone: buyerPhone, sources: ["chat", "partner", "radar"] },
+      body: { mode: "whatsapp_full", seller_phone: sellerPhone, buyer_phone: buyerPhone, sources: ["chat", "partner", "radar"], scenarios: waScenarios },
     });
     setWaRunning(false);
     if (error) {
