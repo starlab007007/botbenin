@@ -153,7 +153,7 @@ export default function WaouhE2ETestsTab() {
 
   const exportMd = () => {
     if (!selected) return;
-    const cells = (selected.steps as CellResult[]) || [];
+    const cells: CellResult[] = Array.isArray(selected.steps) ? (selected.steps as CellResult[]) : [];
     const bySource: Record<string, CellResult[]> = { chat: [], partner: [], radar: [] };
     cells.forEach(c => { (bySource[c.source] ||= []).push(c); });
     let md = `# Rapport E2E WAOUH\n\nRun: ${selected.id}\nStatut: ${selected.status}\nDémarré: ${selected.started_at}\nRésumé: ${selected.summary?.ok ?? 0} OK · ${selected.summary?.partial ?? 0} warn · ${selected.summary?.failed ?? 0} fail\n\n`;
