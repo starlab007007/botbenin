@@ -66,10 +66,16 @@ Deno.serve(async (req) => {
     let insertedMsgId: string | null = null;
     if (target.id) {
       const articleIdCol = (payload as any)?.article_id ?? (directMeta as any)?.article_id ?? null;
+      // Canal aligné sur pushSyncedEvent : web > app > system, pour que les
+      // utilisateurs App (B/C) sans session web voient bien le message dans
+      // WaouhMatchChatWindow.
+      const msgChannel = target.web_session_id
+        ? "web"
+        : (target.auth_user_id ? "app" : "system");
       try {
         const { data: msg } = await sb.from("waouh_messages").insert({
           user_id: target.id,
-          channel: target.web_session_id ? "web" : "system",
+          channel: msgChannel,
           direction: "out",
           text: directText,
           web_session_id: target.web_session_id ?? null,
