@@ -41,11 +41,14 @@ function normalizeBeninPhone(value: string) {
   if (original.includes("@lid")) return original.replace(/[^0-9@.a-z]/gi, "");
   const digits = original.replace(/\D/g, "");
   if (!digits) return null;
+  // 🚧 Garde-fou : refuse les numéros impossiblement longs (typiquement un LID camouflé).
+  if (digits.length > 13) return null;
   if (digits.startsWith("00229")) return digits.slice(2);
-  if (digits.startsWith("229")) return digits;
+  if (digits.startsWith("229")) return digits.length <= 13 ? digits : null;
   if (digits.length === 8 || (digits.length === 10 && digits.startsWith("01"))) return `229${digits}`;
-  return digits.length > 8 ? digits : null;
+  return digits.length > 8 && digits.length <= 13 ? digits : null;
 }
+
 
 /**
  * Pour un numéro Bénin, génère les deux candidats JID possibles :
@@ -183,6 +186,19 @@ Deno.serve(async (req) => {
       const text = stripLegacyPaymentText(rawText);
       let toPhone = it.to_phone as string;
 
+      // 🛟 Détection LID camouflé (229 suivi de >10 chiffres) — escalade en résolution LID
+      // au lieu d'envoyer à un numéro fictif que WAHA refusera ("no WA contact").
+      if (typeof toPhone === "string" && /^229\d{11,}$/.test(toPhone.replace(/\D/g, ""))) {
+        const stripped = toPhone.replace(/\D/g, "").slice(3); // retire le faux "229"
+        toPhone = `${stripped}@lid`;
+        // Aligne aussi waouh_users pour les prochaines fois.
+        if (it.to_user_id) {
+          try {
+            await sb.from("waouh_users").update({ phone_number: toPhone }).eq("id", it.to_user_id);
+          } catch (_) { /* ignore */ }
+        }
+      }
+
       // Dernier verrou central : avant tout envoi, re-résoudre le numéro réel
       // depuis l'utilisateur + l'annonce pour éviter @lid/profil obsolète.
       if (it.to_user_id) {
@@ -198,6 +214,7 @@ Deno.serve(async (req) => {
           const resolved = await resolveRealPhoneE164(sb, targetUser, { article_id: it.payload?.article_id ?? null, role });
           if (resolved) toPhone = resolved;
         } catch (_) { /* garde le to_phone déjà en file */ }
+
       }
 
       // 🔁 LID anonyme → résolution via waouh_lid_phone_map (cache) puis

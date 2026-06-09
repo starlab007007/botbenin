@@ -444,6 +444,19 @@ export async function lidToPhoneInline(
   const lidId = raw.replace(/@lid$/i, "");
   if (!lidId) return null;
 
+  // Helper : un "phone" retourné est-il plausible (≠ LID, longueur ok, indicatif connu) ?
+  const isPlausiblePhone = (digits: string): boolean => {
+    if (!digits) return false;
+    if (digits === lidId) return false;            // ❌ phone == lid (corruption WAHA privacy)
+    if (digits.length < 8 || digits.length > 13) return false;
+    // Indicatifs Afrique de l'Ouest fréquents + numéros locaux Bénin 8/10 chiffres
+    if (digits.startsWith("229")) return digits.length === 11 || digits.length === 13; // 229+8 ou 229+10
+    if (digits.length === 8) return true;                                              // local Bénin (sera préfixé en aval)
+    if (digits.length === 10 && digits.startsWith("01")) return true;                  // local Bénin réforme 2021
+    // Autres indicatifs (225 CI, 234 NG, 33 FR, 1 US/CA, etc.) : longueur E.164 stricte
+    return /^(225|226|227|228|233|234|235|236|237|241|242|243|250|254|255|256|33|1|44|49|212|213|216|220|221|223|224|252|258|261|265|266|267|268|269)\d{6,}$/.test(digits);
+  };
+
   // 1) Cache DB
   try {
     const { data } = await sb
@@ -455,7 +468,7 @@ export async function lidToPhoneInline(
       .toString()
       .replace(/^\+/, "")
       .replace(/\D/g, "");
-    if (digits && digits.length >= 10) return digits;
+    if (isPlausiblePhone(digits)) return digits;
   } catch (_) { /* ignore */ }
 
   // 2) Fallback WAHA live lookup
@@ -481,7 +494,7 @@ export async function lidToPhoneInline(
     if (!hit) return null;
     const rawPhone = hit.number || hit.phoneNumber || (hit.id ? String(hit.id).split("@")[0] : "");
     const digits = String(rawPhone || "").replace(/\D/g, "");
-    if (!digits || digits.length < 10) return null;
+    if (!isPlausiblePhone(digits)) return null;     // ❌ refuse phone == lid ou longueur folle
     const phoneE164 = digits.startsWith("229")
       ? `+${digits}`
       : (digits.length === 8 || (digits.length === 10 && digits.startsWith("01")) ? `+229${digits}` : `+${digits}`);
@@ -500,6 +513,7 @@ export async function lidToPhoneInline(
     return digits;
   } catch (_) { return null; }
 }
+
 
 
 

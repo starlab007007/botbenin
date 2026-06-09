@@ -271,21 +271,33 @@ serve(async (req) => {
       if (phone && /@lid$/i.test(phone)) {
         try {
           const lidDigits = await lidToPhoneInline(sb, phone, { session: wahaSession });
-          if (lidDigits && lidDigits.length >= 10) {
-            const resolved = lidDigits.startsWith("229") ? lidDigits : `229${lidDigits.replace(/^0/, "")}`;
+          // ✅ Garde-fou strict : seul un résultat plausible (8 à 12 chiffres, et pas un LID camouflé)
+          // peut écraser le phone. Sinon on garde `<lid>@lid` pour redéclencher la résolution plus tard.
+          let resolved: string | null = null;
+          if (lidDigits && lidDigits.length >= 8 && lidDigits.length <= 12) {
+            if (lidDigits.startsWith("229") && (lidDigits.length === 11 || lidDigits.length === 13)) {
+              resolved = lidDigits;
+            } else if (lidDigits.length === 8) {
+              resolved = `229${lidDigits}`;
+            } else if (lidDigits.length === 10 && lidDigits.startsWith("01")) {
+              resolved = `229${lidDigits}`;
+            }
+          }
+          if (resolved && /^229\d{8,10}$/.test(resolved)) {
             const lidOrig = phone;
             phone = resolved;
-            // Backfill: tout waouh_user historiquement stocké avec phone=<lid>@lid
-            // est rebasculé vers le vrai numéro pour ne pas casser les négos déjà ouvertes.
             try {
               await sb.from("waouh_users")
                 .update({ phone_number: resolved })
                 .eq("phone_number", lidOrig);
             } catch (_) { /* ignore */ }
             log("lid resolved", { lid: lidOrig, phone: resolved });
+          } else {
+            log("lid unresolved — keep @lid", { lid: phone, returned: lidDigits });
           }
         } catch (e) { console.warn("[waouh-channel-in] lid resolve failed", e); }
       }
+
 
 
       text = extractInteractiveText(raw.payload);
