@@ -99,10 +99,17 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
     ...payloadExtra,
   };
 
+  // Canal d'écriture : web si session active, app si user authentifié sans
+  // session web, whatsapp si seul un numéro est connu, sinon system. Toujours
+  // insérer la ligne pour garantir le miroir in-app (B/C) en parallèle de la
+  // queue WhatsApp.
+  const msgChannel = user.web_session_id
+    ? "web"
+    : (user.auth_user_id ? "app" : (user.phone_number ? "whatsapp" : "system"));
   try {
     const { data: msg } = await sb.from("waouh_messages").insert({
       user_id: user.id,
-      channel: user.web_session_id ? "web" : (user.phone_number ? "whatsapp" : "system"),
+      channel: msgChannel,
       direction: "out",
       text,
       web_session_id: user.web_session_id ?? null,
