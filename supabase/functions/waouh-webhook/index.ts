@@ -94,12 +94,18 @@ async function resolveVendorContacts(sb: any, pick: any): Promise<{ phone: strin
   const phones: string[] = [];
   for (const r of ranked) {
     try {
-      const user = await resolveWaouhUserByPhone(sb, r.phone);
-      const key = user?.auth_user_id || user?.id || `phone:${r.phone}`;
+      const cand = beninPhoneCandidates(r.phone);
+      const { data: u } = cand.length
+        ? await sb.from("waouh_users")
+            .select("id, auth_user_id")
+            .in("phone_number", cand)
+            .limit(1)
+            .maybeSingle()
+        : { data: null };
+      const key = (u as any)?.auth_user_id || (u as any)?.id || `phone:${r.phone}`;
       if (seenUserKey.has(key)) continue;
       seenUserKey.add(key);
     } catch {
-      // si le lookup échoue, on garde le numéro (vendeur invité pur).
       if (seenUserKey.has(`phone:${r.phone}`)) continue;
       seenUserKey.add(`phone:${r.phone}`);
     }
