@@ -976,6 +976,32 @@ serve(async (req) => {
             if (stub?.id) pick.seller_id = stub.id;
           }
         }
+        // 🔒 Bug 2 fix — Promotion catalog→article AVANT la création de la
+        // négociation. Sans ça, pick.id est un UUID de waouh_unified_catalog
+        // qui ne respecte pas la FK waouh_negotiations.article_id →
+        // waouh_articles.id et fait répondre "Aucune négociation en cours"
+        // à l'offre suivante (scénarios B2/C2).
+        if (pickSource === "partner") {
+          try {
+            const promo = await promoteCatalogToArticle(sb, pick.id, {
+              seller_id: pick.seller_id ?? null,
+              category: pick.categorie || pick.category || null,
+            });
+            if (promo.article_id) {
+              pick = { ...pick, id: promo.article_id };
+            } else {
+              console.error("[interest] catalog promotion failed", promo.reason);
+              reply = "🤔 Cet article ne peut pas être négocié pour l'instant. Réessayez dans un instant.";
+              returnedActions = [];
+              break;
+            }
+          } catch (e) {
+            console.error("[interest] catalog promotion error", e);
+            reply = "🤔 Cet article ne peut pas être négocié pour l'instant. Réessayez dans un instant.";
+            returnedActions = [];
+            break;
+          }
+        }
         const { data: seller } = pick.seller_id
           ? await sb.from("waouh_users").select("id,phone_number,display_name,web_session_id,city").eq("id", pick.seller_id).maybeSingle()
           : { data: null };
