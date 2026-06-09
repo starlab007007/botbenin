@@ -266,6 +266,7 @@ interface WACellStep {
 }
 
 interface WACellResult {
+  scenario: Scenario;
   source: Source;
   cell: string;
   article_id: string | null;
