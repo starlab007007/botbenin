@@ -1054,7 +1054,7 @@ serve(async (req) => {
               directAtts: firstPhoto ? [{ url: firstPhoto, type: "image/jpeg", caption: pick.title }] : [],
               directMeta: { intent: "match_seller", article_id: pick.id, negotiation_id: neg?.id, source: pickSource },
               transaction_id: null,
-              dedupe_key: `match:${neg?.id ?? pick.id}:${pickSource}`,
+              dedupe_key: `match:${neg?.id ?? pick.id}:${seller?.id ?? "anon"}:${pickSource}`,
               event_type: "seller_new_interest",
             });
             for (const extraPhone of phonesToPush.slice(1)) {
