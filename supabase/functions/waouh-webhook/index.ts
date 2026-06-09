@@ -6,6 +6,7 @@ import {
   resolveWaouhUserByPhone,
   ensureWaouhVendorStub,
 } from "../_shared/waouh-phone.ts";
+import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
