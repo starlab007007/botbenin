@@ -21,6 +21,8 @@ import {
   buildBuyerMatchText,
   distanceKm,
 } from "../_shared/waouh-format.ts";
+import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
+import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -116,7 +118,6 @@ serve(async (req) => {
 
     // 🆕 Tunnel partenaire : promouvoir catalog → article si nécessaire
     if (!article_id && catalog_id) {
-      const { promoteCatalogToArticle } = await import("../_shared/waouh-promote.ts");
       const promo = await promoteCatalogToArticle(sb, catalog_id);
       if (!promo.article_id) {
         return new Response(JSON.stringify({ error: "catalog promotion failed", details: promo.reason }), {
@@ -238,6 +239,38 @@ serve(async (req) => {
       waResult = { ok: true, skipped: true, reason: "skip_whatsapp" };
     } else {
       channelUsed = "waouh_app";
+
+      // 🪞 App-only target (scénarios B/C) : pas de WA queue déclenchée
+      // ci-dessus. On utilise pushSyncedEvent pour insérer le waouh_messages
+      // qui alimente la WaouhMatchChatWindow et, si l'utilisateur a aussi un
+      // numéro WA en miroir, enqueuer une copie WA (dédup via dedupBase).
+      if (notifTargetUserId) {
+        try {
+          const { data: targetUser } = await sb
+            .from("waouh_users")
+            .select("id, phone_number, web_session_id, auth_user_id")
+            .eq("id", notifTargetUserId)
+            .maybeSingle();
+          if (targetUser?.id) {
+            await pushSyncedEvent({
+              sb,
+              user: targetUser as any,
+              role: recipient === "seller" ? "seller" : "buyer",
+              articleId: article_id,
+              text,
+              intent: kind,
+              template: kind,
+              eventType: kind,
+              attachments: photos.slice(0, 4).map((url) => ({ url, type: "image/jpeg" })),
+              imageUrl: photos[0] ?? null,
+              dedupSuffix: `notify:${recipient}${buyer_profile_id ? `:${buyer_profile_id}` : ""}`,
+              payloadExtra: { article_id, recipient, buyer_profile_id: buyer_profile_id ?? null },
+            });
+          }
+        } catch (e) {
+          console.warn("[waouh-notify-dispatch] pushSyncedEvent failed", e);
+        }
+      }
     }
 
     // Insert notification row (in-app card carries the same photos[])
