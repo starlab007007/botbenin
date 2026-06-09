@@ -473,7 +473,7 @@ async function runWACell(
   const failures = steps.filter(s => (s.seller && !s.seller.ok) || (s.buyer && !s.buyer.ok)).length;
   const status: WACellResult["status"] = failures === 0 ? "ok" : failures >= steps.length ? "failed" : "partial";
 
-  return { source, cell, article_id, catalog_id, negotiation_id: negotiationId, deal_id: dealId, steps, status };
+  return { scenario, source, cell, article_id, catalog_id, negotiation_id: negotiationId, deal_id: dealId, steps, status };
 }
 
 async function ensureUser(sb: any, phone: string, displayName: string) {
