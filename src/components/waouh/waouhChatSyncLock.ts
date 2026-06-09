@@ -122,6 +122,36 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
         "${dealId ?? \"nodeal\"}",
       ],
     },
+    // 🔒 v5 — Parcours B (Vendeur App + Acheteur WA) et C (Vendeur WA + Acheteur App)
+    // alignés sur A. Les utilisateurs App reçoivent les notifs en miroir dans
+    // WaouhMatchChatWindow grâce à pushSyncedEvent (canal "app").
+    appChannelInSyncedEvent: {
+      file: "supabase/functions/_shared/waouh-sync.ts",
+      mustContain: [
+        "auth_user_id ? \"app\"",
+      ],
+    },
+    appNotifyDispatchMirror: {
+      file: "supabase/functions/waouh-notify-dispatch/index.ts",
+      mustContain: [
+        "pushSyncedEvent",
+        "App-only target",
+      ],
+    },
+    appRouterChannel: {
+      file: "supabase/functions/waouh-negotiation-router/index.ts",
+      mustContain: [
+        "target.auth_user_id ? \"app\"",
+      ],
+    },
+    e2eScenariosBC: {
+      file: "supabase/functions/waouh-e2e-test/index.ts",
+      mustContain: [
+        "scenarios: Scenario[]",
+        "sellerIsApp",
+        "buyerIsApp",
+      ],
+    },
   }),
 });
 
