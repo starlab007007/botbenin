@@ -45,7 +45,7 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
       file: "src/components/waouh/WaouhMatchChatWindow.tsx",
       mustContain: [
         "m?.article_id !== match.article_id && m?.meta?.article_id !== match.article_id",
-        "Bulle \"seedNotif.text\" supprim",
+        "const seedText = seedNotif?.text?.trim()",
         "authUserId: authUserId ?? null",
       ],
       mustNotContain: [
