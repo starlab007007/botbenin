@@ -42,11 +42,16 @@ function extractProductPhotos(source: any): string[] {
  * Source radar     → utilise le contact_phone scrapé (déjà sur le pick).
  */
 async function resolveVendorContacts(sb: any, pick: any): Promise<{ phone: string | null; phones: string[]; owner_auth_user_id: string | null; web_sessions: Array<{ user_id: string; web_session_id: string }> }> {
-  const rawPhones: Array<string | null | undefined> = [
-    pick?.vendeur_whatsapp,
-    pick?.vendeur_phone,
-    pick?.contact_phone,
-    pick?.vendeur_mobile_money,
+  // Priorité de routage : on garde UN SEUL numéro par identité destinataire.
+  // Sinon un vendeur App qui a aussi un compte partner reçoit la même notif
+  // 2× (cas Bug 1 du scénario B). Ordre : whatsapp business > seller direct
+  // > partner > téléphones secondaires (mobile money / contact_phone).
+  const candidates: Array<{ raw: string | null | undefined; rank: number }> = [
+    { raw: pick?.vendeur_whatsapp, rank: 1 },
+    { raw: pick?.contact_whatsapp, rank: 1 },
+    { raw: pick?.vendeur_phone,    rank: 3 },
+    { raw: pick?.contact_phone,    rank: 3 },
+    { raw: pick?.vendeur_mobile_money, rank: 4 },
   ];
   let ownerAuthId: string | null = null;
   if (pick?.business_id) {
@@ -54,28 +59,53 @@ async function resolveVendorContacts(sb: any, pick: any): Promise<{ phone: strin
       .select("whatsapp, telephone, mobile_money_number, partner_id")
       .eq("id", pick.business_id).maybeSingle();
     if (biz) {
-      rawPhones.push(biz.whatsapp, biz.telephone, biz.mobile_money_number);
+      candidates.push({ raw: biz.whatsapp, rank: 1 });
+      candidates.push({ raw: biz.telephone, rank: 3 });
+      candidates.push({ raw: biz.mobile_money_number, rank: 4 });
       if (biz.partner_id) {
         const { data: partner } = await sb.from("waouh_partners")
           .select("user_id, whatsapp, telephone, mobile_money_number")
           .eq("id", biz.partner_id).maybeSingle();
         if (partner) {
           ownerAuthId = partner.user_id || null;
-          rawPhones.push(partner.whatsapp, partner.telephone, partner.mobile_money_number);
+          candidates.push({ raw: partner.whatsapp, rank: 2 });
+          candidates.push({ raw: partner.telephone, rank: 3 });
+          candidates.push({ raw: partner.mobile_money_number, rank: 4 });
         }
       }
     }
   }
-  // Normalise et dédoublonne tous les numéros candidats (whatsapp, tel, mobile money).
-  // On enverra la notif à CHAQUE numéro distinct pour s'assurer que le marchand reçoit
-  // bien sur la ligne qu'il utilise réellement (un même partenaire saisit souvent un
-  // numéro WhatsApp ≠ de son numéro tel/mobile money).
-  const seen = new Set<string>();
-  const phones: string[] = [];
-  for (const raw of rawPhones) {
-    const canon = normalizeBeninPhone(raw);
-    if (canon && !seen.has(canon)) { seen.add(canon); phones.push(canon); }
+  // Normalise, dédoublonne par numéro canonique, garde l'ordre de priorité.
+  const seenPhone = new Set<string>();
+  const ranked: Array<{ phone: string; rank: number }> = [];
+  for (const c of candidates) {
+    const canon = normalizeBeninPhone(c.raw);
+    if (canon && !seenPhone.has(canon)) {
+      seenPhone.add(canon);
+      ranked.push({ phone: canon, rank: c.rank });
+    }
   }
+  ranked.sort((a, b) => a.rank - b.rank);
+
+  // 🔒 Bug 1 fix — Dédup par IDENTITÉ destinataire (waouh_users.id /
+  // auth_user_id). Si plusieurs numéros mènent au même utilisateur WAOUH,
+  // on ne garde que le numéro le mieux classé pour éviter les notifs doublons.
+  const seenUserKey = new Set<string>();
+  const phones: string[] = [];
+  for (const r of ranked) {
+    try {
+      const user = await resolveWaouhUserByPhone(sb, r.phone);
+      const key = user?.auth_user_id || user?.id || `phone:${r.phone}`;
+      if (seenUserKey.has(key)) continue;
+      seenUserKey.add(key);
+    } catch {
+      // si le lookup échoue, on garde le numéro (vendeur invité pur).
+      if (seenUserKey.has(`phone:${r.phone}`)) continue;
+      seenUserKey.add(`phone:${r.phone}`);
+    }
+    phones.push(r.phone);
+  }
+
   let webSessions: Array<{ user_id: string; web_session_id: string }> = [];
   if (ownerAuthId) {
     const { data: rows } = await sb.from("waouh_users")
