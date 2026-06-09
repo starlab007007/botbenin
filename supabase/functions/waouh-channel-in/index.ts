@@ -495,20 +495,23 @@ serve(async (req) => {
       const negIntent = negData?.intent || "negotiation";
       const negActions: WaouhAction[] = Array.isArray(negData?.actions) ? negData.actions : [];
       const negAttachments = Array.isArray(negData?.attachments) ? negData.attachments : [];
-      await sb.from("waouh_messages").insert({
-        conversation_id: convId,
-        user_id: user.id, channel, direction: "out", text: negReply,
-        web_session_id: sessionId, phone_number: phone,
-        attachments: negAttachments,
-        article_id: clientMeta?.article_id ?? null,
-        meta: { intent: negIntent, transaction_id: negTxId, article_id: clientMeta?.article_id ?? null, actions: negActions },
-      });
-      if (convId) {
-        await sb.from("waouh_conversations")
-          .update({ last_message: negReply, updated_at: new Date().toISOString() })
-          .eq("id", convId);
+      const suppressDirectReply = negData?.suppress_direct_reply === true;
+      if (!suppressDirectReply) {
+        await sb.from("waouh_messages").insert({
+          conversation_id: convId,
+          user_id: user.id, channel, direction: "out", text: negReply,
+          web_session_id: sessionId, phone_number: phone,
+          attachments: negAttachments,
+          article_id: clientMeta?.article_id ?? null,
+          meta: { intent: negIntent, transaction_id: negTxId, article_id: clientMeta?.article_id ?? null, actions: negActions },
+        });
+        if (convId) {
+          await sb.from("waouh_conversations")
+            .update({ last_message: negReply, updated_at: new Date().toISOString() })
+            .eq("id", convId);
+        }
       }
-      if (channel === "whatsapp" && phone && WAHA_BASE_URL) {
+      if (!suppressDirectReply && channel === "whatsapp" && phone && WAHA_BASE_URL) {
         try {
           const firstImage = negAttachments.find((a: any) => a?.url)?.url || null;
           await sendWahaReply(WAHA_BASE_URL, wahaSession, replyChatIds, negReply, negActions, firstImage);
