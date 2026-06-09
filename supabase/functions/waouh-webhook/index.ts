@@ -981,6 +981,7 @@ serve(async (req) => {
         // qui ne respecte pas la FK waouh_negotiations.article_id →
         // waouh_articles.id et fait répondre "Aucune négociation en cours"
         // à l'offre suivante (scénarios B2/C2).
+        let promotionFailed = false;
         if (pickSource === "partner") {
           try {
             const promo = await promoteCatalogToArticle(sb, pick.id, {
@@ -991,17 +992,17 @@ serve(async (req) => {
               pick = { ...pick, id: promo.article_id };
             } else {
               console.error("[interest] catalog promotion failed", promo.reason);
-              reply = "🤔 Cet article ne peut pas être négocié pour l'instant. Réessayez dans un instant.";
-              returnedActions = [];
-              break;
+              promotionFailed = true;
             }
           } catch (e) {
             console.error("[interest] catalog promotion error", e);
-            reply = "🤔 Cet article ne peut pas être négocié pour l'instant. Réessayez dans un instant.";
-            returnedActions = [];
-            break;
+            promotionFailed = true;
           }
         }
+        if (promotionFailed) {
+          reply = "🤔 Cet article ne peut pas être négocié pour l'instant. Réessayez dans un instant.";
+          returnedActions = [];
+        } else {
         const { data: seller } = pick.seller_id
           ? await sb.from("waouh_users").select("id,phone_number,display_name,web_session_id,city").eq("id", pick.seller_id).maybeSingle()
           : { data: null };
