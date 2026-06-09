@@ -337,7 +337,7 @@ async function runWACell(
 
   const { article_id, catalog_id } = await setupWAArticle(sb, source, sellerId, sellerPhone, title, price, photo);
   if (!article_id) {
-    return { source, cell, article_id: null, catalog_id, negotiation_id: null, deal_id: null,
+    return { scenario, source, cell, article_id: null, catalog_id, negotiation_id: null, deal_id: null,
       steps: [{ step: 1, label: "Setup article failed", to: "seller" }], status: "failed" };
   }
 
