@@ -144,6 +144,26 @@ Deno.serve(async (req) => {
       // 🎉 Accord conclu : on crée un "deal" (livraison médiée).
       // ❌ AUCUN partage de contact entre acheteur et vendeur.
       // ✅ Un livreur WAOUH prend le relais ; l'équipe ops reçoit les contacts.
+
+      // 🛡️ Idempotence : si un deal existe déjà pour cette négociation, on court-circuite
+      // (cas typique : les deux parties confirment « oui » successivement).
+      const { data: existingDeal } = await sb
+        .from("waouh_deals")
+        .select("id")
+        .eq("negotiation_id", neg.id)
+        .neq("status", "cancelled")
+        .maybeSingle();
+
+      if (existingDeal?.id || neg.state === "accepted" || neg.state === "closed") {
+        console.log("[neg-router] yes ignoré (déjà accepté)", { neg_id: neg.id, deal_id: existingDeal?.id, state: neg.state });
+        return new Response(JSON.stringify({
+          ok: true,
+          reply: "✅ Accord déjà enregistré. Un livreur WAOUH est en route — vous recevrez sous peu les détails de la livraison.",
+          intent: "deal_already_accepted",
+          deal_id: existingDeal?.id ?? null,
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
       const nowIso = new Date().toISOString();
       await sb.from("waouh_negotiations").update({
         state: "accepted",
@@ -167,8 +187,10 @@ Deno.serve(async (req) => {
         caption: `${title}${articlePhotos.length > 1 ? ` — photo ${k + 1}/${articlePhotos.length}` : ""}`,
       }));
 
-      // Création du deal (livraison à organiser)
-      const { data: deal } = await sb.from("waouh_deals").insert({
+      // Création du deal — protégée par UNIQUE INDEX waouh_deals_unique_per_negotiation.
+      // Si une course parallèle a déjà inséré un deal, l'INSERT échoue (23505)
+      // et on court-circuite proprement sans renvoyer d'event en double.
+      const { data: deal, error: dealErr } = await sb.from("waouh_deals").insert({
         negotiation_id: neg.id,
         article_id: neg.article_id,
         buyer_user_id: neg.buyer_user_id,
@@ -178,6 +200,15 @@ Deno.serve(async (req) => {
         pickup_address: (seller as any)?.city ?? null,
         dropoff_address: (buyer as any)?.city ?? null,
       }).select("id").maybeSingle();
+
+      if (dealErr && (dealErr as any).code === "23505") {
+        console.log("[neg-router] deal déjà créé en parallèle, court-circuit", { neg_id: neg.id });
+        return new Response(JSON.stringify({
+          ok: true,
+          reply: "✅ Accord déjà enregistré. Un livreur WAOUH est en route.",
+          intent: "deal_already_accepted",
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
 
       // 🛑 Marquer l'article comme vendu pour bloquer toute nouvelle négociation
       // (couvre les 3 parcours : C2C, partenaire, radar IA).
