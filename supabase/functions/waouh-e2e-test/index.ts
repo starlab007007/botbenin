@@ -344,9 +344,60 @@ async function runWACell(
   const buyerChatId = `${buyerPhone}@c.us`;
   const fmt = (n: number) => `${n.toLocaleString("fr-FR")} FCFA`;
   const hdr = (s: string) => `━━━━━━━━━━━━━━━━━━\n${s}\n━━━━━━━━━━━━━━━━━━`;
-  const tag = ` [${sourceLabel}]`;
+  const tag = ` [${sourceLabel} · ${channelLabel}]`;
 
-  const steps: WACellStep[] = [];
+  // Détermine quelle partie est « App-only » selon le scénario.
+  //  A → personne (les 2 sont WA)
+  //  B → vendeur App
+  //  C → acheteur App
+  const sellerIsApp = scenario === "B";
+  const buyerIsApp = scenario === "C";
+
+  // Helper unifié : envoie en WhatsApp pour les parties WA, OU insère
+  // directement dans waouh_messages pour les parties App (simule la
+  // réception in-app). Retourne le même shape que sendWA.
+  async function deliver(
+    party: "seller" | "buyer",
+    chatId: string,
+    phone: string,
+    userId: string,
+    template: string,
+    eventType: string,
+    text: string,
+    photoUrl?: string | null,
+  ): Promise<{ ok: boolean; status: number; msgId?: string; error?: string; text: string }> {
+    const isApp = (party === "seller" && sellerIsApp) || (party === "buyer" && buyerIsApp);
+    if (isApp) {
+      // Insert direct dans waouh_messages (canal "app") + audit queue.
+      try {
+        const { data: msg } = await sb.from("waouh_messages").insert({
+          user_id: userId,
+          channel: "app",
+          direction: "out",
+          text,
+          article_id: article_id,
+          attachments: photoUrl ? [{ url: photoUrl, type: "image/jpeg" }] : [],
+          meta: { intent: eventType, article_id, role: party, e2e: true, scenario, source },
+        }).select("id").maybeSingle();
+        await logQueue(sb, {
+          toPhone: phone, toUserId: userId, template, eventType,
+          text, status: "sent", wahaMsgId: `app:${msg?.id ?? "noid"}`,
+          imageUrl: photoUrl ?? null, articleId: article_id,
+        });
+        return { ok: !!msg?.id, status: 200, msgId: `app:${msg?.id ?? ""}`, text };
+      } catch (e) {
+        return { ok: false, status: 0, error: String(e), text };
+      }
+    }
+    const r = await sendWA(chatId, text, photoUrl ?? undefined);
+    await logQueue(sb, {
+      toPhone: phone, toUserId: userId, template, eventType,
+      text, status: r.ok ? "sent" : "failed", wahaMsgId: r.msgId, error: r.error,
+      imageUrl: photoUrl ?? null, articleId: article_id,
+    });
+    return { ...r, text };
+  }
+
 
   // STEP 1 — Annonce publiée → seller
   {
