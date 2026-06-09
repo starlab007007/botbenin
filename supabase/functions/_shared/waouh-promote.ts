@@ -16,13 +16,13 @@ export async function promoteCatalogToArticle(
 ): Promise<PromoteResult> {
   if (!catalog_id) return { article_id: null, catalog_id, created: false, reason: "no catalog_id" };
 
-  const { data: cat } = await sb
+  const { data: cat, error: selErr } = await sb
     .from("waouh_unified_catalog")
     .select("id, source, source_ref_id, titre, description, categorie, prix_min, prix_max, devise, ville, vendeur_whatsapp, vendeur_phone, vendeur_nom, partner_id, promoted_article_id, photos, image_url")
     .eq("id", catalog_id)
     .maybeSingle();
 
-  if (!cat) return { article_id: null, catalog_id, created: false, reason: "catalog row missing" };
+  if (!cat) return { article_id: null, catalog_id, created: false, reason: `catalog row missing: ${selErr?.message ?? "no data"}` };
   if (cat.promoted_article_id) {
     return { article_id: cat.promoted_article_id, catalog_id, created: false };
   }
