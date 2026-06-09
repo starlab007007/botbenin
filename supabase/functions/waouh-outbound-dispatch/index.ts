@@ -236,13 +236,11 @@ Deno.serve(async (req) => {
             } catch (_) { /* ignore */ }
           }
         } else {
-          // Pas de mapping → bascule en web si possible, sinon échec propre.
-          await sb.from("waouh_outbound_queue").update({
-            status: it.web_session_id ? "sent" : "failed",
-            last_error: it.web_session_id ? "lid unresolved → fallback web" : "lid unresolved (no phone)",
-            sent_at: new Date().toISOString(),
-          }).eq("id", it.id);
-          skipped++; continue;
+          // 🔓 Pas de mapping E.164 — mais WAHA accepte parfaitement un chatId
+          // au format `<lid>@lid` pour les conversations déjà ouvertes (cf.
+          // waouh-channel-in qui répond ainsi avec status 201). On garde donc
+          // le LID tel quel comme chatId et on continue l'envoi.
+          // toPhone reste `<digits>@lid` → traité comme candidate brute plus bas.
         }
       }
 
@@ -286,7 +284,7 @@ Deno.serve(async (req) => {
           } catch (_e) { /* ignore */ }
         }
         if (mappedChatId === "") continue; // skip candidates confirmed absent
-        const chatId = mappedChatId || `${candidate}@c.us`;
+        const chatId = mappedChatId || (candidate.includes("@") ? candidate : `${candidate}@c.us`);
         if (!seenChat.has(chatId)) { seenChat.add(chatId); resolvedChatIds.push(chatId); }
       }
       if (resolvedChatIds.length === 0) {
