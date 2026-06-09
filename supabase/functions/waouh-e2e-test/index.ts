@@ -1,18 +1,24 @@
 // waouh-e2e-test
-// Runs automated end-to-end WhatsApp scenarios across all 9 cells
-// (A/B/C × chat/partner/radar) and records results in waouh_e2e_test_runs.
+// Two modes:
+//  1. Default (auto): A/B/C × chat/partner/radar matrix with fake phones — flow only.
+//  2. whatsapp_full: real seller/buyer phones, sends 5 actual WhatsApp messages
+//     to seller and 4 to buyer for each of the 3 sources (chat/partner/radar).
 //
-// Body: { scenarios?: ('A'|'B'|'C')[], sources?: ('chat'|'partner'|'radar')[] }
-// Defaults to ALL × ALL.
-//
-// For each cell, simulates publication → search → interest → 2 counter-offers
-// → OUI, then captures what was queued/sent vs. what was expected.
+// Body:
+//   { mode?: "auto"|"whatsapp_full",
+//     scenarios?: ("A"|"B"|"C")[], sources?: ("chat"|"partner"|"radar")[],
+//     seller_phone?: string, buyer_phone?: string }
 
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
+import { normalizeBeninPhone } from "../_shared/waouh-phone.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const WAHA_BASE_URL = Deno.env.get("WAHA_BASE_URL") || "";
+const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY") || "";
+const WAHA_SESSION = Deno.env.get("WAHA_SESSION") || "douarou";
 
 type Scenario = "A" | "B" | "C";
 type Source = "chat" | "partner" | "radar";
@@ -56,6 +62,9 @@ async function callFn(name: string, body: any) {
   }
 }
 
+// ============================================================
+// AUTO MODE (existing matrix)
+// ============================================================
 async function runCell(sb: any, scenario: Scenario, source: Source): Promise<CellResult> {
   const cell = `${scenario}${source[0].toUpperCase()}`;
   const ts = Date.now();
@@ -64,7 +73,6 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
   const steps: StepResult[] = [];
   const artifacts: CellResult["artifacts"] = {};
 
-  // Create test users
   const { data: seller, error: sErr } = await sb.from("waouh_users")
     .insert({ phone_number: sellerPhone, display_name: `E2E Seller ${cell}`, channel: "whatsapp" })
     .select("id").maybeSingle();
@@ -81,241 +89,434 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
   artifacts.seller_id = seller.id;
   artifacts.buyer_id = buyer.id;
 
-  // ---- Step 1: publish article (source-dependent)
   if (source === "chat") {
     const { data: art, error: artErr } = await sb.from("waouh_articles").insert({
-      seller_id: seller.id,
-      title: `Bic E2E ${cell}`,
-      category: "autre",
-      price: 10000,
-      currency: "XOF",
-      city: "Cotonou",
-      status: "active",
-      origin: "chat",
-      source_channel: scenario === "B" ? "waouh_app" : "whatsapp",
-      contact_whatsapp: sellerPhone,
-      photos: [],
+      seller_id: seller.id, title: `Bic E2E ${cell}`, category: "autre",
+      price: 10000, currency: "XOF", city: "Cotonou", status: "active",
+      origin: "chat", source_channel: scenario === "B" ? "waouh_app" : "whatsapp",
+      contact_whatsapp: sellerPhone, photos: [],
     }).select("id").maybeSingle();
     artifacts.article_id = art?.id;
-    steps.push({
-      step: "publish",
-      expected: "article created (chat)",
+    steps.push({ step: "publish", expected: "article created (chat)",
       got: art?.id ? `article ${art.id.slice(0,8)}` : `no article: ${artErr?.message ?? "?"}`,
-      status: art?.id ? "ok" : "fail",
-    });
+      status: art?.id ? "ok" : "fail" });
   } else if (source === "partner") {
     const { data: cat, error: catErr } = await sb.from("waouh_unified_catalog").insert({
-      source: "partner",
-      source_ref_id: crypto.randomUUID(),
-      type: "offer",
-      titre: `Bic E2E ${cell}`,
-      categorie: "autre",
-      prix_min: 10000,
-      devise: "XOF",
-      ville: "Cotonou",
-      vendeur_whatsapp: sellerPhone,
-      vendeur_nom: `E2E Partner ${cell}`,
-      is_active: true,
+      source: "partner", source_ref_id: crypto.randomUUID(), type: "offer",
+      titre: `Bic E2E ${cell}`, categorie: "autre", prix_min: 10000,
+      devise: "XOF", ville: "Cotonou", vendeur_whatsapp: sellerPhone,
+      vendeur_nom: `E2E Partner ${cell}`, is_active: true,
     }).select("id").maybeSingle();
     artifacts.catalog_id = cat?.id;
-    steps.push({
-      step: "publish",
-      expected: "catalog (partner) created",
+    steps.push({ step: "publish", expected: "catalog (partner) created",
       got: cat?.id ? `catalog ${cat.id.slice(0,8)}` : `no catalog: ${catErr?.message ?? "?"}`,
-      status: cat?.id ? "ok" : "fail",
-    });
-    // Promote
+      status: cat?.id ? "ok" : "fail" });
     if (cat?.id) {
-      const { promoteCatalogToArticle } = await import("../_shared/waouh-promote.ts");
       const promo = await promoteCatalogToArticle(sb, cat.id, { seller_id: seller.id, category: "autre" });
       artifacts.article_id = promo.article_id ?? undefined;
-      steps.push({
-        step: "promote_partner",
-        expected: "catalog → article promotion",
-        got: promo.article_id ? `article ${promo.article_id.slice(0,8)} (created=${promo.created})` : `failed: ${promo.reason}`,
-        status: promo.article_id ? "ok" : "fail",
-      });
+      steps.push({ step: "promote_partner", expected: "catalog → article promotion",
+        got: promo.article_id ? `article ${promo.article_id.slice(0,8)}` : `failed: ${promo.reason}`,
+        status: promo.article_id ? "ok" : "fail" });
     }
   } else {
-    // radar
     const { data: ext } = await sb.from("waouh_external_listings").insert({
-      source: "e2e_radar",
-      source_url: `https://e2e.local/${cell}`,
-      title: `Bic E2E ${cell}`,
-      price: 10000,
-      currency: "XOF",
-      city: "Cotonou",
-      seller_phone: sellerPhone,
-      seller_name: `E2E Radar ${cell}`,
-      status: "active",
+      source: "e2e_radar", source_url: `https://e2e.local/${cell}`,
+      title: `Bic E2E ${cell}`, price: 10000, currency: "XOF", city: "Cotonou",
+      seller_phone: sellerPhone, seller_name: `E2E Radar ${cell}`, status: "active",
     }).select("id").maybeSingle();
     const { data: sig } = await sb.from("waouh_radar_signals").insert({
-      source_id: ext?.id,
-      source_type: "external_listing",
-      intent: "sell",
-      raw_text: `Bic E2E ${cell}`,
-      city: "Cotonou",
-      price: 10000,
-      contact_phone: sellerPhone,
-      status: "captured",
+      source_id: ext?.id, source_type: "external_listing", intent: "sell",
+      raw_text: `Bic E2E ${cell}`, city: "Cotonou", price: 10000,
+      contact_phone: sellerPhone, status: "captured",
     }).select("id").maybeSingle();
     const { data: art, error: artErr } = await sb.from("waouh_articles").insert({
-      seller_id: seller.id,
-      title: `Bic E2E ${cell}`,
-      category: "autre",
-      price: 10000,
-      currency: "XOF",
-      city: "Cotonou",
-      status: "active",
-      origin: "radar_ia",
-      source_channel: "radar_ia",
-      contact_whatsapp: sellerPhone,
-      origin_signal_id: sig?.id,
-      photos: [],
+      seller_id: seller.id, title: `Bic E2E ${cell}`, category: "autre",
+      price: 10000, currency: "XOF", city: "Cotonou", status: "active",
+      origin: "radar_ia", source_channel: "radar_ia",
+      contact_whatsapp: sellerPhone, origin_signal_id: sig?.id, photos: [],
     }).select("id").maybeSingle();
     if (sig?.id && art?.id) {
       await sb.from("waouh_radar_signals").update({ promoted_article_id: art.id }).eq("id", sig.id);
     }
     artifacts.article_id = art?.id;
-    steps.push({
-      step: "publish",
-      expected: "external_listing → signal → article (radar)",
+    steps.push({ step: "publish", expected: "external_listing → signal → article (radar)",
       got: art?.id ? `article ${art.id.slice(0,8)}` : `no article: ${artErr?.message ?? "?"}`,
-      status: art?.id ? "ok" : "fail",
-    });
+      status: art?.id ? "ok" : "fail" });
   }
 
   if (!artifacts.article_id) {
     return { scenario, source, cell, steps, status: "failed", artifacts };
   }
 
-  // ---- Step 2: buyer interest → opens negotiation + dispatches seller notif
   const { error: interestErr } = await sb.from("waouh_interests").insert({
-    article_id: artifacts.article_id,
-    buyer_user_id: buyer.id,
-    seller_user_id: seller.id,
-    source: scenario === "C" ? "chat" : "card",
+    article_id: artifacts.article_id, buyer_user_id: buyer.id,
+    seller_user_id: seller.id, source: scenario === "C" ? "chat" : "card",
   });
   await sb.from("waouh_negotiations").insert({
-    article_id: artifacts.article_id,
-    buyer_user_id: buyer.id,
-    seller_user_id: seller.id,
-    state: "proposed",
-    last_offer_price: 10000,
-    last_actor: "buyer",
-    meta: { opened_via: "e2e_test", cell },
+    article_id: artifacts.article_id, buyer_user_id: buyer.id,
+    seller_user_id: seller.id, state: "proposed", last_offer_price: 10000,
+    last_actor: "buyer", meta: { opened_via: "e2e_test", cell },
   });
   const dispatch = await callFn("waouh-notify-dispatch", {
-    kind: "new_buyer",
-    article_id: artifacts.article_id,
-    counterpart_user_id: buyer.id,
-    recipient: "seller",
+    kind: "new_buyer", article_id: artifacts.article_id,
+    counterpart_user_id: buyer.id, recipient: "seller",
   });
-  steps.push({
-    step: "buyer_interest",
-    expected: "negotiation opened + seller notified",
+  steps.push({ step: "buyer_interest", expected: "negotiation opened + seller notified",
     got: interestErr ? `interest err: ${interestErr.message}` : `dispatch HTTP ${dispatch.status}`,
-    status: dispatch.ok ? "ok" : "warn",
-    detail: dispatch.json,
-  });
+    status: dispatch.ok ? "ok" : "warn", detail: dispatch.json });
 
-  // ---- Step 3: read negotiation
   const { data: neg } = await sb.from("waouh_negotiations")
-    .select("*")
-    .eq("article_id", artifacts.article_id)
-    .eq("buyer_user_id", buyer.id)
-    .maybeSingle();
+    .select("*").eq("article_id", artifacts.article_id)
+    .eq("buyer_user_id", buyer.id).maybeSingle();
   artifacts.negotiation_id = neg?.id;
 
-  // ---- Step 4: counter-offer buyer→seller (7000)
   if (neg?.id) {
     await sb.from("waouh_negotiations").update({
       state: "countered", last_offer_price: 7000, last_actor: "buyer",
     }).eq("id", neg.id);
-    steps.push({
-      step: "counter_buyer_7000",
-      expected: "negotiation updated to 7000 (buyer)",
-      got: "updated",
-      status: "ok",
-    });
-
-    // ---- Step 5: counter seller→buyer (8500)
+    steps.push({ step: "counter_buyer_7000", expected: "negotiation updated to 7000 (buyer)", got: "updated", status: "ok" });
     await sb.from("waouh_negotiations").update({
       state: "countered", last_offer_price: 8500, last_actor: "seller",
     }).eq("id", neg.id);
-    steps.push({
-      step: "counter_seller_8500",
-      expected: "negotiation updated to 8500 (seller)",
-      got: "updated",
-      status: "ok",
-    });
-
-    // ---- Step 6: buyer accepts (OUI)
-    await sb.from("waouh_negotiations").update({
-      state: "accepted", last_actor: "buyer",
-    }).eq("id", neg.id);
+    steps.push({ step: "counter_seller_8500", expected: "negotiation updated to 8500 (seller)", got: "updated", status: "ok" });
+    await sb.from("waouh_negotiations").update({ state: "accepted", last_actor: "buyer" }).eq("id", neg.id);
     const { data: deal } = await sb.from("waouh_deals").insert({
-      article_id: artifacts.article_id,
-      buyer_user_id: buyer.id,
-      seller_user_id: seller.id,
-      amount: 8500,
-      status: "pending",
+      article_id: artifacts.article_id, buyer_user_id: buyer.id,
+      seller_user_id: seller.id, amount: 8500, status: "pending",
     }).select("id").maybeSingle();
     artifacts.deal_id = deal?.id;
     await sb.from("waouh_articles").update({ status: "sold" }).eq("id", artifacts.article_id);
-    steps.push({
-      step: "accept",
-      expected: "deal created + article sold",
+    steps.push({ step: "accept", expected: "deal created + article sold",
       got: deal?.id ? `deal ${deal.id.slice(0,8)}` : "no deal",
-      status: deal?.id ? "ok" : "fail",
-    });
+      status: deal?.id ? "ok" : "fail" });
   }
 
-  // ---- Step 7: check outbound queue (search by phone OR by recipient user id)
   const { data: queued } = await sb.from("waouh_outbound_queue")
     .select("event_type, status, to_phone, template, to_user_id")
     .or(`to_phone.eq.${sellerPhone},to_phone.eq.${buyerPhone},to_user_id.eq.${seller.id},to_user_id.eq.${buyer.id}`)
-    .order("created_at", { ascending: false })
-    .limit(20);
+    .order("created_at", { ascending: false }).limit(20);
   const events = (queued || []).map((q: any) => q.event_type || q.template).filter(Boolean);
-  steps.push({
-    step: "queue_audit",
-    expected: "≥ 1 outbound entry per party",
+  steps.push({ step: "queue_audit", expected: "≥ 1 outbound entry per party",
     got: `${queued?.length || 0} entries · events: ${events.join(",")}`,
-    status: (queued?.length || 0) >= 1 ? "ok" : "warn",
-    detail: queued,
-  });
+    status: (queued?.length || 0) >= 1 ? "ok" : "warn", detail: queued });
 
   const failed = steps.filter(s => s.status === "fail").length;
   const warned = steps.filter(s => s.status === "warn").length;
-  return {
-    scenario, source, cell, steps, artifacts,
-    status: failed > 0 ? "failed" : warned > 0 ? "partial" : "ok",
-  };
+  return { scenario, source, cell, steps, artifacts,
+    status: failed > 0 ? "failed" : warned > 0 ? "partial" : "ok" };
 }
 
+// ============================================================
+// WHATSAPP_FULL MODE — real phones, real WAHA delivery
+// ============================================================
+function wahaHeaders() {
+  return { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) };
+}
+
+async function sendWA(chatId: string, text: string, photoUrl?: string | null): Promise<{ ok: boolean; status: number; msgId?: string; error?: string }> {
+  if (!WAHA_BASE_URL) return { ok: false, status: 0, error: "WAHA_BASE_URL missing" };
+  const base = WAHA_BASE_URL.replace(/\/$/, "");
+  try {
+    if (photoUrl) {
+      const r = await fetch(`${base}/api/sendImage`, {
+        method: "POST", headers: wahaHeaders(),
+        body: JSON.stringify({ session: WAHA_SESSION, chatId, file: { url: photoUrl }, caption: text }),
+      });
+      if (r.ok) {
+        const j = await r.json().catch(() => ({}));
+        return { ok: true, status: r.status, msgId: j?.id?._serialized || j?.id || undefined };
+      }
+    }
+    const r = await fetch(`${base}/api/sendText`, {
+      method: "POST", headers: wahaHeaders(),
+      body: JSON.stringify({ session: WAHA_SESSION, chatId, text }),
+    });
+    const t = await r.text();
+    let j: any = null; try { j = JSON.parse(t); } catch { /* */ }
+    return { ok: r.ok, status: r.status, msgId: j?.id?._serialized || j?.id || undefined, error: r.ok ? undefined : t.slice(0, 200) };
+  } catch (e) {
+    return { ok: false, status: 0, error: String(e) };
+  }
+}
+
+async function logQueue(sb: any, opts: {
+  toPhone: string; toUserId?: string | null; template: string; eventType: string;
+  text: string; status: "sent" | "failed"; wahaMsgId?: string; error?: string;
+  imageUrl?: string | null; articleId?: string | null;
+}) {
+  try {
+    await sb.from("waouh_outbound_queue").insert({
+      to_phone: opts.toPhone, to_user_id: opts.toUserId || null,
+      channel: "whatsapp", template: opts.template, event_type: opts.eventType,
+      status: opts.status, attempts: 1, sent_at: new Date().toISOString(),
+      payload: { text: opts.text, waha_message_id: opts.wahaMsgId, article_id: opts.articleId },
+      last_error: opts.error || null, image_url: opts.imageUrl || null,
+    });
+  } catch (e) { console.warn("[e2e] logQueue", e); }
+}
+
+async function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
+
+interface WACellStep {
+  step: 1 | 2 | 3 | 4 | 5;
+  label: string;
+  to: "seller" | "buyer" | "both";
+  seller?: { ok: boolean; status: number; msgId?: string; error?: string; text: string };
+  buyer?: { ok: boolean; status: number; msgId?: string; error?: string; text: string };
+}
+
+interface WACellResult {
+  source: Source;
+  cell: string;
+  article_id: string | null;
+  catalog_id?: string | null;
+  negotiation_id: string | null;
+  deal_id: string | null;
+  steps: WACellStep[];
+  status: "ok" | "partial" | "failed";
+}
+
+async function setupWAArticle(sb: any, source: Source, sellerId: string, sellerPhone: string, title: string, price: number, photo: string) {
+  const cell = `WA-${source}`;
+  if (source === "chat") {
+    const { data: art } = await sb.from("waouh_articles").insert({
+      seller_id: sellerId, title, category: "smartphone", price, currency: "XOF",
+      city: "Cotonou", status: "active", origin: "chat", source_channel: "whatsapp",
+      contact_whatsapp: sellerPhone, photos: [photo],
+    }).select("id").maybeSingle();
+    return { article_id: art?.id || null, catalog_id: null as string | null };
+  }
+  if (source === "partner") {
+    const { data: cat } = await sb.from("waouh_unified_catalog").insert({
+      source: "partner", source_ref_id: crypto.randomUUID(), type: "offer",
+      titre: title, categorie: "smartphone", prix_min: price, devise: "XOF",
+      ville: "Cotonou", vendeur_whatsapp: sellerPhone, vendeur_nom: "Vendeur Test",
+      is_active: true, photos: [photo],
+    }).select("id").maybeSingle();
+    if (!cat?.id) return { article_id: null, catalog_id: null };
+    const promo = await promoteCatalogToArticle(sb, cat.id, { seller_id: sellerId, category: "smartphone" });
+    return { article_id: promo.article_id, catalog_id: cat.id };
+  }
+  // radar
+  const { data: ext } = await sb.from("waouh_external_listings").insert({
+    source: "e2e_radar", source_url: `https://e2e.local/${cell}-${Date.now()}`,
+    title, price, currency: "XOF", city: "Cotonou",
+    seller_phone: sellerPhone, seller_name: "Vendeur Radar", status: "active",
+    raw: { photos: [photo] },
+  }).select("id").maybeSingle();
+  const { data: sig } = await sb.from("waouh_radar_signals").insert({
+    source_id: ext?.id, source_type: "external_listing", intent: "sell",
+    raw_text: title, city: "Cotonou", price, contact_phone: sellerPhone,
+    status: "captured", raw_payload: { photos: [photo] },
+  }).select("id").maybeSingle();
+  const { data: art } = await sb.from("waouh_articles").insert({
+    seller_id: sellerId, title, category: "smartphone", price, currency: "XOF",
+    city: "Cotonou", status: "active", origin: "radar_ia", source_channel: "radar_ia",
+    contact_whatsapp: sellerPhone, origin_signal_id: sig?.id, photos: [photo],
+  }).select("id").maybeSingle();
+  if (sig?.id && art?.id) await sb.from("waouh_radar_signals").update({ promoted_article_id: art.id }).eq("id", sig.id);
+  return { article_id: art?.id || null, catalog_id: null };
+}
+
+async function runWACell(sb: any, source: Source, sellerPhone: string, buyerPhone: string, sellerId: string, buyerId: string): Promise<WACellResult> {
+  const sourceLabel = source === "chat" ? "Chat" : source === "partner" ? "Partenaire" : "Radar IA";
+  const title = `Téléphone portable Tecno Spark — test ${sourceLabel}`;
+  const price = 500;
+  const photo = "https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=800&q=80";
+  const cell = source === "chat" ? "A" : source === "partner" ? "B" : "C";
+
+  const { article_id, catalog_id } = await setupWAArticle(sb, source, sellerId, sellerPhone, title, price, photo);
+  if (!article_id) {
+    return { source, cell, article_id: null, catalog_id, negotiation_id: null, deal_id: null,
+      steps: [{ step: 1, label: "Setup article failed", to: "seller" }], status: "failed" };
+  }
+
+  const sellerChatId = `${sellerPhone}@c.us`;
+  const buyerChatId = `${buyerPhone}@c.us`;
+  const fmt = (n: number) => `${n.toLocaleString("fr-FR")} FCFA`;
+  const hdr = (s: string) => `━━━━━━━━━━━━━━━━━━\n${s}\n━━━━━━━━━━━━━━━━━━`;
+  const tag = ` [${sourceLabel}]`;
+
+  const steps: WACellStep[] = [];
+
+  // STEP 1 — Annonce publiée → seller
+  {
+    const text = `${hdr("✅ *Annonce publiée*")}\n\n📦 ${title}\n💰 Prix : ${fmt(price)}\n📍 Cotonou${tag}\n\n_Test E2E WAOUH — étape 1/5_`;
+    const r = await sendWA(sellerChatId, text, photo);
+    await logQueue(sb, { toPhone: sellerPhone, toUserId: sellerId, template: "sale_published", eventType: "publish", text, status: r.ok ? "sent" : "failed", wahaMsgId: r.msgId, error: r.error, imageUrl: photo, articleId: article_id });
+    steps.push({ step: 1, label: "Annonce publiée (vendeur)", to: "seller", seller: { ok: r.ok, status: r.status, msgId: r.msgId, error: r.error, text } });
+    await sleep(1500);
+  }
+
+  // STEP 2 — Annonce trouvée → buyer
+  {
+    const text = `${hdr("🎯 *Annonce trouvée pour vous !*")}\n\n📦 ${title}\n💰 ${fmt(price)}\n📍 Cotonou${tag}\n\nRépondez *intéressé* pour engager la négociation.\n\n_Test E2E WAOUH — étape 2/5_`;
+    const r = await sendWA(buyerChatId, text, photo);
+    await logQueue(sb, { toPhone: buyerPhone, toUserId: buyerId, template: "match_buyer", eventType: "match", text, status: r.ok ? "sent" : "failed", wahaMsgId: r.msgId, error: r.error, imageUrl: photo, articleId: article_id });
+    steps.push({ step: 2, label: "Annonce trouvée (acheteur)", to: "buyer", buyer: { ok: r.ok, status: r.status, msgId: r.msgId, error: r.error, text } });
+    await sleep(1500);
+  }
+
+  // Create negotiation with offer 350
+  await sb.from("waouh_interests").insert({ article_id, buyer_user_id: buyerId, seller_user_id: sellerId, source: "card" }).then(() => {}).catch(() => {});
+  const { data: neg } = await sb.from("waouh_negotiations").insert({
+    article_id, buyer_user_id: buyerId, seller_user_id: sellerId,
+    state: "proposed", last_offer_price: 350, last_actor: "buyer",
+    meta: { opened_via: "e2e_whatsapp_full", source },
+  }).select("id").maybeSingle();
+  const negotiationId = neg?.id || null;
+
+  // STEP 3 — Offre acheteur 350 → seller (nouvel acheteur) + buyer (demande envoyée)
+  {
+    const txtSeller = `${hdr("📩 *Nouvel acheteur intéressé !*")}\n\n📦 ${title}\n💰 Prix demandé : ${fmt(price)}\n🤝 *Offre acheteur* : ${fmt(350)}\n${tag}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre prix.\n\n_Test E2E WAOUH — étape 3/5_`;
+    const txtBuyer = `${hdr("📤 *Demande envoyée au vendeur*")}\n\n📦 ${title}\n💰 Votre offre : ${fmt(350)}${tag}\n\n⏳ En attente de la réponse du vendeur…\n\n_Test E2E WAOUH — étape 3/5_`;
+    const rs = await sendWA(sellerChatId, txtSeller);
+    await logQueue(sb, { toPhone: sellerPhone, toUserId: sellerId, template: "new_buyer", eventType: "interest", text: txtSeller, status: rs.ok ? "sent" : "failed", wahaMsgId: rs.msgId, error: rs.error, articleId: article_id });
+    await sleep(800);
+    const rb = await sendWA(buyerChatId, txtBuyer);
+    await logQueue(sb, { toPhone: buyerPhone, toUserId: buyerId, template: "interest_sent", eventType: "interest", text: txtBuyer, status: rb.ok ? "sent" : "failed", wahaMsgId: rb.msgId, error: rb.error, articleId: article_id });
+    steps.push({ step: 3, label: "Acheteur intéressé (offre 350)", to: "both",
+      seller: { ok: rs.ok, status: rs.status, msgId: rs.msgId, error: rs.error, text: txtSeller },
+      buyer: { ok: rb.ok, status: rb.status, msgId: rb.msgId, error: rb.error, text: txtBuyer } });
+    await sleep(1500);
+  }
+
+  // STEP 4 — Vendeur contre-offre 450
+  if (negotiationId) {
+    await sb.from("waouh_negotiations").update({
+      state: "countered", last_offer_price: 450, last_actor: "seller",
+    }).eq("id", negotiationId);
+    const txtSeller = `${hdr("✅ *Contre-offre transmise*")}\n\n📦 ${title}\n💰 Votre contre-offre : ${fmt(450)}${tag}\n\n⏳ En attente de la réponse de l'acheteur…\n\n_Test E2E WAOUH — étape 4/5_`;
+    const txtBuyer = `${hdr("💬 *Contre-offre reçue !*")}\n\n📦 ${title}\n🤝 Nouvelle offre du vendeur : ${fmt(450)}${tag}\n\nRépondez *OUI* pour accepter ou proposez un autre prix.\n\n_Test E2E WAOUH — étape 4/5_`;
+    const rs = await sendWA(sellerChatId, txtSeller);
+    await logQueue(sb, { toPhone: sellerPhone, toUserId: sellerId, template: "counter_sent", eventType: "counter_seller", text: txtSeller, status: rs.ok ? "sent" : "failed", wahaMsgId: rs.msgId, error: rs.error, articleId: article_id });
+    await sleep(800);
+    const rb = await sendWA(buyerChatId, txtBuyer);
+    await logQueue(sb, { toPhone: buyerPhone, toUserId: buyerId, template: "counter_received", eventType: "counter_seller", text: txtBuyer, status: rb.ok ? "sent" : "failed", wahaMsgId: rb.msgId, error: rb.error, articleId: article_id });
+    steps.push({ step: 4, label: "Vendeur contre-offre 450", to: "both",
+      seller: { ok: rs.ok, status: rs.status, msgId: rs.msgId, error: rs.error, text: txtSeller },
+      buyer: { ok: rb.ok, status: rb.status, msgId: rb.msgId, error: rb.error, text: txtBuyer } });
+    await sleep(1500);
+  }
+
+  // STEP 5 — Acheteur accepte → deal + dispatch
+  let dealId: string | null = null;
+  if (negotiationId) {
+    await sb.from("waouh_negotiations").update({ state: "accepted", last_actor: "buyer" }).eq("id", negotiationId);
+    const { data: deal } = await sb.from("waouh_deals").insert({
+      article_id, buyer_user_id: buyerId, seller_user_id: sellerId,
+      amount: 450, status: "pending",
+    }).select("id").maybeSingle();
+    dealId = deal?.id || null;
+    await sb.from("waouh_articles").update({ status: "sold" }).eq("id", article_id);
+
+    const txtSeller = `${hdr("🎉 *Vente conclue !*")}\n\n📦 ${title}\n💰 Prix final : ${fmt(450)}${tag}\n\n🛵 Un *livreur WAOUH* vous contactera dans quelques minutes pour collecter le colis.\n🔒 Le contact de l'acheteur n'est pas partagé : WAOUH coordonne la livraison.\n\n_Test E2E WAOUH — étape 5/5_`;
+    const txtBuyer = `${hdr("🎉 *Achat confirmé !*")}\n\n📦 ${title}\n💰 Prix final : ${fmt(450)}${tag}\n\n🛵 Un *livreur WAOUH* a été assigné.\n💵 Paiement à la livraison (cash ou Mobile Money).\n🔒 Le contact du vendeur n'est pas partagé.\n\n_Test E2E WAOUH — étape 5/5_`;
+    const rs = await sendWA(sellerChatId, txtSeller, photo);
+    await logQueue(sb, { toPhone: sellerPhone, toUserId: sellerId, template: "deal_seller", eventType: "deal_dispatch", text: txtSeller, status: rs.ok ? "sent" : "failed", wahaMsgId: rs.msgId, error: rs.error, imageUrl: photo, articleId: article_id });
+    await sleep(800);
+    const rb = await sendWA(buyerChatId, txtBuyer, photo);
+    await logQueue(sb, { toPhone: buyerPhone, toUserId: buyerId, template: "deal_buyer", eventType: "deal_dispatch", text: txtBuyer, status: rb.ok ? "sent" : "failed", wahaMsgId: rb.msgId, error: rb.error, imageUrl: photo, articleId: article_id });
+    steps.push({ step: 5, label: "Accord conclu (deal)", to: "both",
+      seller: { ok: rs.ok, status: rs.status, msgId: rs.msgId, error: rs.error, text: txtSeller },
+      buyer: { ok: rb.ok, status: rb.status, msgId: rb.msgId, error: rb.error, text: txtBuyer } });
+  }
+
+  const failures = steps.filter(s => (s.seller && !s.seller.ok) || (s.buyer && !s.buyer.ok)).length;
+  const status: WACellResult["status"] = failures === 0 ? "ok" : failures >= steps.length ? "failed" : "partial";
+
+  return { source, cell, article_id, catalog_id, negotiation_id: negotiationId, deal_id: dealId, steps, status };
+}
+
+async function ensureUser(sb: any, phone: string, displayName: string) {
+  const norm = normalizeBeninPhone(phone) || phone;
+  const { data: existing } = await sb.from("waouh_users")
+    .select("id, phone_number").eq("phone_number", norm).maybeSingle();
+  if (existing?.id) return { id: existing.id, phone: norm };
+  const { data: created } = await sb.from("waouh_users").insert({
+    phone_number: norm, display_name: displayName, channel: "whatsapp", city: "Cotonou",
+  }).select("id").maybeSingle();
+  return { id: created?.id || null, phone: norm };
+}
+
+async function runWhatsAppFull(sb: any, sellerPhoneRaw: string, buyerPhoneRaw: string, sources: Source[]) {
+  const seller = await ensureUser(sb, sellerPhoneRaw, "Vendeur Test E2E");
+  const buyer = await ensureUser(sb, buyerPhoneRaw, "Acheteur Test E2E");
+  if (!seller.id || !buyer.id) {
+    return { error: "Failed to create test users", seller, buyer };
+  }
+  const cells: WACellResult[] = [];
+  for (const src of sources) {
+    const r = await runWACell(sb, src, seller.phone, buyer.phone, seller.id, buyer.id);
+    cells.push(r);
+    await sleep(2000);
+  }
+  const totalSends = cells.reduce((acc, c) => acc + c.steps.reduce((a, s) => a + (s.seller ? 1 : 0) + (s.buyer ? 1 : 0), 0), 0);
+  const totalOk = cells.reduce((acc, c) => acc + c.steps.reduce((a, s) => a + ((s.seller?.ok ? 1 : 0) + (s.buyer?.ok ? 1 : 0)), 0), 0);
+  const overall = totalOk === totalSends ? "ok" : totalOk === 0 ? "failed" : "partial";
+  return { mode: "whatsapp_full" as const, seller, buyer, cells, summary: { totalSends, totalOk, overall } };
+}
+
+// ============================================================
+// HTTP entrypoint
+// ============================================================
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
     const body = await req.json().catch(() => ({}));
-    const scenarios: Scenario[] = body.scenarios || ["A", "B", "C"];
-    const sources: Source[] = body.sources || ["chat", "partner", "radar"];
+    const mode: "auto" | "whatsapp_full" = body.mode === "whatsapp_full" ? "whatsapp_full" : "auto";
 
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // Insert run row
+    if (mode === "whatsapp_full") {
+      const sellerPhone = String(body.seller_phone || "").trim();
+      const buyerPhone = String(body.buyer_phone || "").trim();
+      if (!sellerPhone || !buyerPhone) {
+        return new Response(JSON.stringify({ error: "seller_phone and buyer_phone required" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const sources: Source[] = (body.sources || ["chat", "partner", "radar"]).filter((s: any) => ["chat", "partner", "radar"].includes(s));
+
+      const { data: run } = await sb.from("waouh_e2e_test_runs").insert({
+        scenario: "whatsapp_full", source: sources.join(","), status: "running",
+      }).select("id").maybeSingle();
+
+      const result = await runWhatsAppFull(sb, sellerPhone, buyerPhone, sources);
+      if ((result as any).error) {
+        if (run?.id) await sb.from("waouh_e2e_test_runs").update({
+          status: "failed", finished_at: new Date().toISOString(),
+          summary: { error: (result as any).error }, steps: result,
+        }).eq("id", run.id);
+        return new Response(JSON.stringify({ ok: false, ...result, run_id: run?.id }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (run?.id) await sb.from("waouh_e2e_test_runs").update({
+        status: (result as any).summary?.overall ?? "ok",
+        finished_at: new Date().toISOString(),
+        summary: (result as any).summary, steps: result,
+      }).eq("id", run.id);
+
+      return new Response(JSON.stringify({ ok: true, run_id: run?.id, ...result }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // AUTO mode
+    const scenarios: Scenario[] = body.scenarios || ["A", "B", "C"];
+    const sources: Source[] = body.sources || ["chat", "partner", "radar"];
+
     const { data: run } = await sb.from("waouh_e2e_test_runs").insert({
-      scenario: scenarios.join(","),
-      source: sources.join(","),
-      status: "running",
+      scenario: scenarios.join(","), source: sources.join(","), status: "running",
     }).select("id").maybeSingle();
 
     const results: CellResult[] = [];
     for (const sc of scenarios) {
       for (const src of sources) {
-        const r = await runCell(sb, sc, src);
-        results.push(r);
+        results.push(await runCell(sb, sc, src));
       }
     }
 
@@ -329,10 +530,8 @@ Deno.serve(async (req) => {
 
     if (run?.id) {
       await sb.from("waouh_e2e_test_runs").update({
-        status: overallStatus,
-        finished_at: new Date().toISOString(),
-        summary,
-        steps: results,
+        status: overallStatus, finished_at: new Date().toISOString(),
+        summary, steps: results,
       }).eq("id", run.id);
     }
 
