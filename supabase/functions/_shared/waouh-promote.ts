@@ -18,7 +18,7 @@ export async function promoteCatalogToArticle(
 
   const { data: cat, error: selErr } = await sb
     .from("waouh_unified_catalog")
-    .select("id, source, source_ref_id, titre, description, categorie, prix_min, prix_max, devise, ville, vendeur_whatsapp, vendeur_phone, vendeur_nom, partner_id, promoted_article_id, photos, image_url")
+    .select("id, source, source_ref_id, titre, description, categorie, prix_min, prix_max, devise, ville, vendeur_whatsapp, vendeur_phone, vendeur_nom, partner_id, promoted_article_id, photos")
     .eq("id", catalog_id)
     .maybeSingle();
 
