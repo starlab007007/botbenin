@@ -284,7 +284,7 @@ Deno.serve(async (req) => {
           } catch (_e) { /* ignore */ }
         }
         if (mappedChatId === "") continue; // skip candidates confirmed absent
-        const chatId = mappedChatId || `${candidate}@c.us`;
+        const chatId = mappedChatId || (candidate.includes("@") ? candidate : `${candidate}@c.us`);
         if (!seenChat.has(chatId)) { seenChat.add(chatId); resolvedChatIds.push(chatId); }
       }
       if (resolvedChatIds.length === 0) {
