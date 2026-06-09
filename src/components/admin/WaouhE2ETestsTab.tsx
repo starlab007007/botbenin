@@ -213,13 +213,41 @@ export default function WaouhE2ETestsTab() {
               <Input id="buyer-phone" value={buyerPhone} onChange={e => setBuyerPhone(e.target.value)} placeholder="0191299191" />
             </div>
           </div>
+          <div>
+            <Label className="mb-2 block">Scénarios à tester</Label>
+            <div className="flex flex-wrap gap-2">
+              {(["A", "B", "C"] as Scenario[]).map((sc) => {
+                const labels: Record<Scenario, string> = {
+                  A: "A — Vendeur WA + Acheteur WA",
+                  B: "B — Vendeur App + Acheteur WA",
+                  C: "C — Vendeur WA + Acheteur App",
+                };
+                const checked = waScenarios.includes(sc);
+                return (
+                  <Button
+                    key={sc}
+                    type="button"
+                    variant={checked ? "default" : "outline"}
+                    size="sm"
+                    onClick={() =>
+                      setWaScenarios((prev) =>
+                        checked ? prev.filter((x) => x !== sc) : [...prev, sc]
+                      )
+                    }
+                  >
+                    {checked ? "✓ " : ""}{labels[sc]}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
           <div className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 rounded">
-            ⚠️ <strong>30 messages WhatsApp réels</strong> seront envoyés (3 sources × 5 étapes × ~2 destinataires).
-            Téléphone Tecno Spark — 500 FCFA. Couvre : annonce publiée → match → offre 350 → contre-offre 450 → accord conclu.
+            ⚠️ Jusqu'à <strong>{waScenarios.length * 30} messages</strong> ({waScenarios.length} scénario(s) × 3 sources × 5 étapes × 2 destinataires).
+            Les parties WA reçoivent un vrai message WhatsApp, les parties App reçoivent un message in-app (waouh_messages). Couvre A1-A3, B1-B3 et C1-C3.
           </div>
           <Button onClick={runWhatsAppFull} disabled={waRunning} className="bg-emerald-600 hover:bg-emerald-700">
             {waRunning ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
-            Lancer le test E2E WhatsApp réel
+            Lancer le test E2E ({waScenarios.join(", ") || "—"})
           </Button>
 
           {waResult?.cells && (
