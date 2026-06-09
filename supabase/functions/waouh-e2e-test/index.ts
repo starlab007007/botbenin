@@ -106,8 +106,10 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
   } else if (source === "partner") {
     const { data: cat, error: catErr } = await sb.from("waouh_unified_catalog").insert({
       source: "partner",
+      source_ref_id: crypto.randomUUID(),
       type: "offer",
       titre: `Bic E2E ${cell}`,
+      categorie: "autre",
       prix_min: 10000,
       devise: "XOF",
       ville: "Cotonou",
