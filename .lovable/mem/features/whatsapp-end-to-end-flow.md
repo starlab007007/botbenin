@@ -1,58 +1,63 @@
 ---
-name: WhatsApp End-to-End Flow (LOCKED v2)
-description: Vendor↔Buyer 100% WhatsApp flow — LID resolution + idempotent deal_created/deal_dispatch. LOCKED, do not modify.
+name: WhatsApp & App End-to-End Flow (LOCKED v5)
+description: Parcours WAOUH A/B/C × Chat/Partenaire/Radar — vendeur↔acheteur, WhatsApp et/ou App, idempotent. LOCKED.
 type: feature
 ---
 
-# Parcours WhatsApp bout-en-bout — LOCKED v2 (2026-06-09)
+# Parcours WAOUH bout-en-bout — LOCKED v5 (2026-06-10)
 
-🔒 **Ce flux est validé et figé. Toute modification est interdite sans nouvelle approbation utilisateur explicite.**
-Couvre le scénario où **vendeur ET acheteur sont sur WhatsApp** (pas de chat web), peu importe le mode privacy WAHA (LID inclus).
+🔒 **Ce flux est validé et figé pour les 9 cellules A1-A3 / B1-B3 / C1-C3. Toute modification est interdite sans nouvelle approbation utilisateur explicite.**
+
+## Matrice couverte
+
+|                                | Source Chat (1) | Source Partenaire (2) | Source Radar IA (3) |
+|--------------------------------|-----------------|-----------------------|---------------------|
+| **A** — Vendeur WA + Acheteur WA   | A1 ✅ | A2 ✅ | A3 ✅ |
+| **B** — Vendeur App + Acheteur WA  | B1 ✅ | B2 ✅ | B3 ✅ |
+| **C** — Vendeur WA + Acheteur App  | C1 ✅ | C2 ✅ | C3 ✅ |
 
 ## Étapes garanties (immuables)
 
-1. **Vendeur** : `Je vends X` → article créé + bulle "✅ Annonce publiée" sur WhatsApp.
-2. **Acheteur** : `Je cherche X` → liste résultats → `intéressé 1`.
-3. **Vendeur** reçoit `📩 Nouvel acheteur intéressé` (template `match_seller`), **une seule fois**.
-4. Contre-offres bilatérales via template `negotiation_open`.
-5. **OUI/OUI** → exactement **1 `deal_created` logique** + **1 `deal_dispatch` par partie** (vendeur "vente conclue", acheteur "achat confirmé"). Aucun doublon.
+1. **Annonce publiée** → confirmation à l'auteur (WA si vendeur WA, in-app si vendeur App).
+2. **Mise en relation** → `📩 Nouvel acheteur intéressé` au vendeur + `🎯 Annonce trouvée` à l'acheteur, sur leur canal d'origine.
+3. **Négociation bilatérale** via template `negotiation_open` ou bulle in-app.
+4. **OUI/OUI** → exactement **1 `deal_created` logique** + **1 `deal_dispatch` par partie**, sur le canal d'origine de chaque partie. Aucun doublon.
 
 ## Verrous techniques
 
-### 1. Résolution LID (v1 — toujours en vigueur)
-- Helper canonique `lidToPhoneInline()` (`supabase/functions/_shared/waouh-format.ts`) + cache `waouh_lid_phone_map`.
-- Appliqué dans `waouh-channel-in` (inbound) ET `waouh-outbound-dispatch` (dernière chance avant WAHA).
+### v1 — Résolution LID (WA)
+- `lidToPhoneInline()` (`_shared/waouh-format.ts`) + cache `waouh_lid_phone_map`.
+- Appliqué dans `waouh-channel-in` et `waouh-outbound-dispatch`.
 
-### 2. Idempotence acceptation (v2 — nouveau)
-- `waouh-negotiation-router` branche `yes` :
-  - Court-circuit si `waouh_deals` existe déjà pour `negotiation_id` OU `neg.state IN ('accepted','closed')`.
-  - Catch `23505` sur insert deal → bascule sur la branche idempotente.
-  - Réponse directe neutre `"✅ Accord enregistré..."` avec flag `suppress_direct_reply: true`.
-- `waouh-channel-in` : si `suppress_direct_reply === true`, **ne pousse PAS** de réponse WAHA directe (laisse `waouh-deal-dispatch` être l'unique source du message final).
-- Migration : `UNIQUE INDEX waouh_deals_unique_per_negotiation ON waouh_deals(negotiation_id) WHERE status <> 'cancelled'`.
+### v2 — Idempotence acceptation
+- `waouh-negotiation-router` branche `yes` : court-circuit `deal_already_accepted`, catch `23505`, `suppress_direct_reply`.
+- Migration : `UNIQUE INDEX waouh_deals_unique_per_negotiation`.
 
-### 3. Idempotence queue (v2 — nouveau)
-- RPC `waouh_enqueue_outbound_v2` : `pg_advisory_xact_lock(hash(event_type, to_user_id, deal_id))` + dédup sur `payload->>'deal_id'` pour `deal_dispatch`/`deal_created` en statut `pending|sending|sent`.
-- Index `idx_waouh_queue_deal_event_user_lookup`.
-- `_shared/waouh-sync.ts` : `dedupBase` inclut `dealId` → `sync:${art}:${intent}:${user}:${neg}:${deal}${suffix}`.
+### v2 — Idempotence queue
+- RPC `waouh_enqueue_outbound_v2` : `pg_advisory_xact_lock` + dédup par `deal_id`.
+- `pushSyncedEvent` : `dedupBase` inclut `dealId`.
 
-## Verrou runtime
+### v5 — Parcours B et C (in-app mirror)
+- **`_shared/waouh-sync.ts`** : le canal d'écriture `waouh_messages` est calculé
+  `web > app > whatsapp > system` (`auth_user_id ? "app"` pour les utilisateurs App authentifiés sans session web active). Garantit l'affichage in-app de tous les évènements même sans WhatsApp.
+- **`waouh-negotiation-router/pushToOther`** : même calcul de canal (`web > app > system`), pour que les contre-offres et refus apparaissent dans `WaouhMatchChatWindow` côté App.
+- **`waouh-notify-dispatch`** : quand la cible est App-only (channel `waouh_app`, pas de numéro WA), on appelle `pushSyncedEvent` pour insérer le `waouh_messages` qui alimente la `WaouhMatchChatWindow`.
+- **`waouh-e2e-test`** mode `whatsapp_full` : accepte `scenarios: ("A"|"B"|"C")[]`. Pour B le vendeur est traité comme App-only (insert direct dans `waouh_messages` au lieu de WA send). Idem pour C côté acheteur.
 
-`src/components/waouh/waouhChatSyncLock.ts` v3 documente les invariants. Le test
-`src/components/waouh/__tests__/waouh-chat-sync-flow.lock.test.ts` échoue si un
-des marqueurs ci-dessous est supprimé.
+## Verrou runtime (v5)
 
-Invariants ajoutés en v2 (au-delà de v1 LID) :
-- `whatsappAcceptanceIdempotence` (`waouh-negotiation-router`) : doit contenir `deal_already_accepted`, `suppress_direct_reply`, et le catch `23505`.
-- `whatsappChannelInSuppress` (`waouh-channel-in`) : doit contenir `suppress_direct_reply`.
-- `whatsappQueueDedup` (`_shared/waouh-sync.ts`) : `dedupBase` doit inclure `${dealId ?? "nodeal"}`.
-- `whatsappEnqueueLock` (migration `waouh_enqueue_outbound_v2`) : doit contenir `pg_advisory_xact_lock` et le check `deal_id`.
+Nouveaux invariants enforced par `src/components/waouh/waouhChatSyncLock.ts` + test :
+- `appChannelInSyncedEvent` (waouh-sync.ts contient `auth_user_id ? "app"`)
+- `appNotifyDispatchMirror` (notify-dispatch contient `pushSyncedEvent` + commentaire `App-only target`)
+- `appRouterChannel` (router pushToOther contient `target.auth_user_id ? "app"`)
+- `e2eScenariosBC` (e2e-test contient `scenarios: Scenario[]`, `sellerIsApp`, `buyerIsApp`)
 
 ## Règles invariantes (NE JAMAIS violer)
 
-- Ne jamais stocker `@lid` durablement dans `waouh_users.phone_number` si résolvable.
-- Ne jamais réinsérer un `waouh_deals` pour la même `negotiation_id`.
-- Ne jamais envoyer `deal_created` ET `deal_dispatch` avec le même contenu — `deal_dispatch` est la seule source de la notif finale.
-- Ne jamais retirer la dédup `dealId` du `dedupBase`.
+- Ne jamais retirer le calcul de canal `web > app > whatsapp > system` de `pushSyncedEvent`.
+- Ne jamais retirer le miroir `pushSyncedEvent` du branch App-only de `waouh-notify-dispatch` (sinon B/C deviennent silencieux côté App).
+- Ne jamais retirer la branche `target.auth_user_id ? "app"` de `pushToOther` (sinon les contre-offres disparaissent du chat App).
+- Ne jamais réinsérer un `waouh_deals` pour la même `negotiation_id` (`UNIQUE INDEX` + 23505).
+- `deal_dispatch` reste la seule source de la notif finale "vente conclue / achat confirmé".
 - Ne jamais supprimer l'index unique ou l'advisory lock.
 - Le flux chat web (`mem://features/waouh-chat-sync-flow`) reste également verrouillé.
