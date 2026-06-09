@@ -5,6 +5,7 @@ import {
   normalizeBeninPhone,
   resolveWaouhUserByPhone,
   ensureWaouhVendorStub,
+  beninPhoneCandidates,
 } from "../_shared/waouh-phone.ts";
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 
