@@ -258,7 +258,7 @@ Deno.serve(async (req) => {
           { intent: "deal_created", negotiation_id: neg.id, deal_id: deal?.id, article_id: neg.article_id },
           null,
           [],
-          `neg:${neg.id}:deal:${otherUserId}`,
+          `neg:${neg.id}:deal:${deal?.id ?? "nodeal"}:${otherUserId}`,
           "deal_created",
           replyAttachments,
           null
