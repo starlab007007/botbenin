@@ -487,22 +487,30 @@ async function ensureUser(sb: any, phone: string, displayName: string) {
   return { id: created?.id || null, phone: norm };
 }
 
-async function runWhatsAppFull(sb: any, sellerPhoneRaw: string, buyerPhoneRaw: string, sources: Source[]) {
+async function runWhatsAppFull(
+  sb: any,
+  sellerPhoneRaw: string,
+  buyerPhoneRaw: string,
+  sources: Source[],
+  scenarios: Scenario[] = ["A"],
+) {
   const seller = await ensureUser(sb, sellerPhoneRaw, "Vendeur Test E2E");
   const buyer = await ensureUser(sb, buyerPhoneRaw, "Acheteur Test E2E");
   if (!seller.id || !buyer.id) {
     return { error: "Failed to create test users", seller, buyer };
   }
   const cells: WACellResult[] = [];
-  for (const src of sources) {
-    const r = await runWACell(sb, src, seller.phone, buyer.phone, seller.id, buyer.id);
-    cells.push(r);
-    await sleep(2000);
+  for (const sc of scenarios) {
+    for (const src of sources) {
+      const r = await runWACell(sb, src, seller.phone, buyer.phone, seller.id, buyer.id, sc);
+      cells.push(r);
+      await sleep(2000);
+    }
   }
   const totalSends = cells.reduce((acc, c) => acc + c.steps.reduce((a, s) => a + (s.seller ? 1 : 0) + (s.buyer ? 1 : 0), 0), 0);
   const totalOk = cells.reduce((acc, c) => acc + c.steps.reduce((a, s) => a + ((s.seller?.ok ? 1 : 0) + (s.buyer?.ok ? 1 : 0)), 0), 0);
   const overall = totalOk === totalSends ? "ok" : totalOk === 0 ? "failed" : "partial";
-  return { mode: "whatsapp_full" as const, seller, buyer, cells, summary: { totalSends, totalOk, overall } };
+  return { mode: "whatsapp_full" as const, seller, buyer, cells, summary: { totalSends, totalOk, overall, scenarios } };
 }
 
 // ============================================================
