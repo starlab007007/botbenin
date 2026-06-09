@@ -25,6 +25,18 @@ Deno.serve(async (req) => {
 
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
+    // 🆕 Promotion catalog → article si nécessaire (tunnel partenaire)
+    if (!article_id && catalog_id) {
+      const { promoteCatalogToArticle } = await import("../_shared/waouh-promote.ts");
+      const promo = await promoteCatalogToArticle(sb, catalog_id);
+      if (!promo.article_id) {
+        return new Response(JSON.stringify({ error: "catalog promotion failed", details: promo.reason }), {
+          status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      article_id = promo.article_id;
+    }
+
     // Resolve the calling user from the JWT (if any)
     const auth = req.headers.get("Authorization") ?? "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
