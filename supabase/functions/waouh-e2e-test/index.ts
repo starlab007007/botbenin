@@ -157,9 +157,10 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
       contact_phone: sellerPhone,
       status: "captured",
     }).select("id").maybeSingle();
-    const { data: art } = await sb.from("waouh_articles").insert({
-      seller_id: null,
+    const { data: art, error: artErr } = await sb.from("waouh_articles").insert({
+      seller_id: seller.id,
       title: `Bic E2E ${cell}`,
+      category: "divers",
       price: 10000,
       currency: "XOF",
       city: "Cotonou",
@@ -177,7 +178,7 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
     steps.push({
       step: "publish",
       expected: "external_listing → signal → article (radar)",
-      got: art?.id ? `article ${art.id.slice(0,8)}` : "no article",
+      got: art?.id ? `article ${art.id.slice(0,8)}` : `no article: ${artErr?.message ?? "?"}`,
       status: art?.id ? "ok" : "fail",
     });
   }
