@@ -28,8 +28,7 @@ export async function promoteCatalogToArticle(
   }
 
   const price = cat.prix_min ?? cat.prix_max ?? null;
-  const photos = Array.isArray(cat.photos) ? cat.photos
-    : (cat.image_url ? [cat.image_url] : []);
+  const photos = Array.isArray(cat.photos) ? cat.photos : [];
   const sourceChannel =
     cat.source === "partner" ? "partner" :
     cat.source === "radar_ia" ? "radar_ia" : "waouh_app";
