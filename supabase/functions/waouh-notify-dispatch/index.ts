@@ -21,6 +21,8 @@ import {
   buildBuyerMatchText,
   distanceKm,
 } from "../_shared/waouh-format.ts";
+import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
+import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
