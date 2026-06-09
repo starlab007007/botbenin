@@ -397,24 +397,22 @@ async function runWACell(
     });
     return { ...r, text };
   }
-
+  const steps: WACellStep[] = [];
 
   // STEP 1 — Annonce publiée → seller
   {
     const text = `${hdr("✅ *Annonce publiée*")}\n\n📦 ${title}\n💰 Prix : ${fmt(price)}\n📍 Cotonou${tag}\n\n_Test E2E WAOUH — étape 1/5_`;
-    const r = await sendWA(sellerChatId, text, photo);
-    await logQueue(sb, { toPhone: sellerPhone, toUserId: sellerId, template: "sale_published", eventType: "publish", text, status: r.ok ? "sent" : "failed", wahaMsgId: r.msgId, error: r.error, imageUrl: photo, articleId: article_id });
-    steps.push({ step: 1, label: "Annonce publiée (vendeur)", to: "seller", seller: { ok: r.ok, status: r.status, msgId: r.msgId, error: r.error, text } });
-    await sleep(1500);
+    const r = await deliver("seller", sellerChatId, sellerPhone, sellerId, "sale_published", "publish", text, photo);
+    steps.push({ step: 1, label: `Annonce publiée (vendeur${sellerIsApp ? " App" : " WA"})`, to: "seller", seller: r });
+    await sleep(sellerIsApp ? 200 : 1500);
   }
 
   // STEP 2 — Annonce trouvée → buyer
   {
     const text = `${hdr("🎯 *Annonce trouvée pour vous !*")}\n\n📦 ${title}\n💰 ${fmt(price)}\n📍 Cotonou${tag}\n\nRépondez *intéressé* pour engager la négociation.\n\n_Test E2E WAOUH — étape 2/5_`;
-    const r = await sendWA(buyerChatId, text, photo);
-    await logQueue(sb, { toPhone: buyerPhone, toUserId: buyerId, template: "match_buyer", eventType: "match", text, status: r.ok ? "sent" : "failed", wahaMsgId: r.msgId, error: r.error, imageUrl: photo, articleId: article_id });
-    steps.push({ step: 2, label: "Annonce trouvée (acheteur)", to: "buyer", buyer: { ok: r.ok, status: r.status, msgId: r.msgId, error: r.error, text } });
-    await sleep(1500);
+    const r = await deliver("buyer", buyerChatId, buyerPhone, buyerId, "match_buyer", "match", text, photo);
+    steps.push({ step: 2, label: `Annonce trouvée (acheteur${buyerIsApp ? " App" : " WA"})`, to: "buyer", buyer: r });
+    await sleep(buyerIsApp ? 200 : 1500);
   }
 
   // Create negotiation with offer 350
@@ -422,7 +420,7 @@ async function runWACell(
   const { data: neg } = await sb.from("waouh_negotiations").insert({
     article_id, buyer_user_id: buyerId, seller_user_id: sellerId,
     state: "proposed", last_offer_price: 350, last_actor: "buyer",
-    meta: { opened_via: "e2e_whatsapp_full", source },
+    meta: { opened_via: "e2e_whatsapp_full", source, scenario },
   }).select("id").maybeSingle();
   const negotiationId = neg?.id || null;
 
@@ -430,14 +428,10 @@ async function runWACell(
   {
     const txtSeller = `${hdr("📩 *Nouvel acheteur intéressé !*")}\n\n📦 ${title}\n💰 Prix demandé : ${fmt(price)}\n🤝 *Offre acheteur* : ${fmt(350)}\n${tag}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre prix.\n\n_Test E2E WAOUH — étape 3/5_`;
     const txtBuyer = `${hdr("📤 *Demande envoyée au vendeur*")}\n\n📦 ${title}\n💰 Votre offre : ${fmt(350)}${tag}\n\n⏳ En attente de la réponse du vendeur…\n\n_Test E2E WAOUH — étape 3/5_`;
-    const rs = await sendWA(sellerChatId, txtSeller);
-    await logQueue(sb, { toPhone: sellerPhone, toUserId: sellerId, template: "new_buyer", eventType: "interest", text: txtSeller, status: rs.ok ? "sent" : "failed", wahaMsgId: rs.msgId, error: rs.error, articleId: article_id });
+    const rs = await deliver("seller", sellerChatId, sellerPhone, sellerId, "new_buyer", "interest", txtSeller);
     await sleep(800);
-    const rb = await sendWA(buyerChatId, txtBuyer);
-    await logQueue(sb, { toPhone: buyerPhone, toUserId: buyerId, template: "interest_sent", eventType: "interest", text: txtBuyer, status: rb.ok ? "sent" : "failed", wahaMsgId: rb.msgId, error: rb.error, articleId: article_id });
-    steps.push({ step: 3, label: "Acheteur intéressé (offre 350)", to: "both",
-      seller: { ok: rs.ok, status: rs.status, msgId: rs.msgId, error: rs.error, text: txtSeller },
-      buyer: { ok: rb.ok, status: rb.status, msgId: rb.msgId, error: rb.error, text: txtBuyer } });
+    const rb = await deliver("buyer", buyerChatId, buyerPhone, buyerId, "interest_sent", "interest", txtBuyer);
+    steps.push({ step: 3, label: "Acheteur intéressé (offre 350)", to: "both", seller: rs, buyer: rb });
     await sleep(1500);
   }
 
@@ -448,14 +442,10 @@ async function runWACell(
     }).eq("id", negotiationId);
     const txtSeller = `${hdr("✅ *Contre-offre transmise*")}\n\n📦 ${title}\n💰 Votre contre-offre : ${fmt(450)}${tag}\n\n⏳ En attente de la réponse de l'acheteur…\n\n_Test E2E WAOUH — étape 4/5_`;
     const txtBuyer = `${hdr("💬 *Contre-offre reçue !*")}\n\n📦 ${title}\n🤝 Nouvelle offre du vendeur : ${fmt(450)}${tag}\n\nRépondez *OUI* pour accepter ou proposez un autre prix.\n\n_Test E2E WAOUH — étape 4/5_`;
-    const rs = await sendWA(sellerChatId, txtSeller);
-    await logQueue(sb, { toPhone: sellerPhone, toUserId: sellerId, template: "counter_sent", eventType: "counter_seller", text: txtSeller, status: rs.ok ? "sent" : "failed", wahaMsgId: rs.msgId, error: rs.error, articleId: article_id });
+    const rs = await deliver("seller", sellerChatId, sellerPhone, sellerId, "counter_sent", "counter_seller", txtSeller);
     await sleep(800);
-    const rb = await sendWA(buyerChatId, txtBuyer);
-    await logQueue(sb, { toPhone: buyerPhone, toUserId: buyerId, template: "counter_received", eventType: "counter_seller", text: txtBuyer, status: rb.ok ? "sent" : "failed", wahaMsgId: rb.msgId, error: rb.error, articleId: article_id });
-    steps.push({ step: 4, label: "Vendeur contre-offre 450", to: "both",
-      seller: { ok: rs.ok, status: rs.status, msgId: rs.msgId, error: rs.error, text: txtSeller },
-      buyer: { ok: rb.ok, status: rb.status, msgId: rb.msgId, error: rb.error, text: txtBuyer } });
+    const rb = await deliver("buyer", buyerChatId, buyerPhone, buyerId, "counter_received", "counter_seller", txtBuyer);
+    steps.push({ step: 4, label: "Vendeur contre-offre 450", to: "both", seller: rs, buyer: rb });
     await sleep(1500);
   }
 
@@ -464,6 +454,7 @@ async function runWACell(
   if (negotiationId) {
     await sb.from("waouh_negotiations").update({ state: "accepted", last_actor: "buyer" }).eq("id", negotiationId);
     const { data: deal } = await sb.from("waouh_deals").insert({
+      negotiation_id: negotiationId,
       article_id, buyer_user_id: buyerId, seller_user_id: sellerId,
       amount: 450, status: "pending",
     }).select("id").maybeSingle();
@@ -472,14 +463,10 @@ async function runWACell(
 
     const txtSeller = `${hdr("🎉 *Vente conclue !*")}\n\n📦 ${title}\n💰 Prix final : ${fmt(450)}${tag}\n\n🛵 Un *livreur WAOUH* vous contactera dans quelques minutes pour collecter le colis.\n🔒 Le contact de l'acheteur n'est pas partagé : WAOUH coordonne la livraison.\n\n_Test E2E WAOUH — étape 5/5_`;
     const txtBuyer = `${hdr("🎉 *Achat confirmé !*")}\n\n📦 ${title}\n💰 Prix final : ${fmt(450)}${tag}\n\n🛵 Un *livreur WAOUH* a été assigné.\n💵 Paiement à la livraison (cash ou Mobile Money).\n🔒 Le contact du vendeur n'est pas partagé.\n\n_Test E2E WAOUH — étape 5/5_`;
-    const rs = await sendWA(sellerChatId, txtSeller, photo);
-    await logQueue(sb, { toPhone: sellerPhone, toUserId: sellerId, template: "deal_seller", eventType: "deal_dispatch", text: txtSeller, status: rs.ok ? "sent" : "failed", wahaMsgId: rs.msgId, error: rs.error, imageUrl: photo, articleId: article_id });
+    const rs = await deliver("seller", sellerChatId, sellerPhone, sellerId, "deal_seller", "deal_dispatch", txtSeller, photo);
     await sleep(800);
-    const rb = await sendWA(buyerChatId, txtBuyer, photo);
-    await logQueue(sb, { toPhone: buyerPhone, toUserId: buyerId, template: "deal_buyer", eventType: "deal_dispatch", text: txtBuyer, status: rb.ok ? "sent" : "failed", wahaMsgId: rb.msgId, error: rb.error, imageUrl: photo, articleId: article_id });
-    steps.push({ step: 5, label: "Accord conclu (deal)", to: "both",
-      seller: { ok: rs.ok, status: rs.status, msgId: rs.msgId, error: rs.error, text: txtSeller },
-      buyer: { ok: rb.ok, status: rb.status, msgId: rb.msgId, error: rb.error, text: txtBuyer } });
+    const rb = await deliver("buyer", buyerChatId, buyerPhone, buyerId, "deal_buyer", "deal_dispatch", txtBuyer, photo);
+    steps.push({ step: 5, label: "Accord conclu (deal)", to: "both", seller: rs, buyer: rb });
   }
 
   const failures = steps.filter(s => (s.seller && !s.seller.ok) || (s.buyer && !s.buyer.ok)).length;
