@@ -83,9 +83,10 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
 
   // ---- Step 1: publish article (source-dependent)
   if (source === "chat") {
-    const { data: art } = await sb.from("waouh_articles").insert({
+    const { data: art, error: artErr } = await sb.from("waouh_articles").insert({
       seller_id: seller.id,
       title: `Bic E2E ${cell}`,
+      category: "divers",
       price: 10000,
       currency: "XOF",
       city: "Cotonou",
@@ -99,7 +100,7 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
     steps.push({
       step: "publish",
       expected: "article created (chat)",
-      got: art?.id ? `article ${art.id.slice(0,8)}` : "no article",
+      got: art?.id ? `article ${art.id.slice(0,8)}` : `no article: ${artErr?.message ?? "?"}`,
       status: art?.id ? "ok" : "fail",
     });
   } else if (source === "partner") {
