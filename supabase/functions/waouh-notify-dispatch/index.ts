@@ -241,6 +241,41 @@ serve(async (req) => {
       channelUsed = "waouh_app";
     }
 
+    // 🪞 Miroir in-app via pushSyncedEvent : insère systématiquement un
+    // waouh_messages pour que la WaouhMatchChatWindow affiche la notif chez
+    // les utilisateurs App (scénarios B & C). N'enqueue WhatsApp que si un
+    // numéro est connu — la queue waouh_enqueue_outbound_v2 dédupe via
+    // (event_type, user_id, deal/article) donc pas de doublon avec la branche
+    // WhatsApp déjà déclenchée plus haut.
+    if (notifTargetUserId) {
+      try {
+        const { data: targetUser } = await sb
+          .from("waouh_users")
+          .select("id, phone_number, web_session_id, auth_user_id")
+          .eq("id", notifTargetUserId)
+          .maybeSingle();
+        if (targetUser?.id) {
+          await pushSyncedEvent({
+            sb,
+            user: targetUser as any,
+            role: recipient === "seller" ? "seller" : "buyer",
+            articleId: article_id,
+            text,
+            intent: kind,
+            template: kind,
+            eventType: kind,
+            attachments: photos.slice(0, 4).map((url) => ({ url, type: "image/jpeg" })),
+            imageUrl: photos[0] ?? null,
+            dedupSuffix: `notify:${recipient}${buyer_profile_id ? `:${buyer_profile_id}` : ""}`,
+            payloadExtra: { article_id, recipient, buyer_profile_id: buyer_profile_id ?? null },
+            forcePhoneE164: target.whatsapp,
+          });
+        }
+      } catch (e) {
+        console.warn("[waouh-notify-dispatch] pushSyncedEvent failed", e);
+      }
+    }
+
     // Insert notification row (in-app card carries the same photos[])
     if (notifTargetUserId) {
       // Resolve a web_session_id so the app can pull this notif without auth
