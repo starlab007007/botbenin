@@ -61,3 +61,30 @@ Nouveaux invariants enforced par `src/components/waouh/waouhChatSyncLock.ts` + t
 - `deal_dispatch` reste la seule source de la notif finale "vente conclue / achat confirmé".
 - Ne jamais supprimer l'index unique ou l'advisory lock.
 - Le flux chat web (`mem://features/waouh-chat-sync-flow`) reste également verrouillé.
+
+### v6 — Bug fixes scénarios B/C en situation réelle (2026-06-10)
+
+- **Bug 1 (vendeur reçoit "📩 Nouvel acheteur intéressé" 2 fois)** :
+  `resolveVendorContacts` (waouh-webhook) dédupe désormais par IDENTITÉ
+  destinataire (`waouh_users.id` / `auth_user_id`) au lieu de seulement par
+  numéro canonique. Un vendeur App qui possède aussi un compte partner
+  (business + partner phones) ne reçoit qu'**une seule** notification.
+  Le `dedupe_key` du `pushToOther` match_seller inclut désormais
+  `seller?.id` pour bloquer les rebonds concurrents.
+
+- **Bug 2 ("Aucune négociation en cours" quand l'acheteur propose un prix)** :
+  Pour les articles partners (`pickSource === "partner"`), `waouh-webhook`
+  appelle `promoteCatalogToArticle(sb, pick.id)` AVANT l'INSERT
+  `waouh_negotiations`, et remplace `pick.id` par le `waouh_articles.id`
+  promu. Sans cette promotion, `article_id` pointait vers
+  `waouh_unified_catalog.id` (FK invalide) et la négo était soit rejetée,
+  soit orpheline, d'où le message d'erreur à l'offre suivante.
+
+## Verrou runtime (v6)
+
+Invariants ajoutés :
+- `webhookPromotesCatalogBeforeNegotiation` (waouh-webhook contient
+  `promoteCatalogToArticle` + `pickSource === "partner"` + commentaire
+  `Bug 2 fix`).
+- `vendorContactsSingleRecipient` (waouh-webhook contient `Bug 1 fix`,
+  `seenUserKey`, `auth_user_id` dans `resolveVendorContacts`).
