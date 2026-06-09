@@ -269,10 +269,10 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
     });
   }
 
-  // ---- Step 7: check outbound queue
+  // ---- Step 7: check outbound queue (search by phone OR by recipient user id)
   const { data: queued } = await sb.from("waouh_outbound_queue")
-    .select("event_type, status, to_phone, template")
-    .or(`to_phone.eq.${sellerPhone},to_phone.eq.${buyerPhone}`)
+    .select("event_type, status, to_phone, template, to_user_id")
+    .or(`to_phone.eq.${sellerPhone},to_phone.eq.${buyerPhone},to_user_id.eq.${seller.id},to_user_id.eq.${buyer.id}`)
     .order("created_at", { ascending: false })
     .limit(20);
   const events = (queued || []).map((q: any) => q.event_type || q.template).filter(Boolean);
