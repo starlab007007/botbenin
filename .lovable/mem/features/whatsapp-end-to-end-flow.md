@@ -1,49 +1,58 @@
 ---
-name: WhatsApp End-to-End Flow (LOCKED v1)
-description: Vendor↔Buyer 100% WhatsApp flow — LID privacy resolution + outbound notifications/counters/accord. Locked, do not regress.
+name: WhatsApp End-to-End Flow (LOCKED v2)
+description: Vendor↔Buyer 100% WhatsApp flow — LID resolution + idempotent deal_created/deal_dispatch. LOCKED, do not modify.
 type: feature
 ---
 
-# Parcours WhatsApp bout-en-bout — LOCKED v1 (2026-06-08)
+# Parcours WhatsApp bout-en-bout — LOCKED v2 (2026-06-09)
 
-Couvre le scénario où **vendeur ET acheteur sont sur WhatsApp** (pas de chat web). Le flux doit fonctionner identiquement quel que soit le mode de privacy WAHA (LID anonyme inclus).
+🔒 **Ce flux est validé et figé. Toute modification est interdite sans nouvelle approbation utilisateur explicite.**
+Couvre le scénario où **vendeur ET acheteur sont sur WhatsApp** (pas de chat web), peu importe le mode privacy WAHA (LID inclus).
 
-## Étapes garanties
+## Étapes garanties (immuables)
 
 1. **Vendeur** : `Je vends X` → article créé + bulle "✅ Annonce publiée" sur WhatsApp.
 2. **Acheteur** : `Je cherche X` → liste résultats → `intéressé 1`.
-3. **Vendeur** reçoit `📩 Nouvel acheteur intéressé` sur WhatsApp (template `match_seller`).
-4. **Acheteur** ou **Vendeur** : `Je propose 50000` → contre-offre transmise via `negotiation_open` template (les deux sens).
-5. **OUI / NON** → `deal_created` ou `negotiation_closed` → notifications WhatsApp bilatérales.
+3. **Vendeur** reçoit `📩 Nouvel acheteur intéressé` (template `match_seller`), **une seule fois**.
+4. Contre-offres bilatérales via template `negotiation_open`.
+5. **OUI/OUI** → exactement **1 `deal_created` logique** + **1 `deal_dispatch` par partie** (vendeur "vente conclue", acheteur "achat confirmé"). Aucun doublon.
 
-## Verrou technique — résolution LID
+## Verrous techniques
 
-WAHA livre certains contacts sous `<lid>@lid` (privacy mode). Sans résolution, `waouh_users.phone_number` stocke `@lid` et toutes les sorties WhatsApp échouent avec `lid unresolved (no phone)`.
+### 1. Résolution LID (v1 — toujours en vigueur)
+- Helper canonique `lidToPhoneInline()` (`supabase/functions/_shared/waouh-format.ts`) + cache `waouh_lid_phone_map`.
+- Appliqué dans `waouh-channel-in` (inbound) ET `waouh-outbound-dispatch` (dernière chance avant WAHA).
 
-**Helper canonique** : `lidToPhoneInline()` dans `supabase/functions/_shared/waouh-format.ts`
-- Cache DB `waouh_lid_phone_map` (lid → phone_e164).
-- Fallback live `GET /api/contacts/all?session=...` puis upsert dans la map.
-- Retourne les chiffres E.164 (sans `+`) ou null.
+### 2. Idempotence acceptation (v2 — nouveau)
+- `waouh-negotiation-router` branche `yes` :
+  - Court-circuit si `waouh_deals` existe déjà pour `negotiation_id` OU `neg.state IN ('accepted','closed')`.
+  - Catch `23505` sur insert deal → bascule sur la branche idempotente.
+  - Réponse directe neutre `"✅ Accord enregistré..."` avec flag `suppress_direct_reply: true`.
+- `waouh-channel-in` : si `suppress_direct_reply === true`, **ne pousse PAS** de réponse WAHA directe (laisse `waouh-deal-dispatch` être l'unique source du message final).
+- Migration : `UNIQUE INDEX waouh_deals_unique_per_negotiation ON waouh_deals(negotiation_id) WHERE status <> 'cancelled'`.
 
-**Points d'application** :
-- `waouh-channel-in/index.ts` (inbound) : résout `@lid` → vrai numéro AVANT l'upsert `waouh_users`, et backfille les `waouh_users.phone_number = <lid>@lid` historiques.
-- `waouh-outbound-dispatch/index.ts` : dernière chance avant envoi WAHA — résout encore via `lidToPhoneInline` et backfille le user destinataire.
+### 3. Idempotence queue (v2 — nouveau)
+- RPC `waouh_enqueue_outbound_v2` : `pg_advisory_xact_lock(hash(event_type, to_user_id, deal_id))` + dédup sur `payload->>'deal_id'` pour `deal_dispatch`/`deal_created` en statut `pending|sending|sent`.
+- Index `idx_waouh_queue_deal_event_user_lookup`.
+- `_shared/waouh-sync.ts` : `dedupBase` inclut `dealId` → `sync:${art}:${intent}:${user}:${neg}:${deal}${suffix}`.
 
 ## Verrou runtime
 
-`src/components/waouh/waouhChatSyncLock.ts` v2 documente les invariants :
-- `whatsappLidResolution` : `waouh-channel-in` doit contenir `lidToPhoneInline` + log `lid resolved`.
-- `whatsappOutboundDispatch` : `waouh-outbound-dispatch` doit contenir `lidToPhoneInline` + branche `lid unresolved`.
+`src/components/waouh/waouhChatSyncLock.ts` v3 documente les invariants. Le test
+`src/components/waouh/__tests__/waouh-chat-sync-flow.lock.test.ts` échoue si un
+des marqueurs ci-dessous est supprimé.
 
-## Tables impliquées (lecture seule pour ce flux)
+Invariants ajoutés en v2 (au-delà de v1 LID) :
+- `whatsappAcceptanceIdempotence` (`waouh-negotiation-router`) : doit contenir `deal_already_accepted`, `suppress_direct_reply`, et le catch `23505`.
+- `whatsappChannelInSuppress` (`waouh-channel-in`) : doit contenir `suppress_direct_reply`.
+- `whatsappQueueDedup` (`_shared/waouh-sync.ts`) : `dedupBase` doit inclure `${dealId ?? "nodeal"}`.
+- `whatsappEnqueueLock` (migration `waouh_enqueue_outbound_v2`) : doit contenir `pg_advisory_xact_lock` et le check `deal_id`.
 
-- `waouh_users` (phone_number ré-écrit lors d'une résolution LID)
-- `waouh_lid_phone_map` (cache LID ↔ E.164, upsert idempotent par `lid`)
-- `waouh_articles`, `waouh_negotiations`, `waouh_deals`, `waouh_messages`, `waouh_outbound_queue`
+## Règles invariantes (NE JAMAIS violer)
 
-## Règles invariantes
-
-- **Ne jamais** stocker un `@lid` durablement dans `waouh_users.phone_number` si une résolution est possible.
-- **Toujours** persister la résolution LID dans `waouh_lid_phone_map` pour les appels suivants.
-- **Toujours** réessayer la résolution LID dans le dispatcher juste avant l'envoi WAHA.
-- Le flux chat web (WaouhMatchChatWindow) reste verrouillé tel que défini dans `mem://features/waouh-chat-sync-flow`.
+- Ne jamais stocker `@lid` durablement dans `waouh_users.phone_number` si résolvable.
+- Ne jamais réinsérer un `waouh_deals` pour la même `negotiation_id`.
+- Ne jamais envoyer `deal_created` ET `deal_dispatch` avec le même contenu — `deal_dispatch` est la seule source de la notif finale.
+- Ne jamais retirer la dédup `dealId` du `dedupBase`.
+- Ne jamais supprimer l'index unique ou l'advisory lock.
+- Le flux chat web (`mem://features/waouh-chat-sync-flow`) reste également verrouillé.
