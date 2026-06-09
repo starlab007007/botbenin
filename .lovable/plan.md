@@ -1,48 +1,56 @@
-# Plan — Fiabilisation WAOUH end-to-end + harness de test admin
+## Edge functions à supprimer pour libérer des slots
 
-## 1. Tunnel partenaire (déblocage A2/B2/C2)
+Basé sur les pages que tu n'utilises plus, voici les fonctions liées qui peuvent être supprimées sans impact sur les flux WAOUH / WhatsApp actuels.
 
-- **Nouvelle edge function utilitaire `_shared/waouh-promote.ts`** : `promoteCatalogToArticle(sb, catalog_id)` qui, si l'item `waouh_unified_catalog` (source=`partner`) n'a pas d'`article_id`, crée un `waouh_articles` (title, price, city, photos, `contact_whatsapp=vendeur_whatsapp`, `source_channel='partner'`, `seller_id=NULL`, `partner_id`) et écrit `catalog.article_id`.
-- **`waouh-notify-dispatch/index.ts`** : si `article_id` manquant mais `catalog_id` fourni → appeler `promoteCatalogToArticle` puis continuer normalement. Plus de 400.
-- **`waouh-notify-buyers/index.ts`** : passe désormais `article_id` (issu de la promotion) au dispatcher.
-- **`waouh-buyer-interest/index.ts`** : si la cible est un `catalog_id` partenaire, promote puis ouvre négo avec l'article promu.
+### Catégorie 1 — Production vidéo (`/video-production`, `/video-library`, `/video-assets`, `/video-production/calendar`)
+1. `assemble-final-video`
+2. `assemble-video`
+3. `check-shotstack-status`
+4. `render-with-shotstack`
+5. `generate-ai-video`
+6. `generate-video-description`
+7. `generate-video-frames`
+8. `merge-audio-tracks`
 
-## 2. Fallback Radar IA (A3/C3)
+### Catégorie 2 — Visual Creator / Galeries (`/modules/visual-creator`, `/visual-gallery`, `/yovo-gallery`)
+9. `generate-visual-content`
+10. `generate-visual-variants`
 
-- **`_shared/waouh-contact.ts` (resolveContact)** : en mode `radar_ia`, si `contact_whatsapp` vide, fallback en cascade :
-  1. `waouh_radar_contacts.contact_whatsapp` par `seller_handle`
-  2. `waouh_external_listings.seller_phone` ou `seller_handle` (extraction E.164)
-  3. Marquer `needs_enrichment=true` dans `waouh_radar_signals` et créer une notif admin (`notification_type='radar_quality_warning'`) au lieu d'échouer silencieusement.
-- **`waouh-outbound-dispatch`** : quand `failed: no WA contact` sur un payload `radar_*`, mettre `status='needs_enrichment'` (au lieu de `failed`) pour qu'un opérateur puisse compléter le numéro depuis Contacts Radar.
+### Catégorie 3 — Support / Use-case support (`/use-case/support`)
+11. `support-chatbot-n1`
+12. `support-create-ticket-public`
+13. `support-guest-ticket-get`
+14. `support-guest-ticket-message`
+   *(garder `support-create-ticket` si encore utilisé en interne — à confirmer)*
 
-## 3. Harness de test E2E
+### Catégorie 4 — Tests paiement (`/admin/payment-tests`)
+15. `qosic-check-status` *(à vérifier : utilisé par le flux production ? Sinon supprimable)*
 
-- **Nouvelle edge function `waouh-e2e-test-runner`** (POST `{ scenario: 'A'|'B'|'C'|'ALL', source: 'chat'|'partner'|'radar'|'ALL' }`)
-  - Crée 2 `waouh_users` éphémères (suffixe `e2e-<timestamp>`)
-  - Joue : publication → recherche → intérêt → 2 contre-offres → OUI
-  - Capture après chaque étape : `waouh_messages`, `waouh_outbound_queue`, `waouh_negotiations`, `waouh_deals`, `waouh_notifications`
-  - Compare à un tableau d'attendus (en dur) et calcule `status: ok | mismatch | failed` par étape.
-  - Insère un run dans nouvelle table `waouh_e2e_test_runs` (id, scenario, source, started_at, finished_at, summary jsonb, steps jsonb).
-- **Migration** : table `waouh_e2e_test_runs` + GRANT + RLS (admin only via `has_role(auth.uid(),'admin')`).
+### Catégorie 5 — Promo / Voix promo (souvent liées au visual creator)
+16. `generate-promotional-texts`
+17. `generate-promotional-voice`
 
-## 4. Admin UI
+### Recommandation minimale (1 slot)
 
-- **Nouvel onglet** dans `WaouhWhatsAppOpsPage` : `Tests E2E`.
-- **Composant `WaouhE2ETestsTab.tsx`** :
-  - Bouton "Exécuter tests WhatsApp" (lance les 9 cellules en parallèle via l'edge function)
-  - Liste des runs récents (sélecteur)
-  - 3 tableaux (chat / partenaire / radar) × 3 colonnes (A/B/C) avec, pour chaque étape : message attendu, message reçu, statut écart (badge ✅/⚠️/❌).
-  - Bouton "Exporter rapport" → télécharge le markdown généré par l'edge function.
+Tu n'as besoin que **d'un seul slot libre** pour déployer `waouh-e2e-test`. Le candidat le plus sûr et le plus inoffensif :
 
-## 5. Verrou
+→ **`assemble-final-video`** (vidéo, code uniquement, pas de webhook entrant, contenu confirmé non utilisé)
 
-- Ajout d'invariants dans `waouhChatSyncLock.ts` v3 : `partnerCatalogPromotion`, `radarContactFallback`, `e2eRunnerCoverage`.
-- Mise à jour `mem://features/whatsapp-end-to-end-flow` (v2) avec les nouveaux fallbacks.
+### Recommandation propre (nettoyage en lot)
 
-## Technique
+Supprimer le bloc **Catégorie 1 (vidéo)** d'un coup libère **8 slots** d'un coup — futur-proof pour les prochains déploiements WAOUH (partner promote, radar fallback, etc.).
 
-- Une seule migration (table runs + RLS + grants).
-- Pas de modification du flux WaouhMatchChatWindow (verrouillé).
-- Le runner s'auto-nettoie : marque les `waouh_users` créés avec `phone_number LIKE '229E2E%'` pour suppression facile.
-- Coût credits : ~1 migration, 4 edge functions touchées, 1 nouvelle edge function, 2 composants React, 1 invariant lock.
+### Ce que je ferai après ton choix
 
+1. Appeler `supabase--delete_edge_functions` avec la liste validée.
+2. Supprimer les dossiers correspondants sous `supabase/functions/`.
+3. Déployer `waouh-e2e-test`, `waouh-notify-dispatch`, `waouh-buyer-interest`.
+4. Vérifier les logs.
+
+### Question
+
+Confirme l'une des options :
+- **A.** Supprimer seulement `assemble-final-video` (1 slot, minimum risque).
+- **B.** Supprimer toute la Catégorie 1 vidéo (8 slots).
+- **C.** Supprimer Catégories 1 + 2 + 5 (10 slots, nettoyage complet visual+vidéo).
+- **D.** Une liste personnalisée que tu précises.
