@@ -125,7 +125,7 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
     // Promote
     if (cat?.id) {
       const { promoteCatalogToArticle } = await import("../_shared/waouh-promote.ts");
-      const promo = await promoteCatalogToArticle(sb, cat.id);
+      const promo = await promoteCatalogToArticle(sb, cat.id, { seller_id: seller.id, category: "divers" });
       artifacts.article_id = promo.article_id ?? undefined;
       steps.push({
         step: "promote_partner",
