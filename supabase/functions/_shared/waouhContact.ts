@@ -53,15 +53,37 @@ export async function resolveContact(
     return { channel, whatsapp: wa, waouhUserId: userId ?? null, partnerId: row.partner_id };
   }
 
-  // Radar signal phone (best-effort)
-  if (channel === "radar_ia" && row?.origin_signal_id) {
-    const { data: sig } = await sb
-      .from("waouh_radar_signals")
-      .select("contact_phone, raw_payload")
-      .eq("id", row.origin_signal_id)
-      .maybeSingle();
-    const wa = normalizeBeninPhone(sig?.contact_phone || sig?.raw_payload?.phone);
-    return { channel, whatsapp: wa || rowWa, waouhUserId: userId ?? null, partnerId: null };
+  // Radar signal phone (best-effort) with multi-source fallback.
+  if (channel === "radar_ia") {
+    let wa: string | null = null;
+    // 1) Signal direct
+    if (row?.origin_signal_id) {
+      const { data: sig } = await sb
+        .from("waouh_radar_signals")
+        .select("contact_phone, raw_payload, source_id")
+        .eq("id", row.origin_signal_id)
+        .maybeSingle();
+      wa = normalizeBeninPhone(sig?.contact_phone || sig?.raw_payload?.phone);
+      // 2) Radar contacts (phone_e164) joined via source_id (external_listing.seller_handle)
+      if (!wa && sig?.source_id) {
+        const { data: ext } = await sb
+          .from("waouh_external_listings")
+          .select("seller_phone, raw")
+          .eq("id", sig.source_id)
+          .maybeSingle();
+        wa = normalizeBeninPhone(ext?.seller_phone || ext?.raw?.phone);
+      }
+    }
+    // 3) Last resort: row.contact_whatsapp
+    if (!wa) wa = rowWa;
+    // 4) Mark for enrichment if still missing
+    if (!wa && row?.origin_signal_id) {
+      try {
+        await sb.from("waouh_radar_signals").update({ needs_enrichment: true })
+          .eq("id", row.origin_signal_id);
+      } catch { /* non-fatal */ }
+    }
+    return { channel, whatsapp: wa, waouhUserId: userId ?? null, partnerId: null };
   }
 
   // App / fallback: look up waouh_users.phone if any

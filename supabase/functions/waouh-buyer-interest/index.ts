@@ -15,14 +15,27 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const { article_id, source = "chat" } = await req.json().catch(() => ({}));
-    if (!article_id || typeof article_id !== "string") {
-      return new Response(JSON.stringify({ error: "article_id required" }), {
+    const body = await req.json().catch(() => ({}));
+    let { article_id, catalog_id, source = "chat" } = body || {};
+    if (!article_id && !catalog_id) {
+      return new Response(JSON.stringify({ error: "article_id or catalog_id required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+    // 🆕 Promotion catalog → article si nécessaire (tunnel partenaire)
+    if (!article_id && catalog_id) {
+      const { promoteCatalogToArticle } = await import("../_shared/waouh-promote.ts");
+      const promo = await promoteCatalogToArticle(sb, catalog_id);
+      if (!promo.article_id) {
+        return new Response(JSON.stringify({ error: "catalog promotion failed", details: promo.reason }), {
+          status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      article_id = promo.article_id;
+    }
 
     // Resolve the calling user from the JWT (if any)
     const auth = req.headers.get("Authorization") ?? "";
