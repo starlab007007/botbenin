@@ -36,31 +36,9 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Stratégies de cache
-self.addEventListener('fetch', (event) => {
-  const req = event.request;
-  if (req.method !== 'GET') return;
-
-  const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return;
-
-  // Network-first pour HTML/navigation
-  if (req.mode === 'navigate' || req.destination === 'document') {
-    event.respondWith(
-      (async () => {
-        try {
-          const res = await fetch(req);
-          const cache = await caches.open(HTML_CACHE);
-          cache.put(req, res.clone());
-          return res;
-        } catch (e) {
-          const cached = await caches.match(req);
-          return cached || caches.match('/') || Response.error();
-        }
-      })()
-    );
-  }
-});
+// Aucune stratégie de cache pour HTML/assets : on laisse Vite/Nginx gérer
+// pour éviter de servir d'anciens chunks (hash) après redéploiement.
+// Le SW reste utile uniquement pour les notifications push.
 
 self.addEventListener('push', (event) => {
   if (!event.data) return;
