@@ -86,7 +86,7 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
     const { data: art, error: artErr } = await sb.from("waouh_articles").insert({
       seller_id: seller.id,
       title: `Bic E2E ${cell}`,
-      category: "divers",
+      category: "autre",
       price: 10000,
       currency: "XOF",
       city: "Cotonou",
@@ -125,7 +125,7 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
     // Promote
     if (cat?.id) {
       const { promoteCatalogToArticle } = await import("../_shared/waouh-promote.ts");
-      const promo = await promoteCatalogToArticle(sb, cat.id, { seller_id: seller.id, category: "divers" });
+      const promo = await promoteCatalogToArticle(sb, cat.id, { seller_id: seller.id, category: "autre" });
       artifacts.article_id = promo.article_id ?? undefined;
       steps.push({
         step: "promote_partner",
@@ -160,7 +160,7 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
     const { data: art, error: artErr } = await sb.from("waouh_articles").insert({
       seller_id: seller.id,
       title: `Bic E2E ${cell}`,
-      category: "divers",
+      category: "autre",
       price: 10000,
       currency: "XOF",
       city: "Cotonou",
