@@ -1,56 +1,57 @@
-## Edge functions à supprimer pour libérer des slots
+## Diagnostic des Fails affichés
 
-Basé sur les pages que tu n'utilises plus, voici les fonctions liées qui peuvent être supprimées sans impact sur les flux WAOUH / WhatsApp actuels.
+⚠️ **Bonne nouvelle d'abord** : les **2 runs les plus récents** (`4b11e533` à 18:51:34 et `9ea6607c` à 18:49:45) sont **9/9 OK ✅**. Les Fails que tu vois sont **historiques** — ils correspondent à la progression des correctifs appliqués lors du débogage. Le tableau du bas affiche le tout premier run (`2aaaca0e` à 18:41:52) parce que tu l'as cliqué manuellement, et le composant ne ré-sélectionne pas automatiquement le dernier run après "Exécuter tests".
 
-### Catégorie 1 — Production vidéo (`/video-production`, `/video-library`, `/video-assets`, `/video-production/calendar`)
-1. `assemble-final-video`
-2. `assemble-video`
-3. `check-shotstack-status`
-4. `render-with-shotstack`
-5. `generate-ai-video`
-6. `generate-video-description`
-7. `generate-video-frames`
-8. `merge-audio-tracks`
+### Frise chronologique des 7 runs Fail
 
-### Catégorie 2 — Visual Creator / Galeries (`/modules/visual-creator`, `/visual-gallery`, `/yovo-gallery`)
-9. `generate-visual-content`
-10. `generate-visual-variants`
+| Run | Heure | OK/Warn/Fail | Cause racine | Statut |
+|---|---|---|---|---|
+| `2aaaca0e` | 18:41:52 | 0/0/9 | Colonne `name` inexistante sur `waouh_users` — schéma attend `display_name` | ✅ corrigé |
+| `89fe1f14` | 18:45:50 | 0/0/1 | Même bug `display_name` (test partiel, 1 cellule) | ✅ corrigé |
+| `a4b814f6` | 18:47:07 | 0/0/9 | `waouh_articles.category` NOT NULL violé (insert sans category) | ✅ corrigé |
+| `1b0d8e26` | 18:47:49 | 0/6/3 | Category `"divers"` rejetée par CHECK constraint (`smartphone\|ordinateur\|vetement\|vehicule\|electromenager\|meuble\|autre`) — partner/radar passent (warn) car ils utilisent une autre voie | ✅ corrigé → `"autre"` |
+| `c5a17128` | 18:48:26 | 6/0/3 | Partenaire seul KO : enum `waouh_catalog_type` n'accepte pas `"produit"` (valeurs valides : `offer`, `demand`) | ✅ corrigé → `"offer"` |
+| `b5d21c0d` | 18:48:51 | 6/0/3 | Partenaire seul KO : `waouh_unified_catalog.source_ref_id` NOT NULL + promoter sélectionnait `image_url` (colonne inexistante) → silently `null` row | ✅ corrigé (UUID injecté + select assaini) |
+| `9ea6607c` | 18:49:45 | **9/0/0** | — | ✅ vert |
+| `4b11e533` | 18:51:34 | **9/0/0** | — | ✅ vert |
 
-### Catégorie 3 — Support / Use-case support (`/use-case/support`)
-11. `support-chatbot-n1`
-12. `support-create-ticket-public`
-13. `support-guest-ticket-get`
-14. `support-guest-ticket-message`
-   *(garder `support-create-ticket` si encore utilisé en interne — à confirmer)*
+### Ce qui reste à corriger (UX, pas backend)
 
-### Catégorie 4 — Tests paiement (`/admin/payment-tests`)
-15. `qosic-check-status` *(à vérifier : utilisé par le flux production ? Sinon supprimable)*
+**Problème 1** — Sélection figée sur l'ancien run après "Exécuter tests"
+`loadRuns()` ne met à jour `selected` que si `!selected`. Résultat : après un nouveau run, tu vois encore l'ancien run sélectionné.
 
-### Catégorie 5 — Promo / Voix promo (souvent liées au visual creator)
-16. `generate-promotional-texts`
-17. `generate-promotional-voice`
+**Problème 2** — Pollution visuelle : 7 runs Fail historiques en haut de la liste alors qu'ils n'ont plus aucune valeur diagnostique.
 
-### Recommandation minimale (1 slot)
+**Problème 3** — Quand un run est OK, on n'affiche aucun détail "preuve" (ex: combien d'entrées dans `waouh_outbound_queue`, IDs de deal/négociation), ce qui rend difficile la confiance.
 
-Tu n'as besoin que **d'un seul slot libre** pour déployer `waouh-e2e-test`. Le candidat le plus sûr et le plus inoffensif :
+**Problème 4** — Pas de message clair quand la run sélectionnée est obsolète vs. dernière run réussie.
 
-→ **`assemble-final-video`** (vidéo, code uniquement, pas de webhook entrant, contenu confirmé non utilisé)
+## Plan de correction
 
-### Recommandation propre (nettoyage en lot)
+### 1. UX du tableau Runs récents (`WaouhE2ETestsTab.tsx`)
+- Après `runAll()`, **forcer** `setSelected(data[0])` (le dernier run) au lieu de garder l'ancien.
+- Idem dans `loadRuns()` : si la run sélectionnée n'existe plus dans la liste, basculer sur la première.
+- Ajouter un bouton **"🗑 Purger les anciens runs Fail"** qui supprime de `waouh_e2e_test_runs` les runs antérieurs au dernier run OK (préserve le dernier OK + les Fail des dernières 24h).
+- Ajouter un bandeau vert/rouge en haut : *"Dernier run : OK · 9/9 cellules · il y a 3 min"*.
 
-Supprimer le bloc **Catégorie 1 (vidéo)** d'un coup libère **8 slots** d'un coup — futur-proof pour les prochains déploiements WAOUH (partner promote, radar fallback, etc.).
+### 2. Affichage des cellules OK
+Les cellules qui passent affichent déjà leurs étapes (publish, buyer_interest, counters, accept, queue_audit). Ajouter dans le tableau une **colonne "Artefacts"** condensée affichant `article_id`, `negotiation_id`, `deal_id` (8 premiers caractères, cliquables → ouvrent la trace WAOUH si on a la route).
 
-### Ce que je ferai après ton choix
+### 3. Lien direct vers la trace
+Sous chaque cellule, ajouter un mini-lien *"Voir trace dans `/admin/waouh/historique?article_id=…`"* pour permettre d'inspecter visuellement.
 
-1. Appeler `supabase--delete_edge_functions` avec la liste validée.
-2. Supprimer les dossiers correspondants sous `supabase/functions/`.
-3. Déployer `waouh-e2e-test`, `waouh-notify-dispatch`, `waouh-buyer-interest`.
-4. Vérifier les logs.
+### 4. Export rapport amélioré
+Inclure dans le `.md` exporté la section "Artefacts" et le détail JSON brut des étapes warn/fail pour audit.
 
-### Question
+### 5. Pas de changement backend
+Les 3 edge functions clés (`waouh-e2e-test`, `waouh-notify-dispatch`, `waouh-buyer-interest`) sont à jour et passent 9/9. Pas de migration nécessaire.
 
-Confirme l'une des options :
-- **A.** Supprimer seulement `assemble-final-video` (1 slot, minimum risque).
-- **B.** Supprimer toute la Catégorie 1 vidéo (8 slots).
-- **C.** Supprimer Catégories 1 + 2 + 5 (10 slots, nettoyage complet visual+vidéo).
-- **D.** Une liste personnalisée que tu précises.
+### Coût estimé
+1 fichier modifié (`src/components/admin/WaouhE2ETestsTab.tsx`), pas de nouvelle table, pas d'edge function, pas de migration. ~80 lignes ajoutées.
+
+### Question rapide
+
+Veux-tu :
+- **A.** Tout : forcer sélection latest + bandeau résumé + purge + artefacts + lien historique (recommandé)
+- **B.** Juste le strict minimum : forcer sélection latest + bandeau "Dernier run OK"
+- **C.** Juste purger les anciens Fail et garder l'UI actuelle
