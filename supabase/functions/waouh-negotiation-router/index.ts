@@ -12,6 +12,18 @@ const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
 const negotiationActions = (_negId: string) => [] as Array<{ id: string; label: string }>;
 
+function directReachablePhone(raw: string | null | undefined): string | null {
+  const value = String(raw || "").trim();
+  if (!value) return null;
+  if (/@lid$/i.test(value)) return value.replace(/[^0-9@.a-z]/gi, "");
+  const digits = value.replace(/@(?:c\.us|s\.whatsapp\.net)$/i, "").replace(/\D/g, "");
+  if (!digits || digits.length > 13) return null;
+  if (digits.startsWith("00229")) return digits.slice(2);
+  if (digits.startsWith("229")) return digits;
+  if (digits.length === 8 || (digits.length === 10 && digits.startsWith("01"))) return `229${digits}`;
+  return digits.length > 8 ? digits : null;
+}
+
 
 async function aiIntent(text: string): Promise<{ kind: "yes"|"no"|"price"|"other"; price?: number }> {
   const lower = (text || "").toLowerCase();
@@ -84,9 +96,7 @@ Deno.serve(async (req) => {
         if (resolved) outboundPhone = resolved;
       } catch (_) { /* fallback ci-dessous */ }
     }
-    if (!outboundPhone && target.phone_number && !/@lid$/i.test(target.phone_number)) {
-      outboundPhone = target.phone_number;
-    }
+    if (!outboundPhone) outboundPhone = directReachablePhone(target.phone_number);
     try {
       await sb.rpc("waouh_enqueue_outbound_v2", {
         p_to_phone: outboundPhone,
