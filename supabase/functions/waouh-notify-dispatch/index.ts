@@ -118,7 +118,6 @@ serve(async (req) => {
 
     // 🆕 Tunnel partenaire : promouvoir catalog → article si nécessaire
     if (!article_id && catalog_id) {
-      const { promoteCatalogToArticle } = await import("../_shared/waouh-promote.ts");
       const promo = await promoteCatalogToArticle(sb, catalog_id);
       if (!promo.article_id) {
         return new Response(JSON.stringify({ error: "catalog promotion failed", details: promo.reason }), {
