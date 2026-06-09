@@ -12,6 +12,7 @@ export interface PromoteResult {
 export async function promoteCatalogToArticle(
   sb: any,
   catalog_id: string,
+  overrides: { seller_id?: string | null; category?: string | null } = {},
 ): Promise<PromoteResult> {
   if (!catalog_id) return { article_id: null, catalog_id, created: false, reason: "no catalog_id" };
 
@@ -36,10 +37,10 @@ export async function promoteCatalogToArticle(
   const { data: article, error } = await sb
     .from("waouh_articles")
     .insert({
-      seller_id: null,
+      seller_id: overrides.seller_id ?? null,
       title: cat.titre || "Article partenaire",
       description: cat.description || null,
-      category: cat.categorie || null,
+      category: cat.categorie || overrides.category || "divers",
       price,
       currency: cat.devise || "XOF",
       photos,
