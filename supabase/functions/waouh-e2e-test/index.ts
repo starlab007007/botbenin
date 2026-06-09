@@ -534,12 +534,13 @@ Deno.serve(async (req) => {
         });
       }
       const sources: Source[] = (body.sources || ["chat", "partner", "radar"]).filter((s: any) => ["chat", "partner", "radar"].includes(s));
+      const scenarios: Scenario[] = (body.scenarios || ["A"]).filter((s: any) => ["A", "B", "C"].includes(s));
 
       const { data: run } = await sb.from("waouh_e2e_test_runs").insert({
-        scenario: "whatsapp_full", source: sources.join(","), status: "running",
+        scenario: `whatsapp_full:${scenarios.join("")}`, source: sources.join(","), status: "running",
       }).select("id").maybeSingle();
 
-      const result = await runWhatsAppFull(sb, sellerPhone, buyerPhone, sources);
+      const result = await runWhatsAppFull(sb, sellerPhone, buyerPhone, sources, scenarios);
       if ((result as any).error) {
         if (run?.id) await sb.from("waouh_e2e_test_runs").update({
           status: "failed", finished_at: new Date().toISOString(),
