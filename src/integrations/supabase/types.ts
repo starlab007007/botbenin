@@ -5902,6 +5902,45 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_e2e_test_runs: {
+        Row: {
+          created_at: string
+          finished_at: string | null
+          id: string
+          scenario: string
+          source: string
+          started_at: string
+          status: string
+          steps: Json
+          summary: Json
+          triggered_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          scenario: string
+          source: string
+          started_at?: string
+          status?: string
+          steps?: Json
+          summary?: Json
+          triggered_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          scenario?: string
+          source?: string
+          started_at?: string
+          status?: string
+          steps?: Json
+          summary?: Json
+          triggered_by?: string | null
+        }
+        Relationships: []
+      }
       waouh_external_listings: {
         Row: {
           category: string | null
@@ -7294,6 +7333,7 @@ export type Database = {
           embedding: string | null
           id: string
           intent: string | null
+          needs_enrichment: boolean
           price: number | null
           product: Json | null
           promoted_article_id: string | null
@@ -7316,6 +7356,7 @@ export type Database = {
           embedding?: string | null
           id?: string
           intent?: string | null
+          needs_enrichment?: boolean
           price?: number | null
           product?: Json | null
           promoted_article_id?: string | null
@@ -7338,6 +7379,7 @@ export type Database = {
           embedding?: string | null
           id?: string
           intent?: string | null
+          needs_enrichment?: boolean
           price?: number | null
           product?: Json | null
           promoted_article_id?: string | null
@@ -7726,6 +7768,7 @@ export type Database = {
           priority_rank: number
           prix_max: number | null
           prix_min: number | null
+          promoted_article_id: string | null
           qualite_score: number
           quartier: string | null
           raw_payload: Json | null
@@ -7761,6 +7804,7 @@ export type Database = {
           priority_rank?: number
           prix_max?: number | null
           prix_min?: number | null
+          promoted_article_id?: string | null
           qualite_score?: number
           quartier?: string | null
           raw_payload?: Json | null
@@ -7796,6 +7840,7 @@ export type Database = {
           priority_rank?: number
           prix_max?: number | null
           prix_min?: number | null
+          promoted_article_id?: string | null
           qualite_score?: number
           quartier?: string | null
           raw_payload?: Json | null
