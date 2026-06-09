@@ -50,6 +50,18 @@ export interface PushSyncedEventResult {
   enqueued_web_mirror: boolean;
 }
 
+function directReachablePhone(raw: string | null | undefined): string | null {
+  const value = String(raw || "").trim();
+  if (!value) return null;
+  if (/@lid$/i.test(value)) return value.replace(/[^0-9@.a-z]/gi, "");
+  const digits = value.replace(/@(?:c\.us|s\.whatsapp\.net)$/i, "").replace(/\D/g, "");
+  if (!digits || digits.length > 13) return null;
+  if (digits.startsWith("00229")) return digits.slice(2);
+  if (digits.startsWith("229")) return digits;
+  if (digits.length === 8 || (digits.length === 10 && digits.startsWith("01"))) return `229${digits}`;
+  return digits.length > 8 ? digits : null;
+}
+
 /**
  * Insère le message dans le chat web (waouh_messages) ET enqueue WhatsApp
  * via la queue centrale pour la partie cible.
@@ -114,9 +126,7 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
       if (resolved) phone = resolved;
     } catch (_) { /* ignore */ }
   }
-  if (!phone && user.phone_number && !/@lid$/i.test(user.phone_number)) {
-    phone = user.phone_number;
-  }
+  if (!phone) phone = directReachablePhone(user.phone_number);
   result.phone_e164 = phone;
 
   const dedupBase = `sync:${articleId ?? "noart"}:${intent}:${user.id}:${negotiationId ?? "noneg"}${dedupSuffix ? ":" + dedupSuffix : ""}`;
