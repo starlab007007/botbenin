@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Play, Download } from "lucide-react";
+import { Loader2, Play, Download, Trash2, ExternalLink, CheckCircle2, XCircle } from "lucide-react";
 
 type Scenario = "A" | "B" | "C";
 type Source = "chat" | "partner" | "radar";
@@ -37,7 +37,7 @@ interface RunRow {
   steps: any;
 }
 
-function statusBadge(s: "ok" | "warn" | "fail" | "partial" | "failed" | "running" | string) {
+function statusBadge(s: string) {
   if (s === "ok") return <Badge className="bg-emerald-600">✅ OK</Badge>;
   if (s === "warn" || s === "partial") return <Badge className="bg-amber-500">⚠️ Écart</Badge>;
   if (s === "fail" || s === "failed") return <Badge variant="destructive">❌ Fail</Badge>;
@@ -45,22 +45,47 @@ function statusBadge(s: "ok" | "warn" | "fail" | "partial" | "failed" | "running
   return <Badge variant="outline">{s}</Badge>;
 }
 
+function timeAgo(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "à l'instant";
+  if (m < 60) return `il y a ${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `il y a ${h} h`;
+  return `il y a ${Math.floor(h / 24)} j`;
+}
+
+function shortId(id?: string | null) {
+  if (!id) return "—";
+  return id.slice(0, 8);
+}
+
 export default function WaouhE2ETestsTab() {
   const [runs, setRuns] = useState<RunRow[]>([]);
-  const [selected, setSelected] = useState<RunRow | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [purging, setPurging] = useState(false);
 
-  const loadRuns = async () => {
+  const selected = useMemo(() => runs.find(r => r.id === selectedId) || null, [runs, selectedId]);
+
+  const loadRuns = async (forceSelectLatest = false) => {
     const { data } = await supabase
       .from("waouh_e2e_test_runs" as any)
       .select("*")
       .order("started_at", { ascending: false })
-      .limit(20);
-    setRuns((data as any) || []);
-    if (data && (data as any).length && !selected) setSelected((data as any)[0]);
+      .limit(30);
+    const list = (data as any as RunRow[]) || [];
+    setRuns(list);
+    if (list.length === 0) {
+      setSelectedId(null);
+      return;
+    }
+    if (forceSelectLatest || !selectedId || !list.find(r => r.id === selectedId)) {
+      setSelectedId(list[0].id);
+    }
   };
 
-  useEffect(() => { loadRuns(); }, []);
+  useEffect(() => { loadRuns(true); }, []);
 
   const runAll = async () => {
     setRunning(true);
@@ -73,7 +98,30 @@ export default function WaouhE2ETestsTab() {
       return;
     }
     toast({ title: "Tests E2E terminés", description: `Statut: ${data?.status} · ${data?.summary?.ok}/${data?.summary?.cells} OK` });
-    await loadRuns();
+    await loadRuns(true);
+  };
+
+  const purgeOldFails = async () => {
+    const lastOk = runs.find(r => r.status === "ok");
+    if (!lastOk) {
+      toast({ title: "Aucun run OK", description: "Impossible de purger sans run OK de référence.", variant: "destructive" });
+      return;
+    }
+    setPurging(true);
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { error, count } = await supabase
+      .from("waouh_e2e_test_runs" as any)
+      .delete({ count: "exact" })
+      .neq("status", "ok")
+      .lt("started_at", lastOk.started_at)
+      .lt("started_at", cutoff);
+    setPurging(false);
+    if (error) {
+      toast({ title: "Erreur purge", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Purge effectuée", description: `${count ?? 0} run(s) supprimé(s)` });
+    await loadRuns(true);
   };
 
   const exportMd = () => {
@@ -81,15 +129,20 @@ export default function WaouhE2ETestsTab() {
     const cells = (selected.steps as CellResult[]) || [];
     const bySource: Record<string, CellResult[]> = { chat: [], partner: [], radar: [] };
     cells.forEach(c => { (bySource[c.source] ||= []).push(c); });
-    let md = `# Rapport E2E WAOUH\n\nRun: ${selected.id}\nStatut: ${selected.status}\nDémarré: ${selected.started_at}\n\n`;
+    let md = `# Rapport E2E WAOUH\n\nRun: ${selected.id}\nStatut: ${selected.status}\nDémarré: ${selected.started_at}\nRésumé: ${selected.summary?.ok ?? 0} OK · ${selected.summary?.partial ?? 0} warn · ${selected.summary?.failed ?? 0} fail\n\n`;
     for (const src of ["chat", "partner", "radar"]) {
       md += `\n## Source: ${src.toUpperCase()}\n\n| Cell | Statut | Étape | Attendu | Reçu | Écart |\n|---|---|---|---|---|---|\n`;
       for (const c of bySource[src] || []) {
         for (const s of c.steps) {
-          md += `| ${c.cell} | ${c.status} | ${s.step} | ${s.expected} | ${s.got} | ${s.status} |\n`;
+          md += `| ${c.cell} | ${c.status} | ${s.step} | ${s.expected} | ${s.got.replace(/\|/g, "\\|")} | ${s.status} |\n`;
         }
       }
+      md += `\n### Artefacts ${src.toUpperCase()}\n\n`;
+      for (const c of bySource[src] || []) {
+        md += `- **${c.cell}**: ${JSON.stringify(c.artifacts || {})}\n`;
+      }
     }
+    md += `\n## Détail JSON brut (warn/fail)\n\n\`\`\`json\n${JSON.stringify(cells.filter(c => c.status !== "ok"), null, 2)}\n\`\`\`\n`;
     const blob = new Blob([md], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -103,13 +156,16 @@ export default function WaouhE2ETestsTab() {
   const bySource: Record<Source, CellResult[]> = { chat: [], partner: [], radar: [] };
   cells.forEach(c => { bySource[c.source]?.push(c); });
 
+  const latest = runs[0];
+  const oldFailCount = runs.filter(r => r.status !== "ok").length;
+
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
+          <CardTitle className="flex items-center justify-between flex-wrap gap-2">
             <span>Tests E2E WhatsApp (A/B/C × chat/partenaire/radar)</span>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button onClick={runAll} disabled={running}>
                 {running ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Play className="h-4 w-4 mr-2" />}
                 Exécuter tests WhatsApp
@@ -117,14 +173,32 @@ export default function WaouhE2ETestsTab() {
               <Button variant="outline" onClick={exportMd} disabled={!selected}>
                 <Download className="h-4 w-4 mr-2" />Exporter rapport
               </Button>
+              <Button variant="outline" onClick={purgeOldFails} disabled={purging || oldFailCount === 0}>
+                {purging ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                Purger anciens Fails
+              </Button>
             </div>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
             Lance 9 scénarios automatisés (vendeur/acheteur sur WA, App, ou mixte ; annonce de chat, partenaire ou radar IA).
             Comparaison messages attendus vs réellement reçus avec statut d'écart.
           </p>
+          {latest && (
+            <div className={`flex items-center gap-3 p-3 rounded-md border ${latest.status === "ok" ? "bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800" : "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800"}`}>
+              {latest.status === "ok"
+                ? <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+                : <XCircle className="h-5 w-5 text-red-600 shrink-0" />}
+              <div className="text-sm">
+                <strong>Dernier run : {latest.status === "ok" ? "OK" : "Fail"}</strong>
+                {" · "}{latest.summary?.ok ?? 0}/{latest.summary?.cells ?? 0} cellules OK
+                {(latest.summary?.partial ?? 0) > 0 && ` · ${latest.summary.partial} warn`}
+                {(latest.summary?.failed ?? 0) > 0 && ` · ${latest.summary.failed} fail`}
+                {" · "}<span className="text-muted-foreground">{timeAgo(latest.started_at)}</span>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -134,8 +208,8 @@ export default function WaouhE2ETestsTab() {
           {runs.map(r => (
             <div
               key={r.id}
-              onClick={() => setSelected(r)}
-              className={`flex items-center gap-3 p-2 rounded cursor-pointer hover:bg-muted ${selected?.id === r.id ? "bg-muted" : ""}`}
+              onClick={() => setSelectedId(r.id)}
+              className={`flex items-center gap-3 p-2 rounded cursor-pointer hover:bg-muted ${selectedId === r.id ? "bg-muted ring-1 ring-primary/30" : ""}`}
             >
               {statusBadge(r.status)}
               <span className="text-xs font-mono">{r.id.slice(0, 8)}</span>
@@ -163,23 +237,42 @@ export default function WaouhE2ETestsTab() {
                   <TableHead>Attendu</TableHead>
                   <TableHead>Reçu</TableHead>
                   <TableHead>Écart</TableHead>
+                  <TableHead>Artefacts</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {bySource[src].length === 0 && (
-                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground text-sm py-4">Aucune donnée pour cette source.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground text-sm py-4">Aucune donnée pour cette source.</TableCell></TableRow>
                 )}
-                {bySource[src].flatMap(c =>
-                  c.steps.map((s, i) => (
+                {bySource[src].flatMap(c => {
+                  const articleId = c.artifacts?.article_id;
+                  const negId = c.artifacts?.negotiation_id;
+                  const dealId = c.artifacts?.deal_id;
+                  const traceHref = articleId ? `/admin/waouh/historique?article_id=${articleId}` : null;
+                  return c.steps.map((s, i) => (
                     <TableRow key={`${c.cell}-${i}`}>
                       <TableCell><Badge variant="outline">{c.cell}</Badge></TableCell>
                       <TableCell className="text-xs font-mono">{s.step}</TableCell>
                       <TableCell className="text-xs">{s.expected}</TableCell>
                       <TableCell className="text-xs max-w-[300px] truncate" title={s.got}>{s.got}</TableCell>
                       <TableCell>{statusBadge(s.status)}</TableCell>
+                      <TableCell className="text-xs font-mono">
+                        {i === 0 && (
+                          <div className="flex flex-col gap-0.5">
+                            {articleId && <span title={articleId}>art: {shortId(articleId)}</span>}
+                            {negId && <span title={negId}>neg: {shortId(negId)}</span>}
+                            {dealId && <span title={dealId}>deal: {shortId(dealId)}</span>}
+                            {traceHref && (
+                              <a href={traceHref} target="_blank" rel="noreferrer" className="text-primary inline-flex items-center gap-1 hover:underline">
+                                trace <ExternalLink className="h-3 w-3" />
+                              </a>
+                            )}
+                          </div>
+                        )}
+                      </TableCell>
                     </TableRow>
-                  )),
-                )}
+                  ));
+                })}
               </TableBody>
             </Table>
           </CardContent>
