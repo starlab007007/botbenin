@@ -254,9 +254,8 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
       article_id: artifacts.article_id,
       buyer_user_id: buyer.id,
       seller_user_id: seller.id,
-      final_price: 8500,
-      currency: "XOF",
-      status: "pending_assignment",
+      amount: 8500,
+      status: "pending",
     }).select("id").maybeSingle();
     artifacts.deal_id = deal?.id;
     await sb.from("waouh_articles").update({ status: "sold" }).eq("id", artifacts.article_id);
