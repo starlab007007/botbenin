@@ -1,100 +1,83 @@
-## Objectif
 
-Le scénario **A** (Vendeur WA + Acheteur WA) est verrouillé et fonctionne pour les 3 sources (Chat A1, Partenaire A2, Radar IA A3) — validé par le mode `whatsapp_full` du E2E (3 runs OK, 24/24 envois).
+## Diagnostic — Scénario B (Vendeur App + Acheteur WA)
 
-On veut que **B** (Vendeur App + Acheteur WA) et **C** (Vendeur WA + Acheteur App) bénéficient des **mêmes garanties** :
-1. annonce publiée → confirmation à la partie auteur,
-2. mise en relation → notif à la contrepartie,
-3. négociation bilatérale,
-4. accord conclu (deal_created + deal_dispatch, **1 seule fois par partie**),
-5. mêmes verrous d'idempotence et de dédup déjà en place pour A.
+### Bug 1 — "📩 Nouvel acheteur intéressé" reçu 2 fois côté vendeur
 
-## Diagnostic des problèmes actuels
+Trace dans `waouh_outbound_queue` (run 23:14:55) : 7 messages `match_seller` envoyés pour la **même** négociation, dont **2 vers des numéros WhatsApp distincts** du même vendeur :
+- `2290165653468`
+- `22940299191`
 
-### Problèmes structurels identifiés
+Origine dans `waouh-webhook/index.ts` :
+1. `resolveVendorContacts` (l. 43-94) collecte **tous** les numéros disponibles (`vendeur_whatsapp`, `vendeur_phone`, `contact_phone`, `vendeur_mobile_money`, `business.whatsapp`, `business.telephone`, `business.mobile_money_number`, `partner.whatsapp`, `partner.telephone`, `partner.mobile_money_number`) et les renvoie tous dans `phones[]` — c'était intentionnel ("On enverra la notif à CHAQUE numéro distinct").
+2. `phonesToPush = [sellerCanon, ...vendorContacts.phones]` (l. 968) — sellerCanon vient de `waouh_users.phone_number`, qui dans le cas B est **différent** du `vendeur_whatsapp` saisi sur le catalogue/business.
+3. La boucle `for (const extraPhone of phonesToPush.slice(1))` (l. 995-1012) ré-enqueue le même texte sur chaque numéro additionnel sans aucune corrélation à l'identité réelle du vendeur.
 
-| # | Problème | Impact | Scénarios touchés |
-|---|---|---|---|
-| 1 | Mode `auto` du E2E (matrice 3×3) **n'exerce pas les vrais points d'entrée** : il insère directement dans `waouh_interests`/`waouh_negotiations`/`waouh_deals` et n'appelle ni `waouh-channel-in` (WA) ni le pipeline app. Conclusion "9/9 OK" trompeuse. | Aucune garantie réelle pour B/C | B1-B3, C1-C3 |
-| 2 | Mode `whatsapp_full` n'a qu'**une seule combinaison de canaux** : seller+buyer en WhatsApp. Il varie la source d'annonce (chat/partner/radar) mais ne couvre pas les variantes de canaux B/C. | A2/A3 OK mais B/C non testés bout-en-bout | B*, C* |
-| 3 | `resolveContact` (`_shared/waouhContact.ts`) **bascule en `whatsapp`** dès qu'un `contact_whatsapp` est présent sur la ligne, **même si `source_channel === "waouh_app"`** (l. 44-47). Pour B, si le vendeur App a un numéro renseigné, il recevra les notifs en WA et **pas** dans son chat in-app → silence dans l'app. | Le vendeur App perd les notifs in-app | B1-B3 |
-| 4 | `pushSyncedEvent` insère un `waouh_messages` **uniquement si `web_session_id` ou `phone_number` existe** (l. 105). Si l'utilisateur App est authentifié via `auth_user_id` sans `web_session_id` actif au moment de l'évènement, le message tombe en `channel: "system"` et n'est pas affiché dans la `WaouhMatchChatWindow`. | Notifs deal absentes du chat in-app | B*, C* |
-| 5 | Le router `waouh-negotiation-router` n'accepte que des inputs WhatsApp (texte parsé). Les boutons OUI/NON/contre-offre **côté app** passent par d'autres chemins (RPC directes sur `waouh_negotiations`) — ils **ne déclenchent pas** la branche idempotente `deal_already_accepted` ni le `suppress_direct_reply`. | Risque de doublons `deal_created`/`deal_dispatch` quand l'app accepte | B*, C* |
-| 6 | `waouh-deal-dispatch` est appelé depuis le router WA, mais **pas systématiquement** depuis le chemin d'acceptation App. Sans hook DB, l'acheteur/vendeur App qui accepte ne déclenche pas la notif finale aux 2 parties. | "Vente conclue" / "Achat confirmé" manquants | B*, C* |
-| 7 | `waouh-notify-dispatch` ignore le canal `waouh_app` pour l'envoi : seul l'enregistrement notif est inséré, jamais de poussée temps-réel vers la `WaouhMatchChatWindow` (pas de `pushSyncedEvent`). | UX silencieuse côté app | B*, C* |
-| 8 | `deal_already_accepted` (verrouillé pour A en v2) n'est appliqué qu'au niveau du router WA. Une acceptation App parallèle peut **bypasser le `UNIQUE INDEX waouh_deals_unique_per_negotiation`** uniquement *après* tentative d'insert → mais le `deal_created` est déjà émis avant le 23505. | Doublon possible deal_created côté App | B*, C* |
+→ Un vendeur App qui a, en plus, un partner/business attaché (cas zara du test) reçoit **N notifications** au lieu d'une. Et dans B pur (Vendeur App sans business), si l'utilisateur a saisi son numéro à la fois dans `auth.users.phone` et dans `waouh_users.phone_number` + un `contact_whatsapp` sur l'article, on retombe sur le même problème.
+
+Le dedupe key `match:${neg.id}:${pickSource}` ne joue pas car la queue dédupe par `dedupe_key` **et** par destinataire — donc 2 phones différents = 2 entrées admises.
+
+### Bug 2 — "🤔 Aucune négociation en cours" quand l'acheteur propose un prix
+
+Cause principale : dans `waouh-webhook` ligne 1069-1078, le lookup `NEGOTIATE` filtre uniquement par `user.id` et par `state in (proposed,countered)`, **sans aucun filtre `article_id`**.
+
+Mais en scénario B, le pick d'article est issu de `waouh_unified_catalog` (partner). Le `pick.id` passé à `waouh_negotiations.article_id` est donc **un id de catalog**, pas un id `waouh_articles`. Conséquences :
+- soit l'INSERT (l. 958) tombe en violation FK et la négo n'existe pas (→ "Aucune négociation"),
+- soit elle est insérée avec un `article_id` qui pointe vers un row supprimé/incohérent, et la promotion catalog→article ultérieure (faite par `waouh-notify-dispatch`) crée un **nouveau** `waouh_articles.id` sans relier la négo existante.
+
+Dans les deux cas, à l'offre suivante, soit aucune négo n'est trouvée, soit on en trouve une mais elle n'est plus rattachable à l'article promu — d'où la réponse "Aucune négociation".
+
+Le scénario A fonctionne car le pick vient directement de `waouh_articles` (id valide). Idem pour A3 (radar) car la promotion est faite **avant** l'INSERT négo (l. 102-145 dans `promoteRadarSeller`).
+
+### Bug 2 bis — Effet de bord côté vendeur App
+
+Même quand la négo est créée correctement, le seller_user_id est `pick.seller_id`. Pour un catalog partner non promu, `pick.seller_id` n'existe pas → `seller_user_id = null` → quand le vendeur App répondra ensuite OUI/NON depuis l'app, le router ne pourra pas retrouver la négo via `seller_user_id.eq.<App user>`.
+
+---
 
 ## Plan de correction
 
-### Étape 1 — Étendre la matrice E2E pour vraiment tester B et C
-Modifier `supabase/functions/waouh-e2e-test/index.ts` mode `whatsapp_full` :
-- Ajouter un paramètre `scenarios: ("A"|"B"|"C")[]`.
-- Pour **B** : créer le vendeur **sans** `phone_number` (App only, `auth_user_id` simulé via `web_session_id`), garder l'acheteur en WA. L'article a `source_channel: "waouh_app"`.
-- Pour **C** : créer l'acheteur en App only, le vendeur en WA.
-- Au lieu d'envoyer 5 messages WAHA en dur, appeler les **vrais edge functions** : `waouh-buyer-interest`, `waouh-negotiate-handler`, `waouh-deal-dispatch`. Vérifier que :
-  - les `waouh_messages` sont créés côté App pour la partie App,
-  - la queue WhatsApp ne contient qu'une entrée par évènement pour la partie WA,
-  - exactement 1 `deal_created` et 1 `deal_dispatch` par partie.
+### 1. Promotion catalog→article AVANT l'insertion de la négociation (corrige Bug 2 & 2 bis)
 
-### Étape 2 — Unifier la délivrance App via `pushSyncedEvent`
-- Dans `waouh-notify-dispatch`, remplacer la branche `else { channelUsed = "waouh_app" }` (l. 240) par un appel à `pushSyncedEvent` pour la partie App (insertion `waouh_messages` + miroir si web session).
-- Dans `pushSyncedEvent`, durcir l'insertion `waouh_messages` : `channel = web_session_id ? "web" : (phone ? "whatsapp" : "app")` pour les utilisateurs App authentifiés sans session web active.
+Dans `supabase/functions/waouh-webhook/index.ts`, dans le bloc `intent.intent === "BUY_INTEREST"` (autour des lignes 920-965, juste après `pick` est résolu, avant `await sb.from("waouh_negotiations").insert(...)`) :
 
-### Étape 3 — Corriger `resolveContact` pour respecter l'intention App
-- Quand `source_channel === "waouh_app"` ET l'utilisateur a un `web_session_id` actif récent, **prioriser le canal app** et seulement *miroir* WA si numéro présent (au lieu de basculer entièrement en WA). Géré via un nouveau retour `channel: "waouh_app"` + `mirrorWhatsapp: phone`.
-- `pushSyncedEvent` envoie alors aux deux supports comme pour A.
+- Si `pick` provient de `waouh_unified_catalog` (détectable via la table d'origine ou un flag posé par la search), appeler `promoteCatalogToArticle(sb, pick.id)` pour obtenir le vrai `article_id` et l'éventuel `seller_id` du partner.
+- Remplacer `article_id: pick.id` par `article_id: promoted_article_id` dans l'insert négo.
+- Mettre à jour `pick = { ...pick, id: promoted_article_id, seller_id: promoted_seller_id ?? pick.seller_id }` pour que les blocs suivants (notif vendeur, pushToOther) utilisent le bon id.
+- Garde-fou : si la promotion échoue, renvoyer un reply explicite (`"Cet article ne peut pas être négocié pour l'instant"`) au lieu de créer une négo orpheline.
 
-### Étape 4 — Acceptation App idempotente
-- Créer un endpoint commun `waouh-negotiation-accept` (ou ajouter une branche au router) qui :
-  - vérifie l'existence d'un deal pour la négociation (court-circuit `deal_already_accepted`),
-  - catche `23505` sur insert deal,
-  - appelle `waouh-deal-dispatch` **une seule fois**.
-- Côté frontend (`WaouhMatchChatWindow`, `WaouhTransactionCard`), router les acceptations App vers cet endpoint au lieu d'updates RPC directes.
+### 2. Dédup intelligent côté vendeur (corrige Bug 1)
 
-### Étape 5 — Verrouillage v5
-- Mettre à jour `src/components/waouh/waouhChatSyncLock.ts` (v5) avec nouveaux invariants :
-  - `appNotifyDispatchUsesSyncedEvent` (notify-dispatch contient `pushSyncedEvent`),
-  - `appAcceptanceIdempotence` (endpoint accept contient `deal_already_accepted` + `23505`),
-  - `resolveContactRespectsApp` (waouhContact.ts gère le cas `waouh_app` avec miroir).
-- Étendre `whatsapp-end-to-end-flow.md` ou créer `mem://features/app-end-to-end-flow.md` documentant B et C.
+Dans `supabase/functions/waouh-webhook/index.ts` `resolveVendorContacts` (l. 43-94) :
 
-### Étape 6 — Exécution E2E finale
-Lancer le nouveau mode `whatsapp_full` étendu pour les **9 cellules** (A/B/C × chat/partner/radar) et publier le rapport dans `docs/waouh-e2e-test-2026-06-10.md` avec :
-- nombre d'envois attendus vs reçus,
-- nombre de `waouh_messages` créés par partie,
-- contrôle de non-duplication `deal_created`/`deal_dispatch`.
+- Au lieu de retourner **tous** les numéros, regrouper par "identité destinataire" : si plusieurs `waouh_users` partagent le même `auth_user_id` (ou si plusieurs phones se résolvent au même `waouh_users.id`), ne garder qu'**un seul** numéro de notification (priorité : `whatsapp` business > seller phone > partner phone).
+- Ajouter un mode strict `singleRecipient = true` quand le vendeur a un `seller_id` (cas C2C/App) : ne renvoyer qu'**un** numéro (le canonical du `waouh_users.phone_number` du seller).
+- Conserver l'ancien comportement multi-numéros uniquement pour les vendeurs partner **sans** compte WAOUH attaché (vendeur invité pur).
 
-## Détails techniques
+Et dans le bloc d'envoi (l. 968-1012) :
+- Avant `enqueue` sur chaque `extraPhone`, vérifier que `resolveWaouhUserByPhone(sb, extraPhone)` ne renvoie pas le même `waouh_users.id` déjà notifié → si oui, skip.
+- Ajouter au `dedupe_key` la composante `seller_user_id` au lieu de seulement `neg.id` : `match:${neg.id}:${sellerUserId ?? "anon"}:${pickSource}` — pour bloquer les rebonds en cas d'appels concurrents.
 
-```text
-Pipeline cible unifié (B et C alignés sur A) :
+### 3. Verrou runtime v6
 
-  [Action partie X] ─► route handler (WA: channel-in / App: accept-endpoint)
-        │                            │
-        └────────► negotiation-router (branche idempotente commune)
-                          │
-                          ▼
-                  pushSyncedEvent(seller) ──► waouh_messages + WA queue (si phone)
-                  pushSyncedEvent(buyer)  ──► waouh_messages + WA queue (si phone)
-                          │
-                          ▼
-                  waouh-deal-dispatch (1× par deal, lock pg_advisory)
-```
+Mettre à jour `src/components/waouh/waouhChatSyncLock.ts` (version `v6`) et `src/components/waouh/__tests__/waouh-chat-sync-flow.lock.test.ts` avec 2 nouveaux invariants :
+- `webhookPromotesCatalogBeforeNegotiation` : `waouh-webhook/index.ts` doit contenir `promoteCatalogToArticle` juste avant l'INSERT `waouh_negotiations` du flow BUY_INTEREST.
+- `vendorContactsSingleRecipient` : `waouh-webhook/index.ts` `resolveVendorContacts` doit contenir le pattern de dédup par `waouh_users.id`.
 
-Fichiers principaux à modifier :
-- `supabase/functions/waouh-e2e-test/index.ts` (étendre matrice)
-- `supabase/functions/_shared/waouhContact.ts` (canal App + miroir)
-- `supabase/functions/_shared/waouh-sync.ts` (channel app)
-- `supabase/functions/waouh-notify-dispatch/index.ts` (utiliser pushSyncedEvent)
-- `supabase/functions/waouh-negotiation-router/index.ts` (factoriser accept idempotent)
-- nouveau : `supabase/functions/waouh-negotiation-accept/index.ts` (entrée App)
-- `src/components/waouh/WaouhMatchChatWindow.tsx` (router accept vers nouvel endpoint)
-- `src/components/waouh/waouhChatSyncLock.ts` → v5
-- `src/components/waouh/__tests__/waouh-chat-sync-flow.lock.test.ts` (nouveaux invariants)
-- mémoire : `mem://features/whatsapp-end-to-end-flow.md` étendu OU nouveau `mem://features/app-end-to-end-flow.md`
+### 4. Mémoire & docs
 
-## Points à confirmer avant exécution
+Mettre à jour `.lovable/mem/features/whatsapp-end-to-end-flow.md` → v6, section "Verrou idempotence vendeur partner/App" + section "Promotion catalog→négociation atomique".
 
-1. **Acceptation App** : tu préfères un nouvel endpoint `waouh-negotiation-accept` (propre, testable) ou injecter la logique App dans le router existant (moins de surface) ?
-2. **Téléphone du vendeur App** : si un vendeur App a aussi renseigné un WhatsApp, tu veux les notifs sur les **deux canaux** (app + WA en miroir) ou **uniquement dans l'app** ?
-3. Lancer le E2E final sur **vrais numéros WA** (ceux de A) ou rester sur des numéros factices pour B/C (juste vérifier la queue) ?
+### 5. Validation
+
+- Test E2E réel scenario **B × (Chat, Partenaire, Radar)** : vérifier dans `waouh_outbound_queue` qu'il n'y a **qu'un seul** `match_seller` envoyé par négociation (sauf vendeurs invités multi-phones).
+- Envoyer manuellement "intéressé 1" puis "je propose 400" depuis l'acheteur WA → l'acheteur doit recevoir `💬 Offre transmise`, le vendeur App doit recevoir le contre-offre dans `WaouhMatchChatWindow`.
+- Vérifier que le test lock `waouh-chat-sync-flow.lock.test.ts` passe.
+
+---
+
+## Fichiers modifiés
+
+- `supabase/functions/waouh-webhook/index.ts` — promotion catalog avant négo + dédup vendeur.
+- `src/components/waouh/waouhChatSyncLock.ts` — invariants v6.
+- `src/components/waouh/__tests__/waouh-chat-sync-flow.lock.test.ts` — nouveaux checks.
+- `.lovable/mem/features/whatsapp-end-to-end-flow.md` — v6.
