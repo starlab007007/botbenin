@@ -188,6 +188,103 @@ export default function WaouhE2ETestsTab() {
 
   return (
     <div className="space-y-4">
+      {/* ===== Test WhatsApp réel (envoi sur vrais numéros) ===== */}
+      <Card className="border-emerald-300 dark:border-emerald-800">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Send className="h-5 w-5 text-emerald-600" />
+            Test E2E WhatsApp RÉEL — Vendeur ↔ Acheteur (3 sources)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="seller-phone">Numéro vendeur (Bénin)</Label>
+              <Input id="seller-phone" value={sellerPhone} onChange={e => setSellerPhone(e.target.value)} placeholder="0140299191" />
+            </div>
+            <div>
+              <Label htmlFor="buyer-phone">Numéro acheteur (Bénin)</Label>
+              <Input id="buyer-phone" value={buyerPhone} onChange={e => setBuyerPhone(e.target.value)} placeholder="0191299191" />
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 rounded">
+            ⚠️ <strong>30 messages WhatsApp réels</strong> seront envoyés (3 sources × 5 étapes × ~2 destinataires).
+            Téléphone Tecno Spark — 500 FCFA. Couvre : annonce publiée → match → offre 350 → contre-offre 450 → accord conclu.
+          </div>
+          <Button onClick={runWhatsAppFull} disabled={waRunning} className="bg-emerald-600 hover:bg-emerald-700">
+            {waRunning ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+            Lancer le test E2E WhatsApp réel
+          </Button>
+
+          {waResult?.cells && (
+            <div className="space-y-3">
+              <div className={`p-3 rounded border text-sm ${waResult.summary?.overall === "ok" ? "bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30" : "bg-amber-50 border-amber-200 dark:bg-amber-950/30"}`}>
+                <strong>Résultat global : {waResult.summary?.overall?.toUpperCase()}</strong>
+                {" · "}{waResult.summary?.totalOk}/{waResult.summary?.totalSends} messages WhatsApp envoyés
+                {" · "}Vendeur ID: <code className="text-xs">{waResult.seller?.id?.slice(0, 8)}</code>
+                {" · "}Acheteur ID: <code className="text-xs">{waResult.buyer?.id?.slice(0, 8)}</code>
+              </div>
+
+              <div className="overflow-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Source</TableHead>
+                      <TableHead>1. Publié</TableHead>
+                      <TableHead>2. Match</TableHead>
+                      <TableHead>3. Offre</TableHead>
+                      <TableHead>4. Contre-offre</TableHead>
+                      <TableHead>5. Accord</TableHead>
+                      <TableHead>Artefacts</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {waResult.cells.map((c: any) => {
+                      const findStep = (n: number) => c.steps.find((s: any) => s.step === n);
+                      const renderCell = (step: any) => {
+                        if (!step) return <span className="text-muted-foreground">—</span>;
+                        const s = step.seller, b = step.buyer;
+                        return (
+                          <div className="text-xs space-y-0.5">
+                            {s && <div>V: {s.ok ? "✅" : "❌"} <span className="text-muted-foreground">{s.status}</span>{s.error && <span className="text-red-600" title={s.error}> err</span>}</div>}
+                            {b && <div>A: {b.ok ? "✅" : "❌"} <span className="text-muted-foreground">{b.status}</span>{b.error && <span className="text-red-600" title={b.error}> err</span>}</div>}
+                          </div>
+                        );
+                      };
+                      const srcLabel = c.source === "chat" ? "💬 Chat" : c.source === "partner" ? "🤝 Partenaire" : "📡 Radar IA";
+                      return (
+                        <TableRow key={c.source}>
+                          <TableCell className="font-medium">{srcLabel}</TableCell>
+                          <TableCell>{renderCell(findStep(1))}</TableCell>
+                          <TableCell>{renderCell(findStep(2))}</TableCell>
+                          <TableCell>{renderCell(findStep(3))}</TableCell>
+                          <TableCell>{renderCell(findStep(4))}</TableCell>
+                          <TableCell>{renderCell(findStep(5))}</TableCell>
+                          <TableCell className="text-xs font-mono">
+                            {c.article_id && <div title={c.article_id}>art: {c.article_id.slice(0, 8)}</div>}
+                            {c.negotiation_id && <div title={c.negotiation_id}>neg: {c.negotiation_id.slice(0, 8)}</div>}
+                            {c.deal_id && <div title={c.deal_id}>deal: {c.deal_id.slice(0, 8)}</div>}
+                            {c.article_id && (
+                              <a href={`/admin/waouh/historique?article_id=${c.article_id}`} target="_blank" rel="noreferrer" className="text-primary inline-flex items-center gap-1 hover:underline">
+                                trace <ExternalLink className="h-3 w-3" />
+                              </a>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="text-xs text-muted-foreground">
+                Légende — V: Vendeur ({sellerPhone}) · A: Acheteur ({buyerPhone}) · status = code HTTP WAHA
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between flex-wrap gap-2">
