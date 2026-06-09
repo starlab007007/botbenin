@@ -1,57 +1,57 @@
-## Diagnostic des Fails affichés
+# Test E2E WhatsApp réel — Vendeur 0140299191 / Acheteur 0191299191
 
-⚠️ **Bonne nouvelle d'abord** : les **2 runs les plus récents** (`4b11e533` à 18:51:34 et `9ea6607c` à 18:49:45) sont **9/9 OK ✅**. Les Fails que tu vois sont **historiques** — ils correspondent à la progression des correctifs appliqués lors du débogage. Le tableau du bas affiche le tout premier run (`2aaaca0e` à 18:41:52) parce que tu l'as cliqué manuellement, et le composant ne ré-sélectionne pas automatiquement le dernier run après "Exécuter tests".
+## Confirmation
+Les numéros fournis sont **réels** (tes propres lignes WhatsApp). Le test enverra de vrais messages que tu pourras vérifier directement sur tes deux téléphones.
 
-### Frise chronologique des 7 runs Fail
+- **Vendeur** : `0140299191` → normalisé `22940299191` (canonique)
+- **Acheteur** : `0191299191` → normalisé `22991299191` (canonique)
 
-| Run | Heure | OK/Warn/Fail | Cause racine | Statut |
-|---|---|---|---|---|
-| `2aaaca0e` | 18:41:52 | 0/0/9 | Colonne `name` inexistante sur `waouh_users` — schéma attend `display_name` | ✅ corrigé |
-| `89fe1f14` | 18:45:50 | 0/0/1 | Même bug `display_name` (test partiel, 1 cellule) | ✅ corrigé |
-| `a4b814f6` | 18:47:07 | 0/0/9 | `waouh_articles.category` NOT NULL violé (insert sans category) | ✅ corrigé |
-| `1b0d8e26` | 18:47:49 | 0/6/3 | Category `"divers"` rejetée par CHECK constraint (`smartphone\|ordinateur\|vetement\|vehicule\|electromenager\|meuble\|autre`) — partner/radar passent (warn) car ils utilisent une autre voie | ✅ corrigé → `"autre"` |
-| `c5a17128` | 18:48:26 | 6/0/3 | Partenaire seul KO : enum `waouh_catalog_type` n'accepte pas `"produit"` (valeurs valides : `offer`, `demand`) | ✅ corrigé → `"offer"` |
-| `b5d21c0d` | 18:48:51 | 6/0/3 | Partenaire seul KO : `waouh_unified_catalog.source_ref_id` NOT NULL + promoter sélectionnait `image_url` (colonne inexistante) → silently `null` row | ✅ corrigé (UUID injecté + select assaini) |
-| `9ea6607c` | 18:49:45 | **9/0/0** | — | ✅ vert |
-| `4b11e533` | 18:51:34 | **9/0/0** | — | ✅ vert |
+> Les deux variantes (`229XXXXXXXX` 8 chiffres et `22901XXXXXXXX` 10 chiffres) seront essayées par `beninPhoneCandidates()` pour matcher les `waouh_users` existants.
 
-### Ce qui reste à corriger (UX, pas backend)
+## Scénario (×3 sources)
+Pour chacune des 3 annonces (A=Chat, B=Partenaire, C=Radar IA) :
 
-**Problème 1** — Sélection figée sur l'ancien run après "Exécuter tests"
-`loadRuns()` ne met à jour `selected` que si `!selected`. Résultat : après un nouveau run, tu vois encore l'ancien run sélectionné.
+| # | Action déclenchée | Vendeur reçoit | Acheteur reçoit |
+|---|---|---|---|
+| 1 | Publication annonce (téléphone 500 FCFA + photo) | ✅ Annonce publiée | — |
+| 2 | Match buyers | — | ✅ Annonce trouvée |
+| 3 | Acheteur envoie intérêt + offre 350 | ✅ Nouvel acheteur intéressé | ✅ Demande envoyée |
+| 4 | Vendeur contre-offre 450 | ✅ Contre-offre transmise | ✅ Contre-offre reçue |
+| 5 | Acheteur accepte → deal | ✅ Accord conclu (livreur) | ✅ Accord conclu (paiement livraison) |
 
-**Problème 2** — Pollution visuelle : 7 runs Fail historiques en haut de la liste alors qu'ils n'ont plus aucune valeur diagnostique.
+**Total = 15 cellules × 3 sources = 30 messages WhatsApp réels envoyés sur tes 2 lignes.**
 
-**Problème 3** — Quand un run est OK, on n'affiche aucun détail "preuve" (ex: combien d'entrées dans `waouh_outbound_queue`, IDs de deal/négociation), ce qui rend difficile la confiance.
+## Implémentation
+1. **`supabase/functions/waouh-e2e-test/index.ts`** — ajout du mode `whatsapp_full` :
+   - Paramètres : `seller_phone`, `buyer_phone`, `sources: ["chat","partner","radar"]`
+   - Pour chaque source : seed article + buyer profile + déclenche les 5 étapes avec pause 2s entre chaque
+   - Collecte par cellule : `article_id`, `negotiation_id`, `deal_id`, `waouh_messages.id`, `waouh_outbound_queue.id`, `trace_id`, `waha_message_id`, `delivery_status`, latence
+   - Persist dans `waouh_e2e_test_runs` (status `ok`/`partial`/`fail`)
 
-**Problème 4** — Pas de message clair quand la run sélectionnée est obsolète vs. dernière run réussie.
+2. **Seed partenaire & radar** (si absents) :
+   - Partenaire test "PartnerTest E2E" avec WhatsApp = vendeur
+   - `waouh_external_listings` + `waouh_radar_signals` minimal avec photo + 500 FCFA + `contact_phone=vendeur`
 
-## Plan de correction
+3. **`src/components/admin/WaouhE2ETestsTab.tsx`** — nouveau bouton "▶️ Test E2E WhatsApp réel (Chat/Partenaire/Radar)" :
+   - Champs `seller_phone` + `buyer_phone` pré-remplis avec tes numéros
+   - Bandeau d'avertissement : "30 messages WhatsApp seront envoyés"
+   - Tableau de résultats 3×5 + colonne détails par cellule (lien `/admin/waouh/historique?article_id=…`)
+   - Export Markdown du rapport complet
 
-### 1. UX du tableau Runs récents (`WaouhE2ETestsTab.tsx`)
-- Après `runAll()`, **forcer** `setSelected(data[0])` (le dernier run) au lieu de garder l'ancien.
-- Idem dans `loadRuns()` : si la run sélectionnée n'existe plus dans la liste, basculer sur la première.
-- Ajouter un bouton **"🗑 Purger les anciens runs Fail"** qui supprime de `waouh_e2e_test_runs` les runs antérieurs au dernier run OK (préserve le dernier OK + les Fail des dernières 24h).
-- Ajouter un bandeau vert/rouge en haut : *"Dernier run : OK · 9/9 cellules · il y a 3 min"*.
+## Fichiers modifiés
+- `supabase/functions/waouh-e2e-test/index.ts` (~150 lignes ajoutées)
+- `src/components/admin/WaouhE2ETestsTab.tsx` (~80 lignes ajoutées)
+- `supabase/functions/_shared/waouh-e2e-helpers.ts` (nouveau, ~120 lignes — seed article/partner/radar)
 
-### 2. Affichage des cellules OK
-Les cellules qui passent affichent déjà leurs étapes (publish, buyer_interest, counters, accept, queue_audit). Ajouter dans le tableau une **colonne "Artefacts"** condensée affichant `article_id`, `negotiation_id`, `deal_id` (8 premiers caractères, cliquables → ouvrent la trace WAOUH si on a la route).
+## Tableau final attendu
+```
+                  │ 1.Publié │ 2.Match │ 3.Offre │ 4.Contre │ 5.Accord │
+──────────────────┼──────────┼─────────┼─────────┼──────────┼──────────┤
+A. Chat           │ V ✅     │ A ✅    │ V✅ A✅ │ V✅ A✅  │ V✅ A✅  │
+B. Partenaire     │ V ✅     │ A ✅    │ V✅ A✅ │ V✅ A✅  │ V✅ A✅  │
+C. Radar IA       │ V ✅     │ A ✅    │ V✅ A✅ │ V✅ A✅  │ V✅ A✅  │
+```
+Chaque ✅ inclut `waha_message_id` + ack `delivered/read` confirmé.
 
-### 3. Lien direct vers la trace
-Sous chaque cellule, ajouter un mini-lien *"Voir trace dans `/admin/waouh/historique?article_id=…`"* pour permettre d'inspecter visuellement.
-
-### 4. Export rapport amélioré
-Inclure dans le `.md` exporté la section "Artefacts" et le détail JSON brut des étapes warn/fail pour audit.
-
-### 5. Pas de changement backend
-Les 3 edge functions clés (`waouh-e2e-test`, `waouh-notify-dispatch`, `waouh-buyer-interest`) sont à jour et passent 9/9. Pas de migration nécessaire.
-
-### Coût estimé
-1 fichier modifié (`src/components/admin/WaouhE2ETestsTab.tsx`), pas de nouvelle table, pas d'edge function, pas de migration. ~80 lignes ajoutées.
-
-### Question rapide
-
-Veux-tu :
-- **A.** Tout : forcer sélection latest + bandeau résumé + purge + artefacts + lien historique (recommandé)
-- **B.** Juste le strict minimum : forcer sélection latest + bandeau "Dernier run OK"
-- **C.** Juste purger les anciens Fail et garder l'UI actuelle
+## Action
+Je passe en build, j'implémente puis je lance le test depuis `/admin/waouh/whatsapp-ops` et te retourne le tableau de résultat rempli avec les preuves d'envoi.
