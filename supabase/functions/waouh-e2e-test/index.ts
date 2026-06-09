@@ -65,15 +65,17 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
   const artifacts: CellResult["artifacts"] = {};
 
   // Create test users
-  const { data: seller } = await sb.from("waouh_users")
-    .insert({ phone_number: sellerPhone, name: `E2E Seller ${cell}` })
+  const { data: seller, error: sErr } = await sb.from("waouh_users")
+    .insert({ phone_number: sellerPhone, display_name: `E2E Seller ${cell}`, channel: "whatsapp" })
     .select("id").maybeSingle();
-  const { data: buyer } = await sb.from("waouh_users")
-    .insert({ phone_number: buyerPhone, name: `E2E Buyer ${cell}` })
+  const { data: buyer, error: bErr } = await sb.from("waouh_users")
+    .insert({ phone_number: buyerPhone, display_name: `E2E Buyer ${cell}`, channel: "whatsapp" })
     .select("id").maybeSingle();
   if (!seller || !buyer) {
     return { scenario, source, cell, steps: [{
-      step: "setup", expected: "create users", got: "failed", status: "fail",
+      step: "setup", expected: "create users",
+      got: `seller=${sErr?.message ?? "ok/null"} buyer=${bErr?.message ?? "ok/null"}`,
+      status: "fail",
     }], status: "failed", artifacts };
   }
   artifacts.seller_id = seller.id;
