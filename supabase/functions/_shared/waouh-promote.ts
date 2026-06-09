@@ -12,23 +12,23 @@ export interface PromoteResult {
 export async function promoteCatalogToArticle(
   sb: any,
   catalog_id: string,
+  overrides: { seller_id?: string | null; category?: string | null } = {},
 ): Promise<PromoteResult> {
   if (!catalog_id) return { article_id: null, catalog_id, created: false, reason: "no catalog_id" };
 
-  const { data: cat } = await sb
+  const { data: cat, error: selErr } = await sb
     .from("waouh_unified_catalog")
-    .select("id, source, source_ref_id, titre, description, categorie, prix_min, prix_max, devise, ville, vendeur_whatsapp, vendeur_phone, vendeur_nom, partner_id, promoted_article_id, photos, image_url")
+    .select("id, source, source_ref_id, titre, description, categorie, prix_min, prix_max, devise, ville, vendeur_whatsapp, vendeur_phone, vendeur_nom, partner_id, promoted_article_id, photos")
     .eq("id", catalog_id)
     .maybeSingle();
 
-  if (!cat) return { article_id: null, catalog_id, created: false, reason: "catalog row missing" };
+  if (!cat) return { article_id: null, catalog_id, created: false, reason: `catalog row missing: ${selErr?.message ?? "no data"}` };
   if (cat.promoted_article_id) {
     return { article_id: cat.promoted_article_id, catalog_id, created: false };
   }
 
   const price = cat.prix_min ?? cat.prix_max ?? null;
-  const photos = Array.isArray(cat.photos) ? cat.photos
-    : (cat.image_url ? [cat.image_url] : []);
+  const photos = Array.isArray(cat.photos) ? cat.photos : [];
   const sourceChannel =
     cat.source === "partner" ? "partner" :
     cat.source === "radar_ia" ? "radar_ia" : "waouh_app";
@@ -36,10 +36,10 @@ export async function promoteCatalogToArticle(
   const { data: article, error } = await sb
     .from("waouh_articles")
     .insert({
-      seller_id: null,
+      seller_id: overrides.seller_id ?? null,
       title: cat.titre || "Article partenaire",
       description: cat.description || null,
-      category: cat.categorie || null,
+      category: cat.categorie || overrides.category || "autre",
       price,
       currency: cat.devise || "XOF",
       photos,

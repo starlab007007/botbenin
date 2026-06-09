@@ -65,15 +65,17 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
   const artifacts: CellResult["artifacts"] = {};
 
   // Create test users
-  const { data: seller } = await sb.from("waouh_users")
-    .insert({ phone_number: sellerPhone, name: `E2E Seller ${cell}` })
+  const { data: seller, error: sErr } = await sb.from("waouh_users")
+    .insert({ phone_number: sellerPhone, display_name: `E2E Seller ${cell}`, channel: "whatsapp" })
     .select("id").maybeSingle();
-  const { data: buyer } = await sb.from("waouh_users")
-    .insert({ phone_number: buyerPhone, name: `E2E Buyer ${cell}` })
+  const { data: buyer, error: bErr } = await sb.from("waouh_users")
+    .insert({ phone_number: buyerPhone, display_name: `E2E Buyer ${cell}`, channel: "whatsapp" })
     .select("id").maybeSingle();
   if (!seller || !buyer) {
     return { scenario, source, cell, steps: [{
-      step: "setup", expected: "create users", got: "failed", status: "fail",
+      step: "setup", expected: "create users",
+      got: `seller=${sErr?.message ?? "ok/null"} buyer=${bErr?.message ?? "ok/null"}`,
+      status: "fail",
     }], status: "failed", artifacts };
   }
   artifacts.seller_id = seller.id;
@@ -81,9 +83,10 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
 
   // ---- Step 1: publish article (source-dependent)
   if (source === "chat") {
-    const { data: art } = await sb.from("waouh_articles").insert({
+    const { data: art, error: artErr } = await sb.from("waouh_articles").insert({
       seller_id: seller.id,
       title: `Bic E2E ${cell}`,
+      category: "autre",
       price: 10000,
       currency: "XOF",
       city: "Cotonou",
@@ -97,14 +100,16 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
     steps.push({
       step: "publish",
       expected: "article created (chat)",
-      got: art?.id ? `article ${art.id.slice(0,8)}` : "no article",
+      got: art?.id ? `article ${art.id.slice(0,8)}` : `no article: ${artErr?.message ?? "?"}`,
       status: art?.id ? "ok" : "fail",
     });
   } else if (source === "partner") {
-    const { data: cat } = await sb.from("waouh_unified_catalog").insert({
+    const { data: cat, error: catErr } = await sb.from("waouh_unified_catalog").insert({
       source: "partner",
-      type: "produit",
+      source_ref_id: crypto.randomUUID(),
+      type: "offer",
       titre: `Bic E2E ${cell}`,
+      categorie: "autre",
       prix_min: 10000,
       devise: "XOF",
       ville: "Cotonou",
@@ -116,13 +121,13 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
     steps.push({
       step: "publish",
       expected: "catalog (partner) created",
-      got: cat?.id ? `catalog ${cat.id.slice(0,8)}` : "no catalog",
+      got: cat?.id ? `catalog ${cat.id.slice(0,8)}` : `no catalog: ${catErr?.message ?? "?"}`,
       status: cat?.id ? "ok" : "fail",
     });
     // Promote
     if (cat?.id) {
       const { promoteCatalogToArticle } = await import("../_shared/waouh-promote.ts");
-      const promo = await promoteCatalogToArticle(sb, cat.id);
+      const promo = await promoteCatalogToArticle(sb, cat.id, { seller_id: seller.id, category: "autre" });
       artifacts.article_id = promo.article_id ?? undefined;
       steps.push({
         step: "promote_partner",
@@ -154,9 +159,10 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
       contact_phone: sellerPhone,
       status: "captured",
     }).select("id").maybeSingle();
-    const { data: art } = await sb.from("waouh_articles").insert({
-      seller_id: null,
+    const { data: art, error: artErr } = await sb.from("waouh_articles").insert({
+      seller_id: seller.id,
       title: `Bic E2E ${cell}`,
+      category: "autre",
       price: 10000,
       currency: "XOF",
       city: "Cotonou",
@@ -174,7 +180,7 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
     steps.push({
       step: "publish",
       expected: "external_listing → signal → article (radar)",
-      got: art?.id ? `article ${art.id.slice(0,8)}` : "no article",
+      got: art?.id ? `article ${art.id.slice(0,8)}` : `no article: ${artErr?.message ?? "?"}`,
       status: art?.id ? "ok" : "fail",
     });
   }
@@ -252,9 +258,8 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
       article_id: artifacts.article_id,
       buyer_user_id: buyer.id,
       seller_user_id: seller.id,
-      final_price: 8500,
-      currency: "XOF",
-      status: "pending_assignment",
+      amount: 8500,
+      status: "pending",
     }).select("id").maybeSingle();
     artifacts.deal_id = deal?.id;
     await sb.from("waouh_articles").update({ status: "sold" }).eq("id", artifacts.article_id);
@@ -266,10 +271,10 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
     });
   }
 
-  // ---- Step 7: check outbound queue
+  // ---- Step 7: check outbound queue (search by phone OR by recipient user id)
   const { data: queued } = await sb.from("waouh_outbound_queue")
-    .select("event_type, status, to_phone, template")
-    .or(`to_phone.eq.${sellerPhone},to_phone.eq.${buyerPhone}`)
+    .select("event_type, status, to_phone, template, to_user_id")
+    .or(`to_phone.eq.${sellerPhone},to_phone.eq.${buyerPhone},to_user_id.eq.${seller.id},to_user_id.eq.${buyer.id}`)
     .order("created_at", { ascending: false })
     .limit(20);
   const events = (queued || []).map((q: any) => q.event_type || q.template).filter(Boolean);
