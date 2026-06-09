@@ -67,7 +67,7 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
       file: "supabase/functions/waouh-outbound-dispatch/index.ts",
       mustContain: [
         "lidToPhoneInline",
-        "lid unresolved",
+        "@lid",
       ],
     },
     // 🆕 v3 — Tunnel partenaire (catalog → article) & fallback radar IA.
