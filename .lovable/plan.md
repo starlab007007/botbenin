@@ -1,72 +1,48 @@
-# Plan — Test E2E WhatsApp WAOUH (9 matrices)
+# Plan — Fiabilisation WAOUH end-to-end + harness de test admin
 
-## Objectif
+## 1. Tunnel partenaire (déblocage A2/B2/C2)
 
-Exécuter et documenter le parcours complet **« je vends un BIC à 10 000 FCFA avec photo »** vs **« je cherche un BIC »** dans 9 configurations :
+- **Nouvelle edge function utilitaire `_shared/waouh-promote.ts`** : `promoteCatalogToArticle(sb, catalog_id)` qui, si l'item `waouh_unified_catalog` (source=`partner`) n'a pas d'`article_id`, crée un `waouh_articles` (title, price, city, photos, `contact_whatsapp=vendeur_whatsapp`, `source_channel='partner'`, `seller_id=NULL`, `partner_id`) et écrit `catalog.article_id`.
+- **`waouh-notify-dispatch/index.ts`** : si `article_id` manquant mais `catalog_id` fourni → appeler `promoteCatalogToArticle` puis continuer normalement. Plus de 400.
+- **`waouh-notify-buyers/index.ts`** : passe désormais `article_id` (issu de la promotion) au dispatcher.
+- **`waouh-buyer-interest/index.ts`** : si la cible est un `catalog_id` partenaire, promote puis ouvre négo avec l'article promu.
 
-| | Source annonce: Chat | Source: Partenaire | Source: Radar IA |
-|---|---|---|---|
-| **A** — Vendeur WA + Acheteur WA | A1 | A2 | A3 |
-| **B** — Vendeur App + Acheteur WA | B1 | B2 | B3 |
-| **C** — Vendeur WA + Acheteur App | C1 | C2 | C3 |
+## 2. Fallback Radar IA (A3/C3)
 
-## Méthode d'exécution
+- **`_shared/waouh-contact.ts` (resolveContact)** : en mode `radar_ia`, si `contact_whatsapp` vide, fallback en cascade :
+  1. `waouh_radar_contacts.contact_whatsapp` par `seller_handle`
+  2. `waouh_external_listings.seller_phone` ou `seller_handle` (extraction E.164)
+  3. Marquer `needs_enrichment=true` dans `waouh_radar_signals` et créer une notif admin (`notification_type='radar_quality_warning'`) au lieu d'échouer silencieusement.
+- **`waouh-outbound-dispatch`** : quand `failed: no WA contact` sur un payload `radar_*`, mettre `status='needs_enrichment'` (au lieu de `failed`) pour qu'un opérateur puisse compléter le numéro depuis Contacts Radar.
 
-Pas de test manuel WhatsApp réel (pas d'accès aux 2 téléphones depuis l'agent). À la place je simulerai chaque parcours **bout-en-bout via les edge functions réelles** déjà déployées, en lisant ensuite la DB et `waouh_outbound_queue` pour reconstituer ce que chaque côté a réellement reçu.
+## 3. Harness de test E2E
 
-### Pour chaque cellule (9 cas), je vais :
+- **Nouvelle edge function `waouh-e2e-test-runner`** (POST `{ scenario: 'A'|'B'|'C'|'ALL', source: 'chat'|'partner'|'radar'|'ALL' }`)
+  - Crée 2 `waouh_users` éphémères (suffixe `e2e-<timestamp>`)
+  - Joue : publication → recherche → intérêt → 2 contre-offres → OUI
+  - Capture après chaque étape : `waouh_messages`, `waouh_outbound_queue`, `waouh_negotiations`, `waouh_deals`, `waouh_notifications`
+  - Compare à un tableau d'attendus (en dur) et calcule `status: ok | mismatch | failed` par étape.
+  - Insère un run dans nouvelle table `waouh_e2e_test_runs` (id, scenario, source, started_at, finished_at, summary jsonb, steps jsonb).
+- **Migration** : table `waouh_e2e_test_runs` + GRANT + RLS (admin only via `has_role(auth.uid(),'admin')`).
 
-1. **Préparer les acteurs** (DB)
-   - Acheteur + vendeur dédiés (numéros de test E.164) dans `waouh_users`, avec ou sans `web_session_id` selon scénario.
-   - Profil acheteur dans `waouh_buyer_profiles` (mot-clé « bic », prix max).
+## 4. Admin UI
 
-2. **Créer l'annonce** selon le cas
-   - **Chat** → `waouh-sell-handler` (message vendeur « je vends un bic à 10000 », 1 photo).
-   - **Partenaire** → insert `waouh_partner_products` + push dans `waouh_unified_catalog` (source=`partner`).
-   - **Radar IA** → insert `waouh_external_listings` + `waouh_unified_catalog` (source=`radar`).
+- **Nouvel onglet** dans `WaouhWhatsAppOpsPage` : `Tests E2E`.
+- **Composant `WaouhE2ETestsTab.tsx`** :
+  - Bouton "Exécuter tests WhatsApp" (lance les 9 cellules en parallèle via l'edge function)
+  - Liste des runs récents (sélecteur)
+  - 3 tableaux (chat / partenaire / radar) × 3 colonnes (A/B/C) avec, pour chaque étape : message attendu, message reçu, statut écart (badge ✅/⚠️/❌).
+  - Bouton "Exporter rapport" → télécharge le markdown généré par l'edge function.
 
-3. **Déclencher la rencontre acheteur**
-   - WA acheteur → `waouh-channel-in` (« je cherche un bic ») → liste → `intéressé 1`.
-   - App acheteur → bouton « Je suis intéressé » → `waouh-buyer-interest`.
+## 5. Verrou
 
-4. **Jouer la négociation** : `je propose 7000` (acheteur) → contre-offre vendeur `8500` → `OUI` → accord.
+- Ajout d'invariants dans `waouhChatSyncLock.ts` v3 : `partnerCatalogPromotion`, `radarContactFallback`, `e2eRunnerCoverage`.
+- Mise à jour `mem://features/whatsapp-end-to-end-flow` (v2) avec les nouveaux fallbacks.
 
-5. **Collecter les preuves** pour le tableau :
-   - `waouh_messages` (bulles in-app vues par chaque acteur)
-   - `waouh_outbound_queue` (WhatsApp envoyés : status `sent`/`failed` + raison)
-   - `waouh_notifications`, `waouh_negotiations`, `waouh_deals`, `waouh_interests`
-   - Logs edge functions (`waouh-channel-in`, `waouh-notify-dispatch`, `waouh-outbound-dispatch`, `waouh-negotiation-router`)
+## Technique
 
-### Format de chaque tableau (1 par cas)
+- Une seule migration (table runs + RLS + grants).
+- Pas de modification du flux WaouhMatchChatWindow (verrouillé).
+- Le runner s'auto-nettoie : marque les `waouh_users` créés avec `phone_number LIKE '229E2E%'` pour suppression facile.
+- Coût credits : ~1 migration, 4 edge functions touchées, 1 nouvelle edge function, 2 composants React, 1 invariant lock.
 
-```text
-| # | Étape                          | Émetteur | Canal attendu | Message attendu                  | Reçu réel               | OK/KO |
-|---|--------------------------------|----------|---------------|----------------------------------|-------------------------|-------|
-| 1 | Publication annonce            | Vendeur  | WA/App        | ✅ Annonce publiée               | …                       |       |
-| 2 | Recherche acheteur             | Acheteur | WA/App        | Liste résultats                  | …                       |       |
-| 3 | Intérêt acheteur               | Acheteur | WA/App        | ✅ Demande envoyée               | …                       |       |
-| 4 | 📩 Nouvel acheteur intéressé   | →Vendeur | WA/App        | template `match_seller`          | …                       |       |
-| 5 | Contre-offre acheteur 7000     | Acheteur | WA/App        | ✅ envoyée + relai vendeur       | …                       |       |
-| 6 | Contre-offre vendeur 8500      | Vendeur  | WA/App        | ✅ envoyée + relai acheteur      | …                       |       |
-| 7 | OUI acheteur                   | Acheteur | WA/App        | accord ✅                         | …                       |       |
-| 8 | Notif accord bilatérale        | Système  | WA + App      | template `deal_created`          | …                       |       |
-```
-
-À la fin : **synthèse globale 9-cellules** avec ✅/⚠️/❌ par cellule + bugs détectés (ex. LID non résolu, partenaire sans `seller_id`, dedupe trop agressif…).
-
-## Pré-requis & risques connus
-
-- Cas **partenaire** : `waouh_unified_catalog.source_ref_id` n'est pas un `waouh_users.id` → le dispatcher « match » sait notifier l'acheteur, mais l'intérêt acheteur sur un produit partenaire (B2/C2/A2) doit router vers le commerçant via `waouh_partner_businesses.contact_whatsapp`. À vérifier — possible trou fonctionnel.
-- Cas **radar IA** : `waouh_external_listings` n'a souvent pas de numéro vendeur exploitable → on s'attend à un statut « no seller channel » → à documenter, pas à corriger ici.
-- Cas A (100 % WhatsApp) : le verrou LID v1 (mem `whatsapp-end-to-end-flow`) doit tenir ; sinon je reporte le bug, je ne corrige pas en plan mode.
-- Pas de WhatsApp réel : « Reçu réel » = ligne `waouh_outbound_queue` avec `status='sent'` + payload. C'est la même chose que ce que WAHA enverrait, mais sans confirmation visuelle côté téléphone.
-
-## Livrable
-
-Un seul document Markdown `docs/waouh-e2e-test-2026-06-09.md` contenant :
-1. Méthode + identifiants des comptes de test créés
-2. Les **9 tableaux** (un par cellule A1…C3)
-3. Tableau de synthèse 3×3
-4. Liste des bugs/observations à traiter ensuite (sans correctif appliqué)
-
-Aucun code applicatif ni edge function ne sera modifié pendant ce test — uniquement des inserts/lectures DB et appels d'edge functions existantes.
