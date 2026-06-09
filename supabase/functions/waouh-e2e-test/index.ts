@@ -318,12 +318,21 @@ async function setupWAArticle(sb: any, source: Source, sellerId: string, sellerP
   return { article_id: art?.id || null, catalog_id: null };
 }
 
-async function runWACell(sb: any, source: Source, sellerPhone: string, buyerPhone: string, sellerId: string, buyerId: string): Promise<WACellResult> {
+async function runWACell(
+  sb: any,
+  source: Source,
+  sellerPhone: string,
+  buyerPhone: string,
+  sellerId: string,
+  buyerId: string,
+  scenario: Scenario = "A",
+): Promise<WACellResult> {
   const sourceLabel = source === "chat" ? "Chat" : source === "partner" ? "Partenaire" : "Radar IA";
-  const title = `Téléphone portable Tecno Spark — test ${sourceLabel}`;
+  const channelLabel = scenario === "A" ? "WA↔WA" : scenario === "B" ? "App→WA" : "WA→App";
+  const title = `Téléphone portable Tecno Spark — test ${sourceLabel} ${channelLabel}`;
   const price = 500;
   const photo = "https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=800&q=80";
-  const cell = source === "chat" ? "A" : source === "partner" ? "B" : "C";
+  const cell = `${scenario}${source === "chat" ? "1" : source === "partner" ? "2" : "3"}`;
 
   const { article_id, catalog_id } = await setupWAArticle(sb, source, sellerId, sellerPhone, title, price, photo);
   if (!article_id) {
