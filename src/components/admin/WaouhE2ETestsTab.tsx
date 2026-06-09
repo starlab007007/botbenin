@@ -179,7 +179,7 @@ export default function WaouhE2ETestsTab() {
     URL.revokeObjectURL(url);
   };
 
-  const cells = (selected?.steps as CellResult[]) || [];
+  const cells: CellResult[] = Array.isArray(selected?.steps) ? (selected!.steps as CellResult[]) : [];
   const bySource: Record<Source, CellResult[]> = { chat: [], partner: [], radar: [] };
   cells.forEach(c => { bySource[c.source]?.push(c); });
 
