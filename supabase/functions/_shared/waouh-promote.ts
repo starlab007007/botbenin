@@ -40,7 +40,7 @@ export async function promoteCatalogToArticle(
       seller_id: overrides.seller_id ?? null,
       title: cat.titre || "Article partenaire",
       description: cat.description || null,
-      category: cat.categorie || overrides.category || "divers",
+      category: cat.categorie || overrides.category || "autre",
       price,
       currency: cat.devise || "XOF",
       photos,
