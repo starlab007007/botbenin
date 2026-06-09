@@ -104,7 +104,7 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
       status: art?.id ? "ok" : "fail",
     });
   } else if (source === "partner") {
-    const { data: cat } = await sb.from("waouh_unified_catalog").insert({
+    const { data: cat, error: catErr } = await sb.from("waouh_unified_catalog").insert({
       source: "partner",
       type: "produit",
       titre: `Bic E2E ${cell}`,
@@ -119,7 +119,7 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
     steps.push({
       step: "publish",
       expected: "catalog (partner) created",
-      got: cat?.id ? `catalog ${cat.id.slice(0,8)}` : "no catalog",
+      got: cat?.id ? `catalog ${cat.id.slice(0,8)}` : `no catalog: ${catErr?.message ?? "?"}`,
       status: cat?.id ? "ok" : "fail",
     });
     // Promote
