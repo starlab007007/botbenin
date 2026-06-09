@@ -50,7 +50,7 @@ describe("WAOUH Chat Sync Flow — Locked v1", () => {
 
   it("lock metadata is frozen", () => {
     expect(Object.isFrozen(WAOUH_CHAT_SYNC_LOCK)).toBe(true);
-    expect(WAOUH_CHAT_SYNC_LOCK.version).toBe("v5");
+    expect(WAOUH_CHAT_SYNC_LOCK.version).toBe("v6");
     expect(WAOUH_CHAT_SYNC_LOCK.memoryRef).toBe("mem://features/waouh-chat-sync-flow");
   });
 });
