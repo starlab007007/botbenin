@@ -71,6 +71,7 @@ export default function WaouhE2ETestsTab() {
   const [sellerPhone, setSellerPhone] = useState("0140299191");
   const [buyerPhone, setBuyerPhone] = useState("0191299191");
   const [waResult, setWaResult] = useState<any>(null);
+  const [waScenarios, setWaScenarios] = useState<Scenario[]>(["A"]);
 
   const selected = useMemo(() => runs.find(r => r.id === selectedId) || null, [runs, selectedId]);
 
