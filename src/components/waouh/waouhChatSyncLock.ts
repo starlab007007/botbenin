@@ -18,8 +18,8 @@
  */
 
 export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
-  version: "v5",
-  lockedAt: "2026-06-10T00:00:00.000Z",
+  version: "v6",
+  lockedAt: "2026-06-10T01:00:00.000Z",
   memoryRef: "mem://features/waouh-chat-sync-flow",
   invariants: Object.freeze({
     webhook: {
@@ -150,6 +150,28 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
         "scenarios: Scenario[]",
         "sellerIsApp",
         "buyerIsApp",
+      ],
+    },
+    // 🔒 v6 — Bug fixes scénarios B/C en situation réelle :
+    // - Bug 1 : doublons "📩 Nouvel acheteur intéressé" côté vendeur
+    //   (resolveVendorContacts dédupe par identité, pas seulement par numéro).
+    // - Bug 2 : "Aucune négociation en cours" quand acheteur propose un prix
+    //   sur un article partner (promotion catalog→article AVANT l'insert
+    //   waouh_negotiations dans le flow CONFIRM/BUY_INTEREST).
+    webhookPromotesCatalogBeforeNegotiation: {
+      file: "supabase/functions/waouh-webhook/index.ts",
+      mustContain: [
+        "promoteCatalogToArticle",
+        "Bug 2 fix",
+        "pickSource === \"partner\"",
+      ],
+    },
+    vendorContactsSingleRecipient: {
+      file: "supabase/functions/waouh-webhook/index.ts",
+      mustContain: [
+        "Bug 1 fix",
+        "seenUserKey",
+        "auth_user_id",
       ],
     },
   }),

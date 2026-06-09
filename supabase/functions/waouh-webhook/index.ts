@@ -5,7 +5,9 @@ import {
   normalizeBeninPhone,
   resolveWaouhUserByPhone,
   ensureWaouhVendorStub,
+  beninPhoneCandidates,
 } from "../_shared/waouh-phone.ts";
+import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,11 +43,16 @@ function extractProductPhotos(source: any): string[] {
  * Source radar     → utilise le contact_phone scrapé (déjà sur le pick).
  */
 async function resolveVendorContacts(sb: any, pick: any): Promise<{ phone: string | null; phones: string[]; owner_auth_user_id: string | null; web_sessions: Array<{ user_id: string; web_session_id: string }> }> {
-  const rawPhones: Array<string | null | undefined> = [
-    pick?.vendeur_whatsapp,
-    pick?.vendeur_phone,
-    pick?.contact_phone,
-    pick?.vendeur_mobile_money,
+  // Priorité de routage : on garde UN SEUL numéro par identité destinataire.
+  // Sinon un vendeur App qui a aussi un compte partner reçoit la même notif
+  // 2× (cas Bug 1 du scénario B). Ordre : whatsapp business > seller direct
+  // > partner > téléphones secondaires (mobile money / contact_phone).
+  const candidates: Array<{ raw: string | null | undefined; rank: number }> = [
+    { raw: pick?.vendeur_whatsapp, rank: 1 },
+    { raw: pick?.contact_whatsapp, rank: 1 },
+    { raw: pick?.vendeur_phone,    rank: 3 },
+    { raw: pick?.contact_phone,    rank: 3 },
+    { raw: pick?.vendeur_mobile_money, rank: 4 },
   ];
   let ownerAuthId: string | null = null;
   if (pick?.business_id) {
@@ -53,28 +60,59 @@ async function resolveVendorContacts(sb: any, pick: any): Promise<{ phone: strin
       .select("whatsapp, telephone, mobile_money_number, partner_id")
       .eq("id", pick.business_id).maybeSingle();
     if (biz) {
-      rawPhones.push(biz.whatsapp, biz.telephone, biz.mobile_money_number);
+      candidates.push({ raw: biz.whatsapp, rank: 1 });
+      candidates.push({ raw: biz.telephone, rank: 3 });
+      candidates.push({ raw: biz.mobile_money_number, rank: 4 });
       if (biz.partner_id) {
         const { data: partner } = await sb.from("waouh_partners")
           .select("user_id, whatsapp, telephone, mobile_money_number")
           .eq("id", biz.partner_id).maybeSingle();
         if (partner) {
           ownerAuthId = partner.user_id || null;
-          rawPhones.push(partner.whatsapp, partner.telephone, partner.mobile_money_number);
+          candidates.push({ raw: partner.whatsapp, rank: 2 });
+          candidates.push({ raw: partner.telephone, rank: 3 });
+          candidates.push({ raw: partner.mobile_money_number, rank: 4 });
         }
       }
     }
   }
-  // Normalise et dédoublonne tous les numéros candidats (whatsapp, tel, mobile money).
-  // On enverra la notif à CHAQUE numéro distinct pour s'assurer que le marchand reçoit
-  // bien sur la ligne qu'il utilise réellement (un même partenaire saisit souvent un
-  // numéro WhatsApp ≠ de son numéro tel/mobile money).
-  const seen = new Set<string>();
-  const phones: string[] = [];
-  for (const raw of rawPhones) {
-    const canon = normalizeBeninPhone(raw);
-    if (canon && !seen.has(canon)) { seen.add(canon); phones.push(canon); }
+  // Normalise, dédoublonne par numéro canonique, garde l'ordre de priorité.
+  const seenPhone = new Set<string>();
+  const ranked: Array<{ phone: string; rank: number }> = [];
+  for (const c of candidates) {
+    const canon = normalizeBeninPhone(c.raw);
+    if (canon && !seenPhone.has(canon)) {
+      seenPhone.add(canon);
+      ranked.push({ phone: canon, rank: c.rank });
+    }
   }
+  ranked.sort((a, b) => a.rank - b.rank);
+
+  // 🔒 Bug 1 fix — Dédup par IDENTITÉ destinataire (waouh_users.id /
+  // auth_user_id). Si plusieurs numéros mènent au même utilisateur WAOUH,
+  // on ne garde que le numéro le mieux classé pour éviter les notifs doublons.
+  const seenUserKey = new Set<string>();
+  const phones: string[] = [];
+  for (const r of ranked) {
+    try {
+      const cand = beninPhoneCandidates(r.phone);
+      const { data: u } = cand.length
+        ? await sb.from("waouh_users")
+            .select("id, auth_user_id")
+            .in("phone_number", cand)
+            .limit(1)
+            .maybeSingle()
+        : { data: null };
+      const key = (u as any)?.auth_user_id || (u as any)?.id || `phone:${r.phone}`;
+      if (seenUserKey.has(key)) continue;
+      seenUserKey.add(key);
+    } catch {
+      if (seenUserKey.has(`phone:${r.phone}`)) continue;
+      seenUserKey.add(`phone:${r.phone}`);
+    }
+    phones.push(r.phone);
+  }
+
   let webSessions: Array<{ user_id: string; web_session_id: string }> = [];
   if (ownerAuthId) {
     const { data: rows } = await sb.from("waouh_users")
@@ -938,6 +976,33 @@ serve(async (req) => {
             if (stub?.id) pick.seller_id = stub.id;
           }
         }
+        // 🔒 Bug 2 fix — Promotion catalog→article AVANT la création de la
+        // négociation. Sans ça, pick.id est un UUID de waouh_unified_catalog
+        // qui ne respecte pas la FK waouh_negotiations.article_id →
+        // waouh_articles.id et fait répondre "Aucune négociation en cours"
+        // à l'offre suivante (scénarios B2/C2).
+        let promotionFailed = false;
+        if (pickSource === "partner") {
+          try {
+            const promo = await promoteCatalogToArticle(sb, pick.id, {
+              seller_id: pick.seller_id ?? null,
+              category: pick.categorie || pick.category || null,
+            });
+            if (promo.article_id) {
+              pick = { ...pick, id: promo.article_id };
+            } else {
+              console.error("[interest] catalog promotion failed", promo.reason);
+              promotionFailed = true;
+            }
+          } catch (e) {
+            console.error("[interest] catalog promotion error", e);
+            promotionFailed = true;
+          }
+        }
+        if (promotionFailed) {
+          reply = "🤔 Cet article ne peut pas être négocié pour l'instant. Réessayez dans un instant.";
+          returnedActions = [];
+        } else {
         const { data: seller } = pick.seller_id
           ? await sb.from("waouh_users").select("id,phone_number,display_name,web_session_id,city").eq("id", pick.seller_id).maybeSingle()
           : { data: null };
@@ -989,7 +1054,7 @@ serve(async (req) => {
               directAtts: firstPhoto ? [{ url: firstPhoto, type: "image/jpeg", caption: pick.title }] : [],
               directMeta: { intent: "match_seller", article_id: pick.id, negotiation_id: neg?.id, source: pickSource },
               transaction_id: null,
-              dedupe_key: `match:${neg?.id ?? pick.id}:${pickSource}`,
+              dedupe_key: `match:${neg?.id ?? pick.id}:${seller?.id ?? "anon"}:${pickSource}`,
               event_type: "seller_new_interest",
             });
             for (const extraPhone of phonesToPush.slice(1)) {
@@ -1063,6 +1128,7 @@ serve(async (req) => {
         returnedActions = [];
         const distLineBuyer = distKm != null ? `\n${fmtDistance(distKm)}` : "";
         reply = `${waouhHeader("✅ Demande envoyée au vendeur")}\n\n📦 *${pick.title}*\n💰 *Prix du vendeur* : ${fmt(askPrice)}${distLineBuyer}\n${firstPhoto ? "📸 *Photo transmise au vendeur*\n" : ""}\n*Que souhaitez-vous faire ?*\n1️⃣ Répondez *OUI* pour accepter ce prix (${fmt(askPrice)}).\n2️⃣ Ou proposez votre prix : *Je propose ${fmt(Math.round(askPrice * 0.9))}*.\n\nLe vendeur attend votre décision.\n\n${waouhFooter()}`;
+        } // end if (!promotionFailed)
         }
       }
 
