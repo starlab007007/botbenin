@@ -246,24 +246,11 @@ Deno.serve(async (req) => {
         `🔒 *Confidentialité* : le contact de l'acheteur n'est pas partagé. WAOUH coordonne la livraison.\n\n` +
         waouhFooter("WAOUH — Merci de votre confiance ✨");
 
-      const targetReply = isBuyer ? replyToSeller : replyToBuyer; // l'autre partie
-      const myReply = isBuyer ? replyToBuyer : replyToSeller;
-
-      if (otherUserId) {
-        await pushToOther(
-          otherUserId,
-          "deal_created",
-          { neg_id: neg.id, deal_id: deal?.id, article_id: neg.article_id, accepted: true, price: amount, from_user_id: user.id, target_role: isBuyer ? "seller" : "buyer" },
-          targetReply,
-          { intent: "deal_created", negotiation_id: neg.id, deal_id: deal?.id, article_id: neg.article_id },
-          null,
-          [],
-          `neg:${neg.id}:deal:${deal?.id ?? "nodeal"}:${otherUserId}`,
-          "deal_created",
-          replyAttachments,
-          null
-        );
-      }
+      // Les messages finaux "Vente conclue" / "Achat confirmé" sont envoyés
+      // uniquement par waouh-deal-dispatch. Sinon l'acteur reçoit la réponse
+      // directe du router + le dispatch, et l'autre partie reçoit deal_created
+      // + le dispatch : mêmes contenus visibles deux fois.
+      const myReply = "✅ Accord enregistré. WAOUH prépare la livraison médiée.";
 
       // Dispatch des notifications "livraison médiée" (vendeur + acheteur + équipe ops)
       if (deal?.id) {
@@ -280,7 +267,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ limit: 20 }),
       }).catch(() => {});
 
-      return new Response(JSON.stringify({ ok: true, reply: myReply, intent: "deal_created", actions: [], attachments: replyAttachments, deal_id: deal?.id }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ ok: true, reply: myReply, intent: "deal_created", actions: [], attachments: [], deal_id: deal?.id, suppress_direct_reply: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
 
