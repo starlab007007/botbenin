@@ -129,7 +129,7 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
   if (!phone) phone = directReachablePhone(user.phone_number);
   result.phone_e164 = phone;
 
-  const dedupBase = `sync:${articleId ?? "noart"}:${intent}:${user.id}:${negotiationId ?? "noneg"}${dedupSuffix ? ":" + dedupSuffix : ""}`;
+  const dedupBase = `sync:${articleId ?? "noart"}:${intent}:${user.id}:${negotiationId ?? "noneg"}:${dealId ?? "nodeal"}${dedupSuffix ? ":" + dedupSuffix : ""}`;
 
   const basePayload = {
     ...payloadExtra,

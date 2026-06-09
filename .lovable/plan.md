@@ -1,86 +1,78 @@
+## Diagnostic
 
-# Plan de correction — Vendeur WhatsApp ne reçoit plus les notifications
+D'après la capture et le code :
 
-## Cause racine
-Quand WAHA livre un contact en mode privacy `<lid>@lid`, la chaîne suivante corrompt les données :
+- À 22:43:48 + 22:43:50 → `deal_created` + `deal_dispatch×2` (dedupe `neg:72960c13` / `wa:sync:38838fe9`)
+- À 22:44:03 + 22:44:04 → encore `deal_created` + `deal_dispatch×2` (dedupe `neg:a6fc6489` / `wa:sync:96090bf8`)
 
-```text
-WAHA contacts.all  →  waouh_lid_phone_map.phone_e164 = "+<lid>" (FAUX, c'est le LID lui-même)
-                  →  lidToPhoneInline renvoie ce LID comme "phone"
-                  →  waouh-channel-in préfixe "229" → 229<15chiffres> (18 chiffres impossibles)
-                  →  waouh_users.phone_number écrasé avec cette valeur
-                  →  outbound-dispatch envoie à WAHA → check-exists=false → "no WA contact"
-```
+Deux séries complètes en 15 s pour la même paire acheteur/vendeur. Les dedupe keys diffèrent parce qu'une **nouvelle négociation et un nouveau `waouh_deal`** ont été créés à chaque fois.
 
-Deux victimes confirmées en DB :
-- Vendeur `930637cc` → `phone_number = 229196705878298786` (LID réel : `196705878298786@lid`)
-- Acheteur `557f3453` → `phone_number = 229273091318042723` (LID réel : `273091318042723@lid`)
+### Cause racine
 
-Tous les `match_seller`, `negotiation_open`, `deal_seller`, `deal_buyer` pour ces users échouent.
+Dans `supabase/functions/waouh-negotiation-router/index.ts` (branche `intent.kind === "yes"`) :
 
-## Correctifs (5 verrous, ordre d'exécution)
+1. Aucune vérification d'idempotence : si l'acheteur répond « oui » puis le vendeur répond « oui » (ou si l'un d'eux le répète), le router :
+   - met à jour la même `waouh_negotiation` en `accepted` à nouveau,
+   - **insère un nouveau `waouh_deals`** (pas d'unique sur `negotiation_id`),
+   - réenvoie `deal_created` à « l'autre » (nouveau `neg.id` → nouvelle dedupe → passe),
+   - rappelle `waouh-deal-dispatch` qui réenvoie `deal_dispatch` au vendeur + à l'acheteur.
 
-### 1. `_shared/waouh-format.ts` — `lidToPhoneInline` strict
-Avant de renvoyer un `phone` issu de `waouh_lid_phone_map` ou de WAHA contacts :
-- Refuser si `phone == lid` ou `phone_e164 == "+" + lid`.
-- Refuser si longueur hors plage E.164 (8 à 13 chiffres).
-- Refuser si commence par `1967`, `2730`… (préfixes typiques de LID, non assignés à des pays). Test simple : doit commencer par un indicatif pays connu (`229`, `225`, `234`, `33`, etc.) OU avoir 8 chiffres typiques Bénin.
-- Retourner `null` sinon → upstream tombe proprement en `lid unresolved`.
+2. Dans `_shared/waouh-sync.ts`, le `dedupBase` pour `deal_dispatch` n'inclut pas `dealId` ; en pratique deux dispatches pour deux deals distincts donnent deux dedupe keys distinctes → la file ne bloque pas.
 
-### 2. `waouh-channel-in/index.ts` (ligne 271-288) — pas de préfixe 229 sur >10 chiffres
-```ts
-if (lidDigits && lidDigits.length >= 8 && lidDigits.length <= 12) {
-  const resolved = lidDigits.startsWith("229") ? lidDigits
-                 : lidDigits.length <= 10 ? `229${lidDigits.replace(/^0/, "")}`
-                 : null;
-  if (resolved && /^229\d{8,10}$/.test(resolved)) { … } 
-}
-```
-Si pas résolu valide : **garder `phone = <lid>@lid`** pour que les couches suivantes redéclenchent la résolution (au lieu de pourrir le `phone_number`).
+3. À la deuxième acceptation, l'article est déjà marqué `sold`, mais le router ne s'en sert pas pour court-circuiter.
 
-### 3. `waouh-outbound-dispatch/index.ts` — `normalizeBeninPhone` plafonné
-```ts
-if (digits.length > 13) return null;   // refuse les LID camouflés
-if (digits.startsWith("229") && digits.length > 13) return null;
-```
-Et juste avant `check-exists`, si `to_phone` matche `^229\d{12,}$` : forcer la branche LID resolution (`<digits without 229>@lid`).
+## Correctifs
 
-### 4. `waouh-waha-sync-contacts` — ne plus écrire `phone_e164 = lid`
-Lors du sync :
-- Si WAHA ne renvoie qu'un `lid` sans `phoneNumber` réel : insérer la row avec `phone = NULL` et `phone_e164 = NULL`.
-- Plus jamais `phone_e164 = "+" + lid`.
+### 1) Idempotence stricte de l'acceptation (`waouh-negotiation-router`)
 
-### 5. Migration SQL — assainissement + garde-fou
+Au début de la branche `yes` :
+
+- Recharger `neg` (état le plus récent).
+- Chercher un `waouh_deals` existant pour `negotiation_id = neg.id` (ou pour `(article_id, buyer_user_id, seller_user_id)` en filet de sécurité, status ≠ `cancelled`).
+- Si trouvé **OU** `neg.state IN ('accepted','closed')` **OU** `article.status = 'sold'` :
+  - Ne pas réinsérer de deal.
+  - Ne pas renvoyer `deal_created`.
+  - Ne pas rappeler `waouh-deal-dispatch`.
+  - Renvoyer une réponse neutre : « ✅ Accord déjà enregistré. Le livreur WAOUH est en route. »
+- Sinon, dérouler le flow actuel.
+
+### 2) Migration : contrainte unique anti-doublon
+
 ```sql
--- a) Purge mapping corrompu (phone_e164 == "+" || lid)
-UPDATE public.waouh_lid_phone_map
-   SET phone = NULL, phone_e164 = NULL
- WHERE phone_e164 IS NOT NULL
-   AND regexp_replace(phone_e164, '\D','','g') = lid;
-
--- b) Repair waouh_users corrompus → re-coller @lid
-UPDATE public.waouh_users
-   SET phone_number = substr(phone_number, 4) || '@lid'
- WHERE phone_number ~ '^229\d{12,}$';
-
--- c) Re-queue les messages échoués pour ces users (un seul retry)
-UPDATE public.waouh_outbound_queue
-   SET status='pending', attempts=0, next_attempt_at=now(), last_error=NULL
- WHERE status='failed'
-   AND last_error LIKE 'no WA contact for 229%'
-   AND length(regexp_replace(to_phone,'\D','','g')) > 13;
-
--- d) Contrainte préventive
-ALTER TABLE public.waouh_lid_phone_map
-  ADD CONSTRAINT waouh_lid_phone_map_no_self_phone
-  CHECK (phone_e164 IS NULL OR regexp_replace(phone_e164,'\D','','g') <> lid);
+CREATE UNIQUE INDEX IF NOT EXISTS waouh_deals_unique_per_negotiation
+  ON public.waouh_deals (negotiation_id)
+  WHERE status <> 'cancelled';
 ```
 
-## Vérification post-déploiement
-1. `SELECT phone_number FROM waouh_users WHERE id IN ('930637cc…','557f3453…');` → doit afficher `196705878298786@lid` puis (après inbound) le vrai numéro résolu, OU rester en `@lid` si WAHA n'a vraiment pas le numéro.
-2. Lancer un message inbound réel depuis le vendeur. Les logs `waouh-channel-in` doivent montrer soit `lid resolved` avec un vrai numéro 229XXXXXXXXX, soit pas de backfill.
-3. Re-trigger `waouh-outbound-dispatch` : les 6 messages re-queue doivent partir en `sent` ou rester en `lid unresolved` (au lieu de la fausse "réussite" précédente).
-4. Surveiller `/admin/waouh/whatsapp-ops` : plus aucune ligne `no WA contact for 229\d{12,}`.
+Garantit qu'au pire, l'INSERT échoue avec `23505` (et on retombe sur la branche idempotente).
 
-## Limite connue
-Si WAHA ne livre vraiment jamais le vrai numéro derrière un `@lid` (privacy mode strict, contact pas dans le carnet WhatsApp Business), aucune correction logicielle ne peut envoyer un message — il faut que le vendeur écrive en premier au numéro WAOUH pour révéler son E.164. Le code rendra ce cas visible (`lid unresolved`) au lieu de le masquer en faux 18-chiffres.
+### 3) Renforcement des dedupe keys (`_shared/waouh-sync.ts`)
+
+Inclure `dealId` dans `dedupBase` quand fourni :
+
+```
+sync:${articleId}:${intent}:${user.id}:${negotiationId ?? "noneg"}:${dealId ?? "nodeal"}${suffix}
+```
+
+Effet : même si deux dispatches partent pour le même `deal_id`, la file les fusionne.
+
+### 4) Dedupe `deal_created` (router)
+
+Actuellement : `neg:${neg.id}:deal:${otherUserId}`. C'est bon, mais on l'aligne pour aussi inclure `deal.id` :  
+`neg:${neg.id}:deal:${deal?.id ?? "nodeal"}:${otherUserId}`.
+
+## Détails techniques
+
+Fichiers modifiés :
+
+- `supabase/functions/waouh-negotiation-router/index.ts` — court-circuit idempotent.
+- `supabase/functions/_shared/waouh-sync.ts` — `dealId` dans `dedupBase`.
+- Nouvelle migration : `UNIQUE INDEX` partiel sur `waouh_deals(negotiation_id)`.
+
+Aucune modification côté UI (`/admin/waouh/whatsapp-ops` se contentera d'afficher moins de lignes redondantes).
+
+## Vérification
+
+1. Rejouer un scénario : acheteur dit « oui », puis vendeur dit « oui » → une seule ligne `deal_created` et une paire `deal_dispatch (buyer+seller)` dans `waouh_outbound_queue`.
+2. Vérifier dans `/admin/waouh/whatsapp-ops` : plus de doublons sur la même négociation.
+3. Logs `waouh-negotiation-router` : la 2ᵉ acceptation doit produire « accord déjà enregistré » sans appel à `waouh-deal-dispatch`.
