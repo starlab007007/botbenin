@@ -67,6 +67,10 @@ export default function WaouhE2ETestsTab() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [purging, setPurging] = useState(false);
+  const [waRunning, setWaRunning] = useState(false);
+  const [sellerPhone, setSellerPhone] = useState("0140299191");
+  const [buyerPhone, setBuyerPhone] = useState("0191299191");
+  const [waResult, setWaResult] = useState<any>(null);
 
   const selected = useMemo(() => runs.find(r => r.id === selectedId) || null, [runs, selectedId]);
 
