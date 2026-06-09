@@ -160,13 +160,21 @@ Deno.serve(async (req) => {
           const digits = (rawPhone || '').replace(/\D/g, '');
           if (!digits || !isLikelyPhoneDigits(digits)) continue;
 
-          const phone_e164 = normalizeWahaPhone(digits) || (digits.startsWith('229') ? `+${digits}` : `+${digits}`);
-
           const lidId = c.lid || (id.endsWith('@lid') ? id.split('@')[0] : null);
+
+          // 🛟 Refuse d'écrire phone_e164 == LID : WAHA renvoie souvent l'ID privacy
+          // comme "number" et on se retrouve avec un faux numéro 15+ chiffres qui
+          // casse toute la chaîne d'envoi WhatsApp. Dans ce cas on stocke NULL.
+          const phoneIsActuallyLid = lidId && digits === lidId;
+          const phone_e164 = phoneIsActuallyLid
+            ? null
+            : (normalizeWahaPhone(digits) || (digits.startsWith('229') ? `+${digits}` : `+${digits}`));
+          const phoneStored = phoneIsActuallyLid ? null : digits;
+
           const displayName = c.name || c.shortName || null;
           const pushname = c.pushname || null;
           const rowBase = {
-            jid: id, phone: digits, phone_e164,
+            jid: id, phone: phoneStored, phone_e164,
             pushname,
             display_name: displayName,
             session, last_synced_at: new Date().toISOString(),
@@ -179,9 +187,12 @@ Deno.serve(async (req) => {
           }
           for (const name of [displayName, pushname]) {
             const key = nameKey(name);
-            if (key && isBjPhoneDigits(digits)) phoneRowsByName.set(key, { ...rowBase, lid: lidId || id });
+            if (key && !phoneIsActuallyLid && isBjPhoneDigits(digits)) {
+              phoneRowsByName.set(key, { ...rowBase, lid: lidId || id });
+            }
           }
         }
+
 
         for (const c of contacts || []) {
           const id = c.id || '';
