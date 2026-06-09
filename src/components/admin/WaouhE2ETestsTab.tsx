@@ -130,6 +130,27 @@ export default function WaouhE2ETestsTab() {
     await loadRuns(true);
   };
 
+  const runWhatsAppFull = async () => {
+    if (!sellerPhone.trim() || !buyerPhone.trim()) {
+      toast({ title: "Numéros requis", description: "Renseignez vendeur et acheteur", variant: "destructive" });
+      return;
+    }
+    if (!confirm(`⚠️ Ce test enverra 30 messages WhatsApp RÉELS :\n- Vendeur ${sellerPhone}\n- Acheteur ${buyerPhone}\n\nContinuer ?`)) return;
+    setWaRunning(true);
+    setWaResult(null);
+    const { data, error } = await supabase.functions.invoke("waouh-e2e-test", {
+      body: { mode: "whatsapp_full", seller_phone: sellerPhone, buyer_phone: buyerPhone, sources: ["chat", "partner", "radar"] },
+    });
+    setWaRunning(false);
+    if (error) {
+      toast({ title: "Erreur", description: error.message, variant: "destructive" });
+      return;
+    }
+    setWaResult(data);
+    toast({ title: "Test WhatsApp terminé", description: `${data?.summary?.totalOk ?? 0}/${data?.summary?.totalSends ?? 0} messages envoyés` });
+    await loadRuns(true);
+  };
+
   const exportMd = () => {
     if (!selected) return;
     const cells = (selected.steps as CellResult[]) || [];
