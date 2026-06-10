@@ -79,22 +79,68 @@ serve(async (req) => {
           ? sb.from("waouh_users").select("id, display_name, phone_number, auth_user_id").in("id", userIds)
           : Promise.resolve({ data: [] as any[] }),
         negIds.length
-          ? sb.from("waouh_trace_events").select("negotiation_id, stage, status").in("negotiation_id", negIds).limit(20000)
+          ? sb.from("waouh_trace_events")
+              .select("negotiation_id, stage, status, article_id, actor_user_id, transaction_id")
+              .or(
+                `negotiation_id.in.(${negIds.join(",")}),` +
+                (articleIds.length ? `article_id.in.(${articleIds.join(",")})` : "article_id.is.null")
+              )
+              .gte("created_at", sinceIso)
+              .limit(20000)
           : Promise.resolve({ data: [] as any[] }),
       ]);
 
-      // Completeness per negotiation
+      // Completeness per negotiation — pass 1: direct negotiation_id match
+      // pass 2: fallback via (article_id + actor in buyer/seller) or transaction_id
+      // pour récupérer les traces émises avant que la négo soit liée.
       const stagesByNeg = new Map<string, Set<string>>();
-      for (const t of (traceRows || []) as any[]) {
-        if (!t.negotiation_id) continue;
-        if (!stagesByNeg.has(t.negotiation_id)) stagesByNeg.set(t.negotiation_id, new Set());
-        stagesByNeg.get(t.negotiation_id)!.add(t.stage);
-      }
-      const completeness: Record<string, { pct: number; stages: string[] }> = {};
+      const negsByArticleActor = new Map<string, string[]>(); // key: `${article_id}|${user_id}` -> negIds[]
+      const negsByTxn = new Map<string, string[]>();
       for (const n of (negotiations || []) as any[]) {
-        const set = stagesByNeg.get(n.id) || new Set();
-        completeness[n.id] = { pct: completenessFromStages(set), stages: Array.from(set) };
+        if (n.article_id) {
+          for (const uid of [n.buyer_user_id, n.seller_user_id].filter(Boolean)) {
+            const key = `${n.article_id}|${uid}`;
+            if (!negsByArticleActor.has(key)) negsByArticleActor.set(key, []);
+            negsByArticleActor.get(key)!.push(n.id);
+          }
+        }
+        if (n.transaction_id) {
+          if (!negsByTxn.has(n.transaction_id)) negsByTxn.set(n.transaction_id, []);
+          negsByTxn.get(n.transaction_id)!.push(n.id);
+        }
       }
+      const addStage = (negId: string, stage: string) => {
+        if (!stagesByNeg.has(negId)) stagesByNeg.set(negId, new Set());
+        stagesByNeg.get(negId)!.add(stage);
+      };
+      for (const t of (traceRows || []) as any[]) {
+        if (!t.stage) continue;
+        if (t.negotiation_id) {
+          addStage(t.negotiation_id, t.stage);
+          continue;
+        }
+        // Fallback 1: article_id + actor_user_id
+        if (t.article_id && t.actor_user_id) {
+          const key = `${t.article_id}|${t.actor_user_id}`;
+          const ids = negsByArticleActor.get(key);
+          if (ids) for (const id of ids) addStage(id, t.stage);
+        }
+        // Fallback 2: transaction_id
+        if (t.transaction_id) {
+          const ids = negsByTxn.get(t.transaction_id);
+          if (ids) for (const id of ids) addStage(id, t.stage);
+        }
+      }
+      const completeness: Record<string, { pct: number; stages: string[]; missing: string[] }> = {};
+      for (const n of (negotiations || []) as any[]) {
+        const set = stagesByNeg.get(n.id) || new Set<string>();
+        completeness[n.id] = {
+          pct: completenessFromStages(set),
+          stages: Array.from(set),
+          missing: CORE_STAGES.filter((s) => !set.has(s)),
+        };
+      }
+
 
       let filteredNeg = negotiations || [];
       if (search) {
