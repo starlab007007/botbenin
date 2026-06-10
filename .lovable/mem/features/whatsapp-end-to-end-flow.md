@@ -1,12 +1,12 @@
 ---
-name: WhatsApp & App End-to-End Flow (LOCKED v6)
-description: Parcours WAOUH A/B/C × Chat/Partenaire/Radar — vendeur↔acheteur, WhatsApp et/ou App, idempotent. LOCKED.
+name: WhatsApp & App End-to-End Flow (LOCKED v8)
+description: Parcours WAOUH A/B/C × Chat/Partenaire/Radar — vendeur↔acheteur, WhatsApp et/ou App, idempotent. Scénario B validé en production réelle 2026-06-10. LOCKED.
 type: feature
 ---
 
-# Parcours WAOUH bout-en-bout — LOCKED v6 (2026-06-10)
+# Parcours WAOUH bout-en-bout — LOCKED v8 (2026-06-10)
 
-🔒 **Ce flux est validé et figé pour les 9 cellules A1-A3 / B1-B3 / C1-C3. Toute modification est interdite sans nouvelle approbation utilisateur explicite.**
+🔒 **Scénario B (Vendeur App + Acheteur WA) validé en condition réelle le 2026-06-10 : mise en relation, contre-offres bilatérales (acheteur ↔ vendeur), accord OUI/OUI et notifications "achat conclu / vente conclue" routés sur le bon canal pour chaque partie. Toute modification est interdite sans nouvelle approbation utilisateur explicite.**
 
 ## Matrice couverte
 
