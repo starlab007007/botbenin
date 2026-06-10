@@ -1,97 +1,107 @@
 
-## Contexte
-
-Aujourd'hui, dès qu'un signal Radar IA est capté, `supabase/functions/waouh-radar-process` envoie immédiatement un `radar_buyer_outreach` ou `radar_seller_outreach` sur WhatsApp, **sans** vérifier :
-- le flag `auto_notify` du contact (déjà présent en base mais ignoré),
-- le statut `opted_out` / `blocked`,
-- une éventuelle plage horaire ou un quota,
-- un kill-switch global admin.
-
-Les campagnes programmées (`waouh_radar_campaigns`) ont déjà un statut active/paused/done contrôlable depuis `RadarCampaignsTab`. Ce qui manque, c'est le **contrôle des outreach automatiques 1-shot** déclenchés par signal, et un **panneau central** pour piloter tous les contacts Radar.
-
 ## Objectif
 
-Donner à l'admin un contrôle complet sur les messages auto envoyés aux numéros détectés par Radar IA :
-- couper / reprendre globalement,
-- programmer les plages d'envoi,
-- limiter par jour,
-- pause / opt-out par contact (bulk).
+Remplacer l'estimation "vibes IA" actuelle par une vraie analyse marché reposant sur des **données réelles de produits similaires**, collectées en direct par l'IA, puis présentée de façon synthétique et crédible dans le chat WhatsApp.
 
-## Changements
+## Diagnostic du flux actuel
 
-### 1. Base de données (migration)
-Nouvelle table `waouh_radar_auto_settings` (ligne unique, admin only) :
-- `auto_enabled` (bool, défaut true) — kill-switch global
-- `auto_default_for_new_contacts` (bool, défaut true)
-- `quiet_hours_start` / `quiet_hours_end` (time, ex 22:00 / 07:00) — pas d'envoi hors plage
-- `timezone` (text, défaut `Africa/Porto-Novo`)
-- `max_per_contact_per_day` (int, défaut 1)
-- `max_total_per_day` (int, défaut 200)
-- `pause_until` (timestamptz nullable) — pause temporaire
-- `updated_by`, `updated_at`
+`supabase/functions/waouh-price-compare/index.ts` fait aujourd'hui :
+1. Échantillonne 50 annonces internes (`waouh_articles`) même ville + même catégorie.
+2. Envoie le tout à Gemini qui "estime" min/max/moyenne.
+3. Cache 24h dans `waouh_cache`.
 
-RLS : SELECT/UPDATE réservé aux admins via `has_role`.
+Limites :
+- Si le catalogue interne est vide (cas fréquent au lancement), l'IA invente.
+- Aucune source externe vérifiable (Jumia, Coinafrique, Jiji, Afrikrea, Facebook Marketplace, groupes WA radar).
+- Le message final ne cite **aucune preuve** → l'utilisateur perçoit du flou.
 
-Aucune autre table modifiée — `waouh_radar_contacts.auto_notify` et `status` existent déjà.
+## Approche proposée — "Prix Réel WAOUH"
 
-### 2. Edge function — `waouh-radar-process`
-Avant chaque outreach automatique (`maybeDirectOutreach`) :
-1. Charger `waouh_radar_auto_settings` (cache 30 s).
-2. Bloquer si `auto_enabled = false` ou `pause_until > now()`.
-3. Charger le contact via `phone_e164_normalized` :
-   - skip si `status ∈ {opted_out, blocked}` ou `auto_notify = false`.
-4. Vérifier les caps (compte sur `waouh_outbound_queue` / `waouh_radar_campaign_sends` filtré `event_type LIKE 'radar_auto_%'` sur 24 h).
-5. Si on est hors `quiet_hours`, **planifier** au lieu d'envoyer : insérer dans `waouh_outbound_queue` avec `scheduled_at` = prochain créneau autorisé (le dispatcher existant gère déjà `scheduled_at`).
-6. Logger un `radar_auto_block` ou `radar_auto_schedule` dans `waouh_trace_events` pour traçabilité.
+Une fonction enrichie qui agrège **3 couches de données réelles**, score leur fiabilité, puis demande à l'IA une **synthèse honnête**.
 
-Aucune modification du flux WAOUH locké.
+### Couche 1 — Catalogue interne (déjà en place, à garder)
+Annonces `waouh_articles` actives, même ville/catégorie, ±30j. Très haute fiabilité quand dispo.
 
-### 3. Edge function — `waouh-radar-auto-control` (nouvelle)
-Endpoint admin pour :
-- `get_settings`, `update_settings`
-- `pause_now { minutes }` / `resume_now`
-- `bulk_contacts { ids, action: enable_auto | disable_auto | opt_out | block | unblock }`
-- `cancel_scheduled { contact_ids? }` — purge des messages auto en file (`status='queued'`, `event_type LIKE 'radar_auto_%'`).
+### Couche 2 — Signaux Radar IA (nouveau)
+Requête sur `waouh_radar_signals` (déjà alimentée par groupes WA + scrapers) filtrée par mots-clés du titre/marque/modèle + ville. Donne le prix marché informel béninois, ce que les autres sources n'ont pas.
 
-Tout protégé par `has_role(admin)`.
+### Couche 3 — Web scraping ciblé via Firecrawl (nouveau, cœur de la demande)
+Recherche réelle sur le web béninois/ouest-africain :
 
-### 4. UI — `src/components/admin/RadarAutoControlPanel.tsx` (nouveau)
-Panneau en haut de l'onglet Radar (admin) avec :
-- Switch « Messages auto Radar IA » (kill-switch).
-- Bouton « Pause 1h / 24h / Indéfinie » + bouton « Reprendre ».
-- Heures silencieuses (deux time pickers) + timezone.
-- Caps : `max/contact/jour`, `max total/jour`.
-- Toggle « Activer auto par défaut pour les nouveaux contacts ».
-- Compteur live : envoyés aujourd'hui, planifiés en file, bloqués (opt-out).
-- Bouton « Annuler tous les messages auto programmés ».
-
-### 5. UI — `RadarContactsTab.tsx` (étendue)
-Ajouter aux actions bulk existantes :
-- « Activer auto-notify » / « Désactiver auto-notify » (sur la sélection).
-- « Voir messages auto planifiés » → ouvre une modale listant les entrées `waouh_outbound_queue` à venir pour les contacts sélectionnés, avec bouton « Annuler ».
-
-Aucun changement aux modales / colonnes existantes.
-
-### 6. Intégration
-Monter `RadarAutoControlPanel` dans `WaouhRadarTab.tsx` (au-dessus des sous-onglets) — visible uniquement aux admins (déjà gating en place via route admin).
-
-## Hors scope
-- Aucune modification du WAOUH chat sync flow (locké v1).
-- Aucune modification du dispatcher `waouh-notify-dispatch` au-delà du respect natif de `scheduled_at`.
-- Pas de refonte de `RadarCampaignsTab` (campagnes programmées déjà contrôlables).
-
-## Détails techniques
-```text
-Signal capté
-  └─> waouh-radar-process
-        ├─ load(auto_settings) [cache 30s]
-        ├─ if !auto_enabled OR pause_until>now -> trace 'radar_auto_block(global)'  → STOP
-        ├─ load(contact by phone)
-        │     ├─ status in (opted_out, blocked) -> trace 'radar_auto_block(status)' → STOP
-        │     └─ auto_notify=false               -> trace 'radar_auto_block(per_contact)' → STOP
-        ├─ caps depassés -> trace 'radar_auto_block(cap)' → STOP
-        ├─ in quiet_hours -> enqueue (scheduled_at=next_window) + trace 'radar_auto_schedule'
-        └─ else -> enqueue immediate + trace 'radar_auto_send'
+```ts
+firecrawlSearch(`${brand} ${model} prix Bénin`, {
+  country: 'bj', lang: 'fr', limit: 8,
+  scrapeOptions: { formats: ['markdown'] }
+})
 ```
 
-Helpers UI : Tanstack Query pour `get_settings` + invalidations après chaque mutation. Tout en français, tokens design existants.
+Sites ciblés (filtrage par domaine après search) :
+- `jumia.com.ci` / `jumia.sn`
+- `coinafrique.com`
+- `jiji.ci` / `expat.com`
+- `afrikrea.com`
+- `facebook.com/marketplace` (titre + snippet uniquement)
+
+Pour chaque résultat retenu, on extrait `{ title, price_fcfa, source_domain, url, location? }` via Gemini Flash en mode JSON sur le markdown.
+
+Conversion auto XOF/EUR/USD/NGN → FCFA (taux fixes mis en cache 24h via une mini-table `waouh_fx_rates` ou constantes).
+
+### Couche 4 — Agrégation & scoring
+Calcul côté serveur (pas IA) :
+- `n_internal`, `n_radar`, `n_web` → total `n`
+- `min`, `p25`, `median`, `p75`, `max` (sur l'union des prix)
+- `confidence`: high (n≥8 & ≥2 couches), medium (n≥4), low (sinon)
+- `sources`: top 3 URLs concrètes pour preuve
+
+### Couche 5 — Synthèse IA honnête
+Prompt révisé (extrait) :
+
+> Tu es analyste marché béninois. Voici N comparables RÉELS (interne + radar + web).
+> Produis un verdict en 3 lignes max :
+> 1) fourchette honnête (p25–p75) en FCFA
+> 2) verdict sur le prix demandé (juste / élevé / aubaine) avec %
+> 3) 1 conseil de négociation contextuel
+> Si confidence=low → dis-le explicitement.
+
+## Format du message WhatsApp (synthétique & crédible)
+
+```
+📊 *Analyse prix réel — Samsung A14 (Cotonou)*
+
+💰 Fourchette marché : 78 000 – 95 000 FCFA
+   (médiane 85 000 · 11 annonces analysées)
+
+🎯 Votre prix 90 000 FCFA → *Correct* (+6% vs médiane)
+
+🔎 Sources :
+• Jumia CI · 89 900 FCFA
+• Coinafrique Cotonou · 85 000 FCFA
+• Radar WA (groupe Dantokpa) · 80 000 FCFA
+
+💡 Conseil : Acheteur peut viser 82 000. Tenez 85 000 ferme.
+```
+
+Si `confidence=low` :
+```
+⚠️ Peu de comparables (2 annonces) — estimation à confirmer.
+```
+
+## Découpage technique
+
+1. **Nouvelle table** `waouh_price_snapshots` : `id, article_id, query, sources jsonb, stats jsonb, confidence, created_at` (audit + rejouabilité).
+2. **Refonte** `waouh-price-compare/index.ts` :
+   - Étape 1 : interne (déjà fait, garder)
+   - Étape 2 : radar signals (nouveau bloc Supabase select)
+   - Étape 3 : Firecrawl search + scrape ciblé (parallèle, timeout 8s, tolérant aux échecs)
+   - Étape 4 : extraction prix via Gemini Flash JSON par batch
+   - Étape 5 : agrégation déterministe en JS
+   - Étape 6 : synthèse Gemini sur stats + top sources
+   - Étape 7 : insert snapshot + cache 6h (vs 24h, données plus fraîches)
+3. **Connecteur Firecrawl** : à activer via `standard_connectors--connect` (clé `FIRECRAWL_API_KEY`).
+4. **Format de retour** étendu : `{ stats, confidence, sources[], reply }` — `waouh-webhook` utilise `reply` tel quel.
+5. **Fallback** : si Firecrawl indisponible ou 0 résultat web → on tombe sur interne+radar uniquement avec badge `⚠️ confiance limitée`.
+
+## Question avant build
+
+- OK pour activer le connecteur **Firecrawl** (nécessaire pour le scraping réel Jumia/Coinafrique/Jiji) ? Sans lui, on reste limité au catalogue interne + radar WA.
+- Veux-tu que je crée aussi la table `waouh_price_snapshots` (audit + historique des analyses) ou je garde juste le cache existant ?
