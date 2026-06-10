@@ -423,6 +423,7 @@ const AuthPage: React.FC = () => {
           </Tabs>
         </DialogContent>
       </Dialog>
+      <WhatsAppLoginDialog open={waOpen} onOpenChange={setWaOpen} redirectTo={redirectTo} />
     </div>
   );
 };
