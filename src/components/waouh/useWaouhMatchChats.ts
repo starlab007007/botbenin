@@ -11,11 +11,20 @@ export type CachedMsg = {
   meta?: any;
 };
 
-// Canonical key per (article_id, role). Same article + role = same tab, same
-// cached history, regardless of which notification or path opened it.
-export function matchKey(articleId: string | null | undefined, role: "buyer" | "seller"): string {
-  return `art_${articleId ?? "none"}_${role}`;
+// Canonical key. v12: seller side discriminates per counterpart so each
+// buyer interested in the same article opens its OWN WaouhMatchChatWindow.
+// Buyer side keeps `art_<articleId>_buyer` (1 seller per article).
+export function matchKey(
+  articleId: string | null | undefined,
+  role: "buyer" | "seller",
+  counterpartId?: string | null
+): string {
+  if (role === "seller") {
+    return `art_${articleId ?? "none"}_seller_${counterpartId ?? "any"}`;
+  }
+  return `art_${articleId ?? "none"}_buyer`;
 }
+
 
 const STORAGE_KEY = (sid: string) => `waouh_open_matches_${sid}`;
 const ACTIVE_KEY = (sid: string) => `waouh_active_match_${sid}`;
