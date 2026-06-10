@@ -1,94 +1,97 @@
-# Finalisation Connexion WhatsApp (parité Email)
+
+## Contexte
+
+Aujourd'hui, dès qu'un signal Radar IA est capté, `supabase/functions/waouh-radar-process` envoie immédiatement un `radar_buyer_outreach` ou `radar_seller_outreach` sur WhatsApp, **sans** vérifier :
+- le flag `auto_notify` du contact (déjà présent en base mais ignoré),
+- le statut `opted_out` / `blocked`,
+- une éventuelle plage horaire ou un quota,
+- un kill-switch global admin.
+
+Les campagnes programmées (`waouh_radar_campaigns`) ont déjà un statut active/paused/done contrôlable depuis `RadarCampaignsTab`. Ce qui manque, c'est le **contrôle des outreach automatiques 1-shot** déclenchés par signal, et un **panneau central** pour piloter tous les contacts Radar.
 
 ## Objectif
-Permettre à un utilisateur de se connecter via **WhatsApp + OTP (WAHA)** avec exactement le même résultat fonctionnel qu'une connexion email : profil complété (nom), `profiles` à jour, redirection identique, session Supabase native. **Sans toucher au flux existant** (email/Google).
 
-## État actuel
-- ✅ Edge functions `whatsapp-otp-send` / `whatsapp-otp-verify` existent et fonctionnent (envoi WAHA + magic-link Supabase).
-- ✅ Écran mobile `WhatsAppOtpScreen.tsx` (étapes phone → otp).
-- ✅ `useMobileProfile` crée déjà un row `profiles` automatiquement avec `provider='whatsapp'`.
-- ❌ **Pas d'étape "Compléter le profil"** (nom complet) pour un nouveau compte WA → un user WA reste avec `full_name = "+229..."`, ce qui n'est PAS la parité email (où le nom est obligatoire à l'inscription).
-- ❌ **Aucun bouton "Continuer avec WhatsApp" sur le web** (`/auth` AuthPage.tsx).
-- ❌ Pas d'indicateur côté front si l'utilisateur est "nouveau" → l'app ne sait pas s'il faut afficher l'étape profil.
-- ⚠️ Pas de rate-limiting / cooldown visible côté UI (renvoi de code immédiat).
+Donner à l'admin un contrôle complet sur les messages auto envoyés aux numéros détectés par Radar IA :
+- couper / reprendre globalement,
+- programmer les plages d'envoi,
+- limiter par jour,
+- pause / opt-out par contact (bulk).
 
-## Plan (parallèle, sans casser l'existant)
+## Changements
 
-### 1. Backend — enrichir `whatsapp-otp-verify`
-- Retourner `is_new_user: boolean` (basé sur `created` vs `found` dans la fonction existante).
-- Aucune signature break : on **ajoute** un champ.
+### 1. Base de données (migration)
+Nouvelle table `waouh_radar_auto_settings` (ligne unique, admin only) :
+- `auto_enabled` (bool, défaut true) — kill-switch global
+- `auto_default_for_new_contacts` (bool, défaut true)
+- `quiet_hours_start` / `quiet_hours_end` (time, ex 22:00 / 07:00) — pas d'envoi hors plage
+- `timezone` (text, défaut `Africa/Porto-Novo`)
+- `max_per_contact_per_day` (int, défaut 1)
+- `max_total_per_day` (int, défaut 200)
+- `pause_until` (timestamptz nullable) — pause temporaire
+- `updated_by`, `updated_at`
 
-### 2. Backend — nouvelle edge function `whatsapp-complete-profile`
-- Inputs : `{ full_name, email? }` + JWT user.
-- Validations : nom min. 2 chars ; si email fourni, vérifier qu'il n'est pas déjà pris.
-- Update `profiles` (full_name, email réel si fourni) + `auth.users.email` via `admin.updateUserById` (remplace `wa_xxx@waouhapp.local` par l'email réel **si** fourni, sinon on garde l'email technique).
-- Marque `profiles.provider = 'whatsapp'`.
+RLS : SELECT/UPDATE réservé aux admins via `has_role`.
 
-### 3. Frontend mobile — étendre `WhatsAppOtpScreen.tsx`
-Ajouter une **3ᵉ étape** `profile` affichée uniquement si `is_new_user === true` :
-- Champ **Nom complet** (obligatoire)
-- Champ **Email** (optionnel, pour récupération)
-- Bouton **Terminer** → appelle `whatsapp-complete-profile` puis `navigate("/app/chat")`.
-Si `is_new_user === false`, on saute directement à `/app/chat` (comportement actuel conservé).
+Aucune autre table modifiée — `waouh_radar_contacts.auto_notify` et `status` existent déjà.
 
-### 4. Frontend web — nouveau composant `WhatsAppLoginDialog` + bouton sur `AuthPage`
-- Ajouter un bouton **"Continuer avec WhatsApp"** (vert #25D366, identique au mockup fourni) sur `src/pages/AuthPage.tsx`, **au-dessus** des onglets email existants (les onglets email restent intacts).
-- Ouvre une `Dialog` shadcn qui reproduit les 3 étapes (phone → otp → profile si nouveau) en réutilisant la même logique que l'écran mobile (extraite dans un hook `useWhatsAppOtpFlow`).
-- À la fin : `navigate("/dashboard")` (même destination que login email web).
+### 2. Edge function — `waouh-radar-process`
+Avant chaque outreach automatique (`maybeDirectOutreach`) :
+1. Charger `waouh_radar_auto_settings` (cache 30 s).
+2. Bloquer si `auto_enabled = false` ou `pause_until > now()`.
+3. Charger le contact via `phone_e164_normalized` :
+   - skip si `status ∈ {opted_out, blocked}` ou `auto_notify = false`.
+4. Vérifier les caps (compte sur `waouh_outbound_queue` / `waouh_radar_campaign_sends` filtré `event_type LIKE 'radar_auto_%'` sur 24 h).
+5. Si on est hors `quiet_hours`, **planifier** au lieu d'envoyer : insérer dans `waouh_outbound_queue` avec `scheduled_at` = prochain créneau autorisé (le dispatcher existant gère déjà `scheduled_at`).
+6. Logger un `radar_auto_block` ou `radar_auto_schedule` dans `waouh_trace_events` pour traçabilité.
 
-### 5. Hook partagé `useWhatsAppOtpFlow` (`src/hooks/useWhatsAppOtpFlow.ts`)
-- États : `step`, `phone`, `code`, `loading`, `isNewUser`.
-- Méthodes : `sendCode`, `verifyCode`, `completeProfile`, `resend`, `cooldown` (anti-spam 30 s).
-- Utilisé par l'écran mobile **et** la dialog web → DRY, zéro duplication.
+Aucune modification du flux WAOUH locké.
 
-### 6. Cooldown / UX
-- Bouton "Renvoyer le code" désactivé 30 s après envoi (timer visible).
-- Toast d'erreur clair sur : numéro invalide, code expiré, trop de tentatives.
+### 3. Edge function — `waouh-radar-auto-control` (nouvelle)
+Endpoint admin pour :
+- `get_settings`, `update_settings`
+- `pause_now { minutes }` / `resume_now`
+- `bulk_contacts { ids, action: enable_auto | disable_auto | opt_out | block | unblock }`
+- `cancel_scheduled { contact_ids? }` — purge des messages auto en file (`status='queued'`, `event_type LIKE 'radar_auto_%'`).
 
-### 7. Aucune modification destructive
-- Aucune migration de table requise (`profiles` et `whatsapp_otp_codes` existent et ont les bonnes colonnes).
-- Aucune modification des edge functions existantes hors **ajout** d'un champ dans la réponse `verify`.
-- Aucun changement du flux email / Google.
-- Le flux WA mobile actuel continue de fonctionner pendant la transition.
+Tout protégé par `has_role(admin)`.
 
-## Section technique
+### 4. UI — `src/components/admin/RadarAutoControlPanel.tsx` (nouveau)
+Panneau en haut de l'onglet Radar (admin) avec :
+- Switch « Messages auto Radar IA » (kill-switch).
+- Bouton « Pause 1h / 24h / Indéfinie » + bouton « Reprendre ».
+- Heures silencieuses (deux time pickers) + timezone.
+- Caps : `max/contact/jour`, `max total/jour`.
+- Toggle « Activer auto par défaut pour les nouveaux contacts ».
+- Compteur live : envoyés aujourd'hui, planifiés en file, bloqués (opt-out).
+- Bouton « Annuler tous les messages auto programmés ».
 
+### 5. UI — `RadarContactsTab.tsx` (étendue)
+Ajouter aux actions bulk existantes :
+- « Activer auto-notify » / « Désactiver auto-notify » (sur la sélection).
+- « Voir messages auto planifiés » → ouvre une modale listant les entrées `waouh_outbound_queue` à venir pour les contacts sélectionnés, avec bouton « Annuler ».
+
+Aucun changement aux modales / colonnes existantes.
+
+### 6. Intégration
+Monter `RadarAutoControlPanel` dans `WaouhRadarTab.tsx` (au-dessus des sous-onglets) — visible uniquement aux admins (déjà gating en place via route admin).
+
+## Hors scope
+- Aucune modification du WAOUH chat sync flow (locké v1).
+- Aucune modification du dispatcher `waouh-notify-dispatch` au-delà du respect natif de `scheduled_at`.
+- Pas de refonte de `RadarCampaignsTab` (campagnes programmées déjà contrôlables).
+
+## Détails techniques
 ```text
-Architecture finale
-───────────────────
-                    ┌────────────────────────────┐
-                    │ useWhatsAppOtpFlow (hook) │
-                    └─────────────┬──────────────┘
-                                  │
-        ┌─────────────────────────┼──────────────────────────┐
-        │                         │                          │
-┌───────▼────────┐      ┌─────────▼─────────┐      ┌─────────▼──────────┐
-│ Mobile screen  │      │  Web dialog       │      │ (futur: widget)    │
-│ WhatsAppOtp    │      │  WhatsAppLogin    │      │                    │
-│   .tsx (3 step)│      │  Dialog.tsx       │      │                    │
-└───────┬────────┘      └─────────┬─────────┘      └────────────────────┘
-        │                         │
-        └─────────────┬───────────┘
-                      ▼
-         ┌──────────────────────────────┐
-         │  edge: whatsapp-otp-send     │ → WAHA → user WhatsApp
-         │  edge: whatsapp-otp-verify   │ → magic-link + is_new_user
-         │  edge: whatsapp-complete-    │
-         │        profile (NEW)         │ → profiles + auth email
-         └──────────────────────────────┘
+Signal capté
+  └─> waouh-radar-process
+        ├─ load(auto_settings) [cache 30s]
+        ├─ if !auto_enabled OR pause_until>now -> trace 'radar_auto_block(global)'  → STOP
+        ├─ load(contact by phone)
+        │     ├─ status in (opted_out, blocked) -> trace 'radar_auto_block(status)' → STOP
+        │     └─ auto_notify=false               -> trace 'radar_auto_block(per_contact)' → STOP
+        ├─ caps depassés -> trace 'radar_auto_block(cap)' → STOP
+        ├─ in quiet_hours -> enqueue (scheduled_at=next_window) + trace 'radar_auto_schedule'
+        └─ else -> enqueue immediate + trace 'radar_auto_send'
 ```
 
-**Fichiers créés**
-- `supabase/functions/whatsapp-complete-profile/index.ts`
-- `src/hooks/useWhatsAppOtpFlow.ts`
-- `src/components/auth/WhatsAppLoginDialog.tsx`
-
-**Fichiers modifiés (additions uniquement)**
-- `supabase/functions/whatsapp-otp-verify/index.ts` — ajoute `is_new_user`
-- `src/app-mobile/screens/auth/WhatsAppOtpScreen.tsx` — bascule sur le hook + step `profile`
-- `src/pages/AuthPage.tsx` — ajoute le bouton vert + dialog
-
-**Sécurité**
-- `whatsapp-complete-profile` requiert JWT valide (vérification via `auth.getUser()`).
-- Email fourni → check unicité via `auth.admin.listUsers` (réutilise pattern existant).
-- Pas de service_role exposé côté client.
+Helpers UI : Tanstack Query pour `get_settings` + invalidations après chaque mutation. Tout en français, tokens design existants.
