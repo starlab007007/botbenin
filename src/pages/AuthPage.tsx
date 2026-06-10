@@ -19,6 +19,7 @@ const AuthPage: React.FC = () => {
   const redirectTo = searchParams.get('redirect') || '/home';
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [waOpen, setWaOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('login');
 
   // Form states
