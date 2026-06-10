@@ -140,7 +140,7 @@ export default function AdminWaouhDealsPage() {
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
-          <TabsTrigger value="active">En cours ({deals.filter(d => ["pending_assignment","assigned","picked_up","delivered"].includes(d.status)).length})</TabsTrigger>
+          <TabsTrigger value="active">En cours ({deals.filter(d => ["pending_assignment","pending","assigned","picked_up","delivered"].includes(d.status)).length})</TabsTrigger>
           <TabsTrigger value="archive">Historique</TabsTrigger>
         </TabsList>
         <TabsContent value={tab} className="space-y-3">
