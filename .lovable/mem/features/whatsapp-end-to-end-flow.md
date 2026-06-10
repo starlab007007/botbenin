@@ -194,3 +194,38 @@ Radar IA restent silencieux. L'helper et l'invariant sont verrouillés par
 - `radarHelperShared` (waouh-radar.ts contient `findRadarOutreachContext`
   + `radar_buyer_outreach`).
 - Tous les invariants v1→v9 restent actifs.
+
+## v11 — Radar IA → Scénario B miroir (App buyer ↔ WA seller)
+
+**Bug** : symétrique du v10. `radar_seller_outreach` était envoyé aux
+vendeurs WA scrapés mais (a) les hits Radar n'étaient pas inclus dans
+`last_matches` (promotion asynchrone via `EdgeRuntime.waitUntil`), donc
+l'acheteur App ne pouvait pas répondre "intéressé N" sur un hit Radar, et
+(b) la réponse "OUI" / "Je propose X" du vendeur WA scrapé arrivait sans
+contexte article → "Aucune négociation en cours".
+
+**Fix** :
+- `_shared/waouh-radar.ts` étendu : `findRadarSellerOutreachContext(sb, phone)`
+  cherche dans `waouh_outbound_queue` l'outreach `radar_seller_outreach`
+  le plus récent (7j) pour ce numéro et renvoie l'article promu
+  (via `payload.article_id` ou `waouh_radar_signals.promoted_article_id`).
+- Dans `waouh-webhook` : promotion synchrone des top-3 hits Radar AVANT
+  la construction de `last_matches` (`radarPromotedArticles`), puis bloc
+  d'hydratation symétrique côté vendeur juste après le bloc v10 acheteur.
+- Outreach `radar_seller_outreach` payload enrichi avec `article_id` pour
+  permettre la résolution sans round-trip.
+- À la création de la négociation, `pickRadarSignalId` est résolu depuis
+  `pick.radar_signal_id` (synchrone) ou `waouh_articles.origin_signal_id`
+  (fallback), puis le signal SELL est marqué `status = 'converted'`.
+
+**Règle invariante** : ne jamais retirer la promotion synchrone
+`radarPromotedArticles` ni l'hydratation `findRadarSellerOutreachContext`.
+Verrouillé par `radarSellerHydration` + `radarHelperShared` (v11).
+
+## Verrou runtime (v11)
+- `radarSellerHydration` (waouh-webhook contient
+  `findRadarSellerOutreachContext` + `radar_seller_context` +
+  `[radar-seller-hydrate]` + `radarPromotedArticles`).
+- `radarHelperShared` étendu (waouh-radar.ts contient en plus
+  `findRadarSellerOutreachContext` + `radar_seller_outreach`).
+- Tous les invariants v1→v10 restent actifs (65/65 tests).
