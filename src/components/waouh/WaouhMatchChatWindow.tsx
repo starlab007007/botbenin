@@ -167,11 +167,16 @@ export function WaouhMatchChatWindow({
         authUserId: authUserId ?? null,
         role: match.kind,
         notificationId: match.notification_id ?? null,
+        // v12 — when role=seller, restrict history to the specific buyer
+        // so a vendor App with several interested buyers gets one
+        // WaouhMatchChatWindow per buyer.
+        counterpartUserId: match.kind === "seller" ? (match.counterpart_user_id ?? null) : null,
         before: opts.before ?? null,
         limit: opts.limit ?? PAGE_INITIAL,
         includeMeta: opts.includeMeta !== false,
       },
     });
+
     if (error || !(data as any)?.ok) {
       console.warn("[waouh-match-history] error", error || (data as any)?.error);
       return { messages: [], hasMore: false, articleStatus: null, seedNotification: null };
