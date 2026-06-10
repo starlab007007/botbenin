@@ -1,5 +1,5 @@
 ---
-name: WhatsApp & App End-to-End Flow (LOCKED v9)
+name: WhatsApp & App End-to-End Flow (LOCKED v10)
 description: Parcours WAOUH A/B/C × Chat/Partenaire/Radar — vendeur↔acheteur, WhatsApp et/ou App, idempotent. Scénario B validé en production réelle 2026-06-10. LOCKED.
 type: feature
 ---
