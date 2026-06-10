@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, RefreshCw, Play, Send, AlertTriangle } from "lucide-react";
 import RadarContactsTab from "@/components/admin/RadarContactsTab";
+import RadarCampaignsTab from "@/components/admin/RadarCampaignsTab";
 import WaouhE2ETestsTab from "@/components/admin/WaouhE2ETestsTab";
 
 type QueueRow = {
