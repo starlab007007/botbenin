@@ -40,21 +40,57 @@ serve(async (req) => {
     const { error: insErr } = await admin.from("whatsapp_otp_codes").insert({ phone: normalized, code_hash, expires_at });
     if (insErr) return json({ error: insErr.message }, 500);
 
-    // Send via WAHA
-    const sessionName = Deno.env.get("WAHA_DEFAULT_SESSION") || "default";
-    const { data: sendData, error: sendErr } = await admin.functions.invoke("waha-send-message", {
-      body: {
-        sessionName,
-        to: normalized.replace(/^\+/, ""),
-        message: `Votre code WaouhApp : *${code}*\nIl expire dans 5 minutes.\nNe le partagez avec personne.`,
-      },
-    });
-    if (sendErr) {
-      console.error("waha-send-message error", sendErr);
-      // Still return ok so dev can retrieve via logs in dev mode
-      return json({ ok: true, dev_code: Deno.env.get("OTP_DEV_MODE") === "1" ? code : undefined });
+    // Send via WAHA directly (no user auth required for OTP)
+    const sessionName = Deno.env.get("WAHA_DEFAULT_SESSION") || "WaouhApp";
+    let wahaBaseUrl = Deno.env.get("WAHA_BASE_URL") || "";
+    wahaBaseUrl = wahaBaseUrl.replace(/\/$/, "").replace(/\/dashboard$/, "");
+    const wahaApiKey = (Deno.env.get("WAHA_API_KEY_PLAIN") || Deno.env.get("WAHA_API_KEY") || "").trim();
+    const wahaDashUser = Deno.env.get("WAHA_DASHBOARD_USERNAME");
+    const wahaDashPass = Deno.env.get("WAHA_DASHBOARD_PASSWORD");
+
+    if (!wahaBaseUrl) {
+      console.error("WAHA_BASE_URL not configured");
+      return json({ ok: true, dev_code: code, warn: "waha_not_configured" });
     }
-    return json({ ok: true, dev_code: Deno.env.get("OTP_DEV_MODE") === "1" ? code : undefined, send: sendData });
+
+    const headerVariants: Record<string, string>[] = [];
+    if (wahaApiKey) {
+      headerVariants.push(
+        { "Content-Type": "application/json", "X-Api-Key": wahaApiKey },
+        { "Content-Type": "application/json", "Authorization": `Bearer ${wahaApiKey}` },
+      );
+    }
+    if (wahaDashUser && wahaDashPass) {
+      headerVariants.push({ "Content-Type": "application/json", "Authorization": `Basic ${btoa(`${wahaDashUser}:${wahaDashPass}`)}` });
+    }
+    if (headerVariants.length === 0) headerVariants.push({ "Content-Type": "application/json" });
+
+    const chatId = `${normalized.replace(/^\+/, "")}@c.us`;
+    const payload = JSON.stringify({
+      session: sessionName,
+      chatId,
+      text: `Votre code WaouhApp : *${code}*\nIl expire dans 5 minutes.\nNe le partagez avec personne.`,
+    });
+
+    let lastErr = "";
+    let sent = false;
+    for (const headers of headerVariants) {
+      try {
+        const res = await fetch(`${wahaBaseUrl}/api/sendText`, { method: "POST", headers, body: payload });
+        if (res.ok) { sent = true; break; }
+        lastErr = `${res.status} ${await res.text()}`;
+        if (res.status !== 401 && res.status !== 403) break;
+      } catch (e) {
+        lastErr = String((e as Error).message);
+      }
+    }
+
+    if (!sent) {
+      console.error("WAHA sendText failed:", lastErr);
+      return json({ ok: true, dev_code: code, warn: "send_failed", detail: lastErr });
+    }
+
+    return json({ ok: true, dev_code: Deno.env.get("OTP_DEV_MODE") === "1" ? code : undefined });
   } catch (e) {
     console.error("otp-send", e);
     return json({ error: String((e as Error).message) }, 500);
