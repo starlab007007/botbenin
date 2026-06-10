@@ -160,6 +160,9 @@ async function runCell(sb: any, scenario: Scenario, source: Source): Promise<Cel
   const dispatch = await callFn("waouh-notify-dispatch", {
     kind: "new_buyer", article_id: artifacts.article_id,
     counterpart_user_id: buyer.id, recipient: "seller",
+    // 🔒 Mode auto = stubs avec faux numéros (229E2E...). On évite d'enfiler
+    // de vrais envois WhatsApp qui finiraient en "no WA contact" dans la queue.
+    skip_whatsapp: true,
   });
   steps.push({ step: "buyer_interest", expected: "negotiation opened + seller notified",
     got: interestErr ? `interest err: ${interestErr.message}` : `dispatch HTTP ${dispatch.status}`,
