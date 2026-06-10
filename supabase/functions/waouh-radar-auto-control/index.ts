@@ -34,7 +34,7 @@ async function assertAdmin(req: Request) {
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
   const { data: isAdmin, error } = await admin.rpc("has_role", {
     _user_id: user.id,
-    _role: "admin",
+    _role_name: "admin",
   } as any);
   if (error) throw jerr(`Vérification admin impossible: ${error.message}`, 500);
   if (!isAdmin) throw jerr("Accès admin requis", 403);
