@@ -10,12 +10,16 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const CORE_STAGES = ["chat_in", "router", "sync", "queue_enqueue", "whatsapp_send"];
+// Stages effectivement émis par le pipeline (cf. _shared/waouh-sync.ts).
+// Les anciens stages "chat_in", "router", "whatsapp_send" ne sont jamais
+// insérés en base → plafonnaient la complétude à 40% au mieux.
+const CORE_STAGES = ["sync", "queue_enqueue", "web_mirror"];
 
 function completenessFromStages(stages: Set<string>): number {
   const hit = CORE_STAGES.filter((s) => stages.has(s)).length;
   return Math.round((hit / CORE_STAGES.length) * 100);
 }
+
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
