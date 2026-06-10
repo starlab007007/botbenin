@@ -81,12 +81,13 @@ function mergeSnapshots(a: CachedMsg[], b: CachedMsg[]): CachedMsg[] {
  * to the canonical `art_<articleId>_<role>` key, merging histories.
  */
 function migrateLegacyKeys(sid: string, openTabs: MatchChatMeta[]): MatchChatMeta[] {
-  const MIGRATION_FLAG = `waouh_keys_migrated_v2_${sid}`;
+  const MIGRATION_FLAG = `waouh_keys_migrated_v3_${sid}`;
   try {
     if (localStorage.getItem(MIGRATION_FLAG) === "1") return openTabs;
   } catch {
     return openTabs;
   }
+
 
   // 1) Migrate snapshot blobs
   const prefix = `waouh_match_msgs_${sid}_`;
