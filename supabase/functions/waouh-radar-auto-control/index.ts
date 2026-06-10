@@ -141,11 +141,10 @@ Deno.serve(async (req) => {
     if (action === "cancel_scheduled") {
       const ids: string[] | undefined = body.contact_ids;
       let q = admin.from("waouh_outbound_queue")
-        .update({ status: "cancelled", error: "cancelled_by_admin" })
+        .update({ status: "cancelled", last_error: "cancelled_by_admin" })
         .like("event_type", "radar_auto_%")
         .eq("status", "queued");
       if (ids && ids.length) {
-        // payload contains contact_id (jsonb)
         q = q.in("payload->>contact_id", ids as any);
       }
       const { data, error } = await q.select("id");
@@ -156,15 +155,16 @@ Deno.serve(async (req) => {
     if (action === "list_scheduled") {
       const ids: string[] | undefined = body.contact_ids;
       let q = admin.from("waouh_outbound_queue")
-        .select("id, to_phone, template, payload, scheduled_at, created_at, status, event_type")
+        .select("id, to_phone, template, payload, next_attempt_at, created_at, status, event_type")
         .like("event_type", "radar_auto_%")
         .eq("status", "queued")
-        .order("scheduled_at", { ascending: true, nullsFirst: true })
+        .order("next_attempt_at", { ascending: true, nullsFirst: true })
         .limit(200);
       if (ids && ids.length) q = q.in("payload->>contact_id", ids as any);
       const { data, error } = await q;
       if (error) throw error;
-      return jok({ items: data ?? [] });
+      const items = (data ?? []).map((m: any) => ({ ...m, scheduled_at: m.next_attempt_at }));
+      return jok({ items });
     }
 
     return jerr("Action inconnue");
