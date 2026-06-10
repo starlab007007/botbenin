@@ -8,6 +8,7 @@ import {
   beninPhoneCandidates,
 } from "../_shared/waouh-phone.ts";
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
+import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
