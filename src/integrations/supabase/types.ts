@@ -9411,6 +9411,36 @@ export type Database = {
             }
             Returns: string
           }
+      admin_list_waouh_deals: {
+        Args: { p_limit?: number }
+        Returns: {
+          amount: number
+          article_id: string
+          article_title: string
+          buyer_city: string
+          buyer_name: string
+          buyer_phone: string
+          buyer_user_id: string
+          courier_name: string
+          courier_phone: string
+          courier_user_id: string
+          created_at: string
+          dropoff_address: string
+          eta_at: string
+          eta_minutes: number
+          id: string
+          negotiation_id: string
+          payment_method: string
+          payment_status: string
+          pickup_address: string
+          seller_city: string
+          seller_name: string
+          seller_phone: string
+          seller_user_id: string
+          status: string
+          updated_at: string
+        }[]
+      }
       assign_admin_role: { Args: { user_email: string }; Returns: string }
       auto_fix_session_issues: {
         Args: { p_bot_id?: string }
