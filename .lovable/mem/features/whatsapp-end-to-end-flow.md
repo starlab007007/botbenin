@@ -1,12 +1,12 @@
 ---
-name: WhatsApp & App End-to-End Flow (LOCKED v6)
-description: Parcours WAOUH A/B/C × Chat/Partenaire/Radar — vendeur↔acheteur, WhatsApp et/ou App, idempotent. LOCKED.
+name: WhatsApp & App End-to-End Flow (LOCKED v8)
+description: Parcours WAOUH A/B/C × Chat/Partenaire/Radar — vendeur↔acheteur, WhatsApp et/ou App, idempotent. Scénario B validé en production réelle 2026-06-10. LOCKED.
 type: feature
 ---
 
-# Parcours WAOUH bout-en-bout — LOCKED v6 (2026-06-10)
+# Parcours WAOUH bout-en-bout — LOCKED v8 (2026-06-10)
 
-🔒 **Ce flux est validé et figé pour les 9 cellules A1-A3 / B1-B3 / C1-C3. Toute modification est interdite sans nouvelle approbation utilisateur explicite.**
+🔒 **Scénario B (Vendeur App + Acheteur WA) validé en condition réelle le 2026-06-10 : mise en relation, contre-offres bilatérales (acheteur ↔ vendeur), accord OUI/OUI et notifications "achat conclu / vente conclue" routés sur le bon canal pour chaque partie. Toute modification est interdite sans nouvelle approbation utilisateur explicite.**
 
 ## Matrice couverte
 
@@ -112,3 +112,26 @@ appartiennent à la même personne (même `auth_user_id`, même
 ## Verrou runtime (v7)
 - `channelInUsesSiblingIds` (channel-in contient `resolveSiblingUserIds` + `siblingOrFilter`)
 - `routerUsesSiblingIds` (router contient `resolveSiblingUserIds` + `siblingIds.includes(neg.buyer_user_id)`)
+
+### v8 — Verrouillage scénario B validé en production (2026-06-10)
+
+Scénario B (Vendeur App + Acheteur WA) validé bout-en-bout en condition
+réelle. Les correctifs v6/v7 + le rattachement LID inbound via
+`waouh_outbound_queue.last_error = "delivered via <lid>@lid"` ont
+définitivement résolu :
+- la double notification "📩 Nouvel acheteur intéressé" côté vendeur,
+- la promotion catalog→article AVANT l'insert `waouh_negotiations`,
+- la résolution multi-identités (App + WA + LID) du vendeur,
+- le routage des contre-offres vendeur ↔ acheteur sur leur canal natif,
+- la livraison du "✅ Achat conclu" à l'acheteur WA et de la "🎉 Vente
+  conclue" au vendeur App, sans inversion ni doublon.
+
+**Règle invariante** : ne jamais retirer le fallback queue→identité de
+`_shared/waouh-identity.ts` (`identityUsesDeliveredLidQueue`) ni les
+filtres `siblingOrFilter` des trois edge functions
+(`waouh-channel-in`, `waouh-negotiation-router`, `waouh-webhook`).
+
+## Verrou runtime (v8)
+- `identityUsesDeliveredLidQueue` (waouh-identity.ts contient
+  `waouh_outbound_queue` + `delivered via` + `to_user_id`).
+- Tous les invariants v1→v7 restent actifs.
