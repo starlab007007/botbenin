@@ -453,6 +453,11 @@ serve(async (req) => {
 
     let openNeg: { id: string; buyer_user_id: string | null; seller_user_id: string | null } | null = null;
 
+    // 🔑 Multi-identités : une même personne peut avoir plusieurs lignes
+    // waouh_users (App + WA, LID + phone, doublons). On élargit la recherche
+    // à tous les siblings pour ne plus rater la négociation côté contre-offre.
+    const siblingIds = await resolveSiblingUserIds(sb, user);
+
     if (metaArticleId) {
       const { data } = await sb
         .from("waouh_negotiations")
@@ -468,7 +473,7 @@ serve(async (req) => {
       const { data } = await sb
         .from("waouh_negotiations")
         .select("id, buyer_user_id, seller_user_id")
-        .or(`buyer_user_id.eq.${user.id},seller_user_id.eq.${user.id}`)
+        .or(siblingOrFilter(siblingIds))
         .in("state", ["proposed", "countered"])
         .order("updated_at", { ascending: false })
         .limit(1)
@@ -476,10 +481,20 @@ serve(async (req) => {
       openNeg = data as any;
     }
 
-    const negUserId: string =
-      (openNeg && metaRole === "seller" && openNeg.seller_user_id) ||
-      (openNeg && metaRole === "buyer" && openNeg.buyer_user_id) ||
-      user.id;
+    // Choisit l'id sibling qui correspond effectivement à un côté de la négo,
+    // pour que negotiation-router calcule correctement isBuyer/isSeller.
+    let negUserId: string = user.id;
+    if (openNeg) {
+      if (metaRole === "seller" && openNeg.seller_user_id) {
+        negUserId = openNeg.seller_user_id;
+      } else if (metaRole === "buyer" && openNeg.buyer_user_id) {
+        negUserId = openNeg.buyer_user_id;
+      } else if (openNeg.seller_user_id && siblingIds.includes(openNeg.seller_user_id)) {
+        negUserId = openNeg.seller_user_id;
+      } else if (openNeg.buyer_user_id && siblingIds.includes(openNeg.buyer_user_id)) {
+        negUserId = openNeg.buyer_user_id;
+      }
+    }
 
     const lowerText = (text || "").toLowerCase();
     const shouldStayInCore = /(?:int[ée]ress[ée]|interesse)\s*(?:n[°o]?\s*)?(?:x|\d+)|\b(?:je\s+)?(?:cherche|vends)\b/i.test(lowerText);
