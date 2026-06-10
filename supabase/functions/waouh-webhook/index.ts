@@ -584,6 +584,9 @@ serve(async (req) => {
 
       const webSession = target.web_session_id || opts.to_web_session_id || null;
       const articleIdCol = (opts.directMeta as any)?.article_id ?? null;
+      // v12 — always tag the mirrored message with the originator so the
+      // seller's WaouhMatchChatWindow can split history per interested buyer.
+      const counterpartForMeta = user?.id ?? (opts.directMeta as any)?.counterpart_user_id ?? null;
       let insertedMsgId: string | null = null;
       if (target.id) {
         try {
@@ -595,11 +598,12 @@ serve(async (req) => {
             web_session_id: webSession,
             article_id: articleIdCol,
             attachments: opts.directAtts ?? [],
-            meta: { ...(opts.directMeta ?? {}), transaction_id: opts.transaction_id ?? opts.directMeta?.transaction_id ?? null, source: opts.source ?? "chat" },
+            meta: { ...(opts.directMeta ?? {}), counterpart_user_id: counterpartForMeta, buyer_user_id: counterpartForMeta, transaction_id: opts.transaction_id ?? opts.directMeta?.transaction_id ?? null, source: opts.source ?? "chat" },
           }).select("id").maybeSingle();
           insertedMsgId = msg?.id ?? null;
         } catch (e) { console.warn("[pushToOther] msg", e); }
       }
+
 
 
       const quickActions: Array<{ id: string; label: string }> = Array.isArray(opts.payload?.actions)
