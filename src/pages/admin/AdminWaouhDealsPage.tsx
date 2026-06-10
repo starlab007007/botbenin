@@ -252,7 +252,7 @@ const DealCard: React.FC<{
   };
 
   const amountFcfa = Number(deal.amount || 0).toLocaleString("fr-FR");
-  const isPending = deal.status === "pending_assignment";
+  const isPending = deal.status === "pending_assignment" || deal.status === "pending";
   const isAssigned = deal.status === "assigned";
   const isPickedUp = deal.status === "picked_up";
   const isDelivered = deal.status === "delivered";
