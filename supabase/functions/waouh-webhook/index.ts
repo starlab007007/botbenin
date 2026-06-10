@@ -1006,15 +1006,39 @@ serve(async (req) => {
         ];
         nextContext = { ...nextContext, last_matches: combinedMatches };
 
+        // 🛰️ v11 — Promotion Radar IA synchrone + inclusion dans last_matches.
+        // Sans ça, l'acheteur App ne peut pas répondre "intéressé N" sur un
+        // hit Radar (CONFIRM index hors-liste → "Aucune négociation").
+        const radarPromotedArticles: any[] = [];
+        for (const r of radarSellers.slice(0, 3)) {
+          try {
+            const art = r._from_external
+              ? await promoteExternalListing(sb, r, criteriaCategory)
+              : await promoteRadarSeller(sb, r, criteriaCategory);
+            if (art?.id) {
+              radarPromotedArticles.push({
+                id: art.id,
+                title: art.title,
+                price: art.price,
+                seller_id: art.seller_id,
+                photos: art.photos,
+                market_price_min: art.market_price_min,
+                market_price_max: art.market_price_max,
+                source: "radar",
+                radar_signal_id: r.id,
+              });
+            }
+          } catch (e) { console.warn("[radar promote sync]", e); }
+        }
+        if (radarPromotedArticles.length > 0) {
+          nextContext = { ...nextContext, last_matches: [...combinedMatches, ...radarPromotedArticles] };
+        }
+
         const radarAsync = (async () => {
           try {
             for (const r of radarSellers) {
-              try {
-                const art = r._from_external
-                  ? await promoteExternalListing(sb, r, criteriaCategory)
-                  : await promoteRadarSeller(sb, r, criteriaCategory);
-                if (!art?.id) continue;
-              } catch (e) { console.warn("[radar promote]", e); }
+              // L'article promu (si succès synchrone ci-dessus) sert à enrichir le payload
+              const promoted = radarPromotedArticles.find((a: any) => a.radar_signal_id === r.id);
               // 🚀 Outreach automatique WhatsApp aux vendeurs Radar IA (anti-spam: 1/24h)
               const e164 = normalizeBeninPhone(r.contact_phone || r.raw_text || r.contact_handle);
               if (!e164) continue;
@@ -1033,6 +1057,9 @@ serve(async (req) => {
                   p_payload: {
                     text: `👋 Bonjour ! WAOUH a détecté votre annonce "${title}"${priceTxt}. Un acheteur dans ${user!.city || "votre zone"} est intéressé. Répondez *OUI* pour être mis en relation directement avec lui via WAOUH.`,
                     radar_signal_id: r.id,
+                    // v11 — Inclure article_id pour que findRadarSellerOutreachContext
+                    // hydrate le contexte du vendeur sans round-trip via le signal.
+                    article_id: promoted?.id ?? null,
                     source_url: r.raw_url,
                   },
                   p_channel: "whatsapp",
