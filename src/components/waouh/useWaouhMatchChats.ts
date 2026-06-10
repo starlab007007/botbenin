@@ -116,12 +116,15 @@ function migrateLegacyKeys(sid: string, openTabs: MatchChatMeta[]): MatchChatMet
     }
   } catch {}
 
-  // 2) Map open tabs to canonical, capturing notification_ids
+  // 2) Map open tabs to canonical, capturing notification_ids.
+  // v12: seller tabs need a counterpart_user_id; legacy seller tabs without
+  // one are migrated to the `_any` bucket so existing history isn't lost.
   const canonicalTabs = new Map<string, MatchChatMeta>();
   for (const t of openTabs) {
     if (!t.article_id) continue;
     const role = (t.kind || "buyer") as "buyer" | "seller";
-    const ck = matchKey(t.article_id, role);
+    const counterpart = role === "seller" ? (t.counterpart_user_id ?? null) : null;
+    const ck = matchKey(t.article_id, role, counterpart);
     const existing = canonicalTabs.get(ck);
     const nIds = new Set<string>([
       ...((t as any).notification_ids || []),
@@ -136,6 +139,7 @@ function migrateLegacyKeys(sid: string, openTabs: MatchChatMeta[]): MatchChatMet
       notification_ids: Array.from(nIds),
     } as MatchChatMeta);
   }
+
 
   // 3) Resolve n_<notifId> snapshots by matching against canonicalTabs notification_ids
   for (const entry of legacyEntries) {
