@@ -51,6 +51,9 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
       mustNotContain: [
         "{seedNotif?.text}",
         "{seedNotif.text}",
+        // v9 — la fenêtre match DOIT propager authUserId à waouh-channel-in
+        // pour que le sibling resolver retrouve la négo App.
+        "authUserId: null,",
       ],
     },
     // 🆕 v2 — Verrouille le flux 100 % WhatsApp (vendeur ↔ acheteur).
