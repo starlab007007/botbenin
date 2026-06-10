@@ -270,8 +270,9 @@ serve(async (req) => {
               eventType: kind,
               attachments: photos.slice(0, 4).map((url) => ({ url, type: "image/jpeg" })),
               imageUrl: photos[0] ?? null,
-              dedupSuffix: `notify:${recipient}${buyer_profile_id ? `:${buyer_profile_id}` : ""}`,
-              payloadExtra: { article_id, recipient, buyer_profile_id: buyer_profile_id ?? null },
+              dedupSuffix: `notify:${recipient}${counterpart_user_id ? `:cp_${counterpart_user_id}` : (buyer_profile_id ? `:${buyer_profile_id}` : "")}`,
+              payloadExtra: { article_id, recipient, buyer_profile_id: buyer_profile_id ?? null, counterpart_user_id: counterpart_user_id ?? null, buyer_user_id: counterpart_user_id ?? null },
+
             });
           }
         } catch (e) {
