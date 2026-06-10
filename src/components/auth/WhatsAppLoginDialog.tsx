@@ -46,7 +46,10 @@ export default function WhatsAppLoginDialog({ open, onOpenChange, redirectTo = "
               <div className="space-y-2">
                 <Label>Numéro WhatsApp</Label>
                 <Input type="tel" value={flow.phone} onChange={(e) => flow.setPhone(e.target.value)} placeholder="+22997000000" />
-                <p className="text-xs text-muted-foreground">Vous recevrez un code à 6 chiffres.</p>
+                <p className="text-xs text-muted-foreground">
+                  Le code sera envoyé directement sur <span className="font-medium text-[#25D366]">WhatsApp</span>.
+                  Assurez-vous que ce numéro possède bien un compte WhatsApp actif.
+                </p>
               </div>
               <Button onClick={flow.sendCode} disabled={flow.loading || flow.phone.length < 8} className="w-full h-11 bg-[#25D366] hover:bg-[#1da851] text-white">
                 {flow.loading ? "..." : "Envoyer le code"}
