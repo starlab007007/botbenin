@@ -107,12 +107,13 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    let { kind, article_id, catalog_id, buyer_profile_id, recipient, extra_text } = body || {};
+    let { kind, article_id, catalog_id, buyer_profile_id, recipient, extra_text, counterpart_user_id } = body || {};
     if (!kind || !recipient || (!article_id && !catalog_id)) {
       return new Response(JSON.stringify({ error: "kind, recipient and article_id|catalog_id are required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
 
     const sb = createClient(SUPABASE_URL, SERVICE);
 
