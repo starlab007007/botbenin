@@ -8,6 +8,7 @@ import {
   beninPhoneCandidates,
 } from "../_shared/waouh-phone.ts";
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
+import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1004,8 +1005,17 @@ serve(async (req) => {
           returnedActions = [];
         } else {
         const { data: seller } = pick.seller_id
-          ? await sb.from("waouh_users").select("id,phone_number,display_name,web_session_id,city").eq("id", pick.seller_id).maybeSingle()
+          ? await sb.from("waouh_users").select("id,phone_number,display_name,web_session_id,city,auth_user_id").eq("id", pick.seller_id).maybeSingle()
           : { data: null };
+        // 🔒 v8 — Empêche le vendeur d'ouvrir une négociation sur son propre article
+        // (cas seller WhatsApp = LID différent du compte App seller). Sans ça,
+        // une néga miroir est créée avec buyer=vendeur, ce qui détourne les
+        // contre-offres et le "achat conclu" vers lui au lieu du vrai acheteur.
+        const buyerSiblingIds = await resolveSiblingUserIds(sb, user as any);
+        if (pick.seller_id && buyerSiblingIds.includes(pick.seller_id)) {
+          reply = "🤔 Vous êtes le vendeur de cet article. Vous ne pouvez pas vous y intéresser vous-même. Attendez qu'un acheteur se manifeste.";
+          returnedActions = [];
+        } else {
         const { data: artPhoto } = pick.seller_id
           ? await sb.from("waouh_articles").select("photos").eq("id", pick.id).maybeSingle()
           : { data: null };
@@ -1129,23 +1139,28 @@ serve(async (req) => {
         const distLineBuyer = distKm != null ? `\n${fmtDistance(distKm)}` : "";
         reply = `${waouhHeader("✅ Demande envoyée au vendeur")}\n\n📦 *${pick.title}*\n💰 *Prix du vendeur* : ${fmt(askPrice)}${distLineBuyer}\n${firstPhoto ? "📸 *Photo transmise au vendeur*\n" : ""}\n*Que souhaitez-vous faire ?*\n1️⃣ Répondez *OUI* pour accepter ce prix (${fmt(askPrice)}).\n2️⃣ Ou proposez votre prix : *Je propose ${fmt(Math.round(askPrice * 0.9))}*.\n\nLe vendeur attend votre décision.\n\n${waouhFooter()}`;
         } // end if (!promotionFailed)
+        } // end if (!seller is buyer sibling)
         }
       }
 
     } else if (intent.intent === "NEGOTIATE" || (offerMatch && conv?.current_article_id)) {
       const amount = offerMatch ? parseInt(offerMatch[1].replace(/[\s.,]/g, ""), 10) : null;
-      // Trouver la négociation ouverte (acheteur OU vendeur)
+      // 🔒 v8 — Multi-identités : résoudre les siblings (App + WA, LID + phone)
+      // pour retrouver la négo même si l'expéditeur WA n'est pas le même
+      // waouh_users que celui stocké sur la négo (cas vendeur App répondant
+      // depuis son WhatsApp).
+      const negSiblingIds = await resolveSiblingUserIds(sb, user as any);
       const { data: neg } = await sb.from("waouh_negotiations")
         .select("*")
-        .or(`buyer_user_id.eq.${user!.id},seller_user_id.eq.${user!.id}`)
+        .or(siblingOrFilter(negSiblingIds))
         .in("state", ["proposed", "countered"])
-        .order("created_at", { ascending: false })
+        .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (!neg) {
         reply = "🤔 Aucune négociation en cours. Recherchez d'abord un produit puis dites *intéressé 1*.";
       } else if (amount) {
-        const isBuyer = neg.buyer_user_id === user!.id;
+        const isBuyer = negSiblingIds.includes(neg.buyer_user_id);
         const otherId = isBuyer ? neg.seller_user_id : neg.buyer_user_id;
         await sb.from("waouh_negotiations").update({
           state: "countered", last_offer_price: amount, last_actor: isBuyer ? "buyer" : "seller",
@@ -1157,7 +1172,7 @@ serve(async (req) => {
           await pushToOther({
             to_user_id: otherId,
             template: "negotiation_open",
-            payload: { neg_id: neg.id, article_id: neg.article_id, offer: amount, price: amount, actions: [] },
+            payload: { neg_id: neg.id, article_id: neg.article_id, offer: amount, price: amount, actions: [], target_role: isBuyer ? "seller" : "buyer", from_user_id: user!.id },
             directText: counterText,
             directMeta: { intent: "negotiation_open", negotiation_id: neg.id, article_id: neg.article_id },
             transaction_id: null,
@@ -1172,17 +1187,18 @@ serve(async (req) => {
       }
     } else if (intent.intent === "DECIDE_YES" || intent.intent === "DECIDE_NO") {
       // Réponse OUI/NON à une négociation en cours (acheteur OU vendeur)
+      const decSiblingIds = await resolveSiblingUserIds(sb, user as any);
       const { data: neg } = await sb.from("waouh_negotiations")
         .select("*")
-        .or(`buyer_user_id.eq.${user!.id},seller_user_id.eq.${user!.id}`)
+        .or(siblingOrFilter(decSiblingIds))
         .in("state", ["proposed", "countered"])
-        .order("created_at", { ascending: false })
+        .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (!neg) {
         reply = "🤔 Aucune négociation en cours. Recherchez d'abord un produit puis dites *intéressé 1*.";
       } else {
-        const isBuyer = neg.buyer_user_id === user!.id;
+        const isBuyer = decSiblingIds.includes(neg.buyer_user_id);
         const myRole: "buyer" | "seller" = isBuyer ? "buyer" : "seller";
         const otherId = isBuyer ? neg.seller_user_id : neg.buyer_user_id;
         // Garde-fou : on ne peut pas accepter sa propre offre
