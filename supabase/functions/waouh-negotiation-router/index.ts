@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
           web_session_id: target.web_session_id ?? null,
           article_id: articleIdCol,
           attachments,
-          meta: { ...(directMeta || {}), article_id: articleIdCol, transaction_id: transactionId ?? directMeta?.transaction_id ?? null, actions },
+          meta: { ...(directMeta || {}), article_id: articleIdCol, counterpart_user_id: (payload as any)?.from_user_id ?? (directMeta as any)?.counterpart_user_id ?? null, buyer_user_id: (payload as any)?.from_user_id ?? (directMeta as any)?.counterpart_user_id ?? null, transaction_id: transactionId ?? directMeta?.transaction_id ?? null, actions },
         }).select("id").maybeSingle();
         insertedMsgId = msg?.id ?? null;
       } catch (e) { console.warn("[neg-router] msg", e); }
