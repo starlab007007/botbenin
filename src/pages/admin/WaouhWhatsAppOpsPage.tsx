@@ -162,10 +162,12 @@ export default function WaouhWhatsAppOpsPage() {
           <TabsTrigger value="replay">Replay</TabsTrigger>
           <TabsTrigger value="tests">Tests & Alertes</TabsTrigger>
           <TabsTrigger value="radar-contacts">Contacts Radar</TabsTrigger>
+          <TabsTrigger value="radar-campaigns">Campagnes Radar</TabsTrigger>
           <TabsTrigger value="e2e">Tests E2E</TabsTrigger>
         </TabsList>
 
         <TabsContent value="radar-contacts"><RadarContactsTab /></TabsContent>
+        <TabsContent value="radar-campaigns"><RadarCampaignsTab /></TabsContent>
         <TabsContent value="e2e"><WaouhE2ETestsTab /></TabsContent>
 
 
