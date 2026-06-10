@@ -18,8 +18,8 @@
  */
 
 export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
-  version: "v7",
-  lockedAt: "2026-06-10T02:00:00.000Z",
+  version: "v8",
+  lockedAt: "2026-06-10T02:50:00.000Z",
   memoryRef: "mem://features/waouh-chat-sync-flow",
   invariants: Object.freeze({
     webhook: {
@@ -189,6 +189,17 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
       mustContain: [
         "resolveSiblingUserIds",
         "siblingIds.includes(neg.buyer_user_id)",
+      ],
+    },
+    // 🔒 v8 — Quand WAHA envoie au vrai vendeur mais livre via un LID,
+    // l'inbound LID doit se rattacher au `to_user_id` de la queue livrée.
+    // Sinon la réponse vendeur repart vers le core et renvoie "Aucune négociation".
+    identityUsesDeliveredLidQueue: {
+      file: "supabase/functions/_shared/waouh-identity.ts",
+      mustContain: [
+        "waouh_outbound_queue",
+        "delivered via",
+        "to_user_id",
       ],
     },
   }),
