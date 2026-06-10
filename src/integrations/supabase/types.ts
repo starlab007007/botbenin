@@ -7140,6 +7140,171 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_radar_campaign_runs: {
+        Row: {
+          campaign_id: string
+          contacts_sent: number
+          contacts_skipped: number
+          contacts_targeted: number
+          created_at: string
+          errors: Json
+          finished_at: string | null
+          id: string
+          started_at: string
+        }
+        Insert: {
+          campaign_id: string
+          contacts_sent?: number
+          contacts_skipped?: number
+          contacts_targeted?: number
+          created_at?: string
+          errors?: Json
+          finished_at?: string | null
+          id?: string
+          started_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          contacts_sent?: number
+          contacts_skipped?: number
+          contacts_targeted?: number
+          created_at?: string
+          errors?: Json
+          finished_at?: string | null
+          id?: string
+          started_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_radar_campaign_runs_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_radar_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_radar_campaign_sends: {
+        Row: {
+          campaign_id: string
+          contact_id: string
+          created_at: string
+          error: string | null
+          id: string
+          outbound_queue_id: string | null
+          phone_e164: string
+          response_at: string | null
+          run_id: string | null
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          campaign_id: string
+          contact_id: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          outbound_queue_id?: string | null
+          phone_e164: string
+          response_at?: string | null
+          run_id?: string | null
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          campaign_id?: string
+          contact_id?: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          outbound_queue_id?: string | null
+          phone_e164?: string
+          response_at?: string | null
+          run_id?: string | null
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_radar_campaign_sends_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_radar_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_radar_campaign_sends_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_radar_contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_radar_campaign_sends_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_radar_campaign_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_radar_campaigns: {
+        Row: {
+          article_id: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          last_run_at: string | null
+          max_per_contact_per_week: number
+          media_url: string | null
+          message_template: string
+          mode: string
+          name: string
+          next_run_at: string | null
+          rate_limit_per_hour: number
+          schedule: Json
+          segment: Json
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          article_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_run_at?: string | null
+          max_per_contact_per_week?: number
+          media_url?: string | null
+          message_template: string
+          mode?: string
+          name: string
+          next_run_at?: string | null
+          rate_limit_per_hour?: number
+          schedule?: Json
+          segment?: Json
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          article_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          last_run_at?: string | null
+          max_per_contact_per_week?: number
+          media_url?: string | null
+          message_template?: string
+          mode?: string
+          name?: string
+          next_run_at?: string | null
+          rate_limit_per_hour?: number
+          schedule?: Json
+          segment?: Json
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       waouh_radar_contacts: {
         Row: {
           auto_notify: boolean
@@ -7156,6 +7321,7 @@ export type Database = {
           metadata: Json
           notes: string | null
           phone_e164: string
+          phone_e164_normalized: string | null
           signal_count: number
           source: string | null
           status: string
@@ -7177,6 +7343,7 @@ export type Database = {
           metadata?: Json
           notes?: string | null
           phone_e164: string
+          phone_e164_normalized?: string | null
           signal_count?: number
           source?: string | null
           status?: string
@@ -7198,6 +7365,7 @@ export type Database = {
           metadata?: Json
           notes?: string | null
           phone_e164?: string
+          phone_e164_normalized?: string | null
           signal_count?: number
           source?: string | null
           status?: string
@@ -9840,6 +10008,14 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: number
       }
+      merge_radar_contacts_duplicates: {
+        Args: never
+        Returns: {
+          merged_count: number
+          merged_phone: string
+        }[]
+      }
+      normalize_benin_phone: { Args: { raw: string }; Returns: string }
       populate_geometry_columns:
         | { Args: { tbl_oid: unknown; use_typmod?: boolean }; Returns: number }
         | { Args: { use_typmod?: boolean }; Returns: string }
