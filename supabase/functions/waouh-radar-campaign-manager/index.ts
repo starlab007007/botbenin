@@ -125,10 +125,9 @@ Deno.serve(async (req) => {
 
     if (action === "preview_segment") {
       const q = await resolveSegment(admin, body.segment || {});
-      const { count, error } = await q.limit(1);
+      const { data: sample, count, error } = await q.range(0, 9);
       if (error) throw error;
-      const { data: sample } = await (await resolveSegment(admin, body.segment || {})).limit(10);
-      return jok({ count: count ?? 0, sample });
+      return jok({ count: count ?? 0, sample: sample ?? [] });
     }
 
     if (action === "create") {
