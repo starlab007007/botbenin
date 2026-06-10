@@ -1,5 +1,5 @@
 ---
-name: WhatsApp & App End-to-End Flow (LOCKED v8)
+name: WhatsApp & App End-to-End Flow (LOCKED v9)
 description: Parcours WAOUH A/B/C × Chat/Partenaire/Radar — vendeur↔acheteur, WhatsApp et/ou App, idempotent. Scénario B validé en production réelle 2026-06-10. LOCKED.
 type: feature
 ---
@@ -135,3 +135,28 @@ filtres `siblingOrFilter` des trois edge functions
 - `identityUsesDeliveredLidQueue` (waouh-identity.ts contient
   `waouh_outbound_queue` + `delivered via` + `to_user_id`).
 - Tous les invariants v1→v7 restent actifs.
+
+### v9 — Flux B/C jouables directement depuis l'App (2026-06-10)
+
+**Bug** : depuis `WaouhMatchChatWindow`, les contre-offres et acceptations
+envoyées par un utilisateur App (vendeur scénario B, acheteur scénario C)
+renvoyaient "🤔 Aucune négociation en cours". Le send invoquait
+`waouh-channel-in` avec `authUserId: null` — la ligne `waouh_users` créée
+n'avait ni `auth_user_id` ni `phone_number`, donc `resolveSiblingUserIds`
+(v7) ne pouvait pas la lier au `seller_user_id`/`buyer_user_id` (compte App)
+stocké sur `waouh_negotiations`.
+
+**Fix** : `src/components/waouh/WaouhMatchChatWindow.tsx::send()` transmet
+désormais `authUserId: authUserId ?? null` (prop déjà reçu et utilisé par
+`fetchHistory`). `waouh-channel-in` enrichit alors la ligne web avec
+`auth_user_id` (lignes 347-348) et le sibling resolver retrouve la négo.
+
+**Règle invariante** : toute invocation client de `waouh-channel-in` DOIT
+transmettre `authUserId` quand l'utilisateur est authentifié. Le pattern
+`authUserId: null,` est interdit dans `WaouhMatchChatWindow.tsx`
+(`mustNotContain` v9).
+
+## Verrou runtime (v9)
+- `chatWindow.mustNotContain` inclut `authUserId: null,` dans
+  `WaouhMatchChatWindow.tsx`.
+- Tous les invariants v1→v8 restent actifs.
