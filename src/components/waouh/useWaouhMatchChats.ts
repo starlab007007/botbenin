@@ -97,16 +97,23 @@ function migrateLegacyKeys(sid: string, openTabs: MatchChatMeta[]): MatchChatMet
       const k = localStorage.key(i);
       if (!k || !k.startsWith(prefix)) continue;
       const tail = k.slice(prefix.length);
-      if (tail.startsWith("art_")) continue; // already canonical
+      // v12 canonical: art_<id>_buyer | art_<id>_seller_<counterpart|any>
+      if (tail.startsWith("art_") && (tail.endsWith("_buyer") || /_seller_.+$/.test(tail))) continue;
       let canonical: string | null = null;
+      // v11 legacy: art_<id>_seller (no counterpart) → migrate to _any bucket
+      let m = tail.match(/^art_(.+)_seller$/);
+      if (m) canonical = matchKey(m[1], "seller", null);
       // msg_<art>_<role>
-      let m = tail.match(/^msg_(.+)_(buyer|seller)$/);
-      if (m) canonical = matchKey(m[1], m[2] as any);
+      if (!canonical) {
+        m = tail.match(/^msg_(.+)_(buyer|seller)$/);
+        if (m) canonical = matchKey(m[1], m[2] as any, null);
+      }
       if (!canonical) {
         // b_<art> / s_<art>
         m = tail.match(/^([bs])_(.+)$/);
-        if (m) canonical = matchKey(m[2], m[1] === "b" ? "buyer" : "seller");
+        if (m) canonical = matchKey(m[2], m[1] === "b" ? "buyer" : "seller", null);
       }
+
       // n_<notifId>: needs articleId+role from openTabs meta, defer
       let parsed: CachedMsg[] = [];
       try {
