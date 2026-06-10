@@ -121,7 +121,107 @@ async function promoteSignal(sb: any, sig: any, phone: string | null) {
   return null;
 }
 
+// --- Auto-message control (settings + quiet hours + caps) ---
+let _settingsCache: { value: any; expiresAt: number } | null = null;
+async function getAutoSettings(sb: any) {
+  if (_settingsCache && _settingsCache.expiresAt > Date.now()) return _settingsCache.value;
+  const { data } = await sb.from("waouh_radar_auto_settings").select("*").eq("id", 1).maybeSingle();
+  const value = data || {
+    auto_enabled: true, auto_default_for_new_contacts: true,
+    quiet_hours_start: "22:00", quiet_hours_end: "07:00",
+    timezone: "Africa/Porto-Novo", max_per_contact_per_day: 1,
+    max_total_per_day: 200, pause_until: null,
+  };
+  _settingsCache = { value, expiresAt: Date.now() + 30_000 };
+  return value;
+}
+
+function parseHHMM(s: string): { h: number; m: number } {
+  const [h, m] = String(s || "00:00").split(":").map(Number);
+  return { h: h || 0, m: m || 0 };
+}
+
+// Returns null if currently inside an allowed window; otherwise next allowed Date (UTC).
+// quiet window is [start, end) in local tz; outside that window = allowed.
+function nextAllowedDate(settings: any, now: Date = new Date()): Date | null {
+  const tzOffsetMin = settings.timezone === "Africa/Porto-Novo" ? 60 : 0;
+  const local = new Date(now.getTime() + tzOffsetMin * 60000);
+  const { h: qsH, m: qsM } = parseHHMM(settings.quiet_hours_start);
+  const { h: qeH, m: qeM } = parseHHMM(settings.quiet_hours_end);
+  const qsMin = qsH * 60 + qsM;
+  const qeMin = qeH * 60 + qeM;
+  const curMin = local.getUTCHours() * 60 + local.getUTCMinutes();
+  const wrap = qsMin >= qeMin; // crosses midnight (e.g. 22:00 -> 07:00)
+  const inQuiet = wrap ? (curMin >= qsMin || curMin < qeMin) : (curMin >= qsMin && curMin < qeMin);
+  if (!inQuiet) return null;
+  // schedule at next end-of-quiet (qeH:qeM) local time
+  const target = new Date(local);
+  target.setUTCSeconds(0, 0);
+  target.setUTCHours(qeH, qeM, 0, 0);
+  if (target <= local) target.setUTCDate(target.getUTCDate() + 1);
+  return new Date(target.getTime() - tzOffsetMin * 60000);
+}
+
+async function traceAuto(sb: any, stage: string, sig: any, phone: string | null, extra: Record<string, unknown> = {}) {
+  try {
+    await sb.from("waouh_trace_events").insert({
+      stage,
+      status: extra.status ?? "info",
+      payload: { signal_id: sig?.id, phone, intent: sig?.intent, ...extra },
+    });
+  } catch (_) { /* non-blocking */ }
+}
+
 async function enqueueRadarOutreach(sb: any, sig: any, phone: string, promotedId: string | null) {
+  const settings = await getAutoSettings(sb);
+
+  // 1. Global kill-switch / pause
+  if (!settings.auto_enabled) {
+    await traceAuto(sb, "radar_auto_block", sig, phone, { reason: "global_disabled" });
+    return false;
+  }
+  if (settings.pause_until && new Date(settings.pause_until) > new Date()) {
+    await traceAuto(sb, "radar_auto_block", sig, phone, { reason: "paused", pause_until: settings.pause_until });
+    return false;
+  }
+
+  // 2. Per-contact flags
+  const { data: contact } = await sb.from("waouh_radar_contacts")
+    .select("id, status, auto_notify")
+    .or(`phone_e164.eq.${phone},phone_e164_normalized.eq.${phone}`)
+    .maybeSingle();
+  if (contact) {
+    if (["opted_out", "blocked"].includes(contact.status)) {
+      await traceAuto(sb, "radar_auto_block", sig, phone, { reason: `contact_${contact.status}`, contact_id: contact.id });
+      return false;
+    }
+    if (contact.auto_notify === false) {
+      await traceAuto(sb, "radar_auto_block", sig, phone, { reason: "contact_auto_off", contact_id: contact.id });
+      return false;
+    }
+  }
+
+  // 3. Caps (last 24h)
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { count: totalToday } = await sb.from("waouh_outbound_queue")
+    .select("id", { count: "exact", head: true })
+    .like("event_type", "radar_auto_%")
+    .gte("created_at", since);
+  if ((totalToday ?? 0) >= (settings.max_total_per_day || 200)) {
+    await traceAuto(sb, "radar_auto_block", sig, phone, { reason: "cap_total_day", totalToday });
+    return false;
+  }
+  const { count: perContactToday } = await sb.from("waouh_outbound_queue")
+    .select("id", { count: "exact", head: true })
+    .like("event_type", "radar_auto_%")
+    .eq("to_phone", phone)
+    .gte("created_at", since);
+  if ((perContactToday ?? 0) >= (settings.max_per_contact_per_day || 1)) {
+    await traceAuto(sb, "radar_auto_block", sig, phone, { reason: "cap_per_contact", perContactToday });
+    return false;
+  }
+
+  // 4. De-dup (24h same template)
   const title = sig.product?.title || sig.product?.name || sig.category || "votre annonce";
   const template = sig.intent === "SELL" ? "radar_seller_outreach" : "radar_buyer_outreach";
   const text = sig.intent === "SELL"
@@ -129,23 +229,33 @@ async function enqueueRadarOutreach(sb: any, sig: any, phone: string, promotedId
     : `👋 Bonjour ! WAOUH a détecté votre besoin "${title}". Répondez *OUI* pour recevoir des annonces fiables et négocier en direct via WAOUH.`;
 
   const { data: recent } = await sb.from("waouh_outbound_queue")
-    .select("id")
-    .eq("to_phone", phone)
-    .eq("template", template)
-    .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-    .limit(1)
-    .maybeSingle();
-  if (recent) return false;
+    .select("id").eq("to_phone", phone).eq("template", template)
+    .gte("created_at", since).limit(1).maybeSingle();
+  if (recent) {
+    await traceAuto(sb, "radar_auto_block", sig, phone, { reason: "dedup_24h" });
+    return false;
+  }
+
+  // 5. Quiet hours → schedule instead of immediate
+  const scheduleAt = nextAllowedDate(settings);
+  const eventType = scheduleAt ? "radar_auto_scheduled" : "radar_auto_send";
+
   const { error } = await sb.rpc("waouh_enqueue_outbound_v2", {
     p_to_phone: phone,
     p_to_user_id: null,
     p_template: template,
-    p_payload: { text, signal_id: sig.id, source_url: sig.raw_url, promoted_id: promotedId },
+    p_payload: { text, signal_id: sig.id, source_url: sig.raw_url, promoted_id: promotedId, contact_id: contact?.id ?? null, scheduled_at: scheduleAt?.toISOString() ?? null },
     p_image_url: extractProductPhotos(sig)[0] ?? null,
     p_channel: "whatsapp",
-  });
-  if (error) console.warn("[radar-process] direct outreach", error);
-  return !error;
+    p_event_type: eventType,
+  } as any);
+  if (error) {
+    console.warn("[radar-process] direct outreach", error);
+    await traceAuto(sb, "radar_auto_block", sig, phone, { reason: "enqueue_error", error: error.message });
+    return false;
+  }
+  await traceAuto(sb, scheduleAt ? "radar_auto_schedule" : "radar_auto_send", sig, phone, { template, scheduleAt: scheduleAt?.toISOString() ?? null });
+  return true;
 }
 
 Deno.serve(async (req) => {
