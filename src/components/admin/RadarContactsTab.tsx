@@ -118,6 +118,16 @@ export default function RadarContactsTab() {
     load();
   };
 
+  const bulkAuto = async (auto_notify: boolean) => {
+    if (!selected.size) return toast.error("Sélectionnez au moins 1 contact");
+    const ids = Array.from(selected);
+    const { error } = await supabase.from("waouh_radar_contacts" as any).update({ auto_notify }).in("id", ids);
+    if (error) return toast.error(error.message);
+    toast.success(`${ids.length} contact(s) — auto-notify ${auto_notify ? "activé" : "désactivé"}`);
+    setSelected(new Set());
+    load();
+  };
+
   const exportCsv = () => {
     const head = ["phone", "name", "source", "status", "auto_notify", "signals", "buy", "sell", "categories", "cities", "last_seen"];
     const lines = [head.join(",")].concat(filtered.map((r) => [
