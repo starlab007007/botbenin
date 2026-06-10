@@ -51,6 +51,28 @@ const placeholderConfig = (provider: "serpapi" | "apify"): RadarApiConfig => ({
   last_test_message: null,
 });
 
+const getFunctionErrorMessage = async (error: any, fallback: string) => {
+  const response = error?.context as Response | undefined;
+  if (response && typeof response.clone === "function") {
+    try {
+      const payload = await response.clone().json();
+      if (payload?.error) return String(payload.error);
+      if (payload?.message) return String(payload.message);
+    } catch {
+      // Try text below
+    }
+    try {
+      const text = await response.clone().text();
+      if (text) return text.slice(0, 280);
+    } catch {
+      // Keep fallback
+    }
+    if (response.status === 401) return "Authentification requise — reconnectez-vous avec un compte admin";
+    if (response.status === 403) return "Accès admin requis pour configurer les clés Radar";
+  }
+  return error?.message || fallback;
+};
+
 export default function RadarApiConfigPanel() {
   const [configs, setConfigs] = useState<RadarApiConfig[]>([]);
   const [loading, setLoading] = useState(false);
@@ -62,27 +84,32 @@ export default function RadarApiConfigPanel() {
   const setProviderError = (provider: string, msg: string | null) =>
     setErrorByProvider((prev) => ({ ...prev, [provider]: msg }));
 
+  const applyConfigs = (list: RadarApiConfig[]) => {
+    const merged = PROVIDERS.map((p) => list.find((c) => c.provider === p) || placeholderConfig(p));
+    setConfigs(merged);
+    setDraft(Object.fromEntries(
+      merged.map((c) => [c.provider, { api_key: "", daily_quota: c.daily_quota, show: false, editing: !c.api_key }]),
+    ));
+  };
+
   const load = async () => {
     setLoading(true);
     setLoadError(null);
     const { data, error } = await supabase.functions.invoke("waouh-radar-api-config", { body: { action: "list" } });
     setLoading(false);
     if (error) {
-      setLoadError(error.message || "Impossible de charger la configuration");
+      setLoadError(await getFunctionErrorMessage(error, "Impossible de charger la configuration"));
+      applyConfigs([]);
       return;
     }
     const payloadErr = (data as any)?.error;
     if (payloadErr) {
       setLoadError(payloadErr);
+      applyConfigs([]);
       return;
     }
     const list: RadarApiConfig[] = (data as any)?.configs || [];
-    // Ensure both providers are always visible
-    const merged = PROVIDERS.map((p) => list.find((c) => c.provider === p) || placeholderConfig(p));
-    setConfigs(merged);
-    setDraft(Object.fromEntries(
-      merged.map((c) => [c.provider, { api_key: "", daily_quota: c.daily_quota, show: false, editing: !c.api_key }]),
-    ));
+    applyConfigs(list);
   };
 
   useEffect(() => { load(); }, []);
@@ -91,8 +118,9 @@ export default function RadarApiConfigPanel() {
     setProviderError(provider, null);
     const { data, error } = await supabase.functions.invoke("waouh-radar-api-config", { body });
     if (error) {
-      setProviderError(provider, error.message);
-      toast.error(error.message);
+      const message = await getFunctionErrorMessage(error, "Action Radar impossible");
+      setProviderError(provider, message);
+      toast.error(message);
       return null;
     }
     const payloadErr = (data as any)?.error;
@@ -169,17 +197,25 @@ export default function RadarApiConfigPanel() {
       </div>
 
       {loadError && (
-        <Alert variant="destructive" className="mb-3">
+        <Alert variant={loadError.includes("admin") || loadError.includes("Authentification") || loadError.includes("Session") ? "default" : "destructive"} className="mb-3">
           <AlertCircle className="w-4 h-4" />
-          <AlertTitle>Chargement impossible</AlertTitle>
+          <AlertTitle>{loadError.includes("admin") || loadError.includes("Authentification") || loadError.includes("Session") ? "Connexion admin requise" : "Chargement impossible"}</AlertTitle>
           <AlertDescription>
-            {loadError}
+            {loadError}. Les champs restent affichés ci-dessous pour vous montrer où configurer SerpAPI et Apify dès que la session admin est valide.
             <div className="mt-2">
               <Button size="sm" variant="outline" onClick={load}>Réessayer</Button>
             </div>
           </AlertDescription>
         </Alert>
       )}
+
+      <Alert className="mb-3 border-amber-500/30 bg-amber-500/5">
+        <KeyRound className="w-4 h-4 text-amber-500" />
+        <AlertTitle>Où configurer les clés ?</AlertTitle>
+        <AlertDescription className="text-xs">
+          Utilisez les deux blocs ci-dessous : collez la clé dans “Clé API”, cliquez “Enregistrer”, activez l’interrupteur, puis “Tester”.
+        </AlertDescription>
+      </Alert>
 
       <div className="grid md:grid-cols-2 gap-3">
         {configs.map((c) => {

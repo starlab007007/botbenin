@@ -27,7 +27,11 @@ async function assertAdmin(req: Request) {
   const { data: { user } } = await userClient.auth.getUser();
   if (!user) throw jsonError("Session invalide — reconnectez-vous", 401);
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
-  const { data: isAdmin } = await admin.rpc("has_role", { _user_id: user.id, _role: "admin" });
+  const { data: isAdmin, error: roleError } = await admin.rpc("has_role", { _user_id: user.id, _role_name: "admin" });
+  if (roleError) {
+    console.error("[waouh-radar-api-config] has_role failed", roleError);
+    throw jsonError(`Vérification admin impossible: ${roleError.message}`, 500);
+  }
   if (!isAdmin) throw jsonError("Accès admin requis pour cette action", 403);
   return { admin, userId: user.id };
 }
