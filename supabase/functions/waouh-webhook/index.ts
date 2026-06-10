@@ -1145,18 +1145,22 @@ serve(async (req) => {
 
     } else if (intent.intent === "NEGOTIATE" || (offerMatch && conv?.current_article_id)) {
       const amount = offerMatch ? parseInt(offerMatch[1].replace(/[\s.,]/g, ""), 10) : null;
-      // Trouver la négociation ouverte (acheteur OU vendeur)
+      // 🔒 v8 — Multi-identités : résoudre les siblings (App + WA, LID + phone)
+      // pour retrouver la négo même si l'expéditeur WA n'est pas le même
+      // waouh_users que celui stocké sur la négo (cas vendeur App répondant
+      // depuis son WhatsApp).
+      const negSiblingIds = await resolveSiblingUserIds(sb, user as any);
       const { data: neg } = await sb.from("waouh_negotiations")
         .select("*")
-        .or(`buyer_user_id.eq.${user!.id},seller_user_id.eq.${user!.id}`)
+        .or(siblingOrFilter(negSiblingIds))
         .in("state", ["proposed", "countered"])
-        .order("created_at", { ascending: false })
+        .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (!neg) {
         reply = "🤔 Aucune négociation en cours. Recherchez d'abord un produit puis dites *intéressé 1*.";
       } else if (amount) {
-        const isBuyer = neg.buyer_user_id === user!.id;
+        const isBuyer = negSiblingIds.includes(neg.buyer_user_id);
         const otherId = isBuyer ? neg.seller_user_id : neg.buyer_user_id;
         await sb.from("waouh_negotiations").update({
           state: "countered", last_offer_price: amount, last_actor: isBuyer ? "buyer" : "seller",
@@ -1168,7 +1172,7 @@ serve(async (req) => {
           await pushToOther({
             to_user_id: otherId,
             template: "negotiation_open",
-            payload: { neg_id: neg.id, article_id: neg.article_id, offer: amount, price: amount, actions: [] },
+            payload: { neg_id: neg.id, article_id: neg.article_id, offer: amount, price: amount, actions: [], target_role: isBuyer ? "seller" : "buyer", from_user_id: user!.id },
             directText: counterText,
             directMeta: { intent: "negotiation_open", negotiation_id: neg.id, article_id: neg.article_id },
             transaction_id: null,
@@ -1183,17 +1187,18 @@ serve(async (req) => {
       }
     } else if (intent.intent === "DECIDE_YES" || intent.intent === "DECIDE_NO") {
       // Réponse OUI/NON à une négociation en cours (acheteur OU vendeur)
+      const decSiblingIds = await resolveSiblingUserIds(sb, user as any);
       const { data: neg } = await sb.from("waouh_negotiations")
         .select("*")
-        .or(`buyer_user_id.eq.${user!.id},seller_user_id.eq.${user!.id}`)
+        .or(siblingOrFilter(decSiblingIds))
         .in("state", ["proposed", "countered"])
-        .order("created_at", { ascending: false })
+        .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (!neg) {
         reply = "🤔 Aucune négociation en cours. Recherchez d'abord un produit puis dites *intéressé 1*.";
       } else {
-        const isBuyer = neg.buyer_user_id === user!.id;
+        const isBuyer = decSiblingIds.includes(neg.buyer_user_id);
         const myRole: "buyer" | "seller" = isBuyer ? "buyer" : "seller";
         const otherId = isBuyer ? neg.seller_user_id : neg.buyer_user_id;
         // Garde-fou : on ne peut pas accepter sa propre offre
