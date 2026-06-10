@@ -68,7 +68,9 @@ Deno.serve(async (req) => {
     const { data: run } = await admin.from("waouh_radar_campaign_runs").insert({ campaign_id: c.id }).select().single();
     const runId = run?.id;
 
-    const { data: contacts } = await (await resolveSegment(admin, c.segment || {}));
+    const segQ = await resolveSegment(admin, c.segment || {});
+    const { data: contacts, error: segErr } = await segQ;
+    if (segErr) console.error("[tick] segment error", c.id, segErr.message);
     let targeted = (contacts || []).length;
     let sent = 0, skipped = 0;
     const errs: any[] = [];
