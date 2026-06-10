@@ -116,6 +116,8 @@ export default function WaouhRadarTab() {
         <Card className="p-3"><div className="text-xs text-muted-foreground">Promus 24h</div><div className="text-2xl font-bold">{signals.filter(s => (s.promoted_article_id || s.promoted_buyer_profile_id) && Date.now() - new Date(s.captured_at).getTime() < 86400000).length}</div></Card>
       </div>
       <RadarAutoControlPanel />
+      <RadarApiConfigPanel />
+
 
 
       <Tabs value={tab} onValueChange={setTab}>
