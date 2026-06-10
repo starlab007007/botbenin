@@ -443,7 +443,7 @@ serve(async (req) => {
     let returnedTransactionId: string | null = null;
     let replyAttachments: Array<{ url: string; type: string }> = [];
     let returnedActions: Array<{ id: string; label: string }> = [];
-    let nextContext: any = conv?.context ?? {};
+    let nextContext: any = radarHydratedContext ?? (conv?.context ?? {});
 
     const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
     const waouhSep = "━━━━━━━━━━━━━━━━━━";
