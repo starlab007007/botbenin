@@ -294,9 +294,12 @@ serve(async (req) => {
         notifSession = u?.web_session_id ?? null;
       } catch {}
 
-      // Dedupe key: 1 notif per (kind, article, recipient, day) to prevent twin emissions
+      // Dedupe key: 1 notif per (kind, article, recipient, day, counterpart)
+      // v12: counterpart_user_id is part of the key so two different buyers
+      // interested in the same article both trigger a "Nouvel acheteur" card.
       const dayBucket = new Date().toISOString().slice(0, 10);
-      const dedupeKey = `${kind}:${article_id}:${notifTargetUserId}:${recipient}:${dayBucket}${buyer_profile_id ? `:${buyer_profile_id}` : ""}`;
+      const cpSuffix = counterpart_user_id ? `:cp_${counterpart_user_id}` : (buyer_profile_id ? `:${buyer_profile_id}` : "");
+      const dedupeKey = `${kind}:${article_id}:${notifTargetUserId}:${recipient}:${dayBucket}${cpSuffix}`;
 
       const { error: notifErr } = await sb.from("waouh_notifications").insert({
         user_id: notifTargetUserId,
@@ -309,10 +312,13 @@ serve(async (req) => {
           text,
           recipient,
           buyer_profile_id: buyer_profile_id ?? null,
+          counterpart_user_id: counterpart_user_id ?? null,
+          buyer_user_id: counterpart_user_id ?? null,
           article_id,
           photos,
           contact: { channel: target.channel, whatsapp: target.whatsapp, partner_id: target.partnerId },
         },
+
         channel: channelUsed,
         delivered_at: waResult?.ok ? new Date().toISOString() : null,
         delivery_status: waResult?.ok ? "delivered" : (waResult?.skipped ? "queued" : "failed"),
