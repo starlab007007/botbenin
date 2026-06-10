@@ -41,6 +41,7 @@ const STATUS_COLOR: Record<string, string> = {
 
 export default function AdminWaouhDealsPage() {
   const [deals, setDeals] = useState<Deal[]>([]);
+  const [enrichments, setEnrichments] = useState<Record<string, any>>({});
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [loading, setLoading] = useState(true);
   const [newCourierOpen, setNewCourierOpen] = useState(false);
@@ -48,50 +49,67 @@ export default function AdminWaouhDealsPage() {
 
   const fetchData = async () => {
     setLoading(true);
-    const [{ data: d }, { data: c }] = await Promise.all([
-      supabase.from("waouh_deals" as any).select("*").order("created_at", { ascending: false }).limit(200),
-      supabase.from("waouh_couriers" as any).select("*").order("active", { ascending: false }).order("name"),
-    ]);
-    setDeals((d || []) as any);
-    setCouriers((c || []) as any);
-    setLoading(false);
+    try {
+      const [rpcRes, courierRes] = await Promise.all([
+        supabase.rpc("admin_list_waouh_deals" as any, { p_limit: 200 }),
+        supabase.from("waouh_couriers" as any).select("*").order("active", { ascending: false }).order("name"),
+      ]);
+      const rows = (rpcRes.data || []) as any[];
+      // Build legacy deal + enrichment shapes from the flat RPC rows.
+      const dealsOut: any[] = [];
+      const map: Record<string, any> = {};
+      for (const r of rows) {
+        dealsOut.push({
+          id: r.id,
+          status: r.status,
+          payment_status: r.payment_status,
+          payment_method: r.payment_method,
+          amount: r.amount,
+          negotiation_id: r.negotiation_id,
+          article_id: r.article_id,
+          buyer_user_id: r.buyer_user_id,
+          seller_user_id: r.seller_user_id,
+          courier_user_id: r.courier_user_id,
+          courier_name: r.courier_name,
+          courier_phone: r.courier_phone,
+          eta_minutes: r.eta_minutes,
+          eta_at: r.eta_at,
+          pickup_address: r.pickup_address,
+          dropoff_address: r.dropoff_address,
+          created_at: r.created_at,
+          updated_at: r.updated_at,
+        });
+        if (r.article_id) map[`article:${r.article_id}`] = { id: r.article_id, title: r.article_title };
+        if (r.buyer_user_id) map[`user:${r.buyer_user_id}`] = { id: r.buyer_user_id, display_name: r.buyer_name, phone_number: r.buyer_phone, city: r.buyer_city };
+        if (r.seller_user_id) map[`user:${r.seller_user_id}`] = { id: r.seller_user_id, display_name: r.seller_name, phone_number: r.seller_phone, city: r.seller_city };
+      }
+      setDeals(dealsOut);
+      setEnrichments(map);
+      setCouriers((courierRes.data || []) as any);
+      if (rpcRes.error) {
+        console.error("admin_list_waouh_deals error:", rpcRes.error);
+        toast.error("Erreur chargement deals : " + rpcRes.error.message);
+      }
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Erreur de chargement");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { fetchData(); }, []);
-
-  // Enrich deals with article/users in batch (with profiles fallback for name/phone)
-  const [enrichments, setEnrichments] = useState<Record<string, any>>({});
   useEffect(() => {
-    if (deals.length === 0) return;
-    (async () => {
-      const articleIds = Array.from(new Set(deals.map((d) => d.article_id).filter(Boolean)));
-      const userIds = Array.from(new Set(deals.flatMap((d) => [d.buyer_user_id, d.seller_user_id]).filter(Boolean)));
-      const [{ data: arts }, { data: us }] = await Promise.all([
-        articleIds.length ? supabase.from("waouh_articles").select("id, title, price").in("id", articleIds) : Promise.resolve({ data: [] } as any),
-        userIds.length ? supabase.from("waouh_users").select("id, display_name, phone_number, city, auth_user_id").in("id", userIds) : Promise.resolve({ data: [] } as any),
-      ]);
-      const authIds = Array.from(new Set((us || []).map((u: any) => u.auth_user_id).filter(Boolean)));
-      const { data: profs } = authIds.length
-        ? await supabase.from("profiles" as any).select("id, full_name, phone").in("id", authIds)
-        : { data: [] } as any;
-      const profMap: Record<string, any> = {};
-      (profs || []).forEach((p: any) => { profMap[p.id] = p; });
-      const map: Record<string, any> = {};
-      (arts || []).forEach((a: any) => { map[`article:${a.id}`] = a; });
-      (us || []).forEach((u: any) => {
-        const p = u.auth_user_id ? profMap[u.auth_user_id] : null;
-        map[`user:${u.id}`] = {
-          ...u,
-          display_name: u.display_name || p?.full_name || null,
-          phone_number: u.phone_number || p?.phone || null,
-        };
-      });
-      setEnrichments(map);
-    })();
-  }, [deals]);
+    fetchData();
+    // Realtime: refresh when a deal is inserted/updated
+    const ch = supabase
+      .channel("admin-waouh-deals")
+      .on("postgres_changes", { event: "*", schema: "public", table: "waouh_deals" }, () => fetchData())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
 
   const filtered = useMemo(() => {
-    const active = ["pending_assignment", "assigned", "picked_up", "delivered"];
+    const active = ["pending_assignment", "pending", "assigned", "picked_up", "delivered"];
     return deals.filter((d) => tab === "active" ? active.includes(d.status) : !active.includes(d.status));
   }, [deals, tab]);
 
