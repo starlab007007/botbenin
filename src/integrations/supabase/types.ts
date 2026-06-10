@@ -7330,6 +7330,7 @@ export type Database = {
           confidence: number | null
           contact_handle: string | null
           contact_phone: string | null
+          converted_negotiation_id: string | null
           embedding: string | null
           id: string
           intent: string | null
@@ -7353,6 +7354,7 @@ export type Database = {
           confidence?: number | null
           contact_handle?: string | null
           contact_phone?: string | null
+          converted_negotiation_id?: string | null
           embedding?: string | null
           id?: string
           intent?: string | null
@@ -7376,6 +7378,7 @@ export type Database = {
           confidence?: number | null
           contact_handle?: string | null
           contact_phone?: string | null
+          converted_negotiation_id?: string | null
           embedding?: string | null
           id?: string
           intent?: string | null
@@ -7393,6 +7396,13 @@ export type Database = {
           waouh_user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "waouh_radar_signals_converted_negotiation_id_fkey"
+            columns: ["converted_negotiation_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_negotiations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "waouh_radar_signals_promoted_article_id_fkey"
             columns: ["promoted_article_id"]
