@@ -206,6 +206,8 @@ export default function RadarContactsTab() {
           </div>
         </div>
         <div className="flex gap-2 flex-wrap mt-2">
+          <Button size="sm" variant="outline" disabled={!selected.size} onClick={() => bulkAuto(true)}>Activer auto-notify</Button>
+          <Button size="sm" variant="outline" disabled={!selected.size} onClick={() => bulkAuto(false)}>Désactiver auto-notify</Button>
           <Button size="sm" variant="outline" disabled={!selected.size} onClick={() => bulkStatus("opted_in")}>Marquer opted_in</Button>
           <Button size="sm" variant="outline" disabled={!selected.size} onClick={() => bulkStatus("opted_out")}>Marquer opted_out</Button>
           <Button size="sm" variant="outline" disabled={!selected.size} onClick={() => bulkStatus("blocked")}>Bloquer</Button>
