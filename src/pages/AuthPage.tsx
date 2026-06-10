@@ -138,6 +138,15 @@ const AuthPage: React.FC = () => {
             <DialogTitle className="text-center text-xl sm:text-2xl">Connexion / Inscription</DialogTitle>
           </DialogHeader>
           
+          <Button
+            type="button"
+            onClick={() => setWaOpen(true)}
+            className="w-full h-12 mb-4 bg-[#25D366] hover:bg-[#1da851] text-white font-semibold rounded-xl shadow-md"
+          >
+            <MessageCircle className="mr-2 h-5 w-5" />
+            Continuer avec WhatsApp
+          </Button>
+
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="login" className="text-xs sm:text-sm">Connexion</TabsTrigger>
