@@ -1,5 +1,5 @@
 ---
-name: WhatsApp & App End-to-End Flow (LOCKED v9)
+name: WhatsApp & App End-to-End Flow (LOCKED v10)
 description: Parcours WAOUH A/B/C × Chat/Partenaire/Radar — vendeur↔acheteur, WhatsApp et/ou App, idempotent. Scénario B validé en production réelle 2026-06-10. LOCKED.
 type: feature
 ---
@@ -160,3 +160,37 @@ transmettre `authUserId` quand l'utilisateur est authentifié. Le pattern
 - `chatWindow.mustNotContain` inclut `authUserId: null,` dans
   `WaouhMatchChatWindow.tsx`.
 - Tous les invariants v1→v8 restent actifs.
+
+### v10 — Scénario B avec source Radar IA (2026-06-10)
+
+**Bug** : le webhook envoyait déjà `radar_buyer_outreach` aux acheteurs
+scrapés par Radar IA quand un vendeur App publiait un article, mais aucun
+retour n'était câblé. La réponse "OUI" / "Je propose X" de l'acheteur
+arrivait sans contexte (pas de `current_article_id`, pas de
+`last_matches`) et le webhook répondait "🤔 Je n'ai plus la liste".
+
+**Fix** :
+- Nouveau helper `supabase/functions/_shared/waouh-radar.ts` —
+  `findRadarOutreachContext(sb, phone)` cherche dans `waouh_outbound_queue`
+  l'outreach Radar le plus récent (7j) pour ce numéro et renvoie l'article
+  actif + signal id.
+- Dans `waouh-webhook` : juste après le chargement de `conv`, si l'inbound
+  est WhatsApp et qu'il n'y a aucun contexte article, on hydrate
+  `last_matches` + `current_article_id` + `radar_buyer_context.signal_id`.
+- À la création de la négociation (branche CONFIRM), on marque
+  `waouh_radar_signals.status = 'converted'` et on enregistre
+  `converted_negotiation_id` (nouvelle colonne, migration v10).
+- Le reste du flux B (push `match_seller` côté App, contre-offres, OUI/OUI,
+  deal_dispatch) est inchangé et bénéficie des verrous v5-v9.
+
+**Règle invariante** : ne jamais retirer l'hydratation
+`findRadarOutreachContext` dans `waouh-webhook` — sans elle, les acheteurs
+Radar IA restent silencieux. L'helper et l'invariant sont verrouillés par
+`radarBuyerHydration` + `radarHelperShared` (lock v10).
+
+## Verrou runtime (v10)
+- `radarBuyerHydration` (waouh-webhook contient `findRadarOutreachContext`
+  + `radar_buyer_context` + `[radar-buyer-hydrate]`).
+- `radarHelperShared` (waouh-radar.ts contient `findRadarOutreachContext`
+  + `radar_buyer_outreach`).
+- Tous les invariants v1→v9 restent actifs.

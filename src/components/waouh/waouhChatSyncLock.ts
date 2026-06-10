@@ -18,8 +18,8 @@
  */
 
 export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
-  version: "v9",
-  lockedAt: "2026-06-10T03:10:00.000Z",
+  version: "v10",
+  lockedAt: "2026-06-10T03:30:00.000Z",
   memoryRef: "mem://features/waouh-chat-sync-flow",
   invariants: Object.freeze({
     webhook: {
@@ -203,6 +203,24 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
         "waouh_outbound_queue",
         "delivered via",
         "to_user_id",
+      ],
+    },
+    // 🔒 v10 — Radar IA → Scénario B opérationnel.
+    // L'acheteur scrapé par Radar IA qui répond "OUI" au template
+    // `radar_buyer_outreach` doit ouvrir une négociation avec le vendeur App.
+    radarBuyerHydration: {
+      file: "supabase/functions/waouh-webhook/index.ts",
+      mustContain: [
+        "findRadarOutreachContext",
+        "radar_buyer_context",
+        "[radar-buyer-hydrate]",
+      ],
+    },
+    radarHelperShared: {
+      file: "supabase/functions/_shared/waouh-radar.ts",
+      mustContain: [
+        "findRadarOutreachContext",
+        "radar_buyer_outreach",
       ],
     },
   }),
