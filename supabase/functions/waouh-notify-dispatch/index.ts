@@ -200,7 +200,10 @@ serve(async (req) => {
       // garantit la même dédup / le même tracking que les autres évènements.
       try {
         const dayBucket = new Date().toISOString().slice(0, 10);
-        const dedupeKey = `notify:${kind}:${article_id}:${target.whatsapp}:${recipient}:${dayBucket}${buyer_profile_id ? `:${buyer_profile_id}` : ""}`;
+        // v12 — include counterpart_user_id so multiple interested buyers on
+        // the same article each trigger their own notification + WA message.
+        const cpSuffix = counterpart_user_id ? `:cp_${counterpart_user_id}` : (buyer_profile_id ? `:${buyer_profile_id}` : "");
+        const dedupeKey = `notify:${kind}:${article_id}:${target.whatsapp}:${recipient}:${dayBucket}${cpSuffix}`;
         const { error: enqErr } = await sb.rpc("waouh_enqueue_outbound_v2", {
           p_to_phone: target.whatsapp,
           p_to_user_id: notifTargetUserId,
@@ -212,6 +215,8 @@ serve(async (req) => {
             recipient,
             photos,
             buyer_profile_id: buyer_profile_id ?? null,
+            counterpart_user_id: counterpart_user_id ?? null,
+            buyer_user_id: counterpart_user_id ?? null,
           },
           p_web_session_id: null,
           p_image_url: photos?.[0] ?? null,
@@ -219,6 +224,7 @@ serve(async (req) => {
           p_dedupe_key: dedupeKey,
           p_event_type: kind,
         });
+
         if (enqErr) {
           waResult = { ok: false, error: String(enqErr.message || enqErr) };
         } else {
