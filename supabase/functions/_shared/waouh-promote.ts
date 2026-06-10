@@ -9,6 +9,28 @@ export interface PromoteResult {
   reason?: string;
 }
 
+/**
+ * Normalise une catégorie libre (catalogue partenaire / radar) vers l'une
+ * des 7 valeurs acceptées par la CHECK constraint `waouh_articles_category_check`.
+ * Sans ça, des libellés type "Mode & Vêtements", "Téléphone", etc. font
+ * échouer la promotion catalog→article et bloquent la négociation
+ * (scénarios B/C — l'utilisateur voit "Cet article ne peut pas être
+ * négocié pour l'instant").
+ */
+export function normalizeArticleCategory(value: string | null | undefined): string {
+  const v = String(value || "").toLowerCase();
+  if (!v) return "autre";
+  // valeurs déjà canoniques
+  if (["smartphone", "ordinateur", "vetement", "vehicule", "electromenager", "meuble", "autre"].includes(v)) return v;
+  if (/t[ée]l[ée]phone|smartphone|iphone|android|mobile|portable|tecno|samsung|infinix|itel/.test(v)) return "smartphone";
+  if (/ordinateur|pc|laptop|macbook|notebook/.test(v)) return "ordinateur";
+  if (/v[êe]tement|tissu|chaussure|mode|habit|sac|accessoire/.test(v)) return "vetement";
+  if (/voiture|moto|v[ée]hicule|auto|scooter|tricycle/.test(v)) return "vehicule";
+  if (/frigo|cong[ée]lateur|machine|[ée]lectrom[ée]nager|t[ée]l[ée]vision|tv|climatiseur|ventilateur/.test(v)) return "electromenager";
+  if (/maison|logement|immobilier|location|terrain|chambre|salon|meuble|table|chaise|lit/.test(v)) return "meuble";
+  return "autre";
+}
+
 export async function promoteCatalogToArticle(
   sb: any,
   catalog_id: string,
@@ -33,13 +55,21 @@ export async function promoteCatalogToArticle(
     cat.source === "partner" ? "partner" :
     cat.source === "radar_ia" ? "radar_ia" : "waouh_app";
 
+  // 🔒 Normalisation OBLIGATOIRE : la table waouh_articles a une CHECK
+  // constraint stricte (smartphone/ordinateur/vetement/vehicule/
+  // electromenager/meuble/autre). On accepte la valeur brute du catalogue
+  // OU l'override caller, mais on les fait toujours passer par le
+  // normalisateur partagé.
+  const rawCategory = overrides.category ?? cat.categorie ?? null;
+  const normalizedCategory = normalizeArticleCategory(rawCategory);
+
   const { data: article, error } = await sb
     .from("waouh_articles")
     .insert({
       seller_id: overrides.seller_id ?? null,
       title: cat.titre || "Article partenaire",
       description: cat.description || null,
-      category: cat.categorie || overrides.category || "autre",
+      category: normalizedCategory,
       price,
       currency: cat.devise || "XOF",
       photos,

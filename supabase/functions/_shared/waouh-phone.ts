@@ -10,19 +10,42 @@ export type ResolvedWaouhUser = {
   channel?: string | null;
 };
 
-/** Renvoie le numéro canonique principal (229 + local) ou null. */
+/**
+ * Renvoie le numéro canonique principal (229 + local) ou null.
+ *
+ * 🔒 Strict : refuse les valeurs alphanumériques (ex: "229E2ECS64284" venant
+ * des stubs E2E) qui, sans ce garde-fou, étaient transformées en faux MSISDN
+ * "229264284" puis enfilées dans la queue WhatsApp.
+ *
+ * Formats Bénin acceptés :
+ *   - 229 + 8 chiffres locaux (ancien format)
+ *   - 22901 + 8 chiffres locaux (réforme 2021, 10 chiffres locaux)
+ *   - LID natif (`<digits>@lid`)
+ */
 export function normalizeBeninPhone(value: string | null | undefined): string | null {
   const original = String(value || "");
   if (original.includes("@lid")) return original.replace(/[^0-9@.a-z]/gi, "");
+  // Refus strict : tout caractère lettre non-LID = stub/fake (E2E).
+  if (/[A-Za-z]/.test(original)) return null;
   const digits = original.replace(/\D/g, "");
   if (!digits) return null;
-  if (digits.startsWith("00229")) return digits.slice(2);
-  if (digits.startsWith("229")) return digits;
-  if (digits.length === 8 || (digits.length === 10 && digits.startsWith("01"))) return `229${digits}`;
-  const last10 = digits.slice(-10);
-  if (last10.length === 10 && last10.startsWith("01")) return `229${last10}`;
-  const last8 = digits.slice(-8);
-  return last8.length === 8 ? `229${last8}` : null;
+  let candidate: string | null = null;
+  if (digits.startsWith("00229")) candidate = digits.slice(2);
+  else if (digits.startsWith("229")) candidate = digits;
+  else if (digits.length === 8) candidate = `229${digits}`;
+  else if (digits.length === 10 && digits.startsWith("01")) candidate = `229${digits}`;
+  else {
+    const last10 = digits.slice(-10);
+    if (last10.length === 10 && last10.startsWith("01")) candidate = `229${last10}`;
+    else {
+      const last8 = digits.slice(-8);
+      if (last8.length === 8) candidate = `229${last8}`;
+    }
+  }
+  if (!candidate) return null;
+  // Valide la forme finale : 229 + 8 chiffres OU 22901 + 8 chiffres.
+  if (!/^229(\d{8}|01\d{8})$/.test(candidate)) return null;
+  return candidate;
 }
 
 /**
