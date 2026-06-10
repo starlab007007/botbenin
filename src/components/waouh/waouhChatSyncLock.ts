@@ -18,8 +18,8 @@
  */
 
 export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
-  version: "v6",
-  lockedAt: "2026-06-10T01:00:00.000Z",
+  version: "v7",
+  lockedAt: "2026-06-10T02:00:00.000Z",
   memoryRef: "mem://features/waouh-chat-sync-flow",
   invariants: Object.freeze({
     webhook: {
@@ -172,6 +172,23 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
         "Bug 1 fix",
         "seenUserKey",
         "auth_user_id",
+      ],
+    },
+    // 🔒 v7 — Contre-offre vendeur multi-identités (App + WA, LID + phone).
+    // Sans ces fallbacks la contre-offre du vendeur tombe sur
+    // "Aucune négociation en cours" car waouh_users diffère.
+    channelInUsesSiblingIds: {
+      file: "supabase/functions/waouh-channel-in/index.ts",
+      mustContain: [
+        "resolveSiblingUserIds",
+        "siblingOrFilter",
+      ],
+    },
+    routerUsesSiblingIds: {
+      file: "supabase/functions/waouh-negotiation-router/index.ts",
+      mustContain: [
+        "resolveSiblingUserIds",
+        "siblingIds.includes(neg.buyer_user_id)",
       ],
     },
   }),

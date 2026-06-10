@@ -88,3 +88,27 @@ Invariants ajoutés :
   `Bug 2 fix`).
 - `vendorContactsSingleRecipient` (waouh-webhook contient `Bug 1 fix`,
   `seenUserKey`, `auth_user_id` dans `resolveVendorContacts`).
+
+### v7 — Contre-offre vendeur multi-identités (2026-06-10)
+
+**Bug** : en situation réelle scénario B, quand le vendeur (App) répondait
+"je propose X" depuis WhatsApp, `waouh-negotiation-router` répondait
+"🤔 Aucune négociation en cours". Cause : le sender WA (`<lid>@lid` non
+résolu) créait une nouvelle ligne `waouh_users` différente du
+`seller_user_id` stocké sur `waouh_negotiations` (qui pointe vers le compte
+App ou le compte WA canonique). Le filtre
+`or(buyer_user_id.eq.user.id,seller_user_id.eq.user.id)` retournait `null`.
+
+**Fix** : nouveau helper partagé
+`supabase/functions/_shared/waouh-identity.ts` —
+`resolveSiblingUserIds(sb, user)` retourne tous les `waouh_users.id` qui
+appartiennent à la même personne (même `auth_user_id`, même
+`phone_number`, LID ↔ phone via `waouh_lid_phone_map`).
+- `waouh-channel-in` : lookup négo via `siblingOrFilter(ids)`, `negUserId`
+  ré-aligné sur l'id sibling qui correspond effectivement à buyer/seller.
+- `waouh-negotiation-router` : lookup négo via `siblingOrFilter(ids)`,
+  `isBuyer = siblingIds.includes(neg.buyer_user_id)`.
+
+## Verrou runtime (v7)
+- `channelInUsesSiblingIds` (channel-in contient `resolveSiblingUserIds` + `siblingOrFilter`)
+- `routerUsesSiblingIds` (router contient `resolveSiblingUserIds` + `siblingIds.includes(neg.buyer_user_id)`)

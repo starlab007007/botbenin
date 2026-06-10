@@ -4,6 +4,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { contactExchangeText, waouhHeader, waouhFooter, waouhSep, distanceKm, formatDistance, resolveRealPhoneE164 } from "../_shared/waouh-format.ts";
+import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -128,10 +129,14 @@ Deno.serve(async (req) => {
     if (!user && phone) ({ data: user } = await sb.from("waouh_users").select("*").eq("phone_number", phone).maybeSingle());
     if (!user) return new Response(JSON.stringify({ ok: false, reason: "user not found" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+    // 🔑 Multi-identités : on cherche la négo via tous les waouh_users qui
+    // appartiennent à la même personne (App + WA, LID + phone, doublons).
+    const siblingIds = await resolveSiblingUserIds(sb, user);
+
     const { data: neg } = await sb
       .from("waouh_negotiations")
       .select("*")
-      .or(`buyer_user_id.eq.${user.id},seller_user_id.eq.${user.id}`)
+      .or(siblingOrFilter(siblingIds))
       .in("state", ["proposed", "countered"])
       .order("updated_at", { ascending: false })
       .limit(1)
@@ -142,7 +147,7 @@ Deno.serve(async (req) => {
     }
 
     const intent = await aiIntent(text || "");
-    const isBuyer = neg.buyer_user_id === user.id;
+    const isBuyer = siblingIds.includes(neg.buyer_user_id);
     const otherUserId = isBuyer ? neg.seller_user_id : neg.buyer_user_id;
     const amount = Number(neg.last_offer_price || 0);
 
