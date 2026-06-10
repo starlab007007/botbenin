@@ -27,6 +27,40 @@ function lidPart(value: string | null | undefined): string | null {
   return null;
 }
 
+function addPhoneVariants(out: Set<string>, value: string | null | undefined) {
+  const raw = String(value || "").trim();
+  if (!raw || isLid(raw)) return;
+  out.add(raw);
+
+  const digits = raw.replace(/^\+/, "").replace(/\D/g, "");
+  if (!digits) return;
+  out.add(digits);
+  out.add(`+${digits}`);
+
+  if (digits.startsWith("229")) {
+    const local = digits.slice(3);
+    if (local.length === 10 && local.startsWith("01")) {
+      const legacy = `229${local.slice(2)}`;
+      out.add(legacy);
+      out.add(`+${legacy}`);
+    } else if (local.length === 8) {
+      const modern = `22901${local}`;
+      out.add(modern);
+      out.add(`+${modern}`);
+    }
+  } else if (digits.length === 8) {
+    out.add(`229${digits}`);
+    out.add(`+229${digits}`);
+    out.add(`22901${digits}`);
+    out.add(`+22901${digits}`);
+  } else if (digits.length === 10 && digits.startsWith("01")) {
+    out.add(`229${digits}`);
+    out.add(`+229${digits}`);
+    out.add(`229${digits.slice(2)}`);
+    out.add(`+229${digits.slice(2)}`);
+  }
+}
+
 export async function resolveSiblingUserIds(
   sb: any,
   user: WaouhUserLike | null | undefined,
@@ -65,7 +99,7 @@ export async function resolveSiblingUserIds(
       const lid = lidPart(user.phone_number);
       if (lid) lidsToExpand.add(lid);
     } else if (user.phone_number) {
-      phonesToExpand.add(user.phone_number);
+      addPhoneVariants(phonesToExpand, user.phone_number);
     }
 
     if (lidsToExpand.size > 0) {
@@ -75,8 +109,28 @@ export async function resolveSiblingUserIds(
         .in("lid", [...lidsToExpand])
         .limit(20);
       for (const r of data || []) {
-        if (r.phone_e164) phonesToExpand.add(r.phone_e164);
-        if (r.phone) phonesToExpand.add(r.phone);
+        addPhoneVariants(phonesToExpand, r.phone_e164);
+        addPhoneVariants(phonesToExpand, r.phone);
+      }
+    }
+
+    // 3b) Si WAHA a livré une notif à un vrai vendeur via `<lid>@lid`,
+    // `waouh_outbound_queue.last_error` garde "delivered via <lid>@lid".
+    // Cela permet de relier immédiatement la réponse entrante LID au `to_user_id`
+    // ciblé, même avant qu'un mapping LID→phone exploitable soit créé.
+    if (lidsToExpand.size > 0) {
+      const lidJids = [...lidsToExpand].map((l) => `${l}@lid`);
+      const markers = lidJids.map((jid) => `delivered via ${jid}`);
+      const { data } = await sb
+        .from("waouh_outbound_queue")
+        .select("to_user_id, to_phone")
+        .eq("status", "sent")
+        .in("last_error", markers)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      for (const r of data || []) {
+        if (r.to_user_id) ids.add(r.to_user_id);
+        addPhoneVariants(phonesToExpand, r.to_phone);
       }
     }
 
