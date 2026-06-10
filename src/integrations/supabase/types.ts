@@ -7071,6 +7071,59 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_price_snapshots: {
+        Row: {
+          article_id: string | null
+          category: string | null
+          city: string | null
+          confidence: string
+          created_at: string
+          id: string
+          n_internal: number
+          n_radar: number
+          n_web: number
+          query: string
+          sources: Json
+          stats: Json
+        }
+        Insert: {
+          article_id?: string | null
+          category?: string | null
+          city?: string | null
+          confidence?: string
+          created_at?: string
+          id?: string
+          n_internal?: number
+          n_radar?: number
+          n_web?: number
+          query: string
+          sources?: Json
+          stats?: Json
+        }
+        Update: {
+          article_id?: string | null
+          category?: string | null
+          city?: string | null
+          confidence?: string
+          created_at?: string
+          id?: string
+          n_internal?: number
+          n_radar?: number
+          n_web?: number
+          query?: string
+          sources?: Json
+          stats?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_price_snapshots_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       waouh_processed_events: {
         Row: {
           created_at: string
