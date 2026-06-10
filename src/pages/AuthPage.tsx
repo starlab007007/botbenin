@@ -7,9 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Mail, Lock, User, MessageCircle } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
+import WhatsAppLoginDialog from '@/components/auth/WhatsAppLoginDialog';
 
 const AuthPage: React.FC = () => {
   const { login, register, resetPassword, loginWithGoogle, isAuthenticated } = useAuth();
