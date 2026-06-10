@@ -11,17 +11,24 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
+function jsonError(message: string, status: number) {
+  return new Response(JSON.stringify({ ok: false, error: message }), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 async function assertAdmin(req: Request) {
   const auth = req.headers.get("Authorization");
-  if (!auth) throw new Response("Unauthorized", { status: 401 });
+  if (!auth) throw jsonError("Authentification requise (token manquant)", 401);
   const userClient = createClient(SUPABASE_URL, ANON_KEY, {
     global: { headers: { Authorization: auth } },
   });
   const { data: { user } } = await userClient.auth.getUser();
-  if (!user) throw new Response("Unauthorized", { status: 401 });
+  if (!user) throw jsonError("Session invalide — reconnectez-vous", 401);
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
   const { data: isAdmin } = await admin.rpc("has_role", { _user_id: user.id, _role: "admin" });
-  if (!isAdmin) throw new Response("Forbidden", { status: 403 });
+  if (!isAdmin) throw jsonError("Accès admin requis pour cette action", 403);
   return { admin, userId: user.id };
 }
 

@@ -1,45 +1,40 @@
 ## Diagnostic
 
-Les deux boutons appellent des edge functions qui ne se chargent jamais :
+- La fonction `waouh-radar-api-config` est joignable : un appel direct retourne `401 Unauthorized`, donc elle ne plante plus au chargement.
+- Le vrai problème restant côté navigateur est que les erreurs `401/403` de cette fonction repartent sans headers CORS, car `assertAdmin()` lance une `Response` brute et le `catch` la retourne telle quelle. Résultat : le navigateur masque l’erreur réelle et affiche seulement `Failed to send a request to the Edge Function`.
+- La configuration existe en base, mais elle est inactive et sans clés :
+  - `apify`: désactivé, aucune clé
+  - `serpapi`: désactivé, aucune clé
+- Le panneau actuel n’est pas assez exploitable : il liste des champs mais ne guide pas clairement l’admin sur où cliquer pour ajouter/changer une clé, activer le provider, tester puis lancer un scan.
 
-| UI | Edge function | Logs |
-|---|---|---|
-| Capture 1 — "Re-sync depuis signaux" (Contacts Radar) | `waouh-radar-api-config` (action `contacts_sync`) | Booted en 24ms puis Shutdown immédiat, **aucun log handler** |
-| Capture 2 — boutons SerpAPI / Apify / Process queue (Radar IA admin) | `waouh-serpapi-scout`, `waouh-radar-apify`, `waouh-radar-process` | Mêmes Boot/Shutdown sans handler |
+## Plan de correction
 
-### Cause racine
-Les 4 fonctions importent :
+1. **Corriger l’erreur “Failed to send…”**
+   - Dans `waouh-radar-api-config`, remplacer les retours `Unauthorized` / `Forbidden` bruts par des réponses JSON avec CORS.
+   - Exemple de résultat attendu côté UI : `Non autorisé` ou `Accès admin requis`, au lieu de `Failed to send a request to the Edge Function`.
+   - Ajouter le même format d’erreur CORS pour toutes les branches d’échec de cette fonction.
 
-```ts
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-```
+2. **Rendre le panneau Configuration API Radar évident**
+   - Ajouter un état visible en haut : “SerpAPI non configuré” / “Apify non configuré” / “Actif”.
+   - Remplacer les champs ambigus par un parcours clair :
+     - `1. Coller / changer la clé API`
+     - `2. Enregistrer la clé`
+     - `3. Activer le provider`
+     - `4. Tester la connexion`
+   - Afficher des boutons explicites : `Changer la clé`, `Enregistrer`, `Activer`, `Tester`.
+   - Afficher les erreurs retournées par l’Edge Function dans le panneau, pas seulement en toast.
 
-Ce sous-chemin **n'existe pas** dans le package `@supabase/supabase-js` (la doc Lovable l'évoque mais le package npm ne l'exporte pas). Deno edge-runtime échoue donc à charger le module avant même d'invoquer le handler → côté client, `supabase.functions.invoke` reçoit une erreur de connexion réseau et le toast affiche "Failed to send a request to the Edge Function".
+3. **Éviter un panneau vide ou inutilisable**
+   - Si la liste de configuration ne charge pas, afficher une alerte claire avec un bouton `Réessayer`.
+   - Si aucune ligne de configuration n’est retournée, afficher un état vide explicite au lieu d’une carte blanche.
+   - Garder les deux providers attendus (`SerpAPI`, `Apify`) visibles même si la réponse est incomplète.
 
-Les autres fonctions du projet qui marchent (ex. `waouh-channel-in`, `waouh-historique`) **n'utilisent pas** cet import — elles définissent `corsHeaders` inline ou via `_shared/guestTicket.ts`.
+4. **Améliorer les boutons Radar IA**
+   - Quand SerpAPI ou Apify n’a pas de clé active, le bouton de scan affichera une erreur utile : `Configurez et activez SerpAPI avant de lancer ce scan`.
+   - Conserver les boutons existants (`SerpAPI`, `Apify`, `Process queue`) mais rendre leur retour plus lisible : succès, provider désactivé, quota atteint, clé absente.
 
-## Correction proposée
-
-Dans les 4 fichiers ci-dessous :
-- `supabase/functions/waouh-radar-api-config/index.ts`
-- `supabase/functions/waouh-radar-process/index.ts`
-- `supabase/functions/waouh-serpapi-scout/index.ts`
-- `supabase/functions/waouh-radar-apify/index.ts`
-
-Remplacer l'import cassé par une constante locale :
-
-```ts
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-};
-```
-
-Aucune autre logique modifiée. Pas de migration SQL. Pas de nouveau secret.
-
-## Vérification
-1. Déployer les 4 fonctions.
-2. Tester `Re-sync depuis signaux` → réponse JSON (200/4xx structuré) au lieu de "Failed to send…".
-3. Tester `Process queue` / `SerpAPI` / `Apify` → idem.
-4. Confirmer dans les logs edge l'apparition de logs handler (et non plus seulement Boot/Shutdown).
+5. **Vérification après correction**
+   - Tester `waouh-radar-api-config` avec et sans session admin pour confirmer qu’on obtient une erreur JSON lisible au lieu d’un échec réseau.
+   - Tester le chargement du panneau Configuration API Radar.
+   - Tester le parcours : coller une clé → enregistrer → activer → tester.
+   - Tester `Re-sync depuis signaux` et les boutons `SerpAPI` / `Apify` / `Process queue` pour confirmer que les erreurs sont structurées et exploitables.
