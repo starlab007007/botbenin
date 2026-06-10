@@ -1165,11 +1165,27 @@ serve(async (req) => {
             if (typeof d === "number") distKm = Math.round(d * 10) / 10;
           } catch {}
         }
+        // 🛰️ v11 — Si le pick a été promu depuis Radar IA (côté vendeur WA),
+        // on retrouve le signal source pour le marquer comme converti
+        // (symétrique au v10 acheteur). Le radar_signal_id provient soit du
+        // pick (synchrone promu plus haut) soit de la ligne waouh_articles
+        // (origin = 'radar', origin_signal_id).
+        let pickRadarSignalId: string | null = pick.radar_signal_id ?? null;
+        if (!pickRadarSignalId && pickSource === "radar") {
+          try {
+            const { data: a } = await sb.from("waouh_articles")
+              .select("origin, origin_signal_id")
+              .eq("id", pick.id).maybeSingle();
+            if (a?.origin === "radar" && a?.origin_signal_id) {
+              pickRadarSignalId = a.origin_signal_id;
+            }
+          } catch {}
+        }
         // Négociation seule, AUCUNE transaction n'est créée (plus de paiement)
         const { data: neg } = await sb.from("waouh_negotiations").insert({
           article_id: pick.id, buyer_user_id: user!.id, seller_user_id: pick.seller_id,
           state: "proposed", last_offer_price: askPrice, last_actor: "system",
-          meta: { source: pickSource, stage: "awaiting_buyer_decision", rounds: 0, radar_signal_id: radarBuyerContext?.signal_id ?? null },
+          meta: { source: pickSource, stage: "awaiting_buyer_decision", rounds: 0, radar_signal_id: radarBuyerContext?.signal_id ?? pickRadarSignalId ?? null },
         }).select().single();
         // 🛰️ v10 — Si la négo provient d'un outreach Radar IA, marquer le
         // signal comme converti pour éviter de re-contacter l'acheteur sur
@@ -1180,6 +1196,16 @@ serve(async (req) => {
               .update({ status: "converted", converted_negotiation_id: neg.id, updated_at: new Date().toISOString() })
               .eq("id", radarBuyerContext.signal_id);
           } catch (e) { console.warn("[radar-buyer-hydrate] mark converted failed", e); }
+        }
+        // 🛰️ v11 — Miroir : marquer le signal SELL converti quand l'acheteur
+        // App ouvre une négo sur une annonce promue depuis Radar IA.
+        if (pickRadarSignalId && neg?.id && pickRadarSignalId !== radarBuyerContext?.signal_id) {
+          try {
+            await sb.from("waouh_radar_signals")
+              .update({ status: "converted", converted_negotiation_id: neg.id, updated_at: new Date().toISOString() })
+              .eq("id", pickRadarSignalId);
+            console.log("[radar-seller-hydrate] mark converted", { signal_id: pickRadarSignalId, neg_id: neg.id });
+          } catch (e) { console.warn("[radar-seller-hydrate] mark converted failed", e); }
         }
         returnedArticleId = pick.id;
         returnedTransactionId = null;
