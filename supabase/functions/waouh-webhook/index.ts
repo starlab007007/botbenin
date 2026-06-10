@@ -1086,8 +1086,18 @@ serve(async (req) => {
         const { data: neg } = await sb.from("waouh_negotiations").insert({
           article_id: pick.id, buyer_user_id: user!.id, seller_user_id: pick.seller_id,
           state: "proposed", last_offer_price: askPrice, last_actor: "system",
-          meta: { source: pickSource, stage: "awaiting_buyer_decision", rounds: 0 },
+          meta: { source: pickSource, stage: "awaiting_buyer_decision", rounds: 0, radar_signal_id: radarBuyerContext?.signal_id ?? null },
         }).select().single();
+        // 🛰️ v10 — Si la négo provient d'un outreach Radar IA, marquer le
+        // signal comme converti pour éviter de re-contacter l'acheteur sur
+        // la même annonce et alimenter les métriques admin.
+        if (radarBuyerContext?.signal_id && neg?.id) {
+          try {
+            await sb.from("waouh_radar_signals")
+              .update({ status: "converted", converted_negotiation_id: neg.id, updated_at: new Date().toISOString() })
+              .eq("id", radarBuyerContext.signal_id);
+          } catch (e) { console.warn("[radar-buyer-hydrate] mark converted failed", e); }
+        }
         returnedArticleId = pick.id;
         returnedTransactionId = null;
         const sellerCanon = seller?.phone_number ? normalizeBeninPhone(seller.phone_number) : null;
