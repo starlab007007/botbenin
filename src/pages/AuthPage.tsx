@@ -7,9 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Mail, Lock, User, MessageCircle } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
+import WhatsAppLoginDialog from '@/components/auth/WhatsAppLoginDialog';
 
 const AuthPage: React.FC = () => {
   const { login, register, resetPassword, loginWithGoogle, isAuthenticated } = useAuth();
@@ -18,6 +19,7 @@ const AuthPage: React.FC = () => {
   const redirectTo = searchParams.get('redirect') || '/home';
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [waOpen, setWaOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('login');
 
   // Form states
@@ -136,6 +138,15 @@ const AuthPage: React.FC = () => {
             <DialogTitle className="text-center text-xl sm:text-2xl">Connexion / Inscription</DialogTitle>
           </DialogHeader>
           
+          <Button
+            type="button"
+            onClick={() => setWaOpen(true)}
+            className="w-full h-12 mb-4 bg-[#25D366] hover:bg-[#1da851] text-white font-semibold rounded-xl shadow-md"
+          >
+            <MessageCircle className="mr-2 h-5 w-5" />
+            Continuer avec WhatsApp
+          </Button>
+
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="login" className="text-xs sm:text-sm">Connexion</TabsTrigger>
@@ -412,6 +423,7 @@ const AuthPage: React.FC = () => {
           </Tabs>
         </DialogContent>
       </Dialog>
+      <WhatsAppLoginDialog open={waOpen} onOpenChange={setWaOpen} redirectTo={redirectTo} />
     </div>
   );
 };

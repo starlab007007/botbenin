@@ -48,8 +48,9 @@ serve(async (req) => {
     // Create or get user — use deterministic email
     const fakeEmail = `wa_${normalized.replace(/[^\d]/g, "")}@waouhapp.local`;
     let userId: string | null = null;
+    let isNewUser = false;
     const { data: existing } = await admin.auth.admin.listUsers();
-    const found = existing?.users?.find((u) => u.email === fakeEmail);
+    const found = existing?.users?.find((u) => u.email === fakeEmail || u.user_metadata?.whatsapp_phone === normalized);
     if (found) {
       userId = found.id;
     } else {
@@ -61,8 +62,17 @@ serve(async (req) => {
       });
       if (createErr) return json({ error: createErr.message }, 500);
       userId = created.user?.id ?? null;
+      isNewUser = true;
     }
     if (!userId) return json({ error: "user_creation_failed" }, 500);
+
+    // Detect profile completeness — if a profile already exists with full_name set, treat as existing
+    try {
+      const { data: prof } = await admin.from("profiles").select("full_name").eq("id", userId).maybeSingle();
+      if (!prof || !prof.full_name || /^\+?\d+$/.test(String(prof.full_name).trim())) {
+        isNewUser = true;
+      }
+    } catch (_) { /* non-blocking */ }
 
     // Generate magic link for session
     const { data: link, error: linkErr } = await admin.auth.admin.generateLink({
@@ -75,6 +85,7 @@ serve(async (req) => {
       ok: true,
       user_id: userId,
       email: fakeEmail,
+      is_new_user: isNewUser,
       action_link: link.properties?.action_link,
       hashed_token: link.properties?.hashed_token,
       email_otp: link.properties?.email_otp,
