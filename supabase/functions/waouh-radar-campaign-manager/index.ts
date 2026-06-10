@@ -197,8 +197,12 @@ Deno.serve(async (req) => {
     if (action === "normalize_diagnostic") {
       const { count: invalidCount } = await admin.from("waouh_radar_contacts")
         .select("id", { count: "exact", head: true }).is("phone_e164_normalized", null);
-      const { data: dups } = await admin.rpc("merge_radar_contacts_duplicates" as any).then((r: any) => ({ data: r?.data })).catch(() => ({ data: [] }));
-      return jok({ invalid: invalidCount ?? 0, merged: dups || [] });
+      const { data: dups, error: dupErr } = await admin.rpc("merge_radar_contacts_duplicates" as any);
+      return jok({
+        invalid: invalidCount ?? 0,
+        merged: Array.isArray(dups) ? dups : (dups ? [dups] : []),
+        merge_error: dupErr?.message ?? null,
+      });
     }
 
     return jerr("Action inconnue");
