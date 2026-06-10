@@ -1,107 +1,95 @@
 
-## Objectif
+## Audit Sécurité & Hardening Production WAOUH
 
-Remplacer l'estimation "vibes IA" actuelle par une vraie analyse marché reposant sur des **données réelles de produits similaires**, collectées en direct par l'IA, puis présentée de façon synthétique et crédible dans le chat WhatsApp.
+Objectif : passer la plateforme en production en corrigeant les failles critiques détectées par le scanner, fiabiliser le module chat (cœur business) et améliorer la performance/observabilité.
 
-## Diagnostic du flux actuel
+## 1. Constat du scan sécurité
 
-`supabase/functions/waouh-price-compare/index.ts` fait aujourd'hui :
-1. Échantillonne 50 annonces internes (`waouh_articles`) même ville + même catégorie.
-2. Envoie le tout à Gemini qui "estime" min/max/moyenne.
-3. Cache 24h dans `waouh_cache`.
+**🔴 ERREURS critiques (à corriger avant prod — 8 failles)**
 
-Limites :
-- Si le catalogue interne est vide (cas fréquent au lancement), l'IA invente.
-- Aucune source externe vérifiable (Jumia, Coinafrique, Jiji, Afrikrea, Facebook Marketplace, groupes WA radar).
-- Le message final ne cite **aucune preuve** → l'utilisateur perçoit du flou.
+| # | Faille | Risque |
+|---|---|---|
+| 1 | `waouh_users` lisible publiquement via `web_session_id IS NOT NULL` | Tous les téléphones, villes, GPS exposés à l'anonyme |
+| 2 | `waouh_messages` idem | Tous les messages de chat exposés (1974 lignes) |
+| 3 | `waouh_notifications` idem | 619 notifications utilisateurs exposées |
+| 4 | `waouh_notifications` UPDATE `USING true` | N'importe qui peut marquer lu/non lu |
+| 5 | `waouh_outbound_queue` SELECT `USING true` | 1126 messages sortants + n° téléphones exposés |
+| 6 | `payment_transactions` lisible si `user_id IS NULL` | Paiements invités exposés (téléphones, montants) |
+| 7 | `ia_creator_user_usage` UPDATE `USING true` | Reset des compteurs d'un autre user → contournement quotas |
+| 8 | `public-media` bucket DELETE public | N'importe qui peut supprimer les fichiers |
 
-## Approche proposée — "Prix Réel WAOUH"
+**🟡 WARNINGS importants**
+- `anonymous_visitor_sessions` UPDATE `USING true` (lead_info PII)
+- `ia_creator_user_usage` INSERT sans check `user_id = auth.uid()`
+- Realtime channels sans auth → tout user authentifié écoute toutes les notifs
+- `LEAKED_PASSWORD_PROTECTION` désactivé (config Supabase)
+- OTP expiry trop long (config Supabase)
+- Postgres patches sécurité dispo (upgrade)
+- Plusieurs fonctions SQL sans `search_path` immutable
 
-Une fonction enrichie qui agrège **3 couches de données réelles**, score leur fiabilité, puis demande à l'IA une **synthèse honnête**.
+## 2. Plan d'action — 4 phases
 
-### Couche 1 — Catalogue interne (déjà en place, à garder)
-Annonces `waouh_articles` actives, même ville/catégorie, ±30j. Très haute fiabilité quand dispo.
+### Phase 1 — Corrections RLS critiques (1 migration)
 
-### Couche 2 — Signaux Radar IA (nouveau)
-Requête sur `waouh_radar_signals` (déjà alimentée par groupes WA + scrapers) filtrée par mots-clés du titre/marque/modèle + ville. Donne le prix marché informel béninois, ce que les autres sources n'ont pas.
+Politiques à réécrire avec validation par header `x-waouh-session-token` (pattern déjà en place sur `waouh_outbound_queue` côté token) ou `auth.uid()` :
 
-### Couche 3 — Web scraping ciblé via Firecrawl (nouveau, cœur de la demande)
-Recherche réelle sur le web béninois/ouest-africain :
+- `waouh_users` : SELECT scope = `auth_user_id = auth.uid()` OU header session validé
+- `waouh_messages` : SELECT scope = appartenance à la conversation du user authentifié OU header session
+- `waouh_notifications` : SELECT + UPDATE scope = `user_id IN (SELECT id FROM waouh_users WHERE auth_user_id = auth.uid())`
+- `waouh_outbound_queue` : SELECT scope = `to_user_id` du user OU header session validé
+- `payment_transactions` : retirer la branche `auth.uid() IS NULL AND user_id IS NULL` — guest reads via edge function service_role uniquement
+- `ia_creator_user_usage` : INSERT/UPDATE scope = `auth.role() = 'service_role'`
+- `anonymous_visitor_sessions` : UPDATE scope = match token visiteur
+- Storage `public-media` DELETE : `auth.uid()::text = (storage.foldername(name))[1]`
 
-```ts
-firecrawlSearch(`${brand} ${model} prix Bénin`, {
-  country: 'bj', lang: 'fr', limit: 8,
-  scrapeOptions: { formats: ['markdown'] }
-})
-```
+### Phase 2 — Hardening config & fonctions
 
-Sites ciblés (filtrage par domaine après search) :
-- `jumia.com.ci` / `jumia.sn`
-- `coinafrique.com`
-- `jiji.ci` / `expat.com`
-- `afrikrea.com`
-- `facebook.com/marketplace` (titre + snippet uniquement)
+- `ALTER FUNCTION ... SET search_path = public` sur toutes les fonctions SECURITY DEFINER existantes
+- `REVOKE EXECUTE ... FROM anon` sur les fonctions DEFINER non-publiques
+- Activer **Leaked Password Protection** + raccourcir OTP à 600s via mention au user (config Supabase Auth UI)
+- Annoncer l'upgrade Postgres recommandé
 
-Pour chaque résultat retenu, on extrait `{ title, price_fcfa, source_domain, url, location? }` via Gemini Flash en mode JSON sur le markdown.
+### Phase 3 — Robustesse module chat (cœur business)
 
-Conversion auto XOF/EUR/USD/NGN → FCFA (taux fixes mis en cache 24h via une mini-table `waouh_fx_rates` ou constantes).
+État actuel vérifié : `WAOUH Chat Sync Flow v1` est **verrouillé** (memory note `waouh-chat-sync-flow-locked-v1`). On ne touche PAS à la logique sync — on ajoute uniquement :
 
-### Couche 4 — Agrégation & scoring
-Calcul côté serveur (pas IA) :
-- `n_internal`, `n_radar`, `n_web` → total `n`
-- `min`, `p25`, `median`, `p75`, `max` (sur l'union des prix)
-- `confidence`: high (n≥8 & ≥2 couches), medium (n≥4), low (sinon)
-- `sources`: top 3 URLs concrètes pour preuve
+- **Retry queue** pour `waouh_outbound_queue` : exponentiel (5s, 30s, 5min, 1h) avec `max_attempts=5`, status `dead_letter` au-delà — déjà colonnes en place, créer un cron 30s qui drain
+- **Dedup messages entrants** : index unique `(channel_message_id, channel)` sur `waouh_messages` pour éviter doublons WhatsApp/Telegram
+- **Backpressure WAHA** : circuit breaker dans `waouh-whatsapp-send` (3 erreurs 500 consécutives → pause 60s)
+- **Healthcheck étendu** : `/admin/waouh/health` affiche taux d'échec outbound 24h, latence webhook moyenne, signaux radar en attente, derniers `dead_letter`
+- **Logs structurés** : remplacer `console.log` libres par `console.log(JSON.stringify({lvl,fn,evt,...}))` dans `waouh-webhook`, `waouh-radar-process`, `waouh-whatsapp-send`
+- **Rate limit** côté edge : 10 messages/min/numéro entrant pour bloquer abus
 
-### Couche 5 — Synthèse IA honnête
-Prompt révisé (extrait) :
+### Phase 4 — Performance
 
-> Tu es analyste marché béninois. Voici N comparables RÉELS (interne + radar + web).
-> Produis un verdict en 3 lignes max :
-> 1) fourchette honnête (p25–p75) en FCFA
-> 2) verdict sur le prix demandé (juste / élevé / aubaine) avec %
-> 3) 1 conseil de négociation contextuel
-> Si confidence=low → dis-le explicitement.
+- **Indexes manquants** (vérifiés via `slow_queries`) sur :
+  - `waouh_messages(conversation_id, created_at DESC)`
+  - `waouh_outbound_queue(status, next_attempt_at)` partiel `WHERE status IN ('queued','retry')`
+  - `waouh_radar_signals(status, created_at)` partiel
+  - `waouh_deals(status, created_at DESC)`
+- **Realtime** : restreindre les channels publiés (notifications + whatsapp_messages) — ajout RLS sur `realtime.messages` scope par user
+- **Frontend** : audit lazy-loading des routes admin lourdes (`/admin/waouh/*`) via React.lazy si pas déjà fait
+- **Caches edge** : TTL 6h sur les analyses prix (déjà fait), 24h sur les FX rates
 
-## Format du message WhatsApp (synthétique & crédible)
+## 3. Validations de fin de chantier
 
-```
-📊 *Analyse prix réel — Samsung A14 (Cotonou)*
+- Re-run `security--run_security_scan` → 0 erreur, warnings résiduels documentés dans `security-memory`
+- Test e2e chat : envoi WhatsApp → réception webhook → réponse IA → enregistrement (déjà couvert par `docs/waouh-e2e-test-2026-06-09.md`, à rejouer)
+- Vérification `waouh-chat-sync-flow` health-check vert
+- Sanity check : `curl` anonyme sur les tables ex-exposées → 0 ligne retournée
 
-💰 Fourchette marché : 78 000 – 95 000 FCFA
-   (médiane 85 000 · 11 annonces analysées)
+## 4. Hors scope de cette itération
 
-🎯 Votre prix 90 000 FCFA → *Correct* (+6% vs médiane)
-
-🔎 Sources :
-• Jumia CI · 89 900 FCFA
-• Coinafrique Cotonou · 85 000 FCFA
-• Radar WA (groupe Dantokpa) · 80 000 FCFA
-
-💡 Conseil : Acheteur peut viser 82 000. Tenez 85 000 ferme.
-```
-
-Si `confidence=low` :
-```
-⚠️ Peu de comparables (2 annonces) — estimation à confirmer.
-```
-
-## Découpage technique
-
-1. **Nouvelle table** `waouh_price_snapshots` : `id, article_id, query, sources jsonb, stats jsonb, confidence, created_at` (audit + rejouabilité).
-2. **Refonte** `waouh-price-compare/index.ts` :
-   - Étape 1 : interne (déjà fait, garder)
-   - Étape 2 : radar signals (nouveau bloc Supabase select)
-   - Étape 3 : Firecrawl search + scrape ciblé (parallèle, timeout 8s, tolérant aux échecs)
-   - Étape 4 : extraction prix via Gemini Flash JSON par batch
-   - Étape 5 : agrégation déterministe en JS
-   - Étape 6 : synthèse Gemini sur stats + top sources
-   - Étape 7 : insert snapshot + cache 6h (vs 24h, données plus fraîches)
-3. **Connecteur Firecrawl** : à activer via `standard_connectors--connect` (clé `FIRECRAWL_API_KEY`).
-4. **Format de retour** étendu : `{ stats, confidence, sources[], reply }` — `waouh-webhook` utilise `reply` tel quel.
-5. **Fallback** : si Firecrawl indisponible ou 0 résultat web → on tombe sur interne+radar uniquement avec badge `⚠️ confiance limitée`.
+- Réécriture de l'auth (Supabase auth déjà en place)
+- Refonte UI (l'utilisateur veut prod, pas redesign)
+- Migration Postgres (action manuelle Supabase dashboard — sera signalée)
 
 ## Question avant build
 
-- OK pour activer le connecteur **Firecrawl** (nécessaire pour le scraping réel Jumia/Coinafrique/Jiji) ? Sans lui, on reste limité au catalogue interne + radar WA.
-- Veux-tu que je crée aussi la table `waouh_price_snapshots` (audit + historique des analyses) ou je garde juste le cache existant ?
+Ce chantier représente ~3-4 migrations SQL + édits dans 6-8 edge functions + 1-2 composants admin. Confirme :
+
+**A) Tout en un seul gros chantier maintenant**, je migre toutes les Phases 1→4 dans ce build.
+
+**B) Phase 1 (RLS critiques) en priorité absolue d'abord**, on valide ensemble puis on enchaîne 2-3-4.
+
+Recommandation : **B** — la Phase 1 supprime les fuites de PII, on valide rapidement (le scanner doit retomber à 0 erreur), puis on enchaîne sans risquer de casser le chat.
