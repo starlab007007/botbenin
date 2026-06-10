@@ -85,6 +85,7 @@ serve(async (req) => {
       ok: true,
       user_id: userId,
       email: fakeEmail,
+      is_new_user: isNewUser,
       action_link: link.properties?.action_link,
       hashed_token: link.properties?.hashed_token,
       email_otp: link.properties?.email_otp,
