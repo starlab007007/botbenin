@@ -409,6 +409,62 @@ serve(async (req) => {
       }
     }
 
+    // 🛰️ v11 — Hydratation Radar IA → Scénario B miroir (App buyer ↔ WA seller).
+    // Si un vendeur Radar IA scrapé répond à `radar_seller_outreach` sans
+    // contexte article, on reconstruit last_matches + current_article_id
+    // depuis waouh_outbound_queue + waouh_radar_signals.promoted_article_id.
+    // Sans ça, l'inbound "OUI" / "Je propose X" du vendeur tombe sur
+    // "Aucune négociation en cours" (symétrique du bug v10 côté acheteur).
+    let radarSellerContext: { signal_id: string | null; hydrated_at: string; negotiation_id: string | null } | null = null;
+    if (
+      channel === "whatsapp" &&
+      phone &&
+      !phone.startsWith("web:") &&
+      !radarHydratedContext?.current_article_id &&
+      !(Array.isArray(radarHydratedContext?.last_matches) && radarHydratedContext.last_matches.length > 0)
+    ) {
+      try {
+        const sellerCtx = await findRadarSellerOutreachContext(sb, phone);
+        if (sellerCtx) {
+          console.log("[radar-seller-hydrate]", {
+            phone,
+            article_id: sellerCtx.article.id,
+            signal_id: sellerCtx.radarSignalId,
+            negotiation_id: sellerCtx.negotiationId,
+          });
+          radarHydratedContext = {
+            ...radarHydratedContext,
+            last_matches: [{
+              id: sellerCtx.article.id,
+              title: sellerCtx.article.title,
+              price: sellerCtx.article.price,
+              seller_id: sellerCtx.article.seller_id,
+              photos: sellerCtx.article.photos,
+              market_price_min: sellerCtx.article.market_price_min,
+              market_price_max: sellerCtx.article.market_price_max,
+              source: "chat",
+            }],
+            current_article_id: sellerCtx.article.id,
+            radar_seller_context: {
+              signal_id: sellerCtx.radarSignalId,
+              hydrated_at: new Date().toISOString(),
+              negotiation_id: sellerCtx.negotiationId,
+            },
+          };
+          radarSellerContext = radarHydratedContext.radar_seller_context;
+          if (conv) {
+            (conv as any).context = radarHydratedContext;
+            (conv as any).current_article_id = sellerCtx.article.id;
+            // last_intent = "SELL" pour activer le fallback "OUI" / chiffre seul
+            // côté vendeur (symétrique au "BUY" hydraté plus haut).
+            (conv as any).last_intent = (conv as any).last_intent || "SELL";
+          }
+        }
+      } catch (e) {
+        console.warn("[radar-seller-hydrate] failed", e);
+      }
+    }
+
     // Détection OUI/NON simple (réponse à une négociation en cours)
     const yesKw = /^(oui|ok|d['']accord|j['']accepte|accepte|deal|ça\s+marche|ca\s+marche)\s*[.!]?$/i.test(lower.trim());
     const noKw  = /^(non|refuse|refus[ée]|pas\s+d['']accord|nope)\s*[.!]?$/i.test(lower.trim());
