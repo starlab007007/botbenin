@@ -1,59 +1,103 @@
-# Activer le scénario B (et tous les flux WAOUH) directement depuis l'App
+# Scénario B avec source Radar IA — reconnecter l'acheteur WA scrapé au vendeur App
+
+## Contexte
+
+Le flux Radar IA existe déjà côté outreach (webhook ligne 674-703) :
+
+- Quand un vendeur App publie un article, on contacte automatiquement chaque acheteur Radar IA (signaux `BUY` avec `contact_phone` identifié) via le template WhatsApp `radar_buyer_outreach`. Le payload inclut `article_id` et `radar_signal_id`.
+- L'envoi est tracé dans `waouh_outbound_queue (template = "radar_buyer_outreach", to_phone, payload)`.
 
 ## Diagnostic
 
-Le scénario B en condition WhatsApp fonctionne grâce aux verrous v6/v7/v8 (sibling resolver + fallback queue→identité). Mais quand le **vendeur App** (ou l'acheteur App côté C) tente une contre-offre / acceptation depuis l'interface in-app (`WaouhMatchChatWindow`), le message est envoyé à `waouh-channel-in` avec :
+Mais **aucun retour** n'est branché : quand l'acheteur Radar répond *"OUI"* (ou *"Je propose X"*) sur WhatsApp :
 
-```ts
-// src/components/waouh/WaouhMatchChatWindow.tsx — ligne 436
-authUserId: null,
-```
+1. `waha-webhook` → `waouh-channel-in` → un `waouh_users` est créé pour ce numéro (sans `auth_user_id`, sans contexte).
+2. Aucune `meta.article_id` n'est attachée (inbound WA brut), aucune négociation ouverte → `siblingOrFilter` ne trouve rien.
+3. Le message part au `waouh-webhook` (core). La conversation est neuve : pas de `last_matches`, pas de `current_article_id`.
+4. Le classifieur d'intent voit *"OUI"* mais n'a aucun article candidat → soit `CONFIRM` répond *"🤔 Je n'ai plus la liste"*, soit le message est ignoré.
+5. Conséquence : la mise en relation Radar IA → App seller n'aboutit jamais, alors que la donnée est là.
 
-Conséquences en cascade :
-
-1. `waouh-channel-in` (lignes 336-351) crée/réutilise un `waouh_users` indexé seulement par `web_session_id` — **sans** `auth_user_id`.
-2. La négociation existante (créée par le webhook ou par `WaouhWebChat` qui passe `user?.id`) référence un `seller_user_id` **lié au compte App** (`auth_user_id` présent).
-3. `resolveSiblingUserIds` (v7) ne retrouve pas le lien : pas d'`auth_user_id`, pas de `phone_number`, pas de LID. Il retourne uniquement l'id web isolé.
-4. La lookup négo `siblingOrFilter(...)` échoue → router répond "🤔 Aucune négociation en cours" et le chat App reste muet.
-
-À titre de comparaison, `WaouhWebChat.tsx` (chat racine) passe correctement `authUserId: user?.id` ligne 423 — c'est pour ça que les premières propositions marchent, mais pas les suivantes via la fenêtre match.
+Le scénario B avec Radar IA (B3 marqué ✅ dans la matrice) est en réalité **non câblé sur le retour**. C'est ce que l'utilisateur demande de corriger.
 
 ## Plan
 
-### 1. Frontend (changement minimal, 1 ligne effective)
+### 1. Helper partagé — `_shared/waouh-radar.ts` (nouveau)
 
-`src/components/waouh/WaouhMatchChatWindow.tsx` — méthode `send()` (~ligne 430)
-
-- Remplacer `authUserId: null` par `authUserId: authUserId ?? null` (le prop est déjà reçu et utilisé pour `fetchHistory`).
-
-Aucun autre changement nécessaire : `waouh-channel-in` détecte déjà (lignes 347-348) qu'une ligne web sans `auth_user_id` doit être enrichie quand `authUserId` arrive, et `resolveSiblingUserIds` exploite ensuite tous les `waouh_users.id` partageant le même `auth_user_id`.
-
-### 2. Verrou runtime
-
-`src/components/waouh/waouhChatSyncLock.ts` — bump **v8 → v9** et ajouter dans le bloc `chatWindow.mustContain` :
-
+```ts
+// findRadarOutreachContext(sb, phone): retourne le contexte radar le plus récent
+// pour un numéro acheteur, ou null. Cherche dans waouh_outbound_queue les envois
+// `radar_buyer_outreach` des 7 derniers jours, valide que payload.article_id pointe
+// vers un waouh_articles actif, et retourne { article, radarSignalId, sentAt }.
 ```
-"authUserId: authUserId ?? null,"
+
+- Filtre : `template = 'radar_buyer_outreach'`, `to_phone IN (variantes E.164 + locales)` (réutilise `addPhoneVariants` de `waouh-identity.ts`), `created_at >= now() - 7 days`, `status IN ('sent','queued')`.
+- Charge `waouh_articles` (id, title, price, seller_id, photos, status, market_price_min, market_price_max) et écarte les `sold/closed`.
+- Renvoie l'entrée la plus récente pour éviter les collisions multi-articles.
+
+### 2. Hydratation dans `waouh-webhook`
+
+Juste APRÈS le chargement de `conv`/`nextContext` et AVANT la classification d'intent :
+
+- Si `channel === 'whatsapp'`, `phone` présent, `!nextContext?.current_article_id` ET `!nextContext?.last_matches?.length`, appeler `findRadarOutreachContext(sb, phone)`.
+- Si trouvé :
+  - Insérer l'article comme `last_matches[0]` (forme alignée avec `combinedMatches` ligne 894 : `{ id, title, price, seller_id, photos, source: 'chat' }` — on garde `source: 'chat'` car l'article a déjà été promu en `waouh_articles` lors de la publication par le vendeur App, donc pas de `promoteCatalogToArticle` à refaire).
+  - Renseigner `nextContext.current_article_id = article.id`.
+  - Marquer `nextContext.radar_buyer_context = { signal_id, hydrated_at }` (traçabilité).
+- Tag de log : `[radar-buyer-hydrate]`.
+
+Effet en cascade :
+
+- *"OUI"* → branche `alreadyOnArticle` (ligne 959) ou `CONFIRM index 1` → crée la négociation entre buyer WA (radar) et seller App, puis `pushToOther("match_seller")` qui mirroite dans `WaouhMatchChatWindow` côté App (verrou v5 `appRouterChannel`).
+- *"Je propose X"* → `NEGOTIATE` trouve `current_article_id` → contre-offre routée normalement (verrou v6 promotion already done).
+- Suite des contre-offres et acceptation : le buyer WA et le seller App sont déjà attachés à la négo → flux B identique aux v6-v9.
+
+### 3. Marquer le signal radar comme converti
+
+Une fois la négociation créée (dans la branche CONFIRM après l'insert `waouh_negotiations`), si `nextContext.radar_buyer_context?.signal_id` existe :
+
+```sql
+UPDATE waouh_radar_signals
+SET status = 'converted', converted_negotiation_id = $1, updated_at = now()
+WHERE id = $2
 ```
-(remplace l'invariant existant `authUserId: authUserId ?? null` qui ne couvrait que `fetchHistory` ; on dédouble en `mustContainAll` n'est pas supporté, donc on ajoute un nouvel invariant `chatWindowSendUsesAuthUserId` pointant sur le contexte `supabase.functions.invoke("waouh-channel-in"` + `authUserId: authUserId ?? null` dans la même section `send`).
 
-Mettre à jour le test `waouh-chat-sync-flow.lock.test.ts` (`expect(... version).toBe("v9")`).
+Ajout d'une colonne `converted_negotiation_id uuid` si absente (migration). Ça évite de re-contacter le buyer sur la même annonce et fournit un signal métrique pour `/admin/waouh/whatsapp-ops`.
 
-### 3. Mémoire
+### 4. Verrou runtime + mémoire
 
-Ajouter une section v9 à `.lovable/mem/features/whatsapp-end-to-end-flow.md` :
-- Bug : flux B/C in-app silencieux car `authUserId` non transmis dans le send de la fenêtre match.
-- Fix : propagation systématique de `authUserId` dans tous les appels à `waouh-channel-in`.
-- Règle invariante : **toute invocation client de `waouh-channel-in` doit transmettre `authUserId` quand l'utilisateur est authentifié**.
+`src/components/waouh/waouhChatSyncLock.ts` — bump **v9 → v10**, nouveau invariant :
 
-### 4. Vérification
+```ts
+radarBuyerHydration: {
+  file: "supabase/functions/waouh-webhook/index.ts",
+  mustContain: [
+    "findRadarOutreachContext",
+    "radar_buyer_context",
+    "[radar-buyer-hydrate]",
+  ],
+},
+radarHelperShared: {
+  file: "supabase/functions/_shared/waouh-radar.ts",
+  mustContain: ["findRadarOutreachContext", "radar_buyer_outreach"],
+},
+```
 
-1. Exécuter `bunx vitest run src/components/waouh/__tests__/waouh-chat-sync-flow.lock.test.ts` (doit rester vert avec v9 + nouvel invariant).
-2. Tester manuellement (preview) : ouvrir scénario B depuis l'App, envoyer une contre-offre vendeur → le routeur doit la traiter et la mirrorer côté acheteur WA, sans "Aucune négociation en cours".
-3. Vérifier `waouh-negotiation-router` logs : la négo doit être trouvée via siblings App.
+Test de lock `expect(... version).toBe("v10")`.
+
+Ajouter section **v10 — Radar IA → Scénario B opérationnel** dans `.lovable/mem/features/whatsapp-end-to-end-flow.md` :
+- Bug : `radar_buyer_outreach` envoyé mais aucun retour câblé.
+- Fix : hydratation `last_matches`/`current_article_id` via `waouh_outbound_queue` + promotion `waouh_radar_signals.status = 'converted'`.
+- Règle invariante : ne jamais retirer l'hydratation `findRadarOutreachContext` du webhook.
+
+### 5. Vérification
+
+1. `bunx vitest run` sur le lock test.
+2. SQL d'inspection : insérer un `radar_buyer_outreach` factice dans `waouh_outbound_queue` pour un numéro test + un article actif d'un vendeur App, simuler un inbound *"OUI"* via `supabase--curl_edge_functions` POST sur `waouh-channel-in`.
+3. Vérifier dans la DB : `waouh_negotiations` créée avec `buyer_user_id = test phone user`, `seller_user_id = app user`, `state = 'proposed'`, et `waouh_radar_signals.status = 'converted'`.
+4. Vérifier les logs `waouh-webhook` (`[radar-buyer-hydrate]`) et `waouh-notify-dispatch` (push App `new_buyer` au vendeur).
 
 ## Risque / portée
 
-- Changement purement frontend, 1 ligne fonctionnelle + invariants/mémoire.
-- Aucun edge function redeploy, aucune migration DB.
-- Backwards-compatible : `authUserId` reste `null` quand l'utilisateur n'est pas authentifié (mobile non logué) — comportement actuel préservé.
+- 1 fichier shared créé, 1 edge function modifiée (`waouh-webhook`), 1 lock + 1 mémoire mis à jour, 1 migration (colonne `converted_negotiation_id`).
+- Pas de changement front, pas de régression sur les chemins existants (l'hydratation ne s'active que si **aucun** contexte article n'existe).
+- Backwards-compatible avec les flux A/B/C déjà verrouillés v6-v9.
