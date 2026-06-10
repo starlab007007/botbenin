@@ -277,3 +277,12 @@ verify_jwt = false
 
 [functions.waouh-radar-campaign-tick]
 verify_jwt = false
+
+[functions.whatsapp-otp-send]
+verify_jwt = false
+
+[functions.whatsapp-otp-verify]
+verify_jwt = false
+
+[functions.whatsapp-complete-profile]
+verify_jwt = false
