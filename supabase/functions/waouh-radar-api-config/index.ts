@@ -1,5 +1,9 @@
 // Admin endpoint for radar: API configs (SerpAPI/Apify) + contact sync + bulk notify.
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+};
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { normalizeBeninPhone } from "../_shared/waouhContact.ts";
 
