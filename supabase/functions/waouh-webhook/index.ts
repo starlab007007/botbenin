@@ -357,6 +357,58 @@ serve(async (req) => {
       .eq("phone_number", phone || `web:${webSessionId}`)
       .maybeSingle();
 
+    // 🛰️ v10 — Hydratation Radar IA → Scénario B.
+    // Si un acheteur scrapé répond à un template `radar_buyer_outreach` sans
+    // contexte article (nouvelle conversation WhatsApp), on reconstruit
+    // last_matches + current_article_id depuis waouh_outbound_queue pour que
+    // "OUI" déclenche CONFIRM index 1 et que la négo soit créée comme en B.
+    let radarHydratedContext: any = (conv?.context as any) ?? {};
+    let radarBuyerContext: { signal_id: string | null; hydrated_at: string } | null = null;
+    if (
+      channel === "whatsapp" &&
+      phone &&
+      !phone.startsWith("web:") &&
+      !radarHydratedContext?.current_article_id &&
+      !(Array.isArray(radarHydratedContext?.last_matches) && radarHydratedContext.last_matches.length > 0)
+    ) {
+      try {
+        const radarCtx = await findRadarOutreachContext(sb, phone);
+        if (radarCtx) {
+          console.log("[radar-buyer-hydrate]", {
+            phone, article_id: radarCtx.article.id, signal_id: radarCtx.radarSignalId,
+          });
+          radarHydratedContext = {
+            ...radarHydratedContext,
+            last_matches: [{
+              id: radarCtx.article.id,
+              title: radarCtx.article.title,
+              price: radarCtx.article.price,
+              seller_id: radarCtx.article.seller_id,
+              photos: radarCtx.article.photos,
+              market_price_min: radarCtx.article.market_price_min,
+              market_price_max: radarCtx.article.market_price_max,
+              source: "chat",
+            }],
+            current_article_id: radarCtx.article.id,
+            radar_buyer_context: {
+              signal_id: radarCtx.radarSignalId,
+              hydrated_at: new Date().toISOString(),
+            },
+          };
+          radarBuyerContext = radarHydratedContext.radar_buyer_context;
+          // Patch conv en mémoire pour que les détections aval (lastMatches,
+          // current_article_id) voient l'hydratation sans round-trip DB.
+          if (conv) {
+            (conv as any).context = radarHydratedContext;
+            (conv as any).current_article_id = radarCtx.article.id;
+            (conv as any).last_intent = "BUY";
+          }
+        }
+      } catch (e) {
+        console.warn("[radar-buyer-hydrate] failed", e);
+      }
+    }
+
     // Détection OUI/NON simple (réponse à une négociation en cours)
     const yesKw = /^(oui|ok|d['']accord|j['']accepte|accepte|deal|ça\s+marche|ca\s+marche)\s*[.!]?$/i.test(lower.trim());
     const noKw  = /^(non|refuse|refus[ée]|pas\s+d['']accord|nope)\s*[.!]?$/i.test(lower.trim());
