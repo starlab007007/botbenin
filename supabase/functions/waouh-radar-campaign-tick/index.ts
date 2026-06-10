@@ -98,12 +98,14 @@ Deno.serve(async (req) => {
         const dedup = `radar_campaign:${c.id}:${ct.id}:${Date.now()}`;
         const { error: enqErr } = await admin.rpc("waouh_enqueue_outbound_v2" as any, {
           p_to_phone: ct.phone_e164_normalized,
+          p_to_user_id: null,
           p_template: "radar_broadcast",
           p_payload: { text: message, article_id: c.article_id, media_url: c.media_url, contact_id: ct.id, campaign_id: c.id, mode: c.mode },
-          p_event_type: `radar_campaign_${c.mode}`,
-          p_dedupe_key: dedup,
+          p_image_url: c.media_url ?? null,
+          p_channel: "whatsapp",
           p_transaction_id: null,
-          p_article_id: c.article_id,
+          p_dedupe_key: dedup,
+          p_event_type: `radar_campaign_${c.mode}`,
         });
         if (enqErr) { errs.push({ contact_id: ct.id, error: enqErr.message }); skipped++; continue; }
 
