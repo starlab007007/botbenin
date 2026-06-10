@@ -1,51 +1,59 @@
+# Activer le scénario B (et tous les flux WAOUH) directement depuis l'App
+
 ## Diagnostic
 
-À 00:17:25 dans `waouh_messages` :
-- L'acheteur (`waouh_users 557f3453`, phone `273091318042723@lid`) a envoyé *"Je propose 200"* → négociation `c1da3c91` créée correctement avec `buyer_user_id=557f...`, `seller_user_id=3a400fa6` (le vendeur "🏪 Parfuns", phone `2290140299191`).
-- Le vendeur a répondu *"Je propose 205"* depuis WhatsApp. WAHA a livré le message avec `from = 196705878298786@lid` (LID privacy mode du vendeur). 
-- `waouh-channel-in` a créé une 3ᵉ ligne `waouh_users` (`930637cc`, phone = `196705878298786@lid`) car la résolution LID → phone a échoué (pas de `phone_e164` dans `waouh_lid_phone_map`).
-- Cette nouvelle `user.id` ≠ `seller_user_id` (`3a400fa6`) de la négociation. Le lookup `or(buyer_user_id.eq.user.id, seller_user_id.eq.user.id)` ne trouve rien → `waouh-negotiation-router` répond **"Aucune négociation en cours"**.
+Le scénario B en condition WhatsApp fonctionne grâce aux verrous v6/v7/v8 (sibling resolver + fallback queue→identité). Mais quand le **vendeur App** (ou l'acheteur App côté C) tente une contre-offre / acceptation depuis l'interface in-app (`WaouhMatchChatWindow`), le message est envoyé à `waouh-channel-in` avec :
 
-Cas généralisé : dès qu'une partie a plusieurs `waouh_users` rows (App + WA, LID + phone, doublons), la contre-offre tombe à côté de la négociation.
+```ts
+// src/components/waouh/WaouhMatchChatWindow.tsx — ligne 436
+authUserId: null,
+```
 
-## Correctif
+Conséquences en cascade :
 
-### 1. `supabase/functions/_shared/waouh-identity.ts` (nouveau)
+1. `waouh-channel-in` (lignes 336-351) crée/réutilise un `waouh_users` indexé seulement par `web_session_id` — **sans** `auth_user_id`.
+2. La négociation existante (créée par le webhook ou par `WaouhWebChat` qui passe `user?.id`) référence un `seller_user_id` **lié au compte App** (`auth_user_id` présent).
+3. `resolveSiblingUserIds` (v7) ne retrouve pas le lien : pas d'`auth_user_id`, pas de `phone_number`, pas de LID. Il retourne uniquement l'id web isolé.
+4. La lookup négo `siblingOrFilter(...)` échoue → router répond "🤔 Aucune négociation en cours" et le chat App reste muet.
 
-Helper partagé `resolveSiblingUserIds(sb, user)` qui renvoie l'ensemble des `waouh_users.id` qui appartiennent à la même personne que `user` :
-- même `auth_user_id` (lien App)
-- même `phone_number` exact
-- LID ↔ phone via `waouh_lid_phone_map` (résoudre dans les 2 sens : si `user.phone_number` est `<lid>@lid`, chercher la phone canonique, puis tous les waouh_users avec ce phone ; et inversement)
-- même `pushname` côté LID seulement si LID + phone partagent une mappage explicite
+À titre de comparaison, `WaouhWebChat.tsx` (chat racine) passe correctement `authUserId: user?.id` ligne 423 — c'est pour ça que les premières propositions marchent, mais pas les suivantes via la fenêtre match.
 
-Retourne `string[]` incluant toujours `user.id`.
+## Plan
 
-### 2. `supabase/functions/waouh-channel-in/index.ts`
+### 1. Frontend (changement minimal, 1 ligne effective)
 
-- Après l'upsert utilisateur, appeler `resolveSiblingUserIds`.
-- Le lookup négociation par `metaArticleId` reste en premier (inchangé).
-- Le fallback `or(buyer_user_id.eq.${user.id},seller_user_id.eq.${user.id})` devient :
-  `or(buyer_user_id.in.(<ids>),seller_user_id.in.(<ids>))`.
-- `negUserId` : si `metaRole` ne donne rien, choisir le sibling id qui correspond à `openNeg.buyer_user_id` ou `openNeg.seller_user_id` (priorité : `seller_user_id` si l'un des siblings = seller, sinon `buyer_user_id`). Transmettre cet id concret à `waouh-negotiation-router` pour que `isBuyer` reste correct.
+`src/components/waouh/WaouhMatchChatWindow.tsx` — méthode `send()` (~ligne 430)
 
-### 3. `supabase/functions/waouh-negotiation-router/index.ts`
+- Remplacer `authUserId: null` par `authUserId: authUserId ?? null` (le prop est déjà reçu et utilisé pour `fetchHistory`).
 
-- Avant la requête `waouh_negotiations`, appeler le même helper `resolveSiblingUserIds` et utiliser `or(buyer_user_id.in.(<ids>),seller_user_id.in.(<ids>))`.
-- `isBuyer` calculé contre la liste des siblings (`siblings.includes(neg.buyer_user_id)`), pas seulement `user.id`.
+Aucun autre changement nécessaire : `waouh-channel-in` détecte déjà (lignes 347-348) qu'une ligne web sans `auth_user_id` doit être enrichie quand `authUserId` arrive, et `resolveSiblingUserIds` exploite ensuite tous les `waouh_users.id` partageant le même `auth_user_id`.
 
-### 4. Verrou runtime
+### 2. Verrou runtime
 
-Mettre à jour `src/components/waouh/waouhChatSyncLock.ts` (v7) avec deux invariants :
-- `channelInUsesSiblingIds` (channel-in contient `resolveSiblingUserIds` + `or` sur `.in.(`)
-- `routerUsesSiblingIds` (negotiation-router contient `resolveSiblingUserIds`)
+`src/components/waouh/waouhChatSyncLock.ts` — bump **v8 → v9** et ajouter dans le bloc `chatWindow.mustContain` :
 
-Et `.lovable/mem/features/whatsapp-end-to-end-flow.md` section v7.
+```
+"authUserId: authUserId ?? null,"
+```
+(remplace l'invariant existant `authUserId: authUserId ?? null` qui ne couvrait que `fetchHistory` ; on dédouble en `mustContainAll` n'est pas supporté, donc on ajoute un nouvel invariant `chatWindowSendUsesAuthUserId` pointant sur le contexte `supabase.functions.invoke("waouh-channel-in"` + `authUserId: authUserId ?? null` dans la même section `send`).
 
-### 5. Déploiement & test
+Mettre à jour le test `waouh-chat-sync-flow.lock.test.ts` (`expect(... version).toBe("v9")`).
 
-Déployer `waouh-channel-in`, `waouh-negotiation-router`.
-Re-jouer Scénario B en situation réelle : acheteur WA dit *intéressé*, vendeur App reçoit la notif, vendeur répond *Je propose X* (depuis App ou WA) → la contre-offre est routée vers le bon `waouh_negotiations.id` et propagée à l'acheteur (au lieu de "Aucune négociation en cours").
+### 3. Mémoire
 
-## Hors-scope (à signaler, non corrigé ici)
+Ajouter une section v9 à `.lovable/mem/features/whatsapp-end-to-end-flow.md` :
+- Bug : flux B/C in-app silencieux car `authUserId` non transmis dans le send de la fenêtre match.
+- Fix : propagation systématique de `authUserId` dans tous les appels à `waouh-channel-in`.
+- Règle invariante : **toute invocation client de `waouh-channel-in` doit transmettre `authUserId` quand l'utilisateur est authentifié**.
 
-Fusion / dédoublonnage des `waouh_users` multi-rows pour la même personne (ré-pointage des FK `waouh_negotiations`, `waouh_messages`, etc.) — sujet plus large à traiter séparément.
+### 4. Vérification
+
+1. Exécuter `bunx vitest run src/components/waouh/__tests__/waouh-chat-sync-flow.lock.test.ts` (doit rester vert avec v9 + nouvel invariant).
+2. Tester manuellement (preview) : ouvrir scénario B depuis l'App, envoyer une contre-offre vendeur → le routeur doit la traiter et la mirrorer côté acheteur WA, sans "Aucune négociation en cours".
+3. Vérifier `waouh-negotiation-router` logs : la négo doit être trouvée via siblings App.
+
+## Risque / portée
+
+- Changement purement frontend, 1 ligne fonctionnelle + invariants/mémoire.
+- Aucun edge function redeploy, aucune migration DB.
+- Backwards-compatible : `authUserId` reste `null` quand l'utilisateur n'est pas authentifié (mobile non logué) — comportement actuel préservé.

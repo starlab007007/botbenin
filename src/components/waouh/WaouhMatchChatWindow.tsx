@@ -433,7 +433,7 @@ export function WaouhMatchChatWindow({
           sessionId,
           text,
           attachments: [],
-          authUserId: null,
+          authUserId: authUserId ?? null,
           meta: {
             article_id: match.article_id,
             buyer_profile_id: match.buyer_profile_id ?? null,
