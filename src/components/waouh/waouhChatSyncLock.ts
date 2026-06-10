@@ -18,8 +18,8 @@
  */
 
 export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
-  version: "v10",
-  lockedAt: "2026-06-10T03:30:00.000Z",
+  version: "v11",
+  lockedAt: "2026-06-10T04:30:00.000Z",
   memoryRef: "mem://features/waouh-chat-sync-flow",
   invariants: Object.freeze({
     webhook: {
