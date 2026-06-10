@@ -60,6 +60,7 @@ function computeConfidence(nInt: number, nRadar: number, nWeb: number) {
 
 // --- Couche 1: catalogue interne ---
 async function fetchInternal(sb: any, article: any, query: string, city: string | null, category: string | null): Promise<Sample[]> {
+  const terms = (query || '').toLowerCase().split(/\s+/).filter((t) => t.length > 2).slice(0, 4);
   let q = sb.from('waouh_articles')
     .select('id, title, price, city, category')
     .eq('status', 'active')
@@ -69,6 +70,12 @@ async function fetchInternal(sb: any, article: any, query: string, city: string 
   if (city) q = q.ilike('city', city);
   if (category) q = q.eq('category', category);
   if (article?.id) q = q.neq('id', article.id);
+  // Si pas de catégorie identifiée, on EXIGE au moins un mot-clé pour éviter de mélanger immobilier/électronique
+  if (!category && terms.length) {
+    q = q.or(terms.map((t) => `title.ilike.%${t}%`).join(','));
+  } else if (!category) {
+    return []; // aucun moyen de filtrer pertinemment
+  }
   const { data } = await q;
   return (data || [])
     .filter((r: any) => r.price > 0)
