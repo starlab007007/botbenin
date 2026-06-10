@@ -167,11 +167,16 @@ export function WaouhMatchChatWindow({
         authUserId: authUserId ?? null,
         role: match.kind,
         notificationId: match.notification_id ?? null,
+        // v12 — when role=seller, restrict history to the specific buyer
+        // so a vendor App with several interested buyers gets one
+        // WaouhMatchChatWindow per buyer.
+        counterpartUserId: match.kind === "seller" ? (match.counterpart_user_id ?? null) : null,
         before: opts.before ?? null,
         limit: opts.limit ?? PAGE_INITIAL,
         includeMeta: opts.includeMeta !== false,
       },
     });
+
     if (error || !(data as any)?.ok) {
       console.warn("[waouh-match-history] error", error || (data as any)?.error);
       return { messages: [], hasMore: false, articleStatus: null, seedNotification: null };
@@ -292,6 +297,14 @@ export function WaouhMatchChatWindow({
     const handle = (payload: any) => {
       const m = payload.new;
       if (m?.article_id !== match.article_id && m?.meta?.article_id !== match.article_id) return;
+      // v12 — seller windows are scoped per counterpart (buyer). Drop
+      // realtime events that don't belong to this buyer.
+      if (match.kind === "seller" && match.counterpart_user_id) {
+        const cp = match.counterpart_user_id;
+        const metaCp =
+          m?.meta?.counterpart_user_id ?? m?.meta?.buyer_user_id ?? null;
+        if (metaCp !== cp && m?.user_id !== cp) return;
+      }
       // Drop self-ack templates that belong to the OTHER party (the seller
       // must not see the buyer's "✅ Demande envoyée au vendeur").
       const tpl = m?.meta?.template;
@@ -300,6 +313,7 @@ export function WaouhMatchChatWindow({
         (sessionId && m.web_session_id === sessionId) ||
         (m.user_id && waouhIds.includes(m.user_id));
       if (isSelfAck && !ownedByViewer) return;
+
       setMessages((prev) => {
         if (prev.find((x) => x.id === m.id)) return prev;
         const tempIdx = prev.findIndex(

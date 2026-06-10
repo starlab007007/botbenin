@@ -18,9 +18,10 @@
  */
 
 export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
-  version: "v11",
-  lockedAt: "2026-06-10T04:30:00.000Z",
+  version: "v12",
+  lockedAt: "2026-06-10T18:00:00.000Z",
   memoryRef: "mem://features/waouh-chat-sync-flow",
+
   invariants: Object.freeze({
     webhook: {
       file: "supabase/functions/waouh-webhook/index.ts",
@@ -239,8 +240,57 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
         "radarPromotedArticles",
       ],
     },
+    // 🔒 v12 — Multi-fenêtres WaouhMatchChatWindow par (article, acheteur)
+    // côté vendeur App. Un acheteur peut s'intéresser à plusieurs articles
+    // d'un même vendeur (1 fenêtre par article). Un vendeur peut recevoir
+    // plusieurs acheteurs sur le même article et chaque acheteur ouvre
+    // SA propre fenêtre. Vrai pour les 3 scénarios A/B/C.
+    matchKeyPerCounterpart: {
+      file: "src/components/waouh/useWaouhMatchChats.ts",
+      mustContain: [
+        "art_${articleId ?? \"none\"}_seller_${counterpartId ?? \"any\"}",
+        "counterpartForKey",
+        "waouh_keys_migrated_v3_",
+      ],
+    },
+    notifyDispatchCounterpart: {
+      file: "supabase/functions/waouh-notify-dispatch/index.ts",
+      mustContain: [
+        "counterpart_user_id",
+        ":cp_${counterpart_user_id}",
+        "buyer_user_id: counterpart_user_id",
+      ],
+    },
+    matchHistoryCounterpart: {
+      file: "supabase/functions/waouh-match-history/index.ts",
+      mustContain: [
+        "counterpartUserId",
+        "role === \"seller\" && counterpartUserId",
+      ],
+    },
+    chatWindowCounterpartFilter: {
+      file: "src/components/waouh/WaouhMatchChatWindow.tsx",
+      mustContain: [
+        "counterpartUserId: match.kind === \"seller\"",
+        "match.kind === \"seller\" && match.counterpart_user_id",
+      ],
+    },
+    webhookPushToOtherCounterpart: {
+      file: "supabase/functions/waouh-webhook/index.ts",
+      mustContain: [
+        "counterpartForMeta",
+        "counterpart_user_id: counterpartForMeta",
+      ],
+    },
+    routerPushToOtherCounterpart: {
+      file: "supabase/functions/waouh-negotiation-router/index.ts",
+      mustContain: [
+        "counterpart_user_id: (payload as any)?.from_user_id",
+      ],
+    },
   }),
 });
+
 
 
 declare global {

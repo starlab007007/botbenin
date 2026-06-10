@@ -107,12 +107,13 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    let { kind, article_id, catalog_id, buyer_profile_id, recipient, extra_text } = body || {};
+    let { kind, article_id, catalog_id, buyer_profile_id, recipient, extra_text, counterpart_user_id } = body || {};
     if (!kind || !recipient || (!article_id && !catalog_id)) {
       return new Response(JSON.stringify({ error: "kind, recipient and article_id|catalog_id are required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
 
     const sb = createClient(SUPABASE_URL, SERVICE);
 
@@ -199,7 +200,10 @@ serve(async (req) => {
       // garantit la même dédup / le même tracking que les autres évènements.
       try {
         const dayBucket = new Date().toISOString().slice(0, 10);
-        const dedupeKey = `notify:${kind}:${article_id}:${target.whatsapp}:${recipient}:${dayBucket}${buyer_profile_id ? `:${buyer_profile_id}` : ""}`;
+        // v12 — include counterpart_user_id so multiple interested buyers on
+        // the same article each trigger their own notification + WA message.
+        const cpSuffix = counterpart_user_id ? `:cp_${counterpart_user_id}` : (buyer_profile_id ? `:${buyer_profile_id}` : "");
+        const dedupeKey = `notify:${kind}:${article_id}:${target.whatsapp}:${recipient}:${dayBucket}${cpSuffix}`;
         const { error: enqErr } = await sb.rpc("waouh_enqueue_outbound_v2", {
           p_to_phone: target.whatsapp,
           p_to_user_id: notifTargetUserId,
@@ -211,6 +215,8 @@ serve(async (req) => {
             recipient,
             photos,
             buyer_profile_id: buyer_profile_id ?? null,
+            counterpart_user_id: counterpart_user_id ?? null,
+            buyer_user_id: counterpart_user_id ?? null,
           },
           p_web_session_id: null,
           p_image_url: photos?.[0] ?? null,
@@ -218,6 +224,7 @@ serve(async (req) => {
           p_dedupe_key: dedupeKey,
           p_event_type: kind,
         });
+
         if (enqErr) {
           waResult = { ok: false, error: String(enqErr.message || enqErr) };
         } else {
@@ -263,8 +270,9 @@ serve(async (req) => {
               eventType: kind,
               attachments: photos.slice(0, 4).map((url) => ({ url, type: "image/jpeg" })),
               imageUrl: photos[0] ?? null,
-              dedupSuffix: `notify:${recipient}${buyer_profile_id ? `:${buyer_profile_id}` : ""}`,
-              payloadExtra: { article_id, recipient, buyer_profile_id: buyer_profile_id ?? null },
+              dedupSuffix: `notify:${recipient}${counterpart_user_id ? `:cp_${counterpart_user_id}` : (buyer_profile_id ? `:${buyer_profile_id}` : "")}`,
+              payloadExtra: { article_id, recipient, buyer_profile_id: buyer_profile_id ?? null, counterpart_user_id: counterpart_user_id ?? null, buyer_user_id: counterpart_user_id ?? null },
+
             });
           }
         } catch (e) {
@@ -286,9 +294,12 @@ serve(async (req) => {
         notifSession = u?.web_session_id ?? null;
       } catch {}
 
-      // Dedupe key: 1 notif per (kind, article, recipient, day) to prevent twin emissions
+      // Dedupe key: 1 notif per (kind, article, recipient, day, counterpart)
+      // v12: counterpart_user_id is part of the key so two different buyers
+      // interested in the same article both trigger a "Nouvel acheteur" card.
       const dayBucket = new Date().toISOString().slice(0, 10);
-      const dedupeKey = `${kind}:${article_id}:${notifTargetUserId}:${recipient}:${dayBucket}${buyer_profile_id ? `:${buyer_profile_id}` : ""}`;
+      const cpSuffix = counterpart_user_id ? `:cp_${counterpart_user_id}` : (buyer_profile_id ? `:${buyer_profile_id}` : "");
+      const dedupeKey = `${kind}:${article_id}:${notifTargetUserId}:${recipient}:${dayBucket}${cpSuffix}`;
 
       const { error: notifErr } = await sb.from("waouh_notifications").insert({
         user_id: notifTargetUserId,
@@ -301,10 +312,13 @@ serve(async (req) => {
           text,
           recipient,
           buyer_profile_id: buyer_profile_id ?? null,
+          counterpart_user_id: counterpart_user_id ?? null,
+          buyer_user_id: counterpart_user_id ?? null,
           article_id,
           photos,
           contact: { channel: target.channel, whatsapp: target.whatsapp, partner_id: target.partnerId },
         },
+
         channel: channelUsed,
         delivered_at: waResult?.ok ? new Date().toISOString() : null,
         delivery_status: waResult?.ok ? "delivered" : (waResult?.skipped ? "queued" : "failed"),

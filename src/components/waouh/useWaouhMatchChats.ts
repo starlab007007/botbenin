@@ -11,11 +11,20 @@ export type CachedMsg = {
   meta?: any;
 };
 
-// Canonical key per (article_id, role). Same article + role = same tab, same
-// cached history, regardless of which notification or path opened it.
-export function matchKey(articleId: string | null | undefined, role: "buyer" | "seller"): string {
-  return `art_${articleId ?? "none"}_${role}`;
+// Canonical key. v12: seller side discriminates per counterpart so each
+// buyer interested in the same article opens its OWN WaouhMatchChatWindow.
+// Buyer side keeps `art_<articleId>_buyer` (1 seller per article).
+export function matchKey(
+  articleId: string | null | undefined,
+  role: "buyer" | "seller",
+  counterpartId?: string | null
+): string {
+  if (role === "seller") {
+    return `art_${articleId ?? "none"}_seller_${counterpartId ?? "any"}`;
+  }
+  return `art_${articleId ?? "none"}_buyer`;
 }
+
 
 const STORAGE_KEY = (sid: string) => `waouh_open_matches_${sid}`;
 const ACTIVE_KEY = (sid: string) => `waouh_active_match_${sid}`;
@@ -72,12 +81,13 @@ function mergeSnapshots(a: CachedMsg[], b: CachedMsg[]): CachedMsg[] {
  * to the canonical `art_<articleId>_<role>` key, merging histories.
  */
 function migrateLegacyKeys(sid: string, openTabs: MatchChatMeta[]): MatchChatMeta[] {
-  const MIGRATION_FLAG = `waouh_keys_migrated_v2_${sid}`;
+  const MIGRATION_FLAG = `waouh_keys_migrated_v3_${sid}`;
   try {
     if (localStorage.getItem(MIGRATION_FLAG) === "1") return openTabs;
   } catch {
     return openTabs;
   }
+
 
   // 1) Migrate snapshot blobs
   const prefix = `waouh_match_msgs_${sid}_`;
@@ -87,16 +97,23 @@ function migrateLegacyKeys(sid: string, openTabs: MatchChatMeta[]): MatchChatMet
       const k = localStorage.key(i);
       if (!k || !k.startsWith(prefix)) continue;
       const tail = k.slice(prefix.length);
-      if (tail.startsWith("art_")) continue; // already canonical
+      // v12 canonical: art_<id>_buyer | art_<id>_seller_<counterpart|any>
+      if (tail.startsWith("art_") && (tail.endsWith("_buyer") || /_seller_.+$/.test(tail))) continue;
       let canonical: string | null = null;
+      // v11 legacy: art_<id>_seller (no counterpart) → migrate to _any bucket
+      let m = tail.match(/^art_(.+)_seller$/);
+      if (m) canonical = matchKey(m[1], "seller", null);
       // msg_<art>_<role>
-      let m = tail.match(/^msg_(.+)_(buyer|seller)$/);
-      if (m) canonical = matchKey(m[1], m[2] as any);
+      if (!canonical) {
+        m = tail.match(/^msg_(.+)_(buyer|seller)$/);
+        if (m) canonical = matchKey(m[1], m[2] as any, null);
+      }
       if (!canonical) {
         // b_<art> / s_<art>
         m = tail.match(/^([bs])_(.+)$/);
-        if (m) canonical = matchKey(m[2], m[1] === "b" ? "buyer" : "seller");
+        if (m) canonical = matchKey(m[2], m[1] === "b" ? "buyer" : "seller", null);
       }
+
       // n_<notifId>: needs articleId+role from openTabs meta, defer
       let parsed: CachedMsg[] = [];
       try {
@@ -106,12 +123,15 @@ function migrateLegacyKeys(sid: string, openTabs: MatchChatMeta[]): MatchChatMet
     }
   } catch {}
 
-  // 2) Map open tabs to canonical, capturing notification_ids
+  // 2) Map open tabs to canonical, capturing notification_ids.
+  // v12: seller tabs need a counterpart_user_id; legacy seller tabs without
+  // one are migrated to the `_any` bucket so existing history isn't lost.
   const canonicalTabs = new Map<string, MatchChatMeta>();
   for (const t of openTabs) {
     if (!t.article_id) continue;
     const role = (t.kind || "buyer") as "buyer" | "seller";
-    const ck = matchKey(t.article_id, role);
+    const counterpart = role === "seller" ? (t.counterpart_user_id ?? null) : null;
+    const ck = matchKey(t.article_id, role, counterpart);
     const existing = canonicalTabs.get(ck);
     const nIds = new Set<string>([
       ...((t as any).notification_ids || []),
@@ -126,6 +146,7 @@ function migrateLegacyKeys(sid: string, openTabs: MatchChatMeta[]): MatchChatMet
       notification_ids: Array.from(nIds),
     } as MatchChatMeta);
   }
+
 
   // 3) Resolve n_<notifId> snapshots by matching against canonicalTabs notification_ids
   for (const entry of legacyEntries) {
@@ -291,8 +312,13 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
       const articleId: string | null = detail?.article_id ?? null;
       if (!articleId) return;
       const role: "buyer" | "seller" = detail.kind === "buyer" ? "buyer" : "seller";
-      const key = matchKey(articleId, role);
+      // v12: seller side discriminates per counterpart so each buyer
+      // interested in the same article opens its OWN WaouhMatchChatWindow.
+      const counterpartForKey: string | null =
+        role === "seller" ? (detail.counterpart_user_id ?? null) : null;
+      const key = matchKey(articleId, role, counterpartForKey);
       const notificationId: string | null = detail.notification_id ?? null;
+
 
       let art: any = null;
       try {
