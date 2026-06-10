@@ -9,7 +9,7 @@ import {
 } from "../_shared/waouh-phone.ts";
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
-import { findRadarOutreachContext } from "../_shared/waouh-radar.ts";
+import { findRadarOutreachContext, findRadarSellerOutreachContext } from "../_shared/waouh-radar.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -406,6 +406,62 @@ serve(async (req) => {
         }
       } catch (e) {
         console.warn("[radar-buyer-hydrate] failed", e);
+      }
+    }
+
+    // 🛰️ v11 — Hydratation Radar IA → Scénario B miroir (App buyer ↔ WA seller).
+    // Si un vendeur Radar IA scrapé répond à `radar_seller_outreach` sans
+    // contexte article, on reconstruit last_matches + current_article_id
+    // depuis waouh_outbound_queue + waouh_radar_signals.promoted_article_id.
+    // Sans ça, l'inbound "OUI" / "Je propose X" du vendeur tombe sur
+    // "Aucune négociation en cours" (symétrique du bug v10 côté acheteur).
+    let radarSellerContext: { signal_id: string | null; hydrated_at: string; negotiation_id: string | null } | null = null;
+    if (
+      channel === "whatsapp" &&
+      phone &&
+      !phone.startsWith("web:") &&
+      !radarHydratedContext?.current_article_id &&
+      !(Array.isArray(radarHydratedContext?.last_matches) && radarHydratedContext.last_matches.length > 0)
+    ) {
+      try {
+        const sellerCtx = await findRadarSellerOutreachContext(sb, phone);
+        if (sellerCtx) {
+          console.log("[radar-seller-hydrate]", {
+            phone,
+            article_id: sellerCtx.article.id,
+            signal_id: sellerCtx.radarSignalId,
+            negotiation_id: sellerCtx.negotiationId,
+          });
+          radarHydratedContext = {
+            ...radarHydratedContext,
+            last_matches: [{
+              id: sellerCtx.article.id,
+              title: sellerCtx.article.title,
+              price: sellerCtx.article.price,
+              seller_id: sellerCtx.article.seller_id,
+              photos: sellerCtx.article.photos,
+              market_price_min: sellerCtx.article.market_price_min,
+              market_price_max: sellerCtx.article.market_price_max,
+              source: "chat",
+            }],
+            current_article_id: sellerCtx.article.id,
+            radar_seller_context: {
+              signal_id: sellerCtx.radarSignalId,
+              hydrated_at: new Date().toISOString(),
+              negotiation_id: sellerCtx.negotiationId,
+            },
+          };
+          radarSellerContext = radarHydratedContext.radar_seller_context;
+          if (conv) {
+            (conv as any).context = radarHydratedContext;
+            (conv as any).current_article_id = sellerCtx.article.id;
+            // last_intent = "SELL" pour activer le fallback "OUI" / chiffre seul
+            // côté vendeur (symétrique au "BUY" hydraté plus haut).
+            (conv as any).last_intent = (conv as any).last_intent || "SELL";
+          }
+        }
+      } catch (e) {
+        console.warn("[radar-seller-hydrate] failed", e);
       }
     }
 
@@ -950,15 +1006,39 @@ serve(async (req) => {
         ];
         nextContext = { ...nextContext, last_matches: combinedMatches };
 
+        // 🛰️ v11 — Promotion Radar IA synchrone + inclusion dans last_matches.
+        // Sans ça, l'acheteur App ne peut pas répondre "intéressé N" sur un
+        // hit Radar (CONFIRM index hors-liste → "Aucune négociation").
+        const radarPromotedArticles: any[] = [];
+        for (const r of radarSellers.slice(0, 3)) {
+          try {
+            const art = r._from_external
+              ? await promoteExternalListing(sb, r, criteriaCategory)
+              : await promoteRadarSeller(sb, r, criteriaCategory);
+            if (art?.id) {
+              radarPromotedArticles.push({
+                id: art.id,
+                title: art.title,
+                price: art.price,
+                seller_id: art.seller_id,
+                photos: art.photos,
+                market_price_min: art.market_price_min,
+                market_price_max: art.market_price_max,
+                source: "radar",
+                radar_signal_id: r.id,
+              });
+            }
+          } catch (e) { console.warn("[radar promote sync]", e); }
+        }
+        if (radarPromotedArticles.length > 0) {
+          nextContext = { ...nextContext, last_matches: [...combinedMatches, ...radarPromotedArticles] };
+        }
+
         const radarAsync = (async () => {
           try {
             for (const r of radarSellers) {
-              try {
-                const art = r._from_external
-                  ? await promoteExternalListing(sb, r, criteriaCategory)
-                  : await promoteRadarSeller(sb, r, criteriaCategory);
-                if (!art?.id) continue;
-              } catch (e) { console.warn("[radar promote]", e); }
+              // L'article promu (si succès synchrone ci-dessus) sert à enrichir le payload
+              const promoted = radarPromotedArticles.find((a: any) => a.radar_signal_id === r.id);
               // 🚀 Outreach automatique WhatsApp aux vendeurs Radar IA (anti-spam: 1/24h)
               const e164 = normalizeBeninPhone(r.contact_phone || r.raw_text || r.contact_handle);
               if (!e164) continue;
@@ -977,6 +1057,9 @@ serve(async (req) => {
                   p_payload: {
                     text: `👋 Bonjour ! WAOUH a détecté votre annonce "${title}"${priceTxt}. Un acheteur dans ${user!.city || "votre zone"} est intéressé. Répondez *OUI* pour être mis en relation directement avec lui via WAOUH.`,
                     radar_signal_id: r.id,
+                    // v11 — Inclure article_id pour que findRadarSellerOutreachContext
+                    // hydrate le contexte du vendeur sans round-trip via le signal.
+                    article_id: promoted?.id ?? null,
                     source_url: r.raw_url,
                   },
                   p_channel: "whatsapp",
@@ -1082,11 +1165,27 @@ serve(async (req) => {
             if (typeof d === "number") distKm = Math.round(d * 10) / 10;
           } catch {}
         }
+        // 🛰️ v11 — Si le pick a été promu depuis Radar IA (côté vendeur WA),
+        // on retrouve le signal source pour le marquer comme converti
+        // (symétrique au v10 acheteur). Le radar_signal_id provient soit du
+        // pick (synchrone promu plus haut) soit de la ligne waouh_articles
+        // (origin = 'radar', origin_signal_id).
+        let pickRadarSignalId: string | null = pick.radar_signal_id ?? null;
+        if (!pickRadarSignalId && pickSource === "radar") {
+          try {
+            const { data: a } = await sb.from("waouh_articles")
+              .select("origin, origin_signal_id")
+              .eq("id", pick.id).maybeSingle();
+            if (a?.origin === "radar" && a?.origin_signal_id) {
+              pickRadarSignalId = a.origin_signal_id;
+            }
+          } catch {}
+        }
         // Négociation seule, AUCUNE transaction n'est créée (plus de paiement)
         const { data: neg } = await sb.from("waouh_negotiations").insert({
           article_id: pick.id, buyer_user_id: user!.id, seller_user_id: pick.seller_id,
           state: "proposed", last_offer_price: askPrice, last_actor: "system",
-          meta: { source: pickSource, stage: "awaiting_buyer_decision", rounds: 0, radar_signal_id: radarBuyerContext?.signal_id ?? null },
+          meta: { source: pickSource, stage: "awaiting_buyer_decision", rounds: 0, radar_signal_id: radarBuyerContext?.signal_id ?? pickRadarSignalId ?? null },
         }).select().single();
         // 🛰️ v10 — Si la négo provient d'un outreach Radar IA, marquer le
         // signal comme converti pour éviter de re-contacter l'acheteur sur
@@ -1097,6 +1196,16 @@ serve(async (req) => {
               .update({ status: "converted", converted_negotiation_id: neg.id, updated_at: new Date().toISOString() })
               .eq("id", radarBuyerContext.signal_id);
           } catch (e) { console.warn("[radar-buyer-hydrate] mark converted failed", e); }
+        }
+        // 🛰️ v11 — Miroir : marquer le signal SELL converti quand l'acheteur
+        // App ouvre une négo sur une annonce promue depuis Radar IA.
+        if (pickRadarSignalId && neg?.id && pickRadarSignalId !== radarBuyerContext?.signal_id) {
+          try {
+            await sb.from("waouh_radar_signals")
+              .update({ status: "converted", converted_negotiation_id: neg.id, updated_at: new Date().toISOString() })
+              .eq("id", pickRadarSignalId);
+            console.log("[radar-seller-hydrate] mark converted", { signal_id: pickRadarSignalId, neg_id: neg.id });
+          } catch (e) { console.warn("[radar-seller-hydrate] mark converted failed", e); }
         }
         returnedArticleId = pick.id;
         returnedTransactionId = null;

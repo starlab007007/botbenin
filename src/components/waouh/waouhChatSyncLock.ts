@@ -18,8 +18,8 @@
  */
 
 export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
-  version: "v10",
-  lockedAt: "2026-06-10T03:30:00.000Z",
+  version: "v11",
+  lockedAt: "2026-06-10T04:30:00.000Z",
   memoryRef: "mem://features/waouh-chat-sync-flow",
   invariants: Object.freeze({
     webhook: {
@@ -221,6 +221,22 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
       mustContain: [
         "findRadarOutreachContext",
         "radar_buyer_outreach",
+        // v11 — helper miroir vendeur WA Radar IA
+        "findRadarSellerOutreachContext",
+        "radar_seller_outreach",
+      ],
+    },
+    // 🔒 v11 — Radar IA → Scénario B miroir (App buyer ↔ WA seller).
+    // L'annonce SELL scrapée doit ouvrir une négociation côté acheteur App,
+    // et la réponse "OUI" / "Je propose X" du vendeur WA scrapé doit
+    // retrouver l'article promu (hydratation symétrique au v10).
+    radarSellerHydration: {
+      file: "supabase/functions/waouh-webhook/index.ts",
+      mustContain: [
+        "findRadarSellerOutreachContext",
+        "radar_seller_context",
+        "[radar-seller-hydrate]",
+        "radarPromotedArticles",
       ],
     },
   }),
