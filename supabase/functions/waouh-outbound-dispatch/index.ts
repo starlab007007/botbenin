@@ -39,14 +39,22 @@ function compose(template: string, p: any): string {
 function normalizeBeninPhone(value: string) {
   const original = String(value || "");
   if (original.includes("@lid")) return original.replace(/[^0-9@.a-z]/gi, "");
+  // 🔒 Stubs E2E (lettres) ne doivent jamais finir en envoi WhatsApp.
+  if (/[A-Za-z]/.test(original)) return null;
   const digits = original.replace(/\D/g, "");
   if (!digits) return null;
   // 🚧 Garde-fou : refuse les numéros impossiblement longs (typiquement un LID camouflé).
   if (digits.length > 13) return null;
-  if (digits.startsWith("00229")) return digits.slice(2);
-  if (digits.startsWith("229")) return digits.length <= 13 ? digits : null;
-  if (digits.length === 8 || (digits.length === 10 && digits.startsWith("01"))) return `229${digits}`;
-  return digits.length > 8 && digits.length <= 13 ? digits : null;
+  let candidate: string | null = null;
+  if (digits.startsWith("00229")) candidate = digits.slice(2);
+  else if (digits.startsWith("229")) candidate = digits;
+  else if (digits.length === 8) candidate = `229${digits}`;
+  else if (digits.length === 10 && digits.startsWith("01")) candidate = `229${digits}`;
+  else candidate = digits.length > 8 && digits.length <= 13 ? digits : null;
+  if (!candidate) return null;
+  // Validation finale pour les numéros Bénin canoniques.
+  if (candidate.startsWith("229") && !/^229(\d{8}|01\d{8})$/.test(candidate)) return null;
+  return candidate;
 }
 
 

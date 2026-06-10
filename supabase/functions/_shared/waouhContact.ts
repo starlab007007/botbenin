@@ -13,14 +13,25 @@ export interface ResolvedContact {
 
 export function normalizeBeninPhone(value?: string | null): string | null {
   const raw = String(value || "").replace(/@c\.us|@lid/g, "");
+  // 🔒 Refuse les valeurs alphanumériques (stubs E2E type 229E2ECS64284).
+  if (/[A-Za-z]/.test(raw)) return null;
   const digits = raw.replace(/\D/g, "");
   if (!digits) return null;
-  if (digits.startsWith("229")) return digits;
-  if (digits.length === 8 || (digits.length === 10 && digits.startsWith("01"))) return `229${digits}`;
-  const last10 = digits.slice(-10);
-  if (last10.length === 10 && last10.startsWith("01")) return `229${last10}`;
-  const last8 = digits.slice(-8);
-  return last8.length === 8 ? `229${last8}` : (digits.length > 8 ? digits : null);
+  let candidate: string | null = null;
+  if (digits.startsWith("229")) candidate = digits;
+  else if (digits.length === 8) candidate = `229${digits}`;
+  else if (digits.length === 10 && digits.startsWith("01")) candidate = `229${digits}`;
+  else {
+    const last10 = digits.slice(-10);
+    if (last10.length === 10 && last10.startsWith("01")) candidate = `229${last10}`;
+    else {
+      const last8 = digits.slice(-8);
+      if (last8.length === 8) candidate = `229${last8}`;
+    }
+  }
+  if (!candidate) return null;
+  if (!/^229(\d{8}|01\d{8})$/.test(candidate)) return null;
+  return candidate;
 }
 
 /**
