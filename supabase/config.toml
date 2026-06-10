@@ -278,6 +278,9 @@ verify_jwt = false
 [functions.waouh-radar-campaign-tick]
 verify_jwt = false
 
+[functions.waouh-radar-auto-control]
+verify_jwt = false
+
 [functions.whatsapp-otp-send]
 verify_jwt = false
 
