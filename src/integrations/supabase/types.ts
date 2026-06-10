@@ -7140,6 +7140,48 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_radar_auto_settings: {
+        Row: {
+          auto_default_for_new_contacts: boolean
+          auto_enabled: boolean
+          id: number
+          max_per_contact_per_day: number
+          max_total_per_day: number
+          pause_until: string | null
+          quiet_hours_end: string
+          quiet_hours_start: string
+          timezone: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          auto_default_for_new_contacts?: boolean
+          auto_enabled?: boolean
+          id?: number
+          max_per_contact_per_day?: number
+          max_total_per_day?: number
+          pause_until?: string | null
+          quiet_hours_end?: string
+          quiet_hours_start?: string
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          auto_default_for_new_contacts?: boolean
+          auto_enabled?: boolean
+          id?: number
+          max_per_contact_per_day?: number
+          max_total_per_day?: number
+          pause_until?: string | null
+          quiet_hours_end?: string
+          quiet_hours_start?: string
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       waouh_radar_campaign_runs: {
         Row: {
           campaign_id: string

@@ -118,6 +118,16 @@ export default function RadarContactsTab() {
     load();
   };
 
+  const bulkAuto = async (auto_notify: boolean) => {
+    if (!selected.size) return toast.error("Sélectionnez au moins 1 contact");
+    const ids = Array.from(selected);
+    const { error } = await supabase.from("waouh_radar_contacts" as any).update({ auto_notify }).in("id", ids);
+    if (error) return toast.error(error.message);
+    toast.success(`${ids.length} contact(s) — auto-notify ${auto_notify ? "activé" : "désactivé"}`);
+    setSelected(new Set());
+    load();
+  };
+
   const exportCsv = () => {
     const head = ["phone", "name", "source", "status", "auto_notify", "signals", "buy", "sell", "categories", "cities", "last_seen"];
     const lines = [head.join(",")].concat(filtered.map((r) => [
@@ -206,6 +216,8 @@ export default function RadarContactsTab() {
           </div>
         </div>
         <div className="flex gap-2 flex-wrap mt-2">
+          <Button size="sm" variant="outline" disabled={!selected.size} onClick={() => bulkAuto(true)}>Activer auto-notify</Button>
+          <Button size="sm" variant="outline" disabled={!selected.size} onClick={() => bulkAuto(false)}>Désactiver auto-notify</Button>
           <Button size="sm" variant="outline" disabled={!selected.size} onClick={() => bulkStatus("opted_in")}>Marquer opted_in</Button>
           <Button size="sm" variant="outline" disabled={!selected.size} onClick={() => bulkStatus("opted_out")}>Marquer opted_out</Button>
           <Button size="sm" variant="outline" disabled={!selected.size} onClick={() => bulkStatus("blocked")}>Bloquer</Button>
