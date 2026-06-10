@@ -271,3 +271,9 @@ verify_jwt = false
 
 [functions.waouh-radar-api-config]
 verify_jwt = false
+
+[functions.waouh-radar-campaign-manager]
+verify_jwt = false
+
+[functions.waouh-radar-campaign-tick]
+verify_jwt = false
