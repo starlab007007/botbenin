@@ -1005,8 +1005,17 @@ serve(async (req) => {
           returnedActions = [];
         } else {
         const { data: seller } = pick.seller_id
-          ? await sb.from("waouh_users").select("id,phone_number,display_name,web_session_id,city").eq("id", pick.seller_id).maybeSingle()
+          ? await sb.from("waouh_users").select("id,phone_number,display_name,web_session_id,city,auth_user_id").eq("id", pick.seller_id).maybeSingle()
           : { data: null };
+        // 🔒 v8 — Empêche le vendeur d'ouvrir une négociation sur son propre article
+        // (cas seller WhatsApp = LID différent du compte App seller). Sans ça,
+        // une néga miroir est créée avec buyer=vendeur, ce qui détourne les
+        // contre-offres et le "achat conclu" vers lui au lieu du vrai acheteur.
+        const buyerSiblingIds = await resolveSiblingUserIds(sb, user as any);
+        if (pick.seller_id && buyerSiblingIds.includes(pick.seller_id)) {
+          reply = "🤔 Vous êtes le vendeur de cet article. Vous ne pouvez pas vous y intéresser vous-même. Attendez qu'un acheteur se manifeste.";
+          returnedActions = [];
+        } else {
         const { data: artPhoto } = pick.seller_id
           ? await sb.from("waouh_articles").select("photos").eq("id", pick.id).maybeSingle()
           : { data: null };
