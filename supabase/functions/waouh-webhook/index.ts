@@ -682,7 +682,7 @@ serve(async (req) => {
               text: opts.directText,
               web_session_id: extra.web_session_id,
               attachments: opts.directAtts ?? [],
-              meta: { ...(opts.directMeta ?? {}), transaction_id: opts.transaction_id ?? null, source: opts.source ?? "chat", mirror: "partner_web" },
+              meta: { ...(opts.directMeta ?? {}), counterpart_user_id: counterpartForMeta, buyer_user_id: counterpartForMeta, transaction_id: opts.transaction_id ?? null, source: opts.source ?? "chat", mirror: "partner_web" },
             }).select("id").maybeSingle();
             mirrorMsgId = msg?.id ?? null;
           } catch (e) { console.warn("[pushToOther] mirror msg", e); }
