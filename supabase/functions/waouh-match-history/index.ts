@@ -36,6 +36,9 @@ serve(async (req) => {
     const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 30, 1), 200);
     const includeMeta = body?.includeMeta !== false;
     const notificationId: string | null = body?.notificationId ?? null;
+    // v12 — seller windows scoped per counterpart (one tab per interested buyer)
+    const counterpartUserId: string | null = body?.counterpartUserId ?? null;
+
 
     if (!articleId) {
       return new Response(JSON.stringify({ ok: false, error: "missing articleId" }), {
