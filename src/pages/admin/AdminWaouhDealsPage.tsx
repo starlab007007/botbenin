@@ -22,6 +22,7 @@ type Courier = {
 };
 
 const STATUS_LABEL: Record<string, string> = {
+  pending: "À assigner",
   pending_assignment: "À assigner",
   assigned: "Assigné",
   picked_up: "Collecté",
@@ -31,6 +32,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const STATUS_COLOR: Record<string, string> = {
+  pending: "bg-amber-100 text-amber-800",
   pending_assignment: "bg-amber-100 text-amber-800",
   assigned: "bg-sky-100 text-sky-800",
   picked_up: "bg-cyan-100 text-cyan-800",
