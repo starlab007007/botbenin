@@ -197,17 +197,25 @@ export default function RadarApiConfigPanel() {
       </div>
 
       {loadError && (
-        <Alert variant="destructive" className="mb-3">
+        <Alert variant={loadError.includes("admin") || loadError.includes("Authentification") || loadError.includes("Session") ? "default" : "destructive"} className="mb-3">
           <AlertCircle className="w-4 h-4" />
-          <AlertTitle>Chargement impossible</AlertTitle>
+          <AlertTitle>{loadError.includes("admin") || loadError.includes("Authentification") || loadError.includes("Session") ? "Connexion admin requise" : "Chargement impossible"}</AlertTitle>
           <AlertDescription>
-            {loadError}
+            {loadError}. Les champs restent affichés ci-dessous pour vous montrer où configurer SerpAPI et Apify dès que la session admin est valide.
             <div className="mt-2">
               <Button size="sm" variant="outline" onClick={load}>Réessayer</Button>
             </div>
           </AlertDescription>
         </Alert>
       )}
+
+      <Alert className="mb-3 border-amber-500/30 bg-amber-500/5">
+        <KeyRound className="w-4 h-4 text-amber-500" />
+        <AlertTitle>Où configurer les clés ?</AlertTitle>
+        <AlertDescription className="text-xs">
+          Utilisez les deux blocs ci-dessous : collez la clé dans “Clé API”, cliquez “Enregistrer”, activez l’interrupteur, puis “Tester”.
+        </AlertDescription>
+      </Alert>
 
       <div className="grid md:grid-cols-2 gap-3">
         {configs.map((c) => {
