@@ -168,9 +168,18 @@ serve(async (req) => {
 
     const baseRows = allRows.filter(viewerOwnsMessage);
     // Defensive: strip self-ack rows that somehow don't belong to viewer.
-    const rows = baseRows.filter((m: any) => !isSelfAck(m) || viewerOwnsMessage(m));
+    let rows = baseRows.filter((m: any) => !isSelfAck(m) || viewerOwnsMessage(m));
+    // v12 — seller history scoped to a single counterpart (buyer) so each
+    // interested buyer gets their own WaouhMatchChatWindow with isolated history.
+    if (role === "seller" && counterpartUserId) {
+      rows = rows.filter((m: any) => {
+        const cp = m?.meta?.counterpart_user_id ?? m?.meta?.buyer_user_id ?? null;
+        return cp === counterpartUserId || m?.user_id === counterpartUserId;
+      });
+    }
     const messages = rows.slice().reverse(); // ASC for client
     const hasMore = allRows.length === limit;
+
 
     // 5) Optional meta: article status + seed notification.
     let articleStatus: string | null = null;
