@@ -145,8 +145,8 @@ Deno.serve(async (req) => {
       .from("waouh_outbound_queue")
       .select("*")
       .eq("status", "pending")
-      .lt("attempts", MAX_ATTEMPTS)
       .or(`next_attempt_at.is.null,next_attempt_at.lte.${nowIso}`)
+      .or(`circuit_open_until.is.null,circuit_open_until.lte.${nowIso}`)
       .order("created_at", { ascending: true })
       .limit(limit);
     if (error) throw error;
@@ -154,6 +154,11 @@ Deno.serve(async (req) => {
     let sent = 0, failed = 0, skipped = 0;
 
     for (const it of items || []) {
+      const maxAttempts = Number(it.max_attempts) || MAX_ATTEMPTS_DEFAULT;
+      if (Number(it.attempts) >= maxAttempts) {
+        await sb.from("waouh_outbound_queue").update({ status: "failed", last_error: "max_attempts reached" }).eq("id", it.id);
+        failed++; continue;
+      }
       // 🔒 Verrouillage atomique : pending→sending.
       const { data: claimed } = await sb
         .from("waouh_outbound_queue")
@@ -164,10 +169,31 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (!claimed) { skipped++; continue; }
 
+      // ⏱️ Rate-limit 10 msg / min / numéro (best-effort, ignore erreurs)
+      if (it.to_phone) {
+        try {
+          const windowStart = new Date(Math.floor(Date.now() / 60000) * 60000).toISOString();
+          const { data: rl } = await sb.from("waouh_rate_limit")
+            .select("count").eq("phone", it.to_phone).eq("window_started_at", windowStart).maybeSingle();
+          if (rl && rl.count >= 10) {
+            await sb.from("waouh_outbound_queue").update({
+              status: "pending",
+              next_attempt_at: new Date(Date.now() + 60_000).toISOString(),
+              last_error: "rate_limited",
+            }).eq("id", it.id);
+            skipped++; continue;
+          }
+          await sb.from("waouh_rate_limit").upsert({
+            phone: it.to_phone, window_started_at: windowStart, count: (rl?.count ?? 0) + 1,
+          }, { onConflict: "phone,window_started_at" });
+        } catch (_) { /* best-effort */ }
+      }
+
       const finishFailed = async (err: string, retry = false) => {
         const newAttempts = it.attempts + 1;
-        const shouldRetry = retry && newAttempts < MAX_ATTEMPTS;
-        const backoffSec = Math.min(60 * Math.pow(2, newAttempts), 600); // 2,4,8…min, cap 10 min
+        const shouldRetry = retry && newAttempts < maxAttempts;
+        // Backoff exponentiel : 5s, 30s, 2min, 10min, 1h (cap 3600s)
+        const backoffSec = Math.min(5 * Math.pow(6, newAttempts - 1), 3600);
         await sb.from("waouh_outbound_queue").update({
           status: shouldRetry ? "pending" : "failed",
           last_error: err.slice(0, 500),
@@ -175,6 +201,7 @@ Deno.serve(async (req) => {
         }).eq("id", it.id);
         failed++;
       };
+
 
       // Web-only : pas de téléphone → realtime web suffit
       if ((it.channel && it.channel === "web") || !it.to_phone) {
