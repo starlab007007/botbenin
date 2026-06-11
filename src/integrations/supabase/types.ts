@@ -6346,12 +6346,14 @@ export type Database = {
         Row: {
           attempts: number
           channel: string
+          circuit_open_until: string | null
           created_at: string
           dedupe_key: string | null
           event_type: string | null
           id: string
           image_url: string | null
           last_error: string | null
+          max_attempts: number
           message_id: string | null
           next_attempt_at: string | null
           payload: Json
@@ -6368,12 +6370,14 @@ export type Database = {
         Insert: {
           attempts?: number
           channel?: string
+          circuit_open_until?: string | null
           created_at?: string
           dedupe_key?: string | null
           event_type?: string | null
           id?: string
           image_url?: string | null
           last_error?: string | null
+          max_attempts?: number
           message_id?: string | null
           next_attempt_at?: string | null
           payload?: Json
@@ -6390,12 +6394,14 @@ export type Database = {
         Update: {
           attempts?: number
           channel?: string
+          circuit_open_until?: string | null
           created_at?: string
           dedupe_key?: string | null
           event_type?: string | null
           id?: string
           image_url?: string | null
           last_error?: string | null
+          max_attempts?: number
           message_id?: string | null
           next_attempt_at?: string | null
           payload?: Json
@@ -7732,6 +7738,24 @@ export type Database = {
           last_signal_count?: number | null
           scan_freq_min?: number
           type?: string
+        }
+        Relationships: []
+      }
+      waouh_rate_limit: {
+        Row: {
+          count: number
+          phone: string
+          window_started_at: string
+        }
+        Insert: {
+          count?: number
+          phone: string
+          window_started_at?: string
+        }
+        Update: {
+          count?: number
+          phone?: string
+          window_started_at?: string
         }
         Relationships: []
       }
