@@ -10,7 +10,7 @@ const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY");
 const WAHA_SESSION = Deno.env.get("WAHA_SESSION") || "WaouhApp";
 const WAOUH_BUSINESS_PHONE = normalizeBeninPhone(Deno.env.get("WAOUH_BUSINESS_PHONE") || "65653468") || "22965653468";
 
-const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS_DEFAULT = 5;
 
 function fmt(n: number | null | undefined) {
   if (n == null) return "prix à discuter";
