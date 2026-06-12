@@ -1,5 +1,5 @@
+import { useEffect } from "react";
 import { Download, FileText, ShieldCheck, Smartphone, MessageCircle } from "lucide-react";
-import { Helmet } from "react-helmet-async";
 
 const DOCX_URL = "/recette/Cahier_Recette_bot_bj_v1.docx";
 
