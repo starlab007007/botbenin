@@ -1,95 +1,103 @@
 
-## Audit Sécurité & Hardening Production WAOUH
+# Cahier de recette bot.bj — Plan de livraison
 
-Objectif : passer la plateforme en production en corrigeant les failles critiques détectées par le scanner, fiabiliser le module chat (cœur business) et améliorer la performance/observabilité.
+## Objectif
 
-## 1. Constat du scan sécurité
+Produire un cahier de recette officiel, exhaustif (200+ scénarios), couvrant les 4 profils (visiteur anonyme, mobile APK, acheteur/vendeur WAOUH, partenaire/admin), livré sous deux formes : page web consultable dans bot.bj + fichier `.docx` téléchargeable.
 
-**🔴 ERREURS critiques (à corriger avant prod — 8 failles)**
+## Livrables
 
-| # | Faille | Risque |
-|---|---|---|
-| 1 | `waouh_users` lisible publiquement via `web_session_id IS NOT NULL` | Tous les téléphones, villes, GPS exposés à l'anonyme |
-| 2 | `waouh_messages` idem | Tous les messages de chat exposés (1974 lignes) |
-| 3 | `waouh_notifications` idem | 619 notifications utilisateurs exposées |
-| 4 | `waouh_notifications` UPDATE `USING true` | N'importe qui peut marquer lu/non lu |
-| 5 | `waouh_outbound_queue` SELECT `USING true` | 1126 messages sortants + n° téléphones exposés |
-| 6 | `payment_transactions` lisible si `user_id IS NULL` | Paiements invités exposés (téléphones, montants) |
-| 7 | `ia_creator_user_usage` UPDATE `USING true` | Reset des compteurs d'un autre user → contournement quotas |
-| 8 | `public-media` bucket DELETE public | N'importe qui peut supprimer les fichiers |
+1. **Document Word** : `/mnt/documents/Cahier_Recette_bot_bj_v1.docx` généré via `docx-js`, prêt impression.
+2. **Page web** : nouvelle route `/app/recette` (et alias public `/recette`) avec :
+   - Sommaire ancré
+   - Toutes les sections rendues en HTML imprimable
+   - Boutons « Télécharger .docx » et « Imprimer / PDF navigateur »
+3. **Composants/data** :
+   - `src/data/recette/` : fichiers TS structurés (sections, modules, scénarios, matrices) — source unique partagée entre la page et le script de génération DOCX.
+   - `src/pages/RecettePage.tsx` : rendu lecture.
+   - `scripts/generate-recette-docx.mjs` : script Node générant le DOCX depuis la même data.
 
-**🟡 WARNINGS importants**
-- `anonymous_visitor_sessions` UPDATE `USING true` (lead_info PII)
-- `ia_creator_user_usage` INSERT sans check `user_id = auth.uid()`
-- Realtime channels sans auth → tout user authentifié écoute toutes les notifs
-- `LEAKED_PASSWORD_PROTECTION` désactivé (config Supabase)
-- OTP expiry trop long (config Supabase)
-- Postgres patches sécurité dispo (upgrade)
-- Plusieurs fonctions SQL sans `search_path` immutable
+## Structure du document (conforme au brief)
 
-## 2. Plan d'action — 4 phases
+1. Page de garde (titre, version 1.0, date 12/06/2026, MOA/MOE, statut)
+2. Historique des versions
+3. Acronymes & définitions (WAOUH, WAHA, NLLB, RLS, FCFA, MoMo, etc.)
+4. Introduction (contexte bot.bj — agent IA WhatsApp + WAOUH marketplace + Radar + Partenaire + Mobile APK)
+5. Périmètre (inclus / exclus)
+6. Objectifs de la recette (11 axes)
+7. Environnement de recette (URLs, navigateurs, devices, jeux de données, comptes)
+8. Acteurs (tableau 7 rôles)
+9. Stratégie de recette (15 types : fonctionnelle → restauration)
+10. Niveaux de criticité (bloquante, majeure, mineure, cosmétique, évolution)
+11. Critères d'entrée / sortie
+12. **Matrice des droits** (Module × Fonctionnalité × 5 rôles + Observations, valeurs C/L/M/S/V/E/N/A)
+13. **Scénarios détaillés par module** — 18 modules, 200+ scénarios formatés en tableau (ID, Module, Fonctionnalité, Objectif, Préconditions, Profil, Données, Étapes, Résultat attendu, Résultat obtenu, Statut, Criticité, Preuve, Commentaires)
+14. Grille de suivi des anomalies
+15. Modèle de fiche d'anomalie
+16. Modèle de PV de recette
+17. Critères de validation finale, réserves, recommandations pré-prod
+18. Conclusion
 
-### Phase 1 — Corrections RLS critiques (1 migration)
+## Couverture modulaire renforcée (focus chat & WAOUH)
 
-Politiques à réécrire avec validation par header `x-waouh-session-token` (pattern déjà en place sur `waouh_outbound_queue` côté token) ou `auth.uid()` :
+Au-delà des 18 modules génériques du brief, le document détaillera spécifiquement :
 
-- `waouh_users` : SELECT scope = `auth_user_id = auth.uid()` OU header session validé
-- `waouh_messages` : SELECT scope = appartenance à la conversation du user authentifié OU header session
-- `waouh_notifications` : SELECT + UPDATE scope = `user_id IN (SELECT id FROM waouh_users WHERE auth_user_id = auth.uid())`
-- `waouh_outbound_queue` : SELECT scope = `to_user_id` du user OU header session validé
-- `payment_transactions` : retirer la branche `auth.uid() IS NULL AND user_id IS NULL` — guest reads via edge function service_role uniquement
-- `ia_creator_user_usage` : INSERT/UPDATE scope = `auth.role() = 'service_role'`
-- `anonymous_visitor_sessions` : UPDATE scope = match token visiteur
-- Storage `public-media` DELETE : `auth.uid()::text = (storage.foldername(name))[1]`
+- **Chat WAOUH visiteur anonyme** : header `x-waouh-session`, persistance localStorage, RGPD, reprise conversation, fallback hors-ligne.
+- **Chat APK mobile** (`ChatScreen.tsx`) : auth Supabase, realtime `waouh_messages` filtré par `conversation_id`, envoi `waha-send-message`, marquage lu.
+- **WaouhMatchChatWindow multi-fenêtres** (v12 locked) : matchKey par (article, acheteur), filtrage realtime `counterpart_user_id`, scénarios A/B/C (acheteur seul, vendeur seul, conversation croisée).
+- **Pipeline WhatsApp** : queue `waouh_outbound_queue` avec retry exponentiel 5s→1h, dedup `meta->>'channel_message_id'`, rate-limit 10 msg/min/numéro, circuit breaker.
+- **Radar IA** : signaux `waouh_radar_signals`, contacts, campagnes, matching.
+- **Partenaire business** : payouts, produits, ventes, permissions.
+- **Admin** : `user_roles` (security definer `has_role`), audit logs, dashboard santé.
+- **Interopérabilité** : WAHA proxy, Qosic (Mobile Money), ElevenLabs (Kpakpato vocal), Hugging Face NLLB (Fon/Yoruba), Google Sheets KB.
+- **Sécurité** : phases 1-4 déjà appliquées (RLS, search_path, dedup, indexes) à vérifier en recette.
 
-### Phase 2 — Hardening config & fonctions
+## Répartition cible des scénarios (~210)
 
-- `ALTER FUNCTION ... SET search_path = public` sur toutes les fonctions SECURITY DEFINER existantes
-- `REVOKE EXECUTE ... FROM anon` sur les fonctions DEFINER non-publiques
-- Activer **Leaked Password Protection** + raccourcir OTP à 600s via mention au user (config Supabase Auth UI)
-- Annoncer l'upgrade Postgres recommandé
+| Module | Scénarios |
+|---|---|
+| 1. Authentification | 15 |
+| 2. Gestion utilisateurs | 12 |
+| 3. Rôles & permissions | 10 |
+| 4. Tableau de bord | 10 |
+| 5. Données métier (articles WAOUH) | 14 |
+| 6. Workflows négociation/deal | 12 |
+| 7. Notifications (WA/email/in-app/push) | 14 |
+| 8. Recherche & filtres | 10 |
+| 9. Import données | 8 |
+| 10. Export & rapports | 10 |
+| 11. Paramétrage | 8 |
+| 12. Journalisation & audit | 8 |
+| 13. Documents & pièces jointes | 8 |
+| 14. UI/UX & responsive | 12 |
+| 15. Sécurité | 18 |
+| 16. Performance & charge | 10 |
+| 17. API & intégrations (WAHA, Qosic, ElevenLabs, NLLB, Google Sheets) | 14 |
+| 18. Sauvegarde / disponibilité | 6 |
+| **CHAT WAOUH dédié** (A/B/C, sync v12, multi-fenêtres) | 18 |
+| **Mobile APK** (chat embedded, push, offline) | 10 |
+| **Partenaire/Admin** | 10 |
 
-### Phase 3 — Robustesse module chat (cœur business)
+Total ≈ **227 scénarios**.
 
-État actuel vérifié : `WAOUH Chat Sync Flow v1` est **verrouillé** (memory note `waouh-chat-sync-flow-locked-v1`). On ne touche PAS à la logique sync — on ajoute uniquement :
+## Détails techniques
 
-- **Retry queue** pour `waouh_outbound_queue` : exponentiel (5s, 30s, 5min, 1h) avec `max_attempts=5`, status `dead_letter` au-delà — déjà colonnes en place, créer un cron 30s qui drain
-- **Dedup messages entrants** : index unique `(channel_message_id, channel)` sur `waouh_messages` pour éviter doublons WhatsApp/Telegram
-- **Backpressure WAHA** : circuit breaker dans `waouh-whatsapp-send` (3 erreurs 500 consécutives → pause 60s)
-- **Healthcheck étendu** : `/admin/waouh/health` affiche taux d'échec outbound 24h, latence webhook moyenne, signaux radar en attente, derniers `dead_letter`
-- **Logs structurés** : remplacer `console.log` libres par `console.log(JSON.stringify({lvl,fn,evt,...}))` dans `waouh-webhook`, `waouh-radar-process`, `waouh-whatsapp-send`
-- **Rate limit** côté edge : 10 messages/min/numéro entrant pour bloquer abus
+- **DOCX** : `docx@^8` (déjà disponible via npm), Arial 11pt, US Letter, tableaux DXA, styles Heading1-3 surchargés, TOC auto, page numbers footer, en-tête « Cahier de recette — bot.bj ».
+- **Page web** : route ajoutée dans le router principal + entrée discrète dans menu Admin (non visible utilisateur final). Composant `RecetteSection` réutilisable. Bouton download = fetch `/recette/Cahier_Recette_bot_bj_v1.docx` depuis `public/`.
+- **Génération DOCX** : script copié sous `/tmp` puis exécuté ; sortie dans `/mnt/documents` + copie dans `public/recette/` pour téléchargement depuis l'app.
+- **QA visuel** : conversion DOCX → PDF → images via LibreOffice, inspection de toutes les pages avant livraison.
 
-### Phase 4 — Performance
+## Étapes de build (après approbation)
 
-- **Indexes manquants** (vérifiés via `slow_queries`) sur :
-  - `waouh_messages(conversation_id, created_at DESC)`
-  - `waouh_outbound_queue(status, next_attempt_at)` partiel `WHERE status IN ('queued','retry')`
-  - `waouh_radar_signals(status, created_at)` partiel
-  - `waouh_deals(status, created_at DESC)`
-- **Realtime** : restreindre les channels publiés (notifications + whatsapp_messages) — ajout RLS sur `realtime.messages` scope par user
-- **Frontend** : audit lazy-loading des routes admin lourdes (`/admin/waouh/*`) via React.lazy si pas déjà fait
-- **Caches edge** : TTL 6h sur les analyses prix (déjà fait), 24h sur les FX rates
+1. Créer `src/data/recette/` (sections, 18 modules, 227 scénarios, matrice droits).
+2. Créer `src/pages/RecettePage.tsx` + route dans `src/App.tsx`.
+3. Créer `scripts/generate-recette-docx.mjs` consommant la même data.
+4. Exécuter le script → `/mnt/documents/Cahier_Recette_bot_bj_v1.docx` + `public/recette/Cahier_Recette_bot_bj_v1.docx`.
+5. QA visuel DOCX (LibreOffice → images).
+6. Vérifier la page `/app/recette` dans le preview.
+7. Présenter `<presentation-artifact>` pour le DOCX.
 
-## 3. Validations de fin de chantier
+## Hors périmètre
 
-- Re-run `security--run_security_scan` → 0 erreur, warnings résiduels documentés dans `security-memory`
-- Test e2e chat : envoi WhatsApp → réception webhook → réponse IA → enregistrement (déjà couvert par `docs/waouh-e2e-test-2026-06-09.md`, à rejouer)
-- Vérification `waouh-chat-sync-flow` health-check vert
-- Sanity check : `curl` anonyme sur les tables ex-exposées → 0 ligne retournée
-
-## 4. Hors scope de cette itération
-
-- Réécriture de l'auth (Supabase auth déjà en place)
-- Refonte UI (l'utilisateur veut prod, pas redesign)
-- Migration Postgres (action manuelle Supabase dashboard — sera signalée)
-
-## Question avant build
-
-Ce chantier représente ~3-4 migrations SQL + édits dans 6-8 edge functions + 1-2 composants admin. Confirme :
-
-**A) Tout en un seul gros chantier maintenant**, je migre toutes les Phases 1→4 dans ce build.
-
-**B) Phase 1 (RLS critiques) en priorité absolue d'abord**, on valide ensemble puis on enchaîne 2-3-4.
-
-Recommandation : **B** — la Phase 1 supprime les fuites de PII, on valide rapidement (le scanner doit retomber à 0 erreur), puis on enchaîne sans risquer de casser le chat.
+- Pas de modification du code métier (chat, RLS, edge functions) — recette uniquement documentaire.
+- Pas de mise en production automatique.
