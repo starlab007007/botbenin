@@ -41,14 +41,11 @@ const modules = [
 ];
 
 export default function RecettePage() {
+  useEffect(() => {
+    document.title = "Cahier de recette — bot.bj";
+  }, []);
   return (
     <>
-      <Helmet>
-        <title>Cahier de recette — bot.bj</title>
-        <meta name="description" content="Cahier de recette officiel de la plateforme bot.bj : 237 scénarios sur 21 modules, prêt pour la mise en production." />
-        <link rel="canonical" href="https://bot.bj/recette" />
-      </Helmet>
-
       <main className="min-h-screen bg-gradient-to-b from-emerald-50 to-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10">
           <header className="mb-8">
