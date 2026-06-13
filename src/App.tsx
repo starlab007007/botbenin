@@ -191,6 +191,7 @@ const AppContent = () => {
   
   return (
     <Suspense fallback={<DeferredRouteFallback />}>
+      <OfflineBanner />
       <Routes>
                   {/* Routes avec layout principal */}
                   <Route element={<MainLayout />}>
