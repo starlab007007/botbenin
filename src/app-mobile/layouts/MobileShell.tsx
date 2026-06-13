@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { BottomTabBar } from './BottomTabBar';
 import { useGlobalChatSync } from '../hooks/useGlobalChatSync';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import '../theme/mobile-theme.css';
 
 export const MobileShell = () => {
@@ -34,6 +35,7 @@ export const MobileShell = () => {
 
   return (
     <div className="mobile-shell flex flex-col min-h-[100dvh]">
+      <OfflineBanner />
       <main className={fullscreen ? 'flex-1' : 'flex-1 pb-[64px]'}>
         <Outlet />
       </main>
