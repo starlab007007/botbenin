@@ -38,20 +38,39 @@ installChunkErrorReload();
 
 
 
+const shouldSkipRegistration = () => {
+  if (typeof window === 'undefined') return true;
+  try {
+    if (window.self !== window.top) return true; // inside iframe (Lovable preview)
+  } catch { return true; }
+  const host = window.location.hostname;
+  if (host.startsWith('id-preview--') || host.startsWith('preview--')) return true;
+  if (host === 'lovableproject.com' || host.endsWith('.lovableproject.com')) return true;
+  if (host === 'lovableproject-dev.com' || host.endsWith('.lovableproject-dev.com')) return true;
+  if (host === 'beta.lovable.dev' || host.endsWith('.beta.lovable.dev')) return true;
+  if (new URLSearchParams(window.location.search).get('sw') === 'off') return true;
+  return false;
+};
+
 export const registerServiceWorker = () => {
   if (!('serviceWorker' in navigator)) return;
 
+  if (shouldSkipRegistration()) {
+    // Make sure no stale SW is active in preview/iframe contexts.
+    navigator.serviceWorker.getRegistrations?.().then((regs) => {
+      regs.forEach((r) => r.unregister().catch(() => null));
+    }).catch(() => null);
+    return;
+  }
+
   runWhenIdle(async () => {
     try {
-      const registration = await navigator.serviceWorker.register(`/sw.js?v=${Date.now()}`, {
+      const registration = await navigator.serviceWorker.register('/sw.js', {
         scope: '/',
         updateViaCache: 'none',
       });
       await registration.update();
       console.log('Service Worker enregistré:', registration.scope);
-      if ('Notification' in window && Notification.permission === 'default') {
-        // Ne pas prompter d'office, juste préparer
-      }
     } catch (error) {
       console.error('Erreur SW:', error);
     }

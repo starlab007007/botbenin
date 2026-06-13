@@ -151,6 +151,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 // WaouhApp — Mobile native shell (Capacitor)
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { MobileErrorFallback } from "./app-mobile/components/MobileErrorFallback";
+import { OfflineBanner } from "./components/OfflineBanner";
 const MobileShell = lazy(() => import("./app-mobile/layouts/MobileShell"));
 const MobileWaouhChat = lazy(() => import("./app-mobile/screens/WaouhChatScreen"));
 const MobileConversations = lazy(() => import("./app-mobile/screens/ChatListScreen"));
@@ -191,6 +192,7 @@ const AppContent = () => {
   
   return (
     <Suspense fallback={<DeferredRouteFallback />}>
+      <OfflineBanner />
       <Routes>
                   {/* Routes avec layout principal */}
                   <Route element={<MainLayout />}>
