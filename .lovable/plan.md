@@ -1,103 +1,65 @@
+## Diagnostic — pourquoi le logo n'apparaît pas
 
-# Cahier de recette bot.bj — Plan de livraison
+1. **`public/favicon.ico` est en réalité un PNG renommé** (363 KB, déclaré `type="image/x-icon"` dans le manifest). Plusieurs navigateurs (et Android lors de l'install PWA) le rejettent silencieusement.
+2. **`public/manifest.json` référence `/icon-192.png` et `/icon-512.png` qui n'existent pas** → installation PWA / icône Home-Screen tombe en fallback générique.
+3. **`<meta property="og:image">` annonce 1200×1200** alors que le PNG WAOUH n'a pas ces dimensions → certains scrapers ignorent.
+4. Le composant `BotBjLogo` affiche un texte `BOT.BJ` en bleu **à côté** de l'icône. L'utilisateur veut le logo WAOUH partout — il faut probablement masquer/remplacer le label texte.
+5. Les caches navigateur + Service Worker (`public/sw.js`) servent toujours l'ancien favicon → besoin d'un bust de cache (renommer le fichier ou query string `?v=2`).
 
-## Objectif
+## Diagnostic — pas d'offline réel
 
-Produire un cahier de recette officiel, exhaustif (200+ scénarios), couvrant les 4 profils (visiteur anonyme, mobile APK, acheteur/vendeur WAOUH, partenaire/admin), livré sous deux formes : page web consultable dans bot.bj + fichier `.docx` téléchargeable.
+- `public/sw.js` actuel ne met **rien** en cache (commenté volontairement). Donc dès qu'Internet coupe : écran blanc, plus rien ne marche.
+- Les messages WAOUH sont stockés uniquement dans Supabase + un cache mémoire React (`useWaouhMatchChats.getCached`) → perdus à chaque refresh hors-ligne.
+- Aucun indicateur visuel "hors ligne" global. Aucun toast quand la connexion revient.
 
-## Livrables
+## Plan d'action
 
-1. **Document Word** : `/mnt/documents/Cahier_Recette_bot_bj_v1.docx` généré via `docx-js`, prêt impression.
-2. **Page web** : nouvelle route `/app/recette` (et alias public `/recette`) avec :
-   - Sommaire ancré
-   - Toutes les sections rendues en HTML imprimable
-   - Boutons « Télécharger .docx » et « Imprimer / PDF navigateur »
-3. **Composants/data** :
-   - `src/data/recette/` : fichiers TS structurés (sections, modules, scénarios, matrices) — source unique partagée entre la page et le script de génération DOCX.
-   - `src/pages/RecettePage.tsx` : rendu lecture.
-   - `scripts/generate-recette-docx.mjs` : script Node générant le DOCX depuis la même data.
+### A. Logo & icônes (corrige la visibilité)
 
-## Structure du document (conforme au brief)
+1. Supprimer le `favicon.ico` actuel (PNG mal nommé) et le remplacer par **un vrai `.ico` multi-tailles** OU servir directement le PNG avec `type="image/png"` dans tous les liens.
+2. Générer `public/icon-192.png` et `public/icon-512.png` (redimensionnement du logo WAOUH) — requis par le manifest et le splash PWA.
+3. Mettre à jour `public/manifest.json` : types MIME corrects, ajout `icon-192/512`, `theme_color: "#075E54"` (vert WAOUH), `background_color` cohérent.
+4. Mettre à jour `index.html` et `index.mobile.html` : références `?v=2` pour invalider les caches, balise `<link rel="apple-touch-icon" sizes="180x180">`.
+5. `BotBjLogo.tsx` : agrandir l'icône, retirer (ou rendre optionnel via prop) le texte bleu `BOT.BJ` puisque le logo WAOUH contient déjà le branding.
+6. Mettre à jour `capacitor.config.ts` / `scripts/patch-android-manifest.mjs` si nécessaire pour que l'APK régénérée embarque bien le nouveau drawable.
 
-1. Page de garde (titre, version 1.0, date 12/06/2026, MOA/MOE, statut)
-2. Historique des versions
-3. Acronymes & définitions (WAOUH, WAHA, NLLB, RLS, FCFA, MoMo, etc.)
-4. Introduction (contexte bot.bj — agent IA WhatsApp + WAOUH marketplace + Radar + Partenaire + Mobile APK)
-5. Périmètre (inclus / exclus)
-6. Objectifs de la recette (11 axes)
-7. Environnement de recette (URLs, navigateurs, devices, jeux de données, comptes)
-8. Acteurs (tableau 7 rôles)
-9. Stratégie de recette (15 types : fonctionnelle → restauration)
-10. Niveaux de criticité (bloquante, majeure, mineure, cosmétique, évolution)
-11. Critères d'entrée / sortie
-12. **Matrice des droits** (Module × Fonctionnalité × 5 rôles + Observations, valeurs C/L/M/S/V/E/N/A)
-13. **Scénarios détaillés par module** — 18 modules, 200+ scénarios formatés en tableau (ID, Module, Fonctionnalité, Objectif, Préconditions, Profil, Données, Étapes, Résultat attendu, Résultat obtenu, Statut, Criticité, Preuve, Commentaires)
-14. Grille de suivi des anomalies
-15. Modèle de fiche d'anomalie
-16. Modèle de PV de recette
-17. Critères de validation finale, réserves, recommandations pré-prod
-18. Conclusion
+### B. Mode offline type WhatsApp
 
-## Couverture modulaire renforcée (focus chat & WAOUH)
+1. **Service Worker — stratégie en couches** (réécriture de `public/sw.js`, sans `vite-plugin-pwa` pour éviter conflits préview Lovable) :
+   - `install` : précache du shell (`/`, `/app/chat`, `index.html`, logo, manifest).
+   - `fetch` :
+     - HTML/navigation → **NetworkFirst** avec fallback cache + page offline.
+     - Assets hashés `/assets/*` → **CacheFirst**.
+     - Images / fonts → **StaleWhileRevalidate**.
+     - API Supabase / fonctions edge → **NetworkOnly** (jamais cacher des écritures).
+   - Garde-fou : ne s'enregistre **pas** dans la preview Lovable (`id-preview--`, `lovableproject.com`, iframe, `?sw=off`).
+2. **Persistance des messages (IndexedDB)** via un petit wrapper `src/services/offline/messageCache.ts` :
+   - Cache des derniers messages WAOUH par `match_id` et par session, déjà chargés.
+   - `useWaouhMatchChats` et le composant `WaouhWebChat` lisent **d'abord** IndexedDB puis Supabase (pattern "stale-while-revalidate").
+   - File d'attente locale (`pending_messages`) pour les envois hors ligne → rejouée à la reconnexion via un hook `useOutboxSync`.
+3. **Hook global `useOnlineStatus`** (`src/hooks/useOnlineStatus.ts`) basé sur `navigator.onLine` + ping périodique d'une edge function légère.
+4. **Composant `OfflineBanner`** monté dans `MobileShell` et le layout web :
+   - Bandeau jaune persistant "📡 Hors ligne — vos messages seront envoyés à la reconnexion".
+   - Toast vert "✅ Connexion rétablie — synchronisation en cours" au retour.
+5. **Messages d'erreur contextualisés** dans les actions critiques (envoi message, chargement bot, paiement Qosic, OTP WhatsApp) : si offline détecté, afficher un message clair en français au lieu d'une erreur réseau brute.
+6. **Page `/offline.html`** servie en dernier recours par le SW si même le shell n'est pas en cache.
 
-Au-delà des 18 modules génériques du brief, le document détaillera spécifiquement :
+### C. Validation
 
-- **Chat WAOUH visiteur anonyme** : header `x-waouh-session`, persistance localStorage, RGPD, reprise conversation, fallback hors-ligne.
-- **Chat APK mobile** (`ChatScreen.tsx`) : auth Supabase, realtime `waouh_messages` filtré par `conversation_id`, envoi `waha-send-message`, marquage lu.
-- **WaouhMatchChatWindow multi-fenêtres** (v12 locked) : matchKey par (article, acheteur), filtrage realtime `counterpart_user_id`, scénarios A/B/C (acheteur seul, vendeur seul, conversation croisée).
-- **Pipeline WhatsApp** : queue `waouh_outbound_queue` avec retry exponentiel 5s→1h, dedup `meta->>'channel_message_id'`, rate-limit 10 msg/min/numéro, circuit breaker.
-- **Radar IA** : signaux `waouh_radar_signals`, contacts, campagnes, matching.
-- **Partenaire business** : payouts, produits, ventes, permissions.
-- **Admin** : `user_roles` (security definer `has_role`), audit logs, dashboard santé.
-- **Interopérabilité** : WAHA proxy, Qosic (Mobile Money), ElevenLabs (Kpakpato vocal), Hugging Face NLLB (Fon/Yoruba), Google Sheets KB.
-- **Sécurité** : phases 1-4 déjà appliquées (RLS, search_path, dedup, indexes) à vérifier en recette.
+- Build, puis dans le preview : DevTools → Network → "Offline" → recharger `/app/chat` → vérifier que la liste, les bulles et les onglets s'affichent.
+- Vérifier que le favicon et l'icône Home-Screen sont bien le logo WAOUH.
+- Sur APK : tester avoir ouvert l'app une fois en ligne, activer mode avion → l'app reste utilisable.
 
-## Répartition cible des scénarios (~210)
+## Détails techniques (référence)
 
-| Module | Scénarios |
-|---|---|
-| 1. Authentification | 15 |
-| 2. Gestion utilisateurs | 12 |
-| 3. Rôles & permissions | 10 |
-| 4. Tableau de bord | 10 |
-| 5. Données métier (articles WAOUH) | 14 |
-| 6. Workflows négociation/deal | 12 |
-| 7. Notifications (WA/email/in-app/push) | 14 |
-| 8. Recherche & filtres | 10 |
-| 9. Import données | 8 |
-| 10. Export & rapports | 10 |
-| 11. Paramétrage | 8 |
-| 12. Journalisation & audit | 8 |
-| 13. Documents & pièces jointes | 8 |
-| 14. UI/UX & responsive | 12 |
-| 15. Sécurité | 18 |
-| 16. Performance & charge | 10 |
-| 17. API & intégrations (WAHA, Qosic, ElevenLabs, NLLB, Google Sheets) | 14 |
-| 18. Sauvegarde / disponibilité | 6 |
-| **CHAT WAOUH dédié** (A/B/C, sync v12, multi-fenêtres) | 18 |
-| **Mobile APK** (chat embedded, push, offline) | 10 |
-| **Partenaire/Admin** | 10 |
-
-Total ≈ **227 scénarios**.
-
-## Détails techniques
-
-- **DOCX** : `docx@^8` (déjà disponible via npm), Arial 11pt, US Letter, tableaux DXA, styles Heading1-3 surchargés, TOC auto, page numbers footer, en-tête « Cahier de recette — bot.bj ».
-- **Page web** : route ajoutée dans le router principal + entrée discrète dans menu Admin (non visible utilisateur final). Composant `RecetteSection` réutilisable. Bouton download = fetch `/recette/Cahier_Recette_bot_bj_v1.docx` depuis `public/`.
-- **Génération DOCX** : script copié sous `/tmp` puis exécuté ; sortie dans `/mnt/documents` + copie dans `public/recette/` pour téléchargement depuis l'app.
-- **QA visuel** : conversion DOCX → PDF → images via LibreOffice, inspection de toutes les pages avant livraison.
-
-## Étapes de build (après approbation)
-
-1. Créer `src/data/recette/` (sections, 18 modules, 227 scénarios, matrice droits).
-2. Créer `src/pages/RecettePage.tsx` + route dans `src/App.tsx`.
-3. Créer `scripts/generate-recette-docx.mjs` consommant la même data.
-4. Exécuter le script → `/mnt/documents/Cahier_Recette_bot_bj_v1.docx` + `public/recette/Cahier_Recette_bot_bj_v1.docx`.
-5. QA visuel DOCX (LibreOffice → images).
-6. Vérifier la page `/app/recette` dans le preview.
-7. Présenter `<presentation-artifact>` pour le DOCX.
+- IndexedDB via wrapper minimal (pas de lib), 2 stores : `messages` et `outbox`.
+- SW : pas de `vite-plugin-pwa` (incompatible avec workflow Lovable preview) — SW manuel avec garde de hostname.
+- Cache versionné `waouh-shell-v1` ; bump du suffixe à chaque release pour purger.
+- Ne pas cacher les requêtes `POST/PUT/DELETE`, ni les routes `/~oauth`, ni les fonctions edge Supabase contenant des paiements.
+- Notification push existante (`push` handler) **préservée**.
 
 ## Hors périmètre
 
-- Pas de modification du code métier (chat, RLS, edge functions) — recette uniquement documentaire.
-- Pas de mise en production automatique.
+- Pas de modification des règles RLS ni du flow chat sync v12 (verrouillé).
+- Pas de migration `vite-plugin-pwa` (resterait le SW manuel maîtrisé).
+- Pas de refonte UI hors logo et bandeau offline.
