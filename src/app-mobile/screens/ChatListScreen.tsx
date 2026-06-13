@@ -11,7 +11,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Search, Plus, ShoppingBag, Bell } from "lucide-react";
 import { useNotifications } from "../hooks/useNotifications";
-import { WaouhUnifiedInbox } from "@/components/waouh/WaouhUnifiedInbox";
+
 import { WaouhNotificationsBell } from "@/components/waouh/WaouhNotificationsBell";
 import { useWaouhMatchNotifications } from "@/hooks/useWaouhMatchNotifications";
 import { Input } from "@/components/ui/input";
@@ -248,9 +248,6 @@ export default function ChatListScreen() {
               </Button>
             ) : (
               <>
-                <div className="[&_button]:text-white [&_button:hover]:bg-white/15">
-                  <WaouhUnifiedInbox sessionId={sessionId ?? ""} authUserId={user?.id ?? null} />
-                </div>
                 <div className="[&_button]:text-white [&_button:hover]:bg-white/15">
                   <WaouhNotificationsBell
                     permission={permission}

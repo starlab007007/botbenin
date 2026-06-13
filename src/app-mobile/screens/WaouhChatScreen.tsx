@@ -7,7 +7,7 @@ import WaouhWebChat, { type WaouhWebChatHandle } from "@/components/waouh/WaouhW
 import { WaouhMatchChatWindow } from "@/components/waouh/WaouhMatchChatWindow";
 import { WaouhChatTabs } from "@/components/waouh/WaouhChatTabs";
 import { useWaouhMatchChats } from "@/components/waouh/useWaouhMatchChats";
-import { WaouhUnifiedInbox } from "@/components/waouh/WaouhUnifiedInbox";
+
 
 import { WaouhNotificationsBell } from "@/components/waouh/WaouhNotificationsBell";
 import { WaouhCityBadge } from "@/components/waouh/WaouhCityBadge";
@@ -178,9 +178,6 @@ export default function WaouhChatScreen() {
 
         <div className="flex items-center gap-1">
           <WaouhCityBadge geo={geo} loading={geoLoading} onSetCity={setCity} onRefresh={refresh} compact />
-          <div className="[&_button]:text-white [&_button:hover]:bg-white/15">
-            <WaouhUnifiedInbox sessionId={sessionId} authUserId={authUserId} />
-          </div>
           <div className="[&_button]:text-white [&_button:hover]:bg-white/15">
             <WaouhNotificationsBell
               permission={permission}
