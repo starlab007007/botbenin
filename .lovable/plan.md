@@ -1,65 +1,102 @@
-## Diagnostic — pourquoi le logo n'apparaît pas
+## Diagnostic
 
-1. **`public/favicon.ico` est en réalité un PNG renommé** (363 KB, déclaré `type="image/x-icon"` dans le manifest). Plusieurs navigateurs (et Android lors de l'install PWA) le rejettent silencieusement.
-2. **`public/manifest.json` référence `/icon-192.png` et `/icon-512.png` qui n'existent pas** → installation PWA / icône Home-Screen tombe en fallback générique.
-3. **`<meta property="og:image">` annonce 1200×1200** alors que le PNG WAOUH n'a pas ces dimensions → certains scrapers ignorent.
-4. Le composant `BotBjLogo` affiche un texte `BOT.BJ` en bleu **à côté** de l'icône. L'utilisateur veut le logo WAOUH partout — il faut probablement masquer/remplacer le label texte.
-5. Les caches navigateur + Service Worker (`public/sw.js`) servent toujours l'ancien favicon → besoin d'un bust de cache (renommer le fichier ou query string `?v=2`).
+Les 3 flux WAOUH (A — Vendeur WA + Acheteur WA, B — Vendeur App + Acheteur WA, C — Vendeur WA + Acheteur App) étaient verrouillés et validés en **v12** à 20:10 le 10 juin. À **22:11 le 10 juin**, la migration `20260610221129_*.sql` (« Phase 1 — Critical RLS Hardening ») a remplacé les politiques permissives par des politiques strictes sur 4 tables critiques du chat. Vérifié via `pg_policies` aujourd'hui — voici l'état actuel des politiques SELECT/UPDATE de `waouh_messages` :
 
-## Diagnostic — pas d'offline réel
+- `waouh_messages auth user read` → `user_id IN (SELECT id FROM waouh_users WHERE auth_user_id = auth.uid())`
+- `waouh_messages session-scoped read` → exige le header `x-waouh-session`
 
-- `public/sw.js` actuel ne met **rien** en cache (commenté volontairement). Donc dès qu'Internet coupe : écran blanc, plus rien ne marche.
-- Les messages WAOUH sont stockés uniquement dans Supabase + un cache mémoire React (`useWaouhMatchChats.getCached`) → perdus à chaque refresh hors-ligne.
-- Aucun indicateur visuel "hors ligne" global. Aucun toast quand la connexion revient.
+### Conséquence directe sur les flux A/B/C
 
-## Plan d'action
+Dans `WaouhMatchChatWindow` et `app-mobile/screens/ChatScreen` (et `useGlobalChatSync`, `useUnreadCounts`), les requêtes lisent par `conversation_id`. Or RLS filtre ligne à ligne :
 
-### A. Logo & icônes (corrige la visibilité)
+- Un message émis par le **contrepartie** (vendeur WA si on est acheteur App, ou inverse) porte le `user_id` de l'émetteur — pas celui de l'utilisateur connecté. La nouvelle politique ne le rend donc **pas visible**.
+- Le client App n'envoie pas le header `x-waouh-session`, donc la politique « session-scoped » ne s'applique pas non plus.
+- Résultat : la fenêtre de chat n'affiche que les messages **sortants** de l'utilisateur ; les messages entrants disparaissent + le realtime INSERT (filtre `user_id=eq.<self>`) ne déclenche jamais sur un message reçu.
 
-1. Supprimer le `favicon.ico` actuel (PNG mal nommé) et le remplacer par **un vrai `.ico` multi-tailles** OU servir directement le PNG avec `type="image/png"` dans tous les liens.
-2. Générer `public/icon-192.png` et `public/icon-512.png` (redimensionnement du logo WAOUH) — requis par le manifest et le splash PWA.
-3. Mettre à jour `public/manifest.json` : types MIME corrects, ajout `icon-192/512`, `theme_color: "#075E54"` (vert WAOUH), `background_color` cohérent.
-4. Mettre à jour `index.html` et `index.mobile.html` : références `?v=2` pour invalider les caches, balise `<link rel="apple-touch-icon" sizes="180x180">`.
-5. `BotBjLogo.tsx` : agrandir l'icône, retirer (ou rendre optionnel via prop) le texte bleu `BOT.BJ` puisque le logo WAOUH contient déjà le branding.
-6. Mettre à jour `capacitor.config.ts` / `scripts/patch-android-manifest.mjs` si nécessaire pour que l'APK régénérée embarque bien le nouveau drawable.
+Le même problème touche `waouh_notifications` (notifications du vendeur App pour un acheteur qui répond via WA filtrées hors champ) et `waouh_outbound_queue` (lecture session permissive supprimée).
 
-### B. Mode offline type WhatsApp
+Avant l'audit, la politique permissive `web_session_id IS NOT NULL` (sans contrainte de match) laissait passer tous les messages d'une conversation, ce qui faisait fonctionner les 3 flux — mais constituait effectivement une faille (lecture globale).
 
-1. **Service Worker — stratégie en couches** (réécriture de `public/sw.js`, sans `vite-plugin-pwa` pour éviter conflits préview Lovable) :
-   - `install` : précache du shell (`/`, `/app/chat`, `index.html`, logo, manifest).
-   - `fetch` :
-     - HTML/navigation → **NetworkFirst** avec fallback cache + page offline.
-     - Assets hashés `/assets/*` → **CacheFirst**.
-     - Images / fonts → **StaleWhileRevalidate**.
-     - API Supabase / fonctions edge → **NetworkOnly** (jamais cacher des écritures).
-   - Garde-fou : ne s'enregistre **pas** dans la preview Lovable (`id-preview--`, `lovableproject.com`, iframe, `?sw=off`).
-2. **Persistance des messages (IndexedDB)** via un petit wrapper `src/services/offline/messageCache.ts` :
-   - Cache des derniers messages WAOUH par `match_id` et par session, déjà chargés.
-   - `useWaouhMatchChats` et le composant `WaouhWebChat` lisent **d'abord** IndexedDB puis Supabase (pattern "stale-while-revalidate").
-   - File d'attente locale (`pending_messages`) pour les envois hors ligne → rejouée à la reconnexion via un hook `useOutboxSync`.
-3. **Hook global `useOnlineStatus`** (`src/hooks/useOnlineStatus.ts`) basé sur `navigator.onLine` + ping périodique d'une edge function légère.
-4. **Composant `OfflineBanner`** monté dans `MobileShell` et le layout web :
-   - Bandeau jaune persistant "📡 Hors ligne — vos messages seront envoyés à la reconnexion".
-   - Toast vert "✅ Connexion rétablie — synchronisation en cours" au retour.
-5. **Messages d'erreur contextualisés** dans les actions critiques (envoi message, chargement bot, paiement Qosic, OTP WhatsApp) : si offline détecté, afficher un message clair en français au lieu d'une erreur réseau brute.
-6. **Page `/offline.html`** servie en dernier recours par le SW si même le shell n'est pas en cache.
+## Plan de restauration
 
-### C. Validation
+Restaurer **le comportement fonctionnel du 10 juin 23:07** en conservant les durcissements qui ne touchent pas le chat. On rejoue les anciennes politiques permissives sur les 4 tables impactées, à l'identique de l'état pré-audit.
 
-- Build, puis dans le preview : DevTools → Network → "Offline" → recharger `/app/chat` → vérifier que la liste, les bulles et les onglets s'affichent.
-- Vérifier que le favicon et l'icône Home-Screen sont bien le logo WAOUH.
-- Sur APK : tester avoir ouvert l'app une fois en ligne, activer mode avion → l'app reste utilisable.
+### Migration unique `restore_waouh_chat_rls_v12`
 
-## Détails techniques (référence)
+Tables touchées (rollback ciblé) :
 
-- IndexedDB via wrapper minimal (pas de lib), 2 stores : `messages` et `outbox`.
-- SW : pas de `vite-plugin-pwa` (incompatible avec workflow Lovable preview) — SW manuel avec garde de hostname.
-- Cache versionné `waouh-shell-v1` ; bump du suffixe à chaque release pour purger.
-- Ne pas cacher les requêtes `POST/PUT/DELETE`, ni les routes `/~oauth`, ni les fonctions edge Supabase contenant des paiements.
-- Notification push existante (`push` handler) **préservée**.
+1. **`waouh_messages`** — recréer `waouh_messages session read` avec `USING (web_session_id IS NOT NULL)` (et garder l'actuel `auth user read` et `session-scoped read` par header, qui ne gênent pas).
+2. **`waouh_notifications`** — recréer `waouh_notifications session read` (`USING (web_session_id IS NOT NULL)`) + `waouh_notifications mark read` (UPDATE `USING (true)`), tout en gardant les politiques `auth user read/update` et `session ... token`.
+3. **`waouh_outbound_queue`** — recréer `waouh_outbound_queue session read` (`USING (web_session_id IS NOT NULL)`) en complément de la version header-validée.
+4. **`waouh_users`** — recréer `waouh_users self lookup` et `waouh_users link self` avec la branche permissive `web_session_id IS NOT NULL` (lookup réussi avant header) — nécessaire pour que `useWaouhIdentity` retrouve l'identité côté web/app.
 
-## Hors périmètre
+### Volet hors RLS
 
-- Pas de modification des règles RLS ni du flow chat sync v12 (verrouillé).
-- Pas de migration `vite-plugin-pwa` (resterait le SW manuel maîtrisé).
-- Pas de refonte UI hors logo et bandeau offline.
+- Aucun changement aux edge functions (`waouh-notify-dispatch`, `waouh-negotiation-router`, `waouh-match-history`, `waouh-webhook`) : le lock v12 reste actif.
+- Aucun changement aux composants frontend : `WaouhMatchChatWindow`, `useWaouhMatchChats`, `useGlobalChatSync`, `useUnreadCounts` restent verrouillés v12.
+- Le test de non-régression `waouh-chat-sync-flow.lock.test.ts` (v12) continue de passer car aucun invariant code n'est touché.
+
+### Ce qu'on **garde** du Phase 1 (durcissements non liés au chat)
+
+- `payment_transactions` — branche guest supprimée ✅
+- `ia_creator_user_usage` — writes restreints au service_role ✅
+- `anonymous_visitor_sessions` — UPDATE `USING (true)` retiré ✅
+- `storage.objects` public-media DELETE owner-only ✅
+- `waouh_radar_auto_settings` (nouvelle table admin) ✅
+
+### Validation après migration
+
+1. `pg_policies` doit lister 5 SELECT sur `waouh_messages` (admin, auth user, session token, session permissive, anon insert) et l'équivalent sur `waouh_notifications`.
+2. Test fonctionnel manuel des 3 scénarios A/B/C dans l'app (vendeur App reçoit le message WA acheteur, et vice-versa).
+3. Aucune régression sur les tests Vitest existants (`bunx vitest run`).
+
+### Note de sécurité
+
+La permissivité restaurée est documentée comme **dette technique acceptée pour la production v12**. Une refonte ultérieure (politique participante via SECURITY DEFINER `is_waouh_conversation_participant(uid, conv_id)` joignant `waouh_negotiations.buyer_user_id`/`seller_user_id`) sera proposée séparément hors scope.
+
+## Détails techniques (SQL principal)
+
+```sql
+-- 1) waouh_messages : restaurer la lecture session permissive
+CREATE POLICY "waouh_messages session read"
+  ON public.waouh_messages FOR SELECT TO public
+  USING (web_session_id IS NOT NULL);
+
+-- 2) waouh_notifications : restaurer lecture + mark-read permissives
+CREATE POLICY "waouh_notifications session read"
+  ON public.waouh_notifications FOR SELECT TO public
+  USING (web_session_id IS NOT NULL);
+
+CREATE POLICY "waouh_notifications mark read"
+  ON public.waouh_notifications FOR UPDATE TO public
+  USING (true) WITH CHECK (true);
+
+-- 3) waouh_outbound_queue : restaurer lecture session permissive
+CREATE POLICY "waouh_outbound_queue session read"
+  ON public.waouh_outbound_queue FOR SELECT TO public
+  USING (web_session_id IS NOT NULL);
+
+-- 4) waouh_users : restaurer self lookup + link self permissifs
+DROP POLICY IF EXISTS "waouh_users self lookup auth" ON public.waouh_users;
+DROP POLICY IF EXISTS "waouh_users session lookup token" ON public.waouh_users;
+DROP POLICY IF EXISTS "waouh_users link self auth" ON public.waouh_users;
+DROP POLICY IF EXISTS "waouh_users link self session" ON public.waouh_users;
+
+CREATE POLICY "waouh_users self lookup"
+  ON public.waouh_users FOR SELECT TO public
+  USING (
+    (auth.uid() IS NOT NULL AND auth_user_id = auth.uid())
+    OR web_session_id IS NOT NULL
+  );
+
+CREATE POLICY "waouh_users link self"
+  ON public.waouh_users FOR UPDATE TO public
+  USING (
+    (auth.uid() IS NOT NULL AND auth_user_id = auth.uid())
+    OR web_session_id IS NOT NULL
+  )
+  WITH CHECK (
+    (auth.uid() IS NOT NULL AND auth_user_id = auth.uid())
+    OR web_session_id IS NOT NULL
+  );
+```
