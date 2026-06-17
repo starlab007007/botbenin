@@ -107,7 +107,8 @@ export function WaouhMatchChatWindow({
   };
 
   // Bootstrap from cache so closing/reopening or switching tabs keeps history.
-  const [messages, setMessagesState] = useState<Msg[]>(() => getCached?.(match.key) ?? []);
+  const initialCached = getCached?.(match.key) ?? [];
+  const [messages, setMessagesState] = useState<Msg[]>(() => initialCached);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [seedNotif, setSeedNotif] = useState<SeedNotif | null>(() => {
@@ -124,42 +125,42 @@ export function WaouhMatchChatWindow({
   const [hasMore, setHasMoreState] = useState<boolean>(() => getHasMore?.(match.key) ?? true);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
-  const [dbMsgCount, setDbMsgCount] = useState<number>(() => (getCached?.(match.key) ?? []).length);
-  const [initialLoading, setInitialLoading] = useState<boolean>(() => (getCached?.(match.key) ?? []).length === 0);
+  const [dbMsgCount, setDbMsgCount] = useState<number>(() => initialCached.length);
+  const [initialLoading, setInitialLoading] = useState<boolean>(() => initialCached.length === 0);
 
   // Verrou flux WAOUH chat — sentinelle runtime (voir waouhChatSyncLock.ts)
   useEffect(() => { engageWaouhChatSyncLock(); }, []);
   const scrollRef = useRef<HTMLDivElement>(null);
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const lastFetchRef = useRef<number>(0);
+  const inFlightRef = useRef<boolean>(false);
+  const firstLoadDoneRef = useRef<boolean>(false);
 
-  // Wrap setters to persist into the per-tab cache.
+  // Plain setter; cache persistence is handled by a dedicated effect below.
   const setMessages = (updater: Msg[] | ((prev: Msg[]) => Msg[])) => {
-    setMessagesState((prev) => {
-      const next = typeof updater === "function" ? (updater as any)(prev) : updater;
-      setCached?.(match.key, next);
-      return next;
-    });
+    setMessagesState((prev) => (typeof updater === "function" ? (updater as any)(prev) : updater));
   };
   const setHasMore = (v: boolean) => {
     setHasMoreState(v);
     setHasMoreCached?.(match.key, v);
   };
 
+  // Persist messages to cache outside of React updater (StrictMode-safe).
+  useEffect(() => {
+    setCached?.(match.key, messages);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, match.key]);
+
   const closed = useMemo(
     () => !!match.closed || (articleStatus ? CLOSED_STATUSES.has(articleStatus.toLowerCase()) : false),
     [match.closed, articleStatus]
   );
 
-  // Server-side history fetcher (source of truth). Replaces the previous
-  // client-side OR-chained query whose viewer scoping was racy (depended
-  // on waouhIds being resolved before the first mount and could miss
-  // messages owned by linked waouh_users rows).
+  // Server-side history fetcher (source of truth).
   const fetchHistory = async (
     opts: { before?: string | null; limit?: number; includeMeta?: boolean } = {}
-  ): Promise<{ messages: Msg[]; hasMore: boolean; articleStatus: string | null; seedNotification: SeedNotif | null }> => {
-    if (!match.article_id) return { messages: [], hasMore: false, articleStatus: null, seedNotification: null };
+  ): Promise<{ messages: Msg[]; hasMore: boolean; articleStatus: string | null; seedNotification: SeedNotif | null; ok: boolean }> => {
+    if (!match.article_id) return { messages: [], hasMore: false, articleStatus: null, seedNotification: null, ok: false };
     const { data, error } = await supabase.functions.invoke("waouh-match-history", {
       body: {
         articleId: match.article_id,
@@ -167,9 +168,6 @@ export function WaouhMatchChatWindow({
         authUserId: authUserId ?? null,
         role: match.kind,
         notificationId: match.notification_id ?? null,
-        // v12 — when role=seller, restrict history to the specific buyer
-        // so a vendor App with several interested buyers gets one
-        // WaouhMatchChatWindow per buyer.
         counterpartUserId: match.kind === "seller" ? (match.counterpart_user_id ?? null) : null,
         before: opts.before ?? null,
         limit: opts.limit ?? PAGE_INITIAL,
@@ -179,24 +177,22 @@ export function WaouhMatchChatWindow({
 
     if (error || !(data as any)?.ok) {
       console.warn("[waouh-match-history] error", error || (data as any)?.error);
-      return { messages: [], hasMore: false, articleStatus: null, seedNotification: null };
+      return { messages: [], hasMore: false, articleStatus: null, seedNotification: null, ok: false };
     }
     return {
       messages: ((data as any).messages ?? []) as Msg[],
       hasMore: !!(data as any).hasMore,
       articleStatus: (data as any).articleStatus ?? null,
       seedNotification: (data as any).seedNotification ?? null,
+      ok: true,
     };
   };
 
-  // Authoritative load on mount / when target article or session changes.
-  // Cache (if any) gives the instant first paint; the network response
-  // reconciles authoritatively against DB.
-  const runInitialLoad = async () => {
+  // Authoritative load. `silent=true` => do not flip initialLoading (background reconcile).
+  const runInitialLoad = async (silent = false) => {
     if (!match.article_id) return;
-    const now = Date.now();
-    if (now - lastFetchRef.current < 1500) return; // throttle
-    lastFetchRef.current = now;
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
 
     const hasInlineSeed = !!match.seed_text;
     if (hasInlineSeed) {
@@ -207,42 +203,65 @@ export function WaouhMatchChatWindow({
       });
     }
 
-    const res = await fetchHistory({ limit: PAGE_INITIAL, includeMeta: true });
-    setMessages((prev) => mergeMsgs(prev, res.messages));
-    setDbMsgCount(res.messages.length);
-    setHasMore(res.messages.length >= PAGE_INITIAL ? res.hasMore : false);
-    if (res.articleStatus) {
-      setArticleStatus(res.articleStatus);
-      try { localStorage.setItem(STATUS_KEY, res.articleStatus); } catch {}
+    try {
+      const res = await fetchHistory({ limit: PAGE_INITIAL, includeMeta: true });
+      if (!res.ok && !silent) {
+        toast.error("Historique indisponible — réessayez", { duration: 2500 });
+      }
+      setMessagesState((prev) => {
+        const next = mergeMsgs(prev, res.messages);
+        setDbMsgCount(next.length);
+        return next;
+      });
+      if (res.messages.length < PAGE_INITIAL) setHasMore(false);
+      else setHasMore(res.hasMore);
+      if (res.articleStatus) {
+        setArticleStatus(res.articleStatus);
+        try { localStorage.setItem(STATUS_KEY, res.articleStatus); } catch {}
+      }
+      if (!hasInlineSeed && res.seedNotification) {
+        setSeedNotif(res.seedNotification);
+        try { localStorage.setItem(SEED_KEY, JSON.stringify(res.seedNotification)); } catch {}
+      }
+      if (res.ok) setSyncedAt(new Date().toISOString());
+    } finally {
+      if (!silent) setInitialLoading(false);
+      else setInitialLoading(false); // also clear in silent mode if it was somehow true
+      inFlightRef.current = false;
+      firstLoadDoneRef.current = true;
     }
-    if (!hasInlineSeed && res.seedNotification) {
-      setSeedNotif(res.seedNotification);
-      try { localStorage.setItem(SEED_KEY, JSON.stringify(res.seedNotification)); } catch {}
-    }
-    setSyncedAt(new Date().toISOString());
-    setInitialLoading(false);
   };
 
+  // Single consolidated loader. First pass uses requestIdleCallback to defer
+  // past first paint; subsequent re-activations fetch silently in background.
   useEffect(() => {
     let alive = true;
-    const ric: any = (typeof window !== "undefined" && (window as any).requestIdleCallback) || null;
-    const handle = ric
-      ? ric(() => { if (alive) void runInitialLoad(); }, { timeout: 200 })
-      : setTimeout(() => { if (alive) void runInitialLoad(); }, 0);
-    return () => {
-      alive = false;
-      if (ric && (window as any).cancelIdleCallback) (window as any).cancelIdleCallback(handle);
-      else clearTimeout(handle as any);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [match.article_id, match.notification_id, match.seed_text, sessionId, authUserId]);
-
-  // Refetch when the tab becomes active again (reopen / tab switch back).
-  useEffect(() => {
     if (!active) return;
-    void runInitialLoad();
+    const cachedLen = (getCached?.(match.key) ?? []).length;
+    const silent = cachedLen > 0 || firstLoadDoneRef.current;
+
+    if (!firstLoadDoneRef.current) {
+      const ric: any = (typeof window !== "undefined" && (window as any).requestIdleCallback) || null;
+      const handle = ric
+        ? ric(() => { if (alive) void runInitialLoad(silent); }, { timeout: 200 })
+        : setTimeout(() => { if (alive) void runInitialLoad(silent); }, 0);
+      return () => {
+        alive = false;
+        if (ric && (window as any).cancelIdleCallback) (window as any).cancelIdleCallback(handle);
+        else clearTimeout(handle as any);
+      };
+    }
+
+    void runInitialLoad(true);
+    return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]);
+  }, [match.article_id, match.notification_id, match.seed_text, sessionId, authUserId, active]);
+
+  // Reset scroll/restore refs when switching to a different match key
+  useEffect(() => {
+    firstLoadDoneRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [match.key]);
 
   // Load older messages on top-scroll
   const loadOlder = async () => {
