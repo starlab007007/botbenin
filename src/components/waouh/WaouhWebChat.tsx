@@ -230,38 +230,34 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
 
 
 
+  // Stable realtime subscription — session channel never torn down by waouhIds churn.
+  const subscribedUserIdsRef = useRef<Set<string>>(new Set());
+  const sessionChannelRef = useRef<any>(null);
+  const userChannelsRef = useRef<Map<string, any>>(new Map());
+
   useEffect(() => {
     if (!open) return;
     let active = true;
     const uid = user?.id ?? null;
 
-    (async () => {
-      // Resolve waouh_users.id strictly per identity to avoid mixing histories.
-      // - If logged in → only auth_user_id rows (ignore the anonymous session row).
-      // - If not logged in → only this device's web_session_id.
-      let users: any[] | null = null;
-      if (uid) {
-        const { data } = await supabase
-          .from("waouh_users")
-          .select("id")
-          .eq("auth_user_id", uid)
-          .limit(50);
-        users = data ?? [];
-      } else {
-        const { data } = await supabase
-          .from("waouh_users")
-          .select("id")
-          .eq("web_session_id", sessionId)
-          .limit(50);
-        users = data ?? [];
-      }
-      const ids = Array.from(new Set((users ?? []).map((u: any) => u.id)));
+    // Kick off both queries in PARALLEL (was sequential: users → history).
+    const usersPromise = (async () => {
+      const q = uid
+        ? supabase.from("waouh_users").select("id").eq("auth_user_id", uid).limit(50)
+        : supabase.from("waouh_users").select("id").eq("web_session_id", sessionId).limit(50);
+      const { data } = await q;
+      return Array.from(new Set((data ?? []).map((u: any) => u.id)));
+    })();
+    // History resolves server-side from sessionId+authUserId; no need to wait on users.
+    const historyPromise = fetchPage([], null, PAGE_INITIAL);
+
+    Promise.all([usersPromise, historyPromise]).then(([ids, page]) => {
       if (!active) return;
       setWaouhIds(ids);
-
-      await loadInitial(ids);
-
-      // Link this device's anonymous waouh_users row to the freshly authenticated account
+      setHasMore(page.hasMore);
+      if (page.messages.length > 0) {
+        setMessages((prev) => mergeMessages(prev, page.messages));
+      }
       if (uid) {
         supabase
           .from("waouh_users")
@@ -270,7 +266,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           .is("auth_user_id", null)
           .then(() => {}, () => {});
       }
-    })();
+    });
 
     const suffix = Math.random().toString(36).slice(2, 8);
     const onInsert = (payload: any) => {
@@ -279,7 +275,6 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       if (cutoff && m.created_at && m.created_at < cutoff) return;
       setMessages((prev) => {
         if (prev.find((x) => x.id === m.id)) return prev;
-        // Remplace l'éventuel optimiste temp-* (même direction/texte, < 30 s)
         const incomingTs = new Date(m.created_at).getTime();
         const filtered = prev.filter((p) => {
           if (!p.id.startsWith("temp-")) return true;
@@ -294,28 +289,58 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         return [...filtered, m];
       });
     };
-    const channels: any[] = [];
-    channels.push(
-      supabase
-        .channel(`waouh_msgs_s_${sessionId}_${suffix}`)
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "waouh_messages", filter: `web_session_id=eq.${sessionId}` }, onInsert)
-        .subscribe()
-    );
-    // Realtime postgres_changes filter doesn't support `in`, so subscribe per waouh_users.id
-    waouhIds.forEach((wid) => {
-      channels.push(
-        supabase
-          .channel(`waouh_msgs_u_${wid}_${suffix}`)
-          .on("postgres_changes", { event: "INSERT", schema: "public", table: "waouh_messages", filter: `user_id=eq.${wid}` }, onInsert)
-          .subscribe()
-      );
-    });
+
+    sessionChannelRef.current = supabase
+      .channel(`waouh_msgs_s_${sessionId}_${suffix}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "waouh_messages", filter: `web_session_id=eq.${sessionId}` }, onInsert)
+      .subscribe();
 
     return () => {
       active = false;
-      channels.forEach((ch) => supabase.removeChannel(ch));
+      if (sessionChannelRef.current) {
+        supabase.removeChannel(sessionChannelRef.current);
+        sessionChannelRef.current = null;
+      }
+      userChannelsRef.current.forEach((ch) => supabase.removeChannel(ch));
+      userChannelsRef.current.clear();
+      subscribedUserIdsRef.current.clear();
     };
-  }, [open, sessionId, user?.id, waouhIds.join(",")]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, sessionId, user?.id]);
+
+  // Incrementally add/remove per-user realtime channels as waouhIds resolves,
+  // without disturbing the session channel.
+  useEffect(() => {
+    if (!open) return;
+    const onInsert = (payload: any) => {
+      const m = payload.new as any;
+      const cutoff = threadCutoffRef.current;
+      if (cutoff && m.created_at && m.created_at < cutoff) return;
+      setMessages((prev) => {
+        if (prev.find((x) => x.id === m.id)) return prev;
+        return [...prev, m];
+      });
+    };
+    const desired = new Set(waouhIds);
+    const current = subscribedUserIdsRef.current;
+    waouhIds.forEach((wid) => {
+      if (current.has(wid)) return;
+      const suffix = Math.random().toString(36).slice(2, 8);
+      const ch = supabase
+        .channel(`waouh_msgs_u_${wid}_${suffix}`)
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "waouh_messages", filter: `user_id=eq.${wid}` }, onInsert)
+        .subscribe();
+      userChannelsRef.current.set(wid, ch);
+      current.add(wid);
+    });
+    Array.from(current).forEach((wid) => {
+      if (desired.has(wid)) return;
+      const ch = userChannelsRef.current.get(wid);
+      if (ch) supabase.removeChannel(ch);
+      userChannelsRef.current.delete(wid);
+      current.delete(wid);
+    });
+  }, [open, waouhIds]);
 
   // Auto-scroll to bottom only when near the bottom (not when prepending older history).
   const prevMsgLenRef = useRef(0);
