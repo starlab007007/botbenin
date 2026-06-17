@@ -372,7 +372,7 @@ export function WaouhMatchChatWindow({
     return () => {
       supabase.removeChannel(ch);
     };
-  }, [match.article_id, sessionId, match.key, waouhIds.join(",")]);
+  }, [match.article_id, sessionId, match.key, authUserId, waouhIds.join(",")]);
 
   // Smart scroll + persisted scroll position per match.key
   const prevLenRef = useRef(0);
