@@ -68,36 +68,53 @@ export function useWaouhGeolocation() {
     let lastGeocodeAt = 0;
     let lastLat: number | null = null;
     let lastLng: number | null = null;
-    let cacheStale = true;
-    try {
-      const c = localStorage.getItem(CACHE_KEY);
-      if (c) cacheStale = (Date.now() - (JSON.parse(c)?.at || 0)) > 5 * 60 * 1000;
-    } catch {}
-    if (cacheStale) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => reverseGeocode(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy ?? null),
+    let watchId: number | null = null;
+    let cancelled = false;
+
+    const start = () => {
+      if (cancelled) return;
+      let cacheStale = true;
+      try {
+        const c = localStorage.getItem(CACHE_KEY);
+        if (c) cacheStale = (Date.now() - (JSON.parse(c)?.at || 0)) > 5 * 60 * 1000;
+      } catch {}
+      if (cacheStale) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => reverseGeocode(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy ?? null),
+          () => {},
+          { timeout: 8000, enableHighAccuracy: true }
+        );
+      }
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+          const now = Date.now();
+          const moved = lastLat == null || Math.hypot(lat - lastLat, lng - lastLng!) > 0.002;
+          const stale = now - lastGeocodeAt > 2 * 60 * 1000;
+          setGeo((g) => ({ ...g, lat, lng, accuracy: accuracy ?? g.accuracy ?? null }));
+          if (moved && stale) {
+            lastGeocodeAt = now;
+            lastLat = lat;
+            lastLng = lng;
+            reverseGeocode(lat, lng, accuracy ?? null);
+          }
+        },
         () => {},
-        { timeout: 8000, enableHighAccuracy: true }
+        { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 }
       );
-    }
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        const { latitude: lat, longitude: lng, accuracy } = pos.coords;
-        const now = Date.now();
-        const moved = lastLat == null || Math.hypot(lat - lastLat, lng - lastLng!) > 0.002;
-        const stale = now - lastGeocodeAt > 2 * 60 * 1000;
-        setGeo((g) => ({ ...g, lat, lng, accuracy: accuracy ?? g.accuracy ?? null }));
-        if (moved && stale) {
-          lastGeocodeAt = now;
-          lastLat = lat;
-          lastLng = lng;
-          reverseGeocode(lat, lng, accuracy ?? null);
-        }
-      },
-      () => {},
-      { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 }
-    );
-    return () => { navigator.geolocation.clearWatch(watchId); };
+    };
+
+    // Defer geolocation startup until the browser is idle so it never delays the chat first paint.
+    const ric: any = (window as any).requestIdleCallback;
+    const handle = ric ? ric(start, { timeout: 2500 }) : setTimeout(start, 1200);
+
+    return () => {
+      cancelled = true;
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      const cic: any = (window as any).cancelIdleCallback;
+      if (ric && cic) cic(handle);
+      else clearTimeout(handle as any);
+    };
   }, [reverseGeocode]);
 
   const refresh = useCallback(() => {
