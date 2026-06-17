@@ -1,102 +1,57 @@
-## Diagnostic
+# Stabilisation de `WaouhMatchChatWindow` (historique & affichage)
 
-Les 3 flux WAOUH (A — Vendeur WA + Acheteur WA, B — Vendeur App + Acheteur WA, C — Vendeur WA + Acheteur App) étaient verrouillés et validés en **v12** à 20:10 le 10 juin. À **22:11 le 10 juin**, la migration `20260610221129_*.sql` (« Phase 1 — Critical RLS Hardening ») a remplacé les politiques permissives par des politiques strictes sur 4 tables critiques du chat. Vérifié via `pg_policies` aujourd'hui — voici l'état actuel des politiques SELECT/UPDATE de `waouh_messages` :
+Objectif : éliminer le spinner « Chargement… » qui reste collé, le clignotement de l'historique, et les pertes de messages Realtime au premier render.
 
-- `waouh_messages auth user read` → `user_id IN (SELECT id FROM waouh_users WHERE auth_user_id = auth.uid())`
-- `waouh_messages session-scoped read` → exige le header `x-waouh-session`
+## Modifications (frontend uniquement, aucun changement métier ni RLS)
 
-### Conséquence directe sur les flux A/B/C
+### Fichier `src/components/waouh/WaouhMatchChatWindow.tsx`
 
-Dans `WaouhMatchChatWindow` et `app-mobile/screens/ChatScreen` (et `useGlobalChatSync`, `useUnreadCounts`), les requêtes lisent par `conversation_id`. Or RLS filtre ligne à ligne :
+1. **Fusionner les deux effets de chargement initial en un seul**, déclenché sur `[match.article_id, match.notification_id, match.seed_text, sessionId, authUserId, active]`. Garder un `requestIdleCallback` au premier passage uniquement ; pour les passages suivants (changement de `active`), faire un fetch direct.
 
-- Un message émis par le **contrepartie** (vendeur WA si on est acheteur App, ou inverse) porte le `user_id` de l'émetteur — pas celui de l'utilisateur connecté. La nouvelle politique ne le rend donc **pas visible**.
-- Le client App n'envoie pas le header `x-waouh-session`, donc la politique « session-scoped » ne s'applique pas non plus.
-- Résultat : la fenêtre de chat n'affiche que les messages **sortants** de l'utilisateur ; les messages entrants disparaissent + le realtime INSERT (filtre `user_id=eq.<self>`) ne déclenche jamais sur un message reçu.
+2. **Remplacer la throttle temporelle (`lastFetchRef = Date.now()`) par un verrou in-flight** (`inFlightRef = boolean`). Tout chemin du `runInitialLoad` — y compris l'avortement — doit passer par un `finally { setInitialLoading(false); inFlightRef.current = false; }`. Plus de spinner collé.
 
-Le même problème touche `waouh_notifications` (notifications du vendeur App pour un acheteur qui répond via WA filtrées hors champ) et `waouh_outbound_queue` (lecture session permissive supprimée).
+3. **Distinguer chargement initial (`initialLoading`) et reconcile en arrière-plan**. Quand un cache existe (`getCached(match.key).length > 0`), ne jamais passer `initialLoading` à `true` lors d'un refetch — juste mettre à jour `syncedAt`/`dbMsgCount` en silence.
 
-Avant l'audit, la politique permissive `web_session_id IS NOT NULL` (sans contrainte de match) laissait passer tous les messages d'une conversation, ce qui faisait fonctionner les 3 flux — mais constituait effectivement une faille (lecture globale).
+4. **Sortir `setCached` de l'updater React**. Le déplacer dans un `useEffect` dédié `useEffect(() => { setCached?.(match.key, messages); }, [messages, match.key])`. Élimine la double-écriture en StrictMode.
 
-## Plan de restauration
+5. **Calculer `dbMsgCount` et `hasMore` sur le résultat fusionné**, pas sur `res.messages.length` brut :
+   ```ts
+   setMessages((prev) => {
+     const next = mergeMsgs(prev, res.messages);
+     setDbMsgCount(next.length);
+     return next;
+   });
+   // hasMore : ne baisser à false que si la page réponse est < limit
+   if (res.messages.length < PAGE_INITIAL) setHasMore(false);
+   else setHasMore(res.hasMore);
+   ```
 
-Restaurer **le comportement fonctionnel du 10 juin 23:07** en conservant les durcissements qui ne touchent pas le chat. On rejoue les anciennes politiques permissives sur les 4 tables impactées, à l'identique de l'état pré-audit.
+6. **Stabiliser l'abonnement Realtime** : attendre que `waouhIds` soit résolu avant de monter le canal. Garde de sortie en début d'effet :
+   ```ts
+   if (!match.article_id) return;
+   // Attendre la résolution de waouhIds (au moins un tick) pour éviter
+   // de monter un canal "vide" puis le détruire dès que les ids arrivent.
+   if (authUserId && waouhIds.length === 0) return;
+   ```
+   Le canal se monte alors une seule fois avec la liste complète de filtres `user_id`.
 
-### Migration unique `restore_waouh_chat_rls_v12`
+7. **Réinitialiser `restoredRef` et `prevLenRef`** sur changement de `match.key` :
+   ```ts
+   useEffect(() => {
+     restoredRef.current = false;
+     prevLenRef.current = 0;
+   }, [match.key]);
+   ```
 
-Tables touchées (rollback ciblé) :
+8. **Toast discret en cas d'échec `fetchHistory`** (au lieu de `console.warn` muet) pour que l'utilisateur sache pourquoi l'historique est vide après un sync raté.
 
-1. **`waouh_messages`** — recréer `waouh_messages session read` avec `USING (web_session_id IS NOT NULL)` (et garder l'actuel `auth user read` et `session-scoped read` par header, qui ne gênent pas).
-2. **`waouh_notifications`** — recréer `waouh_notifications session read` (`USING (web_session_id IS NOT NULL)`) + `waouh_notifications mark read` (UPDATE `USING (true)`), tout en gardant les politiques `auth user read/update` et `session ... token`.
-3. **`waouh_outbound_queue`** — recréer `waouh_outbound_queue session read` (`USING (web_session_id IS NOT NULL)`) en complément de la version header-validée.
-4. **`waouh_users`** — recréer `waouh_users self lookup` et `waouh_users link self` avec la branche permissive `web_session_id IS NOT NULL` (lookup réussi avant header) — nécessaire pour que `useWaouhIdentity` retrouve l'identité côté web/app.
+## Hors-périmètre
 
-### Volet hors RLS
+- Aucun changement à `useWaouhMatchChats.ts`, `waouhChatSyncLock.ts`, ni aux edge functions (`waouh-match-history`, `waouh-channel-in`, `waouh-notify-dispatch`).
+- Le verrou v12 (sentinelle runtime + invariants tests) est respecté : matchKey, filtre counterpart, et la logique de propagation `counterpart_user_id` ne changent pas. Le test snapshot v1 reste vert.
 
-- Aucun changement aux edge functions (`waouh-notify-dispatch`, `waouh-negotiation-router`, `waouh-match-history`, `waouh-webhook`) : le lock v12 reste actif.
-- Aucun changement aux composants frontend : `WaouhMatchChatWindow`, `useWaouhMatchChats`, `useGlobalChatSync`, `useUnreadCounts` restent verrouillés v12.
-- Le test de non-régression `waouh-chat-sync-flow.lock.test.ts` (v12) continue de passer car aucun invariant code n'est touché.
+## Validation
 
-### Ce qu'on **garde** du Phase 1 (durcissements non liés au chat)
-
-- `payment_transactions` — branche guest supprimée ✅
-- `ia_creator_user_usage` — writes restreints au service_role ✅
-- `anonymous_visitor_sessions` — UPDATE `USING (true)` retiré ✅
-- `storage.objects` public-media DELETE owner-only ✅
-- `waouh_radar_auto_settings` (nouvelle table admin) ✅
-
-### Validation après migration
-
-1. `pg_policies` doit lister 5 SELECT sur `waouh_messages` (admin, auth user, session token, session permissive, anon insert) et l'équivalent sur `waouh_notifications`.
-2. Test fonctionnel manuel des 3 scénarios A/B/C dans l'app (vendeur App reçoit le message WA acheteur, et vice-versa).
-3. Aucune régression sur les tests Vitest existants (`bunx vitest run`).
-
-### Note de sécurité
-
-La permissivité restaurée est documentée comme **dette technique acceptée pour la production v12**. Une refonte ultérieure (politique participante via SECURITY DEFINER `is_waouh_conversation_participant(uid, conv_id)` joignant `waouh_negotiations.buyer_user_id`/`seller_user_id`) sera proposée séparément hors scope.
-
-## Détails techniques (SQL principal)
-
-```sql
--- 1) waouh_messages : restaurer la lecture session permissive
-CREATE POLICY "waouh_messages session read"
-  ON public.waouh_messages FOR SELECT TO public
-  USING (web_session_id IS NOT NULL);
-
--- 2) waouh_notifications : restaurer lecture + mark-read permissives
-CREATE POLICY "waouh_notifications session read"
-  ON public.waouh_notifications FOR SELECT TO public
-  USING (web_session_id IS NOT NULL);
-
-CREATE POLICY "waouh_notifications mark read"
-  ON public.waouh_notifications FOR UPDATE TO public
-  USING (true) WITH CHECK (true);
-
--- 3) waouh_outbound_queue : restaurer lecture session permissive
-CREATE POLICY "waouh_outbound_queue session read"
-  ON public.waouh_outbound_queue FOR SELECT TO public
-  USING (web_session_id IS NOT NULL);
-
--- 4) waouh_users : restaurer self lookup + link self permissifs
-DROP POLICY IF EXISTS "waouh_users self lookup auth" ON public.waouh_users;
-DROP POLICY IF EXISTS "waouh_users session lookup token" ON public.waouh_users;
-DROP POLICY IF EXISTS "waouh_users link self auth" ON public.waouh_users;
-DROP POLICY IF EXISTS "waouh_users link self session" ON public.waouh_users;
-
-CREATE POLICY "waouh_users self lookup"
-  ON public.waouh_users FOR SELECT TO public
-  USING (
-    (auth.uid() IS NOT NULL AND auth_user_id = auth.uid())
-    OR web_session_id IS NOT NULL
-  );
-
-CREATE POLICY "waouh_users link self"
-  ON public.waouh_users FOR UPDATE TO public
-  USING (
-    (auth.uid() IS NOT NULL AND auth_user_id = auth.uid())
-    OR web_session_id IS NOT NULL
-  )
-  WITH CHECK (
-    (auth.uid() IS NOT NULL AND auth_user_id = auth.uid())
-    OR web_session_id IS NOT NULL
-  );
-```
+- Smoke test manuel : ouvrir un match, fermer/réouvrir → l'historique réapparaît instantanément depuis le cache, le badge « Sync · HH:MM · N msg » s'affiche après reconcile sans spinner intermédiaire.
+- Vérifier qu'un message envoyé par le partenaire arrive bien dans la fenêtre **dès le premier rendu** (plus de gap Realtime).
+- Lancer `bunx vitest run` pour confirmer que les invariants v12 / snapshot v1 restent verts.
