@@ -309,6 +309,10 @@ export function WaouhMatchChatWindow({
   // Realtime — strictly filtered by article_id, listens on session AND linked users
   useEffect(() => {
     if (!match.article_id) return;
+    // Avoid mounting a partial channel while waouhIds is still resolving for
+    // an authenticated viewer — otherwise the channel is torn down & recreated
+    // as soon as the user ids arrive, leaving a gap where partner inserts are missed.
+    if (authUserId && waouhIds.length === 0) return;
     const suffix = Math.random().toString(36).slice(2, 6);
     const SELF_ACK_TEMPLATES = new Set([
       "buyer_interest_ack", "negotiation_ack", "payment_ack", "sale_published",
