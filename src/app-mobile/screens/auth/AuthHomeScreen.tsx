@@ -208,7 +208,7 @@ function WaouhFlowAnimation() {
         </svg>
       </div>
 
-      <div className="flex gap-3 items-start">
+      <div className="flex gap-1.5 sm:gap-3 items-start">
         <Column
           title="Acheteur"
           icon={UserIcon}
@@ -218,28 +218,28 @@ function WaouhFlowAnimation() {
         />
 
         {/* Orchestration central */}
-        <div className="w-[140px] shrink-0">
-          <div className="bg-gradient-to-b from-emerald-600 to-emerald-700 rounded-xl px-2 py-2 mb-3 text-center shadow-lg">
-            <span className="text-[10px] font-bold tracking-wide uppercase">
+        <div className="w-[24%] sm:w-[140px] shrink-0">
+          <div className="bg-gradient-to-b from-emerald-600 to-emerald-700 rounded-lg sm:rounded-xl px-1.5 sm:px-2 py-1.5 sm:py-2 mb-2 sm:mb-3 text-center shadow-lg">
+            <span className="text-[8px] sm:text-[10px] font-bold tracking-wide uppercase">
               Orchestration
             </span>
           </div>
-          <ul className="space-y-2">
+          <ul className="space-y-1.5 sm:space-y-2">
             {orchestrationNodes.map((n, i) => {
               const Icon = n.icon;
               return (
                 <li
                   key={i}
-                  className="waouh-float relative rounded-lg bg-emerald-500/20 border border-emerald-300/30 backdrop-blur-sm px-2 py-2 flex flex-col items-center gap-1 text-center"
+                  className="waouh-float relative rounded-md sm:rounded-lg bg-emerald-500/20 border border-emerald-300/30 backdrop-blur-sm px-1 sm:px-2 py-1.5 sm:py-2 flex flex-col items-center gap-0.5 sm:gap-1 text-center"
                   style={{ animationDelay: `${i * 200}ms` }}
                 >
-                  <Icon className="w-4 h-4 text-emerald-200" />
-                  <span className="text-[10px] font-medium text-white/90 leading-tight">
+                  <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-200" />
+                  <span className="text-[8px] sm:text-[10px] font-medium text-white/90 leading-tight">
                     {n.label}
                   </span>
                   {/* connectors L/R */}
-                  <span className="absolute -left-3 top-1/2 w-3 h-px bg-blue-300/50" />
-                  <span className="absolute -right-3 top-1/2 w-3 h-px bg-emerald-300/50" />
+                  <span className="absolute -left-1.5 sm:-left-3 top-1/2 w-1.5 sm:w-3 h-px bg-blue-300/50" />
+                  <span className="absolute -right-1.5 sm:-right-3 top-1/2 w-1.5 sm:w-3 h-px bg-emerald-300/50" />
                 </li>
               );
             })}
@@ -255,7 +255,7 @@ function WaouhFlowAnimation() {
         />
       </div>
 
-      <div className="waouh-shimmer mt-5 rounded-xl p-3 border border-white/15 text-center text-[11px] text-white/85 leading-snug">
+      <div className="waouh-shimmer mt-4 sm:mt-5 rounded-lg sm:rounded-xl p-2.5 sm:p-3 border border-white/15 text-center text-[10px] sm:text-[11px] text-white/85 leading-snug">
         WAOUH connecte automatiquement le bon{" "}
         <span className="text-blue-300 font-semibold">acheteur</span> au bon{" "}
         <span className="text-emerald-300 font-semibold">vendeur</span>,
