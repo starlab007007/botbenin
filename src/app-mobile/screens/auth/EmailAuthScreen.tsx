@@ -81,7 +81,7 @@ export default function EmailAuthScreen() {
         if (ok) {
           Haptics.notification({ type: NotificationType.Success }).catch(() => {});
           toast.success("Connexion réussie");
-          navigate("/app/chat", { replace: true });
+          navigate(consumeRedirect(), { replace: true });
         } else {
           Haptics.notification({ type: NotificationType.Error }).catch(() => {});
           toast.error("Identifiants invalides");
