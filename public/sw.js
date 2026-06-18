@@ -14,6 +14,7 @@ const ALL_CACHES = [SHELL_CACHE, ASSETS_CACHE, RUNTIME_CACHE, HTML_CACHE, 'notif
 
 const SHELL_URLS = [
   '/',
+  '/app/chat',
   '/offline.html',
   '/manifest.json',
   '/icon-192.png',
