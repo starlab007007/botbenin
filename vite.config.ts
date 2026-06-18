@@ -85,6 +85,19 @@ export default defineConfig(({ mode }) => {
 
           if (id.includes('xlsx')) return 'xlsx';
 
+          // ─── Éditeurs riches / markdown lourds (rarement utilisés) ──────────
+          if (
+            id.includes('/node_modules/@tiptap') ||
+            id.includes('/node_modules/prosemirror') ||
+            id.includes('/node_modules/quill') ||
+            id.includes('/node_modules/react-markdown') ||
+            id.includes('/node_modules/remark-') ||
+            id.includes('/node_modules/rehype-')
+          ) return 'editor';
+
+          // ─── i18n / locales lourdes ──────────────────────────────────────────
+          if (id.includes('/node_modules/date-fns/locale')) return 'date-locales';
+
           // ─── Vendor catch-all ────────────────────────────────────────────────
           // Contient : React, react-dom, react-router, react-leaflet, react-pdf,
           // radix-ui, lucide-react, supabase, tanstack, react-hook-form, etc.
