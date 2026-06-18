@@ -36,9 +36,9 @@ async function fireNativeNotification(title: string, body: string, convId: strin
 }
 
 /**
- * Listens globally to all inbound messages for the current user's waouh identity
- * (auth_user_id OR web_session_id mapping). Fires in-app toasts + native
- * notifications and exposes total unread count for the bottom tab badge.
+ * Listens globally to all inbound messages for the current user's waouh identity.
+ * Boot work is deferred behind requestIdleCallback so it does not delay the first
+ * paint of /app/chat on slow networks (root cause of ERR_TIMED_OUT loops).
  */
 export function useGlobalChatSync() {
   const { waouhUserIds, sessionId, ready } = useWaouhIdentity();
@@ -53,30 +53,16 @@ export function useGlobalChatSync() {
   useEffect(() => {
     if (!ready) return;
     if (!waouhUserIds.length && !sessionId) { setTotalUnread(0); return; }
+
     let cancelled = false;
     let started = false;
-    // Defer heavy boot work so it does not compete with the first paint of /app/chat.
-    const ric = (window as any).requestIdleCallback as
-      | ((cb: () => void, opts?: { timeout: number }) => number)
-      | undefined;
-    const startToken = ric
-      ? ric(() => { started = true; void boot(); }, { timeout: 1500 })
-      : (setTimeout(() => { started = true; void boot(); }, 250) as unknown as number);
-    const cancelStart = () => {
-      if (started) return;
-      const cic = (window as any).cancelIdleCallback as ((h: number) => void) | undefined;
-      if (cic) cic(startToken);
-      else clearTimeout(startToken as unknown as ReturnType<typeof setTimeout>);
-    };
-
     const channels: any[] = [];
-
-    async function boot() {
-      if (cancelled) return;
+    let onRead: (() => void) | null = null;
 
     const recompute = async () => {
-      // Fetch all conversations for this identity
-      let convs: any[] = [];
+      // Single aggregated COUNT (1 request) instead of N COUNT queries.
+      // Pick the conversation list from waouh_users mapping when available.
+      let convIds: string[] = [];
       if (waouhUserIds.length) {
         const { data } = await supabase
           .from("waouh_conversations")
@@ -84,10 +70,12 @@ export function useGlobalChatSync() {
           .in("user_id", waouhUserIds)
           .order("updated_at", { ascending: false })
           .limit(100);
-        convs = data ?? [];
-      }
-      // Fallback: derive from messages by session id if no conv mapping
-      if (!convs.length && sessionId) {
+        const list = data ?? [];
+        const cache: Record<string, { phone_number: string | null }> = {};
+        list.forEach((c: any) => { cache[c.id] = { phone_number: c.phone_number }; });
+        convCacheRef.current = cache;
+        convIds = list.map((c: any) => c.id);
+      } else if (sessionId) {
         const { data: msgs } = await supabase
           .from("waouh_messages")
           .select("conversation_id, phone_number")
@@ -95,61 +83,36 @@ export function useGlobalChatSync() {
           .not("conversation_id", "is", null)
           .limit(200);
         const seen = new Set<string>();
-        convs = (msgs ?? []).filter((m: any) => {
-          if (!m.conversation_id || seen.has(m.conversation_id)) return false;
+        (msgs ?? []).forEach((m: any) => {
+          if (!m.conversation_id || seen.has(m.conversation_id)) return;
           seen.add(m.conversation_id);
-          return true;
-        }).map((m: any) => ({ id: m.conversation_id, phone_number: m.phone_number }));
+          convCacheRef.current[m.conversation_id] = { phone_number: m.phone_number };
+        });
+        convIds = Array.from(seen);
       }
+      if (!convIds.length) { if (!cancelled) setTotalUnread(0); return; }
 
-      const cache: Record<string, { phone_number: string | null }> = {};
-      convs.forEach((c: any) => { cache[c.id] = { phone_number: c.phone_number }; });
-      convCacheRef.current = cache;
-
+      // Use the earliest "since" timestamp as a server-side lower bound, then
+      // re-filter the small client-side response set per-conversation. This
+      // collapses N COUNT requests into a single SELECT.
       const map = readMap();
+      const sinces = convIds.map((id) => map[id] ?? "1970-01-01T00:00:00Z");
+      const minSince = sinces.reduce((a, b) => (a < b ? a : b), sinces[0]);
+      const { data: recent } = await supabase
+        .from("waouh_messages")
+        .select("conversation_id, created_at")
+        .in("conversation_id", convIds)
+        .eq("direction", "in")
+        .gt("created_at", minSince)
+        .limit(1000);
       let total = 0;
-      await Promise.all(convs.map(async (c: any) => {
-        const since = map[c.id] ?? "1970-01-01T00:00:00Z";
-        const { count } = await supabase
-          .from("waouh_messages")
-          .select("id", { count: "exact", head: true })
-          .eq("conversation_id", c.id)
-          .eq("direction", "in")
-          .gt("created_at", since);
-        total += count ?? 0;
-      }));
+      (recent ?? []).forEach((m: any) => {
+        const since = map[m.conversation_id] ?? "1970-01-01T00:00:00Z";
+        if (m.created_at > since) total += 1;
+      });
       if (!cancelled) setTotalUnread(total);
     };
-    recompute();
 
-    const onRead = () => recompute();
-    window.addEventListener("waouh-chat-read", onRead);
-
-    (async () => {
-      try {
-        const { Capacitor } = await import("@capacitor/core");
-        if (!Capacitor.isNativePlatform()) return;
-        const { LocalNotifications } = await import("@capacitor/local-notifications");
-        const perm = await LocalNotifications.checkPermissions();
-        if (perm.display !== "granted") await LocalNotifications.requestPermissions();
-        await LocalNotifications.removeAllListeners();
-        await LocalNotifications.addListener("localNotificationActionPerformed", (e) => {
-          const route = (e?.notification?.extra as any)?.route;
-          if (route) navigate(route);
-        });
-        // Remote push tap → navigate
-        try {
-          const { PushNotifications } = await import("@capacitor/push-notifications");
-          await PushNotifications.addListener("pushNotificationActionPerformed", (e: any) => {
-            const route = e?.notification?.data?.route;
-            if (route) navigate(route);
-          });
-        } catch {}
-      } catch {}
-    })();
-
-    // Realtime: subscribe per waouh user id + per web_session_id
-    const channels: any[] = [];
     const handler = async (payload: any) => {
       const m: any = payload.new;
       if (m.direction !== "in") return;
@@ -169,8 +132,6 @@ export function useGlobalChatSync() {
       const body = (m.text ?? "").toString().slice(0, 140) || "📎 Message reçu";
       const route = m.conversation_id ? `/app/chat/${m.conversation_id}` : `/app/chat/waouh`;
       const currentPath = pathRef.current || "";
-      // On desktop, /app/chat already embeds the WAOUH right pane, so any
-      // /app/chat* surface counts as "in chat" — suppress the toast there.
       const inThisChat =
         currentPath === route ||
         currentPath === "/app/chat" ||
@@ -184,26 +145,70 @@ export function useGlobalChatSync() {
       }
     };
 
-    for (const uid of waouhUserIds) {
-      const ch = supabase.channel(`mobile-msgs-uid-${uid}`)
-        .on("postgres_changes",
-          { event: "INSERT", schema: "public", table: "waouh_messages", filter: `user_id=eq.${uid}` },
-          handler)
-        .subscribe();
-      channels.push(ch);
-    }
-    if (sessionId) {
-      const ch = supabase.channel(`mobile-msgs-sess-${sessionId}`)
-        .on("postgres_changes",
-          { event: "INSERT", schema: "public", table: "waouh_messages", filter: `web_session_id=eq.${sessionId}` },
-          handler)
-        .subscribe();
-      channels.push(ch);
-    }
+    const boot = async () => {
+      if (cancelled) return;
+      void recompute();
+
+      onRead = () => recompute();
+      window.addEventListener("waouh-chat-read", onRead);
+
+      // Native notification listeners (skipped silently on web).
+      try {
+        const { Capacitor } = await import("@capacitor/core");
+        if (Capacitor.isNativePlatform()) {
+          const { LocalNotifications } = await import("@capacitor/local-notifications");
+          const perm = await LocalNotifications.checkPermissions();
+          if (perm.display !== "granted") await LocalNotifications.requestPermissions();
+          await LocalNotifications.removeAllListeners();
+          await LocalNotifications.addListener("localNotificationActionPerformed", (e) => {
+            const route = (e?.notification?.extra as any)?.route;
+            if (route) navigate(route);
+          });
+          try {
+            const { PushNotifications } = await import("@capacitor/push-notifications");
+            await PushNotifications.addListener("pushNotificationActionPerformed", (e: any) => {
+              const route = e?.notification?.data?.route;
+              if (route) navigate(route);
+            });
+          } catch {}
+        }
+      } catch {}
+
+      // Realtime subscriptions, one per identity.
+      for (const uid of waouhUserIds) {
+        const ch = supabase.channel(`mobile-msgs-uid-${uid}`)
+          .on("postgres_changes",
+            { event: "INSERT", schema: "public", table: "waouh_messages", filter: `user_id=eq.${uid}` },
+            handler)
+          .subscribe();
+        channels.push(ch);
+      }
+      if (sessionId) {
+        const ch = supabase.channel(`mobile-msgs-sess-${sessionId}`)
+          .on("postgres_changes",
+            { event: "INSERT", schema: "public", table: "waouh_messages", filter: `web_session_id=eq.${sessionId}` },
+            handler)
+          .subscribe();
+        channels.push(ch);
+      }
+    };
+
+    // Defer boot so it never competes with the first paint of /app/chat.
+    const ric = (window as any).requestIdleCallback as
+      | ((cb: () => void, opts?: { timeout: number }) => number)
+      | undefined;
+    const startToken: number = ric
+      ? ric(() => { started = true; void boot(); }, { timeout: 1500 })
+      : (setTimeout(() => { started = true; void boot(); }, 250) as unknown as number);
 
     return () => {
       cancelled = true;
-      window.removeEventListener("waouh-chat-read", onRead);
+      if (!started) {
+        const cic = (window as any).cancelIdleCallback as ((h: number) => void) | undefined;
+        if (cic) cic(startToken);
+        else clearTimeout(startToken as unknown as ReturnType<typeof setTimeout>);
+      }
+      if (onRead) window.removeEventListener("waouh-chat-read", onRead);
       channels.forEach((c) => supabase.removeChannel(c));
     };
   }, [ready, waouhUserIds.join("|"), sessionId, navigate]);
