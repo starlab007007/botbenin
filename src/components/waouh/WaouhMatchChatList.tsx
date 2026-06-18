@@ -134,7 +134,11 @@ export function WaouhMatchChatList({
             (Array.isArray(n.payload?.photos) && n.payload.photos[0]) ||
             n.payload?.image_url ||
             null;
-          const ck = matchKey(articleId, role);
+          // v12.1: include counterpart in the key for seller-side rows so each
+          // buyer interested in the same article keeps its own list entry.
+          const counterpartId: string | null =
+            n.payload?.counterpart_user_id ?? n.payload?.buyer_user_id ?? null;
+          const ck = matchKey(articleId, role, role === "seller" ? counterpartId : null);
           const prev = map.get(ck);
           // Most-recent notification wins for display; accumulate notif ids.
           const isNewer = !prev || new Date(n.sent_at) > new Date(prev.last_at);
@@ -146,7 +150,7 @@ export function WaouhMatchChatList({
             seed_text: isNewer ? (n.payload?.text ?? null) : prev!.seed_text,
             article_id: articleId,
             buyer_profile_id: isNewer ? (n.payload?.buyer_profile_id ?? null) : prev!.buyer_profile_id,
-            counterpart_user_id: isNewer ? (n.payload?.counterpart_user_id ?? n.payload?.buyer_user_id ?? null) : prev!.counterpart_user_id,
+            counterpart_user_id: isNewer ? counterpartId : prev!.counterpart_user_id,
             role,
             title: isNewer ? (n.payload?.title || "Annonce") : prev!.title,
             price: isNewer ? (n.payload?.price ?? null) : prev!.price,
