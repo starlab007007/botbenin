@@ -12,7 +12,14 @@ export default function WhatsAppOtpScreen() {
   const flow = useWhatsAppOtpFlow();
 
   useEffect(() => {
-    if (flow.step === "done") navigate("/app/chat", { replace: true });
+    if (flow.step === "done") {
+      let target = "/app/chat";
+      try {
+        const t = sessionStorage.getItem("waouh_post_auth_redirect");
+        if (t) { sessionStorage.removeItem("waouh_post_auth_redirect"); target = t; }
+      } catch {}
+      navigate(target, { replace: true });
+    }
   }, [flow.step, navigate]);
 
   const back = () => {
