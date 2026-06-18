@@ -54,6 +54,25 @@ export function useGlobalChatSync() {
     if (!ready) return;
     if (!waouhUserIds.length && !sessionId) { setTotalUnread(0); return; }
     let cancelled = false;
+    let started = false;
+    // Defer heavy boot work so it does not compete with the first paint of /app/chat.
+    const ric = (window as any).requestIdleCallback as
+      | ((cb: () => void, opts?: { timeout: number }) => number)
+      | undefined;
+    const startToken = ric
+      ? ric(() => { started = true; void boot(); }, { timeout: 1500 })
+      : (setTimeout(() => { started = true; void boot(); }, 250) as unknown as number);
+    const cancelStart = () => {
+      if (started) return;
+      const cic = (window as any).cancelIdleCallback as ((h: number) => void) | undefined;
+      if (cic) cic(startToken);
+      else clearTimeout(startToken as unknown as ReturnType<typeof setTimeout>);
+    };
+
+    const channels: any[] = [];
+
+    async function boot() {
+      if (cancelled) return;
 
     const recompute = async () => {
       // Fetch all conversations for this identity
