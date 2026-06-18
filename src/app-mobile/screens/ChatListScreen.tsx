@@ -213,7 +213,14 @@ export default function ChatListScreen() {
 
   const initials = (profile?.full_name ?? profile?.phone ?? "U").slice(0, 2).toUpperCase();
 
+  const requireAuth = (target: string): boolean => {
+    if (!isGuest) return true;
+    try { sessionStorage.setItem("waouh_post_auth_redirect", target); } catch {}
+    navigate("/app/auth");
+    return false;
+  };
   const openWaouh = () => {
+    if (!requireAuth("/app/chat/waouh")) return;
     if (isDesktop) {
       setActiveConvId(null);
       matchChats.setActiveKey("main");
@@ -222,6 +229,7 @@ export default function ChatListScreen() {
     }
   };
   const openNewWaouh = () => {
+    if (!requireAuth("/app/chat/waouh?new=1")) return;
     if (isDesktop) {
       setActiveConvId(null);
       matchChats.setActiveKey("main");
