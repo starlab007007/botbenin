@@ -70,9 +70,27 @@ export default function ChatListScreen() {
   const { user } = useMobileAuth();
   const { profile } = useMobileProfile();
   const { waouhUserIds, sessionId, ready } = useWaouhIdentity();
-  const [convs, setConvs] = useState<Conv[]>([]);
-  const [users, setUsers] = useState<Record<string, WaouhUserLike>>({});
-  const [loading, setLoading] = useState(true);
+
+  // Snapshot hydration: render instantly from localStorage while the network
+  // refetch happens in background. Eliminates blank screen on slow connections.
+  const snapshotKey = `waouh_chatlist_snapshot_v1:${user?.id ?? sessionId ?? "anon"}`;
+  const [convs, setConvs] = useState<Conv[]>(() => {
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem(snapshotKey) : null;
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed?.convs) ? parsed.convs : [];
+    } catch { return []; }
+  });
+  const [users, setUsers] = useState<Record<string, WaouhUserLike>>(() => {
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem(snapshotKey) : null;
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return (parsed?.users && typeof parsed.users === "object") ? parsed.users : {};
+    } catch { return {}; }
+  });
+  const [loading, setLoading] = useState(convs.length === 0);
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<"chats" | "statuses">("chats");
 
