@@ -163,7 +163,16 @@ export default function ChatListScreen() {
         (us ?? []).forEach((u: any) => { userMap[u.id] = u; });
       }
 
-      if (mounted) { setConvs(list); setUsers(userMap); setLoading(false); }
+      if (mounted) {
+        setConvs(list);
+        setUsers(userMap);
+        setLoading(false);
+        // Persist snapshot for instant hydration on next visit / offline.
+        try {
+          const slim = list.slice(0, 50);
+          localStorage.setItem(snapshotKey, JSON.stringify({ convs: slim, users: userMap, ts: Date.now() }));
+        } catch {}
+      }
     };
     load();
     const channels: any[] = [];
