@@ -346,8 +346,19 @@ export default function AuthHomeScreen() {
               En continuant, vous acceptez nos conditions d'utilisation.
             </p>
           </div>
+
+          {/* Mobile / tablet — animated flow shown below the legal note */}
+          <div
+            className="lg:hidden w-full mt-8"
+            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+          >
+            <WaouhFlowAnimation />
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
     </div>
   );
 }
