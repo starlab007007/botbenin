@@ -354,10 +354,16 @@ export function WaouhMatchChatList({
     try {
       const raw = localStorage.getItem(PENDING_OPEN_KEY);
       const arr = raw ? (JSON.parse(raw) as any[]) : [];
-      const canonical = matchKey(item.article_id, item.role);
-      const filtered = arr.filter(
-        (d: any) => matchKey(d?.article_id, d?.kind === "seller" ? "seller" : "buyer") !== canonical
+      const canonical = matchKey(
+        item.article_id,
+        item.role,
+        item.role === "seller" ? item.counterpart_user_id : null
       );
+      const filtered = arr.filter((d: any) => {
+        const dRole = d?.kind === "seller" ? "seller" : "buyer";
+        const dCp = dRole === "seller" ? (d?.counterpart_user_id ?? null) : null;
+        return matchKey(d?.article_id, dRole, dCp) !== canonical;
+      });
       filtered.push(detail);
       localStorage.setItem(PENDING_OPEN_KEY, JSON.stringify(filtered.slice(-10)));
     } catch {}
