@@ -81,21 +81,21 @@ function Column({
   return (
     <div className="flex-1 min-w-0">
       <div
-        className={`${header} rounded-xl px-3 py-2 flex items-center gap-2 mb-3 shadow-lg`}
+        className={`${header} rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3 shadow-lg`}
       >
-        <TitleIcon className="w-4 h-4" />
-        <span className="text-xs font-bold tracking-wide uppercase">
+        <TitleIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+        <span className="text-[9px] sm:text-xs font-bold tracking-wide uppercase truncate">
           {title}
         </span>
       </div>
-      <ul className="space-y-2">
+      <ul className="space-y-1.5 sm:space-y-2">
         {steps.map((s, i) => {
           const Icon = s.icon;
           const delay = `${(i * CYCLE_MS) / TOTAL}ms`;
           return (
             <li
               key={i}
-              className={`waouh-step relative flex items-center gap-2 rounded-lg bg-white/10 border border-white/15 backdrop-blur-sm px-2.5 py-2 text-white text-[11px] leading-tight ring-2 ring-transparent ${ring}`}
+              className={`waouh-step relative flex items-center gap-1.5 sm:gap-2 rounded-md sm:rounded-lg bg-white/10 border border-white/15 backdrop-blur-sm px-1.5 sm:px-2.5 py-1.5 sm:py-2 text-white text-[9px] sm:text-[11px] leading-tight ring-2 ring-transparent ${ring} min-w-0`}
               style={{
                 animationDelay: delay,
                 justifyContent: side === "right" ? "flex-end" : "flex-start",
@@ -103,12 +103,12 @@ function Column({
               }}
             >
               <span
-                className={`shrink-0 w-5 h-5 rounded ${dot} text-white text-[10px] font-bold flex items-center justify-center`}
+                className={`shrink-0 w-4 h-4 sm:w-5 sm:h-5 rounded ${dot} text-white text-[8px] sm:text-[10px] font-bold flex items-center justify-center`}
               >
                 {i + 1}
               </span>
-              <Icon className="w-3.5 h-3.5 opacity-90" />
-              <span className="truncate">{s.label}</span>
+              <Icon className="w-3 h-3 sm:w-3.5 sm:h-3.5 opacity-90 shrink-0" />
+              <span className="truncate min-w-0">{s.label}</span>
             </li>
           );
         })}
