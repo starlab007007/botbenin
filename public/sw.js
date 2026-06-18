@@ -71,22 +71,37 @@ const isApiOrSupabase = (url) =>
   url.pathname.startsWith('/realtime/');
 
 async function networkFirstHTML(request) {
-  try {
-    const res = await fetch(request);
-    if (res && res.ok) {
-      const copy = res.clone();
-      caches.open(HTML_CACHE).then((c) => c.put(request, copy)).catch(() => null);
-    }
-    return res;
-  } catch (e) {
-    const cached = await caches.match(request);
-    if (cached) return cached;
-    const shellCached = await caches.match('/');
-    if (shellCached) return shellCached;
-    const offline = await caches.match('/offline.html');
-    if (offline) return offline;
-    return new Response('Hors ligne', { status: 503, statusText: 'Offline' });
+  // Race network vs 4s timeout — fall back to cache rapidly on flaky networks
+  // (root cause of net::ERR_TIMED_OUT on /app/chat over 2G/3G).
+  const TIMEOUT_MS = 4000;
+  const networkPromise = fetch(request)
+    .then((res) => {
+      if (res && res.ok) {
+        const copy = res.clone();
+        caches.open(HTML_CACHE).then((c) => c.put(request, copy)).catch(() => null);
+      }
+      return res;
+    })
+    .catch(() => null);
+  const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), TIMEOUT_MS));
+
+  const res = await Promise.race([networkPromise, timeoutPromise]);
+  if (res) return res;
+
+  // Network too slow / failed → serve cached shell instantly, refresh in background.
+  const cached =
+    (await caches.match(request)) ||
+    (await caches.match('/app/chat')) ||
+    (await caches.match('/'));
+  if (cached) {
+    // Let the network finish in the background to refresh cache for next visit.
+    networkPromise.catch(() => null);
+    return cached;
   }
+  const offline = await caches.match('/offline.html');
+  if (offline) return offline;
+  try { return await networkPromise; } catch {}
+  return new Response('Hors ligne', { status: 503, statusText: 'Offline' });
 }
 
 async function cacheFirst(request, cacheName) {
