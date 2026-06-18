@@ -31,8 +31,16 @@ export default function EmailAuthScreen() {
 
   const [submitted, setSubmitted] = useState(false);
 
+  const consumeRedirect = (): string => {
+    try {
+      const t = sessionStorage.getItem("waouh_post_auth_redirect");
+      if (t) { sessionStorage.removeItem("waouh_post_auth_redirect"); return t; }
+    } catch {}
+    return "/app/chat";
+  };
+
   useEffect(() => {
-    if (isAuthenticated) navigate("/app/chat", { replace: true });
+    if (isAuthenticated) navigate(consumeRedirect(), { replace: true });
   }, [isAuthenticated, navigate]);
 
   const errors = useMemo(() => {
