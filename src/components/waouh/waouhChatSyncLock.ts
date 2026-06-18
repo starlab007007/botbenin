@@ -288,6 +288,15 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
         "counterpart_user_id: (payload as any)?.from_user_id",
       ],
     },
+    // 🔒 v12.1 — La liste des chats match côté vendeur DOIT discriminer par
+    // counterpart pour produire une ligne (et donc une fenêtre) par acheteur.
+    matchChatListCounterpartKey: {
+      file: "src/components/waouh/WaouhMatchChatList.tsx",
+      mustContain: [
+        "role === \"seller\" ? counterpartId : null",
+        "item.role === \"seller\" ? item.counterpart_user_id : null",
+      ],
+    },
   }),
 });
 
