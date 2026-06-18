@@ -182,25 +182,38 @@ export function WaouhMatchChatList({
           const articlesWithNotif = new Set(
             Array.from(map.values()).map((it) => it.article_id)
           );
-          const seenArt = new Map<string, { role: "buyer" | "seller"; created_at: string }>();
+          const seenArt = new Map<string, { role: "buyer" | "seller"; created_at: string; counterpart: string | null }>();
           for (const m of (msgs ?? []) as any[]) {
             const articleId: string | null = m.article_id || m.meta?.article_id || null;
-            if (!articleId || seenArt.has(articleId) || articlesWithNotif.has(articleId)) continue;
+            if (!articleId) continue;
             const role: "buyer" | "seller" =
               m.meta?.role === "seller" ? "seller" : "buyer";
-            seenArt.set(articleId, { role, created_at: m.created_at });
+            const counterpart: string | null =
+              role === "seller"
+                ? (m.meta?.counterpart_user_id ?? m.meta?.buyer_user_id ?? null)
+                : null;
+            const stubKey = matchKey(articleId, role, role === "seller" ? counterpart : null);
+            if (seenArt.has(stubKey) || Array.from(map.keys()).includes(stubKey)) continue;
+            seenArt.set(stubKey, { role, created_at: m.created_at, counterpart });
           }
           // Batch fetch article metadata in one query
-          const stubIds = Array.from(seenArt.keys());
-          if (stubIds.length) {
+          const stubArticleIds = Array.from(new Set(Array.from(seenArt.values()).map((_, i) => Array.from(seenArt.keys())[i])))
+            .map((k) => {
+              const m = k.match(/^art_([^_]+)_/);
+              return m ? m[1] : null;
+            })
+            .filter((x): x is string => !!x);
+          if (stubArticleIds.length) {
             const { data: arts } = await supabase
               .from("waouh_articles" as any)
               .select("id,title,price,city,photos")
-              .in("id", stubIds);
+              .in("id", stubArticleIds);
             const artById = new Map<string, any>((arts ?? []).map((a: any) => [a.id, a]));
-            for (const [articleId, info] of seenArt.entries()) {
+            for (const [stubKey, info] of seenArt.entries()) {
+              const m = stubKey.match(/^art_([^_]+)_/);
+              const articleId = m ? m[1] : null;
+              if (!articleId) continue;
               const art = artById.get(articleId);
-              const stubKey = matchKey(articleId, info.role);
               map.set(stubKey, {
                 key: stubKey,
                 notification_id: null,
@@ -209,7 +222,7 @@ export function WaouhMatchChatList({
                 seed_text: null,
                 article_id: articleId,
                 buyer_profile_id: null,
-                counterpart_user_id: null,
+                counterpart_user_id: info.counterpart,
                 role: info.role,
                 title: art?.title || "Annonce",
                 price: art?.price ?? null,
