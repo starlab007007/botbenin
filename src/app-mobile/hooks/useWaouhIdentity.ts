@@ -23,7 +23,10 @@ export function useWaouhIdentity() {
   const { user } = useMobileAuth();
   const sessionId = getWaouhSessionId();
   const [waouhUserIds, setWaouhUserIds] = useState<string[]>([]);
-  const [ready, setReady] = useState(false);
+  // Mark ready as soon as we have a local identity hint (sessionId) so the UI
+  // can render from cached snapshots without waiting for the network round-trip.
+  // The real waouhUserIds are resolved in the background and trigger a refetch.
+  const [ready, setReady] = useState<boolean>(() => Boolean(sessionId));
 
   useEffect(() => {
     let cancelled = false;
