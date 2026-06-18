@@ -194,7 +194,7 @@ export function WaouhMatchChatList({
             seenArt.set(stubKey, { role, created_at: m.created_at, counterpart });
           }
           // Batch fetch article metadata in one query
-          const stubArticleIds = Array.from(new Set(Array.from(seenArt.values()).map((_, i) => Array.from(seenArt.keys())[i])))
+          const stubArticleIds = Array.from(seenArt.keys())
             .map((k) => {
               const m = k.match(/^art_([^_]+)_/);
               return m ? m[1] : null;
