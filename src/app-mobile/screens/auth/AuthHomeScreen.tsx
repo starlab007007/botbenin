@@ -359,6 +359,4 @@ export default function AuthHomeScreen() {
     </div>
   );
 }
-    </div>
-  );
-}
+
