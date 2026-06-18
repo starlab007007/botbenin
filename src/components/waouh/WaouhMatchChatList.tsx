@@ -179,9 +179,6 @@ export function WaouhMatchChatList({
             .or(mOrs.join(","))
             .order("created_at", { ascending: false })
             .limit(300);
-          const articlesWithNotif = new Set(
-            Array.from(map.values()).map((it) => it.article_id)
-          );
           const seenArt = new Map<string, { role: "buyer" | "seller"; created_at: string; counterpart: string | null }>();
           for (const m of (msgs ?? []) as any[]) {
             const articleId: string | null = m.article_id || m.meta?.article_id || null;
