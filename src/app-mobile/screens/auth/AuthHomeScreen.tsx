@@ -81,21 +81,21 @@ function Column({
   return (
     <div className="flex-1 min-w-0">
       <div
-        className={`${header} rounded-xl px-3 py-2 flex items-center gap-2 mb-3 shadow-lg`}
+        className={`${header} rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3 shadow-lg`}
       >
-        <TitleIcon className="w-4 h-4" />
-        <span className="text-xs font-bold tracking-wide uppercase">
+        <TitleIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+        <span className="text-[9px] sm:text-xs font-bold tracking-wide uppercase truncate">
           {title}
         </span>
       </div>
-      <ul className="space-y-2">
+      <ul className="space-y-1.5 sm:space-y-2">
         {steps.map((s, i) => {
           const Icon = s.icon;
           const delay = `${(i * CYCLE_MS) / TOTAL}ms`;
           return (
             <li
               key={i}
-              className={`waouh-step relative flex items-center gap-2 rounded-lg bg-white/10 border border-white/15 backdrop-blur-sm px-2.5 py-2 text-white text-[11px] leading-tight ring-2 ring-transparent ${ring}`}
+              className={`waouh-step relative flex items-center gap-1.5 sm:gap-2 rounded-md sm:rounded-lg bg-white/10 border border-white/15 backdrop-blur-sm px-1.5 sm:px-2.5 py-1.5 sm:py-2 text-white text-[9px] sm:text-[11px] leading-tight ring-2 ring-transparent ${ring} min-w-0`}
               style={{
                 animationDelay: delay,
                 justifyContent: side === "right" ? "flex-end" : "flex-start",
@@ -103,12 +103,12 @@ function Column({
               }}
             >
               <span
-                className={`shrink-0 w-5 h-5 rounded ${dot} text-white text-[10px] font-bold flex items-center justify-center`}
+                className={`shrink-0 w-4 h-4 sm:w-5 sm:h-5 rounded ${dot} text-white text-[8px] sm:text-[10px] font-bold flex items-center justify-center`}
               >
                 {i + 1}
               </span>
-              <Icon className="w-3.5 h-3.5 opacity-90" />
-              <span className="truncate">{s.label}</span>
+              <Icon className="w-3 h-3 sm:w-3.5 sm:h-3.5 opacity-90 shrink-0" />
+              <span className="truncate min-w-0">{s.label}</span>
             </li>
           );
         })}
@@ -208,7 +208,7 @@ function WaouhFlowAnimation() {
         </svg>
       </div>
 
-      <div className="flex gap-3 items-start">
+      <div className="flex gap-1.5 sm:gap-3 items-start">
         <Column
           title="Acheteur"
           icon={UserIcon}
@@ -218,28 +218,28 @@ function WaouhFlowAnimation() {
         />
 
         {/* Orchestration central */}
-        <div className="w-[140px] shrink-0">
-          <div className="bg-gradient-to-b from-emerald-600 to-emerald-700 rounded-xl px-2 py-2 mb-3 text-center shadow-lg">
-            <span className="text-[10px] font-bold tracking-wide uppercase">
+        <div className="w-[24%] sm:w-[140px] shrink-0">
+          <div className="bg-gradient-to-b from-emerald-600 to-emerald-700 rounded-lg sm:rounded-xl px-1.5 sm:px-2 py-1.5 sm:py-2 mb-2 sm:mb-3 text-center shadow-lg">
+            <span className="text-[8px] sm:text-[10px] font-bold tracking-wide uppercase">
               Orchestration
             </span>
           </div>
-          <ul className="space-y-2">
+          <ul className="space-y-1.5 sm:space-y-2">
             {orchestrationNodes.map((n, i) => {
               const Icon = n.icon;
               return (
                 <li
                   key={i}
-                  className="waouh-float relative rounded-lg bg-emerald-500/20 border border-emerald-300/30 backdrop-blur-sm px-2 py-2 flex flex-col items-center gap-1 text-center"
+                  className="waouh-float relative rounded-md sm:rounded-lg bg-emerald-500/20 border border-emerald-300/30 backdrop-blur-sm px-1 sm:px-2 py-1.5 sm:py-2 flex flex-col items-center gap-0.5 sm:gap-1 text-center"
                   style={{ animationDelay: `${i * 200}ms` }}
                 >
-                  <Icon className="w-4 h-4 text-emerald-200" />
-                  <span className="text-[10px] font-medium text-white/90 leading-tight">
+                  <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-200" />
+                  <span className="text-[8px] sm:text-[10px] font-medium text-white/90 leading-tight">
                     {n.label}
                   </span>
                   {/* connectors L/R */}
-                  <span className="absolute -left-3 top-1/2 w-3 h-px bg-blue-300/50" />
-                  <span className="absolute -right-3 top-1/2 w-3 h-px bg-emerald-300/50" />
+                  <span className="absolute -left-1.5 sm:-left-3 top-1/2 w-1.5 sm:w-3 h-px bg-blue-300/50" />
+                  <span className="absolute -right-1.5 sm:-right-3 top-1/2 w-1.5 sm:w-3 h-px bg-emerald-300/50" />
                 </li>
               );
             })}
@@ -255,7 +255,7 @@ function WaouhFlowAnimation() {
         />
       </div>
 
-      <div className="waouh-shimmer mt-5 rounded-xl p-3 border border-white/15 text-center text-[11px] text-white/85 leading-snug">
+      <div className="waouh-shimmer mt-4 sm:mt-5 rounded-lg sm:rounded-xl p-2.5 sm:p-3 border border-white/15 text-center text-[10px] sm:text-[11px] text-white/85 leading-snug">
         WAOUH connecte automatiquement le bon{" "}
         <span className="text-blue-300 font-semibold">acheteur</span> au bon{" "}
         <span className="text-emerald-300 font-semibold">vendeur</span>,
@@ -346,8 +346,17 @@ export default function AuthHomeScreen() {
               En continuant, vous acceptez nos conditions d'utilisation.
             </p>
           </div>
+
+          {/* Mobile / tablet — animated flow shown below the legal note */}
+          <div
+            className="lg:hidden w-full mt-8"
+            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+          >
+            <WaouhFlowAnimation />
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
