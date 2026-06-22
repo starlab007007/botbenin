@@ -1,11 +1,12 @@
 {
     "version": "3.9.3",
     "app": {
-        "name": "botbenin",
-        "bundleId": "com.example.botbenin"
+        "name": "Waouh",
+        "bundleId": "bot.bj"
     },
     "main": {},
     "experimental": {
         "load_packages": true
-    }
+    },
+    "permissions": []
 }
