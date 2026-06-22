@@ -4,7 +4,15 @@
         "name": "Waouh",
         "bundleId": "bot.bj"
     },
-    "main": {},
+    "main": [
+        {
+            "key": "supabase",
+            "statement": "await SupabaseService().initialize();",
+            "imports": [
+                "package:botbenin/integrations/supabase_service.dart"
+            ]
+        }
+    ],
     "experimental": {
         "load_packages": true
     },
