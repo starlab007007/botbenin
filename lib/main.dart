@@ -3,6 +3,7 @@ import 'package:botbenin/integrations/supabase_service.dart';
 import 'package:nowa_runtime/nowa_runtime.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:botbenin/globals/app_state.dart';
 
 @NowaGenerated()
 late final SharedPreferences sharedPrefs;
