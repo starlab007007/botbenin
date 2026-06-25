@@ -1,0 +1,27 @@
+name: Flutter native validation
+
+on:
+  push:
+    paths:
+      - 'flutter_waouh_app/**'
+      - '.github/workflows/flutter-native.yml'
+  pull_request:
+    paths:
+      - 'flutter_waouh_app/**'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: flutter_waouh_app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: stable
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - run: flutter build apk --debug
