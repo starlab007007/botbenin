@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'app_bootstrap.dart';
 import 'core/local_identity.dart';
 
@@ -11,23 +14,12 @@ class AuthModel extends ChangeNotifier {
       notifyListeners();
     });
   }
+
   final LocalIdentity identity;
-  late final AuthStateSubscription sub;
+  late final StreamSubscription<AuthState> sub;
   Session? session;
-  bool busy = false;
-  String? message;
   bool get signedIn => session != null;
   User? get user => session?.user;
-
-  Future<void> login(String email, String secret) async {
-    busy = true; message = null; notifyListeners();
-    try {
-      await supabase.auth.signInWithPassword(email: email.trim(), password: secret);
-      session = supabase.auth.currentSession;
-      await identity.clearGuestMessageCount();
-    } catch (e) { message = e.toString(); rethrow; }
-    finally { busy = false; notifyListeners(); }
-  }
 
   Future<void> logout() async {
     await supabase.auth.signOut();
