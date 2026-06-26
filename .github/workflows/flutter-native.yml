@@ -23,10 +23,10 @@ jobs:
           channel: stable
       - name: Install Android SDK 36
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
-      - name: Build verified Waouh ARM64 APK
-        run: bash scripts/build_arm64_test.sh
+      - name: Build Supabase-connected WAOUH ARM64 APK
+        run: bash scripts/build_live_arm64.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: WaouhApp-arm64-test
-          path: flutter_waouh_app/release-apks/WaouhApp-arm64-test.apk
+          name: WaouhApp-arm64-live
+          path: flutter_waouh_app/release-apks/WaouhApp-arm64-live.apk
           if-no-files-found: error
