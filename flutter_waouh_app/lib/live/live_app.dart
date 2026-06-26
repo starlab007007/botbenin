@@ -1,0 +1,132 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+
+import '../main.dart' as legacy;
+import 'live_controller.dart';
+import 'live_screens.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await legacy.initializeWaouhBackend();
+  runApp(const LiveWaouhApp());
+}
+
+class LiveWaouhApp extends StatelessWidget {
+  const LiveWaouhApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => legacy.AuthController()),
+        ChangeNotifierProxyProvider<legacy.AuthController, LiveWaouhController>(
+          create: (context) => LiveWaouhController(context.read<legacy.AuthController>()),
+          update: (_, auth, previous) => previous ?? LiveWaouhController(auth),
+        ),
+        ChangeNotifierProxyProvider<legacy.AuthController, legacy.WaouhChatController>(
+          create: (context) => legacy.WaouhChatController(context.read<legacy.AuthController>()),
+          update: (_, auth, previous) => previous ?? legacy.WaouhChatController(auth),
+        ),
+        ChangeNotifierProxyProvider<legacy.AuthController, legacy.StatusController>(
+          create: (context) => legacy.StatusController(context.read<legacy.AuthController>()),
+          update: (_, auth, previous) => previous ?? legacy.StatusController(auth),
+        ),
+        Provider(create: (_) => legacy.NotificationsController()),
+        ChangeNotifierProxyProvider<legacy.AuthController, legacy.PartnerController>(
+          create: (context) => legacy.PartnerController(context.read<legacy.AuthController>()),
+          update: (_, auth, previous) => previous ?? legacy.PartnerController(auth),
+        ),
+      ],
+      child: Builder(builder: (context) {
+        final auth = context.read<legacy.AuthController>();
+        return MaterialApp.router(
+          title: 'WaouhApp',
+          debugShowCheckedModeBanner: false,
+          theme: legacy.buildWaouhTheme(),
+          routerConfig: _router(auth),
+        );
+      }),
+    );
+  }
+}
+
+GoRouter _router(legacy.AuthController auth) => GoRouter(
+      initialLocation: '/app/chat',
+      refreshListenable: auth,
+      redirect: (_, state) {
+        const protected = ['/app/notifications', '/app/bots', '/app/whatsapp', '/app/diffusion', '/app/partner', '/app/profile'];
+        final path = state.uri.path;
+        final needsAuth = protected.any(path.startsWith);
+        if (!auth.signedIn && needsAuth) {
+          return '/app/auth?next=${Uri.encodeComponent(path)}';
+        }
+        if (auth.signedIn && path.startsWith('/app/auth')) {
+          return state.uri.queryParameters['next'] ?? '/app/chat';
+        }
+        return null;
+      },
+      routes: [
+        GoRoute(path: '/', redirect: (_, __) => '/app/chat'),
+        GoRoute(path: '/app/auth', builder: (_, __) => const legacy.OnboardingScreen()),
+        GoRoute(path: '/app/auth/email', builder: (_, __) => const legacy.EmailAuthScreen()),
+        GoRoute(path: '/app/auth/whatsapp', builder: (_, __) => const legacy.WhatsAppOtpScreen()),
+        ShellRoute(
+          builder: (_, state, child) => LiveShell(path: state.uri.path, child: child),
+          routes: [
+            GoRoute(path: '/app/chat', builder: (_, __) => const LiveInboxScreen()),
+            GoRoute(path: '/app/chat/waouh', builder: (_, __) => const LiveMainChatScreen()),
+            GoRoute(path: '/app/chat/match/:key', builder: (_, state) => LiveMatchChatScreen(matchKey: state.pathParameters['key']!)),
+            GoRoute(path: '/app/chat/:id', builder: (_, state) => LiveConversationScreen(conversationId: state.pathParameters['id']!)),
+            GoRoute(path: '/app/notifications', builder: (_, __) => const LiveNotificationsScreen()),
+            GoRoute(path: '/app/bots', builder: (_, __) => const legacy.BotsScreen()),
+            GoRoute(path: '/app/whatsapp', builder: (_, __) => const legacy.WhatsAppIaScreen()),
+            GoRoute(path: '/app/diffusion', builder: (_, __) => const legacy.DiffusionScreen()),
+            GoRoute(path: '/app/partner', builder: (_, __) => const legacy.PartnerHomeScreen()),
+            GoRoute(path: '/app/partner/businesses/:businessId/products', builder: (_, state) => legacy.PartnerProductsScreen(businessId: state.pathParameters['businessId']!)),
+            GoRoute(path: '/app/profile', builder: (_, __) => const legacy.ProfileScreen()),
+          ],
+        ),
+      ],
+    );
+
+class LiveShell extends StatelessWidget {
+  const LiveShell({super.key, required this.path, required this.child});
+  final String path;
+  final Widget child;
+
+  int get _index {
+    if (path.startsWith('/app/bots')) return 1;
+    if (path.startsWith('/app/whatsapp')) return 2;
+    if (path.startsWith('/app/diffusion')) return 3;
+    if (path.startsWith('/app/partner')) return 4;
+    return 0;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hideNav = path.startsWith('/app/chat/') && path != '/app/chat/waouh';
+    return Scaffold(
+      body: child,
+      bottomNavigationBar: hideNav
+          ? null
+          : NavigationBar(
+              selectedIndex: _index,
+              onDestinationSelected: (index) => context.go(switch (index) {
+                1 => '/app/bots',
+                2 => '/app/whatsapp',
+                3 => '/app/diffusion',
+                4 => '/app/partner',
+                _ => '/app/chat',
+              }),
+              destinations: const [
+                NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
+                NavigationDestination(icon: Icon(Icons.smart_toy_outlined), label: 'Bots'),
+                NavigationDestination(icon: Icon(Icons.phone_iphone_outlined), label: 'WhatsApp IA'),
+                NavigationDestination(icon: Icon(Icons.campaign_outlined), label: 'Diffusion'),
+                NavigationDestination(icon: Icon(Icons.storefront_outlined), label: 'Partenaire'),
+              ],
+            ),
+    );
+  }
+}
