@@ -31,8 +31,17 @@ if [ -n "${ANDROID_HOME:-}" ] && [ ! -d "$ANDROID_HOME/platforms/android-36" ]; 
   fail "Android SDK 36 est absent. Executez : sdkmanager --sdk_root=\"$ANDROID_HOME\" \"platforms;android-36\" \"build-tools;36.0.0\""
 fi
 
-# Flutter recent expects CardThemeData in ThemeData. The legacy screens remain
-# available under the live router, so the compatibility patch is idempotent.
+TMP_DIR="$(mktemp -d)"
+ORIGINAL_MAIN="$TMP_DIR/main.dart"
+cp lib/main.dart "$ORIGINAL_MAIN"
+cleanup() {
+  cp "$ORIGINAL_MAIN" lib/main.dart 2>/dev/null || true
+  rm -rf "$TMP_DIR"
+}
+trap cleanup EXIT
+
+# Flutter recent expects CardThemeData in ThemeData. Apply the compatibility
+# patch only during the build; the working tree is restored in every outcome.
 python3 - <<'PY'
 from pathlib import Path
 path = Path('lib/main.dart')
@@ -51,10 +60,7 @@ flutter build apk --target lib/live/live_app.dart --release --split-per-abi
 APK="build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
 test -f "$APK" || fail "APK ARM64 introuvable apres compilation."
 
-TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "$TMP_DIR"' EXIT
 unzip -p "$APK" lib/arm64-v8a/libapp.so > "$TMP_DIR/libapp.so"
-
 if strings "$TMP_DIR/libapp.so" | grep -q 'Flutter Demo Home Page'; then
   fail "L'APK produit contient encore Flutter Demo Home Page : ne pas installer ce fichier."
 fi
