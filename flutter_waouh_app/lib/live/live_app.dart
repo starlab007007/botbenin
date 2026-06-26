@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
 import 'live_controller.dart';
+import 'live_models.dart';
 import 'live_screens.dart';
 
 Future<void> main() async {
@@ -76,7 +77,13 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
           routes: [
             GoRoute(path: '/app/chat', builder: (_, __) => const LiveInboxScreen()),
             GoRoute(path: '/app/chat/waouh', builder: (_, __) => const LiveMainChatScreen()),
-            GoRoute(path: '/app/chat/match/:key', builder: (_, state) => LiveMatchChatScreen(matchKey: state.pathParameters['key']!)),
+            GoRoute(
+              path: '/app/chat/match/:key',
+              builder: (_, state) => LiveResolvedMatchChatScreen(
+                matchKey: state.pathParameters['key']!,
+                initial: state.extra as LiveMatch?,
+              ),
+            ),
             GoRoute(path: '/app/chat/:id', builder: (_, state) => LiveConversationScreen(conversationId: state.pathParameters['id']!)),
             GoRoute(path: '/app/notifications', builder: (_, __) => const LiveNotificationsScreen()),
             GoRoute(path: '/app/bots', builder: (_, __) => const legacy.BotsScreen()),
