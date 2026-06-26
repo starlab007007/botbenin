@@ -1,4 +1,5 @@
 import 'live_controller.dart';
+import 'live_match_history_service.dart';
 import 'live_models.dart';
 
 extension LiveWaouhControllerMatches on LiveWaouhController {
@@ -12,14 +13,9 @@ extension LiveWaouhControllerMatches on LiveWaouhController {
   }
 
   Stream<List<LiveMessage>> matchMessages(LiveMatch match) async* {
+    final history = LiveMatchHistoryService(chat.client, session);
     while (true) {
-      final all = await chat.loadMainHistory(authUserId: auth.user?.id);
-      yield all.where((message) {
-        if (message.articleId != match.articleId) return false;
-        if (match.role != 'seller' || match.counterpartUserId == null) return true;
-        final value = message.meta['counterpart_user_id'] ?? message.meta['buyer_user_id'];
-        return value == null || '$value' == match.counterpartUserId;
-      }).toList();
+      yield await history.load(match: match, authUserId: auth.user?.id);
       await Future<void>.delayed(const Duration(seconds: 4));
     }
   }
