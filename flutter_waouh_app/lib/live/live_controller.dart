@@ -33,6 +33,7 @@ class LiveWaouhController extends ChangeNotifier {
 
   LiveLocation _position = const LiveLocation();
   String? _composerSeed;
+  Map<String, dynamic> _composerMeta = const {};
   String? error;
   bool busy = false;
 
@@ -64,17 +65,25 @@ class LiveWaouhController extends ChangeNotifier {
   Future<void> startNewChat() async {
     await session.startNewThread();
     _composerSeed = null;
+    _composerMeta = const {};
     notifyListeners();
   }
 
-  void setComposerSeed(String value) {
+  void setComposerSeed(String value, {Map<String, dynamic> meta = const {}}) {
     _composerSeed = value;
+    _composerMeta = Map<String, dynamic>.from(meta);
     notifyListeners();
   }
 
   String? takeComposerSeed() {
     final value = _composerSeed;
     _composerSeed = null;
+    return value;
+  }
+
+  Map<String, dynamic> takeComposerMeta() {
+    final value = Map<String, dynamic>.from(_composerMeta);
+    _composerMeta = const {};
     return value;
   }
 
@@ -185,9 +194,18 @@ class LiveWaouhController extends ChangeNotifier {
       });
 
   Future<void> openStatusReply(LiveStatus status) async {
-    setComposerSeed(status.type == 'sell'
-        ? 'Je suis interesse par « ${status.title} ».'
-        : 'Je peux vous proposer « ${status.title} ».');
+    final text = status.type == 'sell'
+        ? 'Je suis interesse par « ${status.title} ». '
+        : status.type == 'buy'
+            ? 'Je peux vous proposer « ${status.title} ». '
+            : 'Je reponds a votre annonce « ${status.title} ». ';
+    setComposerSeed(text, meta: {
+      'source': 'flutter_status_reply',
+      'status_id': status.id,
+      'status_type': status.type,
+      if (status.articleId != null && status.articleId!.isNotEmpty) 'article_id': status.articleId,
+      if (status.articleId != null && status.articleId!.isNotEmpty) 'role': 'buyer',
+    });
   }
 
   Future<void> markNotificationRead(String id) => _guard(() => notifications.markRead(id));
