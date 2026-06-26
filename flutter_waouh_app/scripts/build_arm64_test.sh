@@ -16,10 +16,10 @@ command -v python3 >/dev/null 2>&1 || fail "Python 3 est requis."
 
 test -f pubspec.yaml || fail "Ce dossier n'est pas le projet Flutter WaouhApp."
 test -f lib/main.dart || fail "lib/main.dart est introuvable."
+test -f lib/live/live_app.dart || fail "La cible WAOUH connectee est introuvable. Faites git pull origin codex."
 test -f android/app/build.gradle || fail "La configuration Android est introuvable."
 
 grep -q '^name: waouh_app_native$' pubspec.yaml || fail "Mauvais projet Flutter : pubspec.yaml ne correspond pas a WaouhApp."
-grep -q 'runApp(const WaouhStartupApp())' lib/main.dart || fail "Mauvaise entree Dart : WaouhStartupApp est absent."
 grep -q 'applicationId = "com.botbj.waouhapp"' android/app/build.gradle || fail "Mauvais identifiant Android : com.botbj.waouhapp est attendu."
 grep -q 'compileSdk = 36' android/app/build.gradle || fail "compileSdk 36 est requis. Faites git pull origin codex."
 
@@ -31,26 +31,22 @@ if [ -n "${ANDROID_HOME:-}" ] && [ ! -d "$ANDROID_HOME/platforms/android-36" ]; 
   fail "Android SDK 36 est absent. Executez : sdkmanager --sdk_root=\"$ANDROID_HOME\" \"platforms;android-36\" \"build-tools;36.0.0\""
 fi
 
-# Flutter recent expects CardThemeData in ThemeData. Keep this migration
-# narrowly scoped and idempotent until the source is fully modernized.
+# Flutter recent expects CardThemeData in ThemeData. The legacy screens remain
+# available under the live router, so the compatibility patch is idempotent.
 python3 - <<'PY'
 from pathlib import Path
 path = Path('lib/main.dart')
 source = path.read_text(encoding='utf-8')
-old = 'cardTheme: CardTheme('
-new = 'cardTheme: CardThemeData('
-if old in source:
-    path.write_text(source.replace(old, new, 1), encoding='utf-8')
+if 'cardTheme: CardTheme(' in source:
+    path.write_text(source.replace('cardTheme: CardTheme(', 'cardTheme: CardThemeData(', 1), encoding='utf-8')
     print('Applied Flutter Material compatibility: CardThemeData.')
 PY
 
 flutter clean
 flutter pub get
-# Source contains legacy lint notices. Errors remain fatal; notices do not stop
-# the installation-test APK while the migration is in progress.
 flutter analyze --no-fatal-warnings --no-fatal-infos
 flutter test
-flutter build apk --release --split-per-abi
+flutter build apk --target lib/live/live_app.dart --release --split-per-abi
 
 APK="build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
 test -f "$APK" || fail "APK ARM64 introuvable apres compilation."
