@@ -1,3 +1,5 @@
+import 'package:shared_preferences/shared_preferences.dart';
+
 import 'live_chat_service.dart';
 import 'live_models.dart';
 import 'live_session.dart';
@@ -73,19 +75,12 @@ class LiveNotificationService {
   }
 
   Future<Set<String>> _archivedKeys(String sid) async {
-    final prefs = await _preferences();
+    final prefs = await SharedPreferences.getInstance();
     return liveDecodeSet(prefs.getString('waouh_archived_matches_$sid'));
   }
 
   Future<void> _saveArchivedKeys(String sid, Set<String> values) async {
-    final prefs = await _preferences();
+    final prefs = await SharedPreferences.getInstance();
     await prefs.setString('waouh_archived_matches_$sid', liveEncodeSet(values));
-  }
-
-  Future<dynamic> _preferences() async {
-    // SharedPreferences is kept behind the same session store so all mobile
-    // match archive keys are isolated per WAOUH web session.
-    await session.initialize();
-    return await _sharedPreferences();
   }
 }
