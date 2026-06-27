@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../main.dart' as legacy;
 import 'live_auth_screens.dart';
 import 'live_controller.dart';
+import 'live_controller_v2.dart';
 import 'live_inbox_screen_v2.dart';
 import 'live_legacy_screens.dart';
 import 'live_match_chat_v2.dart';
@@ -29,8 +30,8 @@ class LiveWaouhApp extends StatelessWidget {
     providers: [
       ChangeNotifierProvider(create: (_) => legacy.AuthController()),
       ChangeNotifierProxyProvider<legacy.AuthController, LiveWaouhController>(
-        create: (context) => LiveWaouhController(context.read<legacy.AuthController>()),
-        update: (_, auth, previous) => previous ?? LiveWaouhController(auth),
+        create: (context) => LiveWaouhControllerV2(context.read<legacy.AuthController>()),
+        update: (_, auth, previous) => previous ?? LiveWaouhControllerV2(auth),
       ),
       ChangeNotifierProxyProvider<legacy.AuthController, legacy.WaouhChatController>(
         create: (context) => legacy.WaouhChatController(context.read<legacy.AuthController>()),
