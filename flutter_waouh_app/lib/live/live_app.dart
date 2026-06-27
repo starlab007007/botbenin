@@ -7,6 +7,7 @@ import 'live_auth_screens.dart';
 import 'live_controller.dart';
 import 'live_inbox_screen_v2.dart';
 import 'live_legacy_screens.dart';
+import 'live_match_chat_v2.dart';
 import 'live_models.dart';
 import 'live_notifications_screen_v2.dart';
 import 'live_partner_businesses_v2.dart';
@@ -77,7 +78,7 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
           routes: [
             GoRoute(path: '/app/chat', builder: (_, __) => const LiveInboxScreenV2()),
             GoRoute(path: '/app/chat/waouh', builder: (_, __) => const LiveMainChatScreen()),
-            GoRoute(path: '/app/chat/match/:key', builder: (_, state) => LiveResolvedMatchChatScreen(matchKey: state.pathParameters['key']!, initial: state.extra as LiveMatch?)),
+            GoRoute(path: '/app/chat/match/:key', builder: (_, state) => LiveMatchChatV2(matchKey: state.pathParameters['key']!, initial: state.extra as LiveMatch?)),
             GoRoute(path: '/app/chat/:id', builder: (_, state) => LiveConversationScreen(conversationId: state.pathParameters['id']!)),
             GoRoute(path: '/app/notifications', builder: (_, __) => const LiveNotificationsScreenV2()),
             GoRoute(path: '/app/bots', builder: (_, __) => const LiveBotsScreen()),
