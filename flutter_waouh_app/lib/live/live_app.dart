@@ -11,7 +11,7 @@ import 'live_match_chat_v2.dart';
 import 'live_models.dart';
 import 'live_notifications_screen_v2.dart';
 import 'live_partner_businesses_v2.dart';
-import 'live_partner_screens.dart';
+import 'live_partner_products_v2.dart';
 import 'live_profile_screen_v2.dart';
 import 'live_screens.dart';
 
@@ -26,72 +26,69 @@ class LiveWaouhApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => MultiProvider(
-        providers: [
-          ChangeNotifierProvider(create: (_) => legacy.AuthController()),
-          ChangeNotifierProxyProvider<legacy.AuthController, LiveWaouhController>(
-            create: (context) => LiveWaouhController(context.read<legacy.AuthController>()),
-            update: (_, auth, old) => old ?? LiveWaouhController(auth),
-          ),
-          ChangeNotifierProxyProvider<legacy.AuthController, legacy.WaouhChatController>(
-            create: (context) => legacy.WaouhChatController(context.read<legacy.AuthController>()),
-            update: (_, auth, old) => old ?? legacy.WaouhChatController(auth),
-          ),
-          ChangeNotifierProxyProvider<legacy.AuthController, legacy.StatusController>(
-            create: (context) => legacy.StatusController(context.read<legacy.AuthController>()),
-            update: (_, auth, old) => old ?? legacy.StatusController(auth),
-          ),
-          Provider(create: (_) => legacy.NotificationsController()),
-          ChangeNotifierProxyProvider<legacy.AuthController, legacy.PartnerController>(
-            create: (context) => legacy.PartnerController(context.read<legacy.AuthController>()),
-            update: (_, auth, old) => old ?? legacy.PartnerController(auth),
-          ),
-        ],
-        child: Builder(builder: (context) {
-          final auth = context.read<legacy.AuthController>();
-          return MaterialApp.router(
-            title: 'WaouhApp',
-            debugShowCheckedModeBanner: false,
-            theme: legacy.buildWaouhTheme(),
-            routerConfig: _router(auth),
-          );
-        }),
-      );
+    providers: [
+      ChangeNotifierProvider(create: (_) => legacy.AuthController()),
+      ChangeNotifierProxyProvider<legacy.AuthController, LiveWaouhController>(
+        create: (context) => LiveWaouhController(context.read<legacy.AuthController>()),
+        update: (_, auth, previous) => previous ?? LiveWaouhController(auth),
+      ),
+      ChangeNotifierProxyProvider<legacy.AuthController, legacy.WaouhChatController>(
+        create: (context) => legacy.WaouhChatController(context.read<legacy.AuthController>()),
+        update: (_, auth, previous) => previous ?? legacy.WaouhChatController(auth),
+      ),
+      ChangeNotifierProxyProvider<legacy.AuthController, legacy.StatusController>(
+        create: (context) => legacy.StatusController(context.read<legacy.AuthController>()),
+        update: (_, auth, previous) => previous ?? legacy.StatusController(auth),
+      ),
+      Provider(create: (_) => legacy.NotificationsController()),
+      ChangeNotifierProxyProvider<legacy.AuthController, legacy.PartnerController>(
+        create: (context) => legacy.PartnerController(context.read<legacy.AuthController>()),
+        update: (_, auth, previous) => previous ?? legacy.PartnerController(auth),
+      ),
+    ],
+    child: Builder(builder: (context) => MaterialApp.router(
+      title: 'WaouhApp',
+      debugShowCheckedModeBanner: false,
+      theme: legacy.buildWaouhTheme(),
+      routerConfig: _router(context.read<legacy.AuthController>()),
+    )),
+  );
 }
 
 GoRouter _router(legacy.AuthController auth) => GoRouter(
-      initialLocation: '/app/chat',
-      refreshListenable: auth,
-      redirect: (_, state) {
-        const guarded = ['/app/notifications', '/app/bots', '/app/whatsapp', '/app/diffusion', '/app/partner', '/app/profile'];
-        final path = state.uri.path;
-        if (!auth.signedIn && guarded.any(path.startsWith)) return '/app/auth?next=${Uri.encodeComponent(path)}';
-        if (auth.signedIn && path.startsWith('/app/auth')) return state.uri.queryParameters['next'] ?? '/app/chat';
-        return null;
-      },
+  initialLocation: '/app/chat',
+  refreshListenable: auth,
+  redirect: (_, state) {
+    const guarded = ['/app/notifications', '/app/bots', '/app/whatsapp', '/app/diffusion', '/app/partner', '/app/profile'];
+    final path = state.uri.path;
+    if (!auth.signedIn && guarded.any(path.startsWith)) return '/app/auth?next=${Uri.encodeComponent(path)}';
+    if (auth.signedIn && path.startsWith('/app/auth')) return state.uri.queryParameters['next'] ?? '/app/chat';
+    return null;
+  },
+  routes: [
+    GoRoute(path: '/', redirect: (_, __) => '/app/chat'),
+    GoRoute(path: '/app/auth', builder: (_, __) => const LiveOnboardingScreen()),
+    GoRoute(path: '/app/auth/email', builder: (_, __) => const LiveEmailAuthScreen()),
+    GoRoute(path: '/app/auth/whatsapp', builder: (_, __) => const LiveWhatsAppOtpScreen()),
+    ShellRoute(
+      builder: (_, state, child) => LiveShell(path: state.uri.path, child: child),
       routes: [
-        GoRoute(path: '/', redirect: (_, __) => '/app/chat'),
-        GoRoute(path: '/app/auth', builder: (_, __) => const LiveOnboardingScreen()),
-        GoRoute(path: '/app/auth/email', builder: (_, __) => const LiveEmailAuthScreen()),
-        GoRoute(path: '/app/auth/whatsapp', builder: (_, __) => const LiveWhatsAppOtpScreen()),
-        ShellRoute(
-          builder: (_, state, child) => LiveShell(path: state.uri.path, child: child),
-          routes: [
-            GoRoute(path: '/app/chat', builder: (_, __) => const LiveInboxScreenV2()),
-            GoRoute(path: '/app/chat/waouh', builder: (_, __) => const LiveMainChatScreen()),
-            GoRoute(path: '/app/chat/match/:key', builder: (_, state) => LiveMatchChatV2(matchKey: state.pathParameters['key']!, initial: state.extra as LiveMatch?)),
-            GoRoute(path: '/app/chat/:id', builder: (_, state) => LiveConversationScreen(conversationId: state.pathParameters['id']!)),
-            GoRoute(path: '/app/notifications', builder: (_, __) => const LiveNotificationsScreenV2()),
-            GoRoute(path: '/app/bots', builder: (_, __) => const LiveBotsScreen()),
-            GoRoute(path: '/app/whatsapp', builder: (_, __) => const LiveWhatsAppIaScreen()),
-            GoRoute(path: '/app/diffusion', builder: (_, __) => const LiveDiffusionScreen()),
-            GoRoute(path: '/app/partner', redirect: (_, __) => '/app/partner/businesses'),
-            GoRoute(path: '/app/partner/businesses', builder: (_, __) => const LivePartnerBusinessesScreenV2()),
-            GoRoute(path: '/app/partner/businesses/:businessId/products', builder: (_, state) => LivePartnerProductsScreen(businessId: state.pathParameters['businessId']!)),
-            GoRoute(path: '/app/profile', builder: (_, __) => const LiveProfileScreenV2()),
-          ],
-        ),
+        GoRoute(path: '/app/chat', builder: (_, __) => const LiveInboxScreenV2()),
+        GoRoute(path: '/app/chat/waouh', builder: (_, __) => const LiveMainChatScreen()),
+        GoRoute(path: '/app/chat/match/:key', builder: (_, state) => LiveMatchChatV2(matchKey: state.pathParameters['key']!, initial: state.extra as LiveMatch?)),
+        GoRoute(path: '/app/chat/:id', builder: (_, state) => LiveConversationScreen(conversationId: state.pathParameters['id']!)),
+        GoRoute(path: '/app/notifications', builder: (_, __) => const LiveNotificationsScreenV2()),
+        GoRoute(path: '/app/bots', builder: (_, __) => const LiveBotsScreen()),
+        GoRoute(path: '/app/whatsapp', builder: (_, __) => const LiveWhatsAppIaScreen()),
+        GoRoute(path: '/app/diffusion', builder: (_, __) => const LiveDiffusionScreen()),
+        GoRoute(path: '/app/partner', redirect: (_, __) => '/app/partner/businesses'),
+        GoRoute(path: '/app/partner/businesses', builder: (_, __) => const LivePartnerBusinessesScreenV2()),
+        GoRoute(path: '/app/partner/businesses/:businessId/products', builder: (_, state) => LivePartnerProductsScreenV2(businessId: state.pathParameters['businessId']!)),
+        GoRoute(path: '/app/profile', builder: (_, __) => const LiveProfileScreenV2()),
       ],
-    );
+    ),
+  ],
+);
 
 class LiveShell extends StatelessWidget {
   const LiveShell({super.key, required this.path, required this.child});
