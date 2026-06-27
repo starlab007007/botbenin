@@ -52,18 +52,18 @@ class LiveChatService {
         }
       }
     } catch (_) {
-      // Old Supabase deployments may not expose waouh-history. The read-only
-      // fallback keeps history visible; sending never bypasses Edge Functions.
+      // A deployed waouh-history function is preferred, but an older backend
+      // remains readable through the scoped queries below.
     }
 
     if (byId.isEmpty) {
-      final rows = await client
+      final ownRows = await client
           .from('waouh_messages')
           .select('id,conversation_id,user_id,article_id,direction,text,created_at,web_session_id,attachments,meta')
           .eq('web_session_id', sid)
           .order('created_at', ascending: true)
           .limit(limit);
-      for (final raw in rows as List) {
+      for (final raw in ownRows as List) {
         final item = LiveMessage.fromJson(Map<String, dynamic>.from(raw as Map));
         byId[item.id] = item;
       }
@@ -121,24 +121,69 @@ class LiveChatService {
     required String? authUserId,
     required bool archived,
   }) async {
+    // React's mobile UI treats product-match archives separately. The standard
+    // WAOUH conversations table has no portable archive column across all
+    // deployments, so only active conversations are loaded here.
+    if (archived) return const [];
+
+    final sid = await session.sessionId;
     final ids = await waouhUserIds(authUserId);
-    if (ids.isEmpty) return const [];
-    final rows = await client
-        .from('waouh_conversations')
-        .select('id,user_id,phone_number,channel,last_message,last_message_text,updated_at,state,status,archived')
-        .inFilter('user_id', ids)
-        .order('updated_at', ascending: false)
-        .limit(200);
-    return (rows as List)
-        .map((raw) => LiveConversation.fromJson(Map<String, dynamic>.from(raw as Map)))
-        .where((item) => item.archived == archived)
+    const fields = 'id,phone_number,channel,last_message,updated_at,user_id';
+    final byId = <String, LiveConversation>{};
+
+    if (ids.isNotEmpty) {
+      final rows = await client
+          .from('waouh_conversations')
+          .select(fields)
+          .inFilter('user_id', ids)
+          .order('updated_at', ascending: false)
+          .limit(200);
+      for (final raw in rows as List) {
+        final item = LiveConversation.fromJson(Map<String, dynamic>.from(raw as Map));
+        if (item.id.isNotEmpty) byId[item.id] = item;
+      }
+    }
+
+    // Exact parity with ChatListScreen.tsx: session messages can point to a
+    // conversation that is not currently owned by one of the user's waouh_users
+    // rows (for example after identity/session reconciliation).
+    final messageRows = await client
+        .from('waouh_messages')
+        .select('conversation_id')
+        .eq('web_session_id', sid)
+        .not('conversation_id', 'is', null)
+        .order('created_at', ascending: false)
+        .limit(500);
+    final referenced = (messageRows as List)
+        .map((raw) => liveText((raw as Map)['conversation_id']))
+        .where((id) => id.isNotEmpty && !byId.containsKey(id))
+        .toSet()
         .toList();
+    if (referenced.isNotEmpty) {
+      final extra = await client
+          .from('waouh_conversations')
+          .select(fields)
+          .inFilter('id', referenced)
+          .limit(200);
+      for (final raw in extra as List) {
+        final item = LiveConversation.fromJson(Map<String, dynamic>.from(raw as Map));
+        if (item.id.isNotEmpty) byId[item.id] = item;
+      }
+    }
+
+    final values = byId.values.toList();
+    values.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return values;
   }
 
-  Future<void> archiveConversation(String id) => client
-      .from('waouh_conversations')
-      .update({'state': 'archived'})
-      .eq('id', id);
+  Future<void> archiveConversation(String id) async {
+    try {
+      await client.from('waouh_conversations').update({'state': 'archived'}).eq('id', id);
+    } catch (_) {
+      // Legacy deployments exposed a boolean archive field instead.
+      await client.from('waouh_conversations').update({'archived': true}).eq('id', id);
+    }
+  }
 
   Future<List<LiveMessage>> loadConversationMessages(String id) async {
     final rows = await client
