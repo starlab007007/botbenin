@@ -10,7 +10,8 @@
     <application
         android:label="WaouhApp"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@drawable/ic_waouh_launcher"
+        android:roundIcon="@drawable/ic_waouh_launcher">
         <activity
             android:name=".MainActivity"
             android:exported="true"
