@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
@@ -457,6 +458,10 @@ class PartnerBusiness {
     this.whatsapp,
     this.status,
     this.shortCode,
+    this.description,
+    this.addressLine,
+    this.lat,
+    this.lng,
   });
 
   final String id;
@@ -467,6 +472,10 @@ class PartnerBusiness {
   final String? whatsapp;
   final String? status;
   final String? shortCode;
+  final String? description;
+  final String? addressLine;
+  final double? lat;
+  final double? lng;
 
   factory PartnerBusiness.fromJson(Map<String, dynamic> json) =>
       PartnerBusiness(
@@ -478,6 +487,10 @@ class PartnerBusiness {
         whatsapp: json['whatsapp'] ?? json['telephone'] ?? json['phone'],
         status: json['statut'] ?? json['status'],
         shortCode: json['code_court'],
+        description: json['description'],
+        addressLine: json['adresse_complete'],
+        lat: (json['lat'] as num?)?.toDouble(),
+        lng: (json['lng'] as num?)?.toDouble(),
       );
 }
 
@@ -492,6 +505,7 @@ class PartnerProduct {
     this.available = true,
     this.photos = const [],
     this.stock,
+    this.description,
   });
 
   final String id;
@@ -503,6 +517,7 @@ class PartnerProduct {
   final bool available;
   final List<String> photos;
   final num? stock;
+  final String? description;
 
   factory PartnerProduct.fromJson(Map<String, dynamic> json) => PartnerProduct(
         id: asString(json['id']),
@@ -528,6 +543,7 @@ class PartnerProduct {
         stock: json['stock_estime'] == null
             ? (json['stock'] == null ? null : asNum(json['stock']))
             : asNum(json['stock_estime']),
+        description: json['description'],
       );
 }
 
@@ -716,33 +732,151 @@ class AuthController extends ChangeNotifier {
     });
   }
 
+  /// True right after [verifyWhatsappOtp] resolves a brand-new account that
+  /// still needs [completeWhatsappProfile]. Mirrors the React app's
+  /// `is_new_user` branch from `whatsapp-otp-verify`.
+  bool whatsappIsNewUser = false;
+
+  String normalizeWhatsappPhone(String phone) {
+    final trimmed = phone.trim();
+    return trimmed.startsWith('+')
+        ? trimmed
+        : '${AppConstants.beninPrefix}$trimmed';
+  }
+
   Future<void> requestWhatsappOtp(String phone) async {
     await _guard(() async {
-      final normalized =
-          phone.startsWith('+') ? phone : '${AppConstants.beninPrefix}$phone';
-      try {
-        await supabase.functions
-            .invoke('whatsapp-otp-send', body: {'phone': normalized});
-      } catch (_) {
-        await supabase.auth.signInWithOtp(phone: normalized);
+      final normalized = normalizeWhatsappPhone(phone);
+      final response = await supabase.functions
+          .invoke('whatsapp-otp-send', body: {'phone': normalized});
+      final data = response.data;
+      if (data is Map && data['error'] != null) {
+        throw StateError(asString(data['error'], "Envoi du code impossible"));
       }
     });
   }
 
+  /// Verifies the 6-digit WhatsApp code and finishes the same way the
+  /// `whatsapp-otp-verify` Edge Function expects: it returns a one-time
+  /// magic-link token (`email_otp`) tied to a deterministic placeholder
+  /// email, and the *client* must redeem it with `verifyOTP(type:
+  /// OtpType.magiclink)` to actually obtain a Supabase session. Without this
+  /// second step the code is "accepted" server-side but the user is never
+  /// signed in — which was the previous behaviour of this method.
   Future<void> verifyWhatsappOtp(String phone, String code) async {
     await _guard(() async {
-      final normalized =
-          phone.startsWith('+') ? phone : '${AppConstants.beninPrefix}$phone';
-      try {
-        await supabase.functions.invoke('whatsapp-otp-verify',
-            body: {'phone': normalized, 'code': code});
-      } catch (_) {
-        await supabase.auth.verifyOTP(
-          phone: normalized,
-          token: code,
-          type: OtpType.sms,
+      final normalized = normalizeWhatsappPhone(phone);
+      final response = await supabase.functions.invoke(
+        'whatsapp-otp-verify',
+        body: {'phone': normalized, 'code': code},
+      );
+      final data = response.data;
+      if (data is! Map || data['error'] != null) {
+        final message = data is Map ? asString(data['error']) : null;
+        throw StateError(_otpErrorMessage(message));
+      }
+      final emailOtp = data['email_otp']?.toString();
+      final email = data['email']?.toString();
+      if (emailOtp == null || emailOtp.isEmpty || email == null || email.isEmpty) {
+        throw StateError('Reponse de verification invalide. Reessayez.');
+      }
+      await supabase.auth.verifyOTP(
+        email: email,
+        token: emailOtp,
+        type: OtpType.magiclink,
+      );
+      whatsappIsNewUser = data['is_new_user'] == true;
+    });
+  }
+
+  /// Finishes onboarding for a brand-new WhatsApp account: sets the display
+  /// name (and optionally a recovery email) through `whatsapp-complete-profile`,
+  /// the same Edge Function the React app calls right after OTP sign-in.
+  Future<void> completeWhatsappProfile({
+    required String fullName,
+    String? email,
+  }) async {
+    await _guard(() async {
+      final token = supabase.auth.currentSession?.accessToken;
+      if (token == null) {
+        throw StateError('Session expiree. Reconnectez-vous via WhatsApp.');
+      }
+      final response = await supabase.functions.invoke(
+        'whatsapp-complete-profile',
+        body: {
+          'full_name': fullName.trim(),
+          if (email != null && email.trim().isNotEmpty) 'email': email.trim(),
+        },
+      );
+      final data = response.data;
+      if (data is! Map || data['error'] != null) {
+        throw StateError(
+          data is Map ? asString(data['error'], 'Erreur enregistrement profil') : 'Erreur enregistrement profil',
         );
       }
+      whatsappIsNewUser = false;
+    });
+  }
+
+  String _otpErrorMessage(String? code) => switch (code) {
+        'expired' => 'Ce code a expire. Demandez-en un nouveau.',
+        'invalid_code' => 'Code incorrect. Verifiez et reessayez.',
+        'too_many_attempts' => 'Trop de tentatives. Demandez un nouveau code.',
+        'no_code' => "Aucun code en attente pour ce numero. Renvoyez-en un.",
+        _ => 'Code invalide ou expire.',
+      };
+
+  /// Uploads [bytes] to the shared `public-media` bucket (the same generic
+  /// public bucket created by the original Supabase migrations — there is no
+  /// dedicated "avatars" bucket in this project) and persists the public URL
+  /// on the user's profile row.
+  Future<void> updateAvatar({
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    final uid = user?.id;
+    if (uid == null) throw StateError('Connectez-vous pour modifier votre photo.');
+    if (bytes.isEmpty) throw StateError('Image vide.');
+    if (bytes.length > 5 * 1024 * 1024) {
+      throw StateError('L\'image doit faire au maximum 5 Mo.');
+    }
+    await _guard(() async {
+      final pieces = fileName.toLowerCase().split('.');
+      final extension = pieces.length > 1 ? pieces.last : 'jpg';
+      final contentType = switch (extension) {
+        'png' => 'image/png',
+        'webp' => 'image/webp',
+        _ => 'image/jpeg',
+      };
+      final path = 'avatars/$uid/avatar_${DateTime.now().millisecondsSinceEpoch}.$extension';
+      await supabase.storage.from('public-media').uploadBinary(
+            path,
+            Uint8List.fromList(bytes),
+            fileOptions: FileOptions(contentType: contentType, upsert: true),
+          );
+      final publicUrl = supabase.storage.from('public-media').getPublicUrl(path);
+      await supabase.from('profiles').upsert({
+        'id': uid,
+        'avatar_url': publicUrl,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      });
+    });
+  }
+
+  /// Updates the editable identity fields from the Profile screen (name and
+  /// phone). Email changes go through Supabase auth separately since they
+  /// require re-confirmation.
+  Future<void> updateProfileFields({String? fullName, String? phone}) async {
+    final uid = user?.id;
+    if (uid == null) return;
+    await _guard(() async {
+      final patch = <String, dynamic>{
+        'id': uid,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      };
+      if (fullName != null) patch['full_name'] = fullName.trim();
+      if (phone != null) patch['phone'] = phone.trim();
+      await supabase.from('profiles').upsert(patch);
     });
   }
 
@@ -1152,7 +1286,10 @@ class PartnerController extends ChangeNotifier {
               'user_id': uid,
               'nom': auth.profile?.fullName ?? auth.user?.email ?? 'Partenaire',
               'email': auth.user?.email,
-              'statut': 'pending',
+              // The real mobile app (PartnerHomeScreen.tsx) silently creates
+              // the partner record as already-active: there is no manual
+              // approval step on the mobile onboarding path.
+              'statut': 'active',
             })
             .select()
             .single();
@@ -1215,10 +1352,14 @@ class PartnerController extends ChangeNotifier {
     required String city,
     String? quarter,
     String? whatsapp,
+    String? description,
+    String? address,
+    double? lat,
+    double? lng,
   }) async {
     final pid = partner?.id;
     if (pid == null) return;
-    final data = {
+    final data = <String, dynamic>{
       'partner_id': pid,
       'nom': name,
       'nom_entreprise': name,
@@ -1229,7 +1370,11 @@ class PartnerController extends ChangeNotifier {
       'quartier': quarter,
       'telephone': whatsapp,
       'whatsapp': whatsapp,
+      'description': description,
+      'adresse_complete': address,
       'statut': 'active',
+      if (lat != null) 'lat': lat,
+      if (lng != null) 'lng': lng,
     };
     if (id == null) {
       await supabase.from('waouh_partner_businesses').insert(data);
@@ -1238,23 +1383,46 @@ class PartnerController extends ChangeNotifier {
     }
   }
 
+  /// Mirrors `PartnerBusinessesNativeScreen.tsx`'s `remove()`: if any sale is
+  /// linked to this business, it is paused (soft-deleted) instead of being
+  /// destroyed, to keep the sales history intact.
+  Future<bool> removeBusiness(String id) async {
+    final countResponse = await supabase
+        .from('waouh_partner_sales')
+        .select('id')
+        .eq('business_id', id)
+        .count(CountOption.exact);
+    final linkedCount = countResponse.count;
+    if (linkedCount > 0) {
+      await supabase
+          .from('waouh_partner_businesses')
+          .update({'statut': 'pause'}).eq('id', id);
+      return false; // paused, not deleted
+    }
+    await supabase.from('waouh_partner_businesses').delete().eq('id', id);
+    return true; // actually deleted
+  }
+
   Future<void> upsertProduct({
     String? id,
     required String businessId,
     required String name,
+    String? description,
     String? category,
     String? unit,
     num? price,
+    int? stock,
     bool available = true,
     List<String> photos = const [],
   }) async {
     final pid = partner?.id;
     if (pid == null) return;
-    final data = {
+    final data = <String, dynamic>{
       'partner_id': pid,
       'business_id': businessId,
       'title': name,
       'nom': name,
+      'description': description,
       'category': category,
       'categorie': category,
       'unit': unit,
@@ -1262,7 +1430,8 @@ class PartnerController extends ChangeNotifier {
       'price': price,
       'prix_min': price,
       'prix_max': price,
-      'stock': null,
+      'stock': stock,
+      'stock_estime': stock,
       'disponible': available,
       'published_to_waouh': available,
       'photos': photos,
@@ -1272,6 +1441,69 @@ class PartnerController extends ChangeNotifier {
     } else {
       await supabase.from('waouh_partner_products').update(data).eq('id', id);
     }
+  }
+
+  Future<void> removeProduct(String id) async {
+    await supabase.from('waouh_partner_products').delete().eq('id', id);
+  }
+
+  /// Updates only the `photos` array — used by the product viewer's quick
+  /// "change photos" action so it never touches name/price/stock fields.
+  Future<void> updateProductPhotos(String id, List<String> photos) async {
+    await supabase
+        .from('waouh_partner_products')
+        .update({'photos': photos}).eq('id', id);
+  }
+
+  /// Calls the same `waouh-partner-ai` Edge Function the React app uses to
+  /// turn GPS coordinates into a city/quarter/address guess.
+  Future<Map<String, String>?> reverseGeocode(double lat, double lng) async {
+    try {
+      final response = await supabase.functions.invoke(
+        'waouh-partner-ai',
+        body: {
+          'action': 'reverse_geocode',
+          'payload': {'lat': lat, 'lng': lng},
+        },
+      );
+      final data = response.data;
+      if (data is! Map || data['error'] != null) return null;
+      final inner = data['data'];
+      if (inner is! Map) return null;
+      return {
+        'ville': asString(inner['ville']),
+        'quartier': asString(inner['quartier']),
+        'adresse_complete': asString(inner['adresse_complete']),
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Uploads up to [max] product photos to the `waouh-media` bucket under
+  /// `partner-products/`, the exact bucket+folder the React app
+  /// (ProductPhotoUploader.tsx) uses — keeping photos interchangeable
+  /// between the Flutter and web/React clients.
+  Future<String> uploadProductPhoto({
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    final pieces = fileName.toLowerCase().split('.');
+    final extension = pieces.length > 1 ? pieces.last : 'jpg';
+    final contentType = switch (extension) {
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      _ => 'image/jpeg',
+    };
+    final nonce = Random().nextInt(0x6c5ce1).toRadixString(36);
+    final path =
+        'partner-products/${DateTime.now().millisecondsSinceEpoch}-$nonce.$extension';
+    await supabase.storage.from('waouh-media').uploadBinary(
+          path,
+          Uint8List.fromList(bytes),
+          fileOptions: FileOptions(contentType: contentType, upsert: false),
+        );
+    return supabase.storage.from('waouh-media').getPublicUrl(path);
   }
 }
 
