@@ -11,14 +11,17 @@ class LiveNotificationService {
   final LiveSessionStore session;
 
   Future<List<LiveNotification>> load(String? authUserId) async {
+    final sid = await session.sessionId;
     final ids = await chat.waouhUserIds(authUserId);
-    if (ids.isEmpty) return const [];
+    final filters = <String>['web_session_id.eq.$sid'];
+    if (ids.isNotEmpty) filters.add('user_id.in.(${ids.join(',')})');
+
     final rows = await chat.client
         .from('waouh_notifications')
-        .select('id,title,content,body,message,notification_type,type,action_url,article_id,conversation_id,payload,metadata,opened,read_at,sent_at,created_at,user_id')
-        .inFilter('user_id', ids)
+        .select('id,title,content,body,message,notification_type,type,action_url,article_id,conversation_id,payload,metadata,opened,read_at,sent_at,created_at,user_id,web_session_id,photos')
+        .or(filters.join(','))
         .order('sent_at', ascending: false)
-        .limit(100);
+        .limit(150);
     return (rows as List)
         .map((raw) => LiveNotification.fromJson(Map<String, dynamic>.from(raw as Map)))
         .toList();
@@ -30,34 +33,38 @@ class LiveNotificationService {
       .eq('id', id);
 
   Future<void> markAllRead(String? authUserId) async {
+    final sid = await session.sessionId;
     final ids = await chat.waouhUserIds(authUserId);
-    if (ids.isEmpty) return;
+    final filters = <String>['web_session_id.eq.$sid'];
+    if (ids.isNotEmpty) filters.add('user_id.in.(${ids.join(',')})');
     await chat.client
         .from('waouh_notifications')
         .update({'opened': true, 'read_at': DateTime.now().toUtc().toIso8601String()})
-        .inFilter('user_id', ids);
+        .or(filters.join(','));
   }
 
   Future<List<LiveMatch>> loadMatches(String? authUserId, {bool archived = false}) async {
     final sid = await session.sessionId;
     final ids = await chat.waouhUserIds(authUserId);
+    final filters = <String>['web_session_id.eq.$sid'];
+    if (ids.isNotEmpty) filters.add('user_id.in.(${ids.join(',')})');
+
     final rows = await chat.client
         .from('waouh_notifications')
-        .select('id,notification_type,payload,photos,sent_at,created_at,article_id,opened,read_at,user_id,web_session_id')
+        .select('id,notification_type,type,payload,photos,sent_at,created_at,article_id,opened,read_at,user_id,web_session_id')
         .inFilter('notification_type', const ['match', 'match_buyer', 'match_seller', 'new_buyer', 'radar_match'])
+        .or(filters.join(','))
         .order('sent_at', ascending: false)
         .limit(200);
+
     final merged = <String, LiveMatch>{};
     for (final raw in rows as List) {
       final row = Map<String, dynamic>.from(raw as Map);
-      if (row['web_session_id'] != sid && !ids.contains('${row['user_id']}')) continue;
       final item = LiveMatch.fromNotification(row);
       if (item.articleId.isEmpty) continue;
       merged[item.key] = merged[item.key]?.merge(item) ?? item;
     }
 
-    // React parity: notifications are primary; article-scoped messages add a
-    // match row only when a deployment has no matching notification anymore.
     await _addMessageFallback(merged, sid, ids);
 
     final archivedKeys = await _archivedKeys(sid);
@@ -143,8 +150,7 @@ class LiveNotificationService {
         );
       }
     } catch (_) {
-      // Notifications remain the authoritative source if legacy message rows
-      // are not readable through current RLS policies.
+      // Notification rows remain primary when current RLS blocks the fallback.
     }
   }
 
