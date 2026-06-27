@@ -17,9 +17,29 @@ class LiveChatService {
     }
     final rows = await client
         .from('waouh_users')
-        .select('id')
+        .select('id,auth_user_id,web_session_id')
         .or(clauses.join(','))
         .limit(100);
+
+    // React useWaouhIdentity performs this best-effort link after sign-in.
+    // Without it, a WAOUH identity made before login remains detached and its
+    // message, match and notification history is invisible on Android.
+    if (authUserId != null && authUserId.isNotEmpty) {
+      for (final raw in rows as List) {
+        final row = Map<String, dynamic>.from(raw as Map);
+        final id = liveText(row['id']);
+        final rowSession = liveText(row['web_session_id']);
+        final rowAuth = liveText(row['auth_user_id']);
+        if (id.isNotEmpty && rowSession == sid && rowAuth.isEmpty) {
+          try {
+            await client.from('waouh_users').update({'auth_user_id': authUserId}).eq('id', id);
+          } catch (_) {
+            // Keep read access working when an old RLS policy rejects linking.
+          }
+        }
+      }
+    }
+
     return (rows as List)
         .map((row) => liveText((row as Map)['id']))
         .where((id) => id.isNotEmpty)
@@ -100,6 +120,7 @@ class LiveChatService {
     Map<String, dynamic> meta = const {},
   }) async {
     final sid = await session.sessionId;
+    await waouhUserIds(authUserId);
     final response = await client.functions.invoke('waouh-channel-in', body: {
       'channel': 'web',
       'sessionId': sid,
@@ -121,9 +142,6 @@ class LiveChatService {
     required String? authUserId,
     required bool archived,
   }) async {
-    // React's mobile UI treats product-match archives separately. The standard
-    // WAOUH conversations table has no portable archive column across all
-    // deployments, so only active conversations are loaded here.
     if (archived) return const [];
 
     final sid = await session.sessionId;
@@ -144,9 +162,7 @@ class LiveChatService {
       }
     }
 
-    // Exact parity with ChatListScreen.tsx: session messages can point to a
-    // conversation that is not currently owned by one of the user's waouh_users
-    // rows (for example after identity/session reconciliation).
+    // Exact ChatListScreen.tsx session fallback.
     final messageRows = await client
         .from('waouh_messages')
         .select('conversation_id')
@@ -180,7 +196,6 @@ class LiveChatService {
     try {
       await client.from('waouh_conversations').update({'state': 'archived'}).eq('id', id);
     } catch (_) {
-      // Legacy deployments exposed a boolean archive field instead.
       await client.from('waouh_conversations').update({'archived': true}).eq('id', id);
     }
   }
@@ -201,10 +216,16 @@ class LiveChatService {
     required String conversationId,
     required String text,
     required String? authUserId,
-  }) => client.functions.invoke('waouh-operator-send', body: {
-        'conversation_id': conversationId,
-        'message': text.trim(),
-        'auth_user_id': authUserId,
-        'source': 'flutter_native',
-      });
+  }) async {
+    final response = await client.functions.invoke('waouh-operator-send', body: {
+      'conversation_id': conversationId,
+      'message': text.trim(),
+      'auth_user_id': authUserId,
+      'source': 'flutter_native',
+    });
+    final data = response.data;
+    if (data is Map && data['ok'] == false) {
+      throw StateError(liveText(data['error'], 'Réponse impossible'));
+    }
+  }
 }
