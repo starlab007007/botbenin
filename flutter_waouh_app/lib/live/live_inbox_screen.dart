@@ -39,6 +39,18 @@ class _LiveInboxScreenState extends State<LiveInboxScreen> {
       appBar: LiveHeader(
         title: auth.profile?.fullName ?? 'WaouhApp',
         subtitle: auth.signedIn ? 'WAOUH actif' : 'Invite',
+        leading: IconButton(
+          tooltip: 'Mon profil',
+          onPressed: () => context.go('/app/profile'),
+          icon: CircleAvatar(
+            radius: 16,
+            backgroundColor: Colors.white.withOpacity(0.18),
+            backgroundImage: auth.profile?.avatarUrl != null ? NetworkImage(auth.profile!.avatarUrl!) : null,
+            child: auth.profile?.avatarUrl == null
+                ? const Icon(Icons.person_rounded, size: 18, color: Colors.white)
+                : null,
+          ),
+        ),
         actions: [
           IconButton(onPressed: () => context.go('/app/notifications'), icon: const Icon(Icons.notifications_none_rounded)),
           IconButton(onPressed: () async {
