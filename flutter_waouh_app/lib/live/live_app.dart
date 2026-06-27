@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../main.dart' as legacy;
 import 'live_auth_screens.dart';
 import 'live_controller.dart';
+import 'live_inbox_screen_v2.dart';
 import 'live_legacy_screens.dart';
 import 'live_models.dart';
 import 'live_partner_screens.dart';
@@ -79,7 +80,7 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
         ShellRoute(
           builder: (_, state, child) => LiveShell(path: state.uri.path, child: child),
           routes: [
-            GoRoute(path: '/app/chat', builder: (_, __) => const LiveInboxScreen()),
+            GoRoute(path: '/app/chat', builder: (_, __) => const LiveInboxScreenV2()),
             GoRoute(path: '/app/chat/waouh', builder: (_, __) => const LiveMainChatScreen()),
             GoRoute(
               path: '/app/chat/match/:key',
