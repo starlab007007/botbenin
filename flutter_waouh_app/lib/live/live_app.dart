@@ -8,6 +8,7 @@ import 'live_controller.dart';
 import 'live_inbox_screen_v2.dart';
 import 'live_legacy_screens.dart';
 import 'live_models.dart';
+import 'live_notifications_screen_v2.dart';
 import 'live_partner_screens.dart';
 import 'live_profile_screen_v2.dart';
 import 'live_screens.dart';
@@ -90,7 +91,7 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
               ),
             ),
             GoRoute(path: '/app/chat/:id', builder: (_, state) => LiveConversationScreen(conversationId: state.pathParameters['id']!)),
-            GoRoute(path: '/app/notifications', builder: (_, __) => const LiveNotificationsScreen()),
+            GoRoute(path: '/app/notifications', builder: (_, __) => const LiveNotificationsScreenV2()),
             GoRoute(path: '/app/bots', builder: (_, __) => const LiveBotsScreen()),
             GoRoute(path: '/app/whatsapp', builder: (_, __) => const LiveWhatsAppIaScreen()),
             GoRoute(path: '/app/diffusion', builder: (_, __) => const LiveDiffusionScreen()),
