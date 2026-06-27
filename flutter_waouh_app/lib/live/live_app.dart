@@ -10,7 +10,7 @@ import 'live_legacy_screens.dart';
 import 'live_match_chat_v2.dart';
 import 'live_models.dart';
 import 'live_notifications_screen_v2.dart';
-import 'live_partner_businesses_v2.dart';
+import 'live_partner_businesses_v3.dart';
 import 'live_partner_products_v2.dart';
 import 'live_profile_screen_v2.dart';
 import 'live_screens.dart';
@@ -82,7 +82,7 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
         GoRoute(path: '/app/whatsapp', builder: (_, __) => const LiveWhatsAppIaScreen()),
         GoRoute(path: '/app/diffusion', builder: (_, __) => const LiveDiffusionScreen()),
         GoRoute(path: '/app/partner', redirect: (_, __) => '/app/partner/businesses'),
-        GoRoute(path: '/app/partner/businesses', builder: (_, __) => const LivePartnerBusinessesScreenV2()),
+        GoRoute(path: '/app/partner/businesses', builder: (_, __) => const LivePartnerBusinessesScreenV3()),
         GoRoute(path: '/app/partner/businesses/:businessId/products', builder: (_, state) => LivePartnerProductsScreenV2(businessId: state.pathParameters['businessId']!)),
         GoRoute(path: '/app/profile', builder: (_, __) => const LiveProfileScreenV2()),
       ],
