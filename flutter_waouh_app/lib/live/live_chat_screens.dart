@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../main.dart' as legacy;
 import 'live_controller.dart';
 import 'live_models.dart';
+import 'live_sell_sheet.dart';
 import 'live_widgets.dart';
 
 class LiveMainChatScreen extends StatefulWidget {
@@ -50,6 +51,27 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
     }
   }
 
+  Future<void> _openSellForm() => Navigator.of(context).push(
+    MaterialPageRoute(fullscreenDialog: true, builder: (_) => const LiveSellSheet()),
+  );
+
+  Future<void> _handlePayload(String payload) async {
+    final command = payload.trim().toLowerCase();
+    if (command == 'sell' || command == 'vendre' || command.contains('vendre') || command.contains('sell')) {
+      await _openSellForm();
+      return;
+    }
+    if (command == 'buy' || command == 'acheter' || command.contains('cherche')) {
+      setState(() => composer.text = composer.text.trim().isEmpty ? 'Je cherche ' : composer.text);
+      return;
+    }
+    if (command == 'negotiate' || command == 'négocier' || command == 'negocier') {
+      setState(() => composer.text = composer.text.trim().isEmpty ? 'Je propose  FCFA pour ' : composer.text);
+      return;
+    }
+    await _send(payload);
+  }
+
   Future<void> _send([String? payload]) async {
     if (sending) return;
     final text = (payload ?? composer.text).trim();
@@ -78,7 +100,7 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
     return Scaffold(
       appBar: LiveHeader(
         title: 'WAOUH',
-        subtitle: auth.profile?.fullName == null ? 'Achetez · Vendez · Negociez' : 'Bonjour ${auth.profile!.fullName!.split(' ').first}',
+        subtitle: auth.profile?.fullName == null ? 'Achetez · Vendez · Négociez' : 'Bonjour ${auth.profile!.fullName!.split(' ').first}',
         back: true,
         actions: [
           IconButton(onPressed: () => context.go('/app/notifications'), icon: const Icon(Icons.notifications_none_rounded)),
@@ -92,12 +114,12 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
           builder: (_, snapshot) {
             final messages = snapshot.data ?? const <LiveMessage>[];
             if (messages.isEmpty) {
-              return const Center(child: Padding(padding: EdgeInsets.all(28), child: Text('Bonjour !\nEcrivez « Je vends », « Je cherche » ou utilisez les boutons ci-dessous.', textAlign: TextAlign.center, style: TextStyle(fontSize: 17, color: legacy.WaouhColors.muted))));
+              return const Center(child: Padding(padding: EdgeInsets.all(28), child: Text('Bonjour !\nUtilisez Vendre pour publier une annonce, ou écrivez « Je cherche ».', textAlign: TextAlign.center, style: TextStyle(fontSize: 17, color: legacy.WaouhColors.muted))));
             }
             return ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: messages.length,
-              itemBuilder: (_, index) => LiveMessageBubble(message: messages[index], onPayload: (payload) => _send(payload)),
+              itemBuilder: (_, index) => LiveMessageBubble(message: messages[index], onPayload: _handlePayload),
             );
           },
         )),
@@ -109,7 +131,7 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
             child: Row(children: [
               const Icon(Icons.link_rounded, size: 18, color: legacy.WaouhColors.orange),
               const SizedBox(width: 8),
-              Expanded(child: Text(pendingMeta['article_id'] == null ? 'Reponse liee au statut.' : 'Reponse liee a un produit WAOUH.', style: const TextStyle(fontWeight: FontWeight.w700))),
+              Expanded(child: Text(pendingMeta['article_id'] == null ? 'Réponse liée au statut.' : 'Réponse liée à un produit WAOUH.', style: const TextStyle(fontWeight: FontWeight.w700))),
               IconButton(onPressed: () => setState(() => pendingMeta = const {}), icon: const Icon(Icons.close, size: 18)),
             ]),
           ),
@@ -117,10 +139,15 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
           color: Colors.white,
           height: 58,
           child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), children: [
-            _quick('Vendre', Icons.shopping_bag_outlined, () => setState(() => composer.text = 'Je vends : ')),
+            _quick('Vendre', Icons.shopping_bag_outlined, _openSellForm),
             _quick('Acheter', Icons.search_rounded, () => setState(() => composer.text = 'Je cherche ')),
-            _quick('Negocier', Icons.handshake_outlined, () => setState(() => composer.text = 'Je propose  FCFA pour ')),
-            _quick('GPS', Icons.my_location, () async { await controller.useDeviceLocation(); if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Position ajoutee au prochain message.'))); }),
+            _quick('Négocier', Icons.handshake_outlined, () => setState(() => composer.text = 'Je propose  FCFA pour ')),
+            _quick('GPS', Icons.my_location, () async {
+              await controller.useDeviceLocation();
+              if (!mounted) return;
+              final position = controller.position;
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(position.available ? 'Position ajoutée au prochain message.' : (position.errorMessage ?? 'Position GPS indisponible.'))));
+            }),
           ]),
         ),
         LiveAttachmentStrip(items: attachments, onRemove: (item) => setState(() => attachments.remove(item))),
@@ -169,8 +196,8 @@ class _LiveConversationScreenState extends State<LiveConversationScreen> {
           builder: (_, snapshot) => ListView.builder(padding: const EdgeInsets.all(16), itemCount: (snapshot.data ?? const []).length, itemBuilder: (_, i) => LiveMessageBubble(message: snapshot.data![i])),
         )),
         SafeArea(top: false, child: Row(children: [
-          Expanded(child: TextField(controller: composer, decoration: const InputDecoration(hintText: 'Votre reponse...'))),
-          IconButton(onPressed: sending ? null : () async { final text = composer.text; if (text.trim().isEmpty) return; setState(() => sending = true); composer.clear(); try { await controller.sendConversation(widget.conversationId, text); } finally { if (mounted) setState(() => sending = false); } }, icon: const Icon(Icons.send_rounded)),
+          Expanded(child: TextField(controller: composer, decoration: const InputDecoration(hintText: 'Votre réponse...'))),
+          IconButton(onPressed: sending ? null : () async { final text = composer.text; if (text.trim().isEmpty) return; setState(() => sending = true); composer.clear(); try { await controller.sendConversation(widget.conversationId, text); } catch (error) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error'))); } finally { if (mounted) setState(() => sending = false); } }, icon: const Icon(Icons.send_rounded)),
         ])),
       ]),
     );
