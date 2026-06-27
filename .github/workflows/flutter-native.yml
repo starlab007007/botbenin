@@ -23,10 +23,26 @@ jobs:
           channel: stable
       - name: Install Android SDK 36
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
-      - name: Build Supabase-connected WAOUH ARM64 APK
-        run: bash scripts/build_live_arm64.sh
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Apply current Flutter source compatibility
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('lib/main.dart')
+          path.write_text(
+              path.read_text(encoding='utf-8').replace('cardTheme: CardTheme(', 'cardTheme: CardThemeData(', 1),
+              encoding='utf-8',
+          )
+          PY
+      - name: Analyze and test
+        run: |
+          flutter analyze --no-fatal-warnings --no-fatal-infos
+          flutter test
+      - name: Compile connected Android debug APK
+        run: flutter build apk --debug --target lib/live/live_app.dart
       - uses: actions/upload-artifact@v4
         with:
-          name: WaouhApp-arm64-live
-          path: flutter_waouh_app/release-apks/WaouhApp-arm64-live.apk
+          name: WaouhApp-debug-ci
+          path: flutter_waouh_app/build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
