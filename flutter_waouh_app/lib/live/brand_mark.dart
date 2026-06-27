@@ -1,25 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class BrandMark extends StatelessWidget {
-  const BrandMark({super.key, this.size = 40});
+  const BrandMark({super.key, this.size = 40, this.semanticLabel = 'WaouhApp'});
+
   final double size;
+  final String semanticLabel;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: const Color(0xFF111111),
+    return Semantics(
+      label: semanticLabel,
+      image: true,
+      child: ClipRRect(
         borderRadius: BorderRadius.circular(size * .22),
-      ),
-      child: Text(
-        'W',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: size * .58,
-          fontWeight: FontWeight.w900,
+        child: SvgPicture.asset(
+          'assets/branding/waouh_mark.svg',
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
         ),
       ),
     );
