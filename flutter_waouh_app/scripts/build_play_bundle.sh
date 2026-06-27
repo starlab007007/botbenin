@@ -28,16 +28,32 @@ if grep -R -nE 'Flutter Demo Home Page|_incrementCounter|You have pushed the but
   fail "Le template Flutter Demo est encore présent dans lib/."
 fi
 
-# Compatible with Flutter versions that require CardThemeData. This is an
-# idempotent source migration and remains visible in Git after the build.
+# Idempotent source migrations for the current Flutter SDK and OTP backend.
 python3 - <<'PY'
 from pathlib import Path
-path = Path('lib/main.dart')
-source = path.read_text(encoding='utf-8')
-updated = source.replace('cardTheme: CardTheme(', 'cardTheme: CardThemeData(', 1)
-if updated != source:
-    path.write_text(updated, encoding='utf-8')
+
+main = Path('lib/main.dart')
+main_source = main.read_text(encoding='utf-8')
+main_updated = main_source.replace('cardTheme: CardTheme(', 'cardTheme: CardThemeData(', 1)
+if main_updated != main_source:
+    main.write_text(main_updated, encoding='utf-8')
     print('Applied source migration: CardThemeData.')
+
+otp = Path('lib/live/live_whatsapp_auth.dart')
+if otp.exists():
+    source = otp.read_text(encoding='utf-8')
+    old = """    'phone required' || 'invalid phone' => 'Numero WhatsApp invalide.',
+    _ => 'Verification WhatsApp impossible. Reessayez.',"""
+    new = """    'phone required' || 'invalid phone' || 'phone_required' || 'invalid_phone' => 'Numero WhatsApp invalide.',
+    'rate_limited' => 'Trop de demandes. Attendez une heure avant de demander un autre code.',
+    'otp_delivery_unavailable' || 'otp_delivery_failed' => 'Le code WhatsApp ne peut pas être envoyé pour le moment. Réessayez plus tard.',
+    'code_required' => 'Saisissez le code à 6 chiffres reçu sur WhatsApp.',
+    'session_creation_failed' => 'Connexion impossible. Demandez un nouveau code.',
+    'account_creation_failed' => 'Création du compte impossible. Réessayez plus tard.',
+    _ => 'Verification WhatsApp impossible. Reessayez.',"""
+    if old in source:
+        otp.write_text(source.replace(old, new, 1), encoding='utf-8')
+        print('Applied source migration: OTP error messages.')
 PY
 
 flutter clean
