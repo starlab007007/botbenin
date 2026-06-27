@@ -11,17 +11,15 @@ class LiveNotificationService {
   final LiveSessionStore session;
 
   Future<List<LiveNotification>> load(String? authUserId) async {
-    final sid = await session.sessionId;
-    final ids = await chat.waouhUserIds(authUserId);
-    final filters = <String>['web_session_id.eq.$sid'];
-    if (ids.isNotEmpty) filters.add('user_id.in.(${ids.join(',')})');
-
+    final scope = await _scope(authUserId);
     final rows = await chat.client
         .from('waouh_notifications')
-        .select('id,title,content,body,message,notification_type,type,action_url,article_id,conversation_id,payload,metadata,opened,read_at,sent_at,created_at,user_id,web_session_id,photos')
-        .or(filters.join(','))
+        // Keep this projection aligned with the React contract. Older Supabase
+        // deployments do not expose title/body/type/action_url columns here.
+        .select('id,notification_type,payload,photos,sent_at,article_id,opened,user_id,web_session_id')
+        .or(scope.orClause)
         .order('sent_at', ascending: false)
-        .limit(150);
+        .limit(250);
     return (rows as List)
         .map((raw) => LiveNotification.fromJson(Map<String, dynamic>.from(raw as Map)))
         .toList();
@@ -29,45 +27,43 @@ class LiveNotificationService {
 
   Future<void> markRead(String id) => chat.client
       .from('waouh_notifications')
-      .update({'opened': true, 'read_at': DateTime.now().toUtc().toIso8601String()})
+      .update({'opened': true})
       .eq('id', id);
 
   Future<void> markAllRead(String? authUserId) async {
-    final sid = await session.sessionId;
-    final ids = await chat.waouhUserIds(authUserId);
-    final filters = <String>['web_session_id.eq.$sid'];
-    if (ids.isNotEmpty) filters.add('user_id.in.(${ids.join(',')})');
+    final scope = await _scope(authUserId);
     await chat.client
         .from('waouh_notifications')
-        .update({'opened': true, 'read_at': DateTime.now().toUtc().toIso8601String()})
-        .or(filters.join(','));
+        .update({'opened': true})
+        .or(scope.orClause);
   }
 
   Future<List<LiveMatch>> loadMatches(String? authUserId, {bool archived = false}) async {
-    final sid = await session.sessionId;
-    final ids = await chat.waouhUserIds(authUserId);
-    final filters = <String>['web_session_id.eq.$sid'];
-    if (ids.isNotEmpty) filters.add('user_id.in.(${ids.join(',')})');
-
+    final scope = await _scope(authUserId);
     final rows = await chat.client
         .from('waouh_notifications')
-        .select('id,notification_type,type,payload,photos,sent_at,created_at,article_id,opened,read_at,user_id,web_session_id')
-        .inFilter('notification_type', const ['match', 'match_buyer', 'match_seller', 'new_buyer', 'radar_match'])
-        .or(filters.join(','))
+        .select('id,notification_type,payload,photos,sent_at,article_id,opened,user_id,web_session_id')
+        .or(scope.orClause)
         .order('sent_at', ascending: false)
-        .limit(200);
+        .limit(300);
 
+    const matchTypes = {'match', 'match_buyer', 'match_seller', 'new_buyer', 'radar_match'};
     final merged = <String, LiveMatch>{};
     for (final raw in rows as List) {
       final row = Map<String, dynamic>.from(raw as Map);
+      final payload = liveMap(row['payload']);
+      final type = liveText(row['notification_type']).toLowerCase();
+      final articleId = liveText(row['article_id'] ?? payload['article_id']);
+      if (!matchTypes.contains(type) || articleId.isEmpty) continue;
+      // Backfill article_id when an older notification stores it only in payload.
+      row['article_id'] = articleId;
       final item = LiveMatch.fromNotification(row);
-      if (item.articleId.isEmpty) continue;
       merged[item.key] = merged[item.key]?.merge(item) ?? item;
     }
 
-    await _addMessageFallback(merged, sid, ids);
+    await _addMessageFallback(merged, scope);
 
-    final archivedKeys = await _archivedKeys(sid);
+    final archivedKeys = await _archivedKeys(scope.storageKey);
     final values = merged.values
         .where((item) => archived ? archivedKeys.contains(item.key) : !archivedKeys.contains(item.key))
         .toList();
@@ -77,32 +73,23 @@ class LiveNotificationService {
 
   Future<void> _addMessageFallback(
     Map<String, LiveMatch> merged,
-    String sid,
-    List<String> userIds,
+    _ViewerScope scope,
   ) async {
     try {
       final since = DateTime.now().subtract(const Duration(days: 30)).toUtc().toIso8601String();
       final rows = <Map<String, dynamic>>[];
-      final sessionRows = await chat.client
+
+      // Exact React fallback: it accepts both physical article_id and legacy
+      // meta.article_id rows. Flutter previously lost the latter entirely.
+      final ownRows = await chat.client
           .from('waouh_messages')
-          .select('article_id,created_at,meta,web_session_id,user_id')
-          .eq('web_session_id', sid)
-          .not('article_id', 'is', null)
+          .select('article_id,created_at,meta,user_id,web_session_id')
+          .or('article_id.not.is.null,meta->>article_id.not.is.null')
+          .or(scope.orClause)
           .gte('created_at', since)
           .order('created_at', ascending: false)
-          .limit(300);
-      rows.addAll(sessionRows.map((raw) => Map<String, dynamic>.from(raw as Map)));
-      if (userIds.isNotEmpty) {
-        final siblingRows = await chat.client
-            .from('waouh_messages')
-            .select('article_id,created_at,meta,web_session_id,user_id')
-            .inFilter('user_id', userIds)
-            .not('article_id', 'is', null)
-            .gte('created_at', since)
-            .order('created_at', ascending: false)
-            .limit(300);
-        rows.addAll(siblingRows.map((raw) => Map<String, dynamic>.from(raw as Map)));
-      }
+          .limit(500);
+      rows.addAll(ownRows.map((raw) => Map<String, dynamic>.from(raw as Map)));
 
       final stubs = <String, Map<String, dynamic>>{};
       for (final row in rows) {
@@ -150,28 +137,44 @@ class LiveNotificationService {
         );
       }
     } catch (_) {
-      // Notification rows remain primary when current RLS blocks the fallback.
+      // Notification data remains the source of truth when a legacy RLS policy
+      // rejects the message fallback query.
     }
   }
 
   Future<void> setMatchArchived(LiveMatch item, bool archived) async {
-    final sid = await session.sessionId;
-    final values = await _archivedKeys(sid);
+    final scope = await _scope(null);
+    final values = await _archivedKeys(scope.storageKey);
     if (archived) {
       values.add(item.key);
     } else {
       values.remove(item.key);
     }
-    await _saveArchivedKeys(sid, values);
+    await _saveArchivedKeys(scope.storageKey, values);
   }
 
-  Future<Set<String>> _archivedKeys(String sid) async {
-    final prefs = await SharedPreferences.getInstance();
-    return liveDecodeSet(prefs.getString('waouh_archived_matches_$sid'));
+  Future<_ViewerScope> _scope(String? authUserId) async {
+    final sid = await session.sessionId;
+    final ids = await chat.waouhUserIds(authUserId);
+    final clauses = <String>['web_session_id.eq.$sid'];
+    if (ids.isNotEmpty) clauses.add('user_id.in.(${ids.join(',')})');
+    final key = authUserId == null || authUserId.isEmpty ? sid : 'auth_$authUserId';
+    return _ViewerScope(orClause: clauses.join(','), storageKey: key);
   }
 
-  Future<void> _saveArchivedKeys(String sid, Set<String> values) async {
+  Future<Set<String>> _archivedKeys(String key) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('waouh_archived_matches_$sid', liveEncodeSet(values));
+    return liveDecodeSet(prefs.getString('waouh_archived_matches_$key'));
   }
+
+  Future<void> _saveArchivedKeys(String key, Set<String> values) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('waouh_archived_matches_$key', liveEncodeSet(values));
+  }
+}
+
+class _ViewerScope {
+  const _ViewerScope({required this.orClause, required this.storageKey});
+  final String orClause;
+  final String storageKey;
 }
