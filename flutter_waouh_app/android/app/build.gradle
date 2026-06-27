@@ -1,7 +1,15 @@
+import java.util.Properties
+
 plugins {
     id "com.android.application"
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
+}
+
+final keystoreProperties = new Properties()
+final keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
 }
 
 android {
@@ -27,10 +35,25 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // Test distribution only. Replace with an owned upload key before Play release.
-            signingConfig = signingConfigs.debug
+            if (!keystorePropertiesFile.exists()) {
+                throw new GradleException("Play release signing is required. Create android/key.properties from key.properties.example and use your own upload keystore.")
+            }
+            signingConfig = signingConfigs.getByName("release")
+            minifyEnabled false
+            shrinkResources false
         }
     }
 }
