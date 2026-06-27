@@ -11,10 +11,12 @@ import 'live_legacy_screens.dart';
 import 'live_match_chat_v2.dart';
 import 'live_models.dart';
 import 'live_notifications_screen_v2.dart';
+import 'live_offline_banner.dart';
 import 'live_partner_businesses_v3.dart';
 import 'live_partner_products_v2.dart';
 import 'live_profile_screen_v2.dart';
 import 'live_screens.dart';
+import 'live_whatsapp_auth.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -70,7 +72,7 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
     GoRoute(path: '/', redirect: (_, __) => '/app/chat'),
     GoRoute(path: '/app/auth', builder: (_, __) => const LiveOnboardingScreen()),
     GoRoute(path: '/app/auth/email', builder: (_, __) => const LiveEmailAuthScreen()),
-    GoRoute(path: '/app/auth/whatsapp', builder: (_, __) => const LiveWhatsAppOtpScreen()),
+    GoRoute(path: '/app/auth/whatsapp', builder: (_, __) => const LiveWhatsAppOtpScreenV2()),
     ShellRoute(
       builder: (_, state, child) => LiveShell(path: state.uri.path, child: child),
       routes: [
@@ -108,7 +110,12 @@ class LiveShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final focused = path.startsWith('/app/chat/') || path.startsWith('/app/profile') || path.startsWith('/app/partner/businesses/');
     return Scaffold(
-      body: child,
+      body: Column(
+        children: [
+          const LiveOfflineBanner(),
+          Expanded(child: child),
+        ],
+      ),
       bottomNavigationBar: focused ? null : NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (index) => context.go(switch (index) {
@@ -121,7 +128,7 @@ class LiveShell extends StatelessWidget {
         destinations: const [
           NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
           NavigationDestination(icon: Icon(Icons.smart_toy_outlined), label: 'Bots'),
-          NavigationDestination(icon: Icon(Icons.phone_iphone_outlined), label: 'WhatsApp IA'),
+          NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), label: 'IA'),
           NavigationDestination(icon: Icon(Icons.campaign_outlined), label: 'Diffusion'),
           NavigationDestination(icon: Icon(Icons.storefront_outlined), label: 'Partenaire'),
         ],
