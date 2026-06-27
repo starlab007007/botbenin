@@ -117,7 +117,9 @@ class LiveShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hideNav = (path.startsWith('/app/chat/') && path != '/app/chat/waouh') ||
+    // Inbox keeps its navigation. Every individual WAOUH thread, including the
+    // principal IA chat, is a focused conversation screen without the module bar.
+    final hideNav = path.startsWith('/app/chat/') ||
         path.startsWith('/app/profile') ||
         path.startsWith('/app/partner/businesses/');
     return Scaffold(
