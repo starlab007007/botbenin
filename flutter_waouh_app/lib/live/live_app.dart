@@ -3,8 +3,12 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
+import 'live_auth_screens.dart';
 import 'live_controller.dart';
+import 'live_legacy_screens.dart';
 import 'live_models.dart';
+import 'live_partner_screens.dart';
+import 'live_profile_screen.dart';
 import 'live_screens.dart';
 
 Future<void> main() async {
@@ -69,9 +73,9 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
       },
       routes: [
         GoRoute(path: '/', redirect: (_, __) => '/app/chat'),
-        GoRoute(path: '/app/auth', builder: (_, __) => const legacy.OnboardingScreen()),
-        GoRoute(path: '/app/auth/email', builder: (_, __) => const legacy.EmailAuthScreen()),
-        GoRoute(path: '/app/auth/whatsapp', builder: (_, __) => const legacy.WhatsAppOtpScreen()),
+        GoRoute(path: '/app/auth', builder: (_, __) => const LiveOnboardingScreen()),
+        GoRoute(path: '/app/auth/email', builder: (_, __) => const LiveEmailAuthScreen()),
+        GoRoute(path: '/app/auth/whatsapp', builder: (_, __) => const LiveWhatsAppOtpScreen()),
         ShellRoute(
           builder: (_, state, child) => LiveShell(path: state.uri.path, child: child),
           routes: [
@@ -86,12 +90,13 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
             ),
             GoRoute(path: '/app/chat/:id', builder: (_, state) => LiveConversationScreen(conversationId: state.pathParameters['id']!)),
             GoRoute(path: '/app/notifications', builder: (_, __) => const LiveNotificationsScreen()),
-            GoRoute(path: '/app/bots', builder: (_, __) => const legacy.BotsScreen()),
-            GoRoute(path: '/app/whatsapp', builder: (_, __) => const legacy.WhatsAppIaScreen()),
-            GoRoute(path: '/app/diffusion', builder: (_, __) => const legacy.DiffusionScreen()),
-            GoRoute(path: '/app/partner', builder: (_, __) => const legacy.PartnerHomeScreen()),
-            GoRoute(path: '/app/partner/businesses/:businessId/products', builder: (_, state) => legacy.PartnerProductsScreen(businessId: state.pathParameters['businessId']!)),
-            GoRoute(path: '/app/profile', builder: (_, __) => const legacy.ProfileScreen()),
+            GoRoute(path: '/app/bots', builder: (_, __) => const LiveBotsScreen()),
+            GoRoute(path: '/app/whatsapp', builder: (_, __) => const LiveWhatsAppIaScreen()),
+            GoRoute(path: '/app/diffusion', builder: (_, __) => const LiveDiffusionScreen()),
+            GoRoute(path: '/app/partner', redirect: (_, __) => '/app/partner/businesses'),
+            GoRoute(path: '/app/partner/businesses', builder: (_, __) => const LivePartnerBusinessesScreen()),
+            GoRoute(path: '/app/partner/businesses/:businessId/products', builder: (_, state) => LivePartnerProductsScreen(businessId: state.pathParameters['businessId']!)),
+            GoRoute(path: '/app/profile', builder: (_, __) => const LiveProfileScreen()),
           ],
         ),
       ],
@@ -112,7 +117,9 @@ class LiveShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hideNav = path.startsWith('/app/chat/') && path != '/app/chat/waouh';
+    final hideNav = (path.startsWith('/app/chat/') && path != '/app/chat/waouh') ||
+        path.startsWith('/app/profile') ||
+        path.startsWith('/app/partner/businesses/');
     return Scaffold(
       body: child,
       bottomNavigationBar: hideNav
