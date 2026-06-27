@@ -8,7 +8,7 @@ import 'live_controller.dart';
 import 'live_legacy_screens.dart';
 import 'live_models.dart';
 import 'live_partner_screens.dart';
-import 'live_profile_screen.dart';
+import 'live_profile_screen_v2.dart';
 import 'live_screens.dart';
 
 Future<void> main() async {
@@ -96,7 +96,7 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
             GoRoute(path: '/app/partner', redirect: (_, __) => '/app/partner/businesses'),
             GoRoute(path: '/app/partner/businesses', builder: (_, __) => const LivePartnerBusinessesScreen()),
             GoRoute(path: '/app/partner/businesses/:businessId/products', builder: (_, state) => LivePartnerProductsScreen(businessId: state.pathParameters['businessId']!)),
-            GoRoute(path: '/app/profile', builder: (_, __) => const LiveProfileScreen()),
+            GoRoute(path: '/app/profile', builder: (_, __) => const LiveProfileScreenV2()),
           ],
         ),
       ],
@@ -117,8 +117,6 @@ class LiveShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Inbox keeps its navigation. Every individual WAOUH thread, including the
-    // principal IA chat, is a focused conversation screen without the module bar.
     final hideNav = path.startsWith('/app/chat/') ||
         path.startsWith('/app/profile') ||
         path.startsWith('/app/partner/businesses/');
