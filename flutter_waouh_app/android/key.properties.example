@@ -1,0 +1,6 @@
+# Copy this file to android/key.properties. Never commit android/key.properties or the .jks file.
+storePassword=CHANGE_ME
+keyPassword=CHANGE_ME
+keyAlias=waouhapp-upload
+# Use an absolute path or a path relative to flutter_waouh_app/android/
+storeFile=upload-keystore.jks

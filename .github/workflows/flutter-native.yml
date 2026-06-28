@@ -1,0 +1,48 @@
+name: Flutter native validation
+
+on:
+  push:
+    paths:
+      - 'flutter_waouh_app/**'
+      - '.github/workflows/flutter-native.yml'
+  pull_request:
+    paths:
+      - 'flutter_waouh_app/**'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: flutter_waouh_app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: stable
+          channel: stable
+      - name: Install Android SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Apply current Flutter source compatibility
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('lib/main.dart')
+          path.write_text(
+              path.read_text(encoding='utf-8').replace('cardTheme: CardTheme(', 'cardTheme: CardThemeData(', 1),
+              encoding='utf-8',
+          )
+          PY
+      - name: Analyze and test
+        run: |
+          flutter analyze --no-fatal-warnings --no-fatal-infos
+          flutter test
+      - name: Compile connected Android debug APK
+        run: flutter build apk --debug --target lib/live/live_app.dart
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WaouhApp-debug-ci
+          path: flutter_waouh_app/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
