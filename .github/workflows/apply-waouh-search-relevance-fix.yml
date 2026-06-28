@@ -1,0 +1,162 @@
+name: Apply WAOUH Search Relevance Fix
+
+on:
+  push:
+    branches:
+      - chat-search-relevance-fix
+    paths:
+      - .github/workflows/apply-waouh-search-relevance-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chat-search-relevance-fix
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enforce relevant WAOUH search results
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("supabase/functions/waouh-webhook/index.ts")
+          source = path.read_text(encoding="utf-8")
+
+          def replace_once(old: str, new: str, label: str) -> None:
+              global source
+              count = source.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected exactly one match, found {count}")
+              source = source.replace(old, new, 1)
+
+          replace_once(
+              '''      const kws: string[] = Array.isArray(criteria.keywords) ? criteria.keywords.filter((k: any) => typeof k === "string" && k.length > 1) : [];
+      if (kws.length > 0) {
+        const orFilter = kws.map((k) => `title.ilike.%${k}%,brand.ilike.%${k}%,description.ilike.%${k}%`).join(",");
+        q = q.or(orFilter);
+      }
+''',
+              '''      // L'IA peut répondre sans mots-clés. Le texte utilisateur reste alors
+      // la source de vérité pour éviter un catalogue partenaire non filtré.
+      const normalizeSearchToken = (value: string) =>
+        String(value || "")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\\u0300-\\u036f]/g, "")
+          .trim();
+      const stopTokens = new Set([
+        "je", "cherche", "recherche", "besoin", "acheter", "achete",
+        "un", "une", "du", "de", "des", "le", "la", "les", "pour", "avec", "dans", "a",
+      ]);
+      const categoryTokens = new Set([
+        "telephone", "smartphone", "ordinateur", "pc", "vetement", "chaussure",
+        "voiture", "moto", "vehicule", "frigo", "congelateur", "electromenager",
+        "maison", "logement", "immobilier", "terrain", "meuble",
+      ]);
+      const aiKeywords: string[] = Array.isArray(criteria.keywords)
+        ? criteria.keywords
+            .filter((k: any) => typeof k === "string")
+            .map((k: string) => normalizeSearchToken(k))
+            .filter((k: string) => k.length > 1)
+        : [];
+      const fallbackKeywords = Array.from(
+        new Set(
+          (normalizeSearchToken(text).match(/[a-z0-9]{2,}/g) ?? [])
+            .filter((token) => !stopTokens.has(token))
+        )
+      );
+      const kws = Array.from(new Set(aiKeywords.length > 0 ? aiKeywords : fallbackKeywords)).slice(0, 8);
+      const specificKws = kws.filter((k) => !categoryTokens.has(k));
+
+      // Une catégorie connue garantit la pertinence. Les mots spécifiques
+      // (marque/modèle) affinent uniquement lorsqu'ils existent.
+      if (specificKws.length > 0) {
+        const orFilter = specificKws.map((k) => `title.ilike.%${k}%,brand.ilike.%${k}%,description.ilike.%${k}%`).join(",");
+        q = q.or(orFilter);
+      }
+''',
+              "buyer keyword extraction",
+          )
+
+          replace_once(
+              '''          .eq("is_active", true)
+          .eq("source", "partner");
+        if (criteria.price_max) pq = pq.lte("prix_min", criteria.price_max);
+        if (kws.length > 0) {
+          const orFilter = kws
+            .map((k) => `titre.ilike.%${k}%,description.ilike.%${k}%,categorie.ilike.%${k}%,tags.cs.{${k}}`)
+            .join(",");
+          pq = pq.or(orFilter);
+        }
+''',
+              '''          .eq("is_active", true)
+          .eq("source", "partner");
+        // Critical relevance guard: partner priority must never bypass the
+        // category requested by the buyer (for example telephone → smartphone).
+        if (criteriaCategory && criteriaCategory !== "autre") {
+          pq = pq.eq("categorie", criteriaCategory);
+        }
+        if (criteria.price_max) pq = pq.lte("prix_min", criteria.price_max);
+        if (specificKws.length > 0) {
+          const orFilter = specificKws
+            .map((k) => `titre.ilike.%${k}%,description.ilike.%${k}%,categorie.ilike.%${k}%,tags.cs.{${k}}`)
+            .join(",");
+          pq = pq.or(orFilter);
+        }
+''',
+              "partner category guard",
+          )
+
+          replace_once(
+              '''        if (kws.length > 0) {
+          const orFilter = kws.map((k) => `raw_text.ilike.%${k}%`).join(",");
+          rq = rq.or(orFilter);
+        }
+''',
+              '''        if (specificKws.length > 0) {
+          const orFilter = specificKws.map((k) => `raw_text.ilike.%${k}%`).join(",");
+          rq = rq.or(orFilter);
+        }
+''',
+              "radar keyword relevance",
+          )
+
+          replace_once(
+              '''        if (kws.length > 0) {
+          const orFilter = kws.map((k) => `title.ilike.%${k}%,description.ilike.%${k}%`).join(",");
+          eq = eq.or(orFilter);
+        }
+''',
+              '''        if (specificKws.length > 0) {
+          const orFilter = specificKws.map((k) => `title.ilike.%${k}%,description.ilike.%${k}%`).join(",");
+          eq = eq.or(orFilter);
+        }
+''',
+              "external listing keyword relevance",
+          )
+
+          required = [
+              'pq = pq.eq("categorie", criteriaCategory);',
+              'const specificKws = kws.filter((k) => !categoryTokens.has(k));',
+              'if (specificKws.length > 0) {',
+          ]
+          if not all(marker in source for marker in required):
+              raise SystemExit("post-patch validation failed")
+
+          path.write_text(source, encoding="utf-8")
+          PY
+
+      - name: Commit only the product fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-waouh-search-relevance-fix.yml
+          git add supabase/functions/waouh-webhook/index.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "fix(waouh): enforce relevant product search results"
+          git push origin HEAD:chat-search-relevance-fix
