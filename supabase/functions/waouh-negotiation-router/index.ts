@@ -27,13 +27,24 @@ function directReachablePhone(raw: string | null | undefined): string | null {
 
 
 async function aiIntent(text: string): Promise<{ kind: "yes"|"no"|"price"|"other"; price?: number }> {
-  const lower = (text || "").toLowerCase();
+  const raw = (text || "").trim();
+  const lower = raw.toLowerCase();
   // Déterministe d'abord
-  if (/\b(non|no|refuse|refus[eé])\b/i.test(lower)) return { kind: "no" };
-  if (/\b(oui|ok|d'?accord|j'accepte|accept[eé]|yes)\b/i.test(lower) && !/propose/.test(lower)) return { kind: "yes" };
-  const m = lower.match(/(\d{2,3}(?:[\s.,]?\d{3})+|\d{3,9})\s*(?:f|fcfa|cfa)/i)
-        || lower.match(/(?:propose|offre|prix|à|a)\s*(\d{3,9})/i);
-  if (m) return { kind: "price", price: parseInt(m[1].replace(/\D/g, ""), 10) };
+  if (/\b(non|no|refuse|refus[eé]|pas\s+d['']accord|nope)\b/i.test(lower)) return { kind: "no" };
+  if (/\b(oui|ok|d'?accord|j'accepte|accept[eé]|yes|deal|ça\s+marche|ca\s+marche)\b/i.test(lower) && !/propose|offre|contre/.test(lower)) return { kind: "yes" };
+  // 1) Montant avec suffixe FCFA/CFA/F
+  let m: RegExpMatchArray | null = lower.match(/(\d{2,3}(?:[\s.,]?\d{3})+|\d{3,9})\s*(?:f|fcfa|cfa)\b/i);
+  // 2) Montant précédé d'un mot d'offre (propose/offre/contre-offre/prix/pour/à)
+  if (!m) m = lower.match(/(?:propose|offre|offre\s+de|contre[\s-]?offre|prix|pour|à)\s*(\d{2,3}(?:[\s.,]?\d{3})+|\d{3,9})/i);
+  // 3) Nombre seul (réponse rapide « 400 ») — uniquement si le texte ne contient que des chiffres/espaces/séparateurs
+  if (!m) {
+    const digitsOnly = lower.replace(/[\s.,]/g, "");
+    if (/^\d{3,9}$/.test(digitsOnly)) m = [digitsOnly, digitsOnly] as any;
+  }
+  if (m) {
+    const price = parseInt(String(m[1]).replace(/\D/g, ""), 10);
+    if (price >= 100 && price <= 100_000_000) return { kind: "price", price };
+  }
   try {
     const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
