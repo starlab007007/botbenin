@@ -937,7 +937,9 @@ serve(async (req) => {
       });
 
       const totalCount = (matches?.length || 0) + radarSellers.length + partnerMatches.length;
-      if (totalCount === 0) {
+      if ((intent as any).__short_circuit) {
+        // reply déjà défini ci-dessus (message de précision). Skip totalement le rendu.
+      } else if (totalCount === 0) {
         reply = `🔍 Aucune annonce ne correspond pour l'instant. Profil sauvegardé : vous serez notifié dès qu'un vendeur publie un produit correspondant !`;
         nextContext = { ...nextContext, last_matches: [] };
       } else {
