@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -6,6 +8,7 @@ import 'live_controller.dart';
 import 'live_controller_extensions.dart';
 import 'live_controller_match_actions.dart';
 import 'live_models.dart';
+import 'live_smart_timeline.dart';
 import 'live_widgets.dart';
 
 class LiveMatchChatV2 extends StatefulWidget {
@@ -19,25 +22,38 @@ class LiveMatchChatV2 extends StatefulWidget {
 
 class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
   final _composer = TextEditingController();
+  final _focus = FocusNode();
   final _attachments = <LiveAttachment>[];
+  final _optimistic = <LiveMessage>[];
   LiveMatch? _match;
-  bool _sending = false;
+  Stream<List<LiveMessage>>? _messageStream;
 
   @override
   void initState() {
     super.initState();
     _match = widget.initial;
+    if (_match != null) {
+      _messageStream = context.read<LiveWaouhController>().matchMessages(_match!);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final controller = context.read<LiveWaouhController>();
       final found = _match ?? await controller.resolveMatch(widget.matchKey);
-      if (found != null) await controller.markMatchRead(found);
-      if (mounted) setState(() => _match = found);
+      if (found != null) {
+        await controller.markMatchRead(found);
+      }
+      if (mounted) {
+        setState(() {
+          _match = found;
+          if (found != null) _messageStream = controller.matchMessages(found);
+        });
+      }
     });
   }
 
   @override
   void dispose() {
     _composer.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
@@ -52,24 +68,70 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
     }
   }
 
-  Future<void> _send([String? payload]) async {
-    final controller = context.read<LiveWaouhController>();
+  void _send([String? payload]) {
     final match = _match;
     final text = (payload ?? _composer.text).trim();
     final media = List<LiveAttachment>.from(_attachments);
-    if (_sending || match == null || (text.isEmpty && media.isEmpty)) return;
-    setState(() { _sending = true; _composer.clear(); _attachments.clear(); });
+    if (match == null || (text.isEmpty && media.isEmpty)) return;
+    final local = LiveMessage(
+      id: 'client_${DateTime.now().microsecondsSinceEpoch}',
+      text: text,
+      createdAt: DateTime.now(),
+      direction: 'in',
+      articleId: match.articleId,
+      attachments: media,
+      meta: {'delivery_state': context.read<LiveWaouhController>().isOnline ? 'sending' : 'queued'},
+    );
+    setState(() {
+      _optimistic.add(local);
+      _composer.clear();
+      _attachments.clear();
+    });
+    _focus.requestFocus();
+    unawaited(_deliver(match, local));
+  }
+
+  Future<void> _deliver(LiveMatch match, LiveMessage local) async {
     try {
-      await controller.sendMatch(match: match, text: text, attachments: media);
-    } catch (error) {
-      _composer.text = text;
+      await context.read<LiveWaouhController>().sendMatch(match: match, text: local.text, attachments: local.attachments);
+      _setDelivery(local.id, context.read<LiveWaouhController>().isOnline ? 'sent' : 'queued');
+    } catch (_) {
+      _setDelivery(local.id, 'failed');
       if (mounted) {
-        setState(() => _attachments.addAll(media));
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('Message non envoyé.'),
+          action: SnackBarAction(label: 'Réessayer', onPressed: () => _deliver(match, local)),
+        ));
       }
-    } finally {
-      if (mounted) setState(() => _sending = false);
     }
+  }
+
+  void _setDelivery(String id, String state) {
+    if (!mounted) return;
+    final index = _optimistic.indexWhere((item) => item.id == id);
+    if (index < 0) return;
+    final item = _optimistic[index];
+    setState(() {
+      _optimistic[index] = LiveMessage(
+        id: item.id,
+        text: item.text,
+        createdAt: item.createdAt,
+        direction: item.direction,
+        conversationId: item.conversationId,
+        articleId: item.articleId,
+        attachments: item.attachments,
+        meta: {...item.meta, 'delivery_state': state},
+      );
+    });
+  }
+
+  List<LiveMessage> _merge(List<LiveMessage> remote) {
+    final extra = _optimistic.where((local) => !remote.any((item) =>
+        item.outgoing &&
+        item.text.trim() == local.text.trim() &&
+        item.attachments.length == local.attachments.length &&
+        item.createdAt.difference(local.createdAt).inSeconds.abs < 120));
+    return [...remote, ...extra]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
   }
 
   @override
@@ -97,25 +159,20 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
         Card(
           margin: const EdgeInsets.all(12),
           child: ListTile(
-            leading: match.photo == null
-                ? const CircleAvatar(child: Icon(Icons.inventory_2_outlined))
-                : CircleAvatar(backgroundImage: NetworkImage(match.photo!)),
+            leading: match.photo == null ? const CircleAvatar(child: Icon(Icons.inventory_2_outlined)) : CircleAvatar(backgroundImage: NetworkImage(match.photo!)),
             title: Text(match.title, maxLines: 1, overflow: TextOverflow.ellipsis),
             subtitle: Text(match.price == null ? (match.city ?? 'Annonce WAOUH') : '${match.price} FCFA${match.city == null ? '' : ' · ${match.city}'}'),
           ),
         ),
         Expanded(
           child: StreamBuilder<List<LiveMessage>>(
-            stream: controller.matchMessages(match),
-            builder: (_, snapshot) {
-              final messages = snapshot.data ?? const <LiveMessage>[];
-              if (messages.isEmpty) return Center(child: Text(match.seedText ?? 'Commencez la discussion sur ce produit.'));
-              return ListView.builder(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                itemCount: messages.length,
-                itemBuilder: (_, index) => LiveMessageBubble(message: messages[index], onPayload: _send),
-              );
-            },
+            stream: _messageStream,
+            builder: (_, snapshot) => LiveSmartTimeline(
+              messages: _merge(snapshot.data ?? const <LiveMessage>[]),
+              onPayload: _send,
+              emptyMessage: match.seedText ?? 'Commencez la discussion sur ce produit.',
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+            ),
           ),
         ),
         LiveAttachmentStrip(items: _attachments, onRemove: (item) => setState(() => _attachments.remove(item))),
@@ -125,10 +182,10 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
             color: Colors.white,
             padding: const EdgeInsets.fromLTRB(6, 5, 8, 8),
             child: Row(children: [
-              IconButton(onPressed: () => _pick(ImageSource.camera), icon: const Icon(Icons.camera_alt_outlined)),
-              IconButton(onPressed: () => _pick(ImageSource.gallery), icon: const Icon(Icons.attach_file_rounded)),
-              Expanded(child: TextField(controller: _composer, minLines: 1, maxLines: 4, onSubmitted: (_) => _send(), decoration: const InputDecoration(hintText: 'Votre message...'))),
-              IconButton(onPressed: _sending ? null : _send, icon: _sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.send_rounded)),
+              IconButton(tooltip: 'Prendre une photo', onPressed: () => _pick(ImageSource.camera), icon: const Icon(Icons.camera_alt_outlined)),
+              IconButton(tooltip: 'Joindre une image', onPressed: () => _pick(ImageSource.gallery), icon: const Icon(Icons.attach_file_rounded)),
+              Expanded(child: TextField(controller: _composer, focusNode: _focus, minLines: 1, maxLines: 4, textInputAction: TextInputAction.send, onSubmitted: (_) => _send(), decoration: const InputDecoration(hintText: 'Message sur ce produit...'))),
+              IconButton(tooltip: 'Envoyer', onPressed: _send, icon: const Icon(Icons.send_rounded)),
             ]),
           ),
         ),
