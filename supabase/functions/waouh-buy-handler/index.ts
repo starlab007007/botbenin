@@ -2,6 +2,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { rehostPhotos, normalizeBeninPhone } from '../_shared/waouhContact.ts';
 import { distanceKm, formatDistance } from '../_shared/waouh-format.ts';
+import { extractFallbackKeywords } from '../_shared/waouh-keywords.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -90,8 +91,22 @@ Deno.serve(async (req) => {
       reference_photos: stableRefs,
     }).select().single();
 
-    // Search active articles — select photos + location explicitly so the
-    // client always gets images, and we can compute real distances.
+    // Fallback: si l'IA renvoie keywords vide, on tokenise le message brut.
+    const aiKws: string[] = Array.isArray(q.keywords) ? q.keywords.filter((k: any) => typeof k === 'string' && k.length > 1) : [];
+    const effectiveKws: string[] = aiKws.length > 0 ? aiKws : extractFallbackKeywords(message);
+    console.log('[buy-handler]', { message, ai_keywords: aiKws, effectiveKws, category: q.category, price_max: q.price_max });
+
+    // Garde anti-recherche-ouverte: sans keywords ET sans category ET sans prix
+    // -> aucun résultat (évite de retourner toute la base + de spammer les vendeurs).
+    if (effectiveKws.length === 0 && !q.category && !q.price_max) {
+      return new Response(JSON.stringify({
+        success: true,
+        matches: [],
+        reply: `🤔 Précisez votre recherche (ex: « je cherche iPhone 12 à Cotonou »).`,
+        attachments: [],
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     let query = supabase.from('waouh_articles')
       .select('id,title,brand,model,price,city,photos,location,seller_id')
       .eq('status', 'active');
@@ -101,7 +116,7 @@ Deno.serve(async (req) => {
     const { data: articles } = await query.limit(20);
 
     const filtered = (articles || []).filter(a =>
-      !q.keywords?.length || q.keywords.some((k: string) =>
+      !effectiveKws.length || effectiveKws.some((k: string) =>
         (a.title + ' ' + (a.brand || '') + ' ' + (a.model || '')).toLowerCase().includes(k.toLowerCase())
       )
     );
