@@ -8,6 +8,7 @@ plugins {
 
 final keystoreProperties = new Properties()
 final keystorePropertiesFile = rootProject.file("key.properties")
+final testReleaseWithDebugCertificate = System.getenv("WAOUH_TEST_RELEASE") == "1"
 if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
 }
@@ -15,7 +16,7 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "bj.bot.waouhapp"
     compileSdk = 36
-    ndkVersion = "26.1.10909125"
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         coreLibraryDesugaringEnabled true
@@ -50,21 +51,17 @@ android {
         release {
             if (keystorePropertiesFile.exists()) {
                 signingConfig = signingConfigs.getByName("release")
+            } else if (testReleaseWithDebugCertificate) {
+                // Test-only optimized build: Android's generated debug
+                // certificate is used. Never use this artifact for Play.
+                signingConfig = signingConfigs.debug
+            } else {
+                throw new GradleException("Release signing is required. For an optimized TEST APK only, run with WAOUH_TEST_RELEASE=1.")
             }
-            minifyEnabled false
-            shrinkResources false
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
-    }
-}
-
-// Debug APKs remain buildable without any private key. Release tasks are
-// rejected only when a release artifact is explicitly requested.
-gradle.taskGraph.whenReady { graph ->
-    final buildsRelease = graph.allTasks.any { task ->
-        task.name.toLowerCase().contains("release")
-    }
-    if (buildsRelease && !keystorePropertiesFile.exists()) {
-        throw new GradleException("Play release signing is required. Create android/key.properties from key.properties.example and use your own upload keystore.")
     }
 }
 
