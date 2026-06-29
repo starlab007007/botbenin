@@ -1,101 +1,68 @@
+## Diagnostic — Recherche "je cherche Zara" renvoie TOUS les produits
 
-# Plan — Audit complet WAOUH Chat + Partenaire → docs, prompt nowa.dev, captures & diagrammes
+### Reproduction (test mental basé sur le code)
 
-Objectif : Se connecter sur https://bot.bj/app/chat (compte `songbianzime@gmail.com`), explorer chaque parcours, capturer chaque écran clé, croiser avec le code source, puis produire 4 livrables consolidés dans `/mnt/documents/`.
+L'utilisateur tape `je cherche Zara` dans le chat WAOUH. Le flux est :
 
-## 1. Reconnaissance code (lecture seule)
-
-Lire en parallèle pour cartographier l'existant :
-
-- `src/pages/ChatPage.tsx`, `src/pages/waouh/WaouhDemoPage.tsx`
-- `src/components/waouh/` : `WaouhMatchChatList.tsx`, `WaouhMatchChatWindow.tsx`, `WaouhNotificationsBell.tsx`, `notificationActions.ts`, modals Vendre/Acheter/Négocier, modal Statut
-- `src/hooks/` : `useWaouhMatchChats.ts`, `useWaouhMatchNotifications.ts`, `useWaouhInbox.ts`, `useWaouhAI.ts`, `useWaouhPartner.ts`, `useWaouhPartnerStats.ts`
-- `src/app-mobile/screens/` : ChatListScreen, ChatScreen, PartnerBusinessesScreen, PartnerProductsScreen
-- Edge functions : `waouh-channel-in`, `waouh-webhook`, `waouh-sell-handler`, `waouh-buy-handler`, `waouh-negotiate-handler`, `waouh-notify-dispatch`, `waouh-notify-buyers`, `waouh-match-history`, `waouh-outbound-dispatch`, `waouh-status-*`
-- Schéma DB : `waouh_articles`, `waouh_buyer_profiles`, `waouh_negotiations`, `waouh_messages`, `waouh_notifications`, `waouh_outbound_queue`, `waouh_statuses`, `waouh_partners`, `waouh_partner_businesses`, `waouh_partner_products`, `waouh_deals`
-- Mémoires verrouillées : `waouh-chat-sync-flow-locked-v12` (matchKey par counterpart, propagation `counterpart_user_id`)
-
-## 2. Session live Playwright (lecture + screenshots, aucune publication)
-
-Script unique `/tmp/browser/waouh-audit/run.py` (headless Chromium, viewport 1280×1800), credentials via env. Parcours capturés :
-
-```text
-1_login_auth           → /app/auth → email + password aaaaaaaa → submit
-2_chat_main            → /app/chat (liste conversations + composer)
-3_waouh_new_chat       → bouton "Nouveau chat WAOUH" → fenêtre principale
-4_match_chat_list      → WaouhMatchChatList (onglets acheteur/vendeur, badges non-lus)
-5_match_chat_window    → ouverture WaouhMatchChatWindow par (article, acheteur)
-6_notif_bell           → cloche notifications (📩 Nouvel acheteur intéressé)
-7_notif_open_to_chat   → clic notif → openNotificationTarget → fenêtre ouverte
-8_modal_sell           → "Je vends" → modal payload (titre/prix/photos)
-9_modal_buy            → "Je cherche" → modal payload (critères/budget)
-10_modal_negotiate     → "Négocier" → modal contre-offre
-11_statuses_publish    → "J'annonce" / publication statut vente
-12_statuses_feed       → feed des statuts (vente/achat/annonces)
-13_partner_onboarding  → /app/partner → demande partenaire
-14_partner_business    → ajout entreprise
-15_partner_products    → ajout produit (formulaire + liste)
-16_partner_dashboard   → KPIs ventes/payouts
+```
+WaouhWebChat → waouh-channel-in → waouh-webhook (intent: "BUY")
+                                       │
+                                       └─► AI extrait criteria { keywords, category, price_max, ... }
+                                            puis filtre waouh_articles + waouh_unified_catalog
+                                            + waouh_radar_signals + waouh_external_listings
 ```
 
-Pour chaque écran : screenshot + capture des payloads réseau (`waouh-*` POST bodies, `waouh_notifications` inserts, événements realtime). Logs console et `waouh:open-match-chat` / `waouh:focus-message` enregistrés via `page.on("console")` + interception `CustomEvent`.
+### Cause racine (fichier `supabase/functions/waouh-webhook/index.ts`, branche `intent === "BUY"`, lignes 818-870)
 
-## 3. Livrables produits dans `/mnt/documents/`
+```ts
+const kws = Array.isArray(criteria.keywords)
+  ? criteria.keywords.filter(k => typeof k === "string" && k.length > 1)
+  : [];
+if (kws.length > 0) {
+  const orFilter = kws.map(k => `title.ilike.%${k}%,brand.ilike.%${k}%,description.ilike.%${k}%`).join(",");
+  q = q.or(orFilter);
+}
+```
 
-### A. Document technique Markdown
-`/mnt/documents/waouh-chat-architecture.md` (≈ 30 sections)
+Trois bugs combinés expliquent le symptôme :
 
-- Vue d'ensemble : surfaces (web `/app/chat`, mobile Capacitor, WhatsApp WAHA)
-- Cycle de vie message : composer → `waouh-channel-in` → `waouh-webhook` → handlers (sell/buy/negotiate/pay) → réponse + `waouh_outbound_queue` → realtime
-- **Chat principal** : composition AI Elements, `useWaouhInbox`, affichage optimiste, fallback realtime
-- **WaouhMatchChatList** : `matchKey(articleId, role, counterpartId)`, regroupement par (article, acheteur) côté vendeur / par article côté acheteur (v12), filtres, badges
-- **WaouhMatchChatWindow** : ouverture multi-fenêtres, drop realtime si counterpart mismatch, propagation `counterpart_user_id`, charge `waouh-match-history`
-- **Notifications** : table `waouh_notifications`, `useWaouhMatchNotifications`, `WaouhNotificationsBell`, événements `waouh:open-match-chat` / `waouh:focus-message`, deeplinks payment
-- **Parcours vendeur** : modal "Je vends" → payload `{ phone, message, photos[], location, source_channel }` → `waouh-sell-handler` (extraction IA Gemini) → INSERT `waouh_articles` → `waouh-notify-buyers`
-- **Parcours acheteur** : modal "Je cherche" → `waouh-buy-handler` → `waouh_buyer_profiles` + matching → liste numérotée
-- **Mise en relation** : "intéressé Nº1" → `waouh_negotiations` + notification vendeur + ouverture fenêtre dédiée
-- **Négociation** : modal "Négocier" → `waouh-negotiate-handler` (IA contre-offre) → update négo
-- **Paiement** : "Je paye" → escrow Mobile Money (Qosic), `deal_payment_request`
-- **Statuts** : `waouh_statuses` (Je vends / Je cherche / J'annonce), publication, feed, expiration
-- **Module Partenaire** : `useWaouhPartner.apply` (création), `waouh_partner_businesses`, `waouh_partner_products`, `waouh_partner_sales`, `waouh_partner_payouts`, permissions, RLS, niveaux Bronze/Argent/Or/Platine
-- Tableaux exhaustifs payloads (request/response) pour chaque edge function
-- Sécurité : RLS, `counterpart_user_id` end-to-end, dedup queue WA
+1. **`kws` souvent vide pour une requête mono-mot type marque.** L'IA Gemini, sur prompt « Extrais les critères d'achat », range fréquemment `Zara` dans `brand` ou `category` et renvoie `keywords: []`. Aucun filtre texte n'est alors appliqué — la requête redevient `SELECT … WHERE status='active'` (cappée à 5 par `.limit(5)` puis affichée comme « voici tous les produits disponibles »).
+2. **Pas de fallback texte brut.** Le mot tapé par l'utilisateur (`text`) n'est jamais réinjecté en keyword si l'IA en oublie. Idem dans `waouh-buy-handler/index.ts` (lignes 103-107) qui désactive le filtre dès que `q.keywords` est vide.
+3. **Branche "category seul" trop large.** Si `criteria.category = "vetement"` et `kws = []`, la requête retourne les 5 derniers vêtements actifs au lieu de zéro. Même problème sur `waouh_unified_catalog`, `waouh_radar_signals`, `waouh_external_listings` (toutes les 4 sources OR-filtrent uniquement quand `kws.length > 0`).
 
-### B. Diagrammes Mermaid `.mmd`
-- `/mnt/documents/waouh-sequence-vente.mmd` — séquence vendeur → acheteurs
-- `/mnt/documents/waouh-sequence-achat-nego.mmd` — recherche → intérêt → négo → paiement
-- `/mnt/documents/waouh-components.mmd` — composants front (ChatPage → MatchChatList → MatchChatWindow → NotificationsBell → modals)
-- `/mnt/documents/waouh-partner.mmd` — flux partenaire (onboarding → business → produits → ventes → payout)
+Conséquence : pour `je cherche Zara` → IA renvoie `{ category: "vetement", brand: "Zara", keywords: [] }` → 5 vêtements aléatoires sont retournés et la notification "Nouvel acheteur trouvé !" est dispatchée à tous les vendeurs de ces 5 articles non pertinents.
 
-### C. Captures annotées
-- PNGs sous `/mnt/documents/waouh-screenshots/01..16_*.png`
-- Index `/mnt/documents/waouh-screenshots/README.md` reliant chaque capture à la section correspondante du doc
+### Plan de correction
 
-### D. Prompt nowa.dev clé-en-main
-`/mnt/documents/nowa-prompt-waouh.md` (~6–8 k mots), structure :
+**Objectif** : ne jamais lancer une recherche "ouverte" et toujours inclure les tokens significatifs du message brut.
 
-1. Contexte produit & utilisateurs (FR + FCFA + Bénin)
-2. Stack imposée (React/TS, Supabase, edge functions Deno, WAHA, Gemini)
-3. Modèle de données complet (DDL résumé pour 12 tables clés)
-4. Spécification fonctionnelle par module (Chat, MatchChatList multi-fenêtres v12, MatchChatWindow, Notifications, Statuts, Modals Vendre/Acheter/Négocier, Paiement, Partenaire)
-5. Contrats payload exacts (JSON in/out) pour chaque edge function
-6. Règles de matching `matchKey` + propagation `counterpart_user_id`
-7. RLS + grants
-8. UI/UX (mobile-first, `max-h-[100dvh]`, FR/Fon/Yoruba)
-9. Critères d'acceptation testables
-10. Diagrammes Mermaid embarqués
+1. **Helper partagé `extractFallbackKeywords(text)`** dans `supabase/functions/_shared/waouh-keywords.ts`
+   - Tokenise le message, retire stop-words FR (`je`, `cherche`, `recherche`, `besoin`, `acheter`, `un`, `une`, `des`, `pour`, `de`, `à`, `le`, `la`, …) et chiffres seuls.
+   - Garde tokens ≥ 3 caractères, normalise casse et accents.
+   - Retourne max 6 tokens.
 
-## 4. Détails techniques
+2. **`waouh-webhook/index.ts` (branche BUY, ~ligne 830)**
+   - Construire `const finalKws = kws.length > 0 ? kws : extractFallbackKeywords(text);`
+   - Si `finalKws.length === 0` ET pas de `criteriaCategory` ciblée → `reply = "🤔 Précisez votre recherche (ex: « je cherche iPhone 12 à Cotonou »)"` et retourner SANS dispatcher de matches ni notifications.
+   - Sinon utiliser `finalKws` dans les 4 OR-filtres (articles, unified_catalog, radar_signals, external_listings).
+   - Ajouter `brand.ilike` au OR-filter du `waouh_unified_catalog` (actuellement absent).
 
-- Réutiliser le harness Playwright décrit dans `<browser-use>` (viewport, secrets non loggés, screenshots sous `/tmp/browser/...`).
-- Logger les payloads réseau via `page.on("request")` filtré sur `supabase.co/functions/v1/waouh-*` et `rest/v1/waouh_*`, dump JSON anonymisé dans `/tmp/browser/waouh-audit/payloads/`.
-- Si la connexion échoue (2FA, captcha, OTP WhatsApp), basculer en analyse code-seule pour cette section et signaler dans le doc.
-- Aucune publication d'annonce ni de statut réel (lecture pure : remplir les modals jusqu'à l'aperçu du payload, fermer sans submit).
-- Aucun secret affiché dans les livrables.
+3. **`waouh-buy-handler/index.ts` (lignes 103-107)**
+   - Même fallback : si `q.keywords` est vide, réutiliser `extractFallbackKeywords(message)` avant le `.filter(...)`.
+   - Si toujours vide après fallback → retourner `matches: []` au lieu de retourner les 20 premiers articles.
 
-## Hors périmètre
+4. **Garde "tous-articles" en dernier rempart** dans la branche BUY du webhook : si `finalKws.length === 0 && !criteriaCategory && !criteria.price_max` → ne PAS exécuter la query, court-circuit immédiat avec message d'incitation à préciser. Empêche tout dispatch de notifications non sollicitées.
 
-- Pas de modification de code applicatif.
-- Pas de migration DB.
-- Pas de refactor des fenêtres WAOUH (mémoire `waouh-chat-sync-flow-locked-v12` verrouillée).
-- Pas de publication du site.
+5. **Logs de diagnostic** (1 ligne `console.log("[BUY]", { text, criteria, finalKws, totalCount })`) pour vérifier dans les Edge Function logs après déploiement.
+
+6. **Test de validation post-déploiement**
+   - `je cherche Zara` → finalKws=["zara"] → filtre `title/brand/description ilike %zara%` → 0 ou N résultats *réellement* liés à Zara.
+   - `je cherche iPhone 12` → finalKws=["iphone","12"] (le "12" passe car ≥3 caractères seulement, donc en réalité kws=["iphone"]) → résultats iPhone.
+   - `je cherche` (sans rien) → court-circuit, message d'incitation, aucune notification dispatchée.
+   - Vérifier via `supabase__edge_function_logs` qu'aucune notif `kind=match` n'est envoyée sur les cas vides.
+
+### Hors-scope (à ne PAS toucher)
+
+- `waouh-chat-sync-flow-locked-v12` (matchKey, counterpart_user_id, fenêtres multi-acheteurs) — non concerné par ce bug.
+- Schéma DB, RLS, edge functions de négociation / partenaire / radar.
+- UI `WaouhWebChat` / `WaouhMatchChatWindow` — la correction est 100 % côté backend (3 fichiers : 1 helper neuf + 2 edge functions patchées).
