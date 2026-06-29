@@ -136,12 +136,15 @@ Deno.serve(async (req) => {
       try {
         await sb.from("waouh_notifications").insert({
           user_id: target.id,
-          type: eventType,
-          title: eventType === "negotiation_counter"
-            ? "💬 Nouvelle offre"
-            : "❌ Négociation fermée",
-          body: directText.length > 180 ? directText.slice(0, 177) + "…" : directText,
+          notification_type: eventType,
+          article_id: (payload as any)?.article_id ?? null,
+          web_session_id: target.web_session_id ?? null,
+          channel: outboundPhone ? "whatsapp" : "web",
+          delivery_status: "queued",
+          dedupe_key: dedupeKey,
           payload: {
+            title: eventType === "negotiation_counter" ? "💬 Nouvelle offre" : "❌ Négociation fermée",
+            body: directText.length > 180 ? directText.slice(0, 177) + "…" : directText,
             article_id: (payload as any)?.article_id ?? null,
             negotiation_id: (payload as any)?.neg_id ?? (directMeta as any)?.negotiation_id ?? null,
             counterpart_user_id: (payload as any)?.from_user_id ?? null,
@@ -149,10 +152,7 @@ Deno.serve(async (req) => {
             message_id: insertedMsgId,
             offer: (payload as any)?.offer ?? null,
             transaction_id: transactionId,
-            dedupe_key: dedupeKey,
           },
-          dedupe_key: dedupeKey,
-          read_at: null,
         });
       } catch (e) {
         // Ignorer doublon (unique dedupe_key) — comportement attendu
