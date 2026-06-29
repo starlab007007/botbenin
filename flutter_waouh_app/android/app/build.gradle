@@ -36,6 +36,15 @@ android {
         versionName = flutter.versionName
     }
 
+    packaging {
+        jniLibs {
+            // Reduces the downloadable TEST APK. Android extracts the native
+            // libraries at installation time; this is not used by default
+            // outside WAOUH_TEST_RELEASE=1.
+            useLegacyPackaging = testReleaseWithDebugCertificate
+        }
+    }
+
     signingConfigs {
         create("release") {
             if (keystorePropertiesFile.exists()) {
