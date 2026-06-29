@@ -48,13 +48,23 @@ android {
 
     buildTypes {
         release {
-            if (!keystorePropertiesFile.exists()) {
-                throw new GradleException("Play release signing is required. Create android/key.properties from key.properties.example and use your own upload keystore.")
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
             }
-            signingConfig = signingConfigs.getByName("release")
             minifyEnabled false
             shrinkResources false
         }
+    }
+}
+
+// Debug APKs remain buildable without any private key. Release tasks are
+// rejected only when a release artifact is explicitly requested.
+gradle.taskGraph.whenReady { graph ->
+    final buildsRelease = graph.allTasks.any { task ->
+        task.name.toLowerCase().contains("release")
+    }
+    if (buildsRelease && !keystorePropertiesFile.exists()) {
+        throw new GradleException("Play release signing is required. Create android/key.properties from key.properties.example and use your own upload keystore.")
     }
 }
 
