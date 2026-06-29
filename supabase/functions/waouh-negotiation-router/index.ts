@@ -302,10 +302,15 @@ Deno.serve(async (req) => {
     }
 
 
+    // 🔑 from_user_id canonique = id stocké côté négo (buyer_user_id si je suis acheteur),
+    // pour que WaouhMatchChatWindow du destinataire range bien le message dans
+    // le bon onglet (group key = counterpart_user_id côté vendeur).
+    const canonicalFromUserId = isBuyer ? neg.buyer_user_id : neg.seller_user_id;
+
     if (intent.kind === "no") {
       await sb.from("waouh_negotiations").update({ state: "closed", last_actor: isBuyer ? "buyer" : "seller" }).eq("id", neg.id);
       if (otherUserId) {
-        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, article_id: neg.article_id, closed: true, from_user_id: user.id, target_role: isBuyer ? "seller" : "buyer" }, `❌ ${isBuyer ? "L'acheteur" : "Le vendeur"} a refusé. Négociation clôturée.`, { intent: "negotiation_closed", negotiation_id: neg.id, article_id: neg.article_id }, null, [], `neg:${neg.id}:closed:${otherUserId}`, "negotiation_closed");
+        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, article_id: neg.article_id, closed: true, from_user_id: canonicalFromUserId, target_role: isBuyer ? "seller" : "buyer" }, `❌ ${isBuyer ? "L'acheteur" : "Le vendeur"} a refusé. Négociation clôturée.`, { intent: "negotiation_closed", negotiation_id: neg.id, article_id: neg.article_id, counterpart_user_id: canonicalFromUserId }, null, [], `neg:${neg.id}:closed:${otherUserId}`, "negotiation_closed");
       }
       return new Response(JSON.stringify({ ok: true, reply: "OK, négociation fermée. Merci !" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -322,9 +327,9 @@ Deno.serve(async (req) => {
       }
       if (otherUserId) {
         await pushToOther(otherUserId, "negotiation_open",
-          { neg_id: neg.id, article_id: neg.article_id, offer: intent.price, transaction_id: neg.transaction_id, from_user_id: user.id, target_role: isBuyer ? "seller" : "buyer" },
+          { neg_id: neg.id, article_id: neg.article_id, offer: intent.price, transaction_id: neg.transaction_id, from_user_id: canonicalFromUserId, target_role: isBuyer ? "seller" : "buyer" },
           `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(intent.price)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant ( Ex: je propose ${fmt(intent.price)} CFA).`,
-          { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: neg.transaction_id, article_id: neg.article_id },
+          { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: neg.transaction_id, article_id: neg.article_id, counterpart_user_id: canonicalFromUserId },
           neg.transaction_id,
           negotiationActions(neg.id),
           `neg:${neg.id}:offer:${intent.price}:${otherUserId}`,
