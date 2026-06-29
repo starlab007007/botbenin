@@ -8,7 +8,6 @@ fail() { echo "TEST APK BLOCKED: $1" >&2; exit 1; }
 command -v flutter >/dev/null || fail "Flutter absent du PATH."
 command -v python3 >/dev/null || fail "Python 3 absent."
 command -v unzip >/dev/null || fail "unzip absent."
-command -v strings >/dev/null || fail "strings absent."
 
 test -f lib/live/live_app.dart || fail "Cible Flutter live absente."
 grep -q '^name: waouh_app_native$' pubspec.yaml || fail "Mauvais projet Flutter."
@@ -16,6 +15,10 @@ grep -q 'applicationId = "bj.bot.waouhapp"' android/app/build.gradle || fail "Id
 
 if [ -n "${ANDROID_HOME:-}" ] && [ ! -d "$ANDROID_HOME/platforms/android-36" ]; then
   fail "Installez platform android-36 et build-tools 36.0.0 avec sdkmanager."
+fi
+
+if grep -R -nE 'Flutter Demo Home Page|_incrementCounter|You have pushed the button' lib >/dev/null 2>&1; then
+  fail "Le template Flutter Demo est encore présent dans lib/."
 fi
 
 # Flutter requires every installable APK to carry a signature. This test build
@@ -72,8 +75,7 @@ flutter build apk --debug --target lib/live/live_app.dart --split-per-abi
 
 APK="build/app/outputs/flutter-apk/app-arm64-v8a-debug.apk"
 test -f "$APK" || fail "APK debug ARM64 absent."
-unzip -p "$APK" lib/arm64-v8a/libapp.so > "$TMP/libapp.so"
-strings "$TMP/libapp.so" | grep -q 'Flutter Demo Home Page' && fail "APK Flutter Demo detecte."
+unzip -l "$APK" | grep -q 'lib/arm64-v8a/libflutter.so' || fail "Bibliothèque ARM64 Flutter absente de l'APK."
 
 mkdir -p test-apks
 cp "$APK" test-apks/WaouhApp-arm64-test-debug.apk
