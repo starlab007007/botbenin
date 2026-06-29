@@ -134,6 +134,14 @@ Deno.serve(async (req) => {
     // Sans ça, la cloche ne sonne que pour deal_accepted (via deal-dispatch).
     if (eventType && (eventType === "negotiation_counter" || eventType === "negotiation_closed")) {
       try {
+        // Idempotence applicative (pas de UNIQUE en BDD sur dedupe_key)
+        if (dedupeKey) {
+          const { data: existingNotif } = await sb.from("waouh_notifications")
+            .select("id").eq("user_id", target.id).eq("dedupe_key", dedupeKey).limit(1).maybeSingle();
+          if (existingNotif?.id) {
+            return;
+          }
+        }
         await sb.from("waouh_notifications").insert({
           user_id: target.id,
           notification_type: eventType,
@@ -155,9 +163,7 @@ Deno.serve(async (req) => {
           },
         });
       } catch (e) {
-        // Ignorer doublon (unique dedupe_key) — comportement attendu
-        const code = (e as any)?.code;
-        if (code !== "23505") console.warn("[neg-router] notif insert", e);
+        console.warn("[neg-router] notif insert", e);
       }
     }
   }
