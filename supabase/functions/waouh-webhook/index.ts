@@ -1375,9 +1375,9 @@ serve(async (req) => {
           await pushToOther({
             to_user_id: otherId,
             template: "negotiation_open",
-            payload: { neg_id: neg.id, article_id: neg.article_id, offer: amount, price: amount, actions: [], target_role: isBuyer ? "seller" : "buyer", from_user_id: user!.id },
+            payload: { neg_id: neg.id, article_id: neg.article_id, offer: amount, price: amount, actions: [], target_role: isBuyer ? "seller" : "buyer", from_user_id: isBuyer ? neg.buyer_user_id : neg.seller_user_id },
             directText: counterText,
-            directMeta: { intent: "negotiation_open", negotiation_id: neg.id, article_id: neg.article_id },
+            directMeta: { intent: "negotiation_open", negotiation_id: neg.id, article_id: neg.article_id, counterpart_user_id: isBuyer ? neg.buyer_user_id : neg.seller_user_id },
             transaction_id: null,
             dedupe_key: `neg:${neg.id}:offer:${amount}:${otherId}`,
             event_type: "negotiation_counter",
