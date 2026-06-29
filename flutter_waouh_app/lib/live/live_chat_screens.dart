@@ -30,7 +30,6 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
   @override
   void initState() {
     super.initState();
-    composer.addListener(_refreshComposer);
     _messageStream = context.read<LiveWaouhController>().mainMessages();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final controller = context.read<LiveWaouhController>();
@@ -43,15 +42,9 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
 
   @override
   void dispose() {
-    composer
-      ..removeListener(_refreshComposer)
-      ..dispose();
+    composer.dispose();
     composerFocus.dispose();
     super.dispose();
-  }
-
-  void _refreshComposer() {
-    if (mounted) setState(() {});
   }
 
   Future<void> _attach(ImageSource source) async {
