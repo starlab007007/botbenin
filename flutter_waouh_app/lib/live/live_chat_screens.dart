@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
@@ -7,6 +9,7 @@ import '../main.dart' as legacy;
 import 'live_controller.dart';
 import 'live_models.dart';
 import 'live_sell_sheet.dart';
+import 'live_smart_timeline.dart';
 import 'live_widgets.dart';
 
 class LiveMainChatScreen extends StatefulWidget {
@@ -18,26 +21,37 @@ class LiveMainChatScreen extends StatefulWidget {
 
 class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
   final composer = TextEditingController();
+  final composerFocus = FocusNode();
   final attachments = <LiveAttachment>[];
+  final optimistic = <LiveMessage>[];
   Map<String, dynamic> pendingMeta = const {};
-  bool sending = false;
+  late final Stream<List<LiveMessage>> _messageStream;
 
   @override
   void initState() {
     super.initState();
+    composer.addListener(_refreshComposer);
+    _messageStream = context.read<LiveWaouhController>().mainMessages();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final controller = context.read<LiveWaouhController>();
       final seed = controller.takeComposerSeed();
       final meta = controller.takeComposerMeta();
       if (seed != null) composer.text = seed;
-      if (meta.isNotEmpty) setState(() => pendingMeta = meta);
+      if (meta.isNotEmpty && mounted) setState(() => pendingMeta = meta);
     });
   }
 
   @override
   void dispose() {
-    composer.dispose();
+    composer
+      ..removeListener(_refreshComposer)
+      ..dispose();
+    composerFocus.dispose();
     super.dispose();
+  }
+
+  void _refreshComposer() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _attach(ImageSource source) async {
@@ -47,13 +61,24 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
       final item = await context.read<LiveWaouhController>().uploadChatImage(file);
       if (mounted) setState(() => attachments.add(item));
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+      if (mounted) _notice(error.toString());
     }
   }
 
-  Future<void> _openSellForm() => Navigator.of(context).push(
-    MaterialPageRoute(fullscreenDialog: true, builder: (_) => const LiveSellSheet()),
-  );
+  Future<void> _openSellForm() => Navigator.of(context).push(MaterialPageRoute(fullscreenDialog: true, builder: (_) => const LiveSellSheet()));
+
+  Future<void> _newChat() async {
+    await context.read<LiveWaouhController>().startNewChat();
+    if (!mounted) return;
+    setState(() {
+      composer.clear();
+      attachments.clear();
+      optimistic.clear();
+      pendingMeta = const {};
+    });
+    composerFocus.requestFocus();
+    _notice('Nouvelle conversation WAOUH commencée.', success: true);
+  }
 
   Future<void> _handlePayload(String payload) async {
     final command = payload.trim().toLowerCase();
@@ -62,35 +87,95 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
       return;
     }
     if (command == 'buy' || command == 'acheter' || command.contains('cherche')) {
-      setState(() => composer.text = composer.text.trim().isEmpty ? 'Je cherche ' : composer.text);
+      composer.text = composer.text.trim().isEmpty ? 'Je cherche ' : composer.text;
+      composerFocus.requestFocus();
       return;
     }
     if (command == 'negotiate' || command == 'négocier' || command == 'negocier') {
-      setState(() => composer.text = composer.text.trim().isEmpty ? 'Je propose  FCFA pour ' : composer.text);
+      composer.text = composer.text.trim().isEmpty ? 'Je propose  FCFA pour ' : composer.text;
+      composerFocus.requestFocus();
       return;
     }
-    await _send(payload);
+    _send(payload);
   }
 
-  Future<void> _send([String? payload]) async {
-    if (sending) return;
+  void _send([String? payload]) {
+    final controller = context.read<LiveWaouhController>();
     final text = (payload ?? composer.text).trim();
     final files = List<LiveAttachment>.from(attachments);
     final meta = Map<String, dynamic>.from(pendingMeta);
     if (payload != null && payload.trim().isNotEmpty) meta['button_payload'] = payload.trim();
     if (text.isEmpty && files.isEmpty) return;
-    setState(() { sending = true; composer.clear(); attachments.clear(); pendingMeta = const {}; });
+
+    final local = LiveMessage(
+      id: 'client_${DateTime.now().microsecondsSinceEpoch}',
+      text: text,
+      createdAt: DateTime.now(),
+      direction: 'in',
+      attachments: files,
+      meta: {...meta, 'delivery_state': controller.isOnline ? 'sending' : 'queued'},
+    );
+    setState(() {
+      optimistic.add(local);
+      composer.clear();
+      attachments.clear();
+      pendingMeta = const {};
+    });
+    composerFocus.requestFocus();
+    unawaited(_deliver(local, meta));
+  }
+
+  Future<void> _deliver(LiveMessage local, Map<String, dynamic> meta) async {
     try {
-      await context.read<LiveWaouhController>().sendMain(text: text, attachments: files, meta: meta);
+      await context.read<LiveWaouhController>().sendMain(text: local.text, attachments: local.attachments, meta: meta);
+      _replaceDelivery(local.id, context.read<LiveWaouhController>().isOnline ? 'sent' : 'queued');
     } catch (error) {
-      composer.text = text;
+      _replaceDelivery(local.id, 'failed');
       if (mounted) {
-        setState(() { attachments.addAll(files); pendingMeta = meta; });
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: const Text('Message non envoyé.'),
+          action: SnackBarAction(label: 'Réessayer', onPressed: () => _retry(local, meta)),
+        ));
       }
-    } finally {
-      if (mounted) setState(() => sending = false);
     }
+  }
+
+  void _retry(LiveMessage local, Map<String, dynamic> meta) {
+    _replaceDelivery(local.id, 'sending');
+    unawaited(_deliver(local, meta));
+  }
+
+  void _replaceDelivery(String id, String delivery) {
+    if (!mounted) return;
+    final index = optimistic.indexWhere((item) => item.id == id);
+    if (index < 0) return;
+    final item = optimistic[index];
+    setState(() {
+      optimistic[index] = LiveMessage(
+        id: item.id,
+        text: item.text,
+        createdAt: item.createdAt,
+        direction: item.direction,
+        conversationId: item.conversationId,
+        articleId: item.articleId,
+        attachments: item.attachments,
+        meta: {...item.meta, 'delivery_state': delivery},
+      );
+    });
+  }
+
+  List<LiveMessage> _visibleMessages(List<LiveMessage> remote) {
+    final localOnly = optimistic.where((local) => !remote.any((server) =>
+        server.outgoing &&
+        server.text.trim() == local.text.trim() &&
+        server.attachments.length == local.attachments.length &&
+        server.createdAt.difference(local.createdAt).inSeconds.abs < 120)).toList();
+    final merged = [...remote, ...localOnly]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return merged;
+  }
+
+  void _notice(String text, {bool success = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(backgroundColor: success ? legacy.WaouhColors.green : null, content: Text(text)));
   }
 
   @override
@@ -100,29 +185,34 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
     return Scaffold(
       appBar: LiveHeader(
         title: 'WAOUH',
-        subtitle: auth.profile?.fullName == null ? 'Achetez · Vendez · Négociez' : 'Bonjour ${auth.profile!.fullName!.split(' ').first}',
+        subtitle: auth.profile?.fullName == null ? 'Assistant de recherche et de vente' : 'Bonjour ${auth.profile!.fullName!.split(' ').first}',
         back: true,
         actions: [
-          IconButton(onPressed: () => context.go('/app/notifications'), icon: const Icon(Icons.notifications_none_rounded)),
-          IconButton(onPressed: () async { await controller.startNewChat(); if (mounted) setState(() { composer.clear(); attachments.clear(); pendingMeta = const {}; }); }, icon: const Icon(Icons.add_rounded)),
-          IconButton(onPressed: () => context.go('/app/profile'), icon: const Icon(Icons.person_outline)),
+          TextButton.icon(
+            onPressed: _newChat,
+            icon: const Icon(Icons.edit_square_rounded, size: 18),
+            label: const Text('Nouveau'),
+            style: TextButton.styleFrom(foregroundColor: Colors.white, textStyle: const TextStyle(fontWeight: FontWeight.w800)),
+          ),
+          IconButton(tooltip: 'Notifications', onPressed: () => context.go('/app/notifications'), icon: const Icon(Icons.notifications_none_rounded)),
         ],
       ),
       body: Column(children: [
-        Expanded(child: StreamBuilder<List<LiveMessage>>(
-          stream: controller.mainMessages(),
-          builder: (_, snapshot) {
-            final messages = snapshot.data ?? const <LiveMessage>[];
-            if (messages.isEmpty) {
-              return const Center(child: Padding(padding: EdgeInsets.all(28), child: Text('Bonjour !\nUtilisez Vendre pour publier une annonce, ou écrivez « Je cherche ».', textAlign: TextAlign.center, style: TextStyle(fontSize: 17, color: legacy.WaouhColors.muted))));
-            }
-            return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: messages.length,
-              itemBuilder: (_, index) => LiveMessageBubble(message: messages[index], onPayload: _handlePayload),
-            );
-          },
-        )),
+        Expanded(
+          child: StreamBuilder<List<LiveMessage>>(
+            stream: _messageStream,
+            builder: (_, snapshot) {
+              final messages = _visibleMessages(snapshot.data ?? const <LiveMessage>[]);
+              final waiting = optimistic.any((item) => item.meta['delivery_state'] == 'sending');
+              return LiveSmartTimeline(
+                messages: messages,
+                onPayload: _handlePayload,
+                showAssistantHint: waiting,
+                emptyMessage: 'Bonjour !\nUtilisez Vendre pour publier une annonce, ou écrivez « Je cherche ».',
+              );
+            },
+          ),
+        ),
         if (pendingMeta.isNotEmpty)
           Container(
             width: double.infinity,
@@ -140,28 +230,43 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
           height: 58,
           child: ListView(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), children: [
             _quick('Vendre', Icons.shopping_bag_outlined, _openSellForm),
-            _quick('Acheter', Icons.search_rounded, () => setState(() => composer.text = 'Je cherche ')),
-            _quick('Négocier', Icons.handshake_outlined, () => setState(() => composer.text = 'Je propose  FCFA pour ')),
+            _quick('Acheter', Icons.search_rounded, () { composer.text = 'Je cherche '; composerFocus.requestFocus(); }),
+            _quick('Négocier', Icons.handshake_outlined, () { composer.text = 'Je propose  FCFA pour '; composerFocus.requestFocus(); }),
             _quick('GPS', Icons.my_location, () async {
               await controller.useDeviceLocation();
               if (!mounted) return;
               final position = controller.position;
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(position.available ? 'Position ajoutée au prochain message.' : (position.errorMessage ?? 'Position GPS indisponible.'))));
+              _notice(position.available ? 'Position ajoutée au prochain message.' : (position.errorMessage ?? 'Position GPS indisponible.'));
             }),
           ]),
         ),
         LiveAttachmentStrip(items: attachments, onRemove: (item) => setState(() => attachments.remove(item))),
-        SafeArea(top: false, child: Container(
-          padding: const EdgeInsets.fromLTRB(8, 6, 8, 9),
-          color: Colors.white,
-          child: Row(children: [
-            IconButton(onPressed: () => _attach(ImageSource.camera), icon: const Icon(Icons.camera_alt_outlined)),
-            IconButton(onPressed: () => _attach(ImageSource.gallery), icon: const Icon(Icons.attach_file_rounded)),
-            Expanded(child: TextField(controller: composer, minLines: 1, maxLines: 4, textInputAction: TextInputAction.send, onSubmitted: (_) => _send(), decoration: const InputDecoration(hintText: 'Votre message...'))),
-            const SizedBox(width: 6),
-            FilledButton(style: FilledButton.styleFrom(minimumSize: const Size(52, 52), padding: EdgeInsets.zero), onPressed: sending ? null : _send, child: sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.send_rounded)),
-          ]),
-        )),
+        SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(8, 6, 8, 9),
+            color: Colors.white,
+            child: Row(children: [
+              IconButton(tooltip: 'Prendre une photo', onPressed: () => _attach(ImageSource.camera), icon: const Icon(Icons.camera_alt_outlined)),
+              IconButton(tooltip: 'Joindre une image', onPressed: () => _attach(ImageSource.gallery), icon: const Icon(Icons.attach_file_rounded)),
+              Expanded(child: TextField(
+                controller: composer,
+                focusNode: composerFocus,
+                minLines: 1,
+                maxLines: 4,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => _send(),
+                decoration: const InputDecoration(hintText: 'Écrivez à WAOUH...'),
+              )),
+              const SizedBox(width: 6),
+              FilledButton(
+                style: FilledButton.styleFrom(minimumSize: const Size(52, 52), padding: EdgeInsets.zero),
+                onPressed: _send,
+                child: const Icon(Icons.send_rounded),
+              ),
+            ]),
+          ),
+        ),
       ]),
     );
   }
@@ -175,30 +280,73 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
 class LiveConversationScreen extends StatefulWidget {
   const LiveConversationScreen({super.key, required this.conversationId});
   final String conversationId;
+
   @override
   State<LiveConversationScreen> createState() => _LiveConversationScreenState();
 }
 
 class _LiveConversationScreenState extends State<LiveConversationScreen> {
   final composer = TextEditingController();
-  bool sending = false;
+  final focus = FocusNode();
+  final optimistic = <LiveMessage>[];
+  late final Stream<List<LiveMessage>> _messages;
+
   @override
-  void dispose() { composer.dispose(); super.dispose(); }
+  void initState() {
+    super.initState();
+    _messages = context.read<LiveWaouhController>().conversationMessages(widget.conversationId);
+  }
+
+  @override
+  void dispose() { composer.dispose(); focus.dispose(); super.dispose(); }
+
+  void _send() {
+    final text = composer.text.trim();
+    if (text.isEmpty) return;
+    final local = LiveMessage(id: 'client_${DateTime.now().microsecondsSinceEpoch}', text: text, createdAt: DateTime.now(), direction: 'in', conversationId: widget.conversationId, meta: const {'delivery_state': 'sending'});
+    setState(() { optimistic.add(local); composer.clear(); });
+    focus.requestFocus();
+    unawaited(_deliver(local));
+  }
+
+  Future<void> _deliver(LiveMessage local) async {
+    try {
+      await context.read<LiveWaouhController>().sendConversation(widget.conversationId, local.text);
+      _setDelivery(local.id, 'sent');
+    } catch (_) {
+      _setDelivery(local.id, 'failed');
+    }
+  }
+
+  void _setDelivery(String id, String value) {
+    if (!mounted) return;
+    final index = optimistic.indexWhere((item) => item.id == id);
+    if (index < 0) return;
+    final item = optimistic[index];
+    setState(() => optimistic[index] = LiveMessage(id: item.id, text: item.text, createdAt: item.createdAt, direction: item.direction, conversationId: item.conversationId, attachments: item.attachments, meta: {...item.meta, 'delivery_state': value}));
+  }
+
+  List<LiveMessage> _merge(List<LiveMessage> remote) {
+    final extra = optimistic.where((local) => !remote.any((item) => item.outgoing && item.text.trim() == local.text.trim() && item.createdAt.difference(local.createdAt).inSeconds.abs < 120));
+    return [...remote, ...extra]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  }
 
   @override
   Widget build(BuildContext context) {
-    final controller = context.watch<LiveWaouhController>();
     return Scaffold(
-      appBar: const LiveHeader(title: 'Discussion', subtitle: 'WAOUH', back: true),
+      appBar: const LiveHeader(title: 'Discussion', subtitle: 'Conversation produit', back: true),
       body: Column(children: [
         Expanded(child: StreamBuilder<List<LiveMessage>>(
-          stream: controller.conversationMessages(widget.conversationId),
-          builder: (_, snapshot) => ListView.builder(padding: const EdgeInsets.all(16), itemCount: (snapshot.data ?? const []).length, itemBuilder: (_, i) => LiveMessageBubble(message: snapshot.data![i])),
+          stream: _messages,
+          builder: (_, snapshot) => LiveSmartTimeline(messages: _merge(snapshot.data ?? const <LiveMessage>[]), emptyMessage: 'Commencez la discussion.'),
         )),
-        SafeArea(top: false, child: Row(children: [
-          Expanded(child: TextField(controller: composer, decoration: const InputDecoration(hintText: 'Votre réponse...'))),
-          IconButton(onPressed: sending ? null : () async { final text = composer.text; if (text.trim().isEmpty) return; setState(() => sending = true); composer.clear(); try { await controller.sendConversation(widget.conversationId, text); } catch (error) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error'))); } finally { if (mounted) setState(() => sending = false); } }, icon: const Icon(Icons.send_rounded)),
-        ])),
+        SafeArea(
+          top: false,
+          child: Row(children: [
+            Expanded(child: TextField(controller: composer, focusNode: focus, minLines: 1, maxLines: 4, textInputAction: TextInputAction.send, onSubmitted: (_) => _send(), decoration: const InputDecoration(hintText: 'Votre réponse...'))),
+            IconButton(tooltip: 'Envoyer', onPressed: _send, icon: const Icon(Icons.send_rounded)),
+          ]),
+        ),
       ]),
     );
   }
