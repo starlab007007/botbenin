@@ -10,6 +10,7 @@ import {
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 import { findRadarOutreachContext, findRadarSellerOutreachContext } from "../_shared/waouh-radar.ts";
+import { extractFallbackKeywords } from "../_shared/waouh-keywords.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -821,22 +822,40 @@ serve(async (req) => {
         text
       );
       const criteriaCategory = normalizeCategory(criteria.category || text);
+      const rawKws: string[] = Array.isArray(criteria.keywords) ? criteria.keywords.filter((k: any) => typeof k === "string" && k.length > 1) : [];
+      // Fallback: si l'IA n'a rien extrait, on tokenise le message brut pour
+      // éviter de retourner toute la base. "je cherche Zara" -> ["zara"].
+      const kws: string[] = rawKws.length > 0 ? rawKws : extractFallbackKeywords(text);
+      console.log("[BUY]", { text, ai_keywords: rawKws, kws, category: criteriaCategory, price_max: criteria.price_max });
+
+      // Garde anti-recherche-ouverte: aucun token significatif ET aucune catégorie
+      // ET aucun prix -> court-circuit, on demande de préciser. Empêche le
+      // dispatch de notifications "Nouvel acheteur" non sollicitées.
+      if (kws.length === 0 && !criteriaCategory && !criteria.price_max) {
+        reply = `🤔 Pour mieux vous aider, précisez votre recherche.\n\nEx :\n• « je cherche iPhone 12 à Cotonou »\n• « je cherche un sac Zara »\n• « je cherche un canapé moins de 50000 FCFA »`;
+        nextContext = { ...nextContext, last_matches: [] };
+        returnedActions = [];
+        // skip toute la suite (queries + dispatch radar)
+        // en sortant proprement de la branche BUY via un flag
+        (intent as any).__short_circuit = true;
+      }
       // Recherche filtrée
       let q = sb.from("waouh_articles")
         .select("id,title,price,city,brand,condition,category,seller_id,photos,market_price_min,market_price_max")
         .eq("status", "active");
       if (criteriaCategory) q = q.eq("category", criteriaCategory);
       if (criteria.price_max) q = q.lte("price", criteria.price_max);
-      const kws: string[] = Array.isArray(criteria.keywords) ? criteria.keywords.filter((k: any) => typeof k === "string" && k.length > 1) : [];
       if (kws.length > 0) {
         const orFilter = kws.map((k) => `title.ilike.%${k}%,brand.ilike.%${k}%,description.ilike.%${k}%`).join(",");
         q = q.or(orFilter);
       }
-      const { data: matches } = await q.order("created_at", { ascending: false }).limit(5);
+      const { data: matches } = (intent as any).__short_circuit
+        ? { data: [] as any[] }
+        : await q.order("created_at", { ascending: false }).limit(5);
 
       // 🏪 Recherche dans le Catalogue Unifié (produits partenaires + chat + radar)
       let partnerMatches: any[] = [];
-      try {
+      if (!(intent as any).__short_circuit) try {
         let pq = sb.from("waouh_unified_catalog")
           .select("id,titre,description,categorie,prix_min,prix_max,ville,quartier,vendeur_nom,vendeur_phone,vendeur_whatsapp,photos,source,partner_id,business_id")
           .eq("type", "offer")
@@ -856,7 +875,7 @@ serve(async (req) => {
 
       // 🛰️ Radar IA: chercher aussi des signaux SELL (annonces externes captées)
       let radarSellers: any[] = [];
-      try {
+      if (!(intent as any).__short_circuit) try {
         let rq = sb.from("waouh_radar_signals")
           .select("id,product,category,price,city,contact_phone,contact_handle,raw_url,raw_text")
           .eq("intent", "SELL");
@@ -873,7 +892,7 @@ serve(async (req) => {
       // 🛰️ SerpAPI / annonces externes (waouh_external_listings) — non promues encore.
       // Normalisées au même schéma que radarSellers pour la suite du pipeline.
       let externalListings: any[] = [];
-      try {
+      if (!(intent as any).__short_circuit) try {
         let eq = sb.from("waouh_external_listings")
           .select("id,title,description,category,price,city,seller_phone,seller_name,image_url,source_url,promoted_article_id")
           .eq("status", "active")
@@ -918,7 +937,9 @@ serve(async (req) => {
       });
 
       const totalCount = (matches?.length || 0) + radarSellers.length + partnerMatches.length;
-      if (totalCount === 0) {
+      if ((intent as any).__short_circuit) {
+        // reply déjà défini ci-dessus (message de précision). Skip totalement le rendu.
+      } else if (totalCount === 0) {
         reply = `🔍 Aucune annonce ne correspond pour l'instant. Profil sauvegardé : vous serez notifié dès qu'un vendeur publie un produit correspondant !`;
         nextContext = { ...nextContext, last_matches: [] };
       } else {
