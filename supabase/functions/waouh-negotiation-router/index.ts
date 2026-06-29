@@ -130,6 +130,36 @@ Deno.serve(async (req) => {
         p_event_type: eventType,
       });
     } catch (e) { console.warn("[neg-router] enqueue", e); }
+    // 🔔 Cloche de notification chez le destinataire (contre-offre / refus).
+    // Sans ça, la cloche ne sonne que pour deal_accepted (via deal-dispatch).
+    if (eventType && (eventType === "negotiation_counter" || eventType === "negotiation_closed")) {
+      try {
+        await sb.from("waouh_notifications").insert({
+          user_id: target.id,
+          type: eventType,
+          title: eventType === "negotiation_counter"
+            ? "💬 Nouvelle offre"
+            : "❌ Négociation fermée",
+          body: directText.length > 180 ? directText.slice(0, 177) + "…" : directText,
+          payload: {
+            article_id: (payload as any)?.article_id ?? null,
+            negotiation_id: (payload as any)?.neg_id ?? (directMeta as any)?.negotiation_id ?? null,
+            counterpart_user_id: (payload as any)?.from_user_id ?? null,
+            buyer_user_id: (payload as any)?.from_user_id ?? null,
+            message_id: insertedMsgId,
+            offer: (payload as any)?.offer ?? null,
+            transaction_id: transactionId,
+            dedupe_key: dedupeKey,
+          },
+          dedupe_key: dedupeKey,
+          read_at: null,
+        });
+      } catch (e) {
+        // Ignorer doublon (unique dedupe_key) — comportement attendu
+        const code = (e as any)?.code;
+        if (code !== "23505") console.warn("[neg-router] notif insert", e);
+      }
+    }
   }
 
   try {
