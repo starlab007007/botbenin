@@ -517,6 +517,104 @@ async function runWhatsAppFull(
 }
 
 // ============================================================
+// NEGOTIATION ROUTER MODE — exerce waouh-negotiation-router pour A/B/C
+// et vérifie:
+//  1) réponse OK + montant détecté (price/yes/no/other)
+//  2) waouh_messages côté destinataire avec meta.counterpart_user_id canonique
+//  3) waouh_notifications créée chez le destinataire (cloche)
+// ============================================================
+type NegScenario = "A" | "B" | "C";
+
+async function runNegotiationRouterScenario(sb: any, sc: NegScenario) {
+  const ts = Date.now();
+  const baseSeller = `229E2E${sc}NS${ts % 100000}`;
+  const baseBuyer = `229E2E${sc}NB${ts % 100000}`;
+  const steps: any[] = [];
+
+  // Identités selon scénario
+  const sellerIsApp = sc === "B";
+  const buyerIsApp = sc === "C";
+  const sellerInsert: any = { phone_number: baseSeller, display_name: `E2E NS ${sc}`, channel: "whatsapp" };
+  if (sellerIsApp) {
+    sellerInsert.web_session_id = `e2e-sess-seller-${sc}-${ts}`;
+    sellerInsert.auth_user_id = crypto.randomUUID();
+  }
+  const buyerInsert: any = { phone_number: baseBuyer, display_name: `E2E NB ${sc}`, channel: "whatsapp" };
+  if (buyerIsApp) {
+    buyerInsert.web_session_id = `e2e-sess-buyer-${sc}-${ts}`;
+    buyerInsert.auth_user_id = crypto.randomUUID();
+  }
+  const { data: seller } = await sb.from("waouh_users").insert(sellerInsert).select("id").maybeSingle();
+  const { data: buyer } = await sb.from("waouh_users").insert(buyerInsert).select("id").maybeSingle();
+  if (!seller?.id || !buyer?.id) return { scenario: sc, status: "failed", steps: [{ step: "setup", status: "fail" }] };
+
+  const { data: art } = await sb.from("waouh_articles").insert({
+    seller_id: seller.id, title: `NegRouter E2E ${sc}`, category: "autre",
+    price: 10000, currency: "XOF", city: "Cotonou", status: "active",
+    origin: "chat", source_channel: sellerIsApp ? "waouh_app" : "whatsapp",
+    contact_whatsapp: baseSeller, photos: [],
+  }).select("id").maybeSingle();
+  const { data: neg } = await sb.from("waouh_negotiations").insert({
+    article_id: art!.id, buyer_user_id: buyer.id, seller_user_id: seller.id,
+    state: "proposed", last_offer_price: 10000, last_actor: "system",
+    meta: { e2e: true, scenario: sc },
+  }).select("id").maybeSingle();
+
+  // L'acheteur envoie "je propose 7000" via negotiation-router
+  const call1 = await callFn("waouh-negotiation-router", {
+    phone: baseBuyer, text: "je propose 7000", user_id: buyer.id,
+  });
+  steps.push({ step: "buyer_counter_7000", status: call1.ok && /7\s?000/.test(JSON.stringify(call1.json)) ? "ok" : "fail",
+    expected: "router returns 'Contre-offre 7 000 FCFA transmise'", got: JSON.stringify(call1.json).slice(0, 200) });
+
+  // Vérifier message destinataire (seller)
+  const { data: sellerMsg } = await sb.from("waouh_messages")
+    .select("id, meta, text").eq("user_id", seller.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const metaCp = sellerMsg?.meta?.counterpart_user_id ?? null;
+  steps.push({ step: "seller_msg_counterpart", status: metaCp === buyer.id ? "ok" : "fail",
+    expected: `meta.counterpart_user_id = ${buyer.id.slice(0,8)} (buyer)`,
+    got: `meta.counterpart_user_id = ${String(metaCp).slice(0,8) || "null"}` });
+
+  // Vérifier notification destinataire
+  const { data: sellerNotif } = await sb.from("waouh_notifications")
+    .select("id, notification_type, payload").eq("user_id", seller.id)
+    .eq("notification_type", "negotiation_counter").order("sent_at", { ascending: false }).limit(1).maybeSingle();
+  const notifCp = sellerNotif?.payload?.counterpart_user_id ?? null;
+  steps.push({ step: "seller_notif_created", status: sellerNotif?.id ? "ok" : "fail",
+    expected: "waouh_notifications row negotiation_counter created",
+    got: sellerNotif?.id ? `notif ${sellerNotif.id.slice(0,8)} cp=${String(notifCp).slice(0,8)}` : "none" });
+
+  // Le vendeur répond "8500" (nombre seul) → doit être détecté comme price
+  const call2 = await callFn("waouh-negotiation-router", {
+    phone: baseSeller, text: "8500", user_id: seller.id,
+  });
+  steps.push({ step: "seller_bare_8500", status: call2.ok && /8\s?500/.test(JSON.stringify(call2.json)) ? "ok" : "fail",
+    expected: "bare number '8500' detected as counter-offer", got: JSON.stringify(call2.json).slice(0, 200) });
+
+  const { data: buyerNotif } = await sb.from("waouh_notifications")
+    .select("id, payload").eq("user_id", buyer.id)
+    .eq("notification_type", "negotiation_counter").order("sent_at", { ascending: false }).limit(1).maybeSingle();
+  steps.push({ step: "buyer_notif_created", status: buyerNotif?.id ? "ok" : "fail",
+    expected: "buyer received negotiation_counter notif",
+    got: buyerNotif?.id ? `notif ${buyerNotif.id.slice(0,8)}` : "none" });
+
+  // L'acheteur dit OUI → deal créé
+  const call3 = await callFn("waouh-negotiation-router", {
+    phone: baseBuyer, text: "oui", user_id: buyer.id,
+  });
+  steps.push({ step: "buyer_yes", status: call3.ok && /deal_created|deal_already_accepted|Accord/i.test(JSON.stringify(call3.json)) ? "ok" : "fail",
+    expected: "deal created (intent=deal_created)", got: JSON.stringify(call3.json).slice(0, 200) });
+
+  const failed = steps.filter((s) => s.status === "fail").length;
+  return {
+    scenario: sc,
+    status: failed > 0 ? "failed" : "ok",
+    steps,
+    artifacts: { seller_id: seller.id, buyer_id: buyer.id, article_id: art?.id, negotiation_id: neg?.id },
+  };
+}
+
+// ============================================================
 // HTTP entrypoint
 // ============================================================
 Deno.serve(async (req) => {
@@ -524,9 +622,25 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const mode: "auto" | "whatsapp_full" = body.mode === "whatsapp_full" ? "whatsapp_full" : "auto";
+    const mode: "auto" | "whatsapp_full" | "negotiation" =
+      body.mode === "whatsapp_full" ? "whatsapp_full" : body.mode === "negotiation" ? "negotiation" : "auto";
 
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+    if (mode === "negotiation") {
+      const scenarios: NegScenario[] = (body.scenarios || ["A", "B", "C"]).filter((s: any) => ["A", "B", "C"].includes(s));
+      const results: any[] = [];
+      for (const sc of scenarios) results.push(await runNegotiationRouterScenario(sb, sc));
+      const summary = {
+        scenarios: results.length,
+        ok: results.filter((r) => r.status === "ok").length,
+        failed: results.filter((r) => r.status === "failed").length,
+      };
+      return new Response(JSON.stringify({ ok: summary.failed === 0, mode: "negotiation", summary, results }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
 
     if (mode === "whatsapp_full") {
       const sellerPhone = String(body.seller_phone || "").trim();

@@ -519,7 +519,17 @@ serve(async (req) => {
           web_session_id: sessionId, phone_number: phone,
           attachments: negAttachments,
           article_id: clientMeta?.article_id ?? null,
-          meta: { intent: negIntent, transaction_id: negTxId, article_id: clientMeta?.article_id ?? null, actions: negActions },
+          meta: {
+            intent: negIntent,
+            transaction_id: negTxId,
+            article_id: clientMeta?.article_id ?? null,
+            actions: negActions,
+            // 🔑 Garantit que la fenêtre WaouhMatchChatWindow de l'expéditeur
+            // range bien la réponse dans le bon onglet (clé = counterpart + role).
+            counterpart_user_id: clientMeta?.counterpart_user_id ?? clientMeta?.buyer_user_id ?? clientMeta?.buyer_profile_id ?? null,
+            buyer_user_id: clientMeta?.counterpart_user_id ?? clientMeta?.buyer_user_id ?? clientMeta?.buyer_profile_id ?? null,
+            role: clientMeta?.role ?? null,
+          },
         });
         if (convId) {
           await sb.from("waouh_conversations")

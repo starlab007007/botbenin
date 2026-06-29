@@ -27,13 +27,24 @@ function directReachablePhone(raw: string | null | undefined): string | null {
 
 
 async function aiIntent(text: string): Promise<{ kind: "yes"|"no"|"price"|"other"; price?: number }> {
-  const lower = (text || "").toLowerCase();
+  const raw = (text || "").trim();
+  const lower = raw.toLowerCase();
   // Déterministe d'abord
-  if (/\b(non|no|refuse|refus[eé])\b/i.test(lower)) return { kind: "no" };
-  if (/\b(oui|ok|d'?accord|j'accepte|accept[eé]|yes)\b/i.test(lower) && !/propose/.test(lower)) return { kind: "yes" };
-  const m = lower.match(/(\d{2,3}(?:[\s.,]?\d{3})+|\d{3,9})\s*(?:f|fcfa|cfa)/i)
-        || lower.match(/(?:propose|offre|prix|à|a)\s*(\d{3,9})/i);
-  if (m) return { kind: "price", price: parseInt(m[1].replace(/\D/g, ""), 10) };
+  if (/\b(non|no|refuse|refus[eé]|pas\s+d['']accord|nope)\b/i.test(lower)) return { kind: "no" };
+  if (/\b(oui|ok|d'?accord|j'accepte|accept[eé]|yes|deal|ça\s+marche|ca\s+marche)\b/i.test(lower) && !/propose|offre|contre/.test(lower)) return { kind: "yes" };
+  // 1) Montant avec suffixe FCFA/CFA/F
+  let m: RegExpMatchArray | null = lower.match(/(\d{2,3}(?:[\s.,]?\d{3})+|\d{3,9})\s*(?:f|fcfa|cfa)\b/i);
+  // 2) Montant précédé d'un mot d'offre (propose/offre/contre-offre/prix/pour/à)
+  if (!m) m = lower.match(/(?:propose|offre|offre\s+de|contre[\s-]?offre|prix|pour|à)\s*(\d{2,3}(?:[\s.,]?\d{3})+|\d{3,9})/i);
+  // 3) Nombre seul (réponse rapide « 400 ») — uniquement si le texte ne contient que des chiffres/espaces/séparateurs
+  if (!m) {
+    const digitsOnly = lower.replace(/[\s.,]/g, "");
+    if (/^\d{3,9}$/.test(digitsOnly)) m = [digitsOnly, digitsOnly] as any;
+  }
+  if (m) {
+    const price = parseInt(String(m[1]).replace(/\D/g, ""), 10);
+    if (price >= 100 && price <= 100_000_000) return { kind: "price", price };
+  }
   try {
     const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -119,6 +130,42 @@ Deno.serve(async (req) => {
         p_event_type: eventType,
       });
     } catch (e) { console.warn("[neg-router] enqueue", e); }
+    // 🔔 Cloche de notification chez le destinataire (contre-offre / refus).
+    // Sans ça, la cloche ne sonne que pour deal_accepted (via deal-dispatch).
+    if (eventType && (eventType === "negotiation_counter" || eventType === "negotiation_closed")) {
+      try {
+        // Idempotence applicative (pas de UNIQUE en BDD sur dedupe_key)
+        if (dedupeKey) {
+          const { data: existingNotif } = await sb.from("waouh_notifications")
+            .select("id").eq("user_id", target.id).eq("dedupe_key", dedupeKey).limit(1).maybeSingle();
+          if (existingNotif?.id) {
+            return;
+          }
+        }
+        await sb.from("waouh_notifications").insert({
+          user_id: target.id,
+          notification_type: eventType,
+          article_id: (payload as any)?.article_id ?? null,
+          web_session_id: target.web_session_id ?? null,
+          channel: outboundPhone ? "whatsapp" : "web",
+          delivery_status: "queued",
+          dedupe_key: dedupeKey,
+          payload: {
+            title: eventType === "negotiation_counter" ? "💬 Nouvelle offre" : "❌ Négociation fermée",
+            body: directText.length > 180 ? directText.slice(0, 177) + "…" : directText,
+            article_id: (payload as any)?.article_id ?? null,
+            negotiation_id: (payload as any)?.neg_id ?? (directMeta as any)?.negotiation_id ?? null,
+            counterpart_user_id: (payload as any)?.from_user_id ?? null,
+            buyer_user_id: (payload as any)?.from_user_id ?? null,
+            message_id: insertedMsgId,
+            offer: (payload as any)?.offer ?? null,
+            transaction_id: transactionId,
+          },
+        });
+      } catch (e) {
+        console.warn("[neg-router] notif insert", e);
+      }
+    }
   }
 
   try {
@@ -261,10 +308,15 @@ Deno.serve(async (req) => {
     }
 
 
+    // 🔑 from_user_id canonique = id stocké côté négo (buyer_user_id si je suis acheteur),
+    // pour que WaouhMatchChatWindow du destinataire range bien le message dans
+    // le bon onglet (group key = counterpart_user_id côté vendeur).
+    const canonicalFromUserId = isBuyer ? neg.buyer_user_id : neg.seller_user_id;
+
     if (intent.kind === "no") {
       await sb.from("waouh_negotiations").update({ state: "closed", last_actor: isBuyer ? "buyer" : "seller" }).eq("id", neg.id);
       if (otherUserId) {
-        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, article_id: neg.article_id, closed: true, from_user_id: user.id, target_role: isBuyer ? "seller" : "buyer" }, `❌ ${isBuyer ? "L'acheteur" : "Le vendeur"} a refusé. Négociation clôturée.`, { intent: "negotiation_closed", negotiation_id: neg.id, article_id: neg.article_id }, null, [], `neg:${neg.id}:closed:${otherUserId}`, "negotiation_closed");
+        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, article_id: neg.article_id, closed: true, from_user_id: canonicalFromUserId, target_role: isBuyer ? "seller" : "buyer" }, `❌ ${isBuyer ? "L'acheteur" : "Le vendeur"} a refusé. Négociation clôturée.`, { intent: "negotiation_closed", negotiation_id: neg.id, article_id: neg.article_id, counterpart_user_id: canonicalFromUserId }, null, [], `neg:${neg.id}:closed:${otherUserId}`, "negotiation_closed");
       }
       return new Response(JSON.stringify({ ok: true, reply: "OK, négociation fermée. Merci !" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -281,9 +333,9 @@ Deno.serve(async (req) => {
       }
       if (otherUserId) {
         await pushToOther(otherUserId, "negotiation_open",
-          { neg_id: neg.id, article_id: neg.article_id, offer: intent.price, transaction_id: neg.transaction_id, from_user_id: user.id, target_role: isBuyer ? "seller" : "buyer" },
+          { neg_id: neg.id, article_id: neg.article_id, offer: intent.price, transaction_id: neg.transaction_id, from_user_id: canonicalFromUserId, target_role: isBuyer ? "seller" : "buyer" },
           `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(intent.price)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant ( Ex: je propose ${fmt(intent.price)} CFA).`,
-          { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: neg.transaction_id, article_id: neg.article_id },
+          { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: neg.transaction_id, article_id: neg.article_id, counterpart_user_id: canonicalFromUserId },
           neg.transaction_id,
           negotiationActions(neg.id),
           `neg:${neg.id}:offer:${intent.price}:${otherUserId}`,
