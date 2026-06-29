@@ -820,39 +820,14 @@ serve(async (req) => {
         "Extrais les critères d'achat en JSON: {keywords (array de mots-clés produit, ex: ['lenovo','ordinateur']), category (smartphone/ordinateur/vetement/vehicule/electromenager/meuble/autre), price_max (number FCFA), condition_min, radius_km}.",
         text
       );
-
-      // --- FIX 1 : résolution de la catégorie ---
-      // Si l'IA retourne "autre" (catégorie générique) ou une valeur vide, on tente
-      // de déduire la catégorie depuis le texte brut de l'utilisateur plutôt que
-      // de garder "autre" et risquer de ramener tous les produits non classifiés.
-      const aiCategory = normalizeCategory(criteria.category);
-      const textCategory = normalizeCategory(text);
-      // On préfère la catégorie déduite du texte brut si l'IA n'a pas trouvé mieux.
-      const criteriaCategory = (aiCategory !== "autre") ? aiCategory : textCategory;
-
-      // --- FIX 2 : enrichissement des keywords quand l'IA retourne un tableau vide ---
-      // Si Gemini renvoie keywords:[] mais que le texte contient des termes reconnus,
-      // on extrait les tokens significatifs du texte brut comme filet de sécurité.
-      let kws: string[] = Array.isArray(criteria.keywords)
-        ? criteria.keywords.filter((k: any) => typeof k === "string" && k.length > 1)
-        : [];
-      if (kws.length === 0) {
-        // Tokenisation basique : mots de 3+ lettres, hors mots-outils français courants
-        const stopWords = new Set(["les","des","une","pour","que","qui","dans","sur","avec","pas","par","est","son","ses","leur","cette","ces","mon","mes","vous","nous","ils","elles","aussi","mais","donc","comme","plus","très","bien","tout","fois","même","alors","après","avant","chez","entre","sous","vers","sans"]);
-        kws = text.toLowerCase()
-          .replace(/[^\w\s]/g, " ")
-          .split(/\s+/)
-          .filter((w) => w.length >= 3 && !stopWords.has(w))
-          .slice(0, 5); // max 5 tokens pour éviter une requête trop large
-      }
-
-      // Recherche filtrée — waouh_articles (annonces classiques)
+      const criteriaCategory = normalizeCategory(criteria.category || text);
+      // Recherche filtrée
       let q = sb.from("waouh_articles")
         .select("id,title,price,city,brand,condition,category,seller_id,photos,market_price_min,market_price_max")
         .eq("status", "active");
-      // N'appliquer le filtre catégorie que si on a réussi à en déduire une concrète
-      if (criteriaCategory && criteriaCategory !== "autre") q = q.eq("category", criteriaCategory);
+      if (criteriaCategory) q = q.eq("category", criteriaCategory);
       if (criteria.price_max) q = q.lte("price", criteria.price_max);
+      const kws: string[] = Array.isArray(criteria.keywords) ? criteria.keywords.filter((k: any) => typeof k === "string" && k.length > 1) : [];
       if (kws.length > 0) {
         const orFilter = kws.map((k) => `title.ilike.%${k}%,brand.ilike.%${k}%,description.ilike.%${k}%`).join(",");
         q = q.or(orFilter);
@@ -860,36 +835,23 @@ serve(async (req) => {
       const { data: matches } = await q.order("created_at", { ascending: false }).limit(5);
 
       // 🏪 Recherche dans le Catalogue Unifié (produits partenaires + chat + radar)
-      // --- FIX 3 : les produits partenaires DOIVENT être filtrés ---
-      // Avant ce correctif, si kws était vide le catalogue entier était retourné
-      // (savons, nourriture, cocktails…). On exige désormais au moins un filtre
-      // (catégorie OU mots-clés) avant d'interroger waouh_unified_catalog.
       let partnerMatches: any[] = [];
-      const hasPartnerFilter = (criteriaCategory && criteriaCategory !== "autre") || kws.length > 0;
-      if (!hasPartnerFilter) {
-        console.warn("[partner catalog search] skipped — no usable filter derived from query");
-      } else {
-        try {
-          let pq = sb.from("waouh_unified_catalog")
-            .select("id,titre,description,categorie,prix_min,prix_max,ville,quartier,vendeur_nom,vendeur_phone,vendeur_whatsapp,photos,source,partner_id,business_id")
-            .eq("type", "offer")
-            .eq("is_active", true)
-            .eq("source", "partner");
-          if (criteria.price_max) pq = pq.lte("prix_min", criteria.price_max);
-          // Filtre catégorie sur le catalogue partenaire
-          if (criteriaCategory && criteriaCategory !== "autre") {
-            pq = pq.ilike("categorie", `%${criteriaCategory}%`);
-          }
-          if (kws.length > 0) {
-            const orFilter = kws
-              .map((k) => `titre.ilike.%${k}%,description.ilike.%${k}%,categorie.ilike.%${k}%,tags.cs.{${k}}`)
-              .join(",");
-            pq = pq.or(orFilter);
-          }
-          const { data: pm } = await pq.order("priority_rank", { ascending: false }).limit(5);
-          partnerMatches = pm || [];
-        } catch (e) { console.warn("[partner catalog search]", e); }
-      }
+      try {
+        let pq = sb.from("waouh_unified_catalog")
+          .select("id,titre,description,categorie,prix_min,prix_max,ville,quartier,vendeur_nom,vendeur_phone,vendeur_whatsapp,photos,source,partner_id,business_id")
+          .eq("type", "offer")
+          .eq("is_active", true)
+          .eq("source", "partner");
+        if (criteria.price_max) pq = pq.lte("prix_min", criteria.price_max);
+        if (kws.length > 0) {
+          const orFilter = kws
+            .map((k) => `titre.ilike.%${k}%,description.ilike.%${k}%,categorie.ilike.%${k}%,tags.cs.{${k}}`)
+            .join(",");
+          pq = pq.or(orFilter);
+        }
+        const { data: pm } = await pq.order("priority_rank", { ascending: false }).limit(5);
+        partnerMatches = pm || [];
+      } catch (e) { console.warn("[partner catalog search]", e); }
 
 
       // 🛰️ Radar IA: chercher aussi des signaux SELL (annonces externes captées)
