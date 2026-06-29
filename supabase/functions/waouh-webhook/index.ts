@@ -348,9 +348,15 @@ serve(async (req) => {
       }
     }
     // N'extrait un montant QUE s'il est explicitement marqué FCFA/CFA ou précédé d'un mot d'offre
-    const explicitOffer = lower.match(/(?:propose|offre|offre\s+de|prix|pour|à|a)\s*(\d{2,3}(?:[\s.,]?\d{3})+|\d{3,9})\s*(?:f|fcfa|cfa)?/i);
+    const explicitOffer = lower.match(/(?:propose|offre|offre\s+de|contre[\s-]?offre|prix|pour|à)\s*(\d{2,3}(?:[\s.,]?\d{3})+|\d{3,9})\s*(?:f|fcfa|cfa)?/i);
     const fcfaOffer = lower.match(/(\d{2,3}(?:[\s.,]?\d{3})+|\d{3,9})\s*(?:fcfa|cfa|f\s*cfa)\b/i);
-    const offerMatch = (!payKw && (explicitOffer || fcfaOffer)) || null;
+    // Nombre seul (« 400 ») = contre-offre rapide quand on a une négo en cours
+    const bareNumber = (() => {
+      const cleaned = lower.trim().replace(/[\s.,]/g, "");
+      if (/^\d{3,9}$/.test(cleaned)) return [cleaned, cleaned] as unknown as RegExpMatchArray;
+      return null;
+    })();
+    const offerMatch = (!payKw && (explicitOffer || fcfaOffer || bareNumber)) || null;
 
     // Charge la conversation existante AVANT la détection d'intent (utile pour le fallback contextuel "1" seul)
     const { data: conv } = await sb.from("waouh_conversations")
