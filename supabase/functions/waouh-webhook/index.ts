@@ -855,7 +855,7 @@ serve(async (req) => {
 
       // 🏪 Recherche dans le Catalogue Unifié (produits partenaires + chat + radar)
       let partnerMatches: any[] = [];
-      try {
+      if (!(intent as any).__short_circuit) try {
         let pq = sb.from("waouh_unified_catalog")
           .select("id,titre,description,categorie,prix_min,prix_max,ville,quartier,vendeur_nom,vendeur_phone,vendeur_whatsapp,photos,source,partner_id,business_id")
           .eq("type", "offer")
@@ -875,7 +875,7 @@ serve(async (req) => {
 
       // 🛰️ Radar IA: chercher aussi des signaux SELL (annonces externes captées)
       let radarSellers: any[] = [];
-      try {
+      if (!(intent as any).__short_circuit) try {
         let rq = sb.from("waouh_radar_signals")
           .select("id,product,category,price,city,contact_phone,contact_handle,raw_url,raw_text")
           .eq("intent", "SELL");
@@ -892,7 +892,7 @@ serve(async (req) => {
       // 🛰️ SerpAPI / annonces externes (waouh_external_listings) — non promues encore.
       // Normalisées au même schéma que radarSellers pour la suite du pipeline.
       let externalListings: any[] = [];
-      try {
+      if (!(intent as any).__short_circuit) try {
         let eq = sb.from("waouh_external_listings")
           .select("id,title,description,category,price,city,seller_phone,seller_name,image_url,source_url,promoted_article_id")
           .eq("status", "active")
