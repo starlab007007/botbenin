@@ -7,6 +7,7 @@ class LiveSessionStore {
   static const _cityKey = 'waouh_city';
   static const _threadCutoffKey = 'waouh_main_thread_started_at';
   static const _guestCountKey = 'waouh_guest_msg_count';
+  static const _seenStatusIdsKey = 'waouh_seen_status_ids';
 
   SharedPreferences? _prefs;
   String? _sessionId;
@@ -64,5 +65,20 @@ class LiveSessionStore {
   Future<void> clearGuestMessageCount() async {
     await initialize();
     await _prefs!.remove(_guestCountKey);
+  }
+
+  Future<Set<String>> seenStatusIds() async {
+    await initialize();
+    return _prefs!.getStringList(_seenStatusIdsKey)?.toSet() ?? <String>{};
+  }
+
+  Future<void> markStatusesSeen(Iterable<String> ids) async {
+    await initialize();
+    final values = await seenStatusIds();
+    values.addAll(ids.where((id) => id.trim().isNotEmpty));
+    // Status IDs expire after 24 h. Keep a modest cap so device storage does
+    // not grow over time if the backend keeps historical IDs available.
+    final capped = values.take(500).toList(growable: false);
+    await _prefs!.setStringList(_seenStatusIdsKey, capped);
   }
 }
