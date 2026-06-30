@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
@@ -29,6 +30,19 @@ class LivePartnerProductsScreenV2 extends StatelessWidget {
     ));
   }
 
+  void _openDetails(BuildContext context, legacy.PartnerProduct product) {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => LivePartnerProductDetailScreen(
+        product: product,
+        onEdit: () => _openForm(context, product),
+        onDelete: () async {
+          await _delete(context, product);
+          if (context.mounted) Navigator.of(context).pop();
+        },
+      ),
+    ));
+  }
+
   Future<void> _delete(BuildContext context, legacy.PartnerProduct product) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -55,7 +69,21 @@ class LivePartnerProductsScreenV2 extends StatelessWidget {
     final controller = context.watch<legacy.PartnerController>();
     return Scaffold(
       backgroundColor: WaouhPalette.pearl,
-      appBar: AppBar(title: const Text('Produits')),
+      appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Retour',
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => context.canPop() ? context.pop() : context.go('/app/partner/businesses'),
+        ),
+        title: const Text('Produits'),
+        actions: [
+          IconButton(
+            tooltip: 'Ajouter un produit',
+            onPressed: () => _openForm(context, null),
+            icon: const Icon(Icons.add_rounded),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: WaouhPalette.blue,
         onPressed: () => _openForm(context, null),
@@ -84,6 +112,7 @@ class LivePartnerProductsScreenV2 extends StatelessWidget {
             itemCount: products.length,
             itemBuilder: (_, index) => _ProductCard(
               product: products[index],
+              onOpen: () => _openDetails(context, products[index]),
               onEdit: () => _openForm(context, products[index]),
               onDelete: () => _delete(context, products[index]),
             ),
@@ -95,49 +124,221 @@ class LivePartnerProductsScreenV2 extends StatelessWidget {
 }
 
 class _ProductCard extends StatelessWidget {
-  const _ProductCard({required this.product, required this.onEdit, required this.onDelete});
+  const _ProductCard({required this.product, required this.onOpen, required this.onEdit, required this.onDelete});
   final legacy.PartnerProduct product;
+  final VoidCallback onOpen;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
-    final price = product.priceMin == null ? 'Prix sur demande' : '${_money(product.priceMin!)} F${product.unit == null || product.unit!.isEmpty ? '' : ' / ${product.unit}'}';
+    final price = _productPrice(product);
+    final heroTag = 'partner-product-${product.id}-cover';
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: SizedBox(
-              width: 82,
-              height: 82,
-              child: product.photos.isEmpty
-                  ? const ColoredBox(color: Color(0xFFEAF7F1), child: Icon(Icons.inventory_2_outlined))
-                  : Image.network(product.photos.first, fit: BoxFit.cover, errorBuilder: (_, __, ___) => const ColoredBox(color: Color(0xFFEAF7F1), child: Icon(Icons.broken_image_outlined))),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onOpen,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Hero(
+              tag: heroTag,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: SizedBox(
+                  width: 88,
+                  height: 88,
+                  child: _productImage(product.photos.isEmpty ? null : product.photos.first, fit: BoxFit.cover),
+                ),
+              ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Expanded(child: Text(product.name, style: WaouhText.h3, maxLines: 1, overflow: TextOverflow.ellipsis)),
-              WaouhPill(label: product.available ? 'Dispo' : 'Indispo', background: product.available ? WaouhPalette.mint : WaouhPalette.line, foreground: product.available ? WaouhPalette.jade : WaouhPalette.muted),
-            ]),
-            if ((product.category ?? '').isNotEmpty) Text(product.category!, style: WaouhText.caption),
-            const SizedBox(height: 4),
-            Text(price, style: WaouhText.bodyStrong),
-            const SizedBox(height: 8),
-            Row(children: [
-              OutlinedButton.icon(onPressed: onEdit, icon: const Icon(Icons.edit_outlined, size: 17), label: const Text('Modifier')),
-              const SizedBox(width: 6),
-              IconButton(onPressed: onDelete, icon: const Icon(Icons.delete_outline_rounded, color: WaouhPalette.red)),
-            ]),
-          ])),
-        ]),
+            const SizedBox(width: 13),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Expanded(child: Text(product.name, style: WaouhText.h3, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                WaouhPill(
+                  label: product.available ? 'Dispo' : 'Indispo',
+                  background: product.available ? WaouhPalette.mint : WaouhPalette.line,
+                  foreground: product.available ? WaouhPalette.jade : WaouhPalette.muted,
+                ),
+              ]),
+              if ((product.category ?? '').isNotEmpty)
+                Padding(padding: const EdgeInsets.only(top: 2), child: Text(product.category!, style: WaouhText.caption)),
+              const SizedBox(height: 5),
+              Text(price, style: WaouhText.bodyStrong),
+              const SizedBox(height: 9),
+              Row(children: [
+                OutlinedButton.icon(onPressed: onEdit, icon: const Icon(Icons.edit_outlined, size: 17), label: const Text('Modifier')),
+                const SizedBox(width: 4),
+                IconButton(tooltip: 'Voir le produit', onPressed: onOpen, icon: const Icon(Icons.open_in_full_rounded, color: WaouhPalette.jade)),
+                IconButton(tooltip: 'Supprimer', onPressed: onDelete, icon: const Icon(Icons.delete_outline_rounded, color: WaouhPalette.red)),
+              ]),
+            ])),
+          ]),
+        ),
       ),
     );
   }
+}
+
+class LivePartnerProductDetailScreen extends StatelessWidget {
+  const LivePartnerProductDetailScreen({super.key, required this.product, required this.onEdit, required this.onDelete});
+  final legacy.PartnerProduct product;
+  final VoidCallback onEdit;
+  final Future<void> Function() onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final photos = product.photos;
+    final heroTag = 'partner-product-${product.id}-cover';
+    return Scaffold(
+      backgroundColor: WaouhPalette.pearl,
+      appBar: AppBar(
+        leading: IconButton(tooltip: 'Retour', icon: const Icon(Icons.arrow_back_rounded), onPressed: () => Navigator.of(context).pop()),
+        title: const Text('Détail produit'),
+        actions: [
+          IconButton(tooltip: 'Modifier', onPressed: onEdit, icon: const Icon(Icons.edit_outlined)),
+          IconButton(tooltip: 'Supprimer', onPressed: () => onDelete(), icon: const Icon(Icons.delete_outline_rounded)),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 28),
+        children: [
+          GestureDetector(
+            onTap: () => _openFullscreenImage(context, product, photos.isEmpty ? null : photos.first, heroTag),
+            child: Hero(
+              tag: heroTag,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: SizedBox(height: 290, child: _productImage(photos.isEmpty ? null : photos.first, fit: BoxFit.cover)),
+              ),
+            ),
+          ),
+          if (photos.length > 1) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 84,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: photos.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (_, index) => GestureDetector(
+                  onTap: () => _openFullscreenImage(context, product, photos[index], 'partner-product-${product.id}-photo-$index'),
+                  child: Hero(
+                    tag: 'partner-product-${product.id}-photo-$index',
+                    child: ClipRRect(borderRadius: BorderRadius.circular(14), child: _productImage(photos[index], width: 84, height: 84, fit: BoxFit.cover)),
+                  ),
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 20),
+          Row(children: [
+            Expanded(child: Text(product.name, style: WaouhText.h1.copyWith(fontSize: 28))),
+            WaouhPill(
+              label: product.available ? 'Disponible' : 'Indisponible',
+              background: product.available ? WaouhPalette.mint : WaouhPalette.line,
+              foreground: product.available ? WaouhPalette.jade : WaouhPalette.muted,
+            ),
+          ]),
+          if ((product.category ?? '').isNotEmpty) ...[
+            const SizedBox(height: 5),
+            Text(product.category!, style: WaouhText.body.copyWith(color: WaouhPalette.muted)),
+          ],
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18), border: Border.all(color: WaouhPalette.line)),
+            child: Row(children: [
+              const Icon(Icons.payments_outlined, color: WaouhPalette.jade),
+              const SizedBox(width: 10),
+              Text(_productPrice(product), style: WaouhText.h2.copyWith(color: WaouhPalette.green)),
+            ]),
+          ),
+          if (product.stock != null) ...[
+            const SizedBox(height: 12),
+            _ProductInfoRow(icon: Icons.inventory_2_outlined, label: 'Stock estimé', value: '${product.stock}'),
+          ],
+          if ((product.description ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 22),
+            Text('Description', style: WaouhText.h3),
+            const SizedBox(height: 7),
+            Text(product.description!, style: WaouhText.body.copyWith(height: 1.45)),
+          ],
+          const SizedBox(height: 28),
+          FilledButton.icon(onPressed: onEdit, icon: const Icon(Icons.edit_outlined), label: const Text('Modifier le produit')),
+        ],
+      ),
+    );
+  }
+
+  void _openFullscreenImage(BuildContext context, legacy.PartnerProduct product, String? url, String tag) {
+    Navigator.of(context).push(MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => _FullscreenProductImage(title: product.name, imageUrl: url, heroTag: tag),
+    ));
+  }
+}
+
+class _FullscreenProductImage extends StatelessWidget {
+  const _FullscreenProductImage({required this.title, this.imageUrl, required this.heroTag});
+  final String title;
+  final String? imageUrl;
+  final String heroTag;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => Navigator.of(context).pop()),
+          title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+        ),
+        body: Center(
+          child: InteractiveViewer(
+            minScale: 1,
+            maxScale: 4,
+            child: Hero(tag: heroTag, child: _productImage(imageUrl, fit: BoxFit.contain)),
+          ),
+        ),
+      );
+}
+
+class _ProductInfoRow extends StatelessWidget {
+  const _ProductInfoRow({required this.icon, required this.label, required this.value});
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Row(children: [
+        Icon(icon, size: 18, color: WaouhPalette.muted),
+        const SizedBox(width: 8),
+        Text(label, style: WaouhText.caption),
+        const Spacer(),
+        Text(value, style: WaouhText.bodyStrong),
+      ]);
+}
+
+Widget _productImage(String? url, {double? width, double? height, BoxFit fit = BoxFit.cover}) {
+  if (url == null || url.isEmpty) {
+    return Container(width: width, height: height, color: const Color(0xFFEAF7F1), child: const Center(child: Icon(Icons.inventory_2_outlined, color: WaouhPalette.jade, size: 40)));
+  }
+  return Image.network(
+    url,
+    width: width,
+    height: height,
+    fit: fit,
+    errorBuilder: (_, __, ___) => Container(width: width, height: height, color: const Color(0xFFEAF7F1), child: const Center(child: Icon(Icons.broken_image_outlined, color: WaouhPalette.muted))),
+  );
+}
+
+String _productPrice(legacy.PartnerProduct product) {
+  if (product.priceMin == null) return 'Prix sur demande';
+  return '${_money(product.priceMin!)} F${product.unit == null || product.unit!.isEmpty ? '' : ' / ${product.unit}'}';
 }
 
 class LivePartnerProductFormV2 extends StatefulWidget {
@@ -217,9 +418,6 @@ class _LivePartnerProductFormV2State extends State<LivePartnerProductFormV2> {
     setState(() => _saving = true);
     final price = num.tryParse(_price.text.trim().replaceAll(',', '.'));
     final stock = int.tryParse(_stock.text.trim());
-    // Exact payload used by ProductFormNativeScreen.tsx. Do not send aliases
-    // such as category, title, unit, price or stock: they do not exist in the
-    // deployed French Supabase schema and cause PGRST204.
     final payload = <String, dynamic>{
       'nom': _name.text.trim(),
       'description': _description.text.trim().isEmpty ? null : _description.text.trim(),
