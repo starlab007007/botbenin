@@ -10,15 +10,49 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 interface Filters {
-  sources?: string[];           // ['radar','catalog','signal','wa_contact']
+  sources?: string[];
   secteurs?: string[];
+  sous_categories?: string[];
+  keywords?: string;             // free-text: comma/space separated tokens, ILIKE on display_name + sous_categorie
   villes?: string[];
-  classes?: string[];           // A/B/C/D
-  min_freshness_days?: number;  // last_seen within X
+  classes?: string[];
+  min_freshness_days?: number;
   min_qualite?: number;
   min_intent?: number;
   include_opt_out?: boolean;
-  limit_sample?: number;        // sample rows to return (default 10)
+  limit_sample?: number;
+}
+
+function tokenizeKeywords(s?: string): string[] {
+  if (!s) return [];
+  return s.split(/[,;\n]+/).map(t => t.trim()).filter(t => t.length >= 2).slice(0, 10);
+}
+
+function applyCommonFilters(q: any, f: Filters) {
+  if (!f.include_opt_out) q = q.eq("opt_out", false);
+  q = q.eq("is_whatsapp", true);
+  if (f.secteurs?.length) q = q.in("secteur", f.secteurs);
+  if (f.villes?.length) q = q.in("ville", f.villes);
+  if (f.classes?.length) q = q.in("classe", f.classes);
+  if (typeof f.min_intent === "number") q = q.gte("intent_score", f.min_intent);
+  if (typeof f.min_qualite === "number") q = q.gte("qualite_score", f.min_qualite);
+  if (typeof f.min_freshness_days === "number") q = q.lte("freshness_days", f.min_freshness_days);
+  if (f.sources?.length) q = q.overlaps("sources", f.sources);
+  // Niches: OR match on sous_categorie (ILIKE any)
+  if (f.sous_categories?.length) {
+    const ors = f.sous_categories.map(n => `sous_categorie.ilike.%${n.replace(/[%,]/g, "")}%`).join(",");
+    q = q.or(ors);
+  }
+  // Free-text keywords: OR match on sous_categorie + display_name
+  const kws = tokenizeKeywords(f.keywords);
+  if (kws.length) {
+    const ors = kws.flatMap(k => {
+      const safe = k.replace(/[%,]/g, "");
+      return [`sous_categorie.ilike.%${safe}%`, `display_name.ilike.%${safe}%`];
+    }).join(",");
+    q = q.or(ors);
+  }
+  return q;
 }
 
 Deno.serve(async (req) => {
@@ -28,27 +62,16 @@ Deno.serve(async (req) => {
     const filters: Filters = await req.json().catch(() => ({}));
 
     let q = admin.from("v_diffusion_audience").select("*", { count: "exact" });
-    if (!filters.include_opt_out) q = q.eq("opt_out", false);
-    q = q.eq("is_whatsapp", true);
-    if (filters.secteurs?.length) q = q.in("secteur", filters.secteurs);
-    if (filters.villes?.length) q = q.in("ville", filters.villes);
-    if (filters.classes?.length) q = q.in("classe", filters.classes);
-    if (typeof filters.min_intent === "number") q = q.gte("intent_score", filters.min_intent);
-    if (typeof filters.min_qualite === "number") q = q.gte("qualite_score", filters.min_qualite);
-    if (typeof filters.min_freshness_days === "number") q = q.lte("freshness_days", filters.min_freshness_days);
-    if (filters.sources?.length) q = q.overlaps("sources", filters.sources);
+    q = applyCommonFilters(q, filters);
 
     const sample = await q.order("intent_score", { ascending: false }).limit(filters.limit_sample ?? 10);
     if (sample.error) throw sample.error;
 
-    // Breakdown by class
+    // Breakdown by class (apply same filters)
     const breakdown: Record<string, number> = { A: 0, B: 0, C: 0, D: 0 };
     for (const klass of ["A", "B", "C", "D"]) {
-      let bq = admin.from("v_diffusion_audience").select("*", { count: "exact", head: true })
-        .eq("classe", klass).eq("is_whatsapp", true);
-      if (!filters.include_opt_out) bq = bq.eq("opt_out", false);
-      if (filters.secteurs?.length) bq = bq.in("secteur", filters.secteurs);
-      if (filters.villes?.length) bq = bq.in("ville", filters.villes);
+      let bq = admin.from("v_diffusion_audience").select("*", { count: "exact", head: true });
+      bq = applyCommonFilters(bq, { ...filters, classes: [klass] });
       const { count } = await bq;
       breakdown[klass] = count ?? 0;
     }
