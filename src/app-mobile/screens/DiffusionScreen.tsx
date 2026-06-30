@@ -71,7 +71,7 @@ function NativeScreen({
 /* ============================================================
    ROOT SCREEN — Tabs + dispatch to native overlays
    ============================================================ */
-type TabKey = "campaigns" | "contacts" | "sessions" | "stats";
+type TabKey = "ia" | "campaigns" | "contacts" | "sessions" | "stats";
 type Overlay =
   | { kind: "none" }
   | { kind: "campaign-new" }
