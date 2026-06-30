@@ -306,7 +306,7 @@ Deno.serve(async (req) => {
               (prof.role === "seller" && sig.intent === "BUY") || (prof.role === "buyer" && sig.intent === "SELL") ? "both" : prof.role,
           }).eq("id", prof.id);
         } else {
-          await sb.from("waouh_radar_profiles").insert({
+          await sb.from("waouh_radar_profiles").upsert({
             contact_phone: phone,
             contact_handle: sig.contact_handle,
             display_name: sig.contact_handle,
@@ -315,7 +315,7 @@ Deno.serve(async (req) => {
             cities: sig.city ? [sig.city] : [],
             signals_count: 1,
             last_seen_at: new Date().toISOString(),
-          });
+          }, { onConflict: "contact_phone" });
         }
         if (await enqueueRadarOutreach(sb, sig, phone, promotedSignal?.id ?? null)) queued++;
       }
