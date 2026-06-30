@@ -138,8 +138,97 @@ class _ContactSummary extends StatelessWidget {
       );
 }
 
-class _SessionSummary extends StatelessWidget { const _SessionSummary({required this.items}); final List<LiveDiffusionSession> items; @override Widget build(BuildContext context) => ListView(padding: const EdgeInsets.all(16), children: [const _Info(title: 'Sessions WhatsApp', body: 'Une session WORKING doit être active pour les campagnes classiques.', icon: Icons.phone_android_rounded), const SizedBox(height: 14), if (items.isEmpty) const _Empty(title: 'Aucune session', body: 'Connectez votre compte dans IA.', icon: Icons.qr_code_rounded) else ...items.map((item) => Card(margin: const EdgeInsets.only(bottom: 8), child: ListTile(leading: Icon(Icons.phone_iphone_rounded, color: item.active ? WaouhPalette.jade : WaouhPalette.orange), title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.w900)), subtitle: Text(item.phone ?? 'QR à connecter'), trailing: _Tag(value: item.status)))), const SizedBox(height: 12), FilledButton.icon(onPressed: () => context.go('/app/whatsapp'), icon: const Icon(Icons.qr_code_rounded), label: const Text('Gérer dans IA'))]); }
-class _Metrics extends StatelessWidget { const _Metrics({required this.items}); final List<LiveDiffusionCampaign> items; @override Widget build(BuildContext context) { final values = [('Planifiés', items.fold(0, (x, y) => x + y.total)), ('Envoyés', items.fold(0, (x, y) => x + y.sent)), ('Livrés', items.fold(0, (x, y) => x + y.delivered)), ('Lus', items.fold(0, (x, y) => x + y.read)), ('Réponses', items.fold(0, (x, y) => x + y.replied))]; return ListView(padding: const EdgeInsets.all(16), children: [GridView.count(shrinkWrap: true, crossAxisCount: 2, childAspectRatio: 1.9, mainAxisSpacing: 8, crossAxisSpacing: 8, physics: const NeverScrollableScrollPhysics(), children: values.map((item) => Card(child: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Text('${item.$2}', style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900)), Text(item.$1, style: const TextStyle(fontSize: 12, color: WaouhPalette.muted))]))).toList())]); } }
+class _SessionSummary extends StatelessWidget {
+  const _SessionSummary({required this.items});
+
+  final List<LiveDiffusionSession> items;
+
+  @override
+  Widget build(BuildContext context) => ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const _Info(
+            title: 'Sessions WhatsApp',
+            body: 'Une session WORKING doit être active pour les campagnes classiques.',
+            icon: Icons.phone_android_rounded,
+          ),
+          const SizedBox(height: 14),
+          if (items.isEmpty)
+            const _Empty(
+              title: 'Aucune session',
+              body: 'Connectez votre compte dans IA.',
+              icon: Icons.qr_code_rounded,
+            )
+          else
+            ...items.map(
+              (item) => Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  leading: Icon(
+                    Icons.phone_iphone_rounded,
+                    color: item.active ? WaouhPalette.jade : WaouhPalette.orange,
+                  ),
+                  title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.w900)),
+                  subtitle: Text(item.phone ?? 'QR à connecter'),
+                  trailing: _Tag(value: item.status),
+                ),
+              ),
+            ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: () => context.go('/app/whatsapp'),
+            icon: const Icon(Icons.qr_code_rounded),
+            label: const Text('Gérer dans IA'),
+          ),
+        ],
+      );
+}
+
+class _Metrics extends StatelessWidget {
+  const _Metrics({required this.items});
+
+  final List<LiveDiffusionCampaign> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final values = <(String, int)>[
+      ('Planifiés', items.fold(0, (sum, item) => sum + item.total)),
+      ('Envoyés', items.fold(0, (sum, item) => sum + item.sent)),
+      ('Livrés', items.fold(0, (sum, item) => sum + item.delivered)),
+      ('Lus', items.fold(0, (sum, item) => sum + item.read)),
+      ('Réponses', items.fold(0, (sum, item) => sum + item.replied)),
+    ];
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        GridView.count(
+          shrinkWrap: true,
+          crossAxisCount: 2,
+          childAspectRatio: 1.9,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          physics: const NeverScrollableScrollPhysics(),
+          children: values
+              .map(
+                (item) => Card(
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('${item.$2}', style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w900)),
+                        Text(item.$1, style: const TextStyle(fontSize: 12, color: WaouhPalette.muted)),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+      ],
+    );
+  }
+}
+
 class _Card extends StatelessWidget { const _Card({required this.title, required this.child}); final String title; final Widget child; @override Widget build(BuildContext context) => Card(child: Padding(padding: const EdgeInsets.all(15), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)), const SizedBox(height: 12), child]))); }
 class _Slider extends StatelessWidget { const _Slider({required this.title, required this.value, required this.onChanged}); final String title; final double value; final ValueChanged<double> onChanged; @override Widget build(BuildContext context) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(children: [Text(title, style: const TextStyle(fontWeight: FontWeight.w800)), const Spacer(), Text('${value.round()}')]), Slider(value: value, min: 0, max: 100, divisions: 20, onChanged: onChanged)]); }
 class _Preview extends StatelessWidget { const _Preview({required this.value}); final LiveDiffusionAudiencePreview value; @override Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: const Color(0xFFEAF9F1), borderRadius: BorderRadius.circular(12)), child: Text('${value.total} contacts estimés${value.sample.isNotEmpty ? ' · exemple masqué : ${value.sample.first['phone_masked'] ?? '—'}' : ''}', style: const TextStyle(fontWeight: FontWeight.w800))); }

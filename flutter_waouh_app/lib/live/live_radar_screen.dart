@@ -464,8 +464,8 @@ class _RadarItemCard extends StatelessWidget {
             Expanded(child: Stack(fit: StackFit.expand, children: [
               _RadarImage(url: item.photoUrl),
               Positioned(left: 7, top: 7, child: _DistancePill(label: item.distanceLabel, color: Color(item.ring.colorValue))),
-              Positioned(right: 6, bottom: 6, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), decoration: BoxDecoration(color: Colors.black.withOpacity(.62), borderRadius: BorderRadius.circular(8)), child: Text(item.typeLabel, style: const TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.w800))),
-            ])),
+              Positioned(right: 6, bottom: 6, child: Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), decoration: BoxDecoration(color: Colors.black.withOpacity(.62), borderRadius: BorderRadius.circular(8)), child: Text(item.typeLabel, style: const TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.w800)))),
+             ])),
             Padding(
               padding: const EdgeInsets.fromLTRB(9, 8, 8, 8),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
