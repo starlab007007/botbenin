@@ -13,9 +13,10 @@ const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 let APIFY_TOKEN = "";
 let APIFY_CFG_ID: string | undefined;
 
+// Apify REST: actorId format is `username~actor-name` in URLs
 const ACTORS = {
-  fb_marketplace: "apify/facebook-marketplace-scraper",
-  fb_group: "apify/facebook-groups-scraper",
+  fb_marketplace: "apify~facebook-marketplace-scraper",
+  fb_group: "apify~facebook-groups-scraper",
 };
 
 async function runActor(actor: string, input: any) {
