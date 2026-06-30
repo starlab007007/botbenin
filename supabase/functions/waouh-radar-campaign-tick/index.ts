@@ -64,6 +64,12 @@ Deno.serve(async (req) => {
 
   const results: any[] = [];
   for (const c of campaigns || []) {
+    // Gate on admin approval
+    if (c.requires_approval && (!c.quota_approved || c.quota_approved <= (c.quota_consumed ?? 0))) {
+      results.push({ campaign_id: c.id, skipped_reason: "awaiting_approval_or_quota_exhausted" });
+      continue;
+    }
+    const remainingQuota = c.quota_approved ? Math.max(0, c.quota_approved - (c.quota_consumed ?? 0)) : Infinity;
     // Create run
     const { data: run } = await admin.from("waouh_radar_campaign_runs").insert({ campaign_id: c.id }).select().single();
     const runId = run?.id;
