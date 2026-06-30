@@ -67,20 +67,53 @@ export default function WaouhChatScreen() {
     document.title = "WAOUH Chat — bot.bj";
   }, []);
 
-  // If navigated with ?new=1 (and optionally &prefill=...), reset main + prefill composer.
+  // Handle deep-links from the Radar / external triggers:
+  //   ?new=1            → reset main thread
+  //   ?prefill=...      → prefill composer (legacy)
+  //   ?autosend=1       → reset + auto-send a one-shot message with article context
+  //     extra params:   intent, article, title, distance, price, devise
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const isNew = params.get("new") === "1";
+    const autosend = params.get("autosend") === "1";
     const prefill = params.get("prefill");
-    if (isNew || prefill) {
-      const t = setTimeout(() => {
+    if (!isNew && !autosend && !prefill) return;
+
+    const t = setTimeout(() => {
+      setActiveKey("main");
+      if (autosend) {
+        const intent = (params.get("intent") || "interest") as "interest" | "negotiate" | "buy";
+        const title = params.get("title") || "";
+        const distance = params.get("distance") || "";
+        const price = params.get("price") || "";
+        const devise = params.get("devise") || "FCFA";
+        const article = params.get("article") || "";
+        const priceLabel = price ? ` (~${price} ${devise})` : "";
+        // Single canonical "intéressé" message regardless of which button was tapped.
+        // The intent + article_id stay in the text as tags so the WAOUH router can
+        // route to the right negotiation flow.
+        const text =
+          `👋 Intéressé par "${title}"${distance ? ` vu sur Radar WAOUH à ${distance}` : ""}` +
+          `${priceLabel}. Est-il toujours disponible ?` +
+          `\n\n#radar #${intent}${article ? ` #article:${article}` : ""}`;
+        // Anti-spam: never re-send the exact same (article, intent) within 30s.
+        const dedupKey = `waouh_radar_lastsend_${article}_${intent}`;
+        const last = Number(sessionStorage.getItem(dedupKey) || 0);
+        if (Date.now() - last < 30000) {
+          chatRef.current?.startNewThread();
+          chatRef.current?.prefill(text);
+        } else {
+          sessionStorage.setItem(dedupKey, String(Date.now()));
+          chatRef.current?.prefillAndSend(text);
+        }
+      } else {
         if (isNew) chatRef.current?.startNewThread();
         if (prefill) chatRef.current?.prefill(prefill);
-        navigate("/app/chat/waouh", { replace: true });
-      }, 0);
-      return () => clearTimeout(t);
-    }
-  }, [location.search, navigate]);
+      }
+      navigate("/app/chat/waouh", { replace: true });
+    }, 50);
+    return () => clearTimeout(t);
+  }, [location.search, navigate, setActiveKey]);
 
 
   useEffect(() => {

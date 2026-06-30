@@ -125,6 +125,33 @@ export function RadarFiltersSheet({ open, onOpenChange, value, onChange }: Props
             />
           </div>
 
+          <div>
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Auto-pause du radar</Label>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {[
+                { ms: 30_000, label: "30 s" },
+                { ms: 90_000, label: "90 s" },
+                { ms: 5 * 60_000, label: "5 min" },
+                { ms: null as number | null, label: "Jamais" },
+              ].map((o) => {
+                const active = (value.autoPauseMs ?? 90_000) === o.ms;
+                return (
+                  <button
+                    key={String(o.ms)}
+                    onClick={() => onChange({ ...value, autoPauseMs: o.ms })}
+                    className={
+                      "px-3 py-1.5 rounded-full text-xs border " +
+                      (active ? "bg-emerald-600 text-white border-emerald-600" : "bg-background border-border")
+                    }
+                  >
+                    {o.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1">Économise batterie et données. Mode Urgence force 30 s.</p>
+          </div>
+
           <Button className="w-full" onClick={() => onOpenChange(false)}>
             Appliquer
           </Button>

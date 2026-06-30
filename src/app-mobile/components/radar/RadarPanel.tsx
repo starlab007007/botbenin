@@ -2,11 +2,22 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RefreshCcw, SlidersHorizontal, Siren, Map, List, Radar as RadarIcon } from "lucide-react";
+import {
+  Loader2,
+  RefreshCcw,
+  SlidersHorizontal,
+  Siren,
+  Map,
+  List,
+  Radar as RadarIcon,
+  Play,
+  PauseCircle,
+} from "lucide-react";
 import { useWaouhGeolocation } from "@/hooks/useWaouhGeolocation";
 import { useMobileAuth } from "../../hooks/useMobileAuth";
 import { RADAR_RINGS, formatDistance } from "../../utils/geo";
 import { DEFAULT_FILTERS, useRadarScan, type RadarFilters, type RadarItem } from "../../hooks/useRadarScan";
+import { useRadarLifecycle } from "../../hooks/useRadarLifecycle";
 import { RadarCanvas } from "./RadarCanvas";
 import { RadarFiltersSheet } from "./RadarFilters";
 import { RadarItemSheet } from "./RadarItemSheet";
@@ -43,6 +54,14 @@ export function RadarPanel({ query = "" }: { query?: string }) {
 
   const { items, loading, scan, scanAt, maxRadiusKm } = useRadarScan(geo.lat, geo.lng, filters);
 
+  // Auto-pause duration: urgence = 30s, otherwise filter setting (default 90s).
+  const autoPauseMs = filters.urgent ? 30_000 : (filters.autoPauseMs ?? 90_000);
+  const { paused, countdownMs, resume } = useRadarLifecycle({
+    autoPauseMs,
+    onResume: () => { refresh(); scan(); },
+    scanKey: scanAt,
+  });
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return items;
@@ -60,18 +79,23 @@ export function RadarPanel({ query = "" }: { query?: string }) {
   }, [filtered]);
 
   const startChat = (it: RadarItem, intent: "interest" | "negotiate" | "buy") => {
+    const distance = formatDistance(it.distanceKm);
+    const price = it.priceMin || it.priceMax || "";
+    const params = new URLSearchParams({
+      new: "1",
+      autosend: "1",
+      intent,
+      article: it.id,
+      title: it.title,
+      distance,
+      ...(price ? { price: String(price), devise: it.devise || "FCFA" } : {}),
+    });
+    const target = `/app/chat/waouh?${params.toString()}`;
     if (!user) {
-      navigate("/app/auth?redirect=/app/chat");
+      navigate(`/app/auth?redirect=${encodeURIComponent(target)}`);
       return;
     }
-    const distance = formatDistance(it.distanceKm);
-    const phrases: Record<string, string> = {
-      interest: `Bonjour 👋, je suis intéressé(e) par "${it.title}" vu sur le Radar WAOUH (${distance}). Est-il toujours disponible ?`,
-      negotiate: `Bonjour, vu sur le Radar WAOUH à ${distance} : "${it.title}"${it.priceMin ? ` à ${it.priceMin.toLocaleString("fr-FR")} FCFA` : ""}. Je voudrais négocier le prix, est-ce possible ?`,
-      buy: `Je veux acheter "${it.title}" (Radar WAOUH · ${distance})${it.priceMin ? ` à ${it.priceMin.toLocaleString("fr-FR")} FCFA` : ""}. Comment on procède ?`,
-    };
-    const prefill = encodeURIComponent(phrases[intent]);
-    navigate(`/app/chat/waouh?new=1&prefill=${prefill}`);
+    navigate(target);
   };
 
   const toggleUrgent = () => {
@@ -79,6 +103,8 @@ export function RadarPanel({ query = "" }: { query?: string }) {
     setFilters(next);
     refresh();
   };
+
+  const countdownSec = countdownMs != null ? Math.ceil(countdownMs / 1000) : null;
 
   return (
     <div className="pb-24">
@@ -98,8 +124,20 @@ export function RadarPanel({ query = "" }: { query?: string }) {
             <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">●</Badge>
           ) : null}
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => { refresh(); scan(); }} disabled={loading}>
-          {loading || geoLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
+        <Button
+          size="sm"
+          variant={paused ? "default" : "ghost"}
+          onClick={paused ? resume : () => { refresh(); scan(); }}
+          disabled={loading}
+          className={paused ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}
+        >
+          {loading || geoLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : paused ? (
+            <><Play className="h-4 w-4 mr-1" /> Relancer</>
+          ) : (
+            <RefreshCcw className="h-4 w-4" />
+          )}
         </Button>
         <div className="ml-auto inline-flex rounded-md overflow-hidden border">
           <button
@@ -119,17 +157,38 @@ export function RadarPanel({ query = "" }: { query?: string }) {
         </div>
       </div>
 
-      <div className="px-4 text-[11px] text-muted-foreground flex items-center gap-1">
+      <div className="px-4 text-[11px] text-muted-foreground flex items-center gap-1 flex-wrap">
         <Map className="h-3 w-3" />
         Autour de <span className="font-medium text-foreground">{geo.city}</span>
         {geo.district ? ` · ${geo.district}` : ""}
         {" · "} portée {maxRadiusKm} km
         {scanAt ? ` · ${filtered.length} résultat${filtered.length > 1 ? "s" : ""}` : ""}
+        {!paused && countdownSec != null && countdownSec > 0 && (
+          <span className="ml-auto text-[10px] inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
+            <PauseCircle className="h-3 w-3" /> pause dans {countdownSec}s
+          </span>
+        )}
       </div>
+
+      {/* Auto-pause banner */}
+      {paused && (
+        <div className="mx-4 mt-3 rounded-xl border border-emerald-200/60 bg-emerald-50/70 dark:bg-emerald-900/20 dark:border-emerald-800/60 p-3 flex items-center gap-3">
+          <PauseCircle className="h-5 w-5 text-emerald-700 dark:text-emerald-400 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-200">📡 Radar en pause</p>
+            <p className="text-[11px] text-emerald-800/80 dark:text-emerald-300/80 truncate">
+              {filtered.length} résultat{filtered.length > 1 ? "s" : ""} • Relancez pour voir les nouveautés.
+            </p>
+          </div>
+          <Button size="sm" onClick={resume} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+            <Play className="h-4 w-4 mr-1" /> Relancer
+          </Button>
+        </div>
+      )}
 
       {view === "radar" && (
         <div className="pt-4">
-          <RadarCanvas items={filtered} maxRadiusKm={maxRadiusKm} scanning={loading || true} onPick={setPicked} />
+          <RadarCanvas items={filtered} maxRadiusKm={maxRadiusKm} scanning={!paused} onPick={setPicked} />
           <div className="px-4 pt-3 grid grid-cols-2 gap-2">
             {RADAR_RINGS.map((r) => (
               <div key={r.id} className="flex items-center justify-between text-xs px-2 py-1.5 rounded border border-border bg-muted/30">
@@ -199,7 +258,7 @@ export function RadarPanel({ query = "" }: { query?: string }) {
       </div>
 
       <RadarFiltersSheet open={filtersOpen} onOpenChange={setFiltersOpen} value={filters} onChange={setFilters} />
-      <RadarItemSheet item={picked} onClose={() => setPicked(null)} onStartChat={startChat} />
+      <RadarItemSheet item={picked} onClose={() => setPicked(null)} onStartChat={(it, intent) => { setPicked(null); startChat(it, intent); }} />
     </div>
   );
 }

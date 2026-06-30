@@ -1,81 +1,84 @@
-## 🎯 Module RADAR — Le module le plus intelligent de WAOUH
+## Objectif
 
-Ajouter un 3ᵉ onglet **"Radar"** à côté de *Discussions* / *Statuts · 24h* dans `ChatListScreen.tsx`. Une vue circulaire (cercles concentriques) qui balaie autour de l'utilisateur, du plus proche au plus éloigné, et affiche les opportunités (produits, statuts, annonces) issues **uniquement** de notre base unifiée (`waouh_unified_catalog` + `waouh_statuses`). Clic sur une photo → ouverture du chat WAOUH avec contexte pré-rempli (intent achat / vente / négo), exactement comme depuis Statuts.
+Sur les résultats Radar, un seul tap sur **Intéressé / Négocier / Acheter** doit ouvrir le chat WAOUH **et envoyer immédiatement** un message d'intérêt rattaché à l'article — sans que l'utilisateur ait à appuyer sur « Envoyer ».
+Le Radar doit aussi se **mettre en pause automatiquement** après un délai, avec un bouton **Relancer** bien visible.
 
-### Stratégie & innovation
+---
 
-**1. Le rayon est la métrique reine.** Contrairement aux autres modules orientés pertinence textuelle, ici tout est trié par distance haversine. Géolocalisation via `useWaouhGeolocation` (déjà présent), fallback ville/quartier sinon.
+## 1. Auto-envoi du message d'intérêt depuis le Radar
 
-**2. 4 anneaux concentriques** (configurables) :
-- 🔴 Cercle 1 — ≤ 1 km (Hyper-proche, "à pied")
-- 🟠 Cercle 2 — 1–5 km (Quartier élargi)
-- 🟡 Cercle 3 — 5–20 km (Ville)
-- 🟢 Cercle 4 — 20–100 km (Région)
+### Comportement attendu
 
-**3. Mode "Urgence" 🚨** — bouton dédié qui : ① relance la géoloc HD, ② priorise le rayon 1 km, ③ trie par `last_seen_at` desc, ④ envoie un broadcast "Recherche urgente" aux vendeurs du cercle 1 (réutilise `waouh-webhook`).
+- Tap sur l'un des 3 boutons → navigation vers `/app/chat/waouh` → la fenêtre s'ouvre sur un **nouveau fil** → le message est **déjà envoyé** (aucune action manuelle).
+- Message envoyé = un seul template court, **toujours orienté « intéressé »**, quel que soit le bouton choisi (interest / negotiate / buy n'est qu'un *hint* pour l'IA). Exemple :
+  > *« 👋 Intéressé par "{titre}" vu sur Radar WAOUH ({distance}{, prix si dispo}). Intent: {interest|negotiate|buy} · Article #{id} »*
+- Le bloc article (photo + titre + prix + distance) est affiché en **carte attachée** au-dessus de la bulle, pour que vendeur et IA gardent le contexte.
+- Le routeur WAOUH (`waouh-negotiation-router`) reçoit le `intent` + `article_id` → enchaîne la suite (proposition, contre-prop, etc.) sans changement côté backend.
 
-**4. Filtres pré-balayage** (sheet en bas) : catégorie, sous-catégorie, fourchette de prix, type (SELL/BUY/STATUS), vérifié uniquement, photo obligatoire. Persistés en `localStorage`.
+### Détails techniques
 
-**5. Affichage radar animé** :
-- Canvas SVG circulaire avec ligne de balayage tournante (effet sonar)
-- Vignettes-photos positionnées sur les anneaux à leur angle réel (bearing depuis position user)
-- Tap sur une vignette → bottom-sheet preview → bouton "💬 Démarrer la discussion"
-- Liste alternative scrollable sous le radar (mode liste accessible)
-- Vue carte optionnelle (Leaflet OSS, déjà supporté) avec cercles concentriques
+- `WaouhWebChat` expose une nouvelle méthode imperative `prefillAndSend({ text, articleRef, intent })` qui :
+  1. appelle `startNewThread()`,
+  2. crée le message sortant avec `metadata = { source: 'radar', article_id, intent, distance_km }`,
+  3. déclenche `sendMessage()` immédiatement (pas de focus composer).
+- `WaouhChatScreen` lit les params URL :
+  `?new=1&autosend=1&intent=interest&article=cat:xxxx&title=...&distance=...&price=...`
+  et appelle `prefillAndSend(...)`. Si `autosend=0` → ancien comportement (prefill seul).
+- `RadarPanel.startChat()` remplace l'URL par la version auto-envoi avec tous les paramètres encodés.
+- Garde-fou : si l'utilisateur n'est pas authentifié → redirection vers `/app/auth?redirect=...` (déjà en place), et **l'URL d'origine est conservée** pour rejouer l'auto-envoi après login.
+- Dé-doublonnage : un même `article_id + intent` envoyé deux fois en moins de 30 s n'est envoyé qu'une seule fois (déjà géré par `outbound_dedup_key`).
 
-**6. Intelligence** :
-- Edge function `waouh-radar-scan` : reçoit `{lat, lng, filters, urgent}`, retourne le top-N par cercle avec score combiné `distance × qualite_score × fraîcheur`
-- PostGIS pas requis : calcul haversine SQL ou via `earthdistance`/geohash existants
-- Realtime : `postgres_changes` sur `waouh_unified_catalog` filtré par `ville` pour rafraîchir le radar live
-- Cache 60 s côté client par (geohash5 + filtres)
+---
 
-**7. Démarrage de chat unifié** : réutilise `openWaouh()` (déjà dans `ChatListScreen`) avec un message d'amorce généré côté front :
-```
-Bonjour, je suis intéressé par "{titre}" vu sur le Radar WAOUH à {distance} km. Est-il toujours disponible ?
-```
-→ même flux que Statuts (négociation, contre-proposition, etc.).
+## 2. Minuteur d'arrêt + relance du Radar
 
-### Périmètre technique
+### Comportement attendu
 
-**Frontend (nouveau)**
-- `src/app-mobile/components/radar/RadarPanel.tsx` — conteneur principal + onglet
-- `src/app-mobile/components/radar/RadarCanvas.tsx` — SVG radar animé + vignettes
-- `src/app-mobile/components/radar/RadarFilters.tsx` — sheet filtres
-- `src/app-mobile/components/radar/RadarItemSheet.tsx` — preview + CTA chat
-- `src/app-mobile/components/radar/RadarMapView.tsx` — vue Leaflet alternative
-- `src/app-mobile/hooks/useRadarScan.ts` — fetch + cache + realtime
-- `src/app-mobile/utils/geo.ts` — haversine, bearing, geohash bbox
+- Au démarrage : le sonar tourne pendant un délai configurable (par défaut **90 s**, urgence **30 s**).
+- À expiration : le sonar s'arrête (animation figée), un bandeau apparaît :
+  > *« 📡 Radar en pause · {N} résultats · ⏱ relance dans 60 s »* avec un bouton **▶ Relancer maintenant**.
+- Décompte visible avant pause (chip « auto-pause dans 12 s » en bas du canvas).
+- Le bouton **Relancer** relance un scan complet + remet le minuteur à zéro.
+- Quitter l'onglet Radar coupe automatiquement le scan (économie batterie / data).
+- Réglage du délai exposé dans **Filtres → Auto-pause** : 30 s / 90 s / 5 min / Jamais (persisté dans `waouh_radar_filters_v1`).
 
-**Frontend (édité)**
-- `src/app-mobile/screens/ChatListScreen.tsx` — ajout onglet `radar` (3ᵉ tab) + branchement `<RadarPanel/>`
+### Détails techniques
 
-**Backend (nouveau)**
-- `supabase/functions/waouh-radar-scan/index.ts` — scan paginé par anneau + scoring
-- Index SQL : `CREATE INDEX ON waouh_unified_catalog (is_active, ville, last_seen_at DESC)` + index sur `(lat, lng)` pour le bbox pré-filter
-- (optionnel) `waouh-radar-urgent` — diffusion broadcast cercle 1
+- Nouveau hook `useRadarLifecycle({ autoPauseMs, onPause, onResume })` qui :
+  - démarre un `setTimeout` à chaque `scan()`,
+  - expose `paused`, `countdownMs`, `resume()`, `pauseNow()`.
+- `RadarCanvas` reçoit `scanning={!paused}` → l'animation sonar s'arrête proprement quand `paused = true`.
+- `useRadarScan` ne relance plus en boucle ; un seul scan par activation. Le real-time est désactivé en pause.
+- Ajout dans `RadarFilters` : champ `autoPauseMs` (number | null).
 
-**Aucune nouvelle table** — on consomme `waouh_unified_catalog` (déjà géo-enrichi) + `waouh_statuses`.
+---
 
-### Architecture du flux
+## 3. UX / fichiers touchés
 
 ```text
-[Géoloc HD] ──► useRadarScan(filters)
-                    │
-                    ▼
-        Edge fn waouh-radar-scan
-        ┌──────────────────────┐
-        │ bbox geohash5 prefilter
-        │ haversine exact
-        │ partition par anneau (1/5/20/100 km)
-        │ score = freshness · qualité / (1+dist)
-        └──────────────────────┘
-                    │
-                    ▼
-        RadarCanvas (SVG sonar) ──► tap ──► RadarItemSheet ──► openWaouh(amorce)
+src/app-mobile/components/radar/
+  RadarPanel.tsx           ← passe à URL autosend + bandeau pause/relance
+  RadarCanvas.tsx          ← accepte `scanning` réel + halo "pause"
+  RadarFilters.tsx         ← option "Auto-pause"
+  RadarItemSheet.tsx       ← idem (3 boutons → autosend)
+src/app-mobile/hooks/
+  useRadarLifecycle.ts     ← NEW
+  useRadarScan.ts          ← n'auto-relance plus, scan() one-shot
+src/app-mobile/screens/
+  WaouhChatScreen.tsx      ← gère ?autosend=1&intent=&article=&title=&distance=&price=
+src/components/waouh/
+  WaouhWebChat.tsx         ← expose prefillAndSend()
 ```
 
-### Hors périmètre (V2)
-- AR caméra (boussole + overlay)
-- Heatmap dynamique
-- Notifications push "nouvelle opportunité à 300 m"
-- Tri ML personnalisé par historique d'achat
+Aucune migration de base de données ni nouvelle edge function. Le routeur WAOUH existant traite déjà les messages avec `metadata.article_id` et `metadata.intent`.
+
+---
+
+## 4. Critères d'acceptation
+
+- ✅ Tap sur n'importe lequel des 3 boutons depuis le Radar → la fenêtre s'ouvre et le message est **déjà envoyé** (visible dans le fil), sans tap supplémentaire.
+- ✅ Le message porte bien l'`article_id` + `intent` + distance dans son `metadata`.
+- ✅ Pas de double envoi si on re-tape rapidement le même bouton (anti-spam 30 s).
+- ✅ Le Radar s'arrête tout seul après le délai choisi, affiche le bandeau, et **Relancer** marche.
+- ✅ Quitter puis revenir sur l'onglet Radar repart proprement, sans scan « zombie ».
+- ✅ Un utilisateur non connecté est redirigé vers `/app/auth` et l'auto-envoi est rejoué après login.
