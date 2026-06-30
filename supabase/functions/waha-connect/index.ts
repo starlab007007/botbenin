@@ -29,21 +29,33 @@ serve(async (req) => {
   try {
     const url = new URL(req.url);
     const pathSegments = url.pathname.split('/').filter(Boolean);
-    
-    // Routes: /waha-connect/start ou /waha-connect/status/{sessionName}
-    const action = pathSegments[1]; // start ou status
-    const sessionName = pathSegments[2]; // nom de session pour status
+
+    // Routes: /waha-connect/start | /status/{sessionName} | /pair-code
+    // Also supports body-based dispatch via { action, sessionName, phoneNumber }
+    // so it works with supabase.functions.invoke('waha-connect', { body: {...} }).
+    let action: string | undefined = pathSegments[1];
+    let sessionName: string | undefined = pathSegments[2];
+    let phoneNumber: string | undefined;
+
+    let parsedBody: any = null;
+    if (req.method !== 'GET') {
+      try { parsedBody = await req.clone().json(); } catch { /* ignore */ }
+    }
+    if (parsedBody && typeof parsedBody === 'object') {
+      if (!action && typeof parsedBody.action === 'string') action = parsedBody.action;
+      if (!sessionName && typeof parsedBody.sessionName === 'string') sessionName = parsedBody.sessionName;
+      if (typeof parsedBody.phoneNumber === 'string') phoneNumber = parsedBody.phoneNumber;
+    }
 
     const wahaUrl = 'https://waha.bot.bj';
     const wahaApiKey = Deno.env.get('WAHA_API_KEY');
     const wahaUsername = Deno.env.get('WAHA_USERNAME');
     const wahaPassword = Deno.env.get('WAHA_PASSWORD');
 
-    // Validate required secrets - NO hardcoded fallbacks
     if (!wahaApiKey && !wahaPassword) {
       console.error('Missing WAHA credentials in Supabase secrets');
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: 'WAHA credentials not configured',
           details: {
             WAHA_API_KEY: wahaApiKey ? 'SET' : 'MISSING',
@@ -58,12 +70,14 @@ serve(async (req) => {
     console.log(`🔗 WAHA Connect - Action: ${action}, Session: ${sessionName || 'N/A'}`);
 
     if (action === 'start') {
-      return await handleStart(req, wahaUrl, wahaApiKey, wahaUsername || 'admin', wahaPassword);
+      return await handleStart(sessionName, wahaUrl, wahaApiKey, wahaUsername || 'admin', wahaPassword);
     } else if (action === 'status' && sessionName) {
       return await handleStatus(sessionName, wahaUrl, wahaApiKey, wahaUsername || 'admin', wahaPassword);
+    } else if (action === 'pair-code') {
+      return await handlePairCode(sessionName, phoneNumber, wahaUrl, wahaApiKey, wahaUsername || 'admin', wahaPassword);
     } else {
       return new Response(
-        JSON.stringify({ error: 'Invalid endpoint. Use /start or /status/{sessionName}' }),
+        JSON.stringify({ error: 'Invalid endpoint. Use action=start | status | pair-code' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
