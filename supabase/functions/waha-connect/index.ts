@@ -92,16 +92,18 @@ serve(async (req) => {
 });
 
 async function handleStart(
-  req: Request, 
-  wahaUrl: string, 
-  wahaApiKey: string | undefined, 
-  wahaUsername: string, 
+  sessionName: string | undefined,
+  wahaUrl: string,
+  wahaApiKey: string | undefined,
+  wahaUsername: string,
   wahaPassword: string | undefined
 ): Promise<Response> {
-  const body = await req.json();
-  const { sessionName } = body;
-
   if (!sessionName) {
+    return new Response(
+      JSON.stringify({ error: 'sessionName is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
     return new Response(
       JSON.stringify({ error: 'sessionName is required' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
