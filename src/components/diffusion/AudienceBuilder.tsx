@@ -8,7 +8,17 @@ import { Card } from "@/components/ui/card";
 import { Loader2, Users, Send, ChevronRight, ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
 
-const SECTEURS = ["Mode & Beauté", "Tech & Électronique", "Auto & Moto", "Immobilier", "Alimentaire", "Services", "Autre"];
+// Smart sector taxonomy: macro sector + niche sub-categories for precise targeting
+const SECTEUR_TAXONOMY: { secteur: string; emoji: string; niches: string[] }[] = [
+  { secteur: "Mode & Beauté", emoji: "👗", niches: ["Vêtements femme", "Vêtements homme", "Vêtements enfant", "Chaussures", "Sacs & Maroquinerie", "Bijoux & Montres", "Cosmétiques", "Parfums", "Perruques & Cheveux", "Coiffure & Soins", "Lunettes & Optique", "Friperie", "Tissus & Pagnes", "Mode traditionnelle"] },
+  { secteur: "Tech & Électronique", emoji: "📱", niches: ["Smartphones", "Ordinateurs", "Tablettes", "Accessoires Tech", "TV & Audio", "Appareils photo", "Imprimantes", "Gaming", "Électroménager", "Pièces détachées"] },
+  { secteur: "Auto & Moto", emoji: "🚗", niches: ["Voitures neuves", "Voitures occasion", "Motos & Scooters", "Camions & Utilitaires", "Pièces auto", "Pièces moto", "Pneus & Jantes", "Lubrifiants & Carburant", "Location véhicules", "Réparation & Garage"] },
+  { secteur: "Immobilier", emoji: "🏠", niches: ["Vente maison", "Location maison", "Vente appartement", "Location appartement", "Terrains à vendre", "Terrains à louer", "Bureaux & Commerces", "Hôtellerie & Airbnb", "Décoration & Meubles", "Construction & BTP"] },
+  { secteur: "Alimentaire", emoji: "🍽️", niches: ["Restaurant", "Fast-food", "Pâtisserie", "Boissons", "Produits frais", "Épicerie", "Miel & Produits naturels", "Catering & Événementiel"] },
+  { secteur: "Services", emoji: "🛠️", niches: ["Coaching & Formation", "Santé & Bien-être", "Beauté à domicile", "Pressing & Nettoyage", "Photographie", "Événementiel", "Transport & Livraison", "Réparations", "Marketing & Design"] },
+  { secteur: "Autre", emoji: "✨", niches: ["Artisanat", "Décoration", "Sport & Fitness", "Jouets & Enfants", "Animaux", "Religion & Culture", "Divers"] },
+];
+const SECTEURS = SECTEUR_TAXONOMY.map(s => s.secteur);
 const CLASSES: { id: "A"|"B"|"C"|"D"; label: string; hint: string }[] = [
   { id: "A", label: "A — Chaud", hint: "Vu <7j, intent ≥60" },
   { id: "B", label: "B — Tiède", hint: "Vu <30j, intent ≥30" },
