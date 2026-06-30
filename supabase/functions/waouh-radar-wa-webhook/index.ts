@@ -26,6 +26,15 @@ async function aiExtract(text: string): Promise<any> {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  // Shared-secret auth (set WAHA webhook header: x-waouh-webhook-token)
+  if (WAHA_WEBHOOK_TOKEN) {
+    const provided = req.headers.get("x-waouh-webhook-token") || "";
+    if (provided !== WAHA_WEBHOOK_TOKEN) {
+      return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+  }
+
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   try {
