@@ -85,7 +85,7 @@ ThemeData buildWaouhTheme() {
       centerTitle: false,
       systemOverlayStyle: SystemUiOverlayStyle.light,
     ),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       elevation: 0,
       color: WaouhColors.paper,
       shape: RoundedRectangleBorder(

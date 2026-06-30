@@ -130,7 +130,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
         item.outgoing &&
         item.text.trim() == local.text.trim() &&
         item.attachments.length == local.attachments.length &&
-        item.createdAt.difference(local.createdAt).inSeconds.abs < 120));
+        item.createdAt.difference(local.createdAt).inSeconds.abs() < 120));
     return [...remote, ...extra]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
   }
 
