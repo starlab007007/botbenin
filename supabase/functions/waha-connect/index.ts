@@ -104,11 +104,6 @@ async function handleStart(
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
-    return new Response(
-      JSON.stringify({ error: 'sessionName is required' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
 
   console.log(`🚀 Starting session: ${sessionName}`);
 
