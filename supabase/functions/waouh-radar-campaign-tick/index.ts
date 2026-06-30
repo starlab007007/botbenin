@@ -36,7 +36,62 @@ function renderTemplate(tpl: string, vars: Record<string, any>): string {
   return tpl.replace(/\{\{(\w+)\}\}/g, (_, k) => String(vars[k] ?? ""));
 }
 
+function isAudienceSegment(segment: any): boolean {
+  // New Diffusion IA wizard shape: uses secteurs/classes/villes/sources/min_*
+  return !!(segment && (
+    (Array.isArray(segment.secteurs) && segment.secteurs.length) ||
+    (Array.isArray(segment.classes) && segment.classes.length) ||
+    (Array.isArray(segment.villes) && segment.villes.length) ||
+    (Array.isArray(segment.sources) && segment.sources.length) ||
+    typeof segment.min_qualite === "number" ||
+    typeof segment.min_intent === "number" ||
+    typeof segment.min_freshness_days === "number"
+  ));
+}
+
+async function resolveAudienceContacts(admin: any, segment: any) {
+  // Diffusion IA — resolve via v_diffusion_audience (catalog + radar + wa_contacts unified)
+  let q = admin.from("v_diffusion_audience")
+    .select("phone_e164, display_name, secteur, ville, classe, sources, last_seen_at")
+    .eq("is_whatsapp", true)
+    .eq("opt_out", false)
+    .not("phone_e164", "is", null);
+  if (Array.isArray(segment?.secteurs) && segment.secteurs.length) q = q.in("secteur", segment.secteurs);
+  if (Array.isArray(segment?.villes) && segment.villes.length) q = q.in("ville", segment.villes);
+  if (Array.isArray(segment?.classes) && segment.classes.length) q = q.in("classe", segment.classes);
+  if (typeof segment?.min_intent === "number") q = q.gte("intent_score", segment.min_intent);
+  if (typeof segment?.min_qualite === "number") q = q.gte("qualite_score", segment.min_qualite);
+  if (typeof segment?.min_freshness_days === "number") q = q.lte("freshness_days", segment.min_freshness_days);
+  if (Array.isArray(segment?.sources) && segment.sources.length) q = q.overlaps("sources", segment.sources);
+  const { data, error } = await q.limit(5000);
+  if (error) throw error;
+  // Normalize phone E.164 (BJ: prefix 229 if missing) + dedup
+  const seen = new Set<string>();
+  const out: any[] = [];
+  for (const r of data || []) {
+    let raw = String(r.phone_e164 || "").replace(/[^\d+]/g, "");
+    if (raw.startsWith("+")) raw = raw.slice(1);
+    if (!raw) continue;
+    if (raw.length === 10 && raw.startsWith("0")) raw = "229" + raw.slice(1);
+    else if (raw.length === 8) raw = "229" + raw;
+    if (seen.has(raw)) continue;
+    seen.add(raw);
+    out.push({
+      id: raw, // synthetic id for audience-mode (no radar_contacts row)
+      phone_e164_normalized: raw,
+      display_name: r.display_name,
+      categories: r.secteur ? [r.secteur] : [],
+      cities: r.ville ? [r.ville] : [],
+      _audience_mode: true,
+    });
+  }
+  return out;
+}
+
 async function resolveSegment(admin: any, segment: any) {
+  if (isAudienceSegment(segment)) {
+    return { audienceMode: true, rows: await resolveAudienceContacts(admin, segment) };
+  }
   let q = admin.from("waouh_radar_contacts").select("id, phone_e164_normalized, display_name, categories, cities");
   q = q.in("status", ["new", "opted_in"]);
   q = q.not("phone_e164_normalized", "is", null);
@@ -46,8 +101,11 @@ async function resolveSegment(admin: any, segment: any) {
   if (segment?.last_seen_within_days > 0) q = q.gte("last_seen_at", new Date(Date.now() - segment.last_seen_within_days * 86400000).toISOString());
   if (segment?.intent === "BUY") q = q.gt("intent_buy_count", 0);
   if (segment?.intent === "SELL") q = q.gt("intent_sell_count", 0);
-  return q;
+  const { data, error } = await q;
+  if (error) throw error;
+  return { audienceMode: false, rows: data || [] };
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
