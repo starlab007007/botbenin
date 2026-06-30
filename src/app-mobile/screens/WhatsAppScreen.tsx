@@ -14,6 +14,9 @@ import {
   CheckCircle2, AlertCircle, Loader2, Smartphone, Bot, ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import PairCodeFlow from "@/components/whatsapp/PairCodeFlow";
+import { KeyRound } from "lucide-react";
 
 // ============================================================
 // Status helpers
