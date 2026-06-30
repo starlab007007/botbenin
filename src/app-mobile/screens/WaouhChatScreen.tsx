@@ -97,13 +97,27 @@ export default function WaouhChatScreen() {
           `${priceLabel}. Est-il toujours disponible ?` +
           `\n\n#radar #${intent}${article ? ` #article:${article}` : ""}`;
         // Anti-spam: never re-send the exact same (article, intent) within 30s.
+        // Anti-spam: never re-send the exact same (article, intent) within 30s.
         const dedupKey = `waouh_radar_lastsend_${article}_${intent}`;
         const last = Number(sessionStorage.getItem(dedupKey) || 0);
-        if (Date.now() - last < 30000) {
+        const fresh = Date.now() - last >= 30000;
+        if (fresh) sessionStorage.setItem(dedupKey, String(Date.now()));
+
+        // Fire the canonical buyer-interest pipeline (same one used by StatusCard)
+        // so the seller receives the standard "📩 Nouvel acheteur intéressé"
+        // notification + match-chat window. Only when we have a real article id.
+        if (fresh && article) {
+          supabase.functions
+            .invoke("waouh-buyer-interest", {
+              body: { article_id: article, source: "radar", intent },
+            })
+            .catch(() => {});
+        }
+
+        if (!fresh) {
           chatRef.current?.startNewThread();
           chatRef.current?.prefill(text);
         } else {
-          sessionStorage.setItem(dedupKey, String(Date.now()));
           chatRef.current?.prefillAndSend(text);
         }
       } else {
