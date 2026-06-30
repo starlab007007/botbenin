@@ -1,89 +1,112 @@
-## Diagnostic du module Radar
+## Objectif
 
-### État réel (DB + fonctions)
+Permettre à l'utilisateur, sur `/app/whatsapp`, de créer une session WAHA en choisissant entre **deux méthodes d'appairage** :
+1. **QR Code** (existant)
+2. **Code d'appairage à 8 chiffres** (nouveau) — saisi sur le téléphone (WhatsApp → Appareils liés → Lier avec numéro de téléphone)
 
-| Indicateur | Valeur | Constat |
-|---|---|---|
-| Dernier signal capté | 2026-06-10 | **Aucun signal depuis ~20 jours** |
-| Dernier scan source | 2026-05-15 | **Apify ne moissonne plus** |
-| Signaux totaux | 87 | OK |
-| Matches | **119** (> signaux) | **Anomalie : signaux re-traités en boucle** |
-| Cron `radar-process-tick` | actif (*/5min) | OK |
-| Cron `apify-tick` | actif (*/30min) | OK mais 0 résultat |
-| SerpAPI config | `active=false` | Désactivé — scout dort |
-| Apify config | `active=true`, quota 50 | OK mais acteurs invalides |
-| Sources `site` (martistore, coinafrique) | actives | **Aucun scraper ne lit ce type** |
-| `increment_radar_usage` RPC | absent | fallback manuel OK |
+Le tout connecté au même backend WAHA (`https://waha.bot.bj`) avec les mêmes credentials.
 
-### Bugs identifiés
+---
 
-1. **Re-traitement infini des signaux** (`waouh-radar-process` l.272). Le filtre `status.eq.extracted OR promoted_article_id.is.null OR promoted_buyer_profile_id.is.null` re-sélectionne tout signal BUY déjà notifié (son `promoted_article_id` reste NULL) → duplication des matches/notifications. Fix : filtrer uniquement sur `status='extracted'`.
+## UI proposée
 
-2. **Acteurs Apify incorrects** (`waouh-radar-apify` l.18). `apify~facebook-marketplace-scraper` n'existe pas sur Apify ; les vrais slugs sont `apify/facebook-groups-scraper` et `apify/facebook-marketplace-scraper`. Le `~` doit être `/`. → 0 signal depuis le déploiement.
+Sur la page WhatsApp IA mobile (`WhatsAppScreen.tsx`) et desktop (`SimpleSessionManager.tsx`) :
 
-3. **Sources de type `site` jamais scrapées.** Coinafrique, Martistore sont enregistrés mais aucun scraper ne traite `type='site'`. Soit on supprime ces sources, soit on ajoute un mini-scraper Firecrawl (préférable).
+- Bouton **« Connecter WhatsApp »** ouvre un **Sheet/Dialog** avec un sélecteur à deux onglets :
 
-4. **SerpAPI désactivé en BDD** alors que la clé existe. Si on veut une vraie veille publique, il faut réactiver + tronquer l'ancien quota.
+```text
+┌─────────────────────────────────────┐
+│ Connecter WhatsApp                  │
+├─────────────────────────────────────┤
+│  [ QR Code ]  [ Code à 8 chiffres ] │
+├─────────────────────────────────────┤
+│  Onglet 1 (QR) :                    │
+│    [Image QR 256x256]               │
+│    "Scannez depuis WhatsApp →       │
+│     Appareils liés"                 │
+│    Expire dans 04:32                │
+│                                     │
+│  Onglet 2 (Code) :                  │
+│    Input: +229 90 00 00 00          │
+│    [ Obtenir le code ]              │
+│    → Affiche : ABCD-1234            │
+│    "Sur votre téléphone :           │
+│     Appareils liés → Lier avec      │
+│     numéro de téléphone"            │
+│    Expire dans 04:32                │
+├─────────────────────────────────────┤
+│  Statut : ⏳ En attente / ✅ Connecté│
+└─────────────────────────────────────┘
+```
 
-5. **`has_role(_user_id, _role_name text)`** : OK côté code, mais la convention projet veut `app_role` enum. Pas bloquant en prod, à harmoniser plus tard.
+- Polling du statut toutes les 3s via `waha-connect/status/{sessionName}` jusqu'à `connected` ou expiration.
+- Toast succès + fermeture auto + refresh de la liste des sessions.
 
-6. **Profils dupliqués possible** : `waouh_radar_profiles` upsert via SELECT puis INSERT sans contrainte unique sur `contact_phone` → race condition possible. Ajouter `UNIQUE(contact_phone)` + `ON CONFLICT`.
-
-7. **Pas de garde-fou sur `waouh-radar-wa-webhook`** : aucune vérification de signature WAHA → n'importe qui peut injecter des signaux. Ajouter un secret partagé `WAHA_WEBHOOK_TOKEN`.
-
-8. **`waouh_radar_signals.intent` UNKNOWN/NEGOTIATE** : capturés mais jamais mis à `status='notified'` → grossissent indéfiniment. Marquer `status='ignored'` quand intent non gérable.
-
-9. **Outreach automatique** (`enqueueRadarOutreach`) : la dédup utilise `to_phone + template + 24h`. OK mais aucun lien avec `waouh_radar_contacts.id` lors du dédup → si le contact change de numéro, double envoi possible. Mineur.
-
-10. **Téléphones bénin** : `normalizeBeninPhone` accepte 10 chiffres commençant par `01` (ancien format). Bon, mais ne gère pas le `+229 01 XXXXXXXX` (11 chiffres avec préfixe pays + 01). Edge-case.
-
-### Améliorations recommandées avant prod
-
-- **Observabilité** : panneau admin "Radar Health" affichant dernier scan, taux d'extraction (signals/scan), erreurs récentes (déjà tracées dans `waouh_trace_events`).
-- **Backoff source en panne** : si `last_signal_count=0` pendant 5 ticks consécutifs, désactiver auto la source + alerte admin.
-- **Scraper Firecrawl générique** pour les sources `type='site'` (Coinafrique, Jumia, Martistore) avec extraction structurée via Gemini (réutilise `_shared/waouh-keywords.ts` et le pattern de `waouh-price`).
-- **Idempotence stricte** : ajouter contrainte UNIQUE `(source_type, raw_url)` sur `waouh_radar_signals` (le check actuel se fait via SELECT, race-condition possible sur scans parallèles).
-- **Réactivation SerpAPI** si clé valide (sinon laisser off).
-- **Rate-limit auto-outreach par campagne** : déjà 1/jour/contact, ajouter 3/semaine/contact global.
-
-## Plan de correction (4 étapes)
-
-### 1) Migration SQL
-- `UNIQUE(source_type, raw_url) WHERE raw_url IS NOT NULL` sur `waouh_radar_signals`.
-- `UNIQUE(contact_phone) WHERE contact_phone IS NOT NULL` sur `waouh_radar_profiles`.
-- Activer SerpAPI (`UPDATE waouh_radar_api_configs SET active=true, usage_today=0 WHERE provider='serpapi'`).
-- Désactiver les sources `type='site'` orphelines (ou les déplacer vers le nouveau scraper).
-- Marquer les vieux signaux UNKNOWN comme `status='ignored'`.
-
-### 2) `supabase/functions/waouh-radar-process/index.ts`
-- Filtre signaux : `.eq('status','extracted')` uniquement.
-- Mettre `status='ignored'` pour intents non SELL/BUY au lieu de les ignorer.
-- Upsert `waouh_radar_profiles` avec `onConflict:'contact_phone'`.
-
-### 3) `supabase/functions/waouh-radar-apify/index.ts`
-- Corriger les slugs : `apify/facebook-groups-scraper` et `apify/facebook-marketplace-scraper`.
-- Logger explicitement `[apify] actor=… input=… items=…` pour debug.
-- Skip propre si `items` vide + update `last_signal_count=0`.
-
-### 4) `supabase/functions/waouh-radar-wa-webhook/index.ts`
-- Vérifier header `x-waouh-webhook-token` contre secret `WAHA_WEBHOOK_TOKEN` (à créer avec `generate_secret`).
-- Renvoyer 401 si absent/incorrect.
-
-### 5) Nouveau `supabase/functions/waouh-radar-site-scraper/index.ts`
-- Lit toutes les sources `type='site' AND active=true`.
-- Pour chaque URL : `firecrawl scrape` (markdown), extraction Gemini → insère dans `waouh_radar_signals` comme les autres scrapers.
-- Cron `*/30 * * * *` (nouveau job pg_cron).
-
-### 6) Vérification finale
-- Appel manuel : `POST /functions/v1/waouh-radar-apify` puis `…/waouh-radar-process` puis check `waouh_radar_signals.status`.
-- Vérifier qu'un signal SELL crée bien 1 seul `waouh_radar_matches` par buyer profile et 1 seule `waouh_notifications`.
-- Confirmer absence de duplication après 2 ticks consécutifs.
+---
 
 ## Détails techniques
 
-- Aucun changement aux invariants verrouillés `waouh-chat-sync-flow-locked-v12` — le radar ne touche pas le miroir chat.
-- Secret nouveau à provisionner : `WAHA_WEBHOOK_TOKEN` (32 chars random).
-- Le nouveau scraper site utilise la clé `FIRECRAWL_API_KEY` déjà présente.
-- Tests : ajouter `supabase/functions/waouh-radar-process/dedup.test.ts` qui simule 2 passes successives et vérifie `matches.length` stable.
+### 1. Backend — edge function `waha-connect`
 
-Confirme-moi que je peux exécuter ce plan ; je ferai en plus une vérif live (curl edge function) à la fin.
+Ajouter une 3ᵉ action `pair-code` :
+
+- Route : `POST /waha-connect/pair-code`
+- Body : `{ sessionName, phoneNumber }` (E.164 sans `+`, ex: `22990000000`)
+- Logique :
+  1. Démarrer la session si elle n'existe pas (réutiliser `startWAHASession`).
+  2. Appeler WAHA : `POST {wahaUrl}/api/{sessionName}/auth/request-code` avec `{ phoneNumber }` et headers `X-Api-Key` ou `Basic`.
+  3. Retourner `{ session, code, expires_in: 300 }` (WAHA renvoie le code 8 chiffres au format `XXXX-XXXX` ou `XXXXXXXX` selon version — normaliser en `XXXX-XXXX` côté serveur).
+- Réutilise les mêmes secrets `WAHA_API_KEY` / `WAHA_USERNAME` / `WAHA_PASSWORD` — aucun nouveau secret.
+
+`handleStart` et `handleStatus` restent inchangés.
+
+### 2. Frontend
+
+**Nouveau composant** `src/components/whatsapp/PairCodeFlow.tsx` :
+- Input téléphone (normalisation +229 …) + bouton « Obtenir le code »
+- Appelle `supabase.functions.invoke('waha-connect', { body: { action: 'pair-code', sessionName, phoneNumber } })`
+- Affiche le code en gros (mono, espacé), compteur d'expiration, lance le polling status
+
+**Refactor léger** `src/components/whatsapp/QRConnectionFlow.tsx` (existant) : extraire la logique de polling status dans un hook partagé `useWahaPairingStatus(sessionName)` pour réutilisation.
+
+**Nouveau composant** `src/components/whatsapp/ConnectMethodTabs.tsx` :
+- Tabs Shadcn : « QR Code » | « Code à 8 chiffres »
+- Onglet 1 → réutilise `QRConnectionFlow`
+- Onglet 2 → `PairCodeFlow`
+- Génère un `sessionName` unique (`user_{uid8}_{timestamp}`) partagé entre les deux onglets pour éviter les doublons.
+
+**Intégration mobile** `dist-mobile` / `src/app-mobile/screens/WhatsAppScreen.tsx` :
+- Remplacer le bouton actuel « Générer un QR Code » par « Connecter WhatsApp » qui ouvre un Sheet contenant `<ConnectMethodTabs />`.
+
+**Intégration desktop** `SimpleSessionManager.tsx` :
+- Lors de « Nouvelle session », ouvrir le même Dialog avec `<ConnectMethodTabs />` au lieu du flux QR-only.
+
+### 3. Wiring `waha-connect` côté client
+
+Le routing actuel est par URL path (`/start`, `/status`). Pour rester compatible avec `supabase.functions.invoke` (qui ne passe pas de path), basculer sur un dispatcher unique :
+- Lire `action` dans le body (`start` | `status` | `pair-code`) avec fallback sur la lecture par path pour ne rien casser des appels existants.
+
+### 4. Persistance
+
+Aucun changement de schéma. À la création, insérer dans `whatsapp_accounts` `{ user_id, session_name, status: 'pending', auth_method: 'qr' | 'pair_code' }` — la colonne `status` existe déjà ; `auth_method` est métadonnée optionnelle (skip si la colonne n'existe pas, on log juste).
+
+---
+
+## Tests de validation
+
+1. **QR** : créer session → QR s'affiche → scanner → status passe à `connected` en < 30 s → session apparaît dans la liste avec numéro de téléphone.
+2. **Pair Code** : saisir +22990000000 → bouton → code `ABCD-1234` affiché → saisir sur téléphone → status `connected` → session listée.
+3. **Erreurs** : numéro invalide, WAHA indisponible, expiration du code (→ bouton « Régénérer »).
+4. **Edge function logs** : vérifier les appels `request-code` vers WAHA dans les logs.
+
+---
+
+## Fichiers à modifier / créer
+
+- `supabase/functions/waha-connect/index.ts` (ajout `pair-code` + dispatcher body)
+- `src/components/whatsapp/PairCodeFlow.tsx` *(nouveau)*
+- `src/components/whatsapp/ConnectMethodTabs.tsx` *(nouveau)*
+- `src/components/whatsapp/QRConnectionFlow.tsx` (extraction hook)
+- `src/hooks/useWahaPairingStatus.ts` *(nouveau)*
+- `src/components/whatsapp/SimpleSessionManager.tsx` (utiliser nouveau dialog)
+- `src/app-mobile/screens/WhatsAppScreen.tsx` (bouton → Sheet ConnectMethodTabs)
