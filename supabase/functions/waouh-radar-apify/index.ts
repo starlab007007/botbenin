@@ -14,8 +14,8 @@ let APIFY_TOKEN = "";
 let APIFY_CFG_ID: string | undefined;
 
 const ACTORS = {
-  fb_marketplace: "apify~facebook-marketplace-scraper",
-  fb_group: "apify~facebook-groups-scraper",
+  fb_marketplace: "apify/facebook-marketplace-scraper",
+  fb_group: "apify/facebook-groups-scraper",
 };
 
 async function runActor(actor: string, input: any) {
