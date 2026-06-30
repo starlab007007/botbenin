@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
     const body = await req.json();
-    const { name, message_template, media_url, article_id, mode = "broadcast", filters = {}, quota_requested = 100, audience_snapshot = {} } = body;
+    const { name, message_template, media_url, article_id, mode = "announcement", filters = {}, quota_requested = 100, audience_snapshot = {} } = body;
     if (!message_template) return new Response(JSON.stringify({ ok: false, error: "message_template required" }), { status: 400, headers: corsHeaders });
 
     // Create campaign in paused state
