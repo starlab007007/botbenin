@@ -68,16 +68,21 @@ Deno.serve(async (req) => {
     }
 
     let total = 0;
+    const perSource: any[] = [];
     for (const src of sources) {
+      let srcCount = 0;
+      let srcError: string | null = null;
       try {
         const actor = ACTORS[src.type as "fb_marketplace" | "fb_group"];
         const input = src.type === "fb_marketplace"
           ? { search: src.identifier, country: "BJ", maxItems: 30 }
           : { startUrls: [{ url: src.identifier }], maxPosts: 30 };
 
+        console.log(`[apify] actor=${actor} src=${src.id} input=${JSON.stringify(input)}`);
         const items = await runActor(actor, input);
+        console.log(`[apify] actor=${actor} returned ${Array.isArray(items) ? items.length : 0} items`);
         await incrementRadarUsage(sb, APIFY_CFG_ID, 1);
-        for (const it of items.slice(0, 30)) {
+        for (const it of (Array.isArray(items) ? items : []).slice(0, 30)) {
           const url = it.url || it.postUrl || it.permalink;
           if (!url) continue;
           const { data: exists } = await sb.from("waouh_radar_signals").select("id").eq("raw_url", url).maybeSingle();
