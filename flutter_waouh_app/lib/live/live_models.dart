@@ -122,7 +122,7 @@ class LiveMatch {
     this.price,
     this.city,
     this.photo,
-    this.unread = false,
+    this.unreadCount = 0,
   });
 
   final String key;
@@ -137,8 +137,9 @@ class LiveMatch {
   final num? price;
   final String? city;
   final String? photo;
-  final bool unread;
+  final int unreadCount;
 
+  bool get unread => unreadCount > 0;
   String get label => price == null ? title : '$title · $price FCFA';
 
   factory LiveMatch.fromNotification(Map<String, dynamic> row) {
@@ -155,6 +156,7 @@ class LiveMatch {
     final photos = liveStringList(row['photos']).isNotEmpty
         ? liveStringList(row['photos'])
         : liveStringList(payload['photos']);
+    final read = row['opened'] == true || row['read_at'] != null;
     return LiveMatch(
       key: key,
       articleId: articleId,
@@ -168,7 +170,7 @@ class LiveMatch {
       price: payload['price'] is num ? payload['price'] as num : num.tryParse('${payload['price'] ?? ''}'),
       city: payload['city']?.toString(),
       photo: photos.isNotEmpty ? photos.first : payload['image_url']?.toString(),
-      unread: row['opened'] != true && row['read_at'] == null,
+      unreadCount: read ? 0 : 1,
     );
   }
 
@@ -188,7 +190,7 @@ class LiveMatch {
       price: newer.price ?? price,
       city: newer.city ?? city,
       photo: newer.photo ?? photo,
-      unread: unread || other.unread,
+      unreadCount: unreadCount + other.unreadCount,
     );
   }
 }
