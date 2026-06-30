@@ -12,14 +12,17 @@ interface QRConnectionFlowProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sessionName: string;
+  /** When true, render the QR body inline (no Dialog wrapper, no warning step). */
+  embedded?: boolean;
 }
 
 const QRConnectionFlow: React.FC<QRConnectionFlowProps> = ({
   open,
   onOpenChange,
-  sessionName
+  sessionName,
+  embedded = false,
 }) => {
-  const [currentStep, setCurrentStep] = useState<'warning' | 'qr'>('warning');
+  const [currentStep, setCurrentStep] = useState<'warning' | 'qr'>(embedded ? 'qr' : 'warning');
   const [qrImageData, setQrImageData] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
