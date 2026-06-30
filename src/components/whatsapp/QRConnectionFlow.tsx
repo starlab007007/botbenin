@@ -175,44 +175,24 @@ const QRConnectionFlow: React.FC<QRConnectionFlowProps> = ({
     fetchQRCode();
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-2xl mx-auto max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center justify-between text-base md:text-lg">
-            <div className="flex items-center gap-2">
-              <FaWhatsapp className="h-5 w-5 md:h-6 md:w-6 text-green-600" />
-              Connexion WhatsApp - {sessionName}
-            </div>
-            {!sessionConnected && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onOpenChange(false)}
-                className="h-6 w-6 p-0"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            )}
-          </DialogTitle>
-        </DialogHeader>
+  const body = (
+    <div className="space-y-4 md:space-y-6">
+        {/* Étape d'avertissement */}
+        {currentStep === 'warning' && !sessionConnected && (
+          <Card className="border-orange-200 bg-orange-50">
+            <CardContent className="p-3 sm:p-4 md:p-6">
+              <div className="flex flex-col sm:flex-row items-start gap-3 md:gap-4">
+                <AlertTriangle className="h-6 w-6 md:h-8 md:w-8 text-orange-600 flex-shrink-0 mt-1" />
+                <div className="flex-1 space-y-3 md:space-y-4">
+                  <div>
+                    <h3 className="font-semibold text-orange-800 text-sm md:text-base mb-2">
+                      Important à lire avant de continuer
+                    </h3>
+                    <p className="text-orange-700 text-xs md:text-sm">
+                      Vous êtes sur le point de connecter <strong>{sessionName}</strong> à un numéro WhatsApp.
+                    </p>
+                  </div>
 
-        <div className="space-y-4 md:space-y-6">
-          {/* Étape d'avertissement */}
-          {currentStep === 'warning' && !sessionConnected && (
-            <Card className="border-orange-200 bg-orange-50">
-              <CardContent className="p-3 sm:p-4 md:p-6">
-                <div className="flex flex-col sm:flex-row items-start gap-3 md:gap-4">
-                  <AlertTriangle className="h-6 w-6 md:h-8 md:w-8 text-orange-600 flex-shrink-0 mt-1" />
-                  <div className="flex-1 space-y-3 md:space-y-4">
-                    <div>
-                      <h3 className="font-semibold text-orange-800 text-sm md:text-base mb-2">
-                        Important à lire avant de continuer
-                      </h3>
-                      <p className="text-orange-700 text-xs md:text-sm">
-                        Vous êtes sur le point de connecter <strong>{sessionName}</strong> à un numéro WhatsApp.
-                      </p>
-                    </div>
 
                     <div className="space-y-2">
                       <p className="font-medium text-orange-800 text-xs md:text-sm">Veuillez noter :</p>
