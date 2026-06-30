@@ -131,7 +131,7 @@ Deno.serve(async (req) => {
       }).catch(console.error);
     }
 
-    return new Response(JSON.stringify({ ok: true, sources: sources.length, signals: total }), {
+    return new Response(JSON.stringify({ ok: true, sources: sources.length, signals: total, perSource }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
