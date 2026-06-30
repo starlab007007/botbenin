@@ -89,6 +89,7 @@ Deno.serve(async (req) => {
           .select("id", { count: "exact", head: true })
           .eq("campaign_id", c.id).eq("contact_id", ct.id).gte("created_at", oneWeekAgo);
         if ((weekCntCampaign ?? 0) >= (c.max_per_contact_per_week ?? 1)) { skipped++; continue; }
+        if (sent >= remainingQuota) { skipped++; continue; }
         // Global cap: 3 / contact / 7d toutes campagnes
         const { count: weekCntGlobal } = await admin.from("waouh_radar_campaign_sends")
           .select("id", { count: "exact", head: true })
