@@ -11,6 +11,7 @@ import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 import { findRadarOutreachContext, findRadarSellerOutreachContext } from "../_shared/waouh-radar.ts";
 import { extractFallbackKeywords } from "../_shared/waouh-keywords.ts";
+import { compareMarketPrice, shortMarketLine } from "../_shared/waouh-price.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -757,11 +758,27 @@ serve(async (req) => {
         returnedArticleId = art?.id ?? null;
         replyAttachments = photoUrls.map((url: string) => ({ url, type: "image/jpeg" }));
         const photoLine = photoUrls.length > 0 ? `\n📸 ${photoUrls.length} photo${photoUrls.length > 1 ? "s" : ""} jointe${photoUrls.length > 1 ? "s" : ""}` : "";
-        const min = product.market_price_min || inferredPrice * 0.8;
-        const max = product.market_price_max || inferredPrice * 1.2;
-        const aiNote = await marketNote(product.title || fallbackTitle, inferredPrice, min, max, user!.city || "");
-        const noteLine = aiNote ? `\n\n🧠 *Analyse WAOUH* : ${aiNote}` : "";
-        reply = `${waouhHeader("✅ Annonce publiée")}\n\n📦 *${product.title || fallbackTitle}*\n💰 *Prix* : ${fmt(inferredPrice)}\n🏙️ *Ville* : ${user!.city}${photoLine}\n\n📊 *Prix marché estimé*\n• Bas : ${fmt(min)}\n• Haut : ${fmt(max)}${noteLine}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.\n\n${waouhFooter()}`;
+        // Analyse marché RÉELLE (catalogue unifié + interne + radar + web) — fail-soft
+        let marketBlock = "";
+        try {
+          const cmp = await Promise.race([
+            compareMarketPrice(sb, {
+              article_id: art?.id ?? null,
+              query: `${product.title || fallbackTitle} ${product.brand || ""} ${product.model || ""}`.trim(),
+              city: user!.city, category: productCategory,
+              brand: product.brand ?? null, model: product.model ?? null,
+              askedPrice: inferredPrice,
+            }),
+            new Promise<null>((res) => setTimeout(() => res(null), 6000)),
+          ]);
+          if (cmp && (cmp as any).replyBlock) marketBlock = (cmp as any).replyBlock;
+        } catch (e) { console.error("[SELL price-compare]", e); }
+        if (!marketBlock) {
+          const min = product.market_price_min || inferredPrice * 0.8;
+          const max = product.market_price_max || inferredPrice * 1.2;
+          marketBlock = `📊 *Prix marché estimé*\n• Bas : ${fmt(min)}\n• Haut : ${fmt(max)}\n⚠️ Comparables limités — estimation indicative.`;
+        }
+        reply = `${waouhHeader("✅ Annonce publiée")}\n\n📦 *${product.title || fallbackTitle}*\n💰 *Prix* : ${fmt(inferredPrice)}\n🏙️ *Ville* : ${user!.city}${photoLine}\n\n${marketBlock}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.\n\n${waouhFooter()}`;
         // Une seule bulle WhatsApp pour la confirmation de publication, sans boutons.
         returnedActions = [];
 
@@ -970,10 +987,26 @@ serve(async (req) => {
           const idx = partnerTop.length + i + 1;
           const photos: string[] = Array.isArray(m.photos) ? m.photos.filter((u: any) => typeof u === "string") : [];
           const photoLine = photos.length > 0 ? `\n📸 ${photos.length} photo${photos.length > 1 ? "s" : ""}` : "";
-          const min = m.market_price_min || m.price * 0.8;
-          const max = m.market_price_max || m.price * 1.2;
-          const note = await marketNote(m.title || "", Number(m.price || 0), min, max, m.city || "");
-          const noteLine = note ? `\n🧠 ${note}` : "";
+          // Analyse marché RÉELLE (fast mode, sans web pour latence) — fail-soft
+          let marketLine = "";
+          try {
+            const cmp = await Promise.race([
+              compareMarketPrice(sb, {
+                article_id: m.id,
+                query: `${m.title || ""} ${m.brand || ""} ${m.model || ""}`.trim(),
+                city: m.city, category: m.category,
+                askedPrice: Number(m.price || 0),
+                fastMode: true,
+              }),
+              new Promise<null>((res) => setTimeout(() => res(null), 2500)),
+            ]);
+            if (cmp) marketLine = "\n" + shortMarketLine(cmp as any, Number(m.price || 0));
+          } catch {}
+          if (!marketLine) {
+            const min = m.market_price_min || m.price * 0.8;
+            const max = m.market_price_max || m.price * 1.2;
+            marketLine = `\n📊 Marché : ${fmt(min)} – ${fmt(max)}`;
+          }
           // Distance live vendeur ↔ acheteur via RPC PostGIS
           let distLine = "";
           if (m.seller_id) {
@@ -982,7 +1015,7 @@ serve(async (req) => {
               if (typeof d === "number") distLine = `\n${fmtDistance(Math.round(d * 10) / 10)}`;
             } catch {}
           }
-          return `*${idx}. ${m.title}*\n💰 *${fmt(m.price)}*\n🏙️ ${m.city ?? "?"} · ${m.condition}${distLine}${photoLine}\n📊 Marché : ${fmt(min)} – ${fmt(max)}${noteLine}`;
+          return `*${idx}. ${m.title}*\n💰 *${fmt(m.price)}*\n🏙️ ${m.city ?? "?"} · ${m.condition}${distLine}${photoLine}${marketLine}`;
         }))).join(`\n\n${waouhSep}\n\n`);
         const radarList = radarTop.map((r: any, i: number) => {
           const idx = partnerTop.length + matchesTop.length + i + 1;
