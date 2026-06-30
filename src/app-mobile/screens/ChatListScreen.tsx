@@ -26,6 +26,7 @@ import {
 import WaouhDemoMockup from "../components/WaouhDemoMockup";
 import { WaouhMatchChatList } from "@/components/waouh/WaouhMatchChatList";
 import { StatusesPanel } from "@/components/waouh/statuses/StatusesPanel";
+import { RadarPanel } from "../components/radar/RadarPanel";
 
 type Conv = {
   id: string;
@@ -92,7 +93,7 @@ export default function ChatListScreen() {
   });
   const [loading, setLoading] = useState(convs.length === 0);
   const [q, setQ] = useState("");
-  const [tab, setTab] = useState<"chats" | "statuses">("chats");
+  const [tab, setTab] = useState<"chats" | "statuses" | "radar">("chats");
 
   // Desktop right-pane state
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
@@ -316,10 +317,11 @@ export default function ChatListScreen() {
           {[
             { k: "chats", label: "Discussions" },
             { k: "statuses", label: "Statuts · 24h" },
+            { k: "radar", label: "📡 Radar" },
           ].map((t) => (
             <button
               key={t.k}
-              onClick={() => setTab(t.k as "chats" | "statuses")}
+              onClick={() => setTab(t.k as "chats" | "statuses" | "radar")}
               className={
                 "flex-1 py-2.5 text-sm font-semibold transition-colors " +
                 (tab === t.k
@@ -335,6 +337,8 @@ export default function ChatListScreen() {
 
       {tab === "statuses" && !isGuest ? (
         <StatusesPanel variant="mobile" query={q} />
+      ) : tab === "radar" && !isGuest ? (
+        <RadarPanel query={q} />
       ) : (
       <main>
         {/* Pinned WAOUH conversation — default AI assistant chat */}
