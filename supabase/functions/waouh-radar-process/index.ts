@@ -289,7 +289,7 @@ Deno.serve(async (req) => {
 
     let matched = 0, notified = 0, promoted = 0, queued = 0;
 
-    for (const sig of signals) {
+    for (const sig of workable) {
       const phone = extractPhone(sig);
       const promotedSignal = await promoteSignal(sb, sig, phone);
       if (promotedSignal?.id) promoted++;
