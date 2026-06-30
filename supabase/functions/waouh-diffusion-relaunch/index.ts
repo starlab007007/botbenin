@@ -30,13 +30,14 @@ Deno.serve(async (req) => {
 
   // Pick non-responders, max 1 relance
   let q = admin.from("waouh_radar_campaign_sends")
-    .select("id, campaign_id, contact_id, phone_e164, sent_at, relaunch_count, waouh_radar_campaigns:campaign_id(article_id, media_url, mode)")
+    .select("id, campaign_id, contact_id, audience_phone_e164, phone_e164, sent_at, relaunch_count, waouh_radar_campaigns:campaign_id(article_id, media_url, mode)")
     .is("response_at", null)
     .eq("relaunch_count", 0)
     .lte("sent_at", ageCutoff)
     .order("sent_at", { ascending: true })
     .limit(maxRelaunches);
   if (campaignId) q = q.eq("campaign_id", campaignId);
+
 
   const { data: sends, error } = await q;
   if (error) return new Response(JSON.stringify({ ok: false, error: error.message }), { status: 500, headers: corsHeaders });

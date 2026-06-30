@@ -7363,8 +7363,9 @@ export type Database = {
       }
       waouh_radar_campaign_sends: {
         Row: {
+          audience_phone_e164: string | null
           campaign_id: string
-          contact_id: string
+          contact_id: string | null
           created_at: string
           error: string | null
           id: string
@@ -7378,8 +7379,9 @@ export type Database = {
           status: string
         }
         Insert: {
+          audience_phone_e164?: string | null
           campaign_id: string
-          contact_id: string
+          contact_id?: string | null
           created_at?: string
           error?: string | null
           id?: string
@@ -7393,8 +7395,9 @@ export type Database = {
           status?: string
         }
         Update: {
+          audience_phone_e164?: string | null
           campaign_id?: string
-          contact_id?: string
+          contact_id?: string | null
           created_at?: string
           error?: string | null
           id?: string
