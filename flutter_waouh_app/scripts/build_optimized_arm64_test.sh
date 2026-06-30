@@ -21,9 +21,18 @@ if [ -n "${ANDROID_HOME:-}" ] && [ ! -d "$ANDROID_HOME/ndk/28.2.13676358" ]; the
 fi
 
 # This produces an optimized RELEASE-mode binary but signs it only with the
-# automatic Android DEBUG certificate. It does not read key.properties and is
-# not acceptable for Google Play. It is intended only for compact device tests.
+# automatic Android DEBUG certificate. It is not acceptable for Google Play.
+# If an upload key exists locally, hide its properties only during this build
+# so Gradle cannot select it by accident.
 TMP="$(mktemp -d)"
+KEY_PROPERTIES="android/key.properties"
+KEY_BACKUP="$TMP/key.properties"
+KEY_HIDDEN=0
+if [ -f "$KEY_PROPERTIES" ]; then
+  mv "$KEY_PROPERTIES" "$KEY_BACKUP"
+  KEY_HIDDEN=1
+fi
+
 FILES=(
   lib/main.dart
   lib/live/live_chat_screens.dart
@@ -37,6 +46,9 @@ cleanup() {
   for file in "${FILES[@]}"; do
     cp "$TMP/$file" "$file" 2>/dev/null || true
   done
+  if [ "$KEY_HIDDEN" = "1" ] && [ -f "$KEY_BACKUP" ]; then
+    mv "$KEY_BACKUP" "$KEY_PROPERTIES"
+  fi
   rm -rf "$TMP"
 }
 trap cleanup EXIT
