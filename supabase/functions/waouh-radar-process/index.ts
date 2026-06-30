@@ -268,14 +268,23 @@ Deno.serve(async (req) => {
     const { data: signals, error: sigErr } = await sb
       .from("waouh_radar_signals")
       .select("*")
-      .in("intent", ["SELL", "BUY"])
-      .or("status.eq.extracted,promoted_article_id.is.null,promoted_buyer_profile_id.is.null")
+      .eq("status", "extracted")
       .order("captured_at", { ascending: true })
       .limit(limit);
 
     if (sigErr) throw sigErr;
     if (!signals || signals.length === 0) {
       return new Response(JSON.stringify({ ok: true, processed: 0 }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // Mark non-SELL/BUY signals as ignored so they don't pile up
+    const ignorables = signals.filter((s: any) => !["SELL", "BUY"].includes(s.intent));
+    if (ignorables.length) {
+      await sb.from("waouh_radar_signals").update({ status: "ignored" }).in("id", ignorables.map((s: any) => s.id));
+    }
+    const workable = signals.filter((s: any) => ["SELL", "BUY"].includes(s.intent));
+    if (!workable.length) {
+      return new Response(JSON.stringify({ ok: true, processed: 0, ignored: ignorables.length }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     let matched = 0, notified = 0, promoted = 0, queued = 0;
