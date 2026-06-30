@@ -112,6 +112,7 @@ export default function DiffusionScreen() {
         </div>
         <nav className="flex overflow-x-auto scrollbar-none px-2 pb-1 gap-1">
           {([
+            { k: "ia", l: "Diffusion IA", I: Sparkles },
             { k: "campaigns", l: "Campagnes", I: Send },
             { k: "contacts", l: "Contacts", I: Users },
             { k: "sessions", l: "Sessions", I: Smartphone },
