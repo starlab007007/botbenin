@@ -11,6 +11,7 @@ import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 import { findRadarOutreachContext, findRadarSellerOutreachContext } from "../_shared/waouh-radar.ts";
 import { extractFallbackKeywords } from "../_shared/waouh-keywords.ts";
+import { compareMarketPrice, shortMarketLine } from "../_shared/waouh-price.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
