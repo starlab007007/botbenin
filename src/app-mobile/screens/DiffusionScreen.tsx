@@ -140,6 +140,11 @@ export default function DiffusionScreen() {
         className="flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]"
         style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 5.5rem)" }}
       >
+        {tab === "ia" && (
+          <div className="p-4">
+            <AudienceBuilder onSubmitted={() => setTab("campaigns")} />
+          </div>
+        )}
         {tab === "campaigns" && (
           <CampaignsTab
             d={d} s={s}
