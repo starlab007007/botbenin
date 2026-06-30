@@ -67,14 +67,15 @@ export default function WaouhChatScreen() {
     document.title = "WAOUH Chat — bot.bj";
   }, []);
 
-  // If navigated with ?new=1, reset the main thread (empty view, no history).
+  // If navigated with ?new=1 (and optionally &prefill=...), reset main + prefill composer.
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    if (params.get("new") === "1") {
-      // Defer to next tick so the chat ref is mounted.
+    const isNew = params.get("new") === "1";
+    const prefill = params.get("prefill");
+    if (isNew || prefill) {
       const t = setTimeout(() => {
-        chatRef.current?.startNewThread();
-        // Clean the URL so a refresh doesn't re-trigger.
+        if (isNew) chatRef.current?.startNewThread();
+        if (prefill) chatRef.current?.prefill(prefill);
         navigate("/app/chat/waouh", { replace: true });
       }, 0);
       return () => clearTimeout(t);
