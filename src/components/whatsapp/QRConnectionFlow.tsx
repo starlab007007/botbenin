@@ -346,7 +346,33 @@ const QRConnectionFlow: React.FC<QRConnectionFlowProps> = ({
               </CardContent>
             </Card>
           )}
-        </div>
+    </div>
+  );
+
+  if (embedded) return body;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[95vw] max-w-2xl mx-auto max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center justify-between text-base md:text-lg">
+            <div className="flex items-center gap-2">
+              <FaWhatsapp className="h-5 w-5 md:h-6 md:w-6 text-green-600" />
+              Connexion WhatsApp - {sessionName}
+            </div>
+            {!sessionConnected && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onOpenChange(false)}
+                className="h-6 w-6 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </DialogTitle>
+        </DialogHeader>
+        {body}
       </DialogContent>
     </Dialog>
   );
