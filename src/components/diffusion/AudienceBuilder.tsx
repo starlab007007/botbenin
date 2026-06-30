@@ -35,6 +35,8 @@ const SOURCES = [
 interface Filters {
   sources: string[];
   secteurs: string[];
+  sous_categories: string[];
+  keywords: string;
   villes: string[];
   classes: string[];
   min_freshness_days?: number;
@@ -51,9 +53,12 @@ interface Preview {
 export default function AudienceBuilder({ onSubmitted }: { onSubmitted?: () => void }) {
   const [step, setStep] = useState(1);
   const [filters, setFilters] = useState<Filters>({
-    sources: ["radar", "catalog"], secteurs: [], villes: [], classes: ["A", "B"],
+    sources: ["radar", "catalog"], secteurs: [], sous_categories: [], keywords: "",
+    villes: [], classes: ["A", "B"],
     min_qualite: 50, min_intent: 0, min_freshness_days: 30,
   });
+  const [sectorSearch, setSectorSearch] = useState("");
+  const [expandedSector, setExpandedSector] = useState<string | null>(null);
   const [villeInput, setVilleInput] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
