@@ -152,7 +152,7 @@ export function useRadarScan(
         out.push({
           id: `cat:${row.id}`,
           source: "catalog",
-          type: (row.type === "BUY" ? "BUY" : "SELL"),
+          type: (row.type === "demand" || row.type === "BUY" ? "BUY" : "SELL"),
           title: row.titre || "(sans titre)",
           description: row.description,
           photo,
