@@ -111,11 +111,15 @@ Deno.serve(async (req) => {
             status: "extracted",
           });
           total++;
+          srcCount++;
         }
-        await sb.from("waouh_radar_sources").update({ last_scan_at: new Date().toISOString(), last_signal_count: total }).eq("id", src.id);
-      } catch (e) {
-        console.error(`[apify ${src.id}]`, e);
+        await sb.from("waouh_radar_sources").update({ last_scan_at: new Date().toISOString(), last_signal_count: srcCount }).eq("id", src.id);
+      } catch (e: any) {
+        srcError = e?.message || String(e);
+        console.error(`[apify ${src.id}]`, srcError);
+        await sb.from("waouh_radar_sources").update({ last_scan_at: new Date().toISOString(), last_signal_count: 0 }).eq("id", src.id);
       }
+      perSource.push({ id: src.id, type: src.type, count: srcCount, error: srcError });
     }
 
     // Trigger processing
