@@ -83,10 +83,9 @@ export function useRadarScan(
       const wantCatalog = filters.types.length === 0 || filters.types.some((t) => t === "SELL" || t === "BUY");
       const wantStatus = filters.types.length === 0 || filters.types.includes("STATUS");
 
-      const promises: Promise<any>[] = [];
-
-      if (wantCatalog) {
-        let q = supabase
+      const catalogPromise = (async () => {
+        if (!wantCatalog) return { data: [] as any[] };
+        let q: any = supabase
           .from("waouh_unified_catalog")
           .select(
             "id,type,titre,description,categorie,prix_min,prix_max,devise,ville,quartier,lat,lng,photos,vendeur_nom,vendeur_phone,vendeur_whatsapp,verified,last_seen_at,qualite_score"
@@ -100,22 +99,24 @@ export function useRadarScan(
           .lte("lng", bbox.maxLng)
           .order("last_seen_at", { ascending: false })
           .limit(PAGE_SIZE * 2);
-
         if (filters.category) q = q.eq("categorie", filters.category);
         if (filters.priceMin != null) q = q.gte("prix_min", filters.priceMin);
         if (filters.priceMax != null) q = q.lte("prix_max", filters.priceMax);
         if (filters.verifiedOnly) q = q.eq("verified", true);
+        // Map UI types → catalog types ("SELL"→"offer", "BUY"→"demand")
         if (filters.types.length && !filters.types.includes("STATUS")) {
-          q = q.in("type", filters.types as string[]);
+          const mapped = filters.types
+            .map((t) => (t === "SELL" ? "offer" : t === "BUY" ? "demand" : null))
+            .filter(Boolean) as ("demand" | "offer")[];
+          if (mapped.length) q = q.in("type", mapped);
         }
-        promises.push(q);
-      } else {
-        promises.push(Promise.resolve({ data: [] }));
-      }
+        return await q;
+      })();
 
-      if (wantStatus) {
+      const statusPromise = (async () => {
+        if (!wantStatus) return { data: [] as any[] };
         const nowIso = new Date().toISOString();
-        let s = supabase
+        return await supabase
           .from("waouh_statuses")
           .select(
             "id,user_id,author_name,type,title,caption,price_fcfa,location,lat,lng,media_url,media_urls,article_id,expires_at,created_at"
@@ -129,12 +130,9 @@ export function useRadarScan(
           .lte("lng", bbox.maxLng)
           .order("created_at", { ascending: false })
           .limit(PAGE_SIZE);
-        promises.push(s);
-      } else {
-        promises.push(Promise.resolve({ data: [] }));
-      }
+      })();
 
-      const [catRes, stRes]: any[] = await Promise.all(promises);
+      const [catRes, stRes]: any[] = await Promise.all([catalogPromise, statusPromise]);
       if (reqRef.current !== reqId) return;
 
       const now = Date.now();
