@@ -25,6 +25,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import NativeSelectSheet from "../components/native/NativeSelectSheet";
 import { normalizeBeninWhatsApp, normalizePhone, COUNTRIES } from "@/lib/phone";
 import { cn } from "@/lib/utils";
+import AudienceBuilder from "@/components/diffusion/AudienceBuilder";
 
 /* ============================================================
    NATIVE FULL-SCREEN OVERLAY (style Activity Android)
