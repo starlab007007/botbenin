@@ -20,6 +20,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { MobileErrorFallback } from "../components/MobileErrorFallback";
+import { toast } from "sonner";
+import {
+  buildRadarInterestMessage,
+  checkAndMarkRadarSend,
+  setRadarPauseReason,
+  RADAR_DEDUP_WINDOW_MS,
+  type RadarIntent,
+} from "../utils/radarAutosend";
 
 const SESSION_KEY = "waouh_web_session_id";
 function getSessionId() {
@@ -82,36 +90,35 @@ export default function WaouhChatScreen() {
     const t = setTimeout(() => {
       setActiveKey("main");
       if (autosend) {
-        const intent = (params.get("intent") || "interest") as "interest" | "negotiate" | "buy";
+        const intent = (params.get("intent") || "interest") as RadarIntent;
         const title = params.get("title") || "";
         const distance = params.get("distance") || "";
         const price = params.get("price") || "";
         const devise = params.get("devise") || "FCFA";
         const article = params.get("article") || "";
-        const priceLabel = price ? ` (~${price} ${devise})` : "";
-        // Single canonical "intéressé" message regardless of which button was tapped.
-        // The intent + article_id stay in the text as tags so the WAOUH router can
-        // route to the right negotiation flow.
-        const text =
-          `👋 Intéressé par "${title}"${distance ? ` vu sur Radar WAOUH à ${distance}` : ""}` +
-          `${priceLabel}. Est-il toujours disponible ?` +
-          `\n\n#radar #${intent}${article ? ` #article:${article}` : ""}`;
-        // Anti-spam: never re-send the exact same (article, intent) within 30s.
-        // Anti-spam: never re-send the exact same (article, intent) within 30s.
-        const dedupKey = `waouh_radar_lastsend_${article}_${intent}`;
-        const last = Number(sessionStorage.getItem(dedupKey) || 0);
-        const fresh = Date.now() - last >= 30000;
-        if (fresh) sessionStorage.setItem(dedupKey, String(Date.now()));
+        const text = buildRadarInterestMessage({ title, intent, article, distance, price, devise });
 
-        // Fire the canonical buyer-interest pipeline (same one used by StatusCard)
-        // so the seller receives the standard "📩 Nouvel acheteur intéressé"
-        // notification + match-chat window. Only when we have a real article id.
+        // Anti-spam: never re-send the exact same (article, intent) within 30s.
+        // Identical to StatusCard's "intéressé" behavior — one canonical pipeline.
+        const { fresh, remainingMs } = checkAndMarkRadarSend(article || `__${title}`, intent);
+
         if (fresh && article) {
+          // Canonical buyer-interest pipeline (same edge function used by StatusCard).
           supabase.functions
             .invoke("waouh-buyer-interest", {
               body: { article_id: article, source: "radar", intent },
             })
             .catch(() => {});
+          toast.success("Demande envoyée au vendeur", {
+            description: `📡 Radar WAOUH · ${title || "Article"}`,
+          });
+          setRadarPauseReason({ kind: "autosend", title, intent, at: Date.now() });
+        } else if (!fresh) {
+          const secs = Math.ceil(remainingMs / 1000);
+          toast.info("Anti-spam : demande déjà envoyée", {
+            description: `Patientez ${secs}s avant de renvoyer "${intent}" pour cet article.`,
+          });
+          setRadarPauseReason({ kind: "duplicate", title, intent, at: Date.now() });
         }
 
         if (!fresh) {
