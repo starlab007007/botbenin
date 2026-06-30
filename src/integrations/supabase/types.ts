@@ -5902,6 +5902,68 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_diffusion_approvals: {
+        Row: {
+          audience_filters: Json
+          audience_snapshot: Json
+          campaign_id: string | null
+          created_at: string
+          id: string
+          media_url: string | null
+          message_template: string
+          quota_approved: number | null
+          quota_requested: number
+          reason: string | null
+          requested_by: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          audience_filters?: Json
+          audience_snapshot?: Json
+          campaign_id?: string | null
+          created_at?: string
+          id?: string
+          media_url?: string | null
+          message_template: string
+          quota_approved?: number | null
+          quota_requested?: number
+          reason?: string | null
+          requested_by: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          audience_filters?: Json
+          audience_snapshot?: Json
+          campaign_id?: string | null
+          created_at?: string
+          id?: string
+          media_url?: string | null
+          message_template?: string
+          quota_approved?: number | null
+          quota_requested?: number
+          reason?: string | null
+          requested_by?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_diffusion_approvals_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_radar_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       waouh_e2e_test_runs: {
         Row: {
           created_at: string
@@ -7351,6 +7413,7 @@ export type Database = {
       }
       waouh_radar_campaigns: {
         Row: {
+          approval_id: string | null
           article_id: string | null
           created_at: string
           created_by: string | null
@@ -7362,13 +7425,17 @@ export type Database = {
           mode: string
           name: string
           next_run_at: string | null
+          quota_approved: number | null
+          quota_consumed: number
           rate_limit_per_hour: number
+          requires_approval: boolean
           schedule: Json
           segment: Json
           status: string
           updated_at: string
         }
         Insert: {
+          approval_id?: string | null
           article_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -7380,13 +7447,17 @@ export type Database = {
           mode?: string
           name: string
           next_run_at?: string | null
+          quota_approved?: number | null
+          quota_consumed?: number
           rate_limit_per_hour?: number
+          requires_approval?: boolean
           schedule?: Json
           segment?: Json
           status?: string
           updated_at?: string
         }
         Update: {
+          approval_id?: string | null
           article_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -7398,13 +7469,24 @@ export type Database = {
           mode?: string
           name?: string
           next_run_at?: string | null
+          quota_approved?: number | null
+          quota_consumed?: number
           rate_limit_per_hour?: number
+          requires_approval?: boolean
           schedule?: Json
           segment?: Json
           status?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "waouh_radar_campaigns_approval_id_fkey"
+            columns: ["approval_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_diffusion_approvals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       waouh_radar_contacts: {
         Row: {
@@ -9268,6 +9350,24 @@ export type Database = {
           permission_name: string | null
           role_name: string | null
           user_id: string | null
+        }
+        Relationships: []
+      }
+      v_diffusion_audience: {
+        Row: {
+          classe: string | null
+          display_name: string | null
+          freshness_days: number | null
+          intent_score: number | null
+          is_whatsapp: boolean | null
+          last_seen_at: string | null
+          opt_out: boolean | null
+          phone_e164: string | null
+          qualite_score: number | null
+          secteur: string | null
+          sources: string[] | null
+          sous_categorie: string | null
+          ville: string | null
         }
         Relationships: []
       }
