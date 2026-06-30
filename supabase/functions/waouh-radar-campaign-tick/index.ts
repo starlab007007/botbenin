@@ -129,10 +129,13 @@ Deno.serve(async (req) => {
     }
 
     const nextRunAt = computeNextRun(c.schedule || {});
+    const newConsumed = (c.quota_consumed ?? 0) + sent;
+    const quotaExhausted = c.quota_approved && newConsumed >= c.quota_approved;
     await admin.from("waouh_radar_campaigns").update({
       last_run_at: new Date().toISOString(),
-      next_run_at: nextRunAt,
-      status: nextRunAt ? "active" : "done",
+      next_run_at: quotaExhausted ? null : nextRunAt,
+      quota_consumed: newConsumed,
+      status: quotaExhausted ? "done" : (nextRunAt ? "active" : "done"),
     }).eq("id", c.id);
 
     await admin.from("waouh_radar_campaign_runs").update({
