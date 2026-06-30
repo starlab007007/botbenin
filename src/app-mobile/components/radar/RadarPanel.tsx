@@ -188,20 +188,30 @@ export function RadarPanel({ query = "" }: { query?: string }) {
       </div>
 
       {/* Auto-pause banner */}
-      {paused && (
-        <div className="mx-4 mt-3 rounded-xl border border-emerald-200/60 bg-emerald-50/70 dark:bg-emerald-900/20 dark:border-emerald-800/60 p-3 flex items-center gap-3">
-          <PauseCircle className="h-5 w-5 text-emerald-700 dark:text-emerald-400 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-200">📡 Radar en pause</p>
-            <p className="text-[11px] text-emerald-800/80 dark:text-emerald-300/80 truncate">
-              {filtered.length} résultat{filtered.length > 1 ? "s" : ""} • Relancez pour voir les nouveautés.
-            </p>
+      {paused && (() => {
+        const reasonLine = (() => {
+          if (!pauseReason) return `${filtered.length} résultat${filtered.length > 1 ? "s" : ""} • Relancez pour voir les nouveautés.`;
+          const t = pauseReason.title ? `"${pauseReason.title}"` : "l'article";
+          if (pauseReason.kind === "autosend")
+            return `✅ Demande "${pauseReason.intent}" envoyée pour ${t}. Le vendeur a été notifié.`;
+          if (pauseReason.kind === "duplicate")
+            return `⏳ Anti-spam : demande "${pauseReason.intent}" déjà envoyée pour ${t} il y a moins de 30s.`;
+          if (pauseReason.kind === "visibility") return "Onglet inactif — radar mis en veille.";
+          return "Délai d'inactivité atteint.";
+        })();
+        return (
+          <div className="mx-4 mt-3 rounded-xl border border-emerald-200/60 bg-emerald-50/70 dark:bg-emerald-900/20 dark:border-emerald-800/60 p-3 flex items-center gap-3">
+            <PauseCircle className="h-5 w-5 text-emerald-700 dark:text-emerald-400 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-200">📡 Radar en pause</p>
+              <p className="text-[11px] text-emerald-800/80 dark:text-emerald-300/80 line-clamp-2">{reasonLine}</p>
+            </div>
+            <Button size="sm" onClick={resume} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              <Play className="h-4 w-4 mr-1" /> Relancer
+            </Button>
           </div>
-          <Button size="sm" onClick={resume} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-            <Play className="h-4 w-4 mr-1" /> Relancer
-          </Button>
-        </div>
-      )}
+        );
+      })()}
 
       {view === "radar" && (
         <div className="pt-4">
