@@ -558,6 +558,18 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       setInput(text);
       setTimeout(() => inputRef.current?.focus(), 0);
     },
+    prefillAndSend: async (text: string, opts?: { attachments?: Att[] }) => {
+      // Reset thread + send immediately. Bypasses the textarea so no manual tap is needed.
+      startNewThread();
+      const atts = opts?.attachments ?? [];
+      try {
+        // Slight defer to let the new-thread cutoff settle in state.
+        await new Promise((r) => setTimeout(r, 30));
+        await sendCore(text, atts);
+      } catch (e) {
+        // sendCore already surfaces a toast; nothing more to do.
+      }
+    },
   }), []);
 
 
