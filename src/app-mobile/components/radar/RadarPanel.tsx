@@ -21,6 +21,11 @@ import { useRadarLifecycle } from "../../hooks/useRadarLifecycle";
 import { RadarCanvas } from "./RadarCanvas";
 import { RadarFiltersSheet } from "./RadarFilters";
 import { RadarItemSheet } from "./RadarItemSheet";
+import {
+  readRadarPauseReason,
+  clearRadarPauseReason,
+  type RadarPauseReason,
+} from "../../utils/radarAutosend";
 
 const FILTERS_KEY = "waouh_radar_filters_v1";
 
