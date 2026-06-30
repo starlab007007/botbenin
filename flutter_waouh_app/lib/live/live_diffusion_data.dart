@@ -62,9 +62,13 @@ class LiveDiffusionData {
     }).eq('id', id).eq('user_id', userId);
   }
 
-  Future<void> deleteContact(String id) => client.from('wa_contacts').delete().eq('id', id).eq('user_id', userId);
+  Future<void> deleteContact(String id) async {
+    await client.from('wa_contacts').delete().eq('id', id).eq('user_id', userId);
+  }
 
-  Future<void> createList(String name) => client.from('wa_contact_lists').insert({'user_id': userId, 'name': name.trim()});
+  Future<void> createList(String name) async {
+    await client.from('wa_contact_lists').insert({'user_id': userId, 'name': name.trim()});
+  }
 
   Future<void> addToList(String listId, List<String> ids) async {
     if (ids.isEmpty) return;
@@ -91,5 +95,7 @@ class LiveDiffusionData {
     return LiveDiffusionAudiencePreview.fromJson(Map<String, dynamic>.from(result.data as Map));
   }
 
-  Future<void> submitApproval(Map<String, dynamic> body) async => invoke('waouh-diffusion-submit', body);
+  Future<void> submitApproval(Map<String, dynamic> body) async {
+    await invoke('waouh-diffusion-submit', body);
+  }
 }
