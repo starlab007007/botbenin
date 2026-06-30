@@ -46,6 +46,23 @@ const hardenedFetch: typeof fetch = async (input, init) => {
   }
 };
 
+// Inject the WAOUH web session id as a header so RLS policies can validate
+// anonymous chat access against `request.headers->>x-waouh-session` instead of
+// the much weaker `web_session_id IS NOT NULL` check.
+const sessionHeaderFetch: typeof fetch = (input, init) => {
+  try {
+    const sid = typeof localStorage !== 'undefined'
+      ? localStorage.getItem('waouh_web_session_id')
+      : null;
+    if (sid) {
+      const headers = new Headers(init?.headers || (typeof input !== 'string' && 'headers' in (input as Request) ? (input as Request).headers : undefined));
+      if (!headers.has('x-waouh-session')) headers.set('x-waouh-session', sid);
+      return hardenedFetch(input, { ...(init || {}), headers });
+    }
+  } catch {}
+  return hardenedFetch(input, init);
+};
+
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-  global: { fetch: hardenedFetch },
+  global: { fetch: sessionHeaderFetch },
 });
