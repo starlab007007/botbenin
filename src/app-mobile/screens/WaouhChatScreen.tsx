@@ -20,6 +20,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { MobileErrorFallback } from "../components/MobileErrorFallback";
+import { toast } from "sonner";
+import {
+  buildRadarInterestMessage,
+  checkAndMarkRadarSend,
+  setRadarPauseReason,
+  RADAR_DEDUP_WINDOW_MS,
+  type RadarIntent,
+} from "../utils/radarAutosend";
 
 const SESSION_KEY = "waouh_web_session_id";
 function getSessionId() {
