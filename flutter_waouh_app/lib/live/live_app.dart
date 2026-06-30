@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
 import 'live_auth_screens.dart';
+import 'live_broadcast_screen.dart';
 import 'live_controller.dart';
 import 'live_controller_v2.dart';
 import 'live_inbox_screen_v2.dart';
@@ -83,7 +84,7 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
         GoRoute(path: '/app/notifications', builder: (_, __) => const LiveNotificationsScreenV2()),
         GoRoute(path: '/app/bots', builder: (_, __) => const LiveBotsScreen()),
         GoRoute(path: '/app/whatsapp', builder: (_, __) => const LiveWhatsAppIaScreen()),
-        GoRoute(path: '/app/diffusion', builder: (_, __) => const LiveDiffusionScreen()),
+        GoRoute(path: '/app/diffusion', builder: (_, __) => const LiveBroadcastScreen()),
         GoRoute(path: '/app/partner', redirect: (_, __) => '/app/partner/businesses'),
         GoRoute(path: '/app/partner/businesses', builder: (_, __) => const LivePartnerBusinessesScreenV3()),
         GoRoute(path: '/app/partner/businesses/:businessId/products', builder: (_, state) => LivePartnerProductsScreenV2(businessId: state.pathParameters['businessId']!)),
@@ -110,20 +111,11 @@ class LiveShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final focused = path.startsWith('/app/chat/') || path.startsWith('/app/profile') || path.startsWith('/app/partner/businesses/');
     return Scaffold(
-      body: Column(
-        children: [
-          const LiveOfflineBanner(),
-          Expanded(child: child),
-        ],
-      ),
+      body: Column(children: [const LiveOfflineBanner(), Expanded(child: child)]),
       bottomNavigationBar: focused ? null : NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (index) => context.go(switch (index) {
-          1 => '/app/bots',
-          2 => '/app/whatsapp',
-          3 => '/app/diffusion',
-          4 => '/app/partner',
-          _ => '/app/chat',
+          1 => '/app/bots', 2 => '/app/whatsapp', 3 => '/app/diffusion', 4 => '/app/partner', _ => '/app/chat',
         }),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
