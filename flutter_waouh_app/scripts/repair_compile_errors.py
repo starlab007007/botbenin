@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Apply narrowly scoped source repairs after a Flutter SDK API update.
+"""Repair the known Flutter SDK and syntax blockers in the native test branch.
 
-The script is idempotent. It refuses to silently patch an unexpected source shape.
+The edits are idempotent and deliberately limited to the files reported by
+flutter analyze. Run this script before analysis, tests or the test APK build.
 """
 from __future__ import annotations
 
@@ -11,36 +12,45 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def replace_once(path: Path, old: str, new: str) -> None:
-    text = path.read_text(encoding="utf-8")
-    count = text.count(old)
-    if count == 0:
-        return
-    if count != 1:
-        raise RuntimeError(f"{path}: expected one occurrence of {old!r}, found {count}")
-    path.write_text(text.replace(old, new, 1), encoding="utf-8")
+def replace_all(path: Path, old: str, new: str) -> bool:
+    source = path.read_text(encoding="utf-8")
+    updated = source.replace(old, new)
+    if updated == source:
+        return False
+    path.write_text(updated, encoding="utf-8")
+    return True
 
 
-replace_once(
-    ROOT / "lib/main.dart",
-    "cardTheme: CardTheme(",
-    "cardTheme: CardThemeData(",
-)
+def replace_regex(path: Path, pattern: str, replacement: str) -> bool:
+    source = path.read_text(encoding="utf-8")
+    updated, count = re.subn(pattern, replacement, source, count=1, flags=re.S)
+    if count:
+        path.write_text(updated, encoding="utf-8")
+        return True
+    return False
 
-replace_once(
-    ROOT / "lib/live/live_match_chat_v2.dart",
-    "item.createdAt.difference(local.createdAt).inSeconds.abs < 120",
-    "item.createdAt.difference(local.createdAt).inSeconds.abs() < 120",
-)
 
-replace_once(
-    ROOT / "lib/live/live_radar_screen.dart",
-    "fontWeight: FontWeight.w800))),\n             ])),",
+changed = []
+
+main = ROOT / "lib/main.dart"
+if replace_all(main, "cardTheme: CardTheme(", "cardTheme: CardThemeData("):
+    changed.append(main.name)
+
+for filename in ("live_chat_screens.dart", "live_match_chat_v2.dart"):
+    path = ROOT / "lib/live" / filename
+    if replace_all(path, ".inSeconds.abs < 120", ".inSeconds.abs() < 120"):
+        changed.append(filename)
+
+radar = ROOT / "lib/live/live_radar_screen.dart"
+# The Positioned widget in _RadarItemCard misses its final closing parenthesis.
+if replace_regex(
+    radar,
+    r"fontWeight: FontWeight\.w800\)\)\),\s*\n\s*\]\)\),",
     "fontWeight: FontWeight.w800)))),\n             ])),",
-)
+):
+    changed.append(radar.name)
 
 broadcast = ROOT / "lib/live/live_broadcast_screen.dart"
-broadcast_text = broadcast.read_text(encoding="utf-8")
 fixed_contact = '''class _ContactSummary extends StatelessWidget {
   const _ContactSummary({required this.items, required this.data, required this.done});
 
@@ -89,9 +99,11 @@ fixed_contact = '''class _ContactSummary extends StatelessWidget {
 }
 
 class _SessionSummary extends StatelessWidget'''
+if replace_regex(
+    broadcast,
+    r"class _ContactSummary extends StatelessWidget\s*\{.*?class _SessionSummary extends StatelessWidget",
+    fixed_contact,
+):
+    changed.append(broadcast.name)
 
-pattern = r"class _ContactSummary extends StatelessWidget \{.*?class _SessionSummary extends StatelessWidget"
-if re.search(pattern, broadcast_text, flags=re.S):
-    broadcast.write_text(re.sub(pattern, fixed_contact, broadcast_text, count=1, flags=re.S), encoding="utf-8")
-
-print("Flutter source repair completed.")
+print("Flutter source repair completed: " + (", ".join(changed) if changed else "already clean"))
