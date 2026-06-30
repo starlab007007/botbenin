@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import QRConnectionFlow from '@/components/whatsapp/QRConnectionFlow';
+import ConnectMethodTabs from '@/components/whatsapp/ConnectMethodTabs';
 import BotWebhookLinker from './BotWebhookLinker';
 import WebhookConfigModal from './WebhookConfigModal';
 import { 
@@ -592,13 +593,12 @@ const SimpleSessionManager: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Modal QR - Responsive avec fermeture automatique */}
-      <QRConnectionFlow
+      {/* Modal Connexion WhatsApp (QR + Code à 8 chiffres) — fermeture auto au succès */}
+      <ConnectMethodTabs
         open={showQRModal}
         onOpenChange={(open) => {
           setShowQRModal(open);
           if (!open) {
-            // Fermeture automatique après scan réussi
             setTimeout(() => refreshData(), 2000);
           }
         }}

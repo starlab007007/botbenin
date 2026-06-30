@@ -14,6 +14,9 @@ import {
   CheckCircle2, AlertCircle, Loader2, Smartphone, Bot, ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import PairCodeFlow from "@/components/whatsapp/PairCodeFlow";
+import { KeyRound } from "lucide-react";
 
 // ============================================================
 // Status helpers
@@ -409,41 +412,59 @@ function QrSheet({ open, onOpenChange, sessionName, getQRCode, startSession, ses
             </p>
           </div>
         ) : (
-          <>
-            <div className="bg-white rounded-2xl p-6 flex items-center justify-center min-h-[300px] border-2 border-dashed">
-              {qr ? (
-                <img src={qr.startsWith("data:") ? qr : `data:image/png;base64,${qr}`}
-                  alt="QR WhatsApp" className="w-64 h-64 object-contain" />
-              ) : (
-                <div className="text-center text-muted-foreground text-sm">
-                  {busy || hint ? (
-                    <>
-                      <Loader2 className="h-10 w-10 animate-spin mx-auto mb-2" />
-                      <p>{hint ?? "Récupération du QR…"}</p>
-                    </>
-                  ) : (
-                    <>
-                      <QrCode className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                      <p>QR indisponible</p>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="rounded-xl bg-muted/50 p-4 text-sm">
-              <p className="font-medium mb-2">Comment scanner :</p>
-              <ol className="text-muted-foreground space-y-1 list-decimal list-inside">
-                <li>Ouvrez WhatsApp sur votre téléphone</li>
-                <li>Menu → Appareils connectés</li>
-                <li>Touchez "Connecter un appareil"</li>
-                <li>Scannez ce code</li>
-              </ol>
-            </div>
-            <Button variant="outline" className="w-full h-11" onClick={fetchQr} disabled={busy}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${busy ? "animate-spin" : ""}`} />
-              Régénérer le QR
-            </Button>
-          </>
+          <Tabs defaultValue="qr" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="qr" className="gap-2">
+                <QrCode className="h-4 w-4" /> QR Code
+              </TabsTrigger>
+              <TabsTrigger value="code" className="gap-2">
+                <KeyRound className="h-4 w-4" /> Code à 8 chiffres
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="qr" className="mt-4 space-y-4">
+              <div className="bg-white rounded-2xl p-6 flex items-center justify-center min-h-[300px] border-2 border-dashed">
+                {qr ? (
+                  <img src={qr.startsWith("data:") ? qr : `data:image/png;base64,${qr}`}
+                    alt="QR WhatsApp" className="w-64 h-64 object-contain" />
+                ) : (
+                  <div className="text-center text-muted-foreground text-sm">
+                    {busy || hint ? (
+                      <>
+                        <Loader2 className="h-10 w-10 animate-spin mx-auto mb-2" />
+                        <p>{hint ?? "Récupération du QR…"}</p>
+                      </>
+                    ) : (
+                      <>
+                        <QrCode className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                        <p>QR indisponible</p>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="rounded-xl bg-muted/50 p-4 text-sm">
+                <p className="font-medium mb-2">Comment scanner :</p>
+                <ol className="text-muted-foreground space-y-1 list-decimal list-inside">
+                  <li>Ouvrez WhatsApp sur votre téléphone</li>
+                  <li>Menu → Appareils connectés</li>
+                  <li>Touchez "Connecter un appareil"</li>
+                  <li>Scannez ce code</li>
+                </ol>
+              </div>
+              <Button variant="outline" className="w-full h-11" onClick={fetchQr} disabled={busy}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${busy ? "animate-spin" : ""}`} />
+                Régénérer le QR
+              </Button>
+            </TabsContent>
+
+            <TabsContent value="code" className="mt-4">
+              <PairCodeFlow
+                sessionName={sessionName}
+                onConnected={() => setTimeout(() => onOpenChange(false), 2500)}
+              />
+            </TabsContent>
+          </Tabs>
         )}
       </div>
     </SheetShell>
