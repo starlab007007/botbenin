@@ -5959,6 +5959,13 @@ export type Database = {
             foreignKeyName: "waouh_diffusion_approvals_campaign_id_fkey"
             columns: ["campaign_id"]
             isOneToOne: false
+            referencedRelation: "v_diffusion_campaign_kpis"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "waouh_diffusion_approvals_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
             referencedRelation: "waouh_radar_campaigns"
             referencedColumns: ["id"]
           },
@@ -7342,6 +7349,13 @@ export type Database = {
             foreignKeyName: "waouh_radar_campaign_runs_campaign_id_fkey"
             columns: ["campaign_id"]
             isOneToOne: false
+            referencedRelation: "v_diffusion_campaign_kpis"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "waouh_radar_campaign_runs_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
             referencedRelation: "waouh_radar_campaigns"
             referencedColumns: ["id"]
           },
@@ -7354,8 +7368,10 @@ export type Database = {
           created_at: string
           error: string | null
           id: string
+          last_relaunched_at: string | null
           outbound_queue_id: string | null
           phone_e164: string
+          relaunch_count: number
           response_at: string | null
           run_id: string | null
           sent_at: string | null
@@ -7367,8 +7383,10 @@ export type Database = {
           created_at?: string
           error?: string | null
           id?: string
+          last_relaunched_at?: string | null
           outbound_queue_id?: string | null
           phone_e164: string
+          relaunch_count?: number
           response_at?: string | null
           run_id?: string | null
           sent_at?: string | null
@@ -7380,14 +7398,23 @@ export type Database = {
           created_at?: string
           error?: string | null
           id?: string
+          last_relaunched_at?: string | null
           outbound_queue_id?: string | null
           phone_e164?: string
+          relaunch_count?: number
           response_at?: string | null
           run_id?: string | null
           sent_at?: string | null
           status?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "waouh_radar_campaign_sends_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "v_diffusion_campaign_kpis"
+            referencedColumns: ["campaign_id"]
+          },
           {
             foreignKeyName: "waouh_radar_campaign_sends_campaign_id_fkey"
             columns: ["campaign_id"]
@@ -9368,6 +9395,24 @@ export type Database = {
           sources: string[] | null
           sous_categorie: string | null
           ville: string | null
+        }
+        Relationships: []
+      }
+      v_diffusion_campaign_kpis: {
+        Row: {
+          campaign_id: string | null
+          conversion_rate_pct: number | null
+          created_at: string | null
+          mode: string | null
+          name: string | null
+          quota_approved: number | null
+          quota_consumed: number | null
+          response_rate_pct: number | null
+          status: string | null
+          total_interested: number | null
+          total_relaunched: number | null
+          total_responded: number | null
+          total_sent: number | null
         }
         Relationships: []
       }

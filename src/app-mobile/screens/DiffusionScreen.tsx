@@ -26,6 +26,7 @@ import NativeSelectSheet from "../components/native/NativeSelectSheet";
 import { normalizeBeninWhatsApp, normalizePhone, COUNTRIES } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 import AudienceBuilder from "@/components/diffusion/AudienceBuilder";
+import DiffusionTrackingDashboard from "@/components/diffusion/DiffusionTrackingDashboard";
 
 /* ============================================================
    NATIVE FULL-SCREEN OVERLAY (style Activity Android)
@@ -1398,9 +1399,14 @@ function StatsTab({ d }: { d: ReturnType<typeof useWaDiffusion> }) {
       <Button variant="outline" onClick={() => d.refresh()} className="w-full h-11">
         <RefreshCw className="h-4 w-4 mr-1" /> Actualiser
       </Button>
+
+      <div className="pt-4 border-t">
+        <DiffusionTrackingDashboard />
+      </div>
     </div>
   );
 }
+
 
 /* ============================================================
    SHARED HELPERS
