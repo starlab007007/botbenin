@@ -13,6 +13,7 @@ const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 let APIFY_TOKEN = "";
 let APIFY_CFG_ID: string | undefined;
 
+// Apify REST: actorId format is `username~actor-name` in URLs
 const ACTORS = {
   fb_marketplace: "apify~facebook-marketplace-scraper",
   fb_group: "apify~facebook-groups-scraper",
@@ -67,16 +68,21 @@ Deno.serve(async (req) => {
     }
 
     let total = 0;
+    const perSource: any[] = [];
     for (const src of sources) {
+      let srcCount = 0;
+      let srcError: string | null = null;
       try {
         const actor = ACTORS[src.type as "fb_marketplace" | "fb_group"];
         const input = src.type === "fb_marketplace"
           ? { search: src.identifier, country: "BJ", maxItems: 30 }
           : { startUrls: [{ url: src.identifier }], maxPosts: 30 };
 
+        console.log(`[apify] actor=${actor} src=${src.id} input=${JSON.stringify(input)}`);
         const items = await runActor(actor, input);
+        console.log(`[apify] actor=${actor} returned ${Array.isArray(items) ? items.length : 0} items`);
         await incrementRadarUsage(sb, APIFY_CFG_ID, 1);
-        for (const it of items.slice(0, 30)) {
+        for (const it of (Array.isArray(items) ? items : []).slice(0, 30)) {
           const url = it.url || it.postUrl || it.permalink;
           if (!url) continue;
           const { data: exists } = await sb.from("waouh_radar_signals").select("id").eq("raw_url", url).maybeSingle();
@@ -105,11 +111,15 @@ Deno.serve(async (req) => {
             status: "extracted",
           });
           total++;
+          srcCount++;
         }
-        await sb.from("waouh_radar_sources").update({ last_scan_at: new Date().toISOString(), last_signal_count: total }).eq("id", src.id);
-      } catch (e) {
-        console.error(`[apify ${src.id}]`, e);
+        await sb.from("waouh_radar_sources").update({ last_scan_at: new Date().toISOString(), last_signal_count: srcCount }).eq("id", src.id);
+      } catch (e: any) {
+        srcError = e?.message || String(e);
+        console.error(`[apify ${src.id}]`, srcError);
+        await sb.from("waouh_radar_sources").update({ last_scan_at: new Date().toISOString(), last_signal_count: 0 }).eq("id", src.id);
       }
+      perSource.push({ id: src.id, type: src.type, count: srcCount, error: srcError });
     }
 
     // Trigger processing
@@ -121,7 +131,7 @@ Deno.serve(async (req) => {
       }).catch(console.error);
     }
 
-    return new Response(JSON.stringify({ ok: true, sources: sources.length, signals: total }), {
+    return new Response(JSON.stringify({ ok: true, sources: sources.length, signals: total, perSource }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {

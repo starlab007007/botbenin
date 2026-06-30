@@ -268,8 +268,7 @@ Deno.serve(async (req) => {
     const { data: signals, error: sigErr } = await sb
       .from("waouh_radar_signals")
       .select("*")
-      .in("intent", ["SELL", "BUY"])
-      .or("status.eq.extracted,promoted_article_id.is.null,promoted_buyer_profile_id.is.null")
+      .eq("status", "extracted")
       .order("captured_at", { ascending: true })
       .limit(limit);
 
@@ -278,9 +277,19 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true, processed: 0 }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // Mark non-SELL/BUY signals as ignored so they don't pile up
+    const ignorables = signals.filter((s: any) => !["SELL", "BUY"].includes(s.intent));
+    if (ignorables.length) {
+      await sb.from("waouh_radar_signals").update({ status: "ignored" }).in("id", ignorables.map((s: any) => s.id));
+    }
+    const workable = signals.filter((s: any) => ["SELL", "BUY"].includes(s.intent));
+    if (!workable.length) {
+      return new Response(JSON.stringify({ ok: true, processed: 0, ignored: ignorables.length }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     let matched = 0, notified = 0, promoted = 0, queued = 0;
 
-    for (const sig of signals) {
+    for (const sig of workable) {
       const phone = extractPhone(sig);
       const promotedSignal = await promoteSignal(sb, sig, phone);
       if (promotedSignal?.id) promoted++;
@@ -297,7 +306,7 @@ Deno.serve(async (req) => {
               (prof.role === "seller" && sig.intent === "BUY") || (prof.role === "buyer" && sig.intent === "SELL") ? "both" : prof.role,
           }).eq("id", prof.id);
         } else {
-          await sb.from("waouh_radar_profiles").insert({
+          await sb.from("waouh_radar_profiles").upsert({
             contact_phone: phone,
             contact_handle: sig.contact_handle,
             display_name: sig.contact_handle,
@@ -306,7 +315,7 @@ Deno.serve(async (req) => {
             cities: sig.city ? [sig.city] : [],
             signals_count: 1,
             last_seen_at: new Date().toISOString(),
-          });
+          }, { onConflict: "contact_phone" });
         }
         if (await enqueueRadarOutreach(sb, sig, phone, promotedSignal?.id ?? null)) queued++;
       }

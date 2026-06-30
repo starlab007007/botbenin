@@ -5,6 +5,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
+const WAHA_WEBHOOK_TOKEN = Deno.env.get("WAHA_WEBHOOK_TOKEN") || "";
 
 async function aiExtract(text: string): Promise<any> {
   const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -25,6 +26,15 @@ async function aiExtract(text: string): Promise<any> {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  // Shared-secret auth (set WAHA webhook header: x-waouh-webhook-token)
+  if (WAHA_WEBHOOK_TOKEN) {
+    const provided = req.headers.get("x-waouh-webhook-token") || "";
+    if (provided !== WAHA_WEBHOOK_TOKEN) {
+      return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+  }
+
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   try {
