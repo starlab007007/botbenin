@@ -1398,9 +1398,14 @@ function StatsTab({ d }: { d: ReturnType<typeof useWaDiffusion> }) {
       <Button variant="outline" onClick={() => d.refresh()} className="w-full h-11">
         <RefreshCw className="h-4 w-4 mr-1" /> Actualiser
       </Button>
+
+      <div className="pt-4 border-t">
+        <DiffusionTrackingDashboard />
+      </div>
     </div>
   );
 }
+
 
 /* ============================================================
    SHARED HELPERS
