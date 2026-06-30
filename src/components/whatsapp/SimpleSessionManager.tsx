@@ -593,13 +593,12 @@ const SimpleSessionManager: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Modal QR - Responsive avec fermeture automatique */}
-      <QRConnectionFlow
+      {/* Modal Connexion WhatsApp (QR + Code à 8 chiffres) — fermeture auto au succès */}
+      <ConnectMethodTabs
         open={showQRModal}
         onOpenChange={(open) => {
           setShowQRModal(open);
           if (!open) {
-            // Fermeture automatique après scan réussi
             setTimeout(() => refreshData(), 2000);
           }
         }}
