@@ -64,6 +64,12 @@ Deno.serve(async (req) => {
 
   const results: any[] = [];
   for (const c of campaigns || []) {
+    // Gate on admin approval
+    if (c.requires_approval && (!c.quota_approved || c.quota_approved <= (c.quota_consumed ?? 0))) {
+      results.push({ campaign_id: c.id, skipped_reason: "awaiting_approval_or_quota_exhausted" });
+      continue;
+    }
+    const remainingQuota = c.quota_approved ? Math.max(0, c.quota_approved - (c.quota_consumed ?? 0)) : Infinity;
     // Create run
     const { data: run } = await admin.from("waouh_radar_campaign_runs").insert({ campaign_id: c.id }).select().single();
     const runId = run?.id;
@@ -83,6 +89,7 @@ Deno.serve(async (req) => {
           .select("id", { count: "exact", head: true })
           .eq("campaign_id", c.id).eq("contact_id", ct.id).gte("created_at", oneWeekAgo);
         if ((weekCntCampaign ?? 0) >= (c.max_per_contact_per_week ?? 1)) { skipped++; continue; }
+        if (sent >= remainingQuota) { skipped++; continue; }
         // Global cap: 3 / contact / 7d toutes campagnes
         const { count: weekCntGlobal } = await admin.from("waouh_radar_campaign_sends")
           .select("id", { count: "exact", head: true })
@@ -122,10 +129,13 @@ Deno.serve(async (req) => {
     }
 
     const nextRunAt = computeNextRun(c.schedule || {});
+    const newConsumed = (c.quota_consumed ?? 0) + sent;
+    const quotaExhausted = c.quota_approved && newConsumed >= c.quota_approved;
     await admin.from("waouh_radar_campaigns").update({
       last_run_at: new Date().toISOString(),
-      next_run_at: nextRunAt,
-      status: nextRunAt ? "active" : "done",
+      next_run_at: quotaExhausted ? null : nextRunAt,
+      quota_consumed: newConsumed,
+      status: quotaExhausted ? "done" : (nextRunAt ? "active" : "done"),
     }).eq("id", c.id);
 
     await admin.from("waouh_radar_campaign_runs").update({

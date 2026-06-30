@@ -25,6 +25,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import NativeSelectSheet from "../components/native/NativeSelectSheet";
 import { normalizeBeninWhatsApp, normalizePhone, COUNTRIES } from "@/lib/phone";
 import { cn } from "@/lib/utils";
+import AudienceBuilder from "@/components/diffusion/AudienceBuilder";
 
 /* ============================================================
    NATIVE FULL-SCREEN OVERLAY (style Activity Android)
@@ -71,7 +72,7 @@ function NativeScreen({
 /* ============================================================
    ROOT SCREEN — Tabs + dispatch to native overlays
    ============================================================ */
-type TabKey = "campaigns" | "contacts" | "sessions" | "stats";
+type TabKey = "ia" | "campaigns" | "contacts" | "sessions" | "stats";
 type Overlay =
   | { kind: "none" }
   | { kind: "campaign-new" }
@@ -86,7 +87,7 @@ export default function DiffusionScreen() {
   const { user, loading: authLoading } = useMobileAuth();
   const d = useWaDiffusion();
   const s = useDiffusionSessions();
-  const [tab, setTab] = useState<TabKey>("campaigns");
+  const [tab, setTab] = useState<TabKey>("ia");
   const [overlay, setOverlay] = useState<Overlay>({ kind: "none" });
 
   useEffect(() => {
@@ -112,6 +113,7 @@ export default function DiffusionScreen() {
         </div>
         <nav className="flex overflow-x-auto scrollbar-none px-2 pb-1 gap-1">
           {([
+            { k: "ia", l: "Diffusion IA", I: Sparkles },
             { k: "campaigns", l: "Campagnes", I: Send },
             { k: "contacts", l: "Contacts", I: Users },
             { k: "sessions", l: "Sessions", I: Smartphone },
@@ -139,6 +141,11 @@ export default function DiffusionScreen() {
         className="flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]"
         style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 5.5rem)" }}
       >
+        {tab === "ia" && (
+          <div className="p-4">
+            <AudienceBuilder onSubmitted={() => setTab("campaigns")} />
+          </div>
+        )}
         {tab === "campaigns" && (
           <CampaignsTab
             d={d} s={s}
