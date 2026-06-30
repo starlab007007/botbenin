@@ -428,3 +428,120 @@ async function getQRCode(
 
   return { success: false, error: 'No valid QR code found in any endpoint' };
 }
+
+// ============================================================
+// Pair code (8 digits) — alternative to QR scanning
+// User enters their phone number, gets a code, then on the phone:
+// WhatsApp → Linked devices → Link with phone number → enter code.
+// ============================================================
+async function handlePairCode(
+  sessionName: string | undefined,
+  phoneNumber: string | undefined,
+  wahaUrl: string,
+  wahaApiKey: string | undefined,
+  wahaUsername: string,
+  wahaPassword: string | undefined
+): Promise<Response> {
+  if (!sessionName) {
+    return new Response(
+      JSON.stringify({ error: 'sessionName is required' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Normalize phone to E.164 digits only (no +, no spaces)
+  const digits = String(phoneNumber || '').replace(/[^\d]/g, '');
+  if (!digits || digits.length < 8 || digits.length > 15) {
+    return new Response(
+      JSON.stringify({ error: 'Invalid phone number. Use international format, e.g. 22990000000.' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  console.log(`🔢 Pair-code requested for session=${sessionName}, phone=+${digits}`);
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Accept': '*/*'
+  };
+  if (wahaApiKey) headers['X-Api-Key'] = wahaApiKey;
+  else if (wahaPassword) headers['Authorization'] = `Basic ${btoa(`${wahaUsername}:${wahaPassword}`)}`;
+
+  try {
+    // Ensure session exists and is started (idempotent — handles 404/422 transparently)
+    const startResult = await startWAHASession(sessionName, wahaUrl, wahaApiKey, wahaUsername, wahaPassword);
+    if (!startResult.success) {
+      console.warn(`⚠️ start before pair-code failed (continuing): ${startResult.error}`);
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+
+    // Try multiple WAHA endpoints (versions differ): v2 first, then v1.
+    const endpoints = [
+      `/api/v2/sessions/${sessionName}/auth/request-code`,
+      `/api/${sessionName}/auth/request-code`,
+      `/api/sessions/${sessionName}/auth/request-code`,
+    ];
+
+    let code: string | undefined;
+    let lastError = '';
+
+    for (const ep of endpoints) {
+      try {
+        const res = await fetch(`${wahaUrl}${ep}`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ phoneNumber: digits, method: 'sms' }),
+        });
+        const text = await res.text();
+        if (!res.ok) {
+          lastError = `${ep} -> ${res.status} ${text.slice(0, 200)}`;
+          console.log(`❌ ${lastError}`);
+          continue;
+        }
+        // Parse: WAHA may return { code: "XXXXXXXX" } or { pairingCode: "XXXX-XXXX" } or plain string
+        let raw: any = text;
+        try { raw = JSON.parse(text); } catch { /* plain text */ }
+        const candidate = (typeof raw === 'string')
+          ? raw
+          : (raw?.code ?? raw?.pairingCode ?? raw?.pairing_code ?? raw?.data?.code);
+        if (candidate) { code = String(candidate); break; }
+        lastError = `${ep} -> ok but no code in payload`;
+      } catch (e: any) {
+        lastError = `${ep} -> ${e?.message ?? e}`;
+        console.log(`❌ ${lastError}`);
+      }
+    }
+
+    if (!code) {
+      return new Response(
+        JSON.stringify({ session: sessionName, status: 'failed', error: lastError || 'Pair code request failed' }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Normalize: keep only digits, then group 4-4 (e.g. ABCD1234 -> ABCD-1234)
+    const onlyAlnum = code.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    const formatted = onlyAlnum.length === 8
+      ? `${onlyAlnum.slice(0, 4)}-${onlyAlnum.slice(4)}`
+      : onlyAlnum;
+
+    console.log(`✅ Pair code generated for ${sessionName}: ${formatted}`);
+
+    return new Response(
+      JSON.stringify({
+        session: sessionName,
+        status: 'pending',
+        code: formatted,
+        code_raw: onlyAlnum,
+        expires_in: 300,
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error: any) {
+    console.error(`❌ Pair code error: ${error.message}`);
+    return new Response(
+      JSON.stringify({ session: sessionName, status: 'failed', error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+}
