@@ -43,6 +43,8 @@ export interface RadarFilters {
   verifiedOnly?: boolean;
   photoOnly?: boolean;
   urgent?: boolean;
+  /** Auto-pause delay in ms. null = never pause. Default 90 000 (90s). */
+  autoPauseMs?: number | null;
 }
 
 export const DEFAULT_FILTERS: RadarFilters = {
@@ -53,6 +55,7 @@ export const DEFAULT_FILTERS: RadarFilters = {
   verifiedOnly: false,
   photoOnly: true,
   urgent: false,
+  autoPauseMs: 90_000,
 };
 
 const PAGE_SIZE = 60;
