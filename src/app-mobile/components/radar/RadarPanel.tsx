@@ -59,13 +59,25 @@ export function RadarPanel({ query = "" }: { query?: string }) {
 
   const { items, loading, scan, scanAt, maxRadiusKm } = useRadarScan(geo.lat, geo.lng, filters);
 
+  // Pause reason persisted by the chat screen after an autosend (success or anti-spam block).
+  const [pauseReason, setPauseReason] = useState<RadarPauseReason | null>(null);
+  useEffect(() => {
+    setPauseReason(readRadarPauseReason());
+  }, []);
+
   // Auto-pause duration: urgence = 30s, otherwise filter setting (default 90s).
   const autoPauseMs = filters.urgent ? 30_000 : (filters.autoPauseMs ?? 90_000);
-  const { paused, countdownMs, resume } = useRadarLifecycle({
+  const { paused, countdownMs, resume, pauseNow } = useRadarLifecycle({
     autoPauseMs,
-    onResume: () => { refresh(); scan(); },
+    onResume: () => { clearRadarPauseReason(); setPauseReason(null); refresh(); scan(); },
     scanKey: scanAt,
   });
+
+  // If we arrived back from chat with a "reason", make sure the radar is paused
+  // so the user sees the explicit banner rather than a silently still-running sweep.
+  useEffect(() => {
+    if (pauseReason) pauseNow();
+  }, [pauseReason, pauseNow]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
