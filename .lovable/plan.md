@@ -1,84 +1,122 @@
+# Diffusion IA — Ciblage Base Unifiée + Radar, validée par l'admin
+
 ## Objectif
+Transformer le module **Diffusion** (aujourd'hui isolé : liste de campagnes + import contacts téléphone) en un moteur de **diffusion ciblée** qui puise dans :
+1. **`waouh_radar_contacts`** (contacts détectés par le Radar IA — déjà catégorisés, géolocalisés, scorés)
+2. **`waouh_unified_catalog`** (vendeurs/acheteurs présents dans la base unifiée — `vendeur_phone`, `categorie`, `ville`)
+3. **`waouh_radar_signals`** (intentions BUY/SELL récentes avec `contact_phone`, `category`, `city`)
+4. **`wa_contacts`** (contacts WhatsApp historiques tagués)
 
-Sur les résultats Radar, un seul tap sur **Intéressé / Négocier / Acheter** doit ouvrir le chat WAOUH **et envoyer immédiatement** un message d'intérêt rattaché à l'article — sans que l'utilisateur ait à appuyer sur « Envoyer ».
-Le Radar doit aussi se **mettre en pause automatiquement** après un délai, avec un bouton **Relancer** bien visible.
-
----
-
-## 1. Auto-envoi du message d'intérêt depuis le Radar
-
-### Comportement attendu
-
-- Tap sur l'un des 3 boutons → navigation vers `/app/chat/waouh` → la fenêtre s'ouvre sur un **nouveau fil** → le message est **déjà envoyé** (aucune action manuelle).
-- Message envoyé = un seul template court, **toujours orienté « intéressé »**, quel que soit le bouton choisi (interest / negotiate / buy n'est qu'un *hint* pour l'IA). Exemple :
-  > *« 👋 Intéressé par "{titre}" vu sur Radar WAOUH ({distance}{, prix si dispo}). Intent: {interest|negotiate|buy} · Article #{id} »*
-- Le bloc article (photo + titre + prix + distance) est affiché en **carte attachée** au-dessus de la bulle, pour que vendeur et IA gardent le contexte.
-- Le routeur WAOUH (`waouh-negotiation-router`) reçoit le `intent` + `article_id` → enchaîne la suite (proposition, contre-prop, etc.) sans changement côté backend.
-
-### Détails techniques
-
-- `WaouhWebChat` expose une nouvelle méthode imperative `prefillAndSend({ text, articleRef, intent })` qui :
-  1. appelle `startNewThread()`,
-  2. crée le message sortant avec `metadata = { source: 'radar', article_id, intent, distance_km }`,
-  3. déclenche `sendMessage()` immédiatement (pas de focus composer).
-- `WaouhChatScreen` lit les params URL :
-  `?new=1&autosend=1&intent=interest&article=cat:xxxx&title=...&distance=...&price=...`
-  et appelle `prefillAndSend(...)`. Si `autosend=0` → ancien comportement (prefill seul).
-- `RadarPanel.startChat()` remplace l'URL par la version auto-envoi avec tous les paramètres encodés.
-- Garde-fou : si l'utilisateur n'est pas authentifié → redirection vers `/app/auth?redirect=...` (déjà en place), et **l'URL d'origine est conservée** pour rejouer l'auto-envoi après login.
-- Dé-doublonnage : un même `article_id + intent` envoyé deux fois en moins de 30 s n'est envoyé qu'une seule fois (déjà géré par `outbound_dedup_key`).
+…puis applique un **modèle de segmentation par secteur/classe**, et envoie après **approbation explicite d'un admin** (quota, plafond, fenêtre horaire).
 
 ---
 
-## 2. Minuteur d'arrêt + relance du Radar
+## 1. Modèle de segmentation proposé (le "schéma")
 
-### Comportement attendu
-
-- Au démarrage : le sonar tourne pendant un délai configurable (par défaut **90 s**, urgence **30 s**).
-- À expiration : le sonar s'arrête (animation figée), un bandeau apparaît :
-  > *« 📡 Radar en pause · {N} résultats · ⏱ relance dans 60 s »* avec un bouton **▶ Relancer maintenant**.
-- Décompte visible avant pause (chip « auto-pause dans 12 s » en bas du canvas).
-- Le bouton **Relancer** relance un scan complet + remet le minuteur à zéro.
-- Quitter l'onglet Radar coupe automatiquement le scan (économie batterie / data).
-- Réglage du délai exposé dans **Filtres → Auto-pause** : 30 s / 90 s / 5 min / Jamais (persisté dans `waouh_radar_filters_v1`).
-
-### Détails techniques
-
-- Nouveau hook `useRadarLifecycle({ autoPauseMs, onPause, onResume })` qui :
-  - démarre un `setTimeout` à chaque `scan()`,
-  - expose `paused`, `countdownMs`, `resume()`, `pauseNow()`.
-- `RadarCanvas` reçoit `scanning={!paused}` → l'animation sonar s'arrête proprement quand `paused = true`.
-- `useRadarScan` ne relance plus en boucle ; un seul scan par activation. Le real-time est désactivé en pause.
-- Ajout dans `RadarFilters` : champ `autoPauseMs` (number | null).
-
----
-
-## 3. UX / fichiers touchés
+Chaque contact agrégé est projeté dans une **fiche unifiée de ciblage** :
 
 ```text
-src/app-mobile/components/radar/
-  RadarPanel.tsx           ← passe à URL autosend + bandeau pause/relance
-  RadarCanvas.tsx          ← accepte `scanning` réel + halo "pause"
-  RadarFilters.tsx         ← option "Auto-pause"
-  RadarItemSheet.tsx       ← idem (3 boutons → autosend)
-src/app-mobile/hooks/
-  useRadarLifecycle.ts     ← NEW
-  useRadarScan.ts          ← n'auto-relance plus, scan() one-shot
-src/app-mobile/screens/
-  WaouhChatScreen.tsx      ← gère ?autosend=1&intent=&article=&title=&distance=&price=
-src/components/waouh/
-  WaouhWebChat.tsx         ← expose prefillAndSend()
+ContactCible {
+  phone_e164            ← clé de déduplication
+  display_name
+  sources[]             ← ["radar","catalog","signal","wa_contact"]
+  secteur               ← Mode/Beauté, Tech, Auto, Immo, Alimentaire, Services, Autre
+  sous_categorie
+  ville / quartier
+  intent_score          ← 0–100 (BUY+SELL+récence signaux)
+  freshness_days        ← jours depuis last_seen
+  classe                ← A (chaud <7j, intent>70)
+                         B (tiède <30j, intent 40–70)
+                         C (froid 30–90j)
+                         D (dormant >90j)
+  opt_out, is_whatsapp, weekly_sent_count
+  qualite_score         ← 0–100 (téléphone valide + nom + catégorie + ville)
+}
 ```
 
-Aucune migration de base de données ni nouvelle edge function. Le routeur WAOUH existant traite déjà les messages avec `metadata.article_id` et `metadata.intent`.
+**Règles d'éligibilité** (par défaut) : `is_whatsapp = true`, `opt_out = false`, `qualite_score ≥ 50`, `weekly_sent_count < 3` (plafond global existant).
 
 ---
 
-## 4. Critères d'acceptation
+## 2. Stratégie de ciblage (l'audience builder)
 
-- ✅ Tap sur n'importe lequel des 3 boutons depuis le Radar → la fenêtre s'ouvre et le message est **déjà envoyé** (visible dans le fil), sans tap supplémentaire.
-- ✅ Le message porte bien l'`article_id` + `intent` + distance dans son `metadata`.
-- ✅ Pas de double envoi si on re-tape rapidement le même bouton (anti-spam 30 s).
-- ✅ Le Radar s'arrête tout seul après le délai choisi, affiche le bandeau, et **Relancer** marche.
-- ✅ Quitter puis revenir sur l'onglet Radar repart proprement, sans scan « zombie ».
-- ✅ Un utilisateur non connecté est redirigé vers `/app/auth` et l'auto-envoi est rejoué après login.
+L'utilisateur (vendeur/partenaire) construit une audience via un **wizard 4 étapes** :
+
+| Étape | Choix |
+|---|---|
+| **1. Source** | Radar uniquement / Catalogue unifié / Signaux récents / Toutes |
+| **2. Secteur** | Multi-select sur `secteur` + `sous_categorie` (issu du catalogue) |
+| **3. Géo** | Villes / rayon km autour d'un point (réutilise `waouh_radar_scan`) |
+| **4. Classe & fraîcheur** | Classes A/B/C/D + `last_seen_within_days` + intent BUY/SELL |
+
+Aperçu live : **« 1 247 contacts éligibles · 612 classe A · 8 villes »** + échantillon de 10 lignes anonymisées.
+
+---
+
+## 3. Workflow de validation admin
+
+```text
+[Vendeur] crée brouillon ─▶ status=draft
+       │
+       │ "Demander validation" (capse plafond proposé, ex: 500 envois)
+       ▼
+[Admin] file d'attente /admin/waouh/diffusion-approvals
+       ├─ voit: audience, message, média, plafond demandé, coût estimé
+       ├─ peut: ajuster plafond, exclure villes, modifier template
+       └─ Approuver  ─▶ status=approved, quota_approved=N
+                       └─▶ déclenche waouh-radar-campaign-tick existant
+           Refuser    ─▶ status=rejected + motif
+```
+
+Garde-fous admin :
+- Plafond global plateforme/jour (paramètre `waouh_settings`)
+- Anti-spam : 3 messages/contact/7j (déjà en place dans `campaign-tick`)
+- Fenêtre horaire autorisée (8h–20h Africa/Porto-Novo)
+- Liste noire phone/préfixe
+
+---
+
+## 4. Suivi & évaluation
+
+Page **Suivi de diffusion** (réutilise `waouh_radar_campaign_runs` + `_sends`) :
+- KPIs temps réel : envoyés / livrés / lus / répondus / opt-out / **conversions** (chat ouvert, intention reçue, deal créé)
+- Vue par **secteur** et par **classe A/B/C/D** → taux de réponse comparés
+- Vue par **ville** (carte chaleur)
+- Export CSV + relance automatique des non-répondants (J+3) si admin coche l'option
+
+La conversion est attribuée en joignant `waouh_messages.counterpart_phone` ↔ `waouh_radar_campaign_sends.phone_e164` dans une fenêtre de 7 jours.
+
+---
+
+## 5. Changements techniques (résumé non-utilisateur)
+
+**Base de données (1 migration)**
+- Vue `public.v_diffusion_audience` qui UNION + dédup `radar_contacts` ∪ `signals.contact_phone` ∪ `unified_catalog.vendeur_phone` ∪ `wa_contacts`, calcule `secteur`, `classe`, `intent_score`, `freshness_days`, `qualite_score`.
+- Table `waouh_diffusion_approvals` (campaign_id, requested_by, audience_snapshot jsonb, quota_requested, quota_approved, status, reviewed_by, reviewed_at, reason) + GRANT + RLS (créateur voit le sien, admin voit tout).
+- Colonne `requires_approval boolean default true` + `approval_id uuid` sur `waouh_radar_campaigns`.
+- Indexes sur `(secteur, classe, ville)` côté vue matérialisée optionnelle.
+
+**Edge functions**
+- `waouh-diffusion-audience` (POST) : prend les filtres du wizard, renvoie count + échantillon depuis la vue.
+- `waouh-diffusion-submit` : crée campagne `status=pending_approval` + snapshot audience.
+- `waouh-diffusion-approve` (admin only) : flip campagne `status=active`, fixe `quota_approved`, planifie `next_run_at`.
+- `waouh-radar-campaign-tick` (existant) : ajouter check `quota_approved` avant chaque envoi.
+
+**Frontend**
+- `src/app-mobile/screens/DiffusionScreen.tsx` : remplacer l'écran liste actuel par le wizard 4 étapes + bouton « Demander validation ».
+- `src/components/diffusion/AudienceBuilder.tsx` (nouveau, 4 sous-composants : SourceStep, SectorStep, GeoStep, ClassStep + AudiencePreview).
+- `src/pages/admin/AdminDiffusionApprovalsPage.tsx` (nouveau) + route `/admin/waouh/diffusion-approvals`.
+- `src/components/diffusion/DiffusionTrackingDashboard.tsx` (KPIs + tableau secteur/classe + carte).
+- `RadarCampaignsTab.tsx` : ajouter colonne « Validation » + lien vers la page admin.
+
+**Aucune modification** des flux chat/match/notif existants (verrouillage v12 respecté).
+
+---
+
+## 6. Livraison en 3 lots
+
+1. **Lot A — Audience & vue unifiée** : migration vue, edge `audience`, wizard frontend, aperçu live (sans envoi).
+2. **Lot B — Validation admin** : table approvals, edges submit/approve, page admin, blocage envoi tant que non approuvé.
+3. **Lot C — Suivi & évaluation** : dashboard secteur/classe/ville, attribution conversions, relance J+3, export CSV.
+
+Chaque lot est testable et déployable indépendamment.
