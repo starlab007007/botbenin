@@ -142,12 +142,79 @@ export default function AudienceBuilder({ onSubmitted }: { onSubmitted?: () => v
 
       {step === 2 && (
         <Card className="p-4 space-y-3">
-          <h3 className="font-semibold">2. Secteur d'activité</h3>
-          <p className="text-xs text-muted-foreground">Aucun = tous les secteurs</p>
-          <div className="flex flex-wrap gap-2">
-            {SECTEURS.map(s => (
-              <Badge key={s} variant={filters.secteurs.includes(s) ? "default" : "outline"} className="cursor-pointer px-3 py-1.5" onClick={() => toggle("secteurs", s)}>{s}</Badge>
-            ))}
+          <h3 className="font-semibold">2. Secteur & niche</h3>
+          <p className="text-xs text-muted-foreground">Cliquez sur un secteur pour révéler ses niches. Aucun = tous les secteurs.</p>
+
+          <Input
+            value={sectorSearch}
+            onChange={e => setSectorSearch(e.target.value)}
+            placeholder="🔍 Rechercher une niche (ex: smartphone, perruque, terrain…)"
+            className="text-sm"
+          />
+
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Mots-clés produit (optionnel, séparés par virgule)</label>
+            <Input
+              value={filters.keywords}
+              onChange={e => setFilters(f => ({ ...f, keywords: e.target.value }))}
+              placeholder="Ex: iPhone, Samsung, Wax, location bureau…"
+              className="text-sm"
+            />
+          </div>
+
+          {filters.sous_categories.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-1 border-t border-border/40">
+              <span className="text-xs text-muted-foreground self-center">Niches actives :</span>
+              {filters.sous_categories.map(n => (
+                <Badge key={n} variant="secondary" className="cursor-pointer text-xs" onClick={() => toggle("sous_categories", n)}>
+                  {n} ×
+                </Badge>
+              ))}
+              <button onClick={() => setFilters(f => ({ ...f, sous_categories: [] }))} className="text-xs text-muted-foreground underline ml-1">tout effacer</button>
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            {SECTEUR_TAXONOMY.filter(group => {
+              if (!sectorSearch) return true;
+              const q = sectorSearch.toLowerCase();
+              return group.secteur.toLowerCase().includes(q) || group.niches.some(n => n.toLowerCase().includes(q));
+            }).map(group => {
+              const sectorActive = filters.secteurs.includes(group.secteur);
+              const nicheCount = group.niches.filter(n => filters.sous_categories.includes(n)).length;
+              const isOpen = expandedSector === group.secteur || !!sectorSearch;
+              return (
+                <div key={group.secteur} className={`rounded-lg border ${sectorActive || nicheCount > 0 ? 'border-[hsl(165_91%_18%)] bg-[hsl(165_91%_18%)]/5' : 'border-border'}`}>
+                  <div className="flex items-center justify-between p-2.5">
+                    <button onClick={() => toggle("secteurs", group.secteur)} className="flex items-center gap-2 text-sm font-medium flex-1 text-left">
+                      <span>{group.emoji}</span>
+                      <span>{group.secteur}</span>
+                      {sectorActive && <Badge className="bg-[hsl(165_91%_18%)] text-[10px] h-4 px-1.5">macro</Badge>}
+                      {nicheCount > 0 && <Badge variant="outline" className="text-[10px] h-4 px-1.5">{nicheCount} niche{nicheCount > 1 ? 's' : ''}</Badge>}
+                    </button>
+                    <button onClick={() => setExpandedSector(isOpen ? null : group.secteur)} className="text-xs text-muted-foreground px-2">
+                      {isOpen ? '▾' : '▸'}
+                    </button>
+                  </div>
+                  {isOpen && (
+                    <div className="flex flex-wrap gap-1.5 p-2.5 pt-0">
+                      {group.niches
+                        .filter(n => !sectorSearch || n.toLowerCase().includes(sectorSearch.toLowerCase()) || group.secteur.toLowerCase().includes(sectorSearch.toLowerCase()))
+                        .map(n => (
+                          <Badge
+                            key={n}
+                            variant={filters.sous_categories.includes(n) ? "default" : "outline"}
+                            className="cursor-pointer text-xs"
+                            onClick={() => toggle("sous_categories", n)}
+                          >
+                            {n}
+                          </Badge>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </Card>
       )}
