@@ -121,7 +121,7 @@ const QRConnectionFlow: React.FC<QRConnectionFlowProps> = ({
   };
 
   const resetState = () => {
-    setCurrentStep('warning');
+    setCurrentStep(embedded ? 'qr' : 'warning');
     setQrImageData('');
     setError('');
     setTimeRemaining(90);
@@ -157,8 +157,12 @@ const QRConnectionFlow: React.FC<QRConnectionFlowProps> = ({
   useEffect(() => {
     if (open) {
       resetState();
+      if (embedded) {
+        // No warning step in embedded mode — fetch immediately
+        fetchQRCode();
+      }
     }
-  }, [open]);
+  }, [open, embedded]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
