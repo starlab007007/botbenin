@@ -86,7 +86,7 @@ export default function DiffusionScreen() {
   const { user, loading: authLoading } = useMobileAuth();
   const d = useWaDiffusion();
   const s = useDiffusionSessions();
-  const [tab, setTab] = useState<TabKey>("campaigns");
+  const [tab, setTab] = useState<TabKey>("ia");
   const [overlay, setOverlay] = useState<Overlay>({ kind: "none" });
 
   useEffect(() => {
