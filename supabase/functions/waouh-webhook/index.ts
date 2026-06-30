@@ -987,10 +987,26 @@ serve(async (req) => {
           const idx = partnerTop.length + i + 1;
           const photos: string[] = Array.isArray(m.photos) ? m.photos.filter((u: any) => typeof u === "string") : [];
           const photoLine = photos.length > 0 ? `\n📸 ${photos.length} photo${photos.length > 1 ? "s" : ""}` : "";
-          const min = m.market_price_min || m.price * 0.8;
-          const max = m.market_price_max || m.price * 1.2;
-          const note = await marketNote(m.title || "", Number(m.price || 0), min, max, m.city || "");
-          const noteLine = note ? `\n🧠 ${note}` : "";
+          // Analyse marché RÉELLE (fast mode, sans web pour latence) — fail-soft
+          let marketLine = "";
+          try {
+            const cmp = await Promise.race([
+              compareMarketPrice(sb, {
+                article_id: m.id,
+                query: `${m.title || ""} ${m.brand || ""} ${m.model || ""}`.trim(),
+                city: m.city, category: m.category,
+                askedPrice: Number(m.price || 0),
+                fastMode: true,
+              }),
+              new Promise<null>((res) => setTimeout(() => res(null), 2500)),
+            ]);
+            if (cmp) marketLine = "\n" + shortMarketLine(cmp as any, Number(m.price || 0));
+          } catch {}
+          if (!marketLine) {
+            const min = m.market_price_min || m.price * 0.8;
+            const max = m.market_price_max || m.price * 1.2;
+            marketLine = `\n📊 Marché : ${fmt(min)} – ${fmt(max)}`;
+          }
           // Distance live vendeur ↔ acheteur via RPC PostGIS
           let distLine = "";
           if (m.seller_id) {
@@ -999,7 +1015,7 @@ serve(async (req) => {
               if (typeof d === "number") distLine = `\n${fmtDistance(Math.round(d * 10) / 10)}`;
             } catch {}
           }
-          return `*${idx}. ${m.title}*\n💰 *${fmt(m.price)}*\n🏙️ ${m.city ?? "?"} · ${m.condition}${distLine}${photoLine}\n📊 Marché : ${fmt(min)} – ${fmt(max)}${noteLine}`;
+          return `*${idx}. ${m.title}*\n💰 *${fmt(m.price)}*\n🏙️ ${m.city ?? "?"} · ${m.condition}${distLine}${photoLine}${marketLine}`;
         }))).join(`\n\n${waouhSep}\n\n`);
         const radarList = radarTop.map((r: any, i: number) => {
           const idx = partnerTop.length + matchesTop.length + i + 1;
