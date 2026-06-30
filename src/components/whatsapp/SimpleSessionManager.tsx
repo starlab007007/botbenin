@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import QRConnectionFlow from '@/components/whatsapp/QRConnectionFlow';
+import ConnectMethodTabs from '@/components/whatsapp/ConnectMethodTabs';
 import BotWebhookLinker from './BotWebhookLinker';
 import WebhookConfigModal from './WebhookConfigModal';
 import { 
