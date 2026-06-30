@@ -132,26 +132,38 @@ Deno.serve(async (req) => {
     const { data: run } = await admin.from("waouh_radar_campaign_runs").insert({ campaign_id: c.id }).select().single();
     const runId = run?.id;
 
-    const segQ = await resolveSegment(admin, c.segment || {});
-    const { data: contacts, error: segErr } = await segQ;
-    if (segErr) console.error("[tick] segment error", c.id, segErr.message);
-    let targeted = (contacts || []).length;
+    let contacts: any[] = [];
+    let audienceMode = false;
+    try {
+      const seg = await resolveSegment(admin, c.segment || {});
+      audienceMode = seg.audienceMode;
+      contacts = seg.rows;
+    } catch (e: any) {
+      console.error("[tick] segment error", c.id, e?.message);
+    }
+    let targeted = contacts.length;
     let sent = 0, skipped = 0;
     const errs: any[] = [];
 
     // Per-contact weekly cap (this campaign)
-    for (const ct of contacts || []) {
+    for (const ct of contacts) {
       try {
         const oneWeekAgo = new Date(Date.now() - 7 * 86400000).toISOString();
-        const { count: weekCntCampaign } = await admin.from("waouh_radar_campaign_sends")
+        const sendsQ = admin.from("waouh_radar_campaign_sends")
           .select("id", { count: "exact", head: true })
-          .eq("campaign_id", c.id).eq("contact_id", ct.id).gte("created_at", oneWeekAgo);
+          .eq("campaign_id", c.id).gte("created_at", oneWeekAgo);
+        const { count: weekCntCampaign } = await (audienceMode
+          ? sendsQ.eq("audience_phone_e164", ct.phone_e164_normalized)
+          : sendsQ.eq("contact_id", ct.id));
         if ((weekCntCampaign ?? 0) >= (c.max_per_contact_per_week ?? 1)) { skipped++; continue; }
         if (sent >= remainingQuota) { skipped++; continue; }
         // Global cap: 3 / contact / 7d toutes campagnes
-        const { count: weekCntGlobal } = await admin.from("waouh_radar_campaign_sends")
+        const globalQ = admin.from("waouh_radar_campaign_sends")
           .select("id", { count: "exact", head: true })
-          .eq("contact_id", ct.id).gte("created_at", oneWeekAgo);
+          .gte("created_at", oneWeekAgo);
+        const { count: weekCntGlobal } = await (audienceMode
+          ? globalQ.eq("audience_phone_e164", ct.phone_e164_normalized)
+          : globalQ.eq("contact_id", ct.id));
         if ((weekCntGlobal ?? 0) >= 3) { skipped++; continue; }
 
         const vars = {
@@ -160,31 +172,36 @@ Deno.serve(async (req) => {
           categorie_top: (ct.categories || [])[0] || "",
         };
         const message = renderTemplate(c.message_template || "", vars);
-        const dedup = `radar_campaign:${c.id}:${ct.id}:${Date.now()}`;
+        const dedup = `radar_campaign:${c.id}:${ct.phone_e164_normalized}:${Date.now()}`;
         const { error: enqErr } = await admin.rpc("waouh_enqueue_outbound_v2" as any, {
           p_to_phone: ct.phone_e164_normalized,
           p_to_user_id: null,
           p_template: "radar_broadcast",
-          p_payload: { text: message, article_id: c.article_id, media_url: c.media_url, contact_id: ct.id, campaign_id: c.id, mode: c.mode },
+          p_payload: { text: message, article_id: c.article_id, media_url: c.media_url, contact_id: audienceMode ? null : ct.id, campaign_id: c.id, mode: c.mode, audience_mode: audienceMode },
           p_image_url: c.media_url ?? null,
           p_channel: "whatsapp",
           p_transaction_id: null,
           p_dedupe_key: dedup,
           p_event_type: `radar_campaign_${c.mode}`,
         });
-        if (enqErr) { errs.push({ contact_id: ct.id, error: enqErr.message }); skipped++; continue; }
+        if (enqErr) { errs.push({ contact: ct.phone_e164_normalized, error: enqErr.message }); skipped++; continue; }
 
         await admin.from("waouh_radar_campaign_sends").insert({
-          campaign_id: c.id, run_id: runId, contact_id: ct.id,
+          campaign_id: c.id, run_id: runId,
+          contact_id: audienceMode ? null : ct.id,
+          audience_phone_e164: audienceMode ? ct.phone_e164_normalized : null,
           phone_e164: ct.phone_e164_normalized, status: "sent", sent_at: new Date().toISOString(),
         });
-        await admin.from("waouh_radar_contacts").update({ last_message_at: new Date().toISOString() }).eq("id", ct.id);
+        if (!audienceMode) {
+          await admin.from("waouh_radar_contacts").update({ last_message_at: new Date().toISOString() }).eq("id", ct.id);
+        }
         sent++;
       } catch (e: any) {
-        errs.push({ contact_id: ct.id, error: e.message });
+        errs.push({ contact: ct.phone_e164_normalized, error: e.message });
         skipped++;
       }
     }
+
 
     const nextRunAt = computeNextRun(c.schedule || {});
     const newConsumed = (c.quota_consumed ?? 0) + sent;
