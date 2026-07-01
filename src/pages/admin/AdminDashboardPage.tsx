@@ -1,13 +1,33 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, Shield, Key, Activity, Settings, Palette, Database } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Users, Shield, Key, Activity, Settings, Palette, Database, Megaphone } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 export const AdminDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [pendingDiffusion, setPendingDiffusion] = useState<number>(0);
+
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      const { count } = await supabase
+        .from('waouh_diffusion_approvals' as any)
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      if (alive) setPendingDiffusion(count ?? 0);
+    };
+    load();
+    const ch = supabase
+      .channel('admin-diffusion-approvals-count')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'waouh_diffusion_approvals' }, load)
+      .subscribe();
+    return () => { alive = false; supabase.removeChannel(ch); };
+  }, []);
 
   const adminCards = [
     {
