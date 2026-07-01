@@ -41,6 +41,64 @@ class LiveDiffusionData {
     }
   }
 
+  Future<List<LiveAiDiffusionRequest>> aiRequests() async {
+    try {
+      final payload = await invokeJson('waouh-diffusion-my-requests', const {});
+      final rawRequests = payload['requests'];
+      if (rawRequests is List) {
+        return rawRequests.whereType<Map>().map((item) => LiveAiDiffusionRequest.fromJson(Map<String, dynamic>.from(item))).toList();
+      }
+    } catch (_) {
+      // A compact fallback keeps pending requests visible while the optional
+      // tracking function is being deployed.
+    }
+    final rows = await client
+        .from('waouh_diffusion_approvals')
+        .select('id,campaign_id,status,quota_requested,quota_approved,audience_snapshot,audience_filters,message_template,media_url,reason,created_at')
+        .eq('requested_by', userId)
+        .order('created_at', ascending: false)
+        .limit(100);
+    return (rows as List).map((item) => LiveAiDiffusionRequest.fromJson(Map<String, dynamic>.from(item as Map))).toList();
+  }
+
+  Future<LiveAiDiffusionRequest> submitAiRequest({
+    required String name,
+    required String messageTemplate,
+    required Map<String, dynamic> filters,
+    required int quotaRequested,
+    required LiveDiffusionAudiencePreview audience,
+    String? mediaUrl,
+  }) async {
+    final payload = await invokeJson('waouh-diffusion-submit', {
+      'name': name.trim().isEmpty ? 'Diffusion IA' : name.trim(),
+      'message_template': messageTemplate.trim(),
+      'media_url': mediaUrl?.trim().isEmpty == true ? null : mediaUrl?.trim(),
+      'filters': filters,
+      'quota_requested': quotaRequested,
+      'audience_snapshot': {
+        'total': audience.total,
+        'breakdown': audience.breakdown,
+      },
+    });
+    return LiveAiDiffusionRequest(
+      id: '${payload['approval_id'] ?? ''}',
+      campaignId: payload['campaign_id']?.toString(),
+      campaignName: name.trim().isEmpty ? 'Diffusion IA' : name.trim(),
+      status: 'pending',
+      createdAt: DateTime.now(),
+      messageTemplate: messageTemplate.trim(),
+      quotaRequested: quotaRequested,
+      audienceTotal: audience.total,
+      mediaUrl: mediaUrl,
+      filters: filters,
+      breakdown: audience.breakdown,
+    );
+  }
+
+  Future<void> cancelAiRequest(String approvalId) async {
+    await invokeJson('waouh-diffusion-cancel', {'approval_id': approvalId});
+  }
+
   Future<void> addContact(String phone, {String? name}) async {
     final number = liveDiffusionPhone(phone);
     if (number.isEmpty) throw StateError('Numéro invalide.');
@@ -83,19 +141,25 @@ class LiveDiffusionData {
     return LiveDiffusionCampaign.fromJson(Map<String, dynamic>.from(row as Map));
   }
 
-  Future<void> invoke(String name, Map<String, dynamic> body) async {
+  Future<Map<String, dynamic>> invokeJson(String name, Map<String, dynamic> body) async {
     final result = await client.functions.invoke(name, body: body);
-    final data = result.data;
-    if (data is Map && data['ok'] == false) throw StateError('${data['error'] ?? 'Opération impossible'}');
+    final raw = result.data;
+    if (raw is! Map) throw StateError('Réponse serveur invalide.');
+    final data = Map<String, dynamic>.from(raw);
+    if (data['ok'] == false) throw StateError('${data['error'] ?? 'Opération impossible'}');
+    return data;
+  }
+
+  Future<void> invoke(String name, Map<String, dynamic> body) async {
+    await invokeJson(name, body);
   }
 
   Future<LiveDiffusionAudiencePreview> preview(Map<String, dynamic> filters) async {
-    final result = await client.functions.invoke('waouh-diffusion-audience', body: filters);
-    if (result.data is! Map) throw StateError('Aperçu indisponible.');
-    return LiveDiffusionAudiencePreview.fromJson(Map<String, dynamic>.from(result.data as Map));
+    final payload = await invokeJson('waouh-diffusion-audience', filters);
+    return LiveDiffusionAudiencePreview.fromJson(payload);
   }
 
   Future<void> submitApproval(Map<String, dynamic> body) async {
-    await invoke('waouh-diffusion-submit', body);
+    await invokeJson('waouh-diffusion-submit', body);
   }
 }
