@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import 'live_whatsapp_ia_bot_sheets.dart';
 import 'live_whatsapp_ia_connect_sheet.dart';
+import 'live_whatsapp_ia_message_sheet.dart';
 import 'live_whatsapp_ia_models.dart';
 import 'live_whatsapp_ia_repository.dart';
 
-enum LiveWhatsAppSessionAction { connect, start, stop, linkBot, webhook, delete }
+enum LiveWhatsAppSessionAction { connect, start, stop, test, linkBot, webhook, delete }
 
 Future<String?> showCreateWhatsAppSessionSheet(BuildContext context) =>
     showModalBottomSheet<String>(
@@ -40,26 +42,17 @@ Future<void> showWhatsAppConnectionSheet(
 Future<void> showWhatsAppBotLinkSheet(
   BuildContext context, {
   required String sessionName,
-}) => showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _InformationSheet(
-        title: 'Lier un bot',
-        message: 'La sélection du bot sera disponible dans une prochaine mise à jour.',
-      ),
-    );
+}) => showNativeWhatsAppBotLinkSheet(context, sessionName: sessionName);
 
 Future<void> showWhatsAppWebhookSheet(
   BuildContext context, {
   required String sessionName,
-}) => showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _InformationSheet(
-        title: 'Configurer un webhook',
-        message: 'La configuration du webhook sera disponible dans une prochaine mise à jour.',
-      ),
-    );
+}) => showNativeWhatsAppWebhookSheet(context, sessionName: sessionName);
+
+Future<void> showWhatsAppTestMessageSheet(
+  BuildContext context, {
+  required String sessionName,
+}) => showNativeWhatsAppTestMessageSheet(context, sessionName: sessionName);
 
 class WhatsAppSheetFrame extends StatelessWidget {
   const WhatsAppSheetFrame({
@@ -92,9 +85,7 @@ class WhatsAppSheetFrame extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 16, 12),
               child: Row(children: [
-                Expanded(
-                  child: Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-                ),
+                Expanded(child: Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900))),
                 IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close_rounded)),
               ]),
             ),
@@ -150,6 +141,7 @@ class _ActionSheet extends StatelessWidget {
           _ActionRow(icon: Icons.qr_code_rounded, title: 'Connecter / afficher QR', onTap: () => Navigator.pop(context, LiveWhatsAppSessionAction.connect)),
           if (!session.isWorking) _ActionRow(icon: Icons.play_arrow_rounded, title: 'Démarrer la session', onTap: () => Navigator.pop(context, LiveWhatsAppSessionAction.start)),
           if (session.isWorking) _ActionRow(icon: Icons.stop_circle_outlined, title: 'Arrêter la session', onTap: () => Navigator.pop(context, LiveWhatsAppSessionAction.stop)),
+          if (session.isWorking) _ActionRow(icon: Icons.send_rounded, title: 'Envoyer un message test', onTap: () => Navigator.pop(context, LiveWhatsAppSessionAction.test)),
           _ActionRow(icon: Icons.smart_toy_outlined, title: 'Lier à un bot', onTap: () => Navigator.pop(context, LiveWhatsAppSessionAction.linkBot)),
           _ActionRow(icon: Icons.webhook_outlined, title: 'Configurer un webhook', onTap: () => Navigator.pop(context, LiveWhatsAppSessionAction.webhook)),
           _ActionRow(icon: Icons.delete_outline_rounded, title: 'Supprimer la session', danger: true, onTap: () => Navigator.pop(context, LiveWhatsAppSessionAction.delete)),
@@ -181,12 +173,4 @@ class _ActionRow extends StatelessWidget {
           ),
         ),
       );
-}
-
-class _InformationSheet extends StatelessWidget {
-  const _InformationSheet({required this.title, required this.message});
-  final String title;
-  final String message;
-  @override
-  Widget build(BuildContext context) => WhatsAppSheetFrame(title: title, child: Text(message));
 }
