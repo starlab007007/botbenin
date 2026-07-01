@@ -134,10 +134,38 @@ Deno.serve(async (req) => {
 
     let contacts: any[] = [];
     let audienceMode = false;
+    let excludedSet = new Set<string>();
     try {
-      const seg = await resolveSegment(admin, c.segment || {});
-      audienceMode = seg.audienceMode;
-      contacts = seg.rows;
+      // Prefer curated admin recipients from the linked approval (if any)
+      const { data: appr } = await admin.from("waouh_diffusion_approvals")
+        .select("audience_recipients, excluded_phones")
+        .eq("campaign_id", c.id).eq("status", "approved")
+        .order("reviewed_at", { ascending: false }).limit(1).maybeSingle();
+      const curated = Array.isArray(appr?.audience_recipients) ? appr!.audience_recipients : [];
+      excludedSet = new Set((appr?.excluded_phones || []).map((p: string) => String(p).replace(/^\+/, "")));
+
+      if (curated.length > 0) {
+        audienceMode = true;
+        const seen = new Set<string>();
+        for (const r of curated) {
+          if (!r?.included) continue;
+          let raw = String(r.phone_e164 || "").replace(/[^\d+]/g, "").replace(/^\+/, "");
+          if (!raw || excludedSet.has(raw) || seen.has(raw)) continue;
+          seen.add(raw);
+          contacts.push({
+            id: raw,
+            phone_e164_normalized: raw,
+            display_name: r.name || r.display_name || "",
+            categories: r.secteur ? [r.secteur] : [],
+            cities: r.ville ? [r.ville] : [],
+            _audience_mode: true,
+          });
+        }
+      } else {
+        const seg = await resolveSegment(admin, c.segment || {});
+        audienceMode = seg.audienceMode;
+        contacts = seg.rows.filter((r: any) => !excludedSet.has(String(r.phone_e164_normalized || "").replace(/^\+/, "")));
+      }
     } catch (e: any) {
       console.error("[tick] segment error", c.id, e?.message);
     }

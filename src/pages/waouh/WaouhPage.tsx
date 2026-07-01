@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ShoppingBag, TrendingUp, Users, Coins, Activity, Sparkles, MapPin, Clock, ExternalLink, Play, MessageCircle, QrCode, RefreshCw, Radar, ArrowLeft } from "lucide-react";
+import { ShoppingBag, TrendingUp, Users, Coins, Activity, Sparkles, MapPin, Clock, ExternalLink, Play, MessageCircle, QrCode, RefreshCw, Radar, ArrowLeft, Megaphone } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -60,6 +60,20 @@ export default function WaouhPage() {
   const [filterOrigin, setFilterOrigin] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [settings, setSettings] = useState<Record<string, any>>({});
+  const [pendingApprovals, setPendingApprovals] = useState<number>(0);
+
+  useEffect(() => {
+    const loadPending = async () => {
+      const { count } = await supabase.from("waouh_diffusion_approvals" as any)
+        .select("id", { count: "exact", head: true }).eq("status", "pending");
+      setPendingApprovals(count ?? 0);
+    };
+    loadPending();
+    const ch = supabase.channel("waouh-approvals-badge")
+      .on("postgres_changes", { event: "*", schema: "public", table: "waouh_diffusion_approvals" }, loadPending)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
 
   const loadAll = async () => {
     const { data: statsData } = await supabase.functions.invoke("waouh-admin-stats");
@@ -162,6 +176,16 @@ export default function WaouhPage() {
               <Link to="/admin/waouh/demo">
                 <Button variant="secondary" className="bg-white text-blue-600 hover:bg-white/90">
                   <Play className="w-4 h-4 mr-2" /> Démo conversation
+                </Button>
+              </Link>
+              <Link to="/admin/waouh/diffusion-approvals">
+                <Button variant="secondary" className="relative bg-white/15 hover:bg-white/25 text-white border-white/30">
+                  <Megaphone className="w-4 h-4 mr-2" /> Validations diffusion
+                  {pendingApprovals > 0 && (
+                    <Badge className="ml-2 bg-red-500 hover:bg-red-500 text-white border-0 h-5 min-w-5 px-1.5 text-[10px]">
+                      {pendingApprovals}
+                    </Badge>
+                  )}
                 </Button>
               </Link>
               <Badge className="bg-emerald-400/20 text-white border-emerald-300/40">

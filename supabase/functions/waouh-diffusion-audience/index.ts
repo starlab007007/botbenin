@@ -1,4 +1,5 @@
-// Diffusion audience builder — query v_diffusion_audience with filters
+// Diffusion audience builder — query v_diffusion_audience with filters.
+// Admin mode (admin_full=true) returns unmasked phones + contact_id (has_role(admin) check).
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -8,12 +9,13 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 interface Filters {
   sources?: string[];
   secteurs?: string[];
   sous_categories?: string[];
-  keywords?: string;             // free-text: comma/space separated tokens, ILIKE on display_name + sous_categorie
+  keywords?: string;
   villes?: string[];
   classes?: string[];
   min_freshness_days?: number;
@@ -21,6 +23,7 @@ interface Filters {
   min_intent?: number;
   include_opt_out?: boolean;
   limit_sample?: number;
+  admin_full?: boolean; // if true → returns full phones (requires admin role)
 }
 
 function tokenizeKeywords(s?: string): string[] {
@@ -38,12 +41,10 @@ function applyCommonFilters(q: any, f: Filters) {
   if (typeof f.min_qualite === "number") q = q.gte("qualite_score", f.min_qualite);
   if (typeof f.min_freshness_days === "number") q = q.lte("freshness_days", f.min_freshness_days);
   if (f.sources?.length) q = q.overlaps("sources", f.sources);
-  // Niches: OR match on sous_categorie (ILIKE any)
   if (f.sous_categories?.length) {
     const ors = f.sous_categories.map(n => `sous_categorie.ilike.%${n.replace(/[%,]/g, "")}%`).join(",");
     q = q.or(ors);
   }
-  // Free-text keywords: OR match on sous_categorie + display_name
   const kws = tokenizeKeywords(f.keywords);
   if (kws.length) {
     const ors = kws.flatMap(k => {
@@ -55,19 +56,42 @@ function applyCommonFilters(q: any, f: Filters) {
   return q;
 }
 
+function maskPhone(p: string | null): string {
+  if (!p) return "";
+  return p.length > 6 ? p.slice(0, 4) + "***" + p.slice(-2) : p;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
     const filters: Filters = await req.json().catch(() => ({}));
 
+    // If admin_full requested, verify caller is admin
+    let isAdmin = false;
+    if (filters.admin_full) {
+      const authHeader = req.headers.get("Authorization") ?? "";
+      const userClient = createClient(SUPABASE_URL, ANON, { global: { headers: { Authorization: authHeader } } });
+      const { data: { user } } = await userClient.auth.getUser();
+      if (user) {
+        const { data } = await admin.rpc("has_role", { _user_id: user.id, _role: "admin" });
+        isAdmin = !!data;
+      }
+      if (!isAdmin) {
+        return new Response(JSON.stringify({ ok: false, error: "forbidden: admin only" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    const maxLimit = isAdmin ? 1000 : 10;
+    const limit = Math.min(filters.limit_sample ?? (isAdmin ? 500 : 10), maxLimit);
+
     let q = admin.from("v_diffusion_audience").select("*", { count: "exact" });
     q = applyCommonFilters(q, filters);
-
-    const sample = await q.order("intent_score", { ascending: false }).limit(filters.limit_sample ?? 10);
+    const sample = await q.order("intent_score", { ascending: false }).limit(limit);
     if (sample.error) throw sample.error;
 
-    // Breakdown by class (apply same filters)
     const breakdown: Record<string, number> = { A: 0, B: 0, C: 0, D: 0 };
     for (const klass of ["A", "B", "C", "D"]) {
       let bq = admin.from("v_diffusion_audience").select("*", { count: "exact", head: true });
@@ -80,8 +104,11 @@ Deno.serve(async (req) => {
       ok: true,
       total: sample.count ?? 0,
       breakdown,
+      admin_full: isAdmin,
       sample: (sample.data ?? []).map((r: any) => ({
-        phone_masked: maskPhone(r.phone_e164),
+        contact_id: r.contact_id ?? null,
+        phone_e164: isAdmin ? r.phone_e164 : undefined,
+        phone_masked: isAdmin ? undefined : maskPhone(r.phone_e164),
         display_name: r.display_name,
         secteur: r.secteur, ville: r.ville, classe: r.classe,
         intent_score: r.intent_score, qualite_score: r.qualite_score,
@@ -94,8 +121,3 @@ Deno.serve(async (req) => {
     });
   }
 });
-
-function maskPhone(p: string | null): string {
-  if (!p) return "";
-  return p.length > 6 ? p.slice(0, 4) + "***" + p.slice(-2) : p;
-}

@@ -5905,9 +5905,11 @@ export type Database = {
       waouh_diffusion_approvals: {
         Row: {
           audience_filters: Json
+          audience_recipients: Json
           audience_snapshot: Json
           campaign_id: string | null
           created_at: string
+          excluded_phones: string[]
           id: string
           media_url: string | null
           message_template: string
@@ -5922,9 +5924,11 @@ export type Database = {
         }
         Insert: {
           audience_filters?: Json
+          audience_recipients?: Json
           audience_snapshot?: Json
           campaign_id?: string | null
           created_at?: string
+          excluded_phones?: string[]
           id?: string
           media_url?: string | null
           message_template: string
@@ -5939,9 +5943,11 @@ export type Database = {
         }
         Update: {
           audience_filters?: Json
+          audience_recipients?: Json
           audience_snapshot?: Json
           campaign_id?: string | null
           created_at?: string
+          excluded_phones?: string[]
           id?: string
           media_url?: string | null
           message_template?: string
