@@ -5,10 +5,14 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT_REF="mvynepqulhflxtyymtzs"
 cd "$ROOT"
 
-command -v supabase >/dev/null || {
-  echo "Supabase CLI absente. Installez-la puis reconnectez-vous." >&2
+if command -v supabase >/dev/null 2>&1; then
+  SUPABASE=(supabase)
+elif command -v npx >/dev/null 2>&1; then
+  SUPABASE=(npx --yes supabase)
+else
+  echo "Supabase CLI introuvable. Installez Node.js 20+ ou la CLI Supabase." >&2
   exit 1
-}
+fi
 
 test -f supabase/functions/waouh-radar-nearby/index.ts || {
   echo "Fonction Radar introuvable." >&2
@@ -20,8 +24,9 @@ test -f supabase/functions/waouh-diffusion-suggest/index.ts || {
 }
 
 echo "Projet Supabase ciblé : $PROJECT_REF"
-supabase functions deploy waouh-radar-nearby --project-ref "$PROJECT_REF"
-supabase functions deploy waouh-diffusion-suggest --project-ref "$PROJECT_REF"
+echo "CLI utilisée : ${SUPABASE[*]}"
+"${SUPABASE[@]}" functions deploy waouh-radar-nearby --project-ref "$PROJECT_REF"
+"${SUPABASE[@]}" functions deploy waouh-diffusion-suggest --project-ref "$PROJECT_REF"
 
 echo
 printf '%s\n' 'Déploiement terminé : Radar réel et suggestion Diffusion IA sont disponibles.'
