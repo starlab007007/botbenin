@@ -96,7 +96,19 @@ class LiveDiffusionData {
   }
 
   Future<void> cancelAiRequest(String approvalId) async {
-    await invokeJson('waouh-diffusion-cancel', {'approval_id': approvalId});
+    try {
+      await invokeJson('waouh-diffusion-cancel', {'approval_id': approvalId});
+      return;
+    } catch (_) {
+      // Existing production RLS policy permits a creator to cancel only a
+      // pending request. This fallback is safe while the edge function rolls out.
+      await client
+          .from('waouh_diffusion_approvals')
+          .update({'status': 'cancelled'})
+          .eq('id', approvalId)
+          .eq('requested_by', userId)
+          .eq('status', 'pending');
+    }
   }
 
   Future<void> addContact(String phone, {String? name}) async {
