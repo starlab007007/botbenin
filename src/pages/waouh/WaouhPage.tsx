@@ -60,6 +60,20 @@ export default function WaouhPage() {
   const [filterOrigin, setFilterOrigin] = useState<string>("all");
   const [search, setSearch] = useState("");
   const [settings, setSettings] = useState<Record<string, any>>({});
+  const [pendingApprovals, setPendingApprovals] = useState<number>(0);
+
+  useEffect(() => {
+    const loadPending = async () => {
+      const { count } = await supabase.from("waouh_diffusion_approvals" as any)
+        .select("id", { count: "exact", head: true }).eq("status", "pending");
+      setPendingApprovals(count ?? 0);
+    };
+    loadPending();
+    const ch = supabase.channel("waouh-approvals-badge")
+      .on("postgres_changes", { event: "*", schema: "public", table: "waouh_diffusion_approvals" }, loadPending)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, []);
 
   const loadAll = async () => {
     const { data: statsData } = await supabase.functions.invoke("waouh-admin-stats");
