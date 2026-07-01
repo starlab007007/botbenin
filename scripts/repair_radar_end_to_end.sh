@@ -37,8 +37,12 @@ project_id = "$PROJECT_REF"
 verify_jwt = true
 EOF
 
+echo "[0/3] Liaison du projet Supabase : $PROJECT_REF"
+echo "Saisissez le mot de passe de base de données Supabase si la CLI le demande."
+"${SUPABASE[@]}" link --project-ref "$PROJECT_REF"
+
 echo "[1/3] Application de la migration Radar : coordonnées exactes des annonces chat"
-"${SUPABASE[@]}" db push --project-ref "$PROJECT_REF"
+"${SUPABASE[@]}" db push --linked
 
 echo "[2/3] Déploiement de waouh-radar-nearby"
 "${SUPABASE[@]}" functions deploy waouh-radar-nearby --project-ref "$PROJECT_REF"
