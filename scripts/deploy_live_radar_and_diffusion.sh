@@ -2,6 +2,7 @@
 set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROJECT_REF="mvynepqulhflxtyymtzs"
 cd "$ROOT"
 
 command -v supabase >/dev/null || {
@@ -18,8 +19,9 @@ test -f supabase/functions/waouh-diffusion-suggest/index.ts || {
   exit 1
 }
 
-supabase functions deploy waouh-radar-nearby
-supabase functions deploy waouh-diffusion-suggest
+echo "Projet Supabase ciblé : $PROJECT_REF"
+supabase functions deploy waouh-radar-nearby --project-ref "$PROJECT_REF"
+supabase functions deploy waouh-diffusion-suggest --project-ref "$PROJECT_REF"
 
 echo
 printf '%s\n' 'Déploiement terminé : Radar réel et suggestion Diffusion IA sont disponibles.'
