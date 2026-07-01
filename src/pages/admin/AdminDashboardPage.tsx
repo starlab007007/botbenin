@@ -72,6 +72,14 @@ export const AdminDashboardPage: React.FC = () => {
       path: '/admin/knowledge-bases',
       color: 'text-teal-500',
     },
+    {
+      title: 'Diffusion IA — Validation',
+      description: 'Vérifier et approuver les campagnes de diffusion IA (audience, message, quota)',
+      icon: Megaphone,
+      path: '/admin/waouh/diffusion-approvals',
+      color: 'text-emerald-500',
+      badge: pendingDiffusion,
+    },
   ];
 
   return (
