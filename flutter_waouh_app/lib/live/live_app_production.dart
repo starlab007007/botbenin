@@ -18,6 +18,7 @@ import 'live_partner_products_v2.dart';
 import 'live_profile_screen_v2.dart';
 import 'live_screens.dart';
 import 'live_whatsapp_auth.dart';
+import 'live_whatsapp_ia_native_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -85,7 +86,7 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
             GoRoute(path: '/app/chat/:id', builder: (_, state) => LiveConversationScreen(conversationId: state.pathParameters['id']!)),
             GoRoute(path: '/app/notifications', builder: (_, __) => const LiveNotificationsScreenV2()),
             GoRoute(path: '/app/bots', builder: (_, __) => const LiveBotsScreen()),
-            GoRoute(path: '/app/whatsapp', builder: (_, __) => const LiveWhatsAppIaScreen()),
+            GoRoute(path: '/app/whatsapp', builder: (_, __) => const LiveWhatsAppIaNativeScreen()),
             GoRoute(path: '/app/diffusion', builder: (_, __) => const LiveBroadcastScreen()),
             GoRoute(path: '/app/partner', redirect: (_, __) => '/app/partner/businesses'),
             GoRoute(path: '/app/partner/businesses', builder: (_, __) => const LivePartnerBusinessesScreenV3()),
