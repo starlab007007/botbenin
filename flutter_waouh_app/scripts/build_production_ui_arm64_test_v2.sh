@@ -11,21 +11,11 @@ command -v unzip >/dev/null || fail "unzip absent du PATH."
 
 test -f lib/live/live_app_production.dart || fail "Entrypoint production UI absent."
 test -f scripts/repair_compile_errors.py || fail "Script de réparation Flutter absent."
-test -f scripts/repair_production_ui_compile.py || fail "Script de réparation production UI absent."
+test -f scripts/apply_final_ui_options.py || fail "Script final UI absent."
 grep -q '^name: waouh_app_native$' pubspec.yaml || fail "Mauvais projet Flutter."
 
 python3 scripts/repair_compile_errors.py
-
-# The legacy transformer is only needed on the original malformed source.
-# Once it has repaired one or more blocks, rerunning it would not be idempotent.
-if grep -q 'class _MatchTile extends StatelessWidget' lib/live/live_inbox_production.dart \
-  && grep -q 'class _RadarScopeState extends State<_RadarScope> with SingleTickerProviderStateMixin' lib/live/live_inbox_production.dart \
-  && grep -q 'class _RadarResultCard extends StatelessWidget' lib/live/live_inbox_production.dart \
-  && grep -q 'class _SheetMeta extends StatelessWidget' lib/live/live_inbox_production.dart; then
-  python3 scripts/repair_production_ui_compile.py
-else
-  echo "Production UI source already repaired; legacy syntax transformer skipped."
-fi
+python3 scripts/apply_final_ui_options.py
 
 flutter clean
 flutter pub get
