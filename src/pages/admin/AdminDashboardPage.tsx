@@ -1,13 +1,33 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, Shield, Key, Activity, Settings, Palette, Database } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Users, Shield, Key, Activity, Settings, Palette, Database, Megaphone } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 export const AdminDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [pendingDiffusion, setPendingDiffusion] = useState<number>(0);
+
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      const { count } = await supabase
+        .from('waouh_diffusion_approvals' as any)
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      if (alive) setPendingDiffusion(count ?? 0);
+    };
+    load();
+    const ch = supabase
+      .channel('admin-diffusion-approvals-count')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'waouh_diffusion_approvals' }, load)
+      .subscribe();
+    return () => { alive = false; supabase.removeChannel(ch); };
+  }, []);
 
   const adminCards = [
     {
@@ -52,6 +72,14 @@ export const AdminDashboardPage: React.FC = () => {
       path: '/admin/knowledge-bases',
       color: 'text-teal-500',
     },
+    {
+      title: 'Diffusion IA — Validation',
+      description: 'Vérifier et approuver les campagnes de diffusion IA (audience, message, quota)',
+      icon: Megaphone,
+      path: '/admin/waouh/diffusion-approvals',
+      color: 'text-emerald-500',
+      badge: pendingDiffusion,
+    },
   ];
 
   return (
@@ -75,14 +103,20 @@ export const AdminDashboardPage: React.FC = () => {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <Icon className={`h-8 w-8 ${card.color}`} />
-                  <Settings className="h-4 w-4 text-muted-foreground" />
+                  {(card as any).badge && (card as any).badge > 0 ? (
+                    <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white">
+                      {(card as any).badge} en attente
+                    </Badge>
+                  ) : (
+                    <Settings className="h-4 w-4 text-muted-foreground" />
+                  )}
                 </div>
                 <CardTitle className="mt-4">{card.title}</CardTitle>
                 <CardDescription>{card.description}</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button variant="outline" className="w-full">
-                  Accéder
+                  {(card as any).badge && (card as any).badge > 0 ? 'Vérifier & Valider' : 'Accéder'}
                 </Button>
               </CardContent>
             </Card>
