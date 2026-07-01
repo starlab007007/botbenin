@@ -9,9 +9,24 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const earthRadiusKm = 6371;
+const EARTH_RADIUS_KM = 6371;
 
 type RadarType = "sell" | "buy" | "status";
+type Coordinates = { lat: number; lng: number; precision: "exact" | "city" };
+
+const CITY_CENTERS: Record<string, { lat: number; lng: number }> = {
+  cotonou: { lat: 6.3654, lng: 2.4183 },
+  godomey: { lat: 6.3744, lng: 2.3506 },
+  abomeycalavi: { lat: 6.4485, lng: 2.3557 },
+  calavi: { lat: 6.4485, lng: 2.3557 },
+  portonovo: { lat: 6.4969, lng: 2.6289 },
+  ouidah: { lat: 6.3631, lng: 2.0850 },
+  allada: { lat: 6.6654, lng: 2.1514 },
+  bohicon: { lat: 7.1783, lng: 2.0667 },
+  abomey: { lat: 7.1826, lng: 1.9912 },
+  parakou: { lat: 9.3372, lng: 2.6273 },
+  natitingou: { lat: 10.3042, lng: 1.3796 },
+};
 
 function json(value: unknown, status = 200) {
   return new Response(JSON.stringify(value), {
@@ -25,24 +40,46 @@ function number(value: unknown, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function validCoordinate(lat: number, lng: number) {
+  return Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+}
+
+function normalizeCity(value: unknown) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function cityCoordinates(value: unknown): Coordinates | null {
+  const normalized = normalizeCity(value);
+  for (const [key, point] of Object.entries(CITY_CENTERS)) {
+    if (normalized.includes(key)) return { lat: point.lat, lng: point.lng, precision: "city" };
+  }
+  return null;
+}
+
+function coordinates(row: Record<string, unknown>, city: unknown): Coordinates | null {
+  const lat = number(row.lat, NaN);
+  const lng = number(row.lng, NaN);
+  if (validCoordinate(lat, lng)) return { lat, lng, precision: "exact" };
+  return cityCoordinates(city);
+}
+
 function toDate(value: unknown) {
   const date = new Date(String(value || ""));
   return Number.isNaN(date.getTime()) ? new Date(0) : date;
 }
 
-function radians(value: number) {
-  return (value * Math.PI) / 180;
-}
-
-function degrees(value: number) {
-  return (value * 180) / Math.PI;
-}
+function radians(value: number) { return (value * Math.PI) / 180; }
+function degrees(value: number) { return (value * 180) / Math.PI; }
 
 function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number) {
   const dLat = radians(lat2 - lat1);
   const dLng = radians(lng2 - lng1);
   const a = Math.sin(dLat / 2) ** 2 + Math.cos(radians(lat1)) * Math.cos(radians(lat2)) * Math.sin(dLng / 2) ** 2;
-  return 2 * earthRadiusKm * Math.asin(Math.min(1, Math.sqrt(a)));
+  return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
 function bearing(lat1: number, lng1: number, lat2: number, lng2: number) {
@@ -61,26 +98,22 @@ function ring(distance: number) {
   return { id: 4, max_km: 100, label: "20–100 km", color_value: 0xff22c55e };
 }
 
-function freshnessHours(date: Date) {
-  return Math.max(0, (Date.now() - date.getTime()) / 3_600_000);
-}
-
-function score(quality: number, freshness: Date, distance: number) {
-  const recency = 1 / (1 + freshnessHours(freshness) / 72);
-  return (Math.max(0, Math.min(1, quality)) * recency) / (1 + distance);
+function score(quality: number, freshness: Date, distance: number, precision: Coordinates["precision"]) {
+  const normalizedQuality = quality > 1 ? quality / 100 : quality;
+  const freshnessHours = Math.max(0, (Date.now() - freshness.getTime()) / 3600000);
+  const recency = 1 / (1 + freshnessHours / 72);
+  return (Math.max(0, Math.min(1, normalizedQuality)) * recency * (precision === "exact" ? 1 : .72)) / (1 + distance);
 }
 
 function normalizeType(value: unknown): RadarType {
-  const source = String(value || "").toLowerCase();
-  return source === "buy" || source === "demand" || source === "search" ? "buy" : "sell";
+  const raw = String(value ?? "").toLowerCase();
+  return raw === "buy" || raw === "demand" || raw === "search" ? "buy" : "sell";
 }
 
 function photoFrom(value: unknown) {
-  if (Array.isArray(value)) {
-    const photo = value.find((item) => typeof item === "string" && item.trim().length > 0);
-    return typeof photo === "string" ? photo : null;
-  }
-  return null;
+  if (!Array.isArray(value)) return null;
+  const first = value.find((item) => typeof item === "string" && item.trim().length > 0);
+  return typeof first === "string" ? first : null;
 }
 
 Deno.serve(async (request) => {
@@ -88,148 +121,114 @@ Deno.serve(async (request) => {
   if (request.method !== "POST") return json({ ok: false, error: "Méthode non autorisée." }, 405);
 
   try {
-    const authorization = request.headers.get("Authorization") || "";
-    const caller = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      global: { headers: { Authorization: authorization } },
-      auth: { persistSession: false },
-    });
-    const { data: authData, error: authError } = await caller.auth.getUser();
-    if (authError || !authData.user) return json({ ok: false, error: "Connexion requise." }, 401);
+    const authorization = request.headers.get("Authorization") ?? "";
+    const caller = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { global: { headers: { Authorization: authorization } }, auth: { persistSession: false } });
+    const { data: auth, error: authError } = await caller.auth.getUser();
+    if (authError || !auth.user) return json({ ok: false, error: "Connexion requise." }, 401);
 
     const body = await request.json().catch(() => ({}));
     const latitude = number(body.latitude, NaN);
     const longitude = number(body.longitude, NaN);
-    const radiusKm = Math.max(1, Math.min(100, number(body.radius_km, 20)));
+    const radiusKm = Math.max(1, Math.min(100, number(body.radius_km, 100)));
     const requestedTypes = Array.isArray(body.types) ? body.types.map((item: unknown) => String(item).toLowerCase()) : [];
-    const category = String(body.category || "").trim();
+    const category = String(body.category ?? "").trim().toLowerCase();
     const photoOnly = body.photo_only === true;
     const verifiedOnly = body.verified_only === true;
-
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
-      return json({ ok: false, error: "Coordonnées Radar invalides." }, 422);
-    }
-
-    const dLat = radiusKm / 110.574;
-    const dLng = radiusKm / (111.32 * Math.max(0.1, Math.cos(radians(latitude))));
-    const minLat = latitude - dLat;
-    const maxLat = latitude + dLat;
-    const minLng = longitude - dLng;
-    const maxLng = longitude + dLng;
+    if (!validCoordinate(latitude, longitude)) return json({ ok: false, error: "Coordonnées Radar invalides." }, 422);
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
-
-    const catalogQuery = admin
-      .from("waouh_unified_catalog")
-      .select("id,type,titre,description,categorie,prix_min,prix_max,devise,ville,quartier,lat,lng,photos,vendeur_nom,vendeur_phone,vendeur_whatsapp,verified,last_seen_at,qualite_score")
-      .eq("is_active", true)
-      .gte("lat", minLat)
-      .lte("lat", maxLat)
-      .gte("lng", minLng)
-      .lte("lng", maxLng)
-      .order("last_seen_at", { ascending: false })
-      .limit(120);
-
-    const statusQuery = admin
-      .from("waouh_statuses")
-      .select("id,user_id,author_name,type,title,caption,price_fcfa,location,lat,lng,media_url,media_urls,article_id,expires_at,created_at")
-      .gt("expires_at", new Date().toISOString())
-      .gte("lat", minLat)
-      .lte("lat", maxLat)
-      .gte("lng", minLng)
-      .lte("lng", maxLng)
-      .order("created_at", { ascending: false })
-      .limit(60);
-
-    const [{ data: catalogRows, error: catalogError }, { data: statusRows, error: statusError }] = await Promise.all([catalogQuery, statusQuery]);
-    const items: Record<string, unknown>[] = [];
     const now = new Date();
 
-    for (const row of catalogRows || []) {
-      const lat = number(row.lat, NaN);
-      const lng = number(row.lng, NaN);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
-      const type = normalizeType(row.type);
-      if (requestedTypes.length > 0 && !requestedTypes.includes(type)) continue;
-      if (category && String(row.categorie || "") !== category) continue;
-      if (verifiedOnly && row.verified !== true) continue;
-      const photo = photoFrom(row.photos);
-      if (photoOnly && !photo) continue;
-      const distance = distanceKm(latitude, longitude, lat, lng);
-      if (distance > radiusKm) continue;
-      const updated = toDate(row.last_seen_at);
-      items.push({
-        id: `cat:${row.id}`,
-        source_id: String(row.id),
-        source: "catalog",
-        type,
-        title: String(row.titre || "Annonce WAOUH"),
-        description: row.description || null,
-        photo_url: photo,
-        price_min: row.prix_min ?? null,
-        price_max: row.prix_max ?? null,
-        currency: row.devise || "FCFA",
-        city: row.ville || null,
-        district: row.quartier || null,
-        latitude: lat,
-        longitude: lng,
+    // Legacy rows often have only city, not lat/lng. Fetch first, resolve exact
+    // coordinates where available, then use a clearly lower-ranked city estimate.
+    const [catalogRes, statusRes, externalRes] = await Promise.all([
+      admin.from("waouh_unified_catalog").select("id,source,type,titre,description,categorie,prix_min,prix_max,devise,ville,quartier,lat,lng,photos,vendeur_nom,verified,last_seen_at,qualite_score").eq("is_active", true).order("last_seen_at", { ascending: false }).limit(300),
+      admin.from("waouh_statuses").select("id,author_name,title,caption,price_fcfa,location,lat,lng,media_url,media_urls,article_id,expires_at,created_at").gt("expires_at", now.toISOString()).order("created_at", { ascending: false }).limit(100),
+      admin.from("waouh_external_listings").select("id,title,description,category,price,currency,city,seller_name,image_url,scraped_at,status").neq("status", "ignored").order("scraped_at", { ascending: false }).limit(160),
+    ]);
+
+    const diagnostics = {
+      catalog_rows: (catalogRes.data || []).length,
+      status_rows: (statusRes.data || []).length,
+      external_rows: (externalRes.data || []).length,
+      exact_locations: 0,
+      city_estimates: 0,
+      discarded_without_location: 0,
+      catalog_error: catalogRes.error?.message || null,
+      status_error: statusRes.error?.message || null,
+      external_error: externalRes.error?.message || null,
+    };
+    const output: Record<string, unknown>[] = [];
+    const seen = new Set<string>();
+
+    function add(input: {
+      id: string; sourceId: string; source: string; type: RadarType; title: string; description: unknown; photoUrl: string | null; priceMin: unknown; priceMax: unknown; currency: unknown; city: unknown; district: unknown; row: Record<string, unknown>; freshness: Date; quality: number; verified: boolean; articleId: unknown; sellerName: unknown;
+    }) {
+      if (requestedTypes.length && !requestedTypes.includes(input.type)) return;
+      if (category && !String(input.row.categorie ?? input.row.category ?? "").toLowerCase().includes(category)) return;
+      if (verifiedOnly && !input.verified) return;
+      if (photoOnly && !input.photoUrl) return;
+      const point = coordinates(input.row, input.city);
+      if (!point) { diagnostics.discarded_without_location++; return; }
+      const distance = distanceKm(latitude, longitude, point.lat, point.lng);
+      if (distance > radiusKm) return;
+      const dedupe = `${input.title.toLowerCase()}|${String(input.city ?? "").toLowerCase()}|${String(input.priceMin ?? input.priceMax ?? "")}`;
+      if (seen.has(dedupe)) return;
+      seen.add(dedupe);
+      point.precision === "exact" ? diagnostics.exact_locations++ : diagnostics.city_estimates++;
+      output.push({
+        id: input.id,
+        source_id: input.sourceId,
+        source: input.source,
+        type: input.type,
+        title: input.title || "Annonce WAOUH",
+        description: input.description || null,
+        photo_url: input.photoUrl,
+        price_min: input.priceMin ?? null,
+        price_max: input.priceMax ?? null,
+        currency: input.currency || "XOF",
+        city: input.city || null,
+        district: input.district || null,
+        latitude: point.lat,
+        longitude: point.lng,
+        location_precision: point.precision,
         distance_km: distance,
-        bearing: bearing(latitude, longitude, lat, lng),
+        bearing: bearing(latitude, longitude, point.lat, point.lng),
         ring: ring(distance),
-        freshness_ms: Math.max(0, now.getTime() - updated.getTime()),
-        score: score(number(row.qualite_score, 0.5), updated, distance),
-        seller_name: row.vendeur_nom || null,
-        seller_phone: row.vendeur_whatsapp || row.vendeur_phone || null,
-        article_id: String(row.id),
+        freshness_ms: Math.max(0, now.getTime() - input.freshness.getTime()),
+        score: score(input.quality, input.freshness, distance, point.precision),
+        seller_name: input.sellerName || null,
+        article_id: input.articleId || null,
       });
     }
 
-    for (const row of statusRows || []) {
-      const lat = number(row.lat, NaN);
-      const lng = number(row.lng, NaN);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
-      if (requestedTypes.length > 0 && !requestedTypes.includes("status")) continue;
-      const mediaRows = Array.isArray(row.media_urls) ? row.media_urls : [];
-      const photo = typeof row.media_url === "string" && row.media_url.trim() ? row.media_url : photoFrom(mediaRows);
-      if (photoOnly && !photo) continue;
-      const distance = distanceKm(latitude, longitude, lat, lng);
-      if (distance > radiusKm) continue;
-      const created = toDate(row.created_at);
-      items.push({
-        id: `st:${row.id}`,
-        source_id: String(row.id),
-        source: "status",
-        type: "status",
-        title: String(row.title || row.caption || "Statut WAOUH"),
-        description: row.caption || null,
-        photo_url: photo,
-        price_min: row.price_fcfa ?? null,
-        price_max: row.price_fcfa ?? null,
-        currency: "FCFA",
-        city: row.location || null,
-        district: null,
-        latitude: lat,
-        longitude: lng,
-        distance_km: distance,
-        bearing: bearing(latitude, longitude, lat, lng),
-        ring: ring(distance),
-        freshness_ms: Math.max(0, now.getTime() - created.getTime()),
-        score: score(0.6, created, distance),
-        seller_name: row.author_name || null,
-        seller_phone: null,
-        article_id: row.article_id || null,
-      });
+    for (const row of catalogRes.data || []) {
+      const record = row as Record<string, unknown>;
+      add({ id: `cat:${record.id}`, sourceId: String(record.id), source: String(record.source || "catalog"), type: normalizeType(record.type), title: String(record.titre || "Annonce WAOUH"), description: record.description, photoUrl: photoFrom(record.photos), priceMin: record.prix_min, priceMax: record.prix_max, currency: record.devise, city: record.ville, district: record.quartier, row: record, freshness: toDate(record.last_seen_at), quality: number(record.qualite_score, 50), verified: record.verified === true, articleId: record.id, sellerName: record.vendeur_nom });
+    }
+    for (const row of statusRes.data || []) {
+      const record = row as Record<string, unknown>;
+      add({ id: `st:${record.id}`, sourceId: String(record.id), source: "status", type: "status", title: String(record.title || record.caption || "Statut WAOUH"), description: record.caption, photoUrl: typeof record.media_url === "string" && record.media_url.trim() ? record.media_url : photoFrom(record.media_urls), priceMin: record.price_fcfa, priceMax: record.price_fcfa, currency: "XOF", city: record.location, district: null, row: record, freshness: toDate(record.created_at), quality: 60, verified: false, articleId: record.article_id, sellerName: record.author_name });
+    }
+    for (const row of externalRes.data || []) {
+      const record = row as Record<string, unknown>;
+      add({ id: `ext:${record.id}`, sourceId: String(record.id), source: "external", type: "sell", title: String(record.title || "Annonce trouvée"), description: record.description, photoUrl: typeof record.image_url === "string" && record.image_url.trim() ? record.image_url : null, priceMin: record.price, priceMax: record.price, currency: record.currency, city: record.city, district: null, row: record, freshness: toDate(record.scraped_at), quality: 50, verified: false, articleId: null, sellerName: record.seller_name });
     }
 
-    items.sort((left, right) => number(right.score) - number(left.score));
+    output.sort((a, b) => number(b.score) - number(a.score));
+    const errors = [catalogRes.error?.message, statusRes.error?.message, externalRes.error?.message].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
     return json({
       ok: true,
       generated_at: now.toISOString(),
       coverage: { latitude, longitude, radius_km: radiusKm },
       sources: {
-        catalog: { count: (catalogRows || []).length, error: catalogError?.message || null },
-        statuses: { count: (statusRows || []).length, error: statusError?.message || null },
+        catalog: { count: (catalogRes.data || []).length, error: catalogRes.error?.message || null },
+        statuses: { count: (statusRes.data || []).length, error: statusRes.error?.message || null },
+        external: { count: (externalRes.data || []).length, error: externalRes.error?.message || null },
       },
-      items: items.slice(0, 80),
+      diagnostics,
+      warning: errors.length ? errors.join(" · ") : null,
+      items: output.slice(0, 60),
     });
   } catch (error) {
     console.error("[waouh-radar-nearby]", error);
