@@ -17,6 +17,11 @@ if old in source:
     source = source.replace(old, new, 1)
 elif new not in source:
     raise RuntimeError('Expected Radar tab route is missing.')
-
 path.write_text(source, encoding='utf-8')
+
+service = root / 'lib/live/live_radar_service.dart'
+content = service.read_text(encoding='utf-8')
+content = content.replace("id: _int(ringRaw['id']).clamp(1, 4),", "id: _int(ringRaw['id']).clamp(1, 4).toInt(),")
+service.write_text(content, encoding='utf-8')
+
 print('Backend Radar workspace activated.')
