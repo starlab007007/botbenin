@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
       const userClient = createClient(SUPABASE_URL, ANON, { global: { headers: { Authorization: authHeader } } });
       const { data: { user } } = await userClient.auth.getUser();
       if (user) {
-        const { data } = await admin.rpc("has_role", { _user_id: user.id, _role: "admin" });
+        const { data } = await admin.rpc("has_role", { _user_id: user.id, _role_name: "admin" });
         isAdmin = !!data;
       }
       if (!isAdmin) {
