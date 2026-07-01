@@ -14,7 +14,6 @@ source = source.replace('    _sweep.repeat();\n    try {', '    try {')
 source = source.replace('      _sweep.stop();\n      _sweep.value = 0;\n', '')
 source = source.replace('showRadarItemSheet(context, item)', 'showRadarProductSheet(context, item)')
 source = source.replace('RadarItemAction.negotiate', 'RadarProductAction.negotiate')
-source = source.replace("action == RadarProductAction.negotiate\n          ? 'Je souhaite négocier « ${item.title} » à ${item.distanceLabel}.'\n          : 'Je suis intéressé par « ${item.title} » à ${item.distanceLabel}.'", "switch (action) {\n        RadarProductAction.interested => 'Je suis intéressé par « ${item.title} » à ${item.distanceLabel}.',\n        RadarProductAction.negotiate => 'Je souhaite négocier « ${item.title} » à ${item.distanceLabel}.',\n        RadarProductAction.contact => 'Je souhaite contacter le vendeur pour « ${item.title} ».',\n      }")
-source = source.replace("'title': item.title,\n      },", "'title': item.title,\n        'radar_action': action.name,\n      },")
+
 path.write_text(source, encoding='utf-8')
 print('Radar interaction polish applied.')
