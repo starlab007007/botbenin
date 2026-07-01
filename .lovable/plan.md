@@ -1,122 +1,62 @@
-# Diffusion IA — Ciblage Base Unifiée + Radar, validée par l'admin
+# Plan — Validation & Suivi Diffusion IA
 
-## Objectif
-Transformer le module **Diffusion** (aujourd'hui isolé : liste de campagnes + import contacts téléphone) en un moteur de **diffusion ciblée** qui puise dans :
-1. **`waouh_radar_contacts`** (contacts détectés par le Radar IA — déjà catégorisés, géolocalisés, scorés)
-2. **`waouh_unified_catalog`** (vendeurs/acheteurs présents dans la base unifiée — `vendeur_phone`, `categorie`, `ville`)
-3. **`waouh_radar_signals`** (intentions BUY/SELL récentes avec `contact_phone`, `category`, `city`)
-4. **`wa_contacts`** (contacts WhatsApp historiques tagués)
+## Constat
+- La carte ajoutée précédemment est sur `/admin` (AdminDashboardPage), mais l'admin WAOUH travaille depuis `/admin/waouh` (WaouhPage). Aucun bouton n'y pointe vers `/admin/waouh/diffusion-approvals` → il faut l'exposer là aussi.
+- L'écran de validation actuel n'affiche qu'un `audience_snapshot.total` (nombre agrégé). Impossible pour l'admin de voir, modifier ou exclure les numéros ciblés avant d'approuver.
+- Après validation il n'y a pas de vue de suivi/relance rattachée à la campagne validée.
 
-…puis applique un **modèle de segmentation par secteur/classe**, et envoie après **approbation explicite d'un admin** (quota, plafond, fenêtre horaire).
+## Ce qui va être livré
 
----
+### 1. Accès visible (2 emplacements)
+- **`/admin/waouh` (WaouhPage)** : ajouter dans le header un bouton **📣 Validations diffusion** avec badge temps réel du nombre de demandes `pending`, pointant vers `/admin/waouh/diffusion-approvals`.
+- **`/admin` (AdminDashboardPage)** : la carte existe déjà ; on la conserve.
 
-## 1. Modèle de segmentation proposé (le "schéma")
+### 2. Vue « Numéros à valider » (avant approbation)
+Nouvelle section dépliable sur chaque demande dans `AdminDiffusionApprovalsPage` :
 
-Chaque contact agrégé est projeté dans une **fiche unifiée de ciblage** :
+- Bouton **« Voir & éditer les numéros »** → appelle `waouh-diffusion-audience` en mode admin (payload `{ ...filters, admin_full: true, limit_sample: 500 }`) pour recevoir la **liste complète non masquée** (`phone_e164`, `display_name`, `secteur`, `ville`, `classe`, `intent_score`, `sources`).
+- Tableau paginé avec :
+  - Case **Inclure / Exclure** par ligne
+  - Champ **Téléphone** éditable (normalisation E.164 côté client, avec validation Bénin +229 par défaut)
+  - Filtres rapides (secteur, classe, ville) + recherche texte
+  - Actions groupées : « Tout exclure filtré », « Tout inclure »
+- Compteur en direct : « X inclus / Y total — plafond demandé Z ».
+- Bouton **Enregistrer la sélection** → persiste dans `waouh_diffusion_approvals.audience_recipients` (JSONB : `[{phone_e164, name, secteur, classe, included, override_phone?}]`) et `excluded_phones` (TEXT[]).
+- Le bouton **Approuver** est désactivé tant qu'aucun numéro inclus n'est présent ; le quota approuvé se cale par défaut sur le nombre inclus.
 
-```text
-ContactCible {
-  phone_e164            ← clé de déduplication
-  display_name
-  sources[]             ← ["radar","catalog","signal","wa_contact"]
-  secteur               ← Mode/Beauté, Tech, Auto, Immo, Alimentaire, Services, Autre
-  sous_categorie
-  ville / quartier
-  intent_score          ← 0–100 (BUY+SELL+récence signaux)
-  freshness_days        ← jours depuis last_seen
-  classe                ← A (chaud <7j, intent>70)
-                         B (tiède <30j, intent 40–70)
-                         C (froid 30–90j)
-                         D (dormant >90j)
-  opt_out, is_whatsapp, weekly_sent_count
-  qualite_score         ← 0–100 (téléphone valide + nom + catégorie + ville)
-}
+### 3. Envoi respectant la sélection
+`waouh-radar-campaign-tick` lira `audience_recipients` de l'approbation liée à la campagne : n'envoie qu'aux numéros `included=true`, applique `override_phone` si présent, ignore ceux dans `excluded_phones`. Le mode « audience complète » reste le fallback si `audience_recipients` est vide.
+
+### 4. Vue « Suivi & Relance » (après validation)
+Nouveaux onglets sur `AdminDiffusionApprovalsPage` :
+- **En attente** (comportement actuel)
+- **Approuvées / En cours** : liste des campagnes dérivées, montée avec le composant existant `DiffusionTrackingDashboard` (envoyés / répondus / intéressés / relancés + barre de conversion) + bouton **Relance J+3** déjà câblé sur `waouh-diffusion-relaunch`.
+- **Historique** : rejetées + terminées, avec motif visible.
+
+## Détails techniques
+
+**Migration**
+```sql
+ALTER TABLE public.waouh_diffusion_approvals
+  ADD COLUMN IF NOT EXISTS audience_recipients JSONB NOT NULL DEFAULT '[]'::jsonb,
+  ADD COLUMN IF NOT EXISTS excluded_phones     TEXT[]  NOT NULL DEFAULT '{}';
+CREATE INDEX IF NOT EXISTS idx_wda_recipients_gin
+  ON public.waouh_diffusion_approvals USING gin (audience_recipients);
 ```
-
-**Règles d'éligibilité** (par défaut) : `is_whatsapp = true`, `opt_out = false`, `qualite_score ≥ 50`, `weekly_sent_count < 3` (plafond global existant).
-
----
-
-## 2. Stratégie de ciblage (l'audience builder)
-
-L'utilisateur (vendeur/partenaire) construit une audience via un **wizard 4 étapes** :
-
-| Étape | Choix |
-|---|---|
-| **1. Source** | Radar uniquement / Catalogue unifié / Signaux récents / Toutes |
-| **2. Secteur** | Multi-select sur `secteur` + `sous_categorie` (issu du catalogue) |
-| **3. Géo** | Villes / rayon km autour d'un point (réutilise `waouh_radar_scan`) |
-| **4. Classe & fraîcheur** | Classes A/B/C/D + `last_seen_within_days` + intent BUY/SELL |
-
-Aperçu live : **« 1 247 contacts éligibles · 612 classe A · 8 villes »** + échantillon de 10 lignes anonymisées.
-
----
-
-## 3. Workflow de validation admin
-
-```text
-[Vendeur] crée brouillon ─▶ status=draft
-       │
-       │ "Demander validation" (capse plafond proposé, ex: 500 envois)
-       ▼
-[Admin] file d'attente /admin/waouh/diffusion-approvals
-       ├─ voit: audience, message, média, plafond demandé, coût estimé
-       ├─ peut: ajuster plafond, exclure villes, modifier template
-       └─ Approuver  ─▶ status=approved, quota_approved=N
-                       └─▶ déclenche waouh-radar-campaign-tick existant
-           Refuser    ─▶ status=rejected + motif
-```
-
-Garde-fous admin :
-- Plafond global plateforme/jour (paramètre `waouh_settings`)
-- Anti-spam : 3 messages/contact/7j (déjà en place dans `campaign-tick`)
-- Fenêtre horaire autorisée (8h–20h Africa/Porto-Novo)
-- Liste noire phone/préfixe
-
----
-
-## 4. Suivi & évaluation
-
-Page **Suivi de diffusion** (réutilise `waouh_radar_campaign_runs` + `_sends`) :
-- KPIs temps réel : envoyés / livrés / lus / répondus / opt-out / **conversions** (chat ouvert, intention reçue, deal créé)
-- Vue par **secteur** et par **classe A/B/C/D** → taux de réponse comparés
-- Vue par **ville** (carte chaleur)
-- Export CSV + relance automatique des non-répondants (J+3) si admin coche l'option
-
-La conversion est attribuée en joignant `waouh_messages.counterpart_phone` ↔ `waouh_radar_campaign_sends.phone_e164` dans une fenêtre de 7 jours.
-
----
-
-## 5. Changements techniques (résumé non-utilisateur)
-
-**Base de données (1 migration)**
-- Vue `public.v_diffusion_audience` qui UNION + dédup `radar_contacts` ∪ `signals.contact_phone` ∪ `unified_catalog.vendeur_phone` ∪ `wa_contacts`, calcule `secteur`, `classe`, `intent_score`, `freshness_days`, `qualite_score`.
-- Table `waouh_diffusion_approvals` (campaign_id, requested_by, audience_snapshot jsonb, quota_requested, quota_approved, status, reviewed_by, reviewed_at, reason) + GRANT + RLS (créateur voit le sien, admin voit tout).
-- Colonne `requires_approval boolean default true` + `approval_id uuid` sur `waouh_radar_campaigns`.
-- Indexes sur `(secteur, classe, ville)` côté vue matérialisée optionnelle.
 
 **Edge functions**
-- `waouh-diffusion-audience` (POST) : prend les filtres du wizard, renvoie count + échantillon depuis la vue.
-- `waouh-diffusion-submit` : crée campagne `status=pending_approval` + snapshot audience.
-- `waouh-diffusion-approve` (admin only) : flip campagne `status=active`, fixe `quota_approved`, planifie `next_run_at`.
-- `waouh-radar-campaign-tick` (existant) : ajouter check `quota_approved` avant chaque envoi.
+- `waouh-diffusion-audience` : ajoute le mode `admin_full` (vérifie `has_role(admin)` via `Authorization` user-client) ; retourne phones non masqués et `contact_id` ; élargit `limit_sample` (max 1000).
+- `waouh-diffusion-approve` : accepte `audience_recipients` et `excluded_phones` optionnels, persiste sur l'approbation avant activation.
+- `waouh-radar-campaign-tick` : si `audience_recipients` non vide, itère cette liste (respect `included`, `override_phone`) au lieu de la vue ; sinon comportement actuel.
 
 **Frontend**
-- `src/app-mobile/screens/DiffusionScreen.tsx` : remplacer l'écran liste actuel par le wizard 4 étapes + bouton « Demander validation ».
-- `src/components/diffusion/AudienceBuilder.tsx` (nouveau, 4 sous-composants : SourceStep, SectorStep, GeoStep, ClassStep + AudiencePreview).
-- `src/pages/admin/AdminDiffusionApprovalsPage.tsx` (nouveau) + route `/admin/waouh/diffusion-approvals`.
-- `src/components/diffusion/DiffusionTrackingDashboard.tsx` (KPIs + tableau secteur/classe + carte).
-- `RadarCampaignsTab.tsx` : ajouter colonne « Validation » + lien vers la page admin.
+- `AdminDiffusionApprovalsPage.tsx` : ajout `<Tabs>` (Pending / Actives / Historique), composant `<RecipientsEditor>` local (table shadcn + `<Checkbox>` + `<Input>`), intégration `<DiffusionTrackingDashboard>`.
+- `WaouhPage.tsx` : ajout d'un `<Link to="/admin/waouh/diffusion-approvals">` dans le header (bouton `<Megaphone/>` + `<Badge>` count via Realtime sur `waouh_diffusion_approvals`).
 
-**Aucune modification** des flux chat/match/notif existants (verrouillage v12 respecté).
+**Sécurité**
+- L'exposition des numéros complets est réservée aux admins (vérification `has_role` server-side, RLS déjà en place sur `waouh_diffusion_approvals`).
+- Validation E.164 des overrides côté fonction (regex `^\+?[1-9]\d{7,14}$`).
 
----
-
-## 6. Livraison en 3 lots
-
-1. **Lot A — Audience & vue unifiée** : migration vue, edge `audience`, wizard frontend, aperçu live (sans envoi).
-2. **Lot B — Validation admin** : table approvals, edges submit/approve, page admin, blocage envoi tant que non approuvé.
-3. **Lot C — Suivi & évaluation** : dashboard secteur/classe/ville, attribution conversions, relance J+3, export CSV.
-
-Chaque lot est testable et déployable indépendamment.
+## Hors périmètre
+- Pas de refonte visuelle du dashboard WaouhPage.
+- Pas de changement au moteur d'envoi WAHA / templates.
