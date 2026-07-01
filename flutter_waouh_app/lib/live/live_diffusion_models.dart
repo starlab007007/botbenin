@@ -183,6 +183,78 @@ class LiveDiffusionAudiencePreview {
       );
 }
 
+class LiveAiDiffusionRequest {
+  const LiveAiDiffusionRequest({
+    required this.id,
+    required this.status,
+    required this.createdAt,
+    required this.messageTemplate,
+    required this.quotaRequested,
+    this.campaignId,
+    this.campaignName,
+    this.quotaApproved,
+    this.quotaConsumed = 0,
+    this.audienceTotal = 0,
+    this.reason,
+    this.mediaUrl,
+    this.filters = const {},
+    this.breakdown = const {},
+    this.sent = 0,
+    this.skipped = 0,
+    this.lastRunAt,
+  });
+
+  final String id;
+  final String status;
+  final DateTime createdAt;
+  final String messageTemplate;
+  final int quotaRequested;
+  final String? campaignId;
+  final String? campaignName;
+  final int? quotaApproved;
+  final int quotaConsumed;
+  final int audienceTotal;
+  final String? reason;
+  final String? mediaUrl;
+  final Map<String, dynamic> filters;
+  final Map<String, dynamic> breakdown;
+  final int sent;
+  final int skipped;
+  final DateTime? lastRunAt;
+
+  bool get pending => status == 'pending';
+  bool get approved => status == 'approved';
+  bool get rejected => status == 'rejected';
+  bool get cancelled => status == 'cancelled';
+  bool get completed => status == 'done';
+  int get effectiveQuota => quotaApproved ?? quotaRequested;
+  double get progress => effectiveQuota <= 0 ? 0 : (quotaConsumed / effectiveQuota).clamp(0, 1).toDouble();
+
+  factory LiveAiDiffusionRequest.fromJson(Map<String, dynamic> row) {
+    final snapshot = row['audience_snapshot'];
+    final rawBreakdown = row['breakdown'] ?? (snapshot is Map ? snapshot['breakdown'] : null);
+    return LiveAiDiffusionRequest(
+      id: '${row['id'] ?? ''}',
+      status: '${row['status'] ?? 'pending'}',
+      createdAt: DateTime.tryParse('${row['created_at'] ?? ''}') ?? DateTime.fromMillisecondsSinceEpoch(0),
+      messageTemplate: '${row['message_template'] ?? ''}',
+      quotaRequested: _toInt(row['quota_requested']),
+      campaignId: row['campaign_id']?.toString(),
+      campaignName: row['campaign_name']?.toString(),
+      quotaApproved: row['quota_approved'] == null ? null : _toInt(row['quota_approved']),
+      quotaConsumed: _toInt(row['quota_consumed']),
+      audienceTotal: _toInt(row['audience_total'] ?? (snapshot is Map ? snapshot['total'] : 0)),
+      reason: row['reason']?.toString(),
+      mediaUrl: row['media_url']?.toString(),
+      filters: row['audience_filters'] is Map ? Map<String, dynamic>.from(row['audience_filters'] as Map) : const {},
+      breakdown: rawBreakdown is Map ? Map<String, dynamic>.from(rawBreakdown) : const {},
+      sent: _toInt(row['sent']),
+      skipped: _toInt(row['skipped']),
+      lastRunAt: DateTime.tryParse('${row['last_run_at'] ?? ''}'),
+    );
+  }
+}
+
 String liveDiffusionPhone(String raw) {
   final compact = raw.replaceAll(RegExp(r'[^0-9+]'), '');
   if (compact.startsWith('+') && compact.length >= 9) return compact;
@@ -191,3 +263,5 @@ String liveDiffusionPhone(String raw) {
   if (digits.length == 8 || digits.length == 10) return '+229$digits';
   return '';
 }
+
+int _toInt(dynamic value) => value is int ? value : int.tryParse('${value ?? 0}') ?? 0;
