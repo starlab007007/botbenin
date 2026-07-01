@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
     if (!user) return new Response(JSON.stringify({ ok: false, error: "unauthenticated" }), { status: 401, headers: corsHeaders });
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
-    const { data: isAdmin } = await admin.rpc("has_role", { _user_id: user.id, _role: "admin" });
+    const { data: isAdmin } = await admin.rpc("has_role", { _user_id: user.id, _role_name: "admin" });
     if (!isAdmin) return new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403, headers: corsHeaders });
 
     const { approval_id, action, quota_approved, reason, message_template_override,
