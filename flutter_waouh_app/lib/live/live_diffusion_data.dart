@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'live_diffusion_models.dart';
@@ -49,8 +51,8 @@ class LiveDiffusionData {
         return rawRequests.whereType<Map>().map((item) => LiveAiDiffusionRequest.fromJson(Map<String, dynamic>.from(item))).toList();
       }
     } catch (_) {
-      // A compact fallback keeps pending requests visible while the optional
-      // tracking function is being deployed.
+      // The deployment can still be in progress. The RLS-protected fallback
+      // keeps requests visible to their creator.
     }
     final rows = await client
         .from('waouh_diffusion_approvals')
@@ -95,13 +97,75 @@ class LiveDiffusionData {
     );
   }
 
+  /// Uses the server model when it is deployed. A deterministic, contextual
+  /// assistant fallback makes the UI usable even when an AI secret is not yet
+  /// configured on Supabase.
+  Future<List<String>> suggestMessages({
+    required String offerName,
+    required String sector,
+    required List<String> subcategories,
+    required List<String> cities,
+    required String tone,
+    required String objective,
+  }) async {
+    final fallback = _localSuggestions(
+      offerName: offerName,
+      sector: sector,
+      subcategories: subcategories,
+      cities: cities,
+      tone: tone,
+      objective: objective,
+    );
+    try {
+      final payload = await invokeJson('waouh-diffusion-suggest', {
+        'offer_name': offerName,
+        'sector': sector,
+        'subcategories': subcategories,
+        'cities': cities,
+        'tone': tone,
+        'objective': objective,
+      });
+      final raw = payload['suggestions'];
+      if (raw is List) {
+        final items = raw.map((item) => '$item'.trim()).where((item) => item.isNotEmpty).toList();
+        if (items.isNotEmpty) return items.take(3).toList();
+      }
+    } catch (_) {
+      // A network or deployment failure must not block message composition.
+    }
+    return fallback;
+  }
+
+  /// Uploads a gallery image in a private user folder and returns a time-bound
+  /// signed URL suitable for the approval preview and the campaign record.
+  Future<String> uploadDiffusionImage({
+    required Uint8List bytes,
+    required String extension,
+  }) async {
+    if (bytes.isEmpty) throw StateError('La photo sélectionnée est vide.');
+    final normalizedExtension = extension.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').toLowerCase();
+    final safeExtension = normalizedExtension.isEmpty ? 'jpg' : normalizedExtension;
+    final path = '$userId/${DateTime.now().microsecondsSinceEpoch}.$safeExtension';
+    final contentType = switch (safeExtension) {
+      'png' => 'image/png',
+      'webp' => 'image/webp',
+      _ => 'image/jpeg',
+    };
+    await client.storage.from('waouh-diffusion-media').uploadBinary(
+      path,
+      bytes,
+      fileOptions: FileOptions(contentType: contentType, upsert: false),
+    );
+    return client.storage.from('waouh-diffusion-media').createSignedUrl(path, 60 * 60 * 24 * 30);
+  }
+
   Future<void> cancelAiRequest(String approvalId) async {
     try {
       await invokeJson('waouh-diffusion-cancel', {'approval_id': approvalId});
       return;
     } catch (_) {
-      // Existing production RLS policy permits a creator to cancel only a
-      // pending request. This fallback is safe while the edge function rolls out.
+      // Existing production policy permits a creator to cancel only a pending
+      // request. This safe fallback remains useful during edge-function rollout.
       await client
           .from('waouh_diffusion_approvals')
           .update({'status': 'cancelled'})
@@ -173,5 +237,36 @@ class LiveDiffusionData {
 
   Future<void> submitApproval(Map<String, dynamic> body) async {
     await invokeJson('waouh-diffusion-submit', body);
+  }
+
+  List<String> _localSuggestions({
+    required String offerName,
+    required String sector,
+    required List<String> subcategories,
+    required List<String> cities,
+    required String tone,
+    required String objective,
+  }) {
+    final topic = subcategories.isNotEmpty ? subcategories.join(', ') : (sector.isEmpty ? 'notre offre' : sector);
+    final place = cities.isEmpty ? '{{ville}}' : cities.join(' et ');
+    final offer = offerName.trim().isEmpty ? 'notre nouvelle offre' : offerName.trim();
+    final urgency = objective == 'Vente urgente' ? '⏳ Offre limitée : ' : '';
+    final callToAction = switch (objective) {
+      'Relance' => 'Répondez OUI et nous vous recontactons.',
+      'Lancement' => 'Écrivez INFO pour recevoir les détails.',
+      'Vente urgente' => 'Répondez vite pour réserver.',
+      _ => 'Répondez OUI pour en savoir plus.',
+    };
+    final opener = switch (tone) {
+      'Premium' => 'Bonjour {{display_name}}, une sélection exclusive vous attend.',
+      'Convivial' => 'Bonjour {{display_name}} 👋',
+      'Direct' => 'Bonjour {{display_name}},',
+      _ => 'Bonjour {{display_name}} 👋',
+    };
+    return [
+      '$opener\n$urgency$offer est disponible à $place dans la catégorie $topic.\n$callToAction',
+      '$opener\nVous recherchez $topic ? Découvrez $offer près de $place.\n$callToAction',
+      '$opener\nNous avons identifié une opportunité pertinente autour de $topic.\nDécouvrez $offer à $place. $callToAction',
+    ];
   }
 }
