@@ -1,5 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="96" fill="#111111"/>
-  <path d="M126 262c0-92 74-166 166-166s166 74 166 166-74 166-166 166c-34 0-66-10-93-28l-80 25 23-78c-10-26-16-55-16-85Z" fill="none" stroke="#FFFFFF" stroke-width="33" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M188 191h46l24 112 30-86h35l30 86 24-112h46l-39 150h-45l-34-87-34 87h-45l-39-150Z" fill="#FFFFFF"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#252525"/>
+      <stop offset="0.6" stop-color="#101010"/>
+      <stop offset="1" stop-color="#1b1b1b"/>
+    </linearGradient>
+  </defs>
+  <rect x="10" y="10" width="492" height="492" rx="110" fill="url(#bg)"/>
+  <rect x="10" y="10" width="492" height="492" rx="110" fill="none" stroke="#ffffff" stroke-opacity=".10" stroke-width="4"/>
+  <path d="M128 254c0-91 74-165 165-165s165 74 165 165-74 165-165 165c-33 0-64-10-91-27l-83 26 26-82c-11-26-17-53-17-82Z" fill="none" stroke="#ffffff" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M169 177h46l26 123 33-94h37l33 94 26-123h46l-42 159h-47l-35-93-35 93h-47l-42-159Z" fill="#ffffff"/>
 </svg>
