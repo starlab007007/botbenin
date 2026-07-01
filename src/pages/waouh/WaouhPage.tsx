@@ -178,6 +178,16 @@ export default function WaouhPage() {
                   <Play className="w-4 h-4 mr-2" /> Démo conversation
                 </Button>
               </Link>
+              <Link to="/admin/waouh/diffusion-approvals">
+                <Button variant="secondary" className="relative bg-white/15 hover:bg-white/25 text-white border-white/30">
+                  <Megaphone className="w-4 h-4 mr-2" /> Validations diffusion
+                  {pendingApprovals > 0 && (
+                    <Badge className="ml-2 bg-red-500 hover:bg-red-500 text-white border-0 h-5 min-w-5 px-1.5 text-[10px]">
+                      {pendingApprovals}
+                    </Badge>
+                  )}
+                </Button>
+              </Link>
               <Badge className="bg-emerald-400/20 text-white border-emerald-300/40">
                 <span className="w-2 h-2 rounded-full bg-emerald-300 mr-2 animate-pulse" /> Système actif
               </Badge>
