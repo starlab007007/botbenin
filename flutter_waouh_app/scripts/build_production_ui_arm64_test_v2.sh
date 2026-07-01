@@ -14,12 +14,14 @@ test -f scripts/repair_compile_errors.py || fail "Script de réparation Flutter 
 test -f scripts/apply_final_ui_options.py || fail "Script final UI absent."
 test -f scripts/apply_radar_backend_workspace.py || fail "Script Radar backend absent."
 test -f scripts/apply_radar_filter_radius.py || fail "Script de portée Radar absent."
+test -f scripts/apply_radar_interaction_polish.py || fail "Script UX Radar absent."
 grep -q '^name: waouh_app_native$' pubspec.yaml || fail "Mauvais projet Flutter."
 
 python3 scripts/repair_compile_errors.py
 python3 scripts/apply_final_ui_options.py
 python3 scripts/apply_radar_filter_radius.py
 python3 scripts/apply_radar_backend_workspace.py
+python3 scripts/apply_radar_interaction_polish.py
 
 flutter clean
 flutter pub get
