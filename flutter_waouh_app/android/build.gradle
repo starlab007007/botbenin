@@ -6,6 +6,15 @@ allprojects {
 }
 
 rootProject.buildDir = "../build"
+subprojects { subproject ->
+    if (subproject.name != "app") {
+        subproject.ext.flutter = [
+            compileSdkVersion: 36,
+            minSdkVersion: 23,
+            targetSdkVersion: 36
+        ]
+    }
+}
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
 }

@@ -85,7 +85,7 @@ ThemeData buildWaouhTheme() {
       centerTitle: false,
       systemOverlayStyle: SystemUiOverlayStyle.light,
     ),
-    cardTheme: CardThemeData(
+    cardTheme: CardTheme(
       elevation: 0,
       color: WaouhColors.paper,
       shape: RoundedRectangleBorder(
@@ -396,7 +396,9 @@ class NotificationItem {
             json['payload']?['message'] ??
             json['payload']?['title']),
         createdAt: asDate(json['created_at'] ?? json['sent_at']),
-        read: json['read'] == true || json['opened'] == true || json['read_at'] != null,
+        read: json['read'] == true ||
+            json['opened'] == true ||
+            json['read_at'] != null,
         actionUrl: json['action_url'] ?? json['payload']?['action_url'],
         type: json['type'] ?? json['template'],
         payload: (json['payload'] is Map)
@@ -777,7 +779,10 @@ class AuthController extends ChangeNotifier {
       }
       final emailOtp = data['email_otp']?.toString();
       final email = data['email']?.toString();
-      if (emailOtp == null || emailOtp.isEmpty || email == null || email.isEmpty) {
+      if (emailOtp == null ||
+          emailOtp.isEmpty ||
+          email == null ||
+          email.isEmpty) {
         throw StateError('Reponse de verification invalide. Reessayez.');
       }
       await supabase.auth.verifyOTP(
@@ -811,7 +816,9 @@ class AuthController extends ChangeNotifier {
       final data = response.data;
       if (data is! Map || data['error'] != null) {
         throw StateError(
-          data is Map ? asString(data['error'], 'Erreur enregistrement profil') : 'Erreur enregistrement profil',
+          data is Map
+              ? asString(data['error'], 'Erreur enregistrement profil')
+              : 'Erreur enregistrement profil',
         );
       }
       whatsappIsNewUser = false;
@@ -835,7 +842,8 @@ class AuthController extends ChangeNotifier {
     required String fileName,
   }) async {
     final uid = user?.id;
-    if (uid == null) throw StateError('Connectez-vous pour modifier votre photo.');
+    if (uid == null)
+      throw StateError('Connectez-vous pour modifier votre photo.');
     if (bytes.isEmpty) throw StateError('Image vide.');
     if (bytes.length > 5 * 1024 * 1024) {
       throw StateError('L\'image doit faire au maximum 5 Mo.');
@@ -848,13 +856,15 @@ class AuthController extends ChangeNotifier {
         'webp' => 'image/webp',
         _ => 'image/jpeg',
       };
-      final path = 'avatars/$uid/avatar_${DateTime.now().millisecondsSinceEpoch}.$extension';
+      final path =
+          'avatars/$uid/avatar_${DateTime.now().millisecondsSinceEpoch}.$extension';
       await supabase.storage.from('public-media').uploadBinary(
             path,
             Uint8List.fromList(bytes),
             fileOptions: FileOptions(contentType: contentType, upsert: true),
           );
-      final publicUrl = supabase.storage.from('public-media').getPublicUrl(path);
+      final publicUrl =
+          supabase.storage.from('public-media').getPublicUrl(path);
       await supabase.from('profiles').upsert({
         'id': uid,
         'avatar_url': publicUrl,
@@ -1000,7 +1010,8 @@ class WaouhChatController extends ChangeNotifier {
         .order('updated_at', ascending: false)
         .limit(200);
     return (rows as List)
-        .map((row) => WaouhConversation.fromJson(Map<String, dynamic>.from(row as Map)))
+        .map((row) =>
+            WaouhConversation.fromJson(Map<String, dynamic>.from(row as Map)))
         .where((c) => !c.archived)
         .toList();
   }
@@ -1229,7 +1240,8 @@ class NotificationsController {
         .order('sent_at', ascending: false)
         .limit(100);
     return (rows as List)
-        .map((row) => NotificationItem.fromJson(Map<String, dynamic>.from(row as Map)))
+        .map((row) =>
+            NotificationItem.fromJson(Map<String, dynamic>.from(row as Map)))
         .toList();
   }
 
@@ -1239,23 +1251,24 @@ class NotificationsController {
       return;
     }
     yield await _fetch(user);
-    yield* Stream.periodic(const Duration(seconds: 5)).asyncMap((_) => _fetch(user));
+    yield* Stream.periodic(const Duration(seconds: 5))
+        .asyncMap((_) => _fetch(user));
   }
 
   Future<void> markRead(String id) async {
-    await supabase
-        .from('waouh_notifications')
-        .update({'opened': true, 'read_at': DateTime.now().toIso8601String()}).eq(
-            'id', id);
+    await supabase.from('waouh_notifications').update({
+      'opened': true,
+      'read_at': DateTime.now().toIso8601String()
+    }).eq('id', id);
   }
 
   Future<void> markAllRead(User? user) async {
     final ids = await _waouhUserIds(user);
     if (ids.isEmpty) return;
-    await supabase
-        .from('waouh_notifications')
-        .update({'opened': true, 'read_at': DateTime.now().toIso8601String()})
-        .inFilter('user_id', ids);
+    await supabase.from('waouh_notifications').update({
+      'opened': true,
+      'read_at': DateTime.now().toIso8601String()
+    }).inFilter('user_id', ids);
   }
 }
 
@@ -2284,8 +2297,7 @@ class _WhatsAppOtpScreenState extends State<WhatsAppOtpScreen> {
                     : () async {
                         await auth.verifyWhatsappOtp(phone.text, code.text);
                         if (context.mounted)
-                          context.go(currentNextRoute(context) ??
-                              '/app/chat');
+                          context.go(currentNextRoute(context) ?? '/app/chat');
                       },
                 child: const Text('Verifier')),
             TextButton(
@@ -2947,7 +2959,9 @@ class _WaouhChatScreenState extends State<WaouhChatScreen> {
     setState(() => sending = true);
     composer.clear();
     try {
-      await context.read<WaouhChatController>().sendWaouhMessage(text, intent: intent);
+      await context
+          .read<WaouhChatController>()
+          .sendWaouhMessage(text, intent: intent);
     } catch (e) {
       composer.text = text;
       if (context.mounted) {
@@ -3034,7 +3048,11 @@ class _WaouhChatScreenState extends State<WaouhChatScreen> {
                         padding: EdgeInsets.zero),
                     onPressed: sending ? null : () => _send(context),
                     child: sending
-                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
                         : const Icon(Icons.send_rounded),
                   ),
                 ],
@@ -3520,7 +3538,9 @@ Future<void> showWithdrawalRequest(
           FilledButton.icon(
             onPressed: () async {
               final value = num.tryParse(amount.text.replaceAll(' ', '')) ?? 0;
-              await context.read<PartnerController>().requestPayout(amount: value);
+              await context
+                  .read<PartnerController>()
+                  .requestPayout(amount: value);
               if (context.mounted) Navigator.pop(context);
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
