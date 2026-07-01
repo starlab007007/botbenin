@@ -103,14 +103,20 @@ export const AdminDashboardPage: React.FC = () => {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <Icon className={`h-8 w-8 ${card.color}`} />
-                  <Settings className="h-4 w-4 text-muted-foreground" />
+                  {(card as any).badge && (card as any).badge > 0 ? (
+                    <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white">
+                      {(card as any).badge} en attente
+                    </Badge>
+                  ) : (
+                    <Settings className="h-4 w-4 text-muted-foreground" />
+                  )}
                 </div>
                 <CardTitle className="mt-4">{card.title}</CardTitle>
                 <CardDescription>{card.description}</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button variant="outline" className="w-full">
-                  Accéder
+                  {(card as any).badge && (card as any).badge > 0 ? 'Vérifier & Valider' : 'Accéder'}
                 </Button>
               </CardContent>
             </Card>
