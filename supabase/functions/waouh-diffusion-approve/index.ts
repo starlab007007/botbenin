@@ -22,7 +22,8 @@ Deno.serve(async (req) => {
     const { data: isAdmin } = await admin.rpc("has_role", { _user_id: user.id, _role: "admin" });
     if (!isAdmin) return new Response(JSON.stringify({ ok: false, error: "forbidden" }), { status: 403, headers: corsHeaders });
 
-    const { approval_id, action, quota_approved, reason, message_template_override } = await req.json();
+    const { approval_id, action, quota_approved, reason, message_template_override,
+            audience_recipients, excluded_phones } = await req.json();
     if (!approval_id || !["approve", "reject"].includes(action)) {
       return new Response(JSON.stringify({ ok: false, error: "invalid payload" }), { status: 400, headers: corsHeaders });
     }
@@ -32,6 +33,29 @@ Deno.serve(async (req) => {
     if (approval.status !== "pending") {
       return new Response(JSON.stringify({ ok: false, error: "already reviewed" }), { status: 409, headers: corsHeaders });
     }
+
+    // Sanitize recipients (E.164-ish validation)
+    const E164 = /^\+?[1-9]\d{7,14}$/;
+    let cleanRecipients: any[] | undefined;
+    if (Array.isArray(audience_recipients)) {
+      cleanRecipients = audience_recipients
+        .filter((r: any) => r && typeof r === "object")
+        .map((r: any) => {
+          const phone = String(r.override_phone ?? r.phone_e164 ?? "").replace(/[^\d+]/g, "");
+          return {
+            phone_e164: phone,
+            name: r.name ?? r.display_name ?? "",
+            secteur: r.secteur ?? null,
+            classe: r.classe ?? null,
+            ville: r.ville ?? null,
+            included: r.included !== false && E164.test(phone),
+          };
+        })
+        .filter((r: any) => E164.test(r.phone_e164));
+    }
+    const cleanExcluded = Array.isArray(excluded_phones)
+      ? excluded_phones.map((p: any) => String(p).replace(/[^\d+]/g, "")).filter((p: string) => E164.test(p))
+      : undefined;
 
     if (action === "reject") {
       await admin.from("waouh_diffusion_approvals").update({
@@ -43,12 +67,22 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true, status: "rejected" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const finalQuota = Math.max(1, Math.min(quota_approved ?? approval.quota_requested, 5000));
-    await admin.from("waouh_diffusion_approvals").update({
+    // If admin curated a recipient list, use its included-count as the natural quota cap
+    const includedCount = cleanRecipients?.filter((r: any) => r.included).length ?? 0;
+    const requestedQuota = quota_approved ?? approval.quota_requested;
+    const finalQuota = Math.max(1, Math.min(
+      includedCount > 0 ? Math.min(requestedQuota, includedCount) : requestedQuota,
+      5000
+    ));
+
+    const updatePayload: any = {
       status: "approved", reviewed_by: user.id, reviewed_at: new Date().toISOString(),
       quota_approved: finalQuota, reason,
       message_template: message_template_override ?? approval.message_template,
-    }).eq("id", approval_id);
+    };
+    if (cleanRecipients) updatePayload.audience_recipients = cleanRecipients;
+    if (cleanExcluded) updatePayload.excluded_phones = cleanExcluded;
+    await admin.from("waouh_diffusion_approvals").update(updatePayload).eq("id", approval_id);
 
     if (approval.campaign_id) {
       await admin.from("waouh_radar_campaigns").update({
