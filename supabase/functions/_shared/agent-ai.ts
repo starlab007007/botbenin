@@ -111,3 +111,61 @@ RÈGLES ABSOLUES :
 - Ne mentionne jamais que tu es une IA sauf si on te le demande directement.
 - Utilise les FAITS ci-dessous du contexte quand ils sont pertinents.`;
 }
+
+// Shared: run one agent turn (used by both waouh-agent-chat and waouh-agent-webhook)
+export async function runAgentTurn(supabase: any, agent_id: string, message: string, opts: {
+  history?: Array<{ role: string; content: string }>;
+  contact_phone?: string;
+  contact_name?: string;
+  persist?: boolean;
+}) {
+  const HANDOFF = /\b(humain|human|patron|urgent|réel|reel|manager|responsable|parler à quelqu)/i;
+  const { data: agent } = await supabase.from("waouh_ai_agents").select("*").eq("id", agent_id).maybeSingle();
+  if (!agent) throw new Error("agent introuvable");
+  const { data: products } = await supabase.from("waouh_ai_agent_products").select("*").eq("agent_id", agent_id).eq("active", true).order("position");
+
+  let context = "";
+  try {
+    const emb = await embedText(message);
+    const { data: matches } = await supabase.rpc("match_agent_chunks", {
+      _agent_id: agent_id, _query_embedding: emb, _match_count: 4,
+    });
+    if (matches?.length) context = "\n\nFAITS PERTINENTS :\n" + matches.map((m: any) => `• ${m.content}`).join("\n");
+  } catch (e) { console.error("rag err", e); }
+
+  const system = buildSystemPrompt(agent, products || []) + context;
+  const history = (opts.history || []).slice(-8);
+  const reply = await chatCompletion({
+    system, messages: [...history, { role: "user", content: message }], temperature: 0.6,
+  });
+  const needs_handoff = HANDOFF.test(message);
+
+  if (opts.persist && opts.contact_phone) {
+    const { data: existing } = await supabase.from("waouh_ai_agent_conversations")
+      .select("id, messages, needs_handoff").eq("agent_id", agent_id).eq("wa_contact_phone", opts.contact_phone).maybeSingle();
+    const newMsgs = [
+      ...(existing?.messages || []),
+      { role: "user", content: message, ts: Date.now() },
+      { role: "assistant", content: reply, ts: Date.now() },
+    ].slice(-40);
+    if (existing) {
+      await supabase.from("waouh_ai_agent_conversations").update({
+        messages: newMsgs, last_activity: new Date().toISOString(),
+        needs_handoff: existing.needs_handoff || needs_handoff,
+      }).eq("id", existing.id);
+    } else {
+      await supabase.from("waouh_ai_agent_conversations").insert({
+        agent_id, user_id: agent.user_id, wa_contact_phone: opts.contact_phone,
+        wa_contact_name: opts.contact_name || null, messages: newMsgs, needs_handoff,
+      });
+    }
+    await supabase.from("waouh_ai_agents").update({
+      stats: {
+        ...(agent.stats || {}),
+        messages_handled: ((agent.stats?.messages_handled) || 0) + 1,
+        handoffs: ((agent.stats?.handoffs) || 0) + (needs_handoff ? 1 : 0),
+      },
+    }).eq("id", agent_id);
+  }
+  return { reply, needs_handoff };
+}
