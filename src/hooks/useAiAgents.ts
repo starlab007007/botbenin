@@ -7,10 +7,14 @@ export interface AiAgent {
   waha_session_name: string | null;
   name: string;
   sector: string;
+  agent_type?: "commerce" | "docs" | "website";
+  website_url?: string | null;
+  google_sheet_url?: string | null;
+  paused_contacts?: string[] | null;
   persona: any;
   capabilities: any;
   system_prompt: string | null;
-  status: "draft" | "training" | "active" | "paused";
+  status: "draft" | "training" | "testing" | "active" | "paused";
   stats: any;
   created_at: string;
   updated_at: string;

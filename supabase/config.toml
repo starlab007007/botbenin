@@ -301,3 +301,6 @@ verify_jwt = false
 
 [functions.waouh-agent-webhook]
 verify_jwt = false
+
+[functions.waouh-agent-manual-reply]
+verify_jwt = true

@@ -7,13 +7,17 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAiAgents, AiAgent } from "@/hooks/useAiAgents";
 import { CreateAgentWizard } from "./CreateAgentWizard";
-import { Bot, Plus, Play, Pause, MessageSquare, Send, Loader2 } from "lucide-react";
+import { LiveConversationsDialog } from "./LiveConversationsDialog";
+import { AgentInsightsDialog } from "./AgentInsightsDialog";
+import { Bot, Plus, Play, Pause, MessageSquare, Send, Loader2, Radio, BarChart3, ShoppingBag, FileText, Globe } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function AgentsSection() {
   const { agents, loading } = useAiAgents();
   const [wizard, setWizard] = useState(false);
   const [testing, setTesting] = useState<AiAgent | null>(null);
+  const [live, setLive] = useState<AiAgent | null>(null);
+  const [insights, setInsights] = useState<AiAgent | null>(null);
 
   return (
     <Card className="border-green-200">
@@ -44,7 +48,10 @@ export function AgentsSection() {
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {agents.map((a) => (
-              <AgentCard key={a.id} agent={a} onTest={() => setTesting(a)} />
+              <AgentCard key={a.id} agent={a}
+                onTest={() => setTesting(a)}
+                onLive={() => setLive(a)}
+                onInsights={() => setInsights(a)} />
             ))}
           </div>
         )}
@@ -52,11 +59,15 @@ export function AgentsSection() {
 
       <CreateAgentWizard open={wizard} onClose={() => setWizard(false)} />
       {testing && <SandboxDialog agent={testing} onClose={() => setTesting(null)} />}
+      {live && <LiveConversationsDialog agent={live} onClose={() => setLive(null)} />}
+      {insights && <AgentInsightsDialog agent={insights} onClose={() => setInsights(null)} />}
     </Card>
   );
 }
 
-function AgentCard({ agent, onTest }: { agent: AiAgent; onTest: () => void }) {
+function AgentCard({ agent, onTest, onLive, onInsights }: {
+  agent: AiAgent; onTest: () => void; onLive: () => void; onInsights: () => void;
+}) {
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const stats = agent.stats || {};
@@ -67,11 +78,13 @@ function AgentCard({ agent, onTest }: { agent: AiAgent; onTest: () => void }) {
     setBusy(false);
     if (error) toast({ title: "Erreur", description: error.message, variant: "destructive" });
   };
+  const TypeIcon = agent.agent_type === "docs" ? FileText : agent.agent_type === "website" ? Globe : ShoppingBag;
   return (
     <div className="border rounded-lg p-3 bg-white space-y-2">
       <div className="flex items-start justify-between">
         <div>
           <div className="font-semibold flex items-center gap-2">
+            <TypeIcon className="w-4 h-4 text-green-600" />
             {agent.name}
             <Badge variant={agent.status === "active" ? "default" : "secondary"} className={agent.status === "active" ? "bg-green-500" : ""}>
               {agent.status}
@@ -86,9 +99,15 @@ function AgentCard({ agent, onTest }: { agent: AiAgent; onTest: () => void }) {
         <span>💬 {stats.messages_handled || 0} msg</span>
         <span>🤝 {stats.handoffs || 0} handoffs</span>
       </div>
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <Button size="sm" variant="outline" onClick={onTest}>
           <MessageSquare className="w-3 h-3 mr-1" />Tester
+        </Button>
+        <Button size="sm" variant="outline" onClick={onLive}>
+          <Radio className="w-3 h-3 mr-1" />Direct
+        </Button>
+        <Button size="sm" variant="outline" onClick={onInsights}>
+          <BarChart3 className="w-3 h-3 mr-1" />Stats
         </Button>
         {agent.waha_session_name && (
           <Button size="sm" variant={agent.status === "active" ? "outline" : "default"} onClick={toggleStatus} disabled={busy}>

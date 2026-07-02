@@ -1,6 +1,7 @@
 // Shared helpers for the WAOUH AI Agent module (WhatsApp).
 // - Lovable AI Gateway calls (chat, embeddings, STT, vision)
-// - System-prompt builder per agent
+// - System-prompt builder per agent (commerce / docs / website)
+// - runAgentTurn: unified turn logic with partner-products join and takeover awareness
 
 const GATEWAY = "https://ai.gateway.lovable.dev/v1";
 
@@ -72,19 +73,56 @@ export function chunkText(text: string, size = 800, overlap = 100): string[] {
   return chunks;
 }
 
+// Build a system prompt tailored to the agent_type.
 export function buildSystemPrompt(agent: any, products: any[] = []): string {
   const persona = agent.persona || {};
   const caps = agent.capabilities || {};
   const name = persona.name || agent.name || "Assistant";
-  const tone = persona.tone || "friendly";
+  const tone = persona.tone || "chaleureux";
   const emojis = persona.emojis !== false;
+  const type = agent.agent_type || "commerce";
 
+  // DOCS mode — strict RAG on uploaded documents.
+  if (type === "docs") {
+    return `Tu es ${name}, assistant documentaire de "${agent.name}". Tu réponds TOUJOURS en français, avec un ton ${tone}${emojis ? " et quelques emojis discrets" : ""}.
+
+RÈGLES ABSOLUES :
+- Réponds UNIQUEMENT à partir des FAITS PERTINENTS extraits des documents fournis plus bas.
+- Si l'information n'est pas dans les documents, dis exactement : "Je ne trouve pas cette information dans mes documents. Souhaitez-vous que je transmette votre question à ${agent.name} ?"
+- Ne jamais inventer, deviner ou compléter avec des connaissances générales.
+- Sois court, clair, chaleureux. 1 à 4 phrases max par réponse WhatsApp.
+- Ne mentionne jamais que tu es une IA sauf si on te le demande directement.`;
+  }
+
+  // WEBSITE mode — restricted to a domain's content.
+  if (type === "website") {
+    const domain = agent.website_url ? new URL(agent.website_url).hostname : "notre site";
+    return `Tu es ${name}, assistant en ligne de "${agent.name}" (${domain}). Tu réponds TOUJOURS en français, avec un ton ${tone}${emojis ? " et quelques emojis" : ""}.
+
+RÈGLES ABSOLUES :
+- Base-toi UNIQUEMENT sur le contenu de ${domain} présent dans les FAITS PERTINENTS ci-dessous.
+- Si l'information n'y figure pas, dis : "Je n'ai pas cette information sur ${domain}. Voulez-vous que je vous mette en contact avec ${agent.name} ?"
+- Ne jamais inventer un prix, une adresse ou une politique.
+- Réponse WhatsApp : 1 à 4 phrases max.
+- Ne mentionne pas que tu es une IA sauf si on te le demande.`;
+  }
+
+  // COMMERCE mode (default) — with product catalog.
   const catalog = (products || [])
-    .filter((p) => p.active !== false)
+    .filter((p) => p.active !== false && p.disponible !== false)
     .slice(0, 40)
     .map((p) => {
-      const price = p.price_fcfa ? `${p.price_fcfa.toLocaleString("fr-FR")} FCFA` : "sur demande";
-      return `- ${p.name} (${price})${p.description ? ` — ${p.description}` : ""}`;
+      const price =
+        p.price_fcfa != null
+          ? `${Number(p.price_fcfa).toLocaleString("fr-FR")} FCFA`
+          : (p.prix_min != null
+            ? (p.prix_max && p.prix_max !== p.prix_min
+                ? `${Number(p.prix_min).toLocaleString("fr-FR")}–${Number(p.prix_max).toLocaleString("fr-FR")} FCFA`
+                : `${Number(p.prix_min).toLocaleString("fr-FR")} FCFA`)
+            : "sur demande");
+      const unit = p.unite ? ` / ${p.unite}` : "";
+      const stock = p.stock_estime ? ` (stock: ${p.stock_estime})` : "";
+      return `- ${p.name || p.nom} (${price}${unit})${stock}${(p.description ? ` — ${p.description}` : "")}`;
     })
     .join("\n") || "(catalogue vide)";
 
@@ -112,6 +150,35 @@ RÈGLES ABSOLUES :
 - Utilise les FAITS ci-dessous du contexte quand ils sont pertinents.`;
 }
 
+// Load products for a commerce agent from BOTH sources:
+// - New link table `waouh_ai_agent_partner_products` -> `waouh_partner_products`
+// - Legacy `waouh_ai_agent_products` (backwards compat)
+async function loadAgentProducts(supabase: any, agent_id: string): Promise<any[]> {
+  const [{ data: legacy }, { data: links }] = await Promise.all([
+    supabase.from("waouh_ai_agent_products").select("*").eq("agent_id", agent_id).eq("active", true).order("position"),
+    supabase.from("waouh_ai_agent_partner_products").select("product_id").eq("agent_id", agent_id),
+  ]);
+  let partnerProducts: any[] = [];
+  const productIds = (links || []).map((l: any) => l.product_id).filter(Boolean);
+  if (productIds.length) {
+    const { data: pp } = await supabase
+      .from("waouh_partner_products")
+      .select("id, nom, description, prix_min, prix_max, unite, stock_estime, disponible, categorie")
+      .in("id", productIds);
+    partnerProducts = (pp || []).map((p: any) => ({
+      name: p.nom,
+      description: p.description,
+      prix_min: p.prix_min,
+      prix_max: p.prix_max,
+      unite: p.unite,
+      stock_estime: p.stock_estime,
+      disponible: p.disponible,
+      active: p.disponible !== false,
+    }));
+  }
+  return [...partnerProducts, ...(legacy || [])];
+}
+
 // Shared: run one agent turn (used by both waouh-agent-chat and waouh-agent-webhook)
 export async function runAgentTurn(supabase: any, agent_id: string, message: string, opts: {
   history?: Array<{ role: string; content: string }>;
@@ -122,18 +189,42 @@ export async function runAgentTurn(supabase: any, agent_id: string, message: str
   const HANDOFF = /\b(humain|human|patron|urgent|réel|reel|manager|responsable|parler à quelqu)/i;
   const { data: agent } = await supabase.from("waouh_ai_agents").select("*").eq("id", agent_id).maybeSingle();
   if (!agent) throw new Error("agent introuvable");
-  const { data: products } = await supabase.from("waouh_ai_agent_products").select("*").eq("agent_id", agent_id).eq("active", true).order("position");
+
+  // Contact-level pause check (WhatsApp path)
+  if (opts.persist && opts.contact_phone) {
+    const paused: string[] = Array.isArray(agent.paused_contacts) ? agent.paused_contacts : [];
+    if (paused.includes(opts.contact_phone)) {
+      return { reply: "", needs_handoff: false, skipped: true, reason: "contact_paused" };
+    }
+    // Existing conversation in human takeover mode: don't reply, just log inbound
+    const { data: convCheck } = await supabase.from("waouh_ai_agent_conversations")
+      .select("id, human_takeover, messages").eq("agent_id", agent_id).eq("wa_contact_phone", opts.contact_phone).maybeSingle();
+    if (convCheck?.human_takeover) {
+      const newMsgs = [
+        ...((convCheck.messages as any[]) || []),
+        { role: "user", content: message, ts: Date.now() },
+      ].slice(-40);
+      await supabase.from("waouh_ai_agent_conversations").update({
+        messages: newMsgs, last_activity: new Date().toISOString(),
+      }).eq("id", convCheck.id);
+      return { reply: "", needs_handoff: true, skipped: true, reason: "human_takeover" };
+    }
+  }
+
+  const products = agent.agent_type === "commerce" || !agent.agent_type
+    ? await loadAgentProducts(supabase, agent_id)
+    : [];
 
   let context = "";
   try {
     const emb = await embedText(message);
     const { data: matches } = await supabase.rpc("match_agent_chunks", {
-      _agent_id: agent_id, _query_embedding: emb, _match_count: 4,
+      _agent_id: agent_id, _query_embedding: emb, _match_count: 5,
     });
     if (matches?.length) context = "\n\nFAITS PERTINENTS :\n" + matches.map((m: any) => `• ${m.content}`).join("\n");
   } catch (e) { console.error("rag err", e); }
 
-  const system = buildSystemPrompt(agent, products || []) + context;
+  const system = buildSystemPrompt(agent, products) + context;
   const history = (opts.history || []).slice(-8);
   const reply = await chatCompletion({
     system, messages: [...history, { role: "user", content: message }], temperature: 0.6,
