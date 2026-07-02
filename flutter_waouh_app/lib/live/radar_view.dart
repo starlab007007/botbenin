@@ -25,8 +25,10 @@ class _RadarViewState extends State<RadarView>
     duration: const Duration(seconds: 4),
   );
 
+  // Radar is a visual product discovery surface. Do not display blank image
+  // cards by default. The user can explicitly disable this filter in settings.
   LiveRadarFilters _filters = const LiveRadarFilters(
-    photoOnly: false,
+    photoOnly: true,
     autoPauseMs: null,
   );
   LiveRadarScanSnapshot? _snapshot;
