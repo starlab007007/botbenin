@@ -31,18 +31,21 @@ export const ProductPhotoUploader = React.memo(function ProductPhotoUploader({
     const list = Array.from(files).slice(0, remaining);
     setUploading(true);
     const newUrls: string[] = [];
-    for (const f of list) {
-      if (!f.type.startsWith('image/')) {
-        toast({ title: 'Fichier ignoré', description: `${f.name} n'est pas une image.`, variant: 'destructive' });
+    for (const raw of list) {
+      if (!raw.type.startsWith('image/')) {
+        toast({ title: 'Fichier ignoré', description: `${raw.name} n'est pas une image.`, variant: 'destructive' });
         continue;
       }
-      if (f.size > MAX_SIZE) {
-        toast({ title: 'Fichier trop lourd', description: `${f.name} dépasse 5 Mo.`, variant: 'destructive' });
+      if (raw.size > MAX_SIZE) {
+        toast({ title: 'Fichier trop lourd', description: `${raw.name} dépasse 5 Mo.`, variant: 'destructive' });
         continue;
       }
-      const ext = f.name.split('.').pop() || 'jpg';
+      // (B) Compress client-side before upload — typically 60-85% smaller.
+      const f = await compressImage(raw, { maxDimension: 1600, quality: 0.82 });
+      const ext = (f.name.split('.').pop() || 'webp').toLowerCase();
       const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const { error } = await supabase.storage.from(bucket).upload(path, f, { upsert: false, contentType: f.type });
+      // (C) Long cache-control — filenames are immutable, safe for 1 year.
+      const { error } = await supabase.storage.from(bucket).upload(path, f, uploadOptions(f.type));
       if (error) {
         toast({ title: 'Échec upload', description: error.message, variant: 'destructive' });
         continue;
