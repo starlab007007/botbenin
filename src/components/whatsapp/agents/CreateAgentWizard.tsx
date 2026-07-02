@@ -104,7 +104,7 @@ export function CreateAgentWizard({ open, onClose, onCreated }: Props) {
     if (!open || agentType !== "commerce" || !partner?.id) return;
     (async () => {
       const { data: biz } = await (supabase as any)
-        .from("waouh_businesses")
+        .from("waouh_partner_businesses")
         .select("id, nom, code_business")
         .eq("partner_id", partner.id)
         .order("nom");
