@@ -7,13 +7,17 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAiAgents, AiAgent } from "@/hooks/useAiAgents";
 import { CreateAgentWizard } from "./CreateAgentWizard";
-import { Bot, Plus, Play, Pause, MessageSquare, Send, Loader2 } from "lucide-react";
+import { LiveConversationsDialog } from "./LiveConversationsDialog";
+import { AgentInsightsDialog } from "./AgentInsightsDialog";
+import { Bot, Plus, Play, Pause, MessageSquare, Send, Loader2, Radio, BarChart3, ShoppingBag, FileText, Globe } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export function AgentsSection() {
   const { agents, loading } = useAiAgents();
   const [wizard, setWizard] = useState(false);
   const [testing, setTesting] = useState<AiAgent | null>(null);
+  const [live, setLive] = useState<AiAgent | null>(null);
+  const [insights, setInsights] = useState<AiAgent | null>(null);
 
   return (
     <Card className="border-green-200">
@@ -44,7 +48,10 @@ export function AgentsSection() {
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {agents.map((a) => (
-              <AgentCard key={a.id} agent={a} onTest={() => setTesting(a)} />
+              <AgentCard key={a.id} agent={a}
+                onTest={() => setTesting(a)}
+                onLive={() => setLive(a)}
+                onInsights={() => setInsights(a)} />
             ))}
           </div>
         )}
@@ -52,6 +59,8 @@ export function AgentsSection() {
 
       <CreateAgentWizard open={wizard} onClose={() => setWizard(false)} />
       {testing && <SandboxDialog agent={testing} onClose={() => setTesting(null)} />}
+      {live && <LiveConversationsDialog agent={live} onClose={() => setLive(null)} />}
+      {insights && <AgentInsightsDialog agent={insights} onClose={() => setInsights(null)} />}
     </Card>
   );
 }
