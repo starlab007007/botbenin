@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import SmartWhatsAppInterface from '@/components/whatsapp/SmartWhatsAppInterface';
+import { AgentsSection } from '@/components/whatsapp/agents/AgentsSection';
 import { AuthModal } from '@/components/AuthModal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
