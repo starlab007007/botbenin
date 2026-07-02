@@ -1,121 +1,95 @@
-# Agent IA v2 — Innovation, contrôle & RAG étendu
 
-## 1. Corrections de bugs
+## Diagnostic
 
-**Enregistrement audio (échoue actuellement)**
-- Cause probable : `MediaRecorder` produit `audio/webm` (ou `audio/mp4` Safari) → l'endpoint STT reçoit un mauvais `Content-Type`, ou `getUserMedia` n'a pas les permissions HTTPS/iframe.
-- Correctifs dans `CreateAgentWizard.tsx` :
-  - Détecter le mime réel du `MediaRecorder` (`recorder.mimeType`) et le passer à `waouh-agent-parse-catalog` comme `audio_format` (`webm`, `mp4`, `ogg`).
-  - Ajouter `allow="microphone"` fallback + gestion d'erreur explicite (permission refusée, HTTPS requis, navigateur non supporté).
-  - Indicateur visuel d'enregistrement (timer + niveau audio) et bouton stop clair.
-- Correctif backend `waouh-agent-parse-catalog/index.ts` : accepter `webm/mp4/ogg/m4a`, mapper correctement l'extension du blob, logger le status STT.
+Ton org Supabase a dépassé **8.63 GB / 5.5 GB** d'egress (bande passante sortante). Ce n'est **pas** un problème de stockage disque ni de nombre de projets — c'est le trafic sortant.
 
-## 2. Nouveau flow : Aperçu → Test → Contrôle → Déploiement
+- `N'Dali Talent Cloud` est déjà **en pause** → il ne consomme rien. **Le supprimer ne changera rien** au quota.
+- Tout l'egress vient de **Bot.Bj**. Le supprimer casserait bot.bj — mauvaise option.
 
-Ajout d'une **6ᵉ étape "Aperçu & Test"** dans `CreateAgentWizard` avant validation finale :
-- Résumé lisible de l'agent (secteur, persona, capacités, nb produits, nb docs, session WhatsApp).
-- **Sandbox intégré au wizard** : chat de test en direct (réutilise `waouh-agent-chat` en mode `dry_run`, sans persister ni compter les stats).
-- Toggle **"Prendre la main"** : bascule le sandbox en mode manuel (utilisateur tape la réponse à la place de l'IA) pour comparer.
-- Boutons finaux : **Retour éditer** / **Enregistrer brouillon** / **Déployer sur WhatsApp**.
+### Sources d'egress identifiées (Bot.Bj)
 
-Après déploiement, dans `AgentsSection.tsx` :
-- Nouveau panneau **"Conversations en direct"** par agent (temps réel via Supabase Realtime sur `waouh_ai_agent_conversations`).
-- Chaque conversation : timeline messages, badge `needs_handoff`, boutons :
-  - **⏸️ Mettre en pause l'agent** (toggle `active=false` sur ce contact uniquement → nouvelle colonne `paused_contacts jsonb[]`).
-  - **✍️ Répondre manuellement** : envoie via `waha-send-message` avec `role=human_operator` (loggé dans la conversation).
-  - **▶️ Reprendre l'IA**.
-- Bouton global **"Arrêter l'agent"** (désactive la session WhatsApp côté webhook).
+1. **Realtime WebSocket** — dominant dans les logs (`/realtime/v1/websocket` = 598 connexions sur 30j). Chaque abonnement `postgres_changes` renvoie tous les payloads INSERT/UPDATE aux clients connectés → forte bande passante.
+2. **Storage** — ~700 MB de fichiers servis publiquement, dont :
+   - `waouh-media` : 262 MB (423 fichiers)
+   - `waouh-uploads` : 131 MB
+   - `video-assets` : 90 MB
+   - `visual-assets` : 56 MB
+   Chaque téléchargement = egress.
+3. **Tables gonflées inutilement** (queries REST plus lourdes) :
+   - `net._http_response` 120 MB (cache pg_net jamais purgé)
+   - `cron.job_run_details` 73 MB (logs cron)
+   - `waouh_trace_events` 63 MB (debug)
+   - `whatsapp_messages` 35 MB, `video_frames` 31 MB, `access_logs` 4 MB
 
-## 3. Intégration Produits Partenaire (capture 1)
+---
 
-Éliminer le mini-catalogue dupliqué au profit du module Partenaire existant :
+## Ce qu'il faut faire (par ordre d'impact)
 
-- Étape "Catalogue" du wizard remplacée par :
-  - **Sélecteur multi-produits** depuis `waouh_partner_products` (filtré par `user_id` connecté, groupé par entreprise).
-  - Bouton **"Créer un produit dans Mes Produits"** → ouvre `/app/partner/products` dans un nouvel onglet si l'utilisateur n'a pas de produits, ou lien inline "Vous n'avez pas encore de produits ? Créez-en ici".
-  - Toggle "Utiliser tout mon catalogue" (auto-sync : l'agent reflète toujours les produits actifs).
-- Nouvelle table de liaison `waouh_ai_agent_partner_products (agent_id, product_id)` avec RLS.
-- `runAgentTurn` : au lieu de lire `waouh_ai_agent_products`, joindre `waouh_partner_products` via la liaison → utilise nom, prix, description, stock, disponibilité, photos réels.
-- Migration douce : conserver `waouh_ai_agent_products` pour rétrocompat, marquer `deprecated`.
+### A. Actions immédiates pour tenir jusqu'au 14 juillet
 
-## 4. Nouveaux types d'agents RAG (documents & site)
+1. **NE PAS supprimer N'Dali** (déjà en pause, aucun gain).
+2. **Réduire massivement le Realtime** (impact #1 sur l'egress) :
+   - Auditer tous les `supabase.channel(...).on('postgres_changes', ...)` et : (a) filtrer par `filter: 'user_id=eq.<id>'` pour n'écouter que les lignes pertinentes, (b) retirer les channels des composants qui restent montés en arrière-plan (dashboards admin, pages non actives).
+   - Cibles prioritaires repérées dans le code : `useAiAgents`, `useGlobalChatSync`, listeners sur `waouh_messages`, `waouh_notifications`, `waouh_outbound_queue`.
+   - Retirer `waouh_trace_events`, `access_logs`, `waouh_outbound_queue` de la publication `supabase_realtime` si présents.
+3. **Purger les tables lourdes** via migration (gain : requêtes plus légères + moins d'egress DB) :
+   - `DELETE FROM net._http_response WHERE created < now() - interval '2 days';`
+   - `DELETE FROM cron.job_run_details WHERE end_time < now() - interval '3 days';`
+   - `TRUNCATE public.waouh_trace_events;` (debug uniquement)
+   - `DELETE FROM public.access_logs WHERE created_at < now() - interval '7 days';`
+   - Ajouter des jobs cron quotidiens pour maintenir ces tables petites.
+4. **Storage : arrêter de servir les gros médias depuis Supabase**
+   - Migrer les assets statiques (logo, images marketing, visuels UI) vers **Lovable Assets / CDN** (`lovable-assets create`) — ils ne consommeront plus d'egress Supabase.
+   - Compresser les images utilisateur uploadées (WebP < 200 KB) côté client avant upload.
+   - Ajouter `Cache-Control: public, max-age=31536000` sur les buckets publics pour que les CDN cachent.
 
-Ajouter au **Step 1 (Secteur)** un choix de **type d'agent** :
-1. **Agent Commerce** (actuel — produits partenaire + persona).
-2. **Agent Documents (RAG PDF/Word)** — répond uniquement d'après les fichiers uploadés.
-3. **Agent Site Web** — s'entraîne uniquement sur le contenu scrapé d'un domaine.
+### B. Ce qu'il NE faut PAS supprimer
+- Aucune table métier (`waouh_users`, `waouh_messages`, `waouh_deals`, `waouh_partner_products`, etc.) : elles ne pèsent presque rien et sont critiques.
+- Aucune edge function (10 invocations sur 7j → négligeable).
 
-Implémentation :
-- Nouvelle colonne `waouh_ai_agents.agent_type` (`commerce | docs | website`).
-- **Agent Documents** :
-  - Bucket Supabase `agent-documents` (privé, RLS par `user_id`).
-  - Upload PDF/DOCX/TXT dans le wizard (drag & drop, max 20 Mo × 10 fichiers).
-  - Edge function `waouh-agent-ingest-docs` : parse via `unpdf` (PDF) et `mammoth` (DOCX) côté Deno → chunking 500 tokens + embeddings → `waouh_ai_agent_chunks`.
-  - `buildSystemPrompt` en mode `docs` : consigne stricte "Réponds UNIQUEMENT depuis les documents fournis. Sinon dis 'Je ne trouve pas cette information dans mes documents.'"
-- **Agent Site Web** :
-  - Champ URL + toggle "Crawler tout le site" (sinon page unique).
-  - `waouh-agent-ingest` étendu avec Firecrawl `/crawl` (limite 50 pages, timeout 2 min).
-  - Affichage du nb de pages ingérées et bouton **"Ré-indexer"**.
-  - Mode prompt : "Base-toi uniquement sur le contenu de {domain}."
+### C. Solution durable
+- **Passer au plan Pro** (250 GB egress inclus) — seule vraie solution si le trafic bot.bj continue à croître. Le plan gratuit à 5.5 GB sera à nouveau atteint sous ~30 jours.
 
-## 5. Analytics & Google Sheets (capture 2)
+---
 
-Nouveau **Step 4bis "Données & Statistiques"** (optionnel) pour agents commerce :
-- Section **"Connecter Google Sheets"** : réutilise `useGoogleSheets` existant. L'utilisateur colle une URL de Sheet (ventes, stock, RDV).
-- L'agent peut alors répondre à :
-  - *"Combien de ventes cette semaine ?"* → requête lue et agrégée.
-  - *"Quel produit se vend le mieux ?"* → tri + réponse en langage naturel.
-  - *"Alerte stock bas"* → surveillance périodique (cron edge function `waouh-agent-sheets-monitor`).
-- Nouveau **tool AI** `query_sheet` exposé au modèle Gemini (function calling) : le LLM formule une requête → backend exécute et renvoie JSON compact.
-- Dans `AgentsSection`, onglet **📊 Statistiques** par agent :
-  - Graphique messages traités / handoffs / temps de réponse moyen (Recharts).
-  - Table Top questions posées.
-  - Graphique ventes/stock si Sheet connecté.
-- Message-type "requête simple" côté chat : *"@stats ventes du jour"* → renvoi automatique d'une petite carte graphique.
+## Détails techniques (implémentation si tu approuves)
 
-## 6. Détails techniques
-
-**Migrations SQL** (une seule migration) :
+**Migration de purge + cron auto-nettoyage** :
 ```sql
-ALTER TABLE waouh_ai_agents
-  ADD COLUMN agent_type text NOT NULL DEFAULT 'commerce'
-    CHECK (agent_type IN ('commerce','docs','website')),
-  ADD COLUMN paused_contacts jsonb NOT NULL DEFAULT '[]'::jsonb,
-  ADD COLUMN google_sheet_url text,
-  ADD COLUMN status text NOT NULL DEFAULT 'draft'
-    CHECK (status IN ('draft','testing','deployed','paused'));
+-- Purge immédiate
+DELETE FROM net._http_response WHERE created < now() - interval '2 days';
+DELETE FROM cron.job_run_details WHERE end_time < now() - interval '3 days';
+TRUNCATE public.waouh_trace_events;
+DELETE FROM public.access_logs WHERE created_at < now() - interval '7 days';
 
-CREATE TABLE waouh_ai_agent_partner_products (
-  agent_id uuid REFERENCES waouh_ai_agents ON DELETE CASCADE,
-  product_id uuid REFERENCES waouh_partner_products ON DELETE CASCADE,
-  PRIMARY KEY (agent_id, product_id)
-);
--- + GRANTs + RLS via has_role & auth.uid()
+-- Cron quotidien
+SELECT cron.schedule('purge-logs-daily','0 3 * * *', $$
+  DELETE FROM net._http_response WHERE created < now() - interval '2 days';
+  DELETE FROM cron.job_run_details WHERE end_time < now() - interval '3 days';
+  DELETE FROM public.access_logs WHERE created_at < now() - interval '7 days';
+  DELETE FROM public.waouh_trace_events WHERE created_at < now() - interval '1 day';
+$$);
 
-ALTER TABLE waouh_ai_agent_conversations
-  ADD COLUMN human_takeover boolean DEFAULT false,
-  ADD COLUMN operator_messages jsonb DEFAULT '[]';
+-- Retirer tables bruyantes du realtime
+ALTER PUBLICATION supabase_realtime DROP TABLE public.waouh_trace_events;
+ALTER PUBLICATION supabase_realtime DROP TABLE public.access_logs;
+ALTER PUBLICATION supabase_realtime DROP TABLE public.waouh_outbound_queue;
 ```
 
-**Storage bucket** : `agent-documents` (privé) + policies par user.
+**Audit Realtime frontend** : ajouter des `filter:` ciblés sur chaque `.on('postgres_changes', ...)` et supprimer les abonnements globaux dans les hooks `useAiAgents`, `useGlobalChatSync`, `useWaouhInbox`, `useNotifications`.
 
-**Edge functions à créer/modifier** :
-- Nouveau : `waouh-agent-ingest-docs`, `waouh-agent-sheets-monitor`, `waouh-agent-manual-reply`, `waouh-agent-crawl-site`.
-- Modifiés : `waouh-agent-parse-catalog` (fix mime audio), `waouh-agent-chat` (dry_run + type-aware prompt + tool calling sheet), `waouh-agent-webhook` (respecter pause + human_takeover), `_shared/agent-ai.ts` (nouveau `buildSystemPrompt` par `agent_type`, join partner_products).
+**Migration assets** : script `lovable-assets create --file ...` pour les logos WAOUH et illustrations statiques déjà dans `waouh-media`.
 
-**Frontend** :
-- `CreateAgentWizard.tsx` : refactor en 6 steps + branchement conditionnel par `agent_type`.
-- `AgentsSection.tsx` : ajout onglets Conversations / Stats / Paramètres.
-- Nouveau `AgentLiveConversations.tsx`, `AgentStatsPanel.tsx`, `AgentDocsUploader.tsx`, `AgentSiteCrawler.tsx`, `PartnerProductsPicker.tsx`.
+---
 
-## 7. Ordre d'exécution
+## Réponse directe à ta question
 
-1. Migration SQL + bucket.
-2. Fix audio + refactor `_shared/agent-ai.ts` (agent_type, partner products join).
-3. Wizard : Step Secteur (choix type) + Step Catalogue (picker partenaire) + Step Documents/Site conditionnel.
-4. Step Aperçu & Test + sandbox dry_run.
-5. Panneau conversations live + takeover manuel + pause.
-6. Google Sheets + panneau stats.
-7. Tests end-to-end sur chaque type d'agent.
+> "Quelle table ou fonction dois-je supprimer ?"
 
-Souhaitez-vous que je livre tout en un seul lot ou par phases (bugs+contrôle d'abord, puis RAG docs/site, puis analytics) ?
+Aucune table métier. Juste **purger** `net._http_response`, `cron.job_run_details`, `waouh_trace_events`, `access_logs` (contenu, pas la table).
+
+> "Faut-il désactiver un projet ?"
+
+Non — N'Dali est déjà en pause, ça n'aide pas. Le problème est le trafic de bot.bj.
+
+Dis-moi si tu approuves — j'exécute la purge + le cron + le nettoyage Realtime dès que tu passes en build mode.
