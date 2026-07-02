@@ -44,6 +44,7 @@ const statusMeta = (s?: string) => {
 // ============================================================
 export default function WhatsAppScreen() {
   const { user } = useMobileAuth();
+  const navigate = useNavigate();
   const {
     sessions, loading, createSession, startSession, stopSession,
     deleteSession, getQRCode, sendTestMessage, refreshData,
