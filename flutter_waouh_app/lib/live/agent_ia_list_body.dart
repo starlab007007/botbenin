@@ -4,9 +4,16 @@ import 'agent_ia_tile_native.dart';
 import 'live_agent_ia_models.dart';
 
 class AgentIaListBody extends StatelessWidget {
-  const AgentIaListBody({super.key, required this.items, required this.onToggle});
+  const AgentIaListBody({
+    super.key,
+    required this.items,
+    required this.onToggle,
+    required this.onCreate,
+  });
+
   final List<LiveAiAgent> items;
   final ValueChanged<LiveAiAgent> onToggle;
+  final VoidCallback onCreate;
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +53,16 @@ class AgentIaListBody extends StatelessWidget {
               ]),
             ),
           ]),
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          height: 50,
+          child: FilledButton.icon(
+            onPressed: onCreate,
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Créer un Agent IA'),
+            style: FilledButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
+          ),
         ),
         const SizedBox(height: 18),
         const Text('Mes Agents IA',
