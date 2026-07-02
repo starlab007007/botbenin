@@ -5364,6 +5364,201 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_ai_agent_chunks: {
+        Row: {
+          agent_id: string
+          content: string
+          created_at: string
+          embedding: string | null
+          id: string
+          metadata: Json | null
+          source_type: string
+          user_id: string
+        }
+        Insert: {
+          agent_id: string
+          content: string
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          metadata?: Json | null
+          source_type: string
+          user_id: string
+        }
+        Update: {
+          agent_id?: string
+          content?: string
+          created_at?: string
+          embedding?: string | null
+          id?: string
+          metadata?: Json | null
+          source_type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_ai_agent_chunks_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_ai_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_ai_agent_conversations: {
+        Row: {
+          agent_id: string
+          created_at: string
+          handoff_reason: string | null
+          id: string
+          last_activity: string
+          messages: Json
+          needs_handoff: boolean
+          updated_at: string
+          user_id: string
+          wa_contact_name: string | null
+          wa_contact_phone: string
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string
+          handoff_reason?: string | null
+          id?: string
+          last_activity?: string
+          messages?: Json
+          needs_handoff?: boolean
+          updated_at?: string
+          user_id: string
+          wa_contact_name?: string | null
+          wa_contact_phone: string
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          handoff_reason?: string | null
+          id?: string
+          last_activity?: string
+          messages?: Json
+          needs_handoff?: boolean
+          updated_at?: string
+          user_id?: string
+          wa_contact_name?: string | null
+          wa_contact_phone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_ai_agent_conversations_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_ai_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_ai_agent_products: {
+        Row: {
+          active: boolean
+          agent_id: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          photo_url: string | null
+          position: number
+          price_fcfa: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          agent_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          photo_url?: string | null
+          position?: number
+          price_fcfa?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          agent_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          photo_url?: string | null
+          position?: number
+          price_fcfa?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_ai_agent_products_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_ai_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_ai_agents: {
+        Row: {
+          capabilities: Json
+          created_at: string
+          id: string
+          knowledge_sources: Json
+          name: string
+          persona: Json
+          sector: string
+          stats: Json
+          status: string
+          system_prompt: string | null
+          template_id: string | null
+          updated_at: string
+          user_id: string
+          waha_session_id: string | null
+          waha_session_name: string | null
+        }
+        Insert: {
+          capabilities?: Json
+          created_at?: string
+          id?: string
+          knowledge_sources?: Json
+          name: string
+          persona?: Json
+          sector?: string
+          stats?: Json
+          status?: string
+          system_prompt?: string | null
+          template_id?: string | null
+          updated_at?: string
+          user_id: string
+          waha_session_id?: string | null
+          waha_session_name?: string | null
+        }
+        Update: {
+          capabilities?: Json
+          created_at?: string
+          id?: string
+          knowledge_sources?: Json
+          name?: string
+          persona?: Json
+          sector?: string
+          stats?: Json
+          status?: string
+          system_prompt?: string | null
+          template_id?: string | null
+          updated_at?: string
+          user_id?: string
+          waha_session_id?: string | null
+          waha_session_name?: string | null
+        }
+        Relationships: []
+      }
       waouh_alert_config: {
         Row: {
           cooldown_minutes: number
@@ -10310,6 +10505,19 @@ export type Database = {
       mark_all_notifications_read: {
         Args: { p_user_id: string }
         Returns: number
+      }
+      match_agent_chunks: {
+        Args: {
+          _agent_id: string
+          _match_count?: number
+          _query_embedding: string
+        }
+        Returns: {
+          content: string
+          id: string
+          similarity: number
+          source_type: string
+        }[]
       }
       merge_radar_contacts_duplicates: {
         Args: never
