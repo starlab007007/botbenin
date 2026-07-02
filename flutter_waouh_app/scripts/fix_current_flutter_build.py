@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Apply compatibility fixes required by current Flutter stable.
-
-This script is intentionally idempotent. It addresses only two compile errors:
-1) ThemeData.cardTheme now expects CardThemeData.
-2) The WhatsApp IA action handler must use Dart switch statement `case` syntax.
-"""
+"""Apply idempotent Flutter compatibility and native IA wiring fixes."""
 from pathlib import Path
 import re
 
@@ -68,11 +63,34 @@ replacement = r'''  Future<void> _openActions(LiveWhatsAppSession session) async
   }
 
   Future<void> _run'''
-
 pattern = r"  Future<void> _openActions\(LiveWhatsAppSession session\) async \{.*?\n  \}\n\n  Future<void> _run"
 patched, count = re.subn(pattern, replacement, screen_text, count=1, flags=re.S)
 if count != 1:
     raise SystemExit("WhatsApp action handler not found; source has not been changed.")
-whatsapp.write_text(patched, encoding="utf-8")
+screen_text = patched
 
-print("Flutter build compatibility fixes applied.")
+if "package:go_router/go_router.dart" not in screen_text:
+    screen_text = screen_text.replace(
+        "import 'package:flutter/material.dart';",
+        "import 'package:flutter/material.dart';\nimport 'package:go_router/go_router.dart';",
+        1,
+    )
+
+needle = """          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilledButton.icon("""
+agent_button = """          IconButton(
+            tooltip: 'Mes Agents IA',
+            onPressed: () => context.push('/app/whatsapp/agents'),
+            icon: const Icon(Icons.auto_awesome_rounded),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilledButton.icon("""
+if "context.push('/app/whatsapp/agents')" not in screen_text:
+    if needle not in screen_text:
+        raise SystemExit("WhatsApp app bar marker not found; agent shortcut was not added.")
+    screen_text = screen_text.replace(needle, agent_button, 1)
+
+whatsapp.write_text(screen_text, encoding="utf-8")
+print("Flutter build compatibility and Agents IA wiring applied.")
