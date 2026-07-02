@@ -248,6 +248,26 @@ export default function WhatsAppScreen() {
             </div>
           );
         })}
+
+        {/* Agent IA CTA — displayed after sessions */}
+        <button
+          type="button"
+          onClick={() => navigate("/app/bots")}
+          className="w-full rounded-2xl border-2 border-dashed border-green-400 bg-green-50/60 hover:bg-green-50 active:scale-[0.99] transition p-4 text-left"
+        >
+          <div className="flex items-center gap-3">
+            <div className="h-11 w-11 rounded-xl bg-green-600 text-white flex items-center justify-center shrink-0">
+              <Bot className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold text-green-800">Créer mon agent IA</div>
+              <div className="text-xs text-green-700/80">
+                Un assistant qui répond seul sur WhatsApp, selon votre catalogue & votre ton.
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 text-green-700 shrink-0" />
+          </div>
+        </button>
       </main>
 
       {/* Sheets */}
