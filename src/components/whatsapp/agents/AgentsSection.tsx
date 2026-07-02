@@ -65,7 +65,9 @@ export function AgentsSection() {
   );
 }
 
-function AgentCard({ agent, onTest }: { agent: AiAgent; onTest: () => void }) {
+function AgentCard({ agent, onTest, onLive, onInsights }: {
+  agent: AiAgent; onTest: () => void; onLive: () => void; onInsights: () => void;
+}) {
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const stats = agent.stats || {};
@@ -76,11 +78,13 @@ function AgentCard({ agent, onTest }: { agent: AiAgent; onTest: () => void }) {
     setBusy(false);
     if (error) toast({ title: "Erreur", description: error.message, variant: "destructive" });
   };
+  const TypeIcon = agent.agent_type === "docs" ? FileText : agent.agent_type === "website" ? Globe : ShoppingBag;
   return (
     <div className="border rounded-lg p-3 bg-white space-y-2">
       <div className="flex items-start justify-between">
         <div>
           <div className="font-semibold flex items-center gap-2">
+            <TypeIcon className="w-4 h-4 text-green-600" />
             {agent.name}
             <Badge variant={agent.status === "active" ? "default" : "secondary"} className={agent.status === "active" ? "bg-green-500" : ""}>
               {agent.status}
@@ -95,9 +99,15 @@ function AgentCard({ agent, onTest }: { agent: AiAgent; onTest: () => void }) {
         <span>💬 {stats.messages_handled || 0} msg</span>
         <span>🤝 {stats.handoffs || 0} handoffs</span>
       </div>
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <Button size="sm" variant="outline" onClick={onTest}>
           <MessageSquare className="w-3 h-3 mr-1" />Tester
+        </Button>
+        <Button size="sm" variant="outline" onClick={onLive}>
+          <Radio className="w-3 h-3 mr-1" />Direct
+        </Button>
+        <Button size="sm" variant="outline" onClick={onInsights}>
+          <BarChart3 className="w-3 h-3 mr-1" />Stats
         </Button>
         {agent.waha_session_name && (
           <Button size="sm" variant={agent.status === "active" ? "outline" : "default"} onClick={toggleStatus} disabled={busy}>
