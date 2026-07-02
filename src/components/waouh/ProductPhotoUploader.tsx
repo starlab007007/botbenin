@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, X, Loader2, ImagePlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { compressImage, uploadOptions, thumbUrl } from '@/lib/imageOptimize';
 
 interface Props {
   value: string[];
