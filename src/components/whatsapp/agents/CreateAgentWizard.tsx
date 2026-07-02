@@ -54,8 +54,10 @@ export function CreateAgentWizard({ open, onClose, onCreated }: Props) {
   const [caps, setCaps] = useState(SECTOR_TEMPLATES[0].capabilities);
 
   // Commerce mode
+  const [partnerBusinesses, setPartnerBusinesses] = useState<PartnerBusiness[]>([]);
   const [partnerProducts, setPartnerProducts] = useState<PartnerProduct[]>([]);
   const [selectedPartnerIds, setSelectedPartnerIds] = useState<Set<string>>(new Set());
+  const [activeBusinessId, setActiveBusinessId] = useState<string | "all">("all");
   const [products, setProducts] = useState<Product[]>([]);
 
   // Docs mode
