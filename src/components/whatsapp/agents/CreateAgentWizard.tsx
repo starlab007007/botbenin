@@ -31,7 +31,7 @@ type PartnerProduct = {
   categorie: string | null; disponible: boolean;
   business_id: string; business_name?: string;
 };
-type PartnerBusiness = { id: string; nom: string; code_business: string | null };
+type PartnerBusiness = { id: string; nom_entreprise: string; code_court: string | null };
 
 const STEPS = ["Type & Secteur", "Personnalité", "Contenu", "Connaissances", "Test", "Connexion"];
 
