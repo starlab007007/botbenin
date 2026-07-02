@@ -38,6 +38,10 @@ const STEPS = ["Type & Secteur", "Personnalité", "Contenu", "Connaissances", "T
 export function CreateAgentWizard({ open, onClose, onCreated }: Props) {
   const { toast } = useToast();
   const { accounts } = useWhatsAppAccounts();
+  const { partner } = useWaouhPartner();
+  const location = useLocation();
+  const isMobileApp = location.pathname.startsWith("/app");
+  const partnerBusinessesHref = isMobileApp ? "/app/partner/businesses" : "/partner/businesses";
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
 
