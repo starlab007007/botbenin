@@ -29,7 +29,9 @@ type PartnerProduct = {
   id: string; nom: string; description: string | null;
   prix_min: number | null; prix_max: number | null; unite: string | null;
   categorie: string | null; disponible: boolean;
+  business_id: string; business_name?: string;
 };
+type PartnerBusiness = { id: string; nom: string; code_business: string | null };
 
 const STEPS = ["Type & Secteur", "Personnalité", "Contenu", "Connaissances", "Test", "Connexion"];
 
