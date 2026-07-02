@@ -63,10 +63,11 @@ export const NativeSellSheet: React.FC<{
     const list = Array.from(files).slice(0, remaining);
     setUploading(true);
     try {
-      for (const file of list) {
-        const ext = file.name.split(".").pop() || "jpg";
+      for (const raw of list) {
+        const file = await compressImage(raw, { maxDimension: 1600, quality: 0.82 });
+        const ext = (file.name.split(".").pop() || "webp").toLowerCase();
         const path = `web/${sessionId}/${crypto.randomUUID()}.${ext}`;
-        const { error } = await supabase.storage.from("waouh-uploads").upload(path, file, { contentType: file.type });
+        const { error } = await supabase.storage.from("waouh-uploads").upload(path, file, uploadOptions(file.type));
         if (error) throw error;
         const { data: pub } = supabase.storage.from("waouh-uploads").getPublicUrl(path);
         setPhotos((p) => [...p, { url: pub.publicUrl, type: file.type }]);
