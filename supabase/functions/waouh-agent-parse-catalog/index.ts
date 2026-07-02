@@ -11,18 +11,39 @@ const cors = {
 
 const GATEWAY = "https://ai.gateway.lovable.dev/v1";
 
+// Map an incoming audio_format hint (or a mimeType like "audio/webm;codecs=opus")
+// to a container extension the STT provider accepts.
+function pickAudioExt(fmt: string): { ext: string; mime: string } {
+  const f = String(fmt || "").toLowerCase();
+  if (f.includes("wav")) return { ext: "wav", mime: "audio/wav" };
+  if (f.includes("mp3") || f.includes("mpeg")) return { ext: "mp3", mime: "audio/mpeg" };
+  if (f.includes("mp4") || f.includes("m4a") || f.includes("aac")) return { ext: "m4a", mime: "audio/mp4" };
+  if (f.includes("ogg") || f.includes("opus")) return { ext: "ogg", mime: "audio/ogg" };
+  if (f.includes("flac")) return { ext: "flac", mime: "audio/flac" };
+  // default: webm (Chrome/Firefox MediaRecorder)
+  return { ext: "webm", mime: "audio/webm" };
+}
+
 async function transcribe(audioBase64: string, format: string): Promise<string> {
   const bytes = Uint8Array.from(atob(audioBase64), (c) => c.charCodeAt(0));
-  const blob = new Blob([bytes], { type: `audio/${format}` });
+  if (bytes.byteLength < 1024) {
+    throw new Error("Enregistrement vide ou trop court — réessayez en parlant plus longtemps.");
+  }
+  const { ext, mime } = pickAudioExt(format);
+  const blob = new Blob([bytes], { type: mime });
   const fd = new FormData();
   fd.append("model", "openai/gpt-4o-mini-transcribe");
-  fd.append("file", blob, `rec.${format}`);
+  fd.append("file", blob, `rec.${ext}`);
   const r = await fetch(`${GATEWAY}/audio/transcriptions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${Deno.env.get("LOVABLE_API_KEY")!}` },
     body: fd,
   });
-  if (!r.ok) throw new Error(`STT ${r.status}: ${await r.text()}`);
+  if (!r.ok) {
+    const t = await r.text();
+    console.error("STT error", r.status, t);
+    throw new Error(`Transcription échouée (${r.status}). Format audio: ${ext}. ${t.slice(0, 200)}`);
+  }
   const j = await r.json();
   return j.text || "";
 }
@@ -38,6 +59,7 @@ serve(async (req) => {
     if (mode === "voice") {
       if (!audio_base64) throw new Error("audio requis");
       source = await transcribe(audio_base64, audio_format || "webm");
+      if (!source.trim()) throw new Error("Aucune parole détectée dans l'enregistrement.");
       userContent = `Voici la description vocale d'un catalogue : "${source}"\n\nExtrait TOUS les produits/services mentionnés.`;
     } else if (mode === "image") {
       if (!image_base64) throw new Error("image requise");
@@ -79,6 +101,7 @@ Règles:
       headers: { ...cors, "Content-Type": "application/json" },
     });
   } catch (e: any) {
+    console.error("parse-catalog error", e);
     return new Response(JSON.stringify({ error: e.message }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
   }
 });
