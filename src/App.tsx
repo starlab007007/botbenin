@@ -157,7 +157,7 @@ const MobileShell = lazy(() => import("./app-mobile/layouts/MobileShell"));
 const MobileWaouhChat = lazy(() => import("./app-mobile/screens/WaouhChatScreen"));
 const MobileConversations = lazy(() => import("./app-mobile/screens/ChatListScreen"));
 const MobileChatThread = lazy(() => import("./app-mobile/screens/ChatScreen"));
-const MobileBots = lazy(() => import("./app-mobile/screens/bots/KnowledgeBasesListScreen"));
+const MobileBots = lazy(() => import("./app-mobile/screens/bots/AiAgentsListScreen"));
 const MobileCreateBot = lazy(() => import("./app-mobile/screens/bots/KnowledgeBaseCreateWizard"));
 const MobileBotDetail = lazy(() => import("./app-mobile/screens/bots/KnowledgeBaseDetailScreen"));
 const MobileBotEntryForm = lazy(() => import("./app-mobile/screens/bots/NativeEntryFormScreen"));
