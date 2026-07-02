@@ -27,7 +27,7 @@ const KpakpatoPage = lazy(() => import("./pages/KpakpatoPage").then(module => ({
 const DashboardPage = lazy(() => import("./pages/DashboardPage").then(module => ({ default: module.DashboardPage })));
 
 // Gestion des bots et automatisations
-const BotManagementPage = lazy(() => import("./pages/BotManagementPage").then(module => ({ default: module.BotManagementPage })));
+const BotManagementPage = lazy(() => import("./pages/AiAgentsListPage"));
 const AutomationsPage = lazy(() => import("./pages/AutomationsPage").then(module => ({ default: module.AutomationsPage })));
 const BotTestPage = lazy(() => import("./pages/BotTestPage").then(module => ({ default: module.BotTestPage })));
 const PublicBotChatPage = lazy(() => import("./pages/PublicBotChatPage").then(module => ({ default: module.PublicBotChatPage })));
@@ -157,7 +157,7 @@ const MobileShell = lazy(() => import("./app-mobile/layouts/MobileShell"));
 const MobileWaouhChat = lazy(() => import("./app-mobile/screens/WaouhChatScreen"));
 const MobileConversations = lazy(() => import("./app-mobile/screens/ChatListScreen"));
 const MobileChatThread = lazy(() => import("./app-mobile/screens/ChatScreen"));
-const MobileBots = lazy(() => import("./app-mobile/screens/bots/KnowledgeBasesListScreen"));
+const MobileBots = lazy(() => import("./app-mobile/screens/bots/AiAgentsListScreen"));
 const MobileCreateBot = lazy(() => import("./app-mobile/screens/bots/KnowledgeBaseCreateWizard"));
 const MobileBotDetail = lazy(() => import("./app-mobile/screens/bots/KnowledgeBaseDetailScreen"));
 const MobileBotEntryForm = lazy(() => import("./app-mobile/screens/bots/NativeEntryFormScreen"));
