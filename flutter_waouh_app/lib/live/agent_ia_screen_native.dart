@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'agent_ia_list_loader.dart';
+import 'agent_ia_list_loader_v2.dart';
 
 class AgentIaScreenNative extends StatelessWidget {
   const AgentIaScreenNative({super.key});
@@ -20,6 +20,6 @@ class AgentIaScreenNative extends StatelessWidget {
             ],
           ),
         ),
-        body: const AgentIaListLoader(),
+        body: const AgentIaListLoaderV2(),
       );
 }
