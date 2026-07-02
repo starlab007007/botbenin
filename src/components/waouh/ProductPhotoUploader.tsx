@@ -65,7 +65,7 @@ export const ProductPhotoUploader = React.memo(function ProductPhotoUploader({
       <div className="grid grid-cols-3 gap-2">
         {(value || []).map((url, i) => (
           <div key={url + i} className="relative aspect-square rounded-md overflow-hidden border bg-muted group">
-            <img src={url} alt={`Photo ${i + 1}`} loading="lazy" className="w-full h-full object-cover" />
+            <img src={thumbUrl(url)} alt={`Photo ${i + 1}`} loading="lazy" decoding="async" className="w-full h-full object-cover" />
             <button
               type="button"
               onClick={() => removeAt(i)}
