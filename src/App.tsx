@@ -27,7 +27,7 @@ const KpakpatoPage = lazy(() => import("./pages/KpakpatoPage").then(module => ({
 const DashboardPage = lazy(() => import("./pages/DashboardPage").then(module => ({ default: module.DashboardPage })));
 
 // Gestion des bots et automatisations
-const BotManagementPage = lazy(() => import("./pages/BotManagementPage").then(module => ({ default: module.BotManagementPage })));
+const BotManagementPage = lazy(() => import("./pages/AiAgentsListPage"));
 const AutomationsPage = lazy(() => import("./pages/AutomationsPage").then(module => ({ default: module.AutomationsPage })));
 const BotTestPage = lazy(() => import("./pages/BotTestPage").then(module => ({ default: module.BotTestPage })));
 const PublicBotChatPage = lazy(() => import("./pages/PublicBotChatPage").then(module => ({ default: module.PublicBotChatPage })));
