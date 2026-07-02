@@ -304,3 +304,7 @@ verify_jwt = false
 
 [functions.waouh-agent-manual-reply]
 verify_jwt = true
+
+[functions.waouh-agent-insights]
+verify_jwt = true
+
