@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
+import 'agent_ia_screen_native.dart';
 import 'live_auth_screens.dart';
 import 'live_broadcast_screen.dart';
 import 'live_controller.dart';
@@ -87,6 +88,7 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
             GoRoute(path: '/app/notifications', builder: (_, __) => const LiveNotificationsScreenV2()),
             GoRoute(path: '/app/bots', builder: (_, __) => const LiveBotsScreen()),
             GoRoute(path: '/app/whatsapp', builder: (_, __) => const LiveWhatsAppIaNativeScreen()),
+            GoRoute(path: '/app/whatsapp/agents', builder: (_, __) => const AgentIaScreenNative()),
             GoRoute(path: '/app/diffusion', builder: (_, __) => const LiveBroadcastScreen()),
             GoRoute(path: '/app/partner', redirect: (_, __) => '/app/partner/businesses'),
             GoRoute(path: '/app/partner/businesses', builder: (_, __) => const LivePartnerBusinessesScreenV3()),
