@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
 import 'agent_ia_screen_native.dart';
+import 'bots_screen_native.dart';
 import 'live_auth_screens.dart';
 import 'live_broadcast_screen.dart';
 import 'live_controller.dart';
@@ -86,7 +87,7 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
             GoRoute(path: '/app/chat/match/:key', builder: (_, state) => LiveMatchChatV2(matchKey: state.pathParameters['key']!, initial: state.extra as LiveMatch?)),
             GoRoute(path: '/app/chat/:id', builder: (_, state) => LiveConversationScreen(conversationId: state.pathParameters['id']!)),
             GoRoute(path: '/app/notifications', builder: (_, __) => const LiveNotificationsScreenV2()),
-            GoRoute(path: '/app/bots', builder: (_, __) => const LiveBotsScreen()),
+            GoRoute(path: '/app/bots', builder: (_, __) => const BotsScreenNative()),
             GoRoute(path: '/app/whatsapp', builder: (_, __) => const LiveWhatsAppIaNativeScreen()),
             GoRoute(path: '/app/whatsapp/agents', builder: (_, __) => const AgentIaScreenNative()),
             GoRoute(path: '/app/diffusion', builder: (_, __) => const LiveBroadcastScreen()),
