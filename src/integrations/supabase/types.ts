@@ -5410,10 +5410,12 @@ export type Database = {
           agent_id: string
           created_at: string
           handoff_reason: string | null
+          human_takeover: boolean
           id: string
           last_activity: string
           messages: Json
           needs_handoff: boolean
+          operator_messages: Json
           updated_at: string
           user_id: string
           wa_contact_name: string | null
@@ -5423,10 +5425,12 @@ export type Database = {
           agent_id: string
           created_at?: string
           handoff_reason?: string | null
+          human_takeover?: boolean
           id?: string
           last_activity?: string
           messages?: Json
           needs_handoff?: boolean
+          operator_messages?: Json
           updated_at?: string
           user_id: string
           wa_contact_name?: string | null
@@ -5436,10 +5440,12 @@ export type Database = {
           agent_id?: string
           created_at?: string
           handoff_reason?: string | null
+          human_takeover?: boolean
           id?: string
           last_activity?: string
           messages?: Json
           needs_handoff?: boolean
+          operator_messages?: Json
           updated_at?: string
           user_id?: string
           wa_contact_name?: string | null
@@ -5451,6 +5457,42 @@ export type Database = {
             columns: ["agent_id"]
             isOneToOne: false
             referencedRelation: "waouh_ai_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_ai_agent_partner_products: {
+        Row: {
+          agent_id: string
+          created_at: string
+          product_id: string
+          user_id: string
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string
+          product_id: string
+          user_id: string
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          product_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_ai_agent_partner_products_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_ai_agent_partner_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partner_products"
             referencedColumns: ["id"]
           },
         ]
@@ -5507,11 +5549,14 @@ export type Database = {
       }
       waouh_ai_agents: {
         Row: {
+          agent_type: string
           capabilities: Json
           created_at: string
+          google_sheet_url: string | null
           id: string
           knowledge_sources: Json
           name: string
+          paused_contacts: Json
           persona: Json
           sector: string
           stats: Json
@@ -5522,13 +5567,17 @@ export type Database = {
           user_id: string
           waha_session_id: string | null
           waha_session_name: string | null
+          website_url: string | null
         }
         Insert: {
+          agent_type?: string
           capabilities?: Json
           created_at?: string
+          google_sheet_url?: string | null
           id?: string
           knowledge_sources?: Json
           name: string
+          paused_contacts?: Json
           persona?: Json
           sector?: string
           stats?: Json
@@ -5539,13 +5588,17 @@ export type Database = {
           user_id: string
           waha_session_id?: string | null
           waha_session_name?: string | null
+          website_url?: string | null
         }
         Update: {
+          agent_type?: string
           capabilities?: Json
           created_at?: string
+          google_sheet_url?: string | null
           id?: string
           knowledge_sources?: Json
           name?: string
+          paused_contacts?: Json
           persona?: Json
           sector?: string
           stats?: Json
@@ -5556,6 +5609,7 @@ export type Database = {
           user_id?: string
           waha_session_id?: string | null
           waha_session_name?: string | null
+          website_url?: string | null
         }
         Relationships: []
       }
