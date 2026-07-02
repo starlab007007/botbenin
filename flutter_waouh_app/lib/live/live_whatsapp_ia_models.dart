@@ -30,6 +30,17 @@ class LiveWhatsAppSession {
         'DISCONNECTED',
       }.contains(status.toUpperCase());
 
+  String get displayPhone {
+    final digits = (phone ?? '')
+        .replaceAll(RegExp(r'@c\.us|@lid'), '')
+        .replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return 'Aucun numéro lié';
+    final value = digits.startsWith('229') && digits.length >= 11
+        ? '+229 ${digits.substring(3, 5)} ${digits.substring(5, 7)} ${digits.substring(7, 9)} ${digits.substring(9)}'
+        : '+$digits';
+    return value;
+  }
+
   factory LiveWhatsAppSession.fromDatabase(Map<String, dynamic> row) =>
       LiveWhatsAppSession(
         name: '${row['session_name'] ?? ''}',
@@ -84,8 +95,7 @@ class LiveWhatsAppBot {
   final String name;
   final String? webhookUrl;
 
-  factory LiveWhatsAppBot.fromJson(Map<String, dynamic> row) =>
-      LiveWhatsAppBot(
+  factory LiveWhatsAppBot.fromJson(Map<String, dynamic> row) => LiveWhatsAppBot(
         id: '${row['id'] ?? ''}',
         name: '${row['name'] ?? 'Bot sans nom'}',
         webhookUrl: row['webhook_url']?.toString(),

@@ -3,8 +3,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'live_whatsapp_ia_gateway.dart';
 import 'live_whatsapp_ia_models.dart';
 
+/// Repositaire des sessions WAHA. Les actions principales passent par
+/// `waha-session-manager` afin de centraliser l’authentification, les erreurs
+/// WAHA et la persistance des états dans whatsapp_accounts.
 class LiveWhatsAppIaRepository {
-  LiveWhatsAppIaRepository(this.client) : gateway = LiveWhatsAppIaGateway(client);
+  LiveWhatsAppIaRepository(this.client)
+      : gateway = LiveWhatsAppIaGateway(client);
 
   final SupabaseClient client;
   final LiveWhatsAppIaGateway gateway;
@@ -18,39 +22,35 @@ class LiveWhatsAppIaRepository {
         .order('created_at', ascending: false);
     final local = (response as List)
         .whereType<Map>()
-        .map((row) => LiveWhatsAppSession.fromDatabase(Map<String, dynamic>.from(row)))
+        .map((row) =>
+            LiveWhatsAppSession.fromDatabase(Map<String, dynamic>.from(row)))
         .where((item) => item.name.isNotEmpty)
         .toList();
 
-    List<LiveWhatsAppSession> remote = const [];
     String? remoteError;
-    try {
-      final raw = await gateway.request(path: '/api/sessions');
-      final source = raw is List ? raw : gateway.map(raw)['sessions'];
-      remote = gateway.rows(source)
-          .map(LiveWhatsAppSession.fromWaha)
-          .where((item) => item.name.isNotEmpty)
-          .toList();
-    } catch (error) {
-      remoteError = '$error';
+    final refreshed = <String, LiveWhatsAppSession>{
+      for (final item in local) item.name: item
+    };
+    for (final item in local) {
+      try {
+        final data = await _manager(action: 'status', sessionName: item.name);
+        final raw = data['data'];
+        final map = raw is Map
+            ? Map<String, dynamic>.from(raw)
+            : const <String, dynamic>{};
+        refreshed[item.name] = LiveWhatsAppSession(
+          name: item.name,
+          status: '${map['status'] ?? item.status}',
+          phone: _phoneFromWaha(map) ?? item.phone,
+          createdAt: item.createdAt,
+        );
+      } catch (error) {
+        remoteError ??= '$error';
+      }
     }
-
-    // Do not expose other WAHA sessions. A session has to be registered to the
-    // current user before Flutter displays it.
-    final allowed = local.map((item) => item.name).toSet();
-    final merged = <String, LiveWhatsAppSession>{for (final item in local) item.name: item};
-    for (final item in remote) {
-      if (!allowed.contains(item.name)) continue;
-      final previous = merged[item.name];
-      merged[item.name] = LiveWhatsAppSession(
-        name: item.name,
-        status: item.status,
-        phone: item.phone ?? previous?.phone,
-        createdAt: previous?.createdAt,
-      );
-    }
-    final sessions = merged.values.toList()
-      ..sort((a, b) => (b.createdAt ?? DateTime(1970)).compareTo(a.createdAt ?? DateTime(1970)));
+    final sessions = refreshed.values.toList()
+      ..sort((a, b) => (b.createdAt ?? DateTime(1970))
+          .compareTo(a.createdAt ?? DateTime(1970)));
     return LiveWhatsAppDashboard(sessions: sessions, remoteError: remoteError);
   }
 
@@ -60,40 +60,63 @@ class LiveWhatsAppIaRepository {
     if (name.isEmpty) {
       throw const LiveWhatsAppIaException('Nom de session invalide.');
     }
-    await gateway.request(path: '/api/sessions', method: 'POST', body: {'name': name});
-    await client.from('whatsapp_accounts').upsert({
-      'user_id': gateway.user.id,
-      'session_name': name,
-      'status': 'DISCONNECTED',
-    }, onConflict: 'user_id,session_name');
-    return LiveWhatsAppSession(name: name, status: 'DISCONNECTED');
+    final data = await _manager(action: 'create', sessionName: name);
+    final body = data['data'];
+    final map = body is Map
+        ? Map<String, dynamic>.from(body)
+        : const <String, dynamic>{};
+    return LiveWhatsAppSession(
+      name: name,
+      status: '${map['status'] ?? 'DISCONNECTED'}',
+      phone: _phoneFromWaha(map),
+    );
   }
 
   Future<void> start(String name) async {
-    await gateway.request(path: '/api/sessions/$name/start', method: 'POST');
-    await _status(name, 'STARTING');
+    await _manager(action: 'start', sessionName: name);
   }
 
   Future<void> stop(String name) async {
-    await gateway.request(path: '/api/sessions/$name/stop', method: 'POST');
-    await _status(name, 'STOPPED');
+    await _manager(action: 'stop', sessionName: name);
   }
 
   Future<void> delete(String name) async {
+    await _manager(action: 'delete', sessionName: name);
+  }
+
+  Future<Map<String, dynamic>> _manager({
+    required String action,
+    required String sessionName,
+  }) async {
     try {
-      await gateway.request(path: '/api/sessions/$name', method: 'DELETE');
-    } finally {
-      await client
-          .from('whatsapp_accounts')
-          .delete()
-          .eq('user_id', gateway.user.id)
-          .eq('session_name', name);
+      final response = await client.functions.invoke(
+        'waha-session-manager',
+        body: {'action': action, 'sessionName': sessionName},
+      );
+      final data = response.data is Map
+          ? Map<String, dynamic>.from(response.data as Map)
+          : <String, dynamic>{};
+      if (data['success'] != true) {
+        throw LiveWhatsAppIaException(
+            '${data['error'] ?? 'WAHA indisponible.'}');
+      }
+      return data;
+    } on FunctionException catch (error) {
+      throw LiveWhatsAppIaException(
+        error.details?.toString() ?? error.toString(),
+      );
     }
   }
 
-  Future<void> _status(String name, String status) => client
-      .from('whatsapp_accounts')
-      .update({'status': status})
-      .eq('user_id', gateway.user.id)
-      .eq('session_name', name);
+  String? _phoneFromWaha(Map<String, dynamic> row) {
+    final config = row['config'] is Map
+        ? Map<String, dynamic>.from(row['config'] as Map)
+        : const <String, dynamic>{};
+    final metadata = config['metadata'] is Map
+        ? Map<String, dynamic>.from(config['metadata'] as Map)
+        : const <String, dynamic>{};
+    return metadata['phone_number']?.toString() ??
+        metadata['account']?.toString() ??
+        row['me']?['id']?.toString();
+  }
 }
