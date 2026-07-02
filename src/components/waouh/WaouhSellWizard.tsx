@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Camera, Image as ImageIcon, X, MapPin, Pencil, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { compressImage, uploadOptions } from "@/lib/imageOptimize";
 
 export type Att = { url: string; type: string };
 export type SellLocation = { lat: number | null; lng: number | null; city: string };
