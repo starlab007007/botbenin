@@ -12,11 +12,12 @@ import { Loader2, Send, UserCog, Bot, Volume2, VolumeX, RefreshCw } from "lucide
 interface Conversation {
   id: string;
   agent_id: string;
-  contact_phone: string;
-  contact_name: string | null;
-  last_message_at: string;
+  wa_contact_phone: string;
+  wa_contact_name: string | null;
+  last_activity: string;
   human_takeover: boolean;
-  messages: Array<{ role: string; content: string; ts?: string; by?: string }>;
+  needs_handoff: boolean;
+  messages: Array<{ role: string; content: string; ts?: number; by?: string }>;
   operator_messages?: any[];
 }
 
@@ -31,11 +32,12 @@ export function LiveConversationsDialog({ agent, onClose }: { agent: AiAgent; on
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const load = async () => {
+    setLoading(true);
     const { data } = await (supabase as any)
       .from("waouh_ai_agent_conversations")
       .select("*")
       .eq("agent_id", agent.id)
-      .order("last_message_at", { ascending: false })
+      .order("last_activity", { ascending: false })
       .limit(50);
     setConvs((data as any) || []);
     setLoading(false);
@@ -47,11 +49,11 @@ export function LiveConversationsDialog({ agent, onClose }: { agent: AiAgent; on
       .on("postgres_changes",
         { event: "*", schema: "public", table: "waouh_ai_agent_conversations", filter: `agent_id=eq.${agent.id}` },
         (payload) => {
-          const row = payload.new as Conversation;
+          const row = payload.new as any as Conversation;
           if (!row) return;
           setConvs((prev) => {
             const other = prev.filter((c) => c.id !== row.id);
-            return [row, ...other].sort((a, b) => (a.last_message_at < b.last_message_at ? 1 : -1));
+            return [row, ...other].sort((a, b) => (a.last_activity < b.last_activity ? 1 : -1));
           });
           setSelected((s) => (s?.id === row.id ? row : s));
         })
@@ -64,39 +66,51 @@ export function LiveConversationsDialog({ agent, onClose }: { agent: AiAgent; on
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [selected?.messages?.length]);
 
+  const callManual = async (body: any) => {
+    const { data, error } = await supabase.functions.invoke("waouh-agent-manual-reply", { body });
+    if (error) throw error;
+    return data;
+  };
+
   const toggleTakeover = async (v: boolean) => {
     if (!selected) return;
-    const { error } = await supabase.functions.invoke("waouh-agent-manual-reply", {
-      body: { agent_id: agent.id, conversation_id: selected.id, action: "takeover", enabled: v },
-    });
-    if (error) toast({ title: "Erreur", description: error.message, variant: "destructive" });
-    else toast({ title: v ? "Vous contrôlez la conversation" : "Bot repris" });
+    try {
+      await callManual({
+        agent_id: agent.id, contact_phone: selected.wa_contact_phone,
+        mode: v ? "takeover" : "release",
+      });
+      toast({ title: v ? "🎛️ Vous contrôlez la conversation" : "🤖 Bot repris" });
+    } catch (e: any) {
+      toast({ title: "Erreur", description: e.message, variant: "destructive" });
+    }
   };
 
   const togglePause = async (phone: string) => {
     const willPause = !paused.has(phone);
-    const { error } = await supabase.functions.invoke("waouh-agent-manual-reply", {
-      body: { agent_id: agent.id, action: "pause_contact", contact_phone: phone, paused: willPause },
-    });
-    if (error) return toast({ title: "Erreur", description: error.message, variant: "destructive" });
-    setPaused((prev) => {
-      const s = new Set(prev);
-      willPause ? s.add(phone) : s.delete(phone);
-      return s;
-    });
+    try {
+      await callManual({
+        agent_id: agent.id, contact_phone: phone,
+        mode: willPause ? "pause" : "resume",
+      });
+      setPaused((prev) => {
+        const s = new Set(prev);
+        willPause ? s.add(phone) : s.delete(phone);
+        return s;
+      });
+    } catch (e: any) {
+      toast({ title: "Erreur", description: e.message, variant: "destructive" });
+    }
   };
 
   const sendManual = async () => {
     if (!selected || !reply.trim()) return;
     setSending(true);
     try {
-      const { error } = await supabase.functions.invoke("waouh-agent-manual-reply", {
-        body: {
-          agent_id: agent.id, conversation_id: selected.id,
-          action: "send", contact_phone: selected.contact_phone, text: reply.trim(),
-        },
+      await callManual({
+        agent_id: agent.id, contact_phone: selected.wa_contact_phone,
+        message: reply.trim(),
+        mode: selected.human_takeover ? undefined : "takeover",
       });
-      if (error) throw error;
       setReply("");
     } catch (e: any) {
       toast({ title: "Erreur envoi", description: e.message, variant: "destructive" });
@@ -127,24 +141,26 @@ export function LiveConversationsDialog({ agent, onClose }: { agent: AiAgent; on
               </div>
             )}
             {convs.map((c) => {
-              const isPaused = paused.has(c.contact_phone);
+              const isPaused = paused.has(c.wa_contact_phone);
               const last = c.messages?.[c.messages.length - 1];
               return (
                 <button key={c.id}
                   onClick={() => setSelected(c)}
                   className={`w-full text-left p-3 border-b hover:bg-muted/40 ${selected?.id === c.id ? "bg-green-50" : ""}`}>
                   <div className="flex items-center justify-between">
-                    <div className="font-medium text-sm truncate">{c.contact_name || c.contact_phone}</div>
+                    <div className="font-medium text-sm truncate">{c.wa_contact_name || c.wa_contact_phone}</div>
                     <div className="flex gap-1">
                       {c.human_takeover && <Badge className="bg-orange-500 text-white text-[10px]">MANUEL</Badge>}
+                      {c.needs_handoff && <Badge className="bg-red-500 text-white text-[10px]">SOS</Badge>}
                       {isPaused && <Badge variant="secondary" className="text-[10px]">⏸</Badge>}
                     </div>
                   </div>
                   <div className="text-xs text-muted-foreground truncate mt-0.5">
-                    {last?.role === "user" ? "👤 " : "🤖 "}{last?.content || "…"}
+                    {last?.role === "user" ? "👤 " : last?.role === "operator" ? "🧑‍💼 " : "🤖 "}
+                    {last?.content || "…"}
                   </div>
                   <div className="text-[10px] text-muted-foreground mt-0.5">
-                    {new Date(c.last_message_at).toLocaleString("fr-FR")}
+                    {new Date(c.last_activity).toLocaleString("fr-FR")}
                   </div>
                 </button>
               );
@@ -159,16 +175,16 @@ export function LiveConversationsDialog({ agent, onClose }: { agent: AiAgent; on
               </div>
             ) : (
               <>
-                <div className="p-3 border-b flex items-center justify-between bg-muted/30">
+                <div className="p-3 border-b flex items-center justify-between bg-muted/30 flex-wrap gap-2">
                   <div>
-                    <div className="font-semibold text-sm">{selected.contact_name || selected.contact_phone}</div>
-                    <div className="text-xs text-muted-foreground">{selected.contact_phone}</div>
+                    <div className="font-semibold text-sm">{selected.wa_contact_name || selected.wa_contact_phone}</div>
+                    <div className="text-xs text-muted-foreground">{selected.wa_contact_phone}</div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-1 text-xs">
-                      {paused.has(selected.contact_phone) ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
-                      <span>Bot</span>
-                      <Switch checked={!paused.has(selected.contact_phone)} onCheckedChange={() => togglePause(selected.contact_phone)} />
+                      {paused.has(selected.wa_contact_phone) ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+                      <span>Bot actif</span>
+                      <Switch checked={!paused.has(selected.wa_contact_phone)} onCheckedChange={() => togglePause(selected.wa_contact_phone)} />
                     </div>
                     <div className="flex items-center gap-1 text-xs">
                       <UserCog className="w-3 h-3" />
@@ -184,11 +200,11 @@ export function LiveConversationsDialog({ agent, onClose }: { agent: AiAgent; on
                       <div className={`max-w-[75%] rounded-lg px-3 py-2 text-sm ${
                         m.role === "user"
                           ? "bg-white border"
-                          : m.by === "human"
+                          : m.role === "operator"
                             ? "bg-orange-100 border border-orange-300"
                             : "bg-green-500 text-white"
                       }`}>
-                        {m.by === "human" && <div className="text-[10px] font-semibold text-orange-700 mb-0.5">👤 Vous</div>}
+                        {m.role === "operator" && <div className="text-[10px] font-semibold text-orange-700 mb-0.5">🧑‍💼 Vous</div>}
                         {m.content}
                       </div>
                     </div>
@@ -198,7 +214,7 @@ export function LiveConversationsDialog({ agent, onClose }: { agent: AiAgent; on
                 <div className="p-3 border-t flex gap-2">
                   <Input value={reply} onChange={(e) => setReply(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && sendManual()}
-                    placeholder={selected.human_takeover ? "Répondre manuellement…" : "Envoyer un message (met le bot en pause auto)"} />
+                    placeholder={selected.human_takeover ? "Répondre manuellement…" : "Envoyer → prend la main automatiquement"} />
                   <Button onClick={sendManual} disabled={sending || !reply.trim()} className="bg-green-600 hover:bg-green-700">
                     {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   </Button>
