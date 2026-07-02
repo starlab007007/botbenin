@@ -98,7 +98,7 @@ export const ProductPhotoUploader = React.memo(function ProductPhotoUploader({
       />
       <p className="text-xs text-muted-foreground flex items-center gap-1">
         <Upload className="h-3 w-3" />
-        Jusqu'à {max} photos · 5 Mo max · JPG/PNG/WebP
+        Jusqu'à {max} photos · 5 Mo max · compressées automatiquement
       </p>
     </div>
   );
