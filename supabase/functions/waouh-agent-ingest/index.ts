@@ -27,7 +27,7 @@ serve(async (req) => {
     const { data: { user } } = await userClient.auth.getUser();
     if (!user) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { ...cors, "Content-Type": "application/json" } });
 
-    const { agent_id, source_type, text, url } = await req.json();
+    const { agent_id, source_type, text, url, storage_path, filename, crawl } = await req.json();
     if (!agent_id) throw new Error("agent_id requis");
 
     // check ownership
@@ -36,14 +36,47 @@ serve(async (req) => {
 
     let content = String(text || "").trim();
 
+    // PDF/DOCX uploaded to the `agent-documents` bucket → extract server-side.
+    if (storage_path && !content) {
+      const { data: file, error: dlErr } = await supabase.storage.from("agent-documents").download(storage_path);
+      if (dlErr || !file) throw new Error("téléchargement du document impossible");
+      const buf = new Uint8Array(await file.arrayBuffer());
+      const name = String(filename || storage_path).toLowerCase();
+      if (name.endsWith(".pdf")) {
+        const { extractText, getDocumentProxy } = await import("npm:unpdf@0.12.1");
+        const pdf = await getDocumentProxy(buf);
+        const { text: pageText } = await extractText(pdf, { mergePages: true });
+        content = Array.isArray(pageText) ? pageText.join("\n\n") : String(pageText || "");
+      } else if (name.endsWith(".docx")) {
+        const mammoth = await import("npm:mammoth@1.8.0");
+        const r = await mammoth.extractRawText({ buffer: buf });
+        content = r.value || "";
+      } else if (name.endsWith(".txt") || name.endsWith(".md")) {
+        content = new TextDecoder().decode(buf);
+      } else {
+        throw new Error("format non supporté (utilisez PDF, DOCX, TXT ou MD)");
+      }
+    }
+
     // If URL provided, scrape it via Firecrawl if available, else basic fetch
     if (url && !content) {
       const fcKey = Deno.env.get("FIRECRAWL_API_KEY");
-      if (fcKey) {
-        const r = await fetch("https://api.firecrawl.dev/v1/scrape", {
+      // Optional shallow crawl for "website" agent training
+      if (fcKey && crawl) {
+        const r = await fetch("https://api.firecrawl.dev/v2/crawl", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${fcKey}` },
-          body: JSON.stringify({ url, formats: ["markdown"] }),
+          body: JSON.stringify({ url, limit: 15, maxDepth: 2, scrapeOptions: { formats: ["markdown"], onlyMainContent: true } }),
+        });
+        const j = await r.json().catch(() => ({}));
+        const pages = j?.data || [];
+        content = pages.map((p: any) => `# ${p?.metadata?.title || p?.metadata?.sourceURL || ""}\n${p?.markdown || ""}`).join("\n\n---\n\n");
+      }
+      if (fcKey && !content) {
+        const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${fcKey}` },
+          body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true }),
         });
         const j = await r.json().catch(() => ({}));
         content = j?.data?.markdown || j?.markdown || "";
@@ -51,7 +84,8 @@ serve(async (req) => {
       if (!content) {
         const r = await fetch(url);
         const html = await r.text();
-        content = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 20000);
+        content = html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ")
+          .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 30000);
       }
     }
 
