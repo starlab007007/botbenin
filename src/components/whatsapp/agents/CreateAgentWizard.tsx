@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useWhatsAppAccounts } from "@/hooks/useWhatsAppAccounts";
+import { useWaouhPartner } from "@/hooks/useWaouhPartner";
 import { SECTOR_TEMPLATES, SectorTemplate } from "@/config/agent-templates";
 import {
   Mic, Image as ImageIcon, Type, Trash2, Plus, Bot, Loader2,
