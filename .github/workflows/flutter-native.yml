@@ -45,3 +45,5 @@ jobs:
           name: WaouhApp-debug-ci
           path: flutter_waouh_app/build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
+
+# CI trigger: validate current Flutter stable configuration.
