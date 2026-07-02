@@ -118,6 +118,28 @@ serve(async (req) => {
       return new Response('OK', { headers: corsHeaders });
     }
 
+    // ===== WAOUH AI Agent bridge: if the session matches a user-created AI agent, forward =====
+    if (
+      webhookData.event === 'message' &&
+      webhookData.payload &&
+      !webhookData.payload.fromMe
+    ) {
+      const { data: agent } = await supabase
+        .from('waouh_ai_agents')
+        .select('id')
+        .eq('waha_session_name', sessionName)
+        .eq('status', 'active')
+        .maybeSingle();
+      if (agent?.id) {
+        fetch(`${supabaseUrl}/functions/v1/waouh-agent-webhook`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${supabaseServiceKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agent_id: agent.id, session: sessionName, payload: webhookData.payload }),
+        }).catch((e) => console.error('agent webhook forward failed', e));
+        return new Response('OK', { headers: corsHeaders });
+      }
+    }
+
     // ===== ACK events: update wa_send_jobs delivery / read status =====
     // WAHA ack codes: -1=ERROR, 0=PENDING, 1=SERVER(sent), 2=DEVICE(delivered), 3=READ, 4=PLAYED
     if (webhookData.event === 'message.ack' || String(webhookData.event || '').includes('ack')) {
