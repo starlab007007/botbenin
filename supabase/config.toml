@@ -289,3 +289,15 @@ verify_jwt = false
 
 [functions.whatsapp-complete-profile]
 verify_jwt = false
+
+[functions.waouh-agent-ingest]
+verify_jwt = true
+
+[functions.waouh-agent-parse-catalog]
+verify_jwt = true
+
+[functions.waouh-agent-chat]
+verify_jwt = false
+
+[functions.waouh-agent-webhook]
+verify_jwt = false
