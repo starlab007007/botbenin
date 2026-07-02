@@ -447,45 +447,90 @@ export function CreateAgentWizard({ open, onClose, onCreated }: Props) {
           {step === 2 && agentType === "commerce" && (
             <>
               <div className="text-sm text-muted-foreground">
-                Choisissez les produits que l'agent doit connaître. Ce sont ceux du module <b>Partenaire → Mes produits</b>.
+                Choisissez les produits que l'agent doit connaître. Ils proviennent du module <b>Partenaire → Mes produits</b>.
               </div>
               {partnerProducts.length === 0 ? (
-                <div className="border-2 border-dashed rounded-lg p-6 text-center">
-                  <ShoppingBag className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground mb-3">
-                    Aucun produit dans votre module Partenaire. Ajoutez-en d'abord pour que l'agent puisse les proposer.
+                <div className="border-2 border-dashed rounded-lg p-6 text-center space-y-2">
+                  <ShoppingBag className="w-8 h-8 mx-auto text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    Aucun produit trouvé dans vos catalogues Partenaire. Créez d'abord vos produits pour que l'agent puisse les proposer.
                   </p>
-                  <Button asChild size="sm" variant="outline">
-                    <Link to="/partner/products" onClick={resetAndClose}>
-                      <ExternalLink className="w-3 h-3 mr-1" />Créer mes produits partenaire
-                    </Link>
-                  </Button>
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                    <Button asChild size="sm" className="bg-green-600 hover:bg-green-700">
+                      <Link to={partnerBusinessesHref} onClick={resetAndClose}>
+                        <ExternalLink className="w-3 h-3 mr-1" />Ouvrir Mes produits
+                      </Link>
+                    </Button>
+                    {partnerBusinesses.length > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        {partnerBusinesses.length} catalogue(s) détecté(s), aucun article encore.
+                      </span>
+                    )}
+                  </div>
                 </div>
               ) : (
-                <div className="border rounded-lg divide-y max-h-56 overflow-y-auto">
-                  {partnerProducts.map((p) => {
-                    const checked = selectedPartnerIds.has(p.id);
-                    const price = p.prix_min != null
-                      ? (p.prix_max && p.prix_max !== p.prix_min
-                        ? `${p.prix_min.toLocaleString("fr-FR")}–${p.prix_max.toLocaleString("fr-FR")}`
-                        : p.prix_min.toLocaleString("fr-FR")) + " FCFA"
-                      : "prix sur demande";
-                    return (
-                      <label key={p.id} className="flex items-center gap-3 p-2 cursor-pointer hover:bg-muted/40">
-                        <input type="checkbox" checked={checked} onChange={() => togglePartner(p.id)} />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">{p.nom}</div>
-                          <div className="text-xs text-muted-foreground truncate">{price}{p.categorie ? ` · ${p.categorie}` : ""}</div>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
+                <>
+                  {partnerBusinesses.length > 1 && (
+                    <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1">
+                      <button
+                        type="button"
+                        onClick={() => setActiveBusinessId("all")}
+                        className={`shrink-0 text-xs px-3 py-1.5 rounded-full border ${activeBusinessId === "all" ? "bg-green-600 text-white border-green-600" : "bg-white hover:bg-muted"}`}
+                      >
+                        Tous ({partnerProducts.length})
+                      </button>
+                      {partnerBusinesses.map((b) => {
+                        const count = partnerProducts.filter((p) => p.business_id === b.id).length;
+                        if (count === 0) return null;
+                        return (
+                          <button
+                            key={b.id}
+                            type="button"
+                            onClick={() => setActiveBusinessId(b.id)}
+                            className={`shrink-0 text-xs px-3 py-1.5 rounded-full border ${activeBusinessId === b.id ? "bg-green-600 text-white border-green-600" : "bg-white hover:bg-muted"}`}
+                          >
+                            {b.nom_entreprise} ({count})
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div className="border rounded-lg divide-y max-h-64 overflow-y-auto">
+                    {partnerProducts
+                      .filter((p) => activeBusinessId === "all" || p.business_id === activeBusinessId)
+                      .map((p) => {
+                        const checked = selectedPartnerIds.has(p.id);
+                        const price = p.prix_min != null
+                          ? (p.prix_max && p.prix_max !== p.prix_min
+                            ? `${p.prix_min.toLocaleString("fr-FR")}–${p.prix_max.toLocaleString("fr-FR")}`
+                            : p.prix_min.toLocaleString("fr-FR")) + " FCFA"
+                          : "prix sur demande";
+                        return (
+                          <label key={p.id} className="flex items-center gap-3 p-2 cursor-pointer hover:bg-muted/40">
+                            <input type="checkbox" checked={checked} onChange={() => togglePartner(p.id)} />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium truncate flex items-center gap-2">
+                                {p.nom}
+                                {!p.disponible && <Badge variant="secondary" className="text-[10px]">indispo</Badge>}
+                              </div>
+                              <div className="text-xs text-muted-foreground truncate">
+                                {price}
+                                {p.categorie ? ` · ${p.categorie}` : ""}
+                                {p.business_name ? ` · ${p.business_name}` : ""}
+                              </div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                  </div>
+                </>
               )}
               <div className="flex items-center justify-between text-xs">
                 <span className="text-muted-foreground">{selectedPartnerIds.size} produit(s) partenaire sélectionné(s)</span>
                 <Button asChild size="sm" variant="ghost">
-                  <Link to="/partner/products" target="_blank">Gérer mes produits <ExternalLink className="w-3 h-3 ml-1" /></Link>
+                  <Link to={partnerBusinessesHref} onClick={resetAndClose}>
+                    Gérer mes produits <ExternalLink className="w-3 h-3 ml-1" />
+                  </Link>
                 </Button>
               </div>
 
