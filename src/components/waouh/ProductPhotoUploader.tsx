@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, X, Loader2, ImagePlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { compressImage, uploadOptions, thumbUrl } from '@/lib/imageOptimize';
 
 interface Props {
   value: string[];
@@ -30,18 +31,21 @@ export const ProductPhotoUploader = React.memo(function ProductPhotoUploader({
     const list = Array.from(files).slice(0, remaining);
     setUploading(true);
     const newUrls: string[] = [];
-    for (const f of list) {
-      if (!f.type.startsWith('image/')) {
-        toast({ title: 'Fichier ignoré', description: `${f.name} n'est pas une image.`, variant: 'destructive' });
+    for (const raw of list) {
+      if (!raw.type.startsWith('image/')) {
+        toast({ title: 'Fichier ignoré', description: `${raw.name} n'est pas une image.`, variant: 'destructive' });
         continue;
       }
-      if (f.size > MAX_SIZE) {
-        toast({ title: 'Fichier trop lourd', description: `${f.name} dépasse 5 Mo.`, variant: 'destructive' });
+      if (raw.size > MAX_SIZE) {
+        toast({ title: 'Fichier trop lourd', description: `${raw.name} dépasse 5 Mo.`, variant: 'destructive' });
         continue;
       }
-      const ext = f.name.split('.').pop() || 'jpg';
+      // (B) Compress client-side before upload — typically 60-85% smaller.
+      const f = await compressImage(raw, { maxDimension: 1600, quality: 0.82 });
+      const ext = (f.name.split('.').pop() || 'webp').toLowerCase();
       const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const { error } = await supabase.storage.from(bucket).upload(path, f, { upsert: false, contentType: f.type });
+      // (C) Long cache-control — filenames are immutable, safe for 1 year.
+      const { error } = await supabase.storage.from(bucket).upload(path, f, uploadOptions(f.type));
       if (error) {
         toast({ title: 'Échec upload', description: error.message, variant: 'destructive' });
         continue;
@@ -61,7 +65,7 @@ export const ProductPhotoUploader = React.memo(function ProductPhotoUploader({
       <div className="grid grid-cols-3 gap-2">
         {(value || []).map((url, i) => (
           <div key={url + i} className="relative aspect-square rounded-md overflow-hidden border bg-muted group">
-            <img src={url} alt={`Photo ${i + 1}`} loading="lazy" className="w-full h-full object-cover" />
+            <img src={thumbUrl(url)} alt={`Photo ${i + 1}`} loading="lazy" decoding="async" className="w-full h-full object-cover" />
             <button
               type="button"
               onClick={() => removeAt(i)}
@@ -94,7 +98,7 @@ export const ProductPhotoUploader = React.memo(function ProductPhotoUploader({
       />
       <p className="text-xs text-muted-foreground flex items-center gap-1">
         <Upload className="h-3 w-3" />
-        Jusqu'à {max} photos · 5 Mo max · JPG/PNG/WebP
+        Jusqu'à {max} photos · 5 Mo max · compressées automatiquement
       </p>
     </div>
   );
