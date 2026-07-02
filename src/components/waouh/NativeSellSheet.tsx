@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { BENIN_CITIES } from "@/data/beninLocations";
 import { cn } from "@/lib/utils";
+import { compressImage, uploadOptions } from "@/lib/imageOptimize";
 
 export type Att = { url: string; type: string };
 
