@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'agent_ia_list_body.dart';
+import 'agent_quick_create_sheet.dart';
 import 'live_agent_ia_models.dart';
 import 'live_agent_ia_service.dart';
 
@@ -20,6 +21,19 @@ class _AgentIaListLoaderState extends State<AgentIaListLoader> {
   Future<void> _reload() async {
     setState(() => _future = _service.listAgents());
     await _future;
+  }
+
+  Future<void> _create() async {
+    final agent = await showAgentQuickCreateSheet(context, _service);
+    if (agent != null && mounted) {
+      await _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Agent créé en mode test. Ouvrez-le pour l’entraîner et le déployer.'),
+          backgroundColor: Color(0xFF159B65),
+        ),
+      );
+    }
   }
 
   Future<void> _toggle(LiveAiAgent agent) async {
@@ -55,6 +69,7 @@ class _AgentIaListLoaderState extends State<AgentIaListLoader> {
             child: AgentIaListBody(
               items: snapshot.data ?? const [],
               onToggle: _toggle,
+              onCreate: _create,
             ),
           );
         },
