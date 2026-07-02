@@ -12,6 +12,7 @@ command -v unzip >/dev/null || fail "unzip absent du PATH."
 test -f lib/live/live_app_production.dart || fail "Entrypoint production UI absent."
 test -f scripts/repair_compile_errors.py || fail "Script de réparation Flutter absent."
 test -f scripts/fix_current_flutter_build.py || fail "Correctif Flutter stable absent."
+test -f scripts/repair_agent_native_compile.py || fail "Correctif Agent IA absent."
 test -f scripts/apply_final_ui_options.py || fail "Script final UI absent."
 test -f scripts/apply_radar_backend_workspace.py || fail "Script Radar backend absent."
 test -f scripts/apply_radar_filter_radius.py || fail "Script de portée Radar absent."
@@ -26,6 +27,11 @@ python3 scripts/apply_radar_backend_workspace.py
 python3 scripts/apply_radar_interaction_polish.py
 python3 scripts/apply_live_data_and_ai_polish.py
 python3 scripts/fix_current_flutter_build.py
+python3 scripts/repair_agent_native_compile.py
+
+dart format \
+  lib/live/agent_quick_create_sheet.dart \
+  lib/live/agent_sandbox_panel.dart
 
 flutter clean
 flutter pub get
