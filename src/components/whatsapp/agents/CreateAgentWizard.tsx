@@ -105,9 +105,9 @@ export function CreateAgentWizard({ open, onClose, onCreated }: Props) {
     (async () => {
       const { data: biz } = await (supabase as any)
         .from("waouh_partner_businesses")
-        .select("id, nom, code_business")
+        .select("id, nom_entreprise, code_court")
         .eq("partner_id", partner.id)
-        .order("nom");
+        .order("nom_entreprise");
       const businesses = (biz as PartnerBusiness[]) || [];
       setPartnerBusinesses(businesses);
       const { data: prods } = await (supabase as any)
@@ -115,7 +115,7 @@ export function CreateAgentWizard({ open, onClose, onCreated }: Props) {
         .select("id, nom, description, prix_min, prix_max, unite, categorie, disponible, business_id")
         .eq("partner_id", partner.id)
         .order("nom");
-      const bizMap = new Map(businesses.map((b) => [b.id, b.nom]));
+      const bizMap = new Map(businesses.map((b) => [b.id, b.nom_entreprise]));
       const list = ((prods as PartnerProduct[]) || []).map((p) => ({
         ...p, business_name: bizMap.get(p.business_id) || "—",
       }));
