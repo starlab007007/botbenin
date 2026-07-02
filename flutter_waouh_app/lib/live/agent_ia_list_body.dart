@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'agent_ia_tile_native.dart';
+import 'agent_action_card.dart';
 import 'live_agent_ia_models.dart';
 
 class AgentIaListBody extends StatelessWidget {
@@ -9,11 +9,15 @@ class AgentIaListBody extends StatelessWidget {
     required this.items,
     required this.onToggle,
     required this.onCreate,
+    required this.onTest,
+    required this.onDeploy,
   });
 
   final List<LiveAiAgent> items;
   final ValueChanged<LiveAiAgent> onToggle;
   final VoidCallback onCreate;
+  final ValueChanged<LiveAiAgent> onTest;
+  final ValueChanged<LiveAiAgent> onDeploy;
 
   @override
   Widget build(BuildContext context) {
@@ -71,9 +75,11 @@ class AgentIaListBody extends StatelessWidget {
         if (items.isEmpty)
           const _EmptyAgentPanel()
         else
-          ...items.map((agent) => AgentIaTileNative(
+          ...items.map((agent) => AgentActionCard(
                 agent: agent,
                 onToggle: () => onToggle(agent),
+                onTest: () => onTest(agent),
+                onDeploy: () => onDeploy(agent),
               )),
       ],
     );
