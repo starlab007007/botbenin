@@ -1,9 +1,13 @@
-// Chat with an agent (used for both sandbox testing and by the WAHA webhook).
-// Body: { agent_id, message, history?: [...], contact_phone?: string, contact_name?: string, persist?: boolean }
+// Chat with an agent (used for sandbox testing).
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
-import { buildSystemPrompt, chatCompletion, embedText } from "../_shared/agent-ai.ts";
+import { runAgentTurn } from "../_shared/agent-ai.ts";
+
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
