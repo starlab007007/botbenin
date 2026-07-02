@@ -99,19 +99,29 @@ export function CreateAgentWizard({ open, onClose, onCreated }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [template]);
 
-  // Load partner products when entering commerce mode
+  // Load partner products (grouped by business) when entering commerce mode
   useEffect(() => {
-    if (!open || agentType !== "commerce") return;
+    if (!open || agentType !== "commerce" || !partner?.id) return;
     (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await (supabase as any)
+      const { data: biz } = await (supabase as any)
+        .from("waouh_businesses")
+        .select("id, nom, code_business")
+        .eq("partner_id", partner.id)
+        .order("nom");
+      const businesses = (biz as PartnerBusiness[]) || [];
+      setPartnerBusinesses(businesses);
+      const { data: prods } = await (supabase as any)
         .from("waouh_partner_products")
-        .select("id, nom, description, prix_min, prix_max, unite, categorie, disponible")
-        .eq("user_id", user.id).eq("disponible", true).order("nom");
-      setPartnerProducts((data as PartnerProduct[]) || []);
+        .select("id, nom, description, prix_min, prix_max, unite, categorie, disponible, business_id")
+        .eq("partner_id", partner.id)
+        .order("nom");
+      const bizMap = new Map(businesses.map((b) => [b.id, b.nom]));
+      const list = ((prods as PartnerProduct[]) || []).map((p) => ({
+        ...p, business_name: bizMap.get(p.business_id) || "—",
+      }));
+      setPartnerProducts(list);
     })();
-  }, [open, agentType]);
+  }, [open, agentType, partner?.id]);
 
   const resetAndClose = () => {
     setStep(0); setAgentName(""); setProducts([]); setKnowledge(""); setKnowledgeUrl("");
