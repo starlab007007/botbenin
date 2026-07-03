@@ -20,12 +20,19 @@ class LiveWhatsAppSession {
   final String? phone;
   final DateTime? createdAt;
 
-  bool get isWorking =>
-      status.toUpperCase() == 'WORKING' || status.toLowerCase() == 'connected';
+  /// WAHA has used several labels across engine and API versions.  All of
+  /// these mean that the WhatsApp account has completed authentication.
+  bool get isWorking => const {
+        'WORKING',
+        'AUTHENTICATED',
+        'READY',
+        'CONNECTED',
+      }.contains(status.toUpperCase());
 
   bool get needsQr => const {
         'SCAN_QR_CODE',
         'STARTING',
+        'CONNECTING',
         'STOPPED',
         'DISCONNECTED',
       }.contains(status.toUpperCase());
