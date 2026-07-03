@@ -1,427 +1,408 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8';
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface WAHASessionRequest {
-  action: 'create' | 'start' | 'stop' | 'status' | 'delete' | 'qr';
-  sessionName: string;
+const actions = new Set([
+  "create",
+  "start",
+  "stop",
+  "status",
+  "delete",
+  "qr",
+  "pair-code",
+]);
+
+type Action = "create" | "start" | "stop" | "status" | "delete" | "qr" | "pair-code";
+
+type RequestBody = {
+  action?: Action;
+  sessionName?: string;
   phoneNumber?: string;
+};
+
+type WahaCredentials = {
+  baseUrl: string;
+  apiKey?: string;
+  dashboardUser?: string;
+  dashboardPassword?: string;
+};
+
+const json = (payload: unknown, status = 200) =>
+  new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
+const mapOf = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+
+const textOf = (value: unknown) =>
+  typeof value === "string" ? value.trim() : value == null ? "" : String(value).trim();
+
+const cleanSessionName = (value: unknown) =>
+  textOf(value).replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 30);
+
+const normalizePhone = (value: unknown) => textOf(value).replace(/\D/g, "");
+
+const base64FromBytes = (bytes: Uint8Array) => {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+};
+
+async function payloadOf(response: Response): Promise<Record<string, unknown>> {
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    try {
+      return mapOf(await response.json());
+    } catch {
+      return {};
+    }
+  }
+  if (contentType.includes("image/")) {
+    const base64 = base64FromBytes(new Uint8Array(await response.arrayBuffer()));
+    return { qr: `data:image/png;base64,${base64}` };
+  }
+  const text = await response.text();
+  return { data: text };
 }
 
-interface WAHAResponse {
-  success: boolean;
-  data?: any;
-  error?: string;
-  qrCode?: string;
+async function errorOf(response: Response) {
+  try {
+    const payload = await payloadOf(response);
+    return textOf(payload.message ?? payload.error ?? payload.data) || response.statusText;
+  } catch {
+    return response.statusText;
+  }
+}
+
+function extractQr(payload: Record<string, unknown>): string | null {
+  const nested = mapOf(payload.data);
+  const candidate = payload.qr ?? payload.qrCode ?? payload.base64 ?? payload.image ??
+    payload.qrcode ?? nested.qr ?? nested.qrCode ?? nested.base64 ?? nested.image ?? nested.data ??
+    payload.data;
+  const value = textOf(candidate);
+  if (!value) return null;
+  if (value.startsWith("data:image") || value.startsWith("http://") || value.startsWith("https://")) {
+    return value;
+  }
+  if (/^[A-Za-z0-9+/=\r\n]+$/.test(value) && value.length > 80) {
+    return `data:image/png;base64,${value.replace(/\s+/g, "")}`;
+  }
+  return null;
+}
+
+function extractPairCode(payload: Record<string, unknown>): string | null {
+  const nested = mapOf(payload.data);
+  const candidate = payload.code ?? payload.pairingCode ?? payload.pairCode ??
+    nested.code ?? nested.pairingCode ?? nested.pairCode;
+  const value = textOf(candidate).replace(/\s+/g, "");
+  return value || null;
+}
+
+function statusOf(payload: Record<string, unknown>, fallback = "DISCONNECTED") {
+  return textOf(payload.status ?? payload.state ?? mapOf(payload.data).status ?? mapOf(payload.data).state) || fallback;
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") return json({ success: false, error: "Méthode non autorisée." }, 405);
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-
-    // Allow a safe default base URL to avoid missing config in dev
-    let wahaBaseUrl = Deno.env.get('WAHA_BASE_URL') || 'https://waha.bot.bj';
-    const wahaApiKey = Deno.env.get('WAHA_API_KEY')?.trim();
-    const wahaApiKeyPlain = Deno.env.get('WAHA_API_KEY_PLAIN')?.trim();
-    const wahaDashUser = Deno.env.get('WAHA_DASHBOARD_USERNAME');
-    const wahaDashPass = Deno.env.get('WAHA_DASHBOARD_PASSWORD');
-
-    // Validate required secrets - NO hardcoded fallbacks
-    if (!wahaDashUser || !wahaDashPass) {
-      console.error('Missing WAHA dashboard credentials in Supabase secrets');
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'WAHA dashboard credentials not configured',
-          details: {
-            WAHA_DASHBOARD_USERNAME: wahaDashUser ? 'SET' : 'MISSING',
-            WAHA_DASHBOARD_PASSWORD: wahaDashPass ? 'SET' : 'MISSING'
-          }
-        }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    const body = await req.json() as RequestBody;
+    const action = body.action;
+    const sessionName = cleanSessionName(body.sessionName);
+    if (!action || !actions.has(action)) {
+      return json({ success: false, error: "Action WAHA invalide." }, 400);
+    }
+    if (!sessionName) {
+      return json({ success: false, error: "Nom de session invalide." }, 400);
     }
 
-    // Clean base URL (remove trailing slash and /dashboard path)
-    if (wahaBaseUrl) {
-      wahaBaseUrl = wahaBaseUrl.replace(/\/$/, '').replace(/\/dashboard$/, '');
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+      return json({
+        success: false,
+        error: "Configuration Supabase incomplète pour la gestion des sessions.",
+      }, 500);
     }
 
-    // Debug logging for environment variables
-    console.log('Environment check:');
-    console.log('WAHA_BASE_URL:', wahaBaseUrl ? 'SET' : 'MISSING');
-    console.log('WAHA_API_KEY (hash or plain):', wahaApiKey ? 'SET' : 'MISSING');
-    console.log('WAHA_API_KEY_PLAIN:', wahaApiKeyPlain ? 'SET' : 'MISSING');
-    console.log('WAHA_DASHBOARD_USERNAME:', 'SET (from secrets)');
-    console.log('WAHA_DASHBOARD_PASSWORD:', 'SET (from secrets)');
+    const authorization = req.headers.get("authorization") || "";
+    const token = authorization.replace(/^Bearer\s+/i, "").trim();
+    if (!token) return json({ success: false, error: "Non authentifié." }, 401);
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const requester = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    const { data: userData, error: userError } = await requester.auth.getUser(token);
+    const user = userData.user;
+    if (userError || !user) return json({ success: false, error: "Token invalide." }, 401);
 
-    // Get user from authorization header
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Non authentifié' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    const { data: allowed, error: permissionError } = await requester.rpc("user_has_permission", {
+      user_uuid: user.id,
+      permission_name: "whatsapp.manage",
+    });
+    if (permissionError || allowed !== true) {
+      return json({
+        success: false,
+        error: "Permission whatsapp.manage requise pour gérer les sessions WhatsApp.",
+      }, 403);
     }
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
-
-    if (authError || !user) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Token invalide' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    const admin = createClient(supabaseUrl, serviceRoleKey);
+    const credentials: WahaCredentials = {
+      baseUrl: (Deno.env.get("WAHA_BASE_URL") || "https://waha.bot.bj")
+        .replace(/\/$/, "")
+        .replace(/\/dashboard$/, ""),
+      apiKey: Deno.env.get("WAHA_API_KEY_PLAIN")?.trim() || Deno.env.get("WAHA_API_KEY")?.trim(),
+      dashboardUser: Deno.env.get("WAHA_DASHBOARD_USERNAME")?.trim(),
+      dashboardPassword: Deno.env.get("WAHA_DASHBOARD_PASSWORD")?.trim(),
+    };
+    if (!credentials.apiKey && !(credentials.dashboardUser && credentials.dashboardPassword)) {
+      return json({
+        success: false,
+        error: "WAHA_API_KEY ou les identifiants du tableau de bord WAHA doivent être configurés dans Supabase Secrets.",
+      }, 500);
     }
 
-    // Check permission
-    const { data: hasPermission } = await supabase
-      .rpc('user_has_permission', {
-        user_uuid: user.id,
-        permission_name: 'whatsapp.manage'
-      });
-
-    if (!hasPermission) {
-      return new Response(
-        JSON.stringify({ 
-          success: false,
-          error: 'Permission refusée',
-          message: 'Vous n\'avez pas la permission de gérer les sessions WhatsApp'
-        }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const { action, sessionName, phoneNumber }: WAHASessionRequest = await req.json();
-
-    console.log(`WAHA ${action} request for session: ${sessionName}`);
-
-    // Dashboard authentication using HTTP Basic Auth (as indicated by www-authenticate: Basic)
-    const authenticateDashboard = async (): Promise<string | null> => {
+    let dashboardAuthorization: string | null | undefined;
+    const dashboardAuth = async () => {
+      if (dashboardAuthorization !== undefined) return dashboardAuthorization;
+      if (!credentials.dashboardUser || !credentials.dashboardPassword) {
+        dashboardAuthorization = null;
+        return dashboardAuthorization;
+      }
+      const basic = `Basic ${btoa(`${credentials.dashboardUser}:${credentials.dashboardPassword}`)}`;
       try {
-        console.log('Authenticating with WAHA dashboard using Basic Auth...');
-        
-        // Create Basic Auth header
-        const credentials = btoa(`${wahaDashUser}:${wahaDashPass}`);
-        const authHeader = `Basic ${credentials}`;
-        console.log('Using Basic Auth for user from secrets');
-        
-        // First, try to access dashboard to get session cookie
-        const dashboardUrl = `${wahaBaseUrl}/dashboard/`;
-        console.log('Accessing dashboard URL:', dashboardUrl);
-        
-        const res = await fetch(dashboardUrl, {
-          method: 'GET',
-          headers: { 
-            'Authorization': authHeader,
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'User-Agent': 'Mozilla/5.0 (compatible; WAHA-Client/1.0)'
-          },
-          redirect: 'manual'
+        const response = await fetch(`${credentials.baseUrl}/dashboard/`, {
+          headers: { Authorization: basic, Accept: "text/html,*/*" },
+          redirect: "manual",
         });
-        
-        console.log('Dashboard access response:', res.status, res.statusText);
-        console.log('Response headers:', Object.fromEntries(res.headers.entries()));
-        
-        if (res.status === 200) {
-          const cookie = res.headers.get('set-cookie');
-          console.log('Dashboard auth success with Basic Auth. Cookie available:', !!cookie);
-          if (cookie) {
-            console.log('Cookie preview:', cookie.substring(0, 100) + '...');
-          }
-          // For Basic Auth, we can also use the Authorization header directly
-          return cookie || authHeader;
-        } else {
-          console.log(`Dashboard Basic Auth failed: ${res.status} ${res.statusText}`);
-          return null;
-        }
-      } catch (e) {
-        console.log('Dashboard Basic Auth error:', e);
-        return null;
+        const cookie = response.headers.get("set-cookie")?.split(";")[0];
+        dashboardAuthorization = response.ok && cookie ? `Cookie ${cookie}` : basic;
+      } catch {
+        dashboardAuthorization = basic;
+      }
+      return dashboardAuthorization;
+    };
+
+    const wahaFetch = async (path: string, init: RequestInit = {}) => {
+      const headers: Record<string, string> = {
+        Accept: "application/json, image/*;q=0.9, */*;q=0.8",
+        ...(init.headers as Record<string, string> || {}),
+      };
+      if (init.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
+      if (credentials.apiKey) {
+        headers["X-Api-Key"] = credentials.apiKey;
+      } else {
+        const auth = await dashboardAuth();
+        if (auth?.startsWith("Cookie ")) headers.Cookie = auth.substring("Cookie ".length);
+        else if (auth) headers.Authorization = auth;
+      }
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25000);
+      try {
+        return await fetch(`${credentials.baseUrl}${path}`, {
+          ...init,
+          headers,
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
       }
     };
 
-    // Core request wrapper
-    const wahaFetch = async (endpoint: string, init: RequestInit = {}) => {
-      const url = `${wahaBaseUrl}${endpoint}`;
-      console.log('Attempting WAHA request:', url);
-
-      // Determine best available API key (plain preferred)
-      const plainKey = wahaApiKeyPlain?.length ? wahaApiKeyPlain : (wahaApiKey && !wahaApiKey.startsWith('sha512:') ? wahaApiKey : undefined);
-      const apiKeyHeaderNames = ['X-Api-Key', 'X-API-Key', 'x-api-key'];
-
-      // 1) Primary method: combine Dashboard auth (Basic or Cookie) WITH Api-Key if present
-      const dashAuth = await authenticateDashboard();
-      if (dashAuth) {
-        try {
-          const baseHeaders: Record<string, string> = {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            ...(init.headers || {})
-          };
-
-          // Inject dashboard auth
-          if (dashAuth.startsWith('Basic ')) {
-            baseHeaders['Authorization'] = dashAuth;
-            console.log('Using Basic Auth header');
-          } else {
-            baseHeaders['Cookie'] = dashAuth;
-            console.log('Using Cookie');
-          }
-
-          // Try with different Api-Key header casings if we have a key
-          if (plainKey) {
-            for (const hk of apiKeyHeaderNames) {
-              const headers = { ...baseHeaders, [hk]: plainKey };
-              const res = await fetch(url, { ...init, headers });
-              console.log(`Dashboard+ApiKey (${hk}) ->`, res.status, res.statusText);
-              if (res.ok || res.status !== 401) return res;
-            }
-          } else {
-            const res = await fetch(url, { ...init, headers: baseHeaders });
-            console.log('Dashboard auth call ->', res.status, res.statusText);
-            if (res.ok || res.status !== 401) return res;
-          }
-        } catch (e) {
-          console.log('Dashboard auth call error:', e);
-        }
-      }
-
-      // 2) Fallback: Api-Key only (no dashboard auth)
-      if (plainKey) {
-        for (const hk of apiKeyHeaderNames) {
-          try {
-            const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json', ...(init.headers || {}), [hk]: plainKey } as Record<string, string>;
-            const res = await fetch(url, { ...init, headers });
-            console.log(`API key variant (${hk}) ->`, res.status, res.statusText);
-            if (res.ok || res.status !== 401) return res;
-          } catch (e) {
-            console.log(`API key variant (${hk}) error:`, e);
-          }
-        }
-        // Some deployments accept Bearer token format
-        try {
-          const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json', ...(init.headers || {}), 'Authorization': `Bearer ${plainKey}` };
-          const res = await fetch(url, { ...init, headers });
-          console.log('API key variant (Bearer) ->', res.status, res.statusText);
-          if (res.ok || res.status !== 401) return res;
-        } catch (e) {
-          console.log('API key variant (Bearer) error:', e);
-        }
-      }
-
-      // 3) Last attempt without auth
-      console.log('All auth methods failed. Final unauthenticated attempt.');
-      return fetch(url, { ...init, headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', ...(init.headers || {}) } });
+    const webhookUrl = `${supabaseUrl}/functions/v1/waha-webhook`;
+    const upsertAccount = async (changes: Record<string, unknown>) => {
+      const { error } = await admin.from("whatsapp_accounts").upsert({
+        user_id: user.id,
+        session_name: sessionName,
+        webhook_url: webhookUrl,
+        last_activity: new Date().toISOString(),
+        ...changes,
+      }, { onConflict: "user_id,session_name" });
+      if (error) throw new Error(`Synchronisation Supabase impossible: ${error.message}`);
     };
-    let wahaResponse: WAHAResponse = { success: false };
-    switch (action) {
-      case 'create': {
-        console.log('Creating WAHA session...');
-        const res = await wahaFetch(`/api/sessions/`, {
-          method: 'POST',
+
+    const encodedSession = encodeURIComponent(sessionName);
+
+    if (action === "create") {
+      const candidates = ["/api/sessions", "/api/v2/sessions"];
+      let lastError = "";
+      for (const path of candidates) {
+        const response = await wahaFetch(path, {
+          method: "POST",
           body: JSON.stringify({
             name: sessionName,
             config: {
-              webhooks: [
-                { url: `${supabaseUrl}/functions/v1/waha-webhook`, events: ['message', 'message.any', 'message.ack', 'message.reaction', 'session.status'] },
-              ],
+              webhooks: [{
+                url: webhookUrl,
+                events: ["message", "message.any", "message.ack", "message.reaction", "session.status"],
+              }],
             },
           }),
         });
-
-        if (res.ok) {
-          const sessionData = await res.json();
-          console.log('Session created:', sessionData);
-          const { error: dbError } = await supabase.from('whatsapp_accounts').upsert({
-            user_id: user.id,
-            session_name: sessionName,
-            phone_number: phoneNumber,
-            status: 'disconnected',
-            webhook_url: `${supabaseUrl}/functions/v1/waha-webhook`,
-            waha_session_data: sessionData,
-            last_activity: new Date().toISOString(),
+        const payload = await payloadOf(response);
+        if (response.ok || response.status === 409) {
+          await upsertAccount({
+            status: statusOf(payload),
+            waha_session_data: payload,
           });
-          if (dbError) throw dbError;
-          wahaResponse = { success: true, data: sessionData };
-        } else if (res.status === 409) {
-          wahaResponse = { success: true, data: { name: sessionName, status: 'existing' } };
-        } else {
-          const txt = await res.text();
-          console.error('WAHA create failed:', res.status, txt);
-          wahaResponse = { success: false, error: `WAHA create failed: ${txt}` };
+          return json({ success: true, data: payload, existing: response.status === 409 });
         }
-        break;
+        lastError = `${path}: ${response.status} ${textOf(payload.message ?? payload.error ?? payload.data)}`;
       }
-
-      case 'start': {
-        console.log('Starting session...');
-        const res = await wahaFetch(`/api/sessions/${sessionName}/start`, { method: 'POST' });
-        if (res.ok) {
-          const data = await res.json();
-          await supabase.from('whatsapp_accounts').update({ status: 'connecting', last_activity: new Date().toISOString() })
-            .eq('user_id', user.id).eq('session_name', sessionName);
-          wahaResponse = { success: true, data };
-        } else {
-          const txt = await res.text();
-          console.error('WAHA start failed:', res.status, txt);
-          wahaResponse = { success: false, error: `WAHA start failed: ${txt}` };
-        }
-        break;
-      }
-
-      case 'qr': {
-        console.log('Fetching QR...');
-        
-        // Essayer plusieurs endpoints QR (docs: POST /api/{session}/auth/qr)
-        const qrEndpoints: { path: string; method: 'POST' | 'GET' }[] = [
-          // Recommandé par la doc (priorité)
-          { path: `/api/${sessionName}/auth/qr`, method: 'POST' },
-          { path: `/api/${sessionName}/auth/qr?format=base64`, method: 'POST' },
-          { path: `/api/v2/${sessionName}/auth/qr`, method: 'POST' },
-          { path: `/api/v2/${sessionName}/auth/qr?format=base64`, method: 'POST' },
-          // Anciennes variantes en fallback (GET)
-          { path: `/api/sessions/${sessionName}/auth/qr?format=base64`, method: 'GET' },
-          { path: `/api/sessions/${sessionName}/auth/qr`, method: 'GET' },
-          { path: `/api/sessions/${sessionName}/qr?format=base64`, method: 'GET' },
-          { path: `/api/sessions/${sessionName}/qr`, method: 'GET' },
-          { path: `/api/v2/sessions/${sessionName}/auth/qr?format=base64`, method: 'GET' },
-          { path: `/api/v2/sessions/${sessionName}/auth/qr`, method: 'GET' },
-          { path: `/api/v2/sessions/${sessionName}/qr?format=base64`, method: 'GET' },
-          { path: `/api/v2/sessions/${sessionName}/qr`, method: 'GET' },
-        ];
-        
-        let qrSuccess = false;
-        let lastError: string | null = null;
-        
-        for (const endpoint of qrEndpoints) {
-          try {
-            console.log(`Trying QR endpoint: ${endpoint.path} (${endpoint.method})`);
-            const res = await wahaFetch(endpoint.path, { method: endpoint.method });
-            const ct = res.headers.get('content-type') || '';
-            
-            if (res.ok) {
-              let qrCode: string | undefined;
-              let data: any = {};
-
-              if (ct.includes('application/json')) {
-                data = await res.json();
-                qrCode = data.qr || data.base64 || data.image || data.qrcode;
-              } else if (ct.includes('image/png')) {
-                const buf = await res.arrayBuffer();
-                const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-                qrCode = `data:image/png;base64,${b64}`;
-                data = { base64: b64 };
-              } else {
-                const txt = await res.text();
-                // Might already be a data URL or raw base64
-                if (txt.startsWith('data:image')) qrCode = txt.trim();
-                else if (/^[A-Za-z0-9+/=\n\r]+$/.test(txt.trim()) && txt.trim().length > 100) {
-                  qrCode = `data:image/png;base64,${txt.trim().replace(/\s+/g,'')}`;
-                } else {
-                  data = { data: txt };
-                }
-              }
-              
-              if (qrCode) {
-                await supabase.from('whatsapp_accounts').update({ 
-                  qr_code: qrCode, 
-                  last_activity: new Date().toISOString() 
-                }).eq('user_id', user.id).eq('session_name', sessionName);
-                
-                wahaResponse = { success: true, data, qrCode };
-                qrSuccess = true;
-                break;
-              }
-            } else {
-              const txt = await res.text();
-              lastError = `${endpoint.path}: ${res.status} ${txt}`;
-              console.warn(`QR endpoint ${endpoint.path} failed: ${res.status} ${txt}`);
-            }
-          } catch (e: any) {
-            lastError = `${endpoint.path}: ${e.message}`;
-            console.warn(`QR endpoint ${endpoint.path} error:`, e);
-          }
-        }
-        
-        if (!qrSuccess) {
-          console.error('❌ All QR endpoints failed. Last error:', lastError);
-          wahaResponse = { success: false, error: `QR fetch failed: ${lastError || 'All endpoints failed'}` };
-        }
-        break;
-      }
-
-      case 'status': {
-        const res = await wahaFetch(`/api/sessions/${sessionName}`, { method: 'GET' });
-        if (res.ok) {
-          const data = await res.json();
-          await supabase.from('whatsapp_accounts').update({
-            status: data.status || 'disconnected',
-            waha_session_data: data,
-            last_activity: new Date().toISOString(),
-          }).eq('user_id', user.id).eq('session_name', sessionName);
-          wahaResponse = { success: true, data };
-        } else {
-          const txt = await res.text();
-          console.error('Status failed:', res.status, txt);
-          wahaResponse = { success: false, error: 'Session not found' };
-        }
-        break;
-      }
-
-      case 'stop': {
-        const res = await wahaFetch(`/api/sessions/${sessionName}/stop`, { method: 'POST' });
-        if (res.ok) {
-          await supabase.from('whatsapp_accounts').update({ status: 'disconnected', qr_code: null, last_activity: new Date().toISOString() })
-            .eq('user_id', user.id).eq('session_name', sessionName);
-          wahaResponse = { success: true };
-        } else {
-          const txt = await res.text();
-          console.error('Stop failed:', res.status, txt);
-          wahaResponse = { success: false, error: `WAHA stop failed: ${txt}` };
-        }
-        break;
-      }
-
-      case 'delete': {
-        const res = await wahaFetch(`/api/sessions/${sessionName}`, { method: 'DELETE' });
-        if (res.ok) {
-          await supabase.from('whatsapp_accounts').delete().eq('user_id', user.id).eq('session_name', sessionName);
-          wahaResponse = { success: true };
-        } else {
-          const txt = await res.text();
-          console.error('Delete failed:', res.status, txt);
-          wahaResponse = { success: false, error: `WAHA delete failed: ${txt}` };
-        }
-        break;
-      }
-
-      default:
-        throw new Error(`Unknown action: ${action}`);
+      return json({ success: false, error: `Création WAHA impossible. ${lastError}` }, 502);
     }
 
-    return new Response(JSON.stringify(wahaResponse), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    if (action === "start") {
+      const candidates = [
+        `/api/sessions/${encodedSession}/start`,
+        `/api/v2/sessions/${encodedSession}/start`,
+      ];
+      let lastError = "";
+      for (const path of candidates) {
+        const response = await wahaFetch(path, { method: "POST", body: JSON.stringify({}) });
+        const payload = await payloadOf(response);
+        if (response.ok || response.status === 409) {
+          await upsertAccount({ status: "connecting", waha_session_data: payload });
+          return json({ success: true, data: payload });
+        }
+        lastError = `${path}: ${response.status} ${textOf(payload.message ?? payload.error ?? payload.data)}`;
+      }
+      return json({ success: false, error: `Démarrage WAHA impossible. ${lastError}` }, 502);
+    }
 
+    if (action === "status") {
+      const candidates = [
+        `/api/sessions/${encodedSession}`,
+        `/api/v2/sessions/${encodedSession}`,
+      ];
+      let lastError = "";
+      for (const path of candidates) {
+        const response = await wahaFetch(path, { method: "GET" });
+        const payload = await payloadOf(response);
+        if (response.ok) {
+          await upsertAccount({
+            status: statusOf(payload),
+            phone_number: textOf(mapOf(payload.config).metadata && mapOf(mapOf(payload.config).metadata).phone_number) || null,
+            waha_session_data: payload,
+          });
+          return json({ success: true, data: payload });
+        }
+        lastError = `${path}: ${response.status} ${textOf(payload.message ?? payload.error ?? payload.data)}`;
+      }
+      return json({ success: false, error: `Lecture du statut WAHA impossible. ${lastError}` }, 502);
+    }
+
+    if (action === "qr") {
+      const candidates: { path: string; method: "GET" | "POST" }[] = [
+        { path: `/api/${encodedSession}/auth/qr`, method: "POST" },
+        { path: `/api/${encodedSession}/auth/qr?format=base64`, method: "POST" },
+        { path: `/api/v2/${encodedSession}/auth/qr`, method: "POST" },
+        { path: `/api/v2/${encodedSession}/auth/qr?format=base64`, method: "POST" },
+        { path: `/api/sessions/${encodedSession}/auth/qr?format=base64`, method: "GET" },
+        { path: `/api/sessions/${encodedSession}/qr?format=base64`, method: "GET" },
+      ];
+      let lastError = "";
+      for (const candidate of candidates) {
+        const response = await wahaFetch(candidate.path, {
+          method: candidate.method,
+          ...(candidate.method === "POST" ? { body: JSON.stringify({}) } : {}),
+        });
+        const payload = await payloadOf(response);
+        const qrCode = response.ok ? extractQr(payload) : null;
+        if (qrCode) {
+          await upsertAccount({ qr_code: qrCode, status: "connecting" });
+          return json({ success: true, data: payload, qrCode });
+        }
+        lastError = `${candidate.path}: ${response.status} ${textOf(payload.message ?? payload.error ?? payload.data)}`;
+      }
+      return json({ success: false, error: `QR indisponible. ${lastError}` }, 502);
+    }
+
+    if (action === "pair-code") {
+      const phoneNumber = normalizePhone(body.phoneNumber);
+      if (phoneNumber.length < 8) {
+        return json({ success: false, error: "Numéro international invalide." }, 400);
+      }
+      const candidates = [
+        { path: `/api/${encodedSession}/auth/request-code`, body: { phoneNumber } },
+        { path: `/api/${encodedSession}/auth/request-code`, body: { phone: phoneNumber } },
+        { path: `/api/v2/${encodedSession}/auth/request-code`, body: { phoneNumber } },
+        { path: `/api/sessions/${encodedSession}/auth/request-code`, body: { phoneNumber } },
+      ];
+      let lastError = "";
+      for (const candidate of candidates) {
+        const response = await wahaFetch(candidate.path, {
+          method: "POST",
+          body: JSON.stringify(candidate.body),
+        });
+        const payload = await payloadOf(response);
+        const code = response.ok ? extractPairCode(payload) : null;
+        if (code) {
+          const rawExpiry = payload.expires_in ?? payload.expiresIn ?? mapOf(payload.data).expires_in ?? 300;
+          const expiresIn = Number.isFinite(Number(rawExpiry)) ? Number(rawExpiry) : 300;
+          await upsertAccount({ status: "connecting" });
+          return json({ success: true, data: payload, code, expires_in: expiresIn });
+        }
+        lastError = `${candidate.path}: ${response.status} ${textOf(payload.message ?? payload.error ?? payload.data)}`;
+      }
+      return json({ success: false, error: `Code de liaison indisponible. ${lastError}` }, 502);
+    }
+
+    if (action === "stop") {
+      const candidates = [
+        `/api/sessions/${encodedSession}/stop`,
+        `/api/v2/sessions/${encodedSession}/stop`,
+      ];
+      let lastError = "";
+      for (const path of candidates) {
+        const response = await wahaFetch(path, { method: "POST", body: JSON.stringify({}) });
+        const payload = await payloadOf(response);
+        if (response.ok) {
+          await upsertAccount({ status: "disconnected", qr_code: null, waha_session_data: payload });
+          return json({ success: true, data: payload });
+        }
+        lastError = `${path}: ${response.status} ${textOf(payload.message ?? payload.error ?? payload.data)}`;
+      }
+      return json({ success: false, error: `Arrêt WAHA impossible. ${lastError}` }, 502);
+    }
+
+    if (action === "delete") {
+      const candidates = [
+        `/api/sessions/${encodedSession}`,
+        `/api/v2/sessions/${encodedSession}`,
+      ];
+      let lastError = "";
+      for (const path of candidates) {
+        const response = await wahaFetch(path, { method: "DELETE" });
+        if (response.ok || response.status === 404) {
+          const { error } = await admin.from("whatsapp_accounts")
+            .delete()
+            .eq("user_id", user.id)
+            .eq("session_name", sessionName);
+          if (error) throw new Error(`Suppression Supabase impossible: ${error.message}`);
+          return json({ success: true });
+        }
+        lastError = `${path}: ${response.status} ${await errorOf(response)}`;
+      }
+      return json({ success: false, error: `Suppression WAHA impossible. ${lastError}` }, 502);
+    }
+
+    return json({ success: false, error: "Action WAHA non prise en charge." }, 400);
   } catch (error) {
-    console.error('WAHA session manager error:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: (error as { message?: string }).message || 'Unknown error' }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.error("waha-session-manager error", error);
+    const message = error instanceof Error ? error.message : "Erreur inconnue";
+    return json({ success: false, error: message }, 500);
   }
 });
