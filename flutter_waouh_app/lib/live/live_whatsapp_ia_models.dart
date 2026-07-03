@@ -9,19 +9,21 @@ class LiveWhatsAppIaException implements Exception {
 
 class LiveWhatsAppSession {
   const LiveWhatsAppSession({
+    this.id = '',
     required this.name,
     required this.status,
+    this.wahaSessionName,
     this.phone,
     this.createdAt,
   });
 
+  final String id;
   final String name;
+  final String? wahaSessionName;
   final String status;
   final String? phone;
   final DateTime? createdAt;
 
-  /// WAHA has used several labels across engine and API versions.  All of
-  /// these mean that the WhatsApp account has completed authentication.
   bool get isWorking => const {
         'WORKING',
         'AUTHENTICATED',
@@ -50,7 +52,9 @@ class LiveWhatsAppSession {
 
   factory LiveWhatsAppSession.fromDatabase(Map<String, dynamic> row) =>
       LiveWhatsAppSession(
+        id: '${row['id'] ?? ''}',
         name: '${row['session_name'] ?? ''}',
+        wahaSessionName: row['waha_session_name']?.toString(),
         status: '${row['status'] ?? 'STOPPED'}',
         phone: row['phone_number']?.toString(),
         createdAt: DateTime.tryParse('${row['created_at'] ?? ''}')?.toLocal(),
@@ -65,6 +69,7 @@ class LiveWhatsAppSession {
         : const <String, dynamic>{};
     return LiveWhatsAppSession(
       name: '${row['name'] ?? row['session_name'] ?? ''}',
+      wahaSessionName: '${row['name'] ?? row['waha_session_name'] ?? ''}',
       status: '${row['status'] ?? 'DISCONNECTED'}',
       phone: metadata['phone_number']?.toString() ??
           metadata['account']?.toString(),
