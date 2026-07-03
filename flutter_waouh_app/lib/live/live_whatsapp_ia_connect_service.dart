@@ -7,8 +7,8 @@ class LiveWhatsAppIaConnectService {
 
   final SupabaseClient client;
 
-  Future<String> fetchQr({required String accountId}) async {
-    final data = await _call({'action': 'qr', 'accountId': accountId});
+  Future<String> fetchQr(String sessionName) async {
+    final data = await _call({'action': 'qr', 'sessionName': sessionName});
     final nested = _map(data['data']);
     final candidate = data['qrCode'] ??
         data['qr'] ??
@@ -23,7 +23,7 @@ class LiveWhatsAppIaConnectService {
   }
 
   Future<LivePairCode> pairingCode({
-    required String accountId,
+    required String sessionName,
     required String phone,
   }) async {
     final digits = phone.replaceAll(RegExp(r'[^0-9]'), '');
@@ -35,7 +35,7 @@ class LiveWhatsAppIaConnectService {
 
     final data = await _call({
       'action': 'pair-code',
-      'accountId': accountId,
+      'sessionName': sessionName,
       'phoneNumber': digits,
     });
     final nested = _map(data['data']);
