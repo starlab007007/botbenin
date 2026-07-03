@@ -19,7 +19,11 @@ class LiveWhatsAppIaConnectService {
       final nested = gateway.map(root['data']);
       final candidate = root['qrCode'] ?? root['qr'] ?? nested['qr'] ?? nested['base64'] ?? nested['data'];
       if (candidate is String && candidate.trim().isNotEmpty) return candidate.trim();
-    } catch (_) {
+      if (root['success'] == false) {
+        throw LiveWhatsAppIaException('${root['error'] ?? 'QR indisponible.'}');
+      }
+    } catch (error) {
+      if (error is LiveWhatsAppIaException) rethrow;
       // Dashboard proxy keeps compatibility with several WAHA QR APIs.
     }
 
@@ -42,19 +46,28 @@ class LiveWhatsAppIaConnectService {
         'Numéro invalide. Utilisez le format international, par exemple 22990000000.',
       );
     }
-    final response = await client.functions.invoke('waha-connect', body: {
+
+    final response = await client.functions.invoke('waha-session-manager', body: {
       'action': 'pair-code',
       'sessionName': sessionName,
       'phoneNumber': digits,
     });
-    final data = gateway.map(response.data);
-    final code = '${data['code'] ?? ''}'.trim();
-    if (code.isEmpty) {
-      throw LiveWhatsAppIaException('${data['error'] ?? 'Code de liaison introuvable.'}');
+    final root = gateway.map(response.data);
+    if (root['success'] != true) {
+      throw LiveWhatsAppIaException(
+        '${root['error'] ?? 'Code de liaison introuvable.'}',
+      );
     }
-    final expires = data['expires_in'] is int
-        ? data['expires_in'] as int
-        : int.tryParse('${data['expires_in'] ?? ''}') ?? 300;
+
+    final nested = gateway.map(root['data']);
+    final code = '${root['code'] ?? nested['code'] ?? nested['pairingCode'] ?? nested['pairCode'] ?? ''}'.trim();
+    if (code.isEmpty) {
+      throw const LiveWhatsAppIaException('Code de liaison introuvable.');
+    }
+    final rawExpiry = root['expires_in'] ?? nested['expires_in'] ?? nested['expiresIn'];
+    final expires = rawExpiry is int
+        ? rawExpiry
+        : int.tryParse('$rawExpiry') ?? 300;
     return LivePairCode(code: code, expiresIn: expires);
   }
 }
