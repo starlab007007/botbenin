@@ -239,7 +239,37 @@ export default function StockAgentDashboard() {
             <Button className="w-full" onClick={doMovement}>Confirmer</Button>
           </div>
         </DialogContent>
+      <Dialog open={showImport} onOpenChange={setShowImport}>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto max-w-[92vw]">
+          <DialogHeader><DialogTitle>Importer des produits</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">Colonnes reconnues : <b>nom</b>, sku, <b>quantité</b>, seuil, <b>prix</b> (FCFA).</p>
+
+            <div>
+              <Label className="text-sm mb-2 block flex items-center gap-2"><Upload className="h-4 w-4" /> Fichier CSV / Excel</Label>
+              <label className="block cursor-pointer">
+                <div className={`border-2 border-dashed rounded-lg p-4 text-center ${importing ? "opacity-50" : "hover:border-primary/50"}`}>
+                  <Upload className="h-6 w-6 mx-auto mb-1 text-muted-foreground" />
+                  <div className="text-sm">Cliquez pour choisir</div>
+                  <div className="text-xs text-muted-foreground">CSV, XLSX, XLS</div>
+                </div>
+                <input type="file" accept=".csv,.xlsx,.xls" className="hidden" disabled={importing} onChange={(e) => { const f = e.target.files?.[0]; if (f) importFile(f); }} />
+              </label>
+            </div>
+
+            <div className="relative"><div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div><div className="relative flex justify-center text-xs"><span className="bg-background px-2 text-muted-foreground">ou</span></div></div>
+
+            <div className="space-y-2">
+              <Label className="text-sm flex items-center gap-2"><FileSpreadsheet className="h-4 w-4" /> Google Sheet (lecture publique)</Label>
+              <Input placeholder="https://docs.google.com/spreadsheets/d/…" value={importUrl} onChange={e => setImportUrl(e.target.value)} />
+              <Button className="w-full" onClick={importGoogleSheet} disabled={importing || !importUrl}>
+                {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Importer depuis Google Sheet
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
       </Dialog>
     </div>
   );
 }
+
