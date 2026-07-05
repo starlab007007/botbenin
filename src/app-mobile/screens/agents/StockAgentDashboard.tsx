@@ -239,7 +239,10 @@ export default function StockAgentDashboard() {
             <Button className="w-full" onClick={doMovement}>Confirmer</Button>
           </div>
         </DialogContent>
+      </Dialog>
+
       <Dialog open={showImport} onOpenChange={setShowImport}>
+
         <DialogContent className="max-h-[90dvh] overflow-y-auto max-w-[92vw]">
           <DialogHeader><DialogTitle>Importer des produits</DialogTitle></DialogHeader>
           <div className="space-y-4">
