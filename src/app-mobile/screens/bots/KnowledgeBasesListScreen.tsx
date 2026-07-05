@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Database, Plus, Sparkles } from 'lucide-react';
+import { Database, Plus, Sparkles, BarChart3, Package, MapPin, MessageSquareText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useMobileAuth } from '../../hooks/useMobileAuth';
 import { useKnowledgeBases } from '@/hooks/useKnowledgeBases';
