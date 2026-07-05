@@ -23,8 +23,14 @@ export default function StockAgentDashboard() {
   const [showImport, setShowImport] = useState(false);
   const [importUrl, setImportUrl] = useState("");
   const [importing, setImporting] = useState(false);
+  const [importPreview, setImportPreview] = useState<any[] | null>(null);
+  const [importRawHeaders, setImportRawHeaders] = useState<string[]>([]);
   const [showMove, setShowMove] = useState<any>(null);
-  const [form, setForm] = useState({ name: "", sku: "", quantity: "0", threshold_low: "5", unit_price_fcfa: "0" });
+  const [form, setForm] = useState({
+    name: "", sku: "", barcode: "", category: "", unit: "unité",
+    quantity: "0", threshold_low: "5", unit_price_fcfa: "0", cost_price_fcfa: "0",
+    supplier: "", description: "",
+  });
   const [moveQty, setMoveQty] = useState("1");
   const [moveType, setMoveType] = useState<"in" | "out">("in");
 
