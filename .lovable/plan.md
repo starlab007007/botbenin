@@ -1,95 +1,122 @@
+# Plan : 3 nouveaux agents IA intelligents
 
-## Diagnostic
+Ajouter dans le wizard "Créer mon agent IA" trois nouveaux types spécialisés, chacun avec parcours dédié, backend Supabase, et fonctionnement de bout en bout.
 
-Ton org Supabase a dépassé **8.63 GB / 5.5 GB** d'egress (bande passante sortante). Ce n'est **pas** un problème de stockage disque ni de nombre de projets — c'est le trafic sortant.
+## 1. Agent IA BI / Visualisation de données 📊
 
-- `N'Dali Talent Cloud` est déjà **en pause** → il ne consomme rien. **Le supprimer ne changera rien** au quota.
-- Tout l'egress vient de **Bot.Bj**. Le supprimer casserait bot.bj — mauvaise option.
+**Objectif** : analyser un Google Sheet, Excel, CSV ou URL de données et générer graphiques + insights en langage naturel.
 
-### Sources d'egress identifiées (Bot.Bj)
+**Parcours utilisateur** :
+1. Choix source : Google Sheet (URL), upload Excel/CSV, ou URL JSON/API publique
+2. Aperçu auto des colonnes détectées + suggestion du type d'analyse
+3. Chat IA : "montre-moi les ventes par mois", "quel est le top 5 produits ?"
+4. Rendu : tableaux, bar/line/pie charts (Recharts), KPI cards, résumé narratif
 
-1. **Realtime WebSocket** — dominant dans les logs (`/realtime/v1/websocket` = 598 connexions sur 30j). Chaque abonnement `postgres_changes` renvoie tous les payloads INSERT/UPDATE aux clients connectés → forte bande passante.
-2. **Storage** — ~700 MB de fichiers servis publiquement, dont :
-   - `waouh-media` : 262 MB (423 fichiers)
-   - `waouh-uploads` : 131 MB
-   - `video-assets` : 90 MB
-   - `visual-assets` : 56 MB
-   Chaque téléchargement = egress.
-3. **Tables gonflées inutilement** (queries REST plus lourdes) :
-   - `net._http_response` 120 MB (cache pg_net jamais purgé)
-   - `cron.job_run_details` 73 MB (logs cron)
-   - `waouh_trace_events` 63 MB (debug)
-   - `whatsapp_messages` 35 MB, `video_frames` 31 MB, `access_logs` 4 MB
+**Backend** :
+- Nouvelle table `waouh_bi_datasources` (source_type, url, sheet_id, file_path, schema jsonb, user_id, agent_id)
+- Table `waouh_bi_queries` (agent_id, question, sql_or_spec jsonb, chart_type, result_cache jsonb)
+- Edge function `waouh-bi-ingest` : télécharge/parse la source, extrait schéma, échantillonne 100 lignes
+- Edge function `waouh-bi-query` : envoie schéma + question à Gemini 2.5 → renvoie spec `{chart_type, x, y, aggregation, filters, summary}`
+- Bucket storage `bi-datasets` pour fichiers Excel/CSV uploadés
 
----
+**Frontend** :
+- Écran `BiAgentWizard.tsx` (source → aperçu → chat)
+- Composant `BiChartRenderer.tsx` (Recharts : bar/line/pie/area/kpi/table)
+- Composant `BiChatPanel.tsx` (questions naturelles + historique)
 
-## Ce qu'il faut faire (par ordre d'impact)
+## 2. Agent IA Gestion de Stock 📦
 
-### A. Actions immédiates pour tenir jusqu'au 14 juillet
+**Objectif** : suivi intelligent des stocks avec alertes, prévisions, recommandations de réappro.
 
-1. **NE PAS supprimer N'Dali** (déjà en pause, aucun gain).
-2. **Réduire massivement le Realtime** (impact #1 sur l'egress) :
-   - Auditer tous les `supabase.channel(...).on('postgres_changes', ...)` et : (a) filtrer par `filter: 'user_id=eq.<id>'` pour n'écouter que les lignes pertinentes, (b) retirer les channels des composants qui restent montés en arrière-plan (dashboards admin, pages non actives).
-   - Cibles prioritaires repérées dans le code : `useAiAgents`, `useGlobalChatSync`, listeners sur `waouh_messages`, `waouh_notifications`, `waouh_outbound_queue`.
-   - Retirer `waouh_trace_events`, `access_logs`, `waouh_outbound_queue` de la publication `supabase_realtime` si présents.
-3. **Purger les tables lourdes** via migration (gain : requêtes plus légères + moins d'egress DB) :
-   - `DELETE FROM net._http_response WHERE created < now() - interval '2 days';`
-   - `DELETE FROM cron.job_run_details WHERE end_time < now() - interval '3 days';`
-   - `TRUNCATE public.waouh_trace_events;` (debug uniquement)
-   - `DELETE FROM public.access_logs WHERE created_at < now() - interval '7 days';`
-   - Ajouter des jobs cron quotidiens pour maintenir ces tables petites.
-4. **Storage : arrêter de servir les gros médias depuis Supabase**
-   - Migrer les assets statiques (logo, images marketing, visuels UI) vers **Lovable Assets / CDN** (`lovable-assets create`) — ils ne consommeront plus d'egress Supabase.
-   - Compresser les images utilisateur uploadées (WebP < 200 KB) côté client avant upload.
-   - Ajouter `Cache-Control: public, max-age=31536000` sur les buckets publics pour que les CDN cachent.
+**Parcours utilisateur** :
+1. Import initial : Google Sheet, Excel, ou saisie manuelle des produits (nom, SKU, stock, seuil, prix)
+2. Dashboard : niveau actuel, ruptures, rotation, valeur totale stock
+3. Actions rapides : entrée/sortie de stock, ajustement inventaire
+4. Chat IA expert : "quels produits vont bientôt manquer ?", "propose une commande fournisseur"
+5. Alertes WhatsApp automatiques quand stock < seuil (via `waouh-outbound-queue`)
 
-### B. Ce qu'il NE faut PAS supprimer
-- Aucune table métier (`waouh_users`, `waouh_messages`, `waouh_deals`, `waouh_partner_products`, etc.) : elles ne pèsent presque rien et sont critiques.
-- Aucune edge function (10 invocations sur 7j → négligeable).
+**Backend** :
+- Table `waouh_stock_items` (agent_id, sku, name, quantity, threshold_low, unit_price_fcfa, category, supplier, updated_at)
+- Table `waouh_stock_movements` (item_id, type: in/out/adjust, quantity, reason, user_id, created_at)
+- Table `waouh_stock_alerts` (item_id, level: low/critical/out, notified_at, whatsapp_msisdn)
+- Edge function `waouh-stock-analyze` : calcule rotation, prédit ruptures via Gemini, propose commandes
+- Edge function `waouh-stock-alert` : cron toutes les 6h, détecte seuils, pousse dans `waouh_outbound_queue`
 
-### C. Solution durable
-- **Passer au plan Pro** (250 GB egress inclus) — seule vraie solution si le trafic bot.bj continue à croître. Le plan gratuit à 5.5 GB sera à nouveau atteint sous ~30 jours.
+**Frontend** :
+- Écran `StockAgentDashboard.tsx` (KPI + tableau + graphiques)
+- Composant `StockMovementDialog.tsx` (entrée/sortie rapide)
+- Composant `StockAiInsights.tsx` (recommandations IA)
 
----
+## 3. Agent IA Présence par QR géolocalisé 📍
 
-## Détails techniques (implémentation si tu approuves)
+**Objectif** : QR affiché sur site, valide uniquement dans un rayon de 50 m, notification WhatsApp à l'employeur pour arrivée/pause/sortie.
 
-**Migration de purge + cron auto-nettoyage** :
-```sql
--- Purge immédiate
-DELETE FROM net._http_response WHERE created < now() - interval '2 days';
-DELETE FROM cron.job_run_details WHERE end_time < now() - interval '3 days';
-TRUNCATE public.waouh_trace_events;
-DELETE FROM public.access_logs WHERE created_at < now() - interval '7 days';
+**Parcours création** :
+1. Nom du poste/site + adresse (auto-géocodage → lat/lng)
+2. Rayon autorisé (défaut 50 m, ajustable 20–200 m)
+3. Numéro WhatsApp employeur pour notifications
+4. Liste des employés (nom, téléphone) — import manuel ou via Google Sheet
+5. Génération QR (URL signée vers `/checkin/:token`)
+6. Téléchargement / impression du QR
 
--- Cron quotidien
-SELECT cron.schedule('purge-logs-daily','0 3 * * *', $$
-  DELETE FROM net._http_response WHERE created < now() - interval '2 days';
-  DELETE FROM cron.job_run_details WHERE end_time < now() - interval '3 days';
-  DELETE FROM public.access_logs WHERE created_at < now() - interval '7 days';
-  DELETE FROM public.waouh_trace_events WHERE created_at < now() - interval '1 day';
-$$);
+**Parcours employé (scan)** :
+1. Scan → page publique `/checkin/:token`
+2. Demande géolocalisation navigateur
+3. Vérifie distance ≤ rayon (Haversine côté serveur)
+4. Sélection nom dans liste
+5. Vérification n° portable (dernier 4 chiffres ou OTP court)
+6. Choix action : Arrivée / Pause / Retour de pause / Sortie
+7. Confirmation → message WhatsApp envoyé à l'employeur + confirmation employé
 
--- Retirer tables bruyantes du realtime
-ALTER PUBLICATION supabase_realtime DROP TABLE public.waouh_trace_events;
-ALTER PUBLICATION supabase_realtime DROP TABLE public.access_logs;
-ALTER PUBLICATION supabase_realtime DROP TABLE public.waouh_outbound_queue;
-```
+**Backend** :
+- Table `waouh_attendance_sites` (agent_id, name, address, lat, lng, radius_m, employer_msisdn, qr_token, active)
+- Table `waouh_attendance_employees` (site_id, full_name, msisdn, employee_code, active)
+- Table `waouh_attendance_events` (site_id, employee_id, action: arrival/break_start/break_end/departure, lat, lng, distance_m, verified_at, notification_sent)
+- Edge function `waouh-attendance-checkin` (public, validation géo + insertion + notification)
+- Edge function `waouh-attendance-notify` : formate message WhatsApp et envoie via `waouh-outbound-queue`
+- RLS : sites/employés = propriétaire uniquement ; events = insert public via edge function service_role
 
-**Audit Realtime frontend** : ajouter des `filter:` ciblés sur chaque `.on('postgres_changes', ...)` et supprimer les abonnements globaux dans les hooks `useAiAgents`, `useGlobalChatSync`, `useWaouhInbox`, `useNotifications`.
+**Frontend** :
+- Écran création `AttendanceAgentWizard.tsx`
+- Écran gestion `AttendanceDashboard.tsx` (sites, employés, historique événements, export)
+- Page publique `CheckinPage.tsx` (route `/checkin/:token`, sans auth)
+- Composant `QrCodePrintable.tsx` (QR + logo + instructions imprimables)
 
-**Migration assets** : script `lovable-assets create --file ...` pour les logos WAOUH et illustrations statiques déjà dans `waouh-media`.
+## 4. Intégration dans le wizard existant
 
----
+Modifier `CreateBotWizard.tsx` (mobile) et l'équivalent desktop pour ajouter à l'étape "type d'agent" :
+- 📊 Agent BI / Analytics
+- 📦 Gestion Stock
+- 📍 Présence QR
 
-## Réponse directe à ta question
+Chaque choix redirige vers son wizard dédié au lieu du flux générique.
 
-> "Quelle table ou fonction dois-je supprimer ?"
+## 5. Tests de bout en bout
 
-Aucune table métier. Juste **purger** `net._http_response`, `cron.job_run_details`, `waouh_trace_events`, `access_logs` (contenu, pas la table).
+Pour chaque agent :
+- Test création + persistance Supabase
+- Test edge function (ingest / query / checkin) via `supabase--test_edge_functions`
+- Test UI mobile + desktop (viewport)
+- Screenshot Playwright du parcours complet
+- Vérification RLS : un autre user ne voit pas les données
 
-> "Faut-il désactiver un projet ?"
+## Détails techniques
 
-Non — N'Dali est déjà en pause, ça n'aide pas. Le problème est le trafic de bot.bj.
+- **Charts** : Recharts (déjà dans le projet)
+- **Excel parsing** : `xlsx` npm dans edge function
+- **Google Sheets** : réutiliser `useGoogleSheets` + connecteur existant
+- **QR** : `qrcode.react` côté client, token signé HMAC dans l'URL
+- **Géolocalisation** : `navigator.geolocation` + Haversine côté serveur (jamais faire confiance au client)
+- **WhatsApp** : réutiliser `waouh_outbound_queue` + WAHA existant
+- **IA** : Lovable AI Gateway avec `google/gemini-2.5-flash` (déjà en place)
+- **Nouvelles migrations** : 3 migrations (une par module) avec GRANT + RLS + triggers `updated_at`
+- **Nouvelles edge functions** : `waouh-bi-ingest`, `waouh-bi-query`, `waouh-stock-analyze`, `waouh-stock-alert`, `waouh-attendance-checkin`, `waouh-attendance-notify`
 
-Dis-moi si tu approuves — j'exécute la purge + le cron + le nettoyage Realtime dès que tu passes en build mode.
+## Ordre d'implémentation
+
+1. Migrations DB (3 modules)
+2. Edge functions
+3. Ajout des 3 types dans le wizard racine
+4. Wizards + dashboards dédiés
+5. Page publique check-in
+6. Tests E2E + Playwright screenshots
