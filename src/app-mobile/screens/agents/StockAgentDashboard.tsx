@@ -20,10 +20,14 @@ export default function StockAgentDashboard() {
   const [insight, setInsight] = useState("");
   const [loadingInsight, setLoadingInsight] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [importUrl, setImportUrl] = useState("");
+  const [importing, setImporting] = useState(false);
   const [showMove, setShowMove] = useState<any>(null);
   const [form, setForm] = useState({ name: "", sku: "", quantity: "0", threshold_low: "5", unit_price_fcfa: "0" });
   const [moveQty, setMoveQty] = useState("1");
   const [moveType, setMoveType] = useState<"in" | "out">("in");
+
 
   const refresh = async () => {
     const { data: a } = await supabase.from("waouh_stock_agents").select("*").eq("id", id).maybeSingle();
