@@ -28,10 +28,10 @@ export default function PublicCheckinScreen() {
 
   useEffect(() => {
     (async () => {
-      const { data: s } = await supabase.from("waouh_attendance_sites").select("id, name, radius_m, active, qr_token").eq("qr_token", token).eq("active", true).maybeSingle();
+      const { data: s } = await supabase.from("waouh_attendance_sites_public").select("id, name, radius_m, active, qr_token").eq("qr_token", token).maybeSingle();
       if (!s) return toast.error("QR invalide");
       setSite(s);
-      const { data: emps } = await supabase.from("waouh_attendance_employees").select("id, full_name").eq("site_id", s.id).eq("active", true).order("full_name");
+      const { data: emps } = await supabase.from("waouh_attendance_employees_public").select("id, full_name").eq("site_id", s.id).order("full_name");
       setEmployees(emps || []);
     })();
   }, [token]);
