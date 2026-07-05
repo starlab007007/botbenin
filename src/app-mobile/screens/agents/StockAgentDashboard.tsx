@@ -94,14 +94,43 @@ export default function StockAgentDashboard() {
     finally { setLoadingInsight(false); }
   };
 
-  // --- Import Excel / CSV / Google Sheet ---
+  // --- Import Excel / CSV / Google Sheet (avec aperçu et validation) ---
   const parseCsvText = (text: string) => {
     const lines = text.replace(/\r/g, "").split("\n").filter(l => l.trim());
+    if (!lines.length) return [];
     const split = (l: string) => { const out: string[] = []; let cur = ""; let q = false; for (const ch of l) { if (ch === '"') q = !q; else if (ch === "," && !q) { out.push(cur); cur = ""; } else cur += ch; } out.push(cur); return out.map(s => s.trim().replace(/^"|"$/g, "")); };
     const headers = split(lines[0]).map(h => h.toLowerCase());
     return lines.slice(1).map(l => { const c = split(l); return Object.fromEntries(headers.map((h, i) => [h, c[i] ?? ""])); });
   };
-  const pickField = (row: any, keys: string[]) => { for (const k of keys) { const found = Object.keys(row).find(x => x.includes(k)); if (found && row[found]) return row[found]; } return ""; };
+  const pickField = (row: any, keys: string[]) => { for (const k of keys) { const found = Object.keys(row).find(x => x.includes(k)); if (found && row[found] != null && row[found] !== "") return row[found]; } return ""; };
+
+  const mapRow = (r: any) => ({
+    name: String(pickField(r, ["nom", "name", "produit", "product", "designation", "libell", "article"])).trim(),
+    sku: String(pickField(r, ["sku", "code", "ref"])).trim(),
+    category: String(pickField(r, ["categor", "categ", "rayon", "famille", "type"])).trim(),
+    supplier: String(pickField(r, ["fourniss", "supplier", "vendeur", "marque"])).trim(),
+    quantity: Number(String(pickField(r, ["quantit", "quantity", "stock", "qte", "qté"])).replace(/[^\d.-]/g, "")) || 0,
+    threshold_low: Number(String(pickField(r, ["seuil", "threshold", "min", "alerte"])).replace(/[^\d.-]/g, "")) || 5,
+    unit_price_fcfa: Number(String(pickField(r, ["prix vente", "prix_vente", "prix", "price", "fcfa", "vente"])).replace(/[^\d.]/g, "")) || 0,
+    cost_price_fcfa: Number(String(pickField(r, ["cout", "coût", "achat", "cost"])).replace(/[^\d.]/g, "")) || 0,
+    _valid: true, _error: "",
+  });
+
+  const validatePreview = (items: any[]) => items.map(it => {
+    let _error = "";
+    if (!it.name) _error = "Nom manquant";
+    else if (it.quantity < 0) _error = "Quantité négative";
+    else if (it.unit_price_fcfa < 0) _error = "Prix invalide";
+    return { ...it, _valid: !_error, _error };
+  });
+
+  const buildPreview = async (rows: any[]) => {
+    if (!rows.length) throw new Error("Fichier vide");
+    setImportRawHeaders(Object.keys(rows[0]));
+    const mapped = validatePreview(rows.map(mapRow));
+    if (!mapped.some(m => m.name)) throw new Error("Aucune colonne 'nom' reconnue. Colonnes attendues : nom, sku, catégorie, quantité, seuil, prix, coût, fournisseur.");
+    setImportPreview(mapped);
+  };
 
   const importFile = async (file: File) => {
     if (!user) return;
@@ -116,22 +145,7 @@ export default function StockAgentDashboard() {
         const csv = XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]);
         rows = parseCsvText(csv);
       } else throw new Error("Format non supporté (CSV, XLSX, XLS)");
-
-      const items = rows.map(r => ({
-        agent_id: id, user_id: user.id,
-        name: pickField(r, ["nom", "name", "produit", "product", "designation", "libell"]),
-        sku: pickField(r, ["sku", "code", "ref"]) || null,
-        quantity: Number(pickField(r, ["quantit", "quantity", "stock", "qte"])) || 0,
-        threshold_low: Number(pickField(r, ["seuil", "threshold", "min"])) || 5,
-        unit_price_fcfa: Number(String(pickField(r, ["prix", "price", "fcfa", "cost"])).replace(/[^\d.]/g, "")) || 0,
-      })).filter(x => x.name);
-
-      if (!items.length) throw new Error("Aucun produit détecté. Vérifiez les colonnes (nom, quantité, prix…).");
-      const { error } = await supabase.from("waouh_stock_items").insert(items);
-      if (error) throw error;
-      toast.success(`${items.length} produits importés`);
-      setShowImport(false); setImportUrl("");
-      refresh();
+      await buildPreview(rows);
     } catch (e: any) { toast.error(e.message); }
     finally { setImporting(false); }
   };
@@ -146,23 +160,36 @@ export default function StockAgentDashboard() {
       const csvUrl = `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv&gid=${gid}`;
       const r = await fetch(csvUrl);
       if (!r.ok) throw new Error("Sheet inaccessible (rendez-le public en lecture)");
-      const text = await r.text();
-      const rows = parseCsvText(text);
-      const items = rows.map(r => ({
-        agent_id: id, user_id: user!.id,
-        name: pickField(r, ["nom", "name", "produit", "product", "designation", "libell"]),
-        sku: pickField(r, ["sku", "code", "ref"]) || null,
-        quantity: Number(pickField(r, ["quantit", "quantity", "stock", "qte"])) || 0,
-        threshold_low: Number(pickField(r, ["seuil", "threshold", "min"])) || 5,
-        unit_price_fcfa: Number(String(pickField(r, ["prix", "price", "fcfa", "cost"])).replace(/[^\d.]/g, "")) || 0,
-      })).filter(x => x.name);
-      if (!items.length) throw new Error("Aucun produit détecté");
-      const { error } = await supabase.from("waouh_stock_items").insert(items);
+      const rows = parseCsvText(await r.text());
+      await buildPreview(rows);
+    } catch (e: any) { toast.error(e.message); }
+    finally { setImporting(false); }
+  };
+
+  const confirmImport = async () => {
+    if (!user || !importPreview) return;
+    const valid = importPreview.filter(x => x._valid);
+    if (!valid.length) return toast.error("Aucune ligne valide à importer");
+    setImporting(true);
+    try {
+      const payload = valid.map(({ _valid, _error, ...it }) => ({ ...it, agent_id: id, user_id: user.id, sku: it.sku || null, category: it.category || null, supplier: it.supplier || null }));
+      const { error } = await supabase.from("waouh_stock_items").insert(payload);
       if (error) throw error;
-      toast.success(`${items.length} produits importés`);
-      setShowImport(false); setImportUrl("");
+      toast.success(`${valid.length} produits importés`);
+      setImportPreview(null); setShowImport(false); setImportUrl("");
       refresh();
     } catch (e: any) { toast.error(e.message); }
+    finally { setImporting(false); }
+  };
+
+  const updatePreviewCell = (idx: number, key: string, val: any) => {
+    if (!importPreview) return;
+    const next = [...importPreview];
+    next[idx] = { ...next[idx], [key]: key === "name" || key === "sku" || key === "category" || key === "supplier" ? val : Number(val) || 0 };
+    setImportPreview(validatePreview(next));
+  };
+  const removePreviewRow = (idx: number) => setImportPreview(p => p ? p.filter((_, i) => i !== idx) : null);
+
     finally { setImporting(false); }
   };
 
