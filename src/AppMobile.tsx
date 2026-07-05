@@ -104,6 +104,13 @@ const AppMobile = () => (
                       <Route path="bots/new" element={<MobileCreateBot />} />
                       <Route path="bots/:id" element={<MobileBotDetail />} />
                       <Route path="bots/:id/table/:tableId/entry/:index" element={<MobileBotEntryForm />} />
+                      <Route path="agents/new" element={<AgentTypePicker />} />
+                      <Route path="agents/bi/new" element={<BiAgentWizard />} />
+                      <Route path="agents/bi/:id" element={<BiAgentDetail />} />
+                      <Route path="agents/stock/new" element={<StockAgentWizard />} />
+                      <Route path="agents/stock/:id" element={<StockAgentDashboard />} />
+                      <Route path="agents/attendance/new" element={<AttendanceAgentWizard />} />
+                      <Route path="agents/attendance/:id" element={<AttendanceDashboard />} />
                       <Route path="whatsapp" element={<MobileWhatsApp />} />
                       <Route path="diffusion" element={<MobileDiffusion />} />
                       <Route path="partner" element={<MobilePartner />} />
