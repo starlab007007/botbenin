@@ -121,7 +121,14 @@ export default function StockAgentDashboard() {
             </Card>
           );
         })}
-        {!items.length && <p className="text-center text-sm text-muted-foreground py-8">Aucun produit. Cliquez + pour ajouter.</p>}
+        {!items.length && (
+          <Card><CardContent className="p-6 text-center space-y-2">
+            <Package className="h-10 w-10 mx-auto text-muted-foreground/50" />
+            <div className="font-medium">Aucun produit pour l'instant</div>
+            <p className="text-xs text-muted-foreground">Ajoutez votre premier produit pour suivre les entrées / sorties et recevoir des recommandations IA.</p>
+            <Button size="sm" onClick={() => setShowAdd(true)}><Plus className="mr-1 h-3 w-3" /> Ajouter un produit</Button>
+          </CardContent></Card>
+        )}
       </main>
 
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
