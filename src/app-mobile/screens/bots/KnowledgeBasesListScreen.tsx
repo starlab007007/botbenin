@@ -39,6 +39,18 @@ export default function KnowledgeBasesListScreen() {
       <MobileScreenHeader title="Création Bots" subtitle="Bases de connaissances" />
 
       <main className="p-4 pb-32 space-y-3">
+        <button
+          onClick={() => navigate('/app/agents/new')}
+          className="w-full rounded-2xl bg-gradient-to-r from-fuchsia-600 via-orange-500 to-amber-500 text-white p-4 flex items-center gap-3 shadow-md active:scale-[0.98] transition"
+        >
+          <Sparkles className="h-6 w-6" />
+          <div className="text-left flex-1">
+            <div className="font-bold">Créer un agent IA</div>
+            <div className="text-xs opacity-90">BI · Stock · Présence QR · Conversationnel</div>
+          </div>
+          <Plus className="h-5 w-5" />
+        </button>
+
         {loading && <p className="text-center text-muted-foreground py-10 text-sm">Chargement…</p>}
 
         {!loading && knowledgeBases.length === 0 && (
