@@ -24,7 +24,8 @@ export default function AttendanceDashboard() {
   const [loadingData, setLoadingData] = useState(true);
   const [form, setForm] = useState({ full_name: "", msisdn: "" });
 
-  const shareUrl = site ? `${window.location.origin}/checkin/${site.qr_token}` : "";
+  const PUBLIC_BASE = "https://bot.bj";
+  const shareUrl = site ? `${PUBLIC_BASE}/checkin/${site.qr_token}` : "";
 
   const refresh = async () => {
     setLoadingData(true);
