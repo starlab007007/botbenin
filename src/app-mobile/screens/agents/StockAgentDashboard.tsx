@@ -23,8 +23,16 @@ export default function StockAgentDashboard() {
   const [showImport, setShowImport] = useState(false);
   const [importUrl, setImportUrl] = useState("");
   const [importing, setImporting] = useState(false);
+  const [importPreview, setImportPreview] = useState<any[] | null>(null);
+  const [importRawHeaders, setImportRawHeaders] = useState<string[]>([]);
   const [showMove, setShowMove] = useState<any>(null);
-  const [form, setForm] = useState({ name: "", sku: "", quantity: "0", threshold_low: "5", unit_price_fcfa: "0" });
+  const [form, setForm] = useState({
+    name: "", sku: "", category: "",
+    quantity: "0", threshold_low: "5",
+    unit_price_fcfa: "0", cost_price_fcfa: "0",
+    supplier: "",
+  });
+  const emptyForm = { name: "", sku: "", category: "", quantity: "0", threshold_low: "5", unit_price_fcfa: "0", cost_price_fcfa: "0", supplier: "" };
   const [moveQty, setMoveQty] = useState("1");
   const [moveType, setMoveType] = useState<"in" | "out">("in");
 
@@ -44,13 +52,19 @@ export default function StockAgentDashboard() {
   const addItem = async () => {
     if (!user || !form.name.trim()) return toast.error("Nom requis");
     const { error } = await supabase.from("waouh_stock_items").insert({
-      agent_id: id, user_id: user.id, name: form.name, sku: form.sku || null,
-      quantity: Number(form.quantity), threshold_low: Number(form.threshold_low),
-      unit_price_fcfa: Number(form.unit_price_fcfa),
+      agent_id: id, user_id: user.id,
+      name: form.name.trim(),
+      sku: form.sku.trim() || null,
+      category: form.category.trim() || null,
+      supplier: form.supplier.trim() || null,
+      quantity: Number(form.quantity) || 0,
+      threshold_low: Number(form.threshold_low) || 0,
+      unit_price_fcfa: Number(form.unit_price_fcfa) || 0,
+      cost_price_fcfa: Number(form.cost_price_fcfa) || 0,
     });
     if (error) return toast.error(error.message);
     toast.success("Produit ajouté");
-    setShowAdd(false); setForm({ name: "", sku: "", quantity: "0", threshold_low: "5", unit_price_fcfa: "0" });
+    setShowAdd(false); setForm(emptyForm);
     refresh();
   };
 
@@ -80,14 +94,43 @@ export default function StockAgentDashboard() {
     finally { setLoadingInsight(false); }
   };
 
-  // --- Import Excel / CSV / Google Sheet ---
+  // --- Import Excel / CSV / Google Sheet (avec aperçu et validation) ---
   const parseCsvText = (text: string) => {
     const lines = text.replace(/\r/g, "").split("\n").filter(l => l.trim());
+    if (!lines.length) return [];
     const split = (l: string) => { const out: string[] = []; let cur = ""; let q = false; for (const ch of l) { if (ch === '"') q = !q; else if (ch === "," && !q) { out.push(cur); cur = ""; } else cur += ch; } out.push(cur); return out.map(s => s.trim().replace(/^"|"$/g, "")); };
     const headers = split(lines[0]).map(h => h.toLowerCase());
     return lines.slice(1).map(l => { const c = split(l); return Object.fromEntries(headers.map((h, i) => [h, c[i] ?? ""])); });
   };
-  const pickField = (row: any, keys: string[]) => { for (const k of keys) { const found = Object.keys(row).find(x => x.includes(k)); if (found && row[found]) return row[found]; } return ""; };
+  const pickField = (row: any, keys: string[]) => { for (const k of keys) { const found = Object.keys(row).find(x => x.includes(k)); if (found && row[found] != null && row[found] !== "") return row[found]; } return ""; };
+
+  const mapRow = (r: any) => ({
+    name: String(pickField(r, ["nom", "name", "produit", "product", "designation", "libell", "article"])).trim(),
+    sku: String(pickField(r, ["sku", "code", "ref"])).trim(),
+    category: String(pickField(r, ["categor", "categ", "rayon", "famille", "type"])).trim(),
+    supplier: String(pickField(r, ["fourniss", "supplier", "vendeur", "marque"])).trim(),
+    quantity: Number(String(pickField(r, ["quantit", "quantity", "stock", "qte", "qté"])).replace(/[^\d.-]/g, "")) || 0,
+    threshold_low: Number(String(pickField(r, ["seuil", "threshold", "min", "alerte"])).replace(/[^\d.-]/g, "")) || 5,
+    unit_price_fcfa: Number(String(pickField(r, ["prix vente", "prix_vente", "prix", "price", "fcfa", "vente"])).replace(/[^\d.]/g, "")) || 0,
+    cost_price_fcfa: Number(String(pickField(r, ["cout", "coût", "achat", "cost"])).replace(/[^\d.]/g, "")) || 0,
+    _valid: true, _error: "",
+  });
+
+  const validatePreview = (items: any[]) => items.map(it => {
+    let _error = "";
+    if (!it.name) _error = "Nom manquant";
+    else if (it.quantity < 0) _error = "Quantité négative";
+    else if (it.unit_price_fcfa < 0) _error = "Prix invalide";
+    return { ...it, _valid: !_error, _error };
+  });
+
+  const buildPreview = async (rows: any[]) => {
+    if (!rows.length) throw new Error("Fichier vide");
+    setImportRawHeaders(Object.keys(rows[0]));
+    const mapped = validatePreview(rows.map(mapRow));
+    if (!mapped.some(m => m.name)) throw new Error("Aucune colonne 'nom' reconnue. Colonnes attendues : nom, sku, catégorie, quantité, seuil, prix, coût, fournisseur.");
+    setImportPreview(mapped);
+  };
 
   const importFile = async (file: File) => {
     if (!user) return;
@@ -102,22 +145,7 @@ export default function StockAgentDashboard() {
         const csv = XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]);
         rows = parseCsvText(csv);
       } else throw new Error("Format non supporté (CSV, XLSX, XLS)");
-
-      const items = rows.map(r => ({
-        agent_id: id, user_id: user.id,
-        name: pickField(r, ["nom", "name", "produit", "product", "designation", "libell"]),
-        sku: pickField(r, ["sku", "code", "ref"]) || null,
-        quantity: Number(pickField(r, ["quantit", "quantity", "stock", "qte"])) || 0,
-        threshold_low: Number(pickField(r, ["seuil", "threshold", "min"])) || 5,
-        unit_price_fcfa: Number(String(pickField(r, ["prix", "price", "fcfa", "cost"])).replace(/[^\d.]/g, "")) || 0,
-      })).filter(x => x.name);
-
-      if (!items.length) throw new Error("Aucun produit détecté. Vérifiez les colonnes (nom, quantité, prix…).");
-      const { error } = await supabase.from("waouh_stock_items").insert(items);
-      if (error) throw error;
-      toast.success(`${items.length} produits importés`);
-      setShowImport(false); setImportUrl("");
-      refresh();
+      await buildPreview(rows);
     } catch (e: any) { toast.error(e.message); }
     finally { setImporting(false); }
   };
@@ -132,25 +160,38 @@ export default function StockAgentDashboard() {
       const csvUrl = `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv&gid=${gid}`;
       const r = await fetch(csvUrl);
       if (!r.ok) throw new Error("Sheet inaccessible (rendez-le public en lecture)");
-      const text = await r.text();
-      const rows = parseCsvText(text);
-      const items = rows.map(r => ({
-        agent_id: id, user_id: user!.id,
-        name: pickField(r, ["nom", "name", "produit", "product", "designation", "libell"]),
-        sku: pickField(r, ["sku", "code", "ref"]) || null,
-        quantity: Number(pickField(r, ["quantit", "quantity", "stock", "qte"])) || 0,
-        threshold_low: Number(pickField(r, ["seuil", "threshold", "min"])) || 5,
-        unit_price_fcfa: Number(String(pickField(r, ["prix", "price", "fcfa", "cost"])).replace(/[^\d.]/g, "")) || 0,
-      })).filter(x => x.name);
-      if (!items.length) throw new Error("Aucun produit détecté");
-      const { error } = await supabase.from("waouh_stock_items").insert(items);
+      const rows = parseCsvText(await r.text());
+      await buildPreview(rows);
+    } catch (e: any) { toast.error(e.message); }
+    finally { setImporting(false); }
+  };
+
+  const confirmImport = async () => {
+    if (!user || !importPreview) return;
+    const valid = importPreview.filter(x => x._valid);
+    if (!valid.length) return toast.error("Aucune ligne valide à importer");
+    setImporting(true);
+    try {
+      const payload = valid.map(({ _valid, _error, ...it }) => ({ ...it, agent_id: id, user_id: user.id, sku: it.sku || null, category: it.category || null, supplier: it.supplier || null }));
+      const { error } = await supabase.from("waouh_stock_items").insert(payload);
       if (error) throw error;
-      toast.success(`${items.length} produits importés`);
-      setShowImport(false); setImportUrl("");
+      toast.success(`${valid.length} produits importés`);
+      setImportPreview(null); setShowImport(false); setImportUrl("");
       refresh();
     } catch (e: any) { toast.error(e.message); }
     finally { setImporting(false); }
   };
+
+  const updatePreviewCell = (idx: number, key: string, val: any) => {
+    if (!importPreview) return;
+    const next = [...importPreview];
+    next[idx] = { ...next[idx], [key]: key === "name" || key === "sku" || key === "category" || key === "supplier" ? val : Number(val) || 0 };
+    setImportPreview(validatePreview(next));
+  };
+  const removePreviewRow = (idx: number) => setImportPreview(p => p ? p.filter((_, i) => i !== idx) : null);
+
+
+
 
 
   return (
@@ -215,18 +256,36 @@ export default function StockAgentDashboard() {
       </main>
 
 
-      <Dialog open={showAdd} onOpenChange={setShowAdd}>
-        <DialogContent className="max-h-[90dvh] overflow-y-auto max-w-[90vw]">
+      <Dialog open={showAdd} onOpenChange={(o) => { setShowAdd(o); if (!o) setForm(emptyForm); }}>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto max-w-[92vw] sm:max-w-lg">
           <DialogHeader><DialogTitle>Nouveau produit</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div><Label>Nom *</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div>
-            <div><Label>SKU</Label><Input value={form.sku} onChange={e => setForm({ ...form, sku: e.target.value })} /></div>
+            <div><Label>Nom du produit *</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Ex : Savon Palmida 400g" /></div>
             <div className="grid grid-cols-2 gap-2">
-              <div><Label>Quantité</Label><Input type="number" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} /></div>
-              <div><Label>Seuil bas</Label><Input type="number" value={form.threshold_low} onChange={e => setForm({ ...form, threshold_low: e.target.value })} /></div>
+              <div><Label>SKU / Code</Label><Input value={form.sku} onChange={e => setForm({ ...form, sku: e.target.value })} placeholder="SAV-400" /></div>
+              <div><Label>Catégorie</Label><Input value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} placeholder="Hygiène" /></div>
             </div>
-            <div><Label>Prix (FCFA)</Label><Input type="number" value={form.unit_price_fcfa} onChange={e => setForm({ ...form, unit_price_fcfa: e.target.value })} /></div>
-            <Button className="w-full" onClick={addItem}>Ajouter</Button>
+            <div><Label>Fournisseur</Label><Input value={form.supplier} onChange={e => setForm({ ...form, supplier: e.target.value })} placeholder="Nom du fournisseur" /></div>
+            <div className="grid grid-cols-2 gap-2">
+              <div><Label>Quantité en stock</Label><Input type="number" inputMode="numeric" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} /></div>
+              <div><Label>Seuil d'alerte</Label><Input type="number" inputMode="numeric" value={form.threshold_low} onChange={e => setForm({ ...form, threshold_low: e.target.value })} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div><Label>Prix d'achat (FCFA)</Label><Input type="number" inputMode="numeric" value={form.cost_price_fcfa} onChange={e => setForm({ ...form, cost_price_fcfa: e.target.value })} /></div>
+              <div><Label>Prix de vente (FCFA) *</Label><Input type="number" inputMode="numeric" value={form.unit_price_fcfa} onChange={e => setForm({ ...form, unit_price_fcfa: e.target.value })} /></div>
+            </div>
+            {Number(form.cost_price_fcfa) > 0 && Number(form.unit_price_fcfa) > 0 && (
+              <div className="rounded-md bg-muted/60 p-2 text-xs">
+                Marge estimée : <b>{Math.round(((Number(form.unit_price_fcfa) - Number(form.cost_price_fcfa)) / Number(form.unit_price_fcfa)) * 100)}%</b>
+                {" · "}Valeur stock : <b>{(Number(form.quantity) * Number(form.unit_price_fcfa)).toLocaleString("fr-FR")} FCFA</b>
+              </div>
+            )}
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1" onClick={() => { setShowAdd(false); setShowImport(true); }}>
+                <Upload className="mr-1 h-3 w-3" /> Importer plutôt
+              </Button>
+              <Button className="flex-1" onClick={addItem}>Ajouter</Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -241,37 +300,103 @@ export default function StockAgentDashboard() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showImport} onOpenChange={setShowImport}>
+      <Dialog open={showImport} onOpenChange={(o) => { setShowImport(o); if (!o) { setImportPreview(null); setImportUrl(""); } }}>
+        <DialogContent className="max-h-[92dvh] overflow-y-auto max-w-[95vw] sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>{importPreview ? `Aperçu · ${importPreview.length} ligne(s)` : "Importer des produits"}</DialogTitle>
+          </DialogHeader>
 
-        <DialogContent className="max-h-[90dvh] overflow-y-auto max-w-[92vw]">
-          <DialogHeader><DialogTitle>Importer des produits</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <p className="text-xs text-muted-foreground">Colonnes reconnues : <b>nom</b>, sku, <b>quantité</b>, seuil, <b>prix</b> (FCFA).</p>
+          {!importPreview ? (
+            <div className="space-y-4">
+              <div className="rounded-md bg-muted/60 p-3 text-xs space-y-1">
+                <div className="font-medium">Colonnes reconnues automatiquement :</div>
+                <div>📦 <b>nom</b> · sku/code · catégorie · fournisseur</div>
+                <div>🔢 <b>quantité</b> · seuil · prix (vente) · coût (achat)</div>
+                <div className="text-muted-foreground">Peu importe l'ordre ou la casse — on détecte les colonnes.</div>
+              </div>
 
-            <div>
-              <Label className="text-sm mb-2 block flex items-center gap-2"><Upload className="h-4 w-4" /> Fichier CSV / Excel</Label>
-              <label className="block cursor-pointer">
-                <div className={`border-2 border-dashed rounded-lg p-4 text-center ${importing ? "opacity-50" : "hover:border-primary/50"}`}>
-                  <Upload className="h-6 w-6 mx-auto mb-1 text-muted-foreground" />
-                  <div className="text-sm">Cliquez pour choisir</div>
-                  <div className="text-xs text-muted-foreground">CSV, XLSX, XLS</div>
+              <div>
+                <Label className="text-sm mb-2 block flex items-center gap-2"><Upload className="h-4 w-4" /> Fichier CSV / Excel</Label>
+                <label className="block cursor-pointer">
+                  <div className={`border-2 border-dashed rounded-lg p-6 text-center ${importing ? "opacity-50" : "hover:border-primary/50 hover:bg-primary/5"}`}>
+                    {importing ? <Loader2 className="h-6 w-6 mx-auto animate-spin text-primary" /> : <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />}
+                    <div className="text-sm font-medium">Cliquez ou déposez votre fichier</div>
+                    <div className="text-xs text-muted-foreground mt-1">CSV, XLSX, XLS — jusqu'à 5000 lignes</div>
+                  </div>
+                  <input type="file" accept=".csv,.xlsx,.xls" className="hidden" disabled={importing} onChange={(e) => { const f = e.target.files?.[0]; if (f) importFile(f); }} />
+                </label>
+              </div>
+
+              <div className="relative"><div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div><div className="relative flex justify-center text-xs"><span className="bg-background px-2 text-muted-foreground">ou</span></div></div>
+
+              <div className="space-y-2">
+                <Label className="text-sm flex items-center gap-2"><FileSpreadsheet className="h-4 w-4" /> Google Sheet (lecture publique)</Label>
+                <Input placeholder="https://docs.google.com/spreadsheets/d/…" value={importUrl} onChange={e => setImportUrl(e.target.value)} />
+                <Button className="w-full" onClick={importGoogleSheet} disabled={importing || !importUrl}>
+                  {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileSpreadsheet className="mr-2 h-4 w-4" />} Charger l'aperçu
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2 text-xs">
+                <span className="rounded-full bg-green-100 text-green-800 px-2 py-0.5">✓ {importPreview.filter(x => x._valid).length} valides</span>
+                {importPreview.filter(x => !x._valid).length > 0 && (
+                  <span className="rounded-full bg-red-100 text-red-800 px-2 py-0.5">✗ {importPreview.filter(x => !x._valid).length} en erreur</span>
+                )}
+                <span className="text-muted-foreground self-center">Corrigez ou supprimez les lignes en rouge avant d'importer.</span>
+              </div>
+
+              <div className="overflow-x-auto border rounded-md max-h-[50vh]">
+                <table className="w-full text-xs">
+                  <thead className="bg-muted sticky top-0">
+                    <tr>
+                      <th className="p-1.5 text-left">Nom</th>
+                      <th className="p-1.5 text-left">SKU</th>
+                      <th className="p-1.5 text-left">Catégorie</th>
+                      <th className="p-1.5 text-right">Qté</th>
+                      <th className="p-1.5 text-right">Seuil</th>
+                      <th className="p-1.5 text-right">Prix</th>
+                      <th className="p-1.5 text-right">Coût</th>
+                      <th className="p-1.5"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importPreview.map((row, idx) => (
+                      <tr key={idx} className={row._valid ? "border-t" : "border-t bg-red-50"}>
+                        <td className="p-1"><input className="w-32 bg-transparent outline-none" value={row.name} onChange={e => updatePreviewCell(idx, "name", e.target.value)} /></td>
+                        <td className="p-1"><input className="w-20 bg-transparent outline-none" value={row.sku} onChange={e => updatePreviewCell(idx, "sku", e.target.value)} /></td>
+                        <td className="p-1"><input className="w-24 bg-transparent outline-none" value={row.category} onChange={e => updatePreviewCell(idx, "category", e.target.value)} /></td>
+                        <td className="p-1"><input type="number" className="w-14 bg-transparent outline-none text-right" value={row.quantity} onChange={e => updatePreviewCell(idx, "quantity", e.target.value)} /></td>
+                        <td className="p-1"><input type="number" className="w-14 bg-transparent outline-none text-right" value={row.threshold_low} onChange={e => updatePreviewCell(idx, "threshold_low", e.target.value)} /></td>
+                        <td className="p-1"><input type="number" className="w-20 bg-transparent outline-none text-right" value={row.unit_price_fcfa} onChange={e => updatePreviewCell(idx, "unit_price_fcfa", e.target.value)} /></td>
+                        <td className="p-1"><input type="number" className="w-20 bg-transparent outline-none text-right" value={row.cost_price_fcfa} onChange={e => updatePreviewCell(idx, "cost_price_fcfa", e.target.value)} /></td>
+                        <td className="p-1 text-center">
+                          <button className="text-red-500 hover:text-red-700 px-1" onClick={() => removePreviewRow(idx)} title="Supprimer">×</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {importPreview.some(x => !x._valid) && (
+                <div className="text-xs text-red-600">
+                  Erreurs : {[...new Set(importPreview.filter(x => !x._valid).map(x => x._error))].join(" · ")}
                 </div>
-                <input type="file" accept=".csv,.xlsx,.xls" className="hidden" disabled={importing} onChange={(e) => { const f = e.target.files?.[0]; if (f) importFile(f); }} />
-              </label>
-            </div>
+              )}
 
-            <div className="relative"><div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div><div className="relative flex justify-center text-xs"><span className="bg-background px-2 text-muted-foreground">ou</span></div></div>
-
-            <div className="space-y-2">
-              <Label className="text-sm flex items-center gap-2"><FileSpreadsheet className="h-4 w-4" /> Google Sheet (lecture publique)</Label>
-              <Input placeholder="https://docs.google.com/spreadsheets/d/…" value={importUrl} onChange={e => setImportUrl(e.target.value)} />
-              <Button className="w-full" onClick={importGoogleSheet} disabled={importing || !importUrl}>
-                {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Importer depuis Google Sheet
-              </Button>
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" className="flex-1" onClick={() => setImportPreview(null)}>Annuler</Button>
+                <Button className="flex-1" onClick={confirmImport} disabled={importing || !importPreview.some(x => x._valid)}>
+                  {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Importer {importPreview.filter(x => x._valid).length} produit(s)
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }
