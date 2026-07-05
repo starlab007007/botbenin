@@ -202,14 +202,18 @@ export default function StockAgentDashboard() {
           );
         })}
         {!items.length && (
-          <Card><CardContent className="p-6 text-center space-y-2">
+          <Card><CardContent className="p-6 text-center space-y-3">
             <Package className="h-10 w-10 mx-auto text-muted-foreground/50" />
             <div className="font-medium">Aucun produit pour l'instant</div>
-            <p className="text-xs text-muted-foreground">Ajoutez votre premier produit pour suivre les entrées / sorties et recevoir des recommandations IA.</p>
-            <Button size="sm" onClick={() => setShowAdd(true)}><Plus className="mr-1 h-3 w-3" /> Ajouter un produit</Button>
+            <p className="text-xs text-muted-foreground">Ajoutez manuellement ou importez un fichier Excel / Google Sheet.</p>
+            <div className="flex flex-col gap-2">
+              <Button size="sm" onClick={() => setShowAdd(true)}><Plus className="mr-1 h-3 w-3" /> Ajouter un produit</Button>
+              <Button size="sm" variant="outline" onClick={() => setShowImport(true)}><Upload className="mr-1 h-3 w-3" /> Importer un fichier</Button>
+            </div>
           </CardContent></Card>
         )}
       </main>
+
 
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
         <DialogContent className="max-h-[90dvh] overflow-y-auto max-w-[90vw]">
