@@ -190,8 +190,8 @@ export default function StockAgentDashboard() {
   };
   const removePreviewRow = (idx: number) => setImportPreview(p => p ? p.filter((_, i) => i !== idx) : null);
 
-    finally { setImporting(false); }
-  };
+
+
 
 
   return (
