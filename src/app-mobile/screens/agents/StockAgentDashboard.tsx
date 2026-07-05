@@ -161,8 +161,10 @@ export default function StockAgentDashboard() {
           <div className="font-semibold truncate flex items-center gap-2"><Package className="h-4 w-4" /> {agent?.name || "…"}</div>
           <div className="text-xs text-white/70">{items.length} produits · {totalValue.toLocaleString("fr-FR")} FCFA</div>
         </div>
+        <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={() => setShowImport(true)} title="Importer"><Upload className="h-5 w-5" /></Button>
         <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={() => setShowAdd(true)}><Plus /></Button>
       </header>
+
 
       <main className="p-3 max-w-md mx-auto space-y-3 pb-24">
         <div className="grid grid-cols-3 gap-2">
