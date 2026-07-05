@@ -80,6 +80,79 @@ export default function StockAgentDashboard() {
     finally { setLoadingInsight(false); }
   };
 
+  // --- Import Excel / CSV / Google Sheet ---
+  const parseCsvText = (text: string) => {
+    const lines = text.replace(/\r/g, "").split("\n").filter(l => l.trim());
+    const split = (l: string) => { const out: string[] = []; let cur = ""; let q = false; for (const ch of l) { if (ch === '"') q = !q; else if (ch === "," && !q) { out.push(cur); cur = ""; } else cur += ch; } out.push(cur); return out.map(s => s.trim().replace(/^"|"$/g, "")); };
+    const headers = split(lines[0]).map(h => h.toLowerCase());
+    return lines.slice(1).map(l => { const c = split(l); return Object.fromEntries(headers.map((h, i) => [h, c[i] ?? ""])); });
+  };
+  const pickField = (row: any, keys: string[]) => { for (const k of keys) { const found = Object.keys(row).find(x => x.includes(k)); if (found && row[found]) return row[found]; } return ""; };
+
+  const importFile = async (file: File) => {
+    if (!user) return;
+    setImporting(true);
+    try {
+      let rows: any[] = [];
+      const ext = file.name.split(".").pop()?.toLowerCase();
+      if (ext === "csv" || ext === "txt") { rows = parseCsvText(await file.text()); }
+      else if (ext === "xlsx" || ext === "xls") {
+        const XLSX = await import("xlsx");
+        const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+        const csv = XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]);
+        rows = parseCsvText(csv);
+      } else throw new Error("Format non supporté (CSV, XLSX, XLS)");
+
+      const items = rows.map(r => ({
+        agent_id: id, user_id: user.id,
+        name: pickField(r, ["nom", "name", "produit", "product", "designation", "libell"]),
+        sku: pickField(r, ["sku", "code", "ref"]) || null,
+        quantity: Number(pickField(r, ["quantit", "quantity", "stock", "qte"])) || 0,
+        threshold_low: Number(pickField(r, ["seuil", "threshold", "min"])) || 5,
+        unit_price_fcfa: Number(String(pickField(r, ["prix", "price", "fcfa", "cost"])).replace(/[^\d.]/g, "")) || 0,
+      })).filter(x => x.name);
+
+      if (!items.length) throw new Error("Aucun produit détecté. Vérifiez les colonnes (nom, quantité, prix…).");
+      const { error } = await supabase.from("waouh_stock_items").insert(items);
+      if (error) throw error;
+      toast.success(`${items.length} produits importés`);
+      setShowImport(false); setImportUrl("");
+      refresh();
+    } catch (e: any) { toast.error(e.message); }
+    finally { setImporting(false); }
+  };
+
+  const importGoogleSheet = async () => {
+    if (!importUrl.trim()) return toast.error("URL requise");
+    setImporting(true);
+    try {
+      const m = importUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (!m) throw new Error("URL Google Sheet invalide");
+      const gid = (importUrl.match(/[#?&]gid=(\d+)/) || [])[1] || "0";
+      const csvUrl = `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv&gid=${gid}`;
+      const r = await fetch(csvUrl);
+      if (!r.ok) throw new Error("Sheet inaccessible (rendez-le public en lecture)");
+      const text = await r.text();
+      const rows = parseCsvText(text);
+      const items = rows.map(r => ({
+        agent_id: id, user_id: user!.id,
+        name: pickField(r, ["nom", "name", "produit", "product", "designation", "libell"]),
+        sku: pickField(r, ["sku", "code", "ref"]) || null,
+        quantity: Number(pickField(r, ["quantit", "quantity", "stock", "qte"])) || 0,
+        threshold_low: Number(pickField(r, ["seuil", "threshold", "min"])) || 5,
+        unit_price_fcfa: Number(String(pickField(r, ["prix", "price", "fcfa", "cost"])).replace(/[^\d.]/g, "")) || 0,
+      })).filter(x => x.name);
+      if (!items.length) throw new Error("Aucun produit détecté");
+      const { error } = await supabase.from("waouh_stock_items").insert(items);
+      if (error) throw error;
+      toast.success(`${items.length} produits importés`);
+      setShowImport(false); setImportUrl("");
+      refresh();
+    } catch (e: any) { toast.error(e.message); }
+    finally { setImporting(false); }
+  };
+
+
   return (
     <div className="min-h-[100dvh] bg-background">
       <header className="bg-[hsl(165_91%_18%)] text-white px-3 py-3 flex items-center gap-2 sticky top-0 z-10">
