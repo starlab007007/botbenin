@@ -48,15 +48,16 @@ serve(async (req) => {
     const { data: { user } } = await userClient.auth.getUser();
     if (!user) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { ...cors, "Content-Type": "application/json" } });
 
-    const { name, source_type, source_url } = await req.json();
+    const { name, source_type, source_url, csv_text } = await req.json();
     if (!name || !source_type) throw new Error("name & source_type requis");
 
-    let text = "";
     let rows: any[] = [];
     let headers: string[] = [];
 
-    if (source_type === "google_sheet") {
-      // Extraire l'ID et exporter en CSV
+    if (source_type === "csv_inline") {
+      if (!csv_text) throw new Error("csv_text requis pour csv_inline");
+      const p = parseCsv(csv_text); rows = p.rows; headers = p.headers;
+    } else if (source_type === "google_sheet") {
       const m = String(source_url).match(/\/d\/([a-zA-Z0-9_-]+)/);
       if (!m) throw new Error("URL Google Sheet invalide");
       const sheetId = m[1];
@@ -65,11 +66,11 @@ serve(async (req) => {
       const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
       const r = await fetch(csvUrl);
       if (!r.ok) throw new Error("Impossible de lire le Google Sheet (rendez-le public en lecture)");
-      text = await r.text();
+      const text = await r.text();
       const p = parseCsv(text); rows = p.rows; headers = p.headers;
     } else if (source_type === "csv") {
       const r = await fetch(source_url);
-      text = await r.text();
+      const text = await r.text();
       const p = parseCsv(text); rows = p.rows; headers = p.headers;
     } else if (source_type === "json_url") {
       const r = await fetch(source_url);
@@ -84,11 +85,15 @@ serve(async (req) => {
       throw new Error("source_type non supporté");
     }
 
+    if (!headers.length) throw new Error("Aucune colonne détectée dans la source");
+
+    const stored_type = source_type === "csv_inline" ? "file" : source_type;
+
     const schema = inferSchema(rows, headers);
 
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const { data, error } = await admin.from("waouh_bi_datasources").insert({
-      user_id: user.id, name, source_type, source_url,
+      user_id: user.id, name, source_type: stored_type, source_url: source_url ?? null,
       schema, sample_rows: rows.slice(0, 100), row_count: rows.length,
     }).select().single();
     if (error) throw error;
