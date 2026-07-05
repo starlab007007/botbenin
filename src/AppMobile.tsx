@@ -34,6 +34,14 @@ const MobileAuthOtp = lazy(() => import('./app-mobile/screens/auth/WhatsAppOtpSc
 const MobileProfile = lazy(() => import('./app-mobile/screens/ProfileScreen'));
 const MobileNotifications = lazy(() => import('./app-mobile/screens/NotificationsScreen'));
 const RequireMobileAuth = lazy(() => import('./app-mobile/guards/RequireMobileAuth'));
+const AgentTypePicker = lazy(() => import('./app-mobile/screens/agents/AgentTypePickerScreen'));
+const BiAgentWizard = lazy(() => import('./app-mobile/screens/agents/BiAgentWizard'));
+const BiAgentDetail = lazy(() => import('./app-mobile/screens/agents/BiAgentDetailScreen'));
+const StockAgentWizard = lazy(() => import('./app-mobile/screens/agents/StockAgentWizard'));
+const StockAgentDashboard = lazy(() => import('./app-mobile/screens/agents/StockAgentDashboard'));
+const AttendanceAgentWizard = lazy(() => import('./app-mobile/screens/agents/AttendanceAgentWizard'));
+const AttendanceDashboard = lazy(() => import('./app-mobile/screens/agents/AttendanceDashboard'));
+const PublicCheckin = lazy(() => import('./app-mobile/screens/agents/PublicCheckinScreen'));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -61,6 +69,9 @@ const AppMobile = () => (
                     <Route path="/app/auth" element={<MobileAuthHome />} />
                     <Route path="/app/auth/email" element={<MobileAuthEmail />} />
                     <Route path="/app/auth/whatsapp" element={<MobileAuthOtp />} />
+                    <Route path="/checkin/:token" element={<PublicCheckin />} />
+
+
 
                     {/* Public mobile shell — chat list + WAOUH chat accessible sans connexion */}
                     <Route
