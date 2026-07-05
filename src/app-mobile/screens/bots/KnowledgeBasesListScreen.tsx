@@ -8,6 +8,7 @@ import MobileScreenHeader from '../../components/MobileScreenHeader';
 import NativeKbActionsSheet from '../../components/bots/NativeKbActionsSheet';
 import { KnowledgeBase } from '@/types/knowledge-base';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
+import MyAiAgentsSection from '../agents/MyAiAgentsSection';
 
 const SECTOR_LABEL: Record<string, string> = {
   restaurant: 'Restauration', hotel: 'Hôtellerie', real_estate: 'Immobilier',
@@ -50,6 +51,8 @@ export default function KnowledgeBasesListScreen() {
           </div>
           <Plus className="h-5 w-5" />
         </button>
+
+        <MyAiAgentsSection />
 
         {loading && <p className="text-center text-muted-foreground py-10 text-sm">Chargement…</p>}
 
