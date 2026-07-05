@@ -94,6 +94,17 @@ export default function BiAgentDetailScreen() {
         </div>
       </header>
       <main className="p-3 max-w-md mx-auto space-y-3 pb-32">
+        {ds === null ? (
+          <Card><CardContent className="p-6 text-center text-sm text-muted-foreground">Chargement de la source…</CardContent></Card>
+        ) : ds && ds.row_count === 0 ? (
+          <Card><CardContent className="p-6 text-center space-y-2">
+            <BarChart3 className="h-10 w-10 mx-auto text-muted-foreground/50" />
+            <div className="font-medium">Aucune donnée détectée</div>
+            <p className="text-xs text-muted-foreground">La source est vide ou inaccessible. Vérifiez qu'elle est publique en lecture, puis créez une nouvelle source.</p>
+            <Button size="sm" variant="outline" onClick={() => navigate("/app/agents/bi/new")}>Nouvelle source</Button>
+          </CardContent></Card>
+        ) : null}
+
         {history.map((h, i) => (
           <Card key={i}>
             <CardContent className="p-3 space-y-2">
@@ -103,9 +114,16 @@ export default function BiAgentDetailScreen() {
             </CardContent>
           </Card>
         ))}
-        {!history.length && (
-          <Card><CardContent className="p-4 text-sm text-muted-foreground">
-            Posez une question. Ex : « Top 5 produits par ventes », « Total du chiffre d'affaires », « Ventes par mois »
+
+        {ds && ds.row_count > 0 && !history.length && (
+          <Card><CardContent className="p-4 text-sm text-muted-foreground space-y-2">
+            <div className="font-medium text-foreground">Prêt à analyser {ds.row_count} lignes.</div>
+            <div>Posez une question. Ex :</div>
+            <ul className="list-disc pl-4 space-y-0.5 text-xs">
+              <li>« Top 5 produits par ventes »</li>
+              <li>« Total du chiffre d'affaires »</li>
+              <li>« Ventes par mois »</li>
+            </ul>
           </CardContent></Card>
         )}
       </main>
