@@ -308,3 +308,16 @@ verify_jwt = true
 [functions.waouh-agent-insights]
 verify_jwt = true
 
+[functions.waouh-bi-ingest]
+verify_jwt = true
+
+[functions.waouh-bi-query]
+verify_jwt = true
+
+[functions.waouh-stock-analyze]
+verify_jwt = true
+
+[functions.waouh-attendance-checkin]
+verify_jwt = false
+
+

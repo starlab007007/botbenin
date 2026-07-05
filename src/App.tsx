@@ -173,6 +173,14 @@ const MobileAuthHome = lazy(() => import("./app-mobile/screens/auth/AuthHomeScre
 const MobileAuthEmail = lazy(() => import("./app-mobile/screens/auth/EmailAuthScreen"));
 const MobileAuthOtp = lazy(() => import("./app-mobile/screens/auth/WhatsAppOtpScreen"));
 const MobileProfile = lazy(() => import("./app-mobile/screens/ProfileScreen"));
+const AgentTypePicker = lazy(() => import("./app-mobile/screens/agents/AgentTypePickerScreen"));
+const BiAgentWizard = lazy(() => import("./app-mobile/screens/agents/BiAgentWizard"));
+const BiAgentDetail = lazy(() => import("./app-mobile/screens/agents/BiAgentDetailScreen"));
+const StockAgentWizard = lazy(() => import("./app-mobile/screens/agents/StockAgentWizard"));
+const StockAgentDashboard = lazy(() => import("./app-mobile/screens/agents/StockAgentDashboard"));
+const AttendanceAgentWizard = lazy(() => import("./app-mobile/screens/agents/AttendanceAgentWizard"));
+const AttendanceDashboard = lazy(() => import("./app-mobile/screens/agents/AttendanceDashboard"));
+const PublicCheckin = lazy(() => import("./app-mobile/screens/agents/PublicCheckinScreen"));
 const MobileNotifications = lazy(() => import("./app-mobile/screens/NotificationsScreen"));
 const RequireMobileAuth = lazy(() => import("./app-mobile/guards/RequireMobileAuth"));
 
@@ -311,12 +319,20 @@ const AppContent = () => {
                     <Route path="chat/waouh" element={<MobileWaouhChat />} />
                     <Route path="conversations" element={<Navigate to="/app/chat" replace />} />
                   </Route>
+                  <Route path="/checkin/:token" element={<PublicCheckin />} />
                   <Route path="/app" element={<RequireMobileAuth><ErrorBoundary fallback={<MobileErrorFallback />}><MobileShell /></ErrorBoundary></RequireMobileAuth>}>
                     <Route path="chat/:id" element={<MobileChatThread />} />
                     <Route path="bots" element={<MobileBots />} />
                     <Route path="bots/new" element={<MobileCreateBot />} />
                     <Route path="bots/:id" element={<MobileBotDetail />} />
                     <Route path="bots/:id/table/:tableId/entry/:index" element={<MobileBotEntryForm />} />
+                    <Route path="agents/new" element={<AgentTypePicker />} />
+                    <Route path="agents/bi/new" element={<BiAgentWizard />} />
+                    <Route path="agents/bi/:id" element={<BiAgentDetail />} />
+                    <Route path="agents/stock/new" element={<StockAgentWizard />} />
+                    <Route path="agents/stock/:id" element={<StockAgentDashboard />} />
+                    <Route path="agents/attendance/new" element={<AttendanceAgentWizard />} />
+                    <Route path="agents/attendance/:id" element={<AttendanceDashboard />} />
                     <Route path="whatsapp" element={<MobileWhatsApp />} />
                     <Route path="diffusion" element={<MobileDiffusion />} />
                     <Route path="partner" element={<MobilePartner />} />
