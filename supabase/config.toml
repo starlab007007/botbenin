@@ -320,4 +320,8 @@ verify_jwt = true
 [functions.waouh-attendance-checkin]
 verify_jwt = false
 
+[functions.waouh-check-whatsapp]
+verify_jwt = false
+
+
 
