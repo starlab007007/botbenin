@@ -40,17 +40,30 @@ export default function KnowledgeBasesListScreen() {
       <MobileScreenHeader title="Création Bots" subtitle="Bases de connaissances" />
 
       <main className="p-4 pb-32 space-y-3">
-        <button
-          onClick={() => navigate('/app/agents/new')}
-          className="w-full rounded-2xl bg-gradient-to-r from-fuchsia-600 via-orange-500 to-amber-500 text-white p-4 flex items-center gap-3 shadow-md active:scale-[0.98] transition"
-        >
-          <Sparkles className="h-6 w-6" />
-          <div className="text-left flex-1">
-            <div className="font-bold">Créer un agent IA</div>
-            <div className="text-xs opacity-90">BI · Stock · Présence QR · Conversationnel</div>
+        <div>
+          <div className="px-1 mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Créer un agent</div>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: 'Conversationnel', desc: 'WhatsApp, RDV, ventes',        icon: MessageSquareText, route: '/app/bots/new',              color: 'from-emerald-500 to-teal-600' },
+              { label: 'BI / Analyse',    desc: 'Sheet, Excel, CSV, API',       icon: BarChart3,         route: '/app/agents/bi/new',         color: 'from-blue-500 to-indigo-600' },
+              { label: 'Gestion stock',   desc: 'Alertes & réappro IA',         icon: Package,           route: '/app/agents/stock/new',      color: 'from-amber-500 to-orange-600' },
+              { label: 'Présence QR',     desc: 'Check-in + WhatsApp',          icon: MapPin,            route: '/app/agents/attendance/new', color: 'from-fuchsia-500 to-pink-600' },
+            ].map((a) => {
+              const Icon = a.icon;
+              return (
+                <button
+                  key={a.label}
+                  onClick={() => navigate(a.route)}
+                  className={`rounded-2xl p-4 text-white text-left shadow-sm active:scale-[0.98] transition bg-gradient-to-br ${a.color}`}
+                >
+                  <Icon className="h-6 w-6 mb-2" />
+                  <div className="font-semibold text-sm">{a.label}</div>
+                  <div className="text-[11px] opacity-90 mt-0.5 leading-snug">{a.desc}</div>
+                </button>
+              );
+            })}
           </div>
-          <Plus className="h-5 w-5" />
-        </button>
+        </div>
 
         <MyAiAgentsSection />
 
