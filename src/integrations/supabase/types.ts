@@ -5858,6 +5858,13 @@ export type Database = {
             referencedRelation: "waouh_attendance_sites"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "waouh_attendance_employees_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_attendance_sites_public"
+            referencedColumns: ["id"]
+          },
         ]
       }
       waouh_attendance_events: {
@@ -5903,10 +5910,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "waouh_attendance_events_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_attendance_employees_public"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "waouh_attendance_events_site_id_fkey"
             columns: ["site_id"]
             isOneToOne: false
             referencedRelation: "waouh_attendance_sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_attendance_events_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_attendance_sites_public"
             referencedColumns: ["id"]
           },
         ]
@@ -10024,6 +10045,81 @@ export type Database = {
           total_relaunched: number | null
           total_responded: number | null
           total_sent: number | null
+        }
+        Relationships: []
+      }
+      waouh_attendance_employees_public: {
+        Row: {
+          active: boolean | null
+          employee_code: string | null
+          full_name: string | null
+          id: string | null
+          msisdn_last4: string | null
+          site_id: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          employee_code?: string | null
+          full_name?: string | null
+          id?: string | null
+          msisdn_last4?: string | null
+          site_id?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          employee_code?: string | null
+          full_name?: string | null
+          id?: string | null
+          msisdn_last4?: string | null
+          site_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_attendance_employees_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_attendance_sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_attendance_employees_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_attendance_sites_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_attendance_sites_public: {
+        Row: {
+          active: boolean | null
+          address: string | null
+          id: string | null
+          lat: number | null
+          lng: number | null
+          name: string | null
+          qr_token: string | null
+          radius_m: number | null
+        }
+        Insert: {
+          active?: boolean | null
+          address?: string | null
+          id?: string | null
+          lat?: number | null
+          lng?: number | null
+          name?: string | null
+          qr_token?: string | null
+          radius_m?: number | null
+        }
+        Update: {
+          active?: boolean | null
+          address?: string | null
+          id?: string | null
+          lat?: number | null
+          lng?: number | null
+          name?: string | null
+          qr_token?: string | null
+          radius_m?: number | null
         }
         Relationships: []
       }
