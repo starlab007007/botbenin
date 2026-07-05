@@ -52,13 +52,19 @@ export default function StockAgentDashboard() {
   const addItem = async () => {
     if (!user || !form.name.trim()) return toast.error("Nom requis");
     const { error } = await supabase.from("waouh_stock_items").insert({
-      agent_id: id, user_id: user.id, name: form.name, sku: form.sku || null,
-      quantity: Number(form.quantity), threshold_low: Number(form.threshold_low),
-      unit_price_fcfa: Number(form.unit_price_fcfa),
+      agent_id: id, user_id: user.id,
+      name: form.name.trim(),
+      sku: form.sku.trim() || null,
+      category: form.category.trim() || null,
+      supplier: form.supplier.trim() || null,
+      quantity: Number(form.quantity) || 0,
+      threshold_low: Number(form.threshold_low) || 0,
+      unit_price_fcfa: Number(form.unit_price_fcfa) || 0,
+      cost_price_fcfa: Number(form.cost_price_fcfa) || 0,
     });
     if (error) return toast.error(error.message);
     toast.success("Produit ajouté");
-    setShowAdd(false); setForm({ name: "", sku: "", quantity: "0", threshold_low: "5", unit_price_fcfa: "0" });
+    setShowAdd(false); setForm(emptyForm);
     refresh();
   };
 
