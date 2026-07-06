@@ -6,12 +6,13 @@ import { useWaouhIdentity } from "../hooks/useWaouhIdentity";
 import { markConversationRead } from "../hooks/useUnreadCounts";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Send, Paperclip } from "lucide-react";
+import { ArrowLeft, Send, Paperclip, RotateCw } from "lucide-react";
 import { formatConvLabel, channelBadge, type WaouhUserLike } from "../utils/chatLabel";
 import { buildChatGroups } from "../utils/chatGrouping";
 import { ChatBubble } from "../components/ChatBubble";
 import { ChatDaySeparator } from "../components/ChatDaySeparator";
 import { ChatImage } from "../components/ChatImage";
+import { toast } from "@/hooks/use-toast";
 
 type Att = { url: string; caption?: string | null; type?: string | null };
 type Msg = {
@@ -20,6 +21,7 @@ type Msg = {
   text: string | null;
   created_at: string;
   attachments?: Att[] | null;
+  failed?: boolean;
 };
 
 const IMG_URL_RE = /(https?:\/\/[^\s]+?\.(?:png|jpe?g|gif|webp|bmp|svg|avif)(?:\?[^\s]*)?)/gi;
@@ -112,7 +114,7 @@ export default function ChatScreen({
     const onInsert = (p: any) => {
       const m = p.new as any;
       setMsgs((cur) => (cur.find((x) => x.id === m.id) ? cur : [...cur, m]));
-      markConversationRead(convId);
+      if (m?.direction === "in") markConversationRead(convId);
     };
     const ch = supabase
       .channel(`mobile-conv-${convId}-${suffix}`)
@@ -158,6 +160,25 @@ export default function ChatScreen({
     }
   };
 
+  const doSend = async (body: string, atts: Att[], tempId: string) => {
+    try {
+      const { error } = await supabase.functions.invoke("waouh-operator-send", {
+        body: { conversation_id: convId, text: body, attachments: atts },
+      });
+      if (error) throw error;
+      // Success: mark local temp as sent (realtime will replace with server row shortly)
+      setMsgs((cur) => cur.map((m) => (m.id === tempId ? { ...m, failed: false } : m)));
+    } catch (e: any) {
+      console.error("send failed", e);
+      toast({
+        variant: "destructive",
+        title: "Envoi échoué",
+        description: e?.message || "Impossible d'envoyer le message. Touchez la bulle pour réessayer.",
+      });
+      setMsgs((cur) => cur.map((m) => (m.id === tempId ? { ...m, failed: true } : m)));
+    }
+  };
+
   const send = async () => {
     const body = text.trim();
     if ((!body && pendingAtts.length === 0) || !convId || sending) return;
@@ -165,26 +186,19 @@ export default function ChatScreen({
     const atts = pendingAtts;
     setText("");
     setPendingAtts([]);
-    // Optimistic bubble
     const tempId = `temp-${Date.now()}`;
     setMsgs((cur) => [...cur, {
       id: tempId, direction: "out", text: body || "(image)",
       created_at: new Date().toISOString(), attachments: atts,
     }]);
-    try {
-      const { error } = await supabase.functions.invoke("waouh-operator-send", {
-        body: { conversation_id: convId, text: body, attachments: atts },
-      });
-      if (error) throw error;
-    } catch (e) {
-      console.error("send failed", e);
-      // Roll back optimistic message on failure
-      setMsgs((cur) => cur.filter((m) => m.id !== tempId));
-      setText(body);
-      setPendingAtts(atts);
-    } finally {
-      setSending(false);
-    }
+    await doSend(body, atts, tempId);
+    setSending(false);
+  };
+
+  const retry = async (m: Msg) => {
+    if (!convId) return;
+    setMsgs((cur) => cur.map((x) => (x.id === m.id ? { ...x, failed: false } : x)));
+    await doSend(m.text ?? "", (m.attachments as Att[]) ?? [], m.id);
   };
 
   return (
@@ -253,6 +267,15 @@ export default function ChatScreen({
                     </div>
                   )}
                   {cleanText && <p className="whitespace-pre-wrap">{cleanText}</p>}
+                  {m.failed && (
+                    <button
+                      type="button"
+                      onClick={() => retry(m)}
+                      className="mt-1 inline-flex items-center gap-1 text-[11px] text-destructive hover:underline"
+                    >
+                      <RotateCw className="h-3 w-3" /> Échec — réessayer
+                    </button>
+                  )}
                 </ChatBubble>
               );
             })()
