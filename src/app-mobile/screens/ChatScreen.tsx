@@ -114,7 +114,7 @@ export default function ChatScreen({
     const onInsert = (p: any) => {
       const m = p.new as any;
       setMsgs((cur) => (cur.find((x) => x.id === m.id) ? cur : [...cur, m]));
-      markConversationRead(convId);
+      if (m?.direction === "in") markConversationRead(convId);
     };
     const ch = supabase
       .channel(`mobile-conv-${convId}-${suffix}`)
