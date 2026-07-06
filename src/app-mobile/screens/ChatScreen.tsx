@@ -267,6 +267,15 @@ export default function ChatScreen({
                     </div>
                   )}
                   {cleanText && <p className="whitespace-pre-wrap">{cleanText}</p>}
+                  {m.failed && (
+                    <button
+                      type="button"
+                      onClick={() => retry(m)}
+                      className="mt-1 inline-flex items-center gap-1 text-[11px] text-destructive hover:underline"
+                    >
+                      <RotateCw className="h-3 w-3" /> Échec — réessayer
+                    </button>
+                  )}
                 </ChatBubble>
               );
             })()
