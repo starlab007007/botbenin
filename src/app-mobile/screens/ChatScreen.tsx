@@ -21,6 +21,7 @@ type Msg = {
   text: string | null;
   created_at: string;
   attachments?: Att[] | null;
+  failed?: boolean;
 };
 
 const IMG_URL_RE = /(https?:\/\/[^\s]+?\.(?:png|jpe?g|gif|webp|bmp|svg|avif)(?:\?[^\s]*)?)/gi;
