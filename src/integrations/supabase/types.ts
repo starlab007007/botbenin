@@ -7340,6 +7340,9 @@ export type Database = {
           prix_max: number | null
           prix_min: number | null
           stock_estime: number | null
+          stock_last_updated_at: string | null
+          stock_minimum: number
+          stock_target: number | null
           tags: string[] | null
           unite: string | null
           updated_at: string
@@ -7359,6 +7362,9 @@ export type Database = {
           prix_max?: number | null
           prix_min?: number | null
           stock_estime?: number | null
+          stock_last_updated_at?: string | null
+          stock_minimum?: number
+          stock_target?: number | null
           tags?: string[] | null
           unite?: string | null
           updated_at?: string
@@ -7378,6 +7384,9 @@ export type Database = {
           prix_max?: number | null
           prix_min?: number | null
           stock_estime?: number | null
+          stock_last_updated_at?: string | null
+          stock_minimum?: number
+          stock_target?: number | null
           tags?: string[] | null
           unite?: string | null
           updated_at?: string
@@ -7492,6 +7501,70 @@ export type Database = {
             columns: ["transaction_id"]
             isOneToOne: false
             referencedRelation: "waouh_transactions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_partner_stock_movements: {
+        Row: {
+          balance_after: number
+          balance_before: number
+          created_at: string
+          id: string
+          movement_type: string
+          note: string | null
+          partner_id: string
+          product_id: string
+          quantity: number
+          source: string
+          user_id: string
+        }
+        Insert: {
+          balance_after: number
+          balance_before: number
+          created_at?: string
+          id?: string
+          movement_type: string
+          note?: string | null
+          partner_id: string
+          product_id: string
+          quantity: number
+          source?: string
+          user_id: string
+        }
+        Update: {
+          balance_after?: number
+          balance_before?: number
+          created_at?: string
+          id?: string
+          movement_type?: string
+          note?: string | null
+          partner_id?: string
+          product_id?: string
+          quantity?: number
+          source?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_partner_stock_movements_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partner_stats_v"
+            referencedColumns: ["partner_id"]
+          },
+          {
+            foreignKeyName: "waouh_partner_stock_movements_partner_id_fkey"
+            columns: ["partner_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partners"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_partner_stock_movements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partner_products"
             referencedColumns: ["id"]
           },
         ]
@@ -7642,6 +7715,213 @@ export type Database = {
           signal_id?: string | null
           status?: string
           step?: string
+        }
+        Relationships: []
+      }
+      waouh_presence_events: {
+        Row: {
+          accuracy_meters: number | null
+          action: string
+          distance_meters: number | null
+          id: string
+          inside_radius: boolean | null
+          latitude: number | null
+          longitude: number | null
+          metadata: Json
+          occurred_at: string
+          site_id: string
+          source: string
+          token_id: string | null
+          user_id: string
+        }
+        Insert: {
+          accuracy_meters?: number | null
+          action: string
+          distance_meters?: number | null
+          id?: string
+          inside_radius?: boolean | null
+          latitude?: number | null
+          longitude?: number | null
+          metadata?: Json
+          occurred_at?: string
+          site_id: string
+          source?: string
+          token_id?: string | null
+          user_id: string
+        }
+        Update: {
+          accuracy_meters?: number | null
+          action?: string
+          distance_meters?: number | null
+          id?: string
+          inside_radius?: boolean | null
+          latitude?: number | null
+          longitude?: number | null
+          metadata?: Json
+          occurred_at?: string
+          site_id?: string
+          source?: string
+          token_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_presence_events_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_presence_sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_presence_events_token_id_fkey"
+            columns: ["token_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_presence_qr_tokens"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_presence_qr_tokens: {
+        Row: {
+          created_at: string
+          created_by: string
+          expires_at: string
+          id: string
+          revoked_at: string | null
+          site_id: string
+          token_hash: string
+          use_count: number
+          use_limit: number
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          expires_at: string
+          id?: string
+          revoked_at?: string | null
+          site_id: string
+          token_hash: string
+          use_count?: number
+          use_limit?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          expires_at?: string
+          id?: string
+          revoked_at?: string | null
+          site_id?: string
+          token_hash?: string
+          use_count?: number
+          use_limit?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_presence_qr_tokens_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_presence_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_presence_sessions: {
+        Row: {
+          check_in_at: string
+          check_in_event_id: string
+          check_out_at: string | null
+          check_out_event_id: string | null
+          created_at: string
+          id: string
+          site_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          check_in_at?: string
+          check_in_event_id: string
+          check_out_at?: string | null
+          check_out_event_id?: string | null
+          created_at?: string
+          id?: string
+          site_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          check_in_at?: string
+          check_in_event_id?: string
+          check_out_at?: string | null
+          check_out_event_id?: string | null
+          created_at?: string
+          id?: string
+          site_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_presence_sessions_check_in_event_id_fkey"
+            columns: ["check_in_event_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_presence_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_presence_sessions_check_out_event_id_fkey"
+            columns: ["check_out_event_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_presence_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_presence_sessions_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_presence_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_presence_sites: {
+        Row: {
+          active: boolean
+          address: string | null
+          created_at: string
+          id: string
+          latitude: number
+          longitude: number
+          name: string
+          radius_meters: number
+          require_geolocation: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          address?: string | null
+          created_at?: string
+          id?: string
+          latitude: number
+          longitude: number
+          name: string
+          radius_meters?: number
+          require_geolocation?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          address?: string | null
+          created_at?: string
+          id?: string
+          latitude?: number
+          longitude?: number
+          name?: string
+          radius_meters?: number
+          require_geolocation?: boolean
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -8635,6 +8915,47 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "waouh_stock_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_stock_reorder_requests: {
+        Row: {
+          created_at: string
+          id: string
+          note: string | null
+          product_id: string
+          quantity_requested: number
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          product_id: string
+          quantity_requested: number
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          product_id?: string
+          quantity_requested?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_stock_reorder_requests_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_partner_products"
             referencedColumns: ["id"]
           },
         ]
@@ -11833,6 +12154,17 @@ export type Database = {
         }[]
       }
       verify_bot_access_final: { Args: { p_bot_id: string }; Returns: boolean }
+      waouh_adjust_partner_stock: {
+        Args: {
+          p_movement_type?: string
+          p_note?: string
+          p_product_id: string
+          p_quantity: number
+          p_stock_minimum?: number
+          p_stock_target?: number
+        }
+        Returns: Json
+      }
       waouh_article_distance_km: {
         Args: { p_article: string; p_lat: number; p_lng: number }
         Returns: number
