@@ -196,7 +196,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         };
       }
     } catch (e) {
-      console.debug("[waouh-chat] waouh-history unavailable, fallback to direct query", e);
+      console.warn("[waouh-chat] waouh-history unavailable, fallback to direct query", e);
     }
     return fetchPageDirect(ids, before, limit);
   };
