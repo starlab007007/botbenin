@@ -6,12 +6,13 @@ import { useWaouhIdentity } from "../hooks/useWaouhIdentity";
 import { markConversationRead } from "../hooks/useUnreadCounts";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Send, Paperclip } from "lucide-react";
+import { ArrowLeft, Send, Paperclip, RotateCw } from "lucide-react";
 import { formatConvLabel, channelBadge, type WaouhUserLike } from "../utils/chatLabel";
 import { buildChatGroups } from "../utils/chatGrouping";
 import { ChatBubble } from "../components/ChatBubble";
 import { ChatDaySeparator } from "../components/ChatDaySeparator";
 import { ChatImage } from "../components/ChatImage";
+import { toast } from "@/hooks/use-toast";
 
 type Att = { url: string; caption?: string | null; type?: string | null };
 type Msg = {
