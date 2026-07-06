@@ -160,6 +160,25 @@ export default function ChatScreen({
     }
   };
 
+  const doSend = async (body: string, atts: Att[], tempId: string) => {
+    try {
+      const { error } = await supabase.functions.invoke("waouh-operator-send", {
+        body: { conversation_id: convId, text: body, attachments: atts },
+      });
+      if (error) throw error;
+      // Success: mark local temp as sent (realtime will replace with server row shortly)
+      setMsgs((cur) => cur.map((m) => (m.id === tempId ? { ...m, failed: false } : m)));
+    } catch (e: any) {
+      console.error("send failed", e);
+      toast({
+        variant: "destructive",
+        title: "Envoi échoué",
+        description: e?.message || "Impossible d'envoyer le message. Touchez la bulle pour réessayer.",
+      });
+      setMsgs((cur) => cur.map((m) => (m.id === tempId ? { ...m, failed: true } : m)));
+    }
+  };
+
   const send = async () => {
     const body = text.trim();
     if ((!body && pendingAtts.length === 0) || !convId || sending) return;
@@ -167,26 +186,19 @@ export default function ChatScreen({
     const atts = pendingAtts;
     setText("");
     setPendingAtts([]);
-    // Optimistic bubble
     const tempId = `temp-${Date.now()}`;
     setMsgs((cur) => [...cur, {
       id: tempId, direction: "out", text: body || "(image)",
       created_at: new Date().toISOString(), attachments: atts,
     }]);
-    try {
-      const { error } = await supabase.functions.invoke("waouh-operator-send", {
-        body: { conversation_id: convId, text: body, attachments: atts },
-      });
-      if (error) throw error;
-    } catch (e) {
-      console.error("send failed", e);
-      // Roll back optimistic message on failure
-      setMsgs((cur) => cur.filter((m) => m.id !== tempId));
-      setText(body);
-      setPendingAtts(atts);
-    } finally {
-      setSending(false);
-    }
+    await doSend(body, atts, tempId);
+    setSending(false);
+  };
+
+  const retry = async (m: Msg) => {
+    if (!convId) return;
+    setMsgs((cur) => cur.map((x) => (x.id === m.id ? { ...x, failed: false } : x)));
+    await doSend(m.text ?? "", (m.attachments as Att[]) ?? [], m.id);
   };
 
   return (
