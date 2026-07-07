@@ -909,8 +909,8 @@ serve(async (req) => {
           .eq("intent", "SELL");
         if (criteriaCategory && criteriaCategory !== "autre") rq = rq.or(`category.ilike.%${criteriaCategory}%,raw_text.ilike.%${criteriaCategory}%`);
         if (criteria.price_max) rq = rq.lte("price", criteria.price_max);
-        if (kws.length > 0) {
-          const orFilter = kws.map((k) => `raw_text.ilike.%${k}%`).join(",");
+        if (kwVariants.length > 0) {
+          const orFilter = kwVariants.map((k) => `raw_text.ilike.%${k}%`).join(",");
           rq = rq.or(orFilter);
         }
         const { data: rs } = await rq.order("captured_at", { ascending: false }).limit(8);
@@ -929,8 +929,8 @@ serve(async (req) => {
           eq = eq.or(`category.ilike.%${criteriaCategory}%,title.ilike.%${criteriaCategory}%`);
         }
         if (criteria.price_max) eq = eq.lte("price", criteria.price_max);
-        if (kws.length > 0) {
-          const orFilter = kws.map((k) => `title.ilike.%${k}%,description.ilike.%${k}%`).join(",");
+        if (kwVariants.length > 0) {
+          const orFilter = kwVariants.map((k) => `title.ilike.%${k}%,description.ilike.%${k}%`).join(",");
           eq = eq.or(orFilter);
         }
         const { data: el } = await eq.order("scraped_at", { ascending: false }).limit(8);
