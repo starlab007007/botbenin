@@ -862,38 +862,43 @@ serve(async (req) => {
         // en sortant proprement de la branche BUY via un flag
         (intent as any).__short_circuit = true;
       }
+      // Variantes tolérantes (accents, pluriels, multi-mots) — utilisées pour
+      // l'ensemble des recherches ilike ci-dessous. Améliore le rappel.
+      const kwVariants = expandKeywordVariants(kws).map(escapeIlikeToken).filter((k) => k.length >= 2);
       // Recherche filtrée
       let q = sb.from("waouh_articles")
         .select("id,title,price,city,brand,condition,category,seller_id,photos,market_price_min,market_price_max")
         .eq("status", "active");
       if (criteriaCategory) q = q.eq("category", criteriaCategory);
       if (criteria.price_max) q = q.lte("price", criteria.price_max);
-      if (kws.length > 0) {
-        const orFilter = kws.map((k) => `title.ilike.%${k}%,brand.ilike.%${k}%,description.ilike.%${k}%`).join(",");
+      if (kwVariants.length > 0) {
+        const orFilter = kwVariants.map((k) => `title.ilike.%${k}%,brand.ilike.%${k}%,model.ilike.%${k}%,description.ilike.%${k}%`).join(",");
         q = q.or(orFilter);
       }
       const { data: matches } = (intent as any).__short_circuit
         ? { data: [] as any[] }
         : await q.order("created_at", { ascending: false }).limit(5);
 
-      // 🏪 Recherche dans le Catalogue Unifié (produits partenaires + chat + radar)
+      // 🏪 Recherche dans le Catalogue Unifié (partenaires + chat + radar + externes)
+      // NB: on retire le filtre `.eq('source','partner')` pour exposer TOUTES les
+      // offres actives — beaucoup de produits partenaires étaient invisibles quand
+      // leur source était classée autrement (ex: import Google Sheets, radar promu).
       let partnerMatches: any[] = [];
       if (!(intent as any).__short_circuit) try {
         let pq = sb.from("waouh_unified_catalog")
           .select("id,titre,description,categorie,prix_min,prix_max,ville,quartier,vendeur_nom,vendeur_phone,vendeur_whatsapp,photos,source,partner_id,business_id")
           .eq("type", "offer")
-          .eq("is_active", true)
-          .eq("source", "partner");
+          .eq("is_active", true);
         if (criteria.price_max) pq = pq.lte("prix_min", criteria.price_max);
-        if (kws.length > 0) {
-          const orFilter = kws
-            .map((k) => `titre.ilike.%${k}%,description.ilike.%${k}%,categorie.ilike.%${k}%,tags.cs.{${k}}`)
+        if (kwVariants.length > 0) {
+          const orFilter = kwVariants
+            .map((k) => `titre.ilike.%${k}%,description.ilike.%${k}%,categorie.ilike.%${k}%,sous_categorie.ilike.%${k}%,vendeur_nom.ilike.%${k}%,tags.cs.{${k}}`)
             .join(",");
           pq = pq.or(orFilter);
         }
-        const { data: pm } = await pq.order("priority_rank", { ascending: false }).limit(5);
+        const { data: pm } = await pq.order("priority_rank", { ascending: false }).limit(8);
         partnerMatches = pm || [];
-      } catch (e) { console.warn("[partner catalog search]", e); }
+      } catch (e) { console.warn("[unified catalog search]", e); }
 
 
       // 🛰️ Radar IA: chercher aussi des signaux SELL (annonces externes captées)
