@@ -38,3 +38,39 @@ export function extractFallbackKeywords(text: string): string[] {
   }
   return out;
 }
+
+/**
+ * Génère des variantes d'un mot-clé pour un ilike plus tolérant :
+ *  - minuscule
+ *  - sans accents
+ *  - stemming léger (retire "s", "es", "x" final)
+ *  - décomposition en tokens si multi-mots ("iphone 12" → ["iphone", "12"])
+ * Retourne des tokens uniques, filtrés (>=2 chars).
+ */
+export function expandKeywordVariants(input: string | string[]): string[] {
+  const arr = Array.isArray(input) ? input : [input];
+  const out = new Set<string>();
+  for (const raw of arr) {
+    if (!raw || typeof raw !== "string") continue;
+    const base = stripAccents(raw.toLowerCase()).trim();
+    if (!base) continue;
+    // tokens (multi-mots)
+    const parts = base.split(/[\s\-']+/).filter((p) => p.length >= 2);
+    const all = [base, ...parts];
+    for (const t of all) {
+      if (t.length < 2) continue;
+      out.add(t);
+      // stemming léger
+      if (t.length > 4) {
+        if (t.endsWith("es")) out.add(t.slice(0, -2));
+        else if (t.endsWith("s") || t.endsWith("x")) out.add(t.slice(0, -1));
+      }
+    }
+  }
+  return Array.from(out).slice(0, 12);
+}
+
+/** Échappe les caractères spéciaux d'un pattern PostgREST ilike (%, _, ,, ()). */
+export function escapeIlikeToken(k: string): string {
+  return k.replace(/[,()%_*]/g, " ").trim();
+}

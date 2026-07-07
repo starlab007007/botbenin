@@ -10,7 +10,7 @@ import {
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 import { findRadarOutreachContext, findRadarSellerOutreachContext } from "../_shared/waouh-radar.ts";
-import { extractFallbackKeywords } from "../_shared/waouh-keywords.ts";
+import { extractFallbackKeywords, expandKeywordVariants, escapeIlikeToken } from "../_shared/waouh-keywords.ts";
 import { compareMarketPrice, shortMarketLine } from "../_shared/waouh-price.ts";
 
 const corsHeaders = {
@@ -862,38 +862,43 @@ serve(async (req) => {
         // en sortant proprement de la branche BUY via un flag
         (intent as any).__short_circuit = true;
       }
+      // Variantes tolérantes (accents, pluriels, multi-mots) — utilisées pour
+      // l'ensemble des recherches ilike ci-dessous. Améliore le rappel.
+      const kwVariants = expandKeywordVariants(kws).map(escapeIlikeToken).filter((k) => k.length >= 2);
       // Recherche filtrée
       let q = sb.from("waouh_articles")
         .select("id,title,price,city,brand,condition,category,seller_id,photos,market_price_min,market_price_max")
         .eq("status", "active");
       if (criteriaCategory) q = q.eq("category", criteriaCategory);
       if (criteria.price_max) q = q.lte("price", criteria.price_max);
-      if (kws.length > 0) {
-        const orFilter = kws.map((k) => `title.ilike.%${k}%,brand.ilike.%${k}%,description.ilike.%${k}%`).join(",");
+      if (kwVariants.length > 0) {
+        const orFilter = kwVariants.map((k) => `title.ilike.%${k}%,brand.ilike.%${k}%,model.ilike.%${k}%,description.ilike.%${k}%`).join(",");
         q = q.or(orFilter);
       }
       const { data: matches } = (intent as any).__short_circuit
         ? { data: [] as any[] }
         : await q.order("created_at", { ascending: false }).limit(5);
 
-      // 🏪 Recherche dans le Catalogue Unifié (produits partenaires + chat + radar)
+      // 🏪 Recherche dans le Catalogue Unifié (partenaires + chat + radar + externes)
+      // NB: on retire le filtre `.eq('source','partner')` pour exposer TOUTES les
+      // offres actives — beaucoup de produits partenaires étaient invisibles quand
+      // leur source était classée autrement (ex: import Google Sheets, radar promu).
       let partnerMatches: any[] = [];
       if (!(intent as any).__short_circuit) try {
         let pq = sb.from("waouh_unified_catalog")
           .select("id,titre,description,categorie,prix_min,prix_max,ville,quartier,vendeur_nom,vendeur_phone,vendeur_whatsapp,photos,source,partner_id,business_id")
           .eq("type", "offer")
-          .eq("is_active", true)
-          .eq("source", "partner");
+          .eq("is_active", true);
         if (criteria.price_max) pq = pq.lte("prix_min", criteria.price_max);
-        if (kws.length > 0) {
-          const orFilter = kws
-            .map((k) => `titre.ilike.%${k}%,description.ilike.%${k}%,categorie.ilike.%${k}%,tags.cs.{${k}}`)
+        if (kwVariants.length > 0) {
+          const orFilter = kwVariants
+            .map((k) => `titre.ilike.%${k}%,description.ilike.%${k}%,categorie.ilike.%${k}%,sous_categorie.ilike.%${k}%,vendeur_nom.ilike.%${k}%,tags.cs.{${k}}`)
             .join(",");
           pq = pq.or(orFilter);
         }
-        const { data: pm } = await pq.order("priority_rank", { ascending: false }).limit(5);
+        const { data: pm } = await pq.order("priority_rank", { ascending: false }).limit(8);
         partnerMatches = pm || [];
-      } catch (e) { console.warn("[partner catalog search]", e); }
+      } catch (e) { console.warn("[unified catalog search]", e); }
 
 
       // 🛰️ Radar IA: chercher aussi des signaux SELL (annonces externes captées)
@@ -904,8 +909,8 @@ serve(async (req) => {
           .eq("intent", "SELL");
         if (criteriaCategory && criteriaCategory !== "autre") rq = rq.or(`category.ilike.%${criteriaCategory}%,raw_text.ilike.%${criteriaCategory}%`);
         if (criteria.price_max) rq = rq.lte("price", criteria.price_max);
-        if (kws.length > 0) {
-          const orFilter = kws.map((k) => `raw_text.ilike.%${k}%`).join(",");
+        if (kwVariants.length > 0) {
+          const orFilter = kwVariants.map((k) => `raw_text.ilike.%${k}%`).join(",");
           rq = rq.or(orFilter);
         }
         const { data: rs } = await rq.order("captured_at", { ascending: false }).limit(8);
@@ -924,8 +929,8 @@ serve(async (req) => {
           eq = eq.or(`category.ilike.%${criteriaCategory}%,title.ilike.%${criteriaCategory}%`);
         }
         if (criteria.price_max) eq = eq.lte("price", criteria.price_max);
-        if (kws.length > 0) {
-          const orFilter = kws.map((k) => `title.ilike.%${k}%,description.ilike.%${k}%`).join(",");
+        if (kwVariants.length > 0) {
+          const orFilter = kwVariants.map((k) => `title.ilike.%${k}%,description.ilike.%${k}%`).join(",");
           eq = eq.or(orFilter);
         }
         const { data: el } = await eq.order("scraped_at", { ascending: false }).limit(8);
@@ -1034,23 +1039,43 @@ serve(async (req) => {
           && /^https?:\/\//i.test(u)
           && !/^data:/i.test(u)
           && !/^blob:/i.test(u);
-        const collectAtts = (items: any[], titleField: string) =>
-          items.flatMap((p: any) => {
-            const photos: string[] = Array.isArray(p.photos) ? p.photos : [];
-            return photos.filter(isPublicImageUrl).slice(0, 4).map((url: string, k: number) => ({
+        // 🖼️ Captions préfixées par le numéro affiché dans la liste texte
+        // (« *1.* iPhone 12 — 250 000 FCFA · Cotonou ») pour que l'acheteur
+        // puisse relier immédiatement une photo à son article, même si plusieurs
+        // partenaires vendent des produits similaires. On limite à 2 photos /
+        // produit pour rester lisible sur WhatsApp.
+        const fmtPrice = (v: any) => (v ? fmt(Number(v)) : "");
+        const captionFor = (idx: number, title: string, price: any, city: any, k: number, total: number) => {
+          const bits = [
+            `*${idx}.* ${title || "Produit"}`,
+            price ? fmtPrice(price) : "",
+            city ? String(city) : "",
+          ].filter(Boolean).join(" · ");
+          return total > 1 ? `${bits}  (photo ${k + 1}/${total})` : bits;
+        };
+        const collectAtts = (items: any[], startIndex: number, titleField: string, priceField: string, cityField: string) =>
+          items.flatMap((p: any, i: number) => {
+            const photos: string[] = Array.isArray(p.photos) ? p.photos.filter(isPublicImageUrl) : [];
+            const take = photos.slice(0, 2);
+            return take.map((url: string, k: number) => ({
               url,
               type: "image/jpeg",
-              caption: `${p[titleField] || "Produit"}${photos.length > 1 ? ` — photo ${k + 1}/${photos.length}` : ""}`,
+              caption: captionFor(startIndex + i, p[titleField], p[priceField], p[cityField], k, take.length),
             }));
           });
         replyAttachments = [
-          ...collectAtts(partnerTop, "titre"),
-          ...collectAtts(matchesTop, "title"),
-          ...radarTop.flatMap((r: any) => extractProductPhotos(r).slice(0, 4).map((url: string, k: number) => ({
-            url,
-            type: "image/jpeg",
-            caption: `${r.product?.title || r.product?.name || "Annonce Radar IA"}${k > 0 ? ` — photo ${k + 1}` : ""}`,
-          }))),
+          ...collectAtts(partnerTop, 1, "titre", "prix_min", "ville"),
+          ...collectAtts(matchesTop, partnerTop.length + 1, "title", "price", "city"),
+          ...radarTop.flatMap((r: any, i: number) => {
+            const photos = extractProductPhotos(r).slice(0, 2);
+            const title = r.product?.title || r.product?.name || "Annonce Radar IA";
+            const idx = partnerTop.length + matchesTop.length + i + 1;
+            return photos.map((url: string, k: number) => ({
+              url,
+              type: "image/jpeg",
+              caption: captionFor(idx, title, r.price, r.city, k, photos.length),
+            }));
+          }),
         ].slice(0, 12);
         const radarHint = radarTop.length > 0
           ? `\n\n🛰️ *${radarTop.length} annonce${radarTop.length > 1 ? "s" : ""}* détectée${radarTop.length > 1 ? "s" : ""} via Radar IA. Nous contactons automatiquement ces vendeurs sur WhatsApp pour vous.`
