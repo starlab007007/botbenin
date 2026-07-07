@@ -107,33 +107,87 @@ Deno.serve(async (req) => {
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
+    // Variantes tolérantes (accents, pluriels, multi-mots) pour rappel large.
+    const kwVariants = expandKeywordVariants(effectiveKws).map(escapeIlikeToken).filter((k) => k.length >= 2);
+
+    // 1) waouh_articles (annonces chat)
     let query = supabase.from('waouh_articles')
-      .select('id,title,brand,model,price,city,photos,location,seller_id')
+      .select('id,title,brand,model,price,city,photos,location,seller_id,description')
       .eq('status', 'active');
     if (q.category) query = query.eq('category', q.category);
     if (q.price_min) query = query.gte('price', q.price_min);
     if (q.price_max) query = query.lte('price', q.price_max);
+    if (kwVariants.length > 0) {
+      const orFilter = kwVariants.map((k) => `title.ilike.%${k}%,brand.ilike.%${k}%,model.ilike.%${k}%,description.ilike.%${k}%`).join(",");
+      query = query.or(orFilter);
+    }
     const { data: articles } = await query.limit(20);
 
-    const filtered = (articles || []).filter(a =>
-      !effectiveKws.length || effectiveKws.some((k: string) =>
-        (a.title + ' ' + (a.brand || '') + ' ' + (a.model || '')).toLowerCase().includes(k.toLowerCase())
-      )
+    // 2) waouh_unified_catalog (partenaires + imports + radar promus)
+    // Souvent négligé jusqu'ici -> beaucoup de produits partenaires étaient invisibles.
+    let partnerRows: any[] = [];
+    try {
+      let pq = supabase.from('waouh_unified_catalog')
+        .select('id,titre,description,categorie,prix_min,prix_max,ville,quartier,vendeur_nom,vendeur_phone,vendeur_whatsapp,photos,source,partner_id,business_id,lat,lng')
+        .eq('type', 'offer')
+        .eq('is_active', true);
+      if (q.price_max) pq = pq.lte('prix_min', q.price_max);
+      if (kwVariants.length > 0) {
+        const orFilter = kwVariants
+          .map((k) => `titre.ilike.%${k}%,description.ilike.%${k}%,categorie.ilike.%${k}%,sous_categorie.ilike.%${k}%,vendeur_nom.ilike.%${k}%,tags.cs.{${k}}`)
+          .join(",");
+        pq = pq.or(orFilter);
+      }
+      const { data: pm } = await pq.order('priority_rank', { ascending: false }).limit(15);
+      partnerRows = pm || [];
+    } catch (e) { console.warn('[buy-handler unified catalog]', e); }
+
+    // Normalisation partenaires -> même forme que waouh_articles
+    const normalizedPartners = partnerRows.map((p: any) => ({
+      id: p.id,
+      title: p.titre,
+      brand: null,
+      model: null,
+      price: Number(p.prix_min || p.prix_max || 0),
+      city: p.ville || null,
+      photos: Array.isArray(p.photos) ? p.photos : [],
+      location: (typeof p.lat === 'number' && typeof p.lng === 'number') ? `SRID=4326;POINT(${p.lng} ${p.lat})` : null,
+      seller_id: null,
+      partner_id: p.partner_id || null,
+      business_id: p.business_id || null,
+      vendeur_nom: p.vendeur_nom || null,
+      vendeur_phone: p.vendeur_phone || null,
+      vendeur_whatsapp: p.vendeur_whatsapp || null,
+      description: p.description || null,
+      source: 'partner',
+    }));
+
+    const combined = [...(articles || []), ...normalizedPartners];
+
+    // Filtre local supplémentaire (au cas où ilike ne matcherait pas la variante exacte)
+    const filtered = combined.filter(a =>
+      !effectiveKws.length || effectiveKws.some((k: string) => {
+        const hay = `${a.title || ''} ${a.brand || ''} ${a.model || ''} ${a.description || ''}`.toLowerCase();
+        return hay.includes(k.toLowerCase());
+      })
     );
 
-    // Compute real distance per article between buyer-supplied location
-    // and article.location (PostGIS POINT). Sort closest first.
+    // Dédoublonnage par (title,price) pour éviter doublons entre sources
+    const seen = new Set<string>();
+    const deduped = filtered.filter((a: any) => {
+      const key = `${(a.title || '').trim().toLowerCase()}|${Math.round(Number(a.price || 0))}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    // Distances
     const buyerLat = typeof location?.lat === 'number' ? location.lat : null;
     const buyerLng = typeof location?.lng === 'number' ? location.lng : null;
-    const enriched = filtered.map((a: any) => {
+    const enriched = deduped.map((a: any) => {
       const pt = parsePoint(a.location);
       const dKm = pt ? distanceKm(buyerLat, buyerLng, pt.lat, pt.lng) : null;
-      return {
-        ...a,
-        lat: pt?.lat ?? null,
-        lng: pt?.lng ?? null,
-        distance_km: dKm,
-      };
+      return { ...a, lat: pt?.lat ?? null, lng: pt?.lng ?? null, distance_km: dKm };
     });
     enriched.sort((x: any, y: any) => {
       if (x.distance_km == null && y.distance_km == null) return 0;
@@ -143,13 +197,10 @@ Deno.serve(async (req) => {
     });
     const matches = enriched.slice(0, 10);
 
-    // Fire-and-forget BUYER-side match notifications only.
-    // We intentionally do NOT dispatch `new_buyer` to the seller here:
-    // a keyword search is not an explicit interest. The seller is only
-    // notified when the buyer clicks "Intéressé" (waouh-buyer-interest)
-    // or sends a real chat message tagged with article_id (waouh-channel-in).
+    // Dispatch buyer-side (uniquement pour les articles officiels)
     const dispatchAsync = (async () => {
       for (const a of matches.slice(0, 5)) {
+        if (!a.id || a.source === 'partner') continue;
         fetch(`${SUPABASE_URL}/functions/v1/waouh-notify-dispatch`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${SERVICE_ROLE}`, 'Content-Type': 'application/json' },
@@ -157,34 +208,41 @@ Deno.serve(async (req) => {
         }).catch(() => {});
       }
     })();
-    // @ts-ignore - EdgeRuntime is provided by Supabase Edge runtime
+    // @ts-ignore
     if (typeof EdgeRuntime !== 'undefined' && (EdgeRuntime as any).waitUntil) {
       // @ts-ignore
       (EdgeRuntime as any).waitUntil(dispatchAsync);
     }
 
-    // Enrichir chaque match avec une cover_photo (1ère photo http(s))
-    const isHttpUrl = (u: any) => typeof u === "string" && /^https?:\/\//i.test(u) && !/^data:|^blob:/i.test(u);
+    const isHttpUrl = (u: any) => typeof u === 'string' && /^https?:\/\//i.test(u) && !/^data:|^blob:/i.test(u);
     const enrichedMatches = matches.map((a: any) => ({
       ...a,
       cover_photo: Array.isArray(a.photos) ? (a.photos.find(isHttpUrl) ?? null) : null,
     }));
-    // Attachments parallèles (jusqu'à 12) pour rendu image inline dans le chat
-    const reply_attachments = enrichedMatches.slice(0, 5).flatMap((a: any) => {
+
+    // Captions préfixées « *N.* Titre · prix · ville » pour relier photo <-> article
+    const fmtF = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} FCFA`;
+    const reply_attachments = enrichedMatches.slice(0, 5).flatMap((a: any, i: number) => {
       const photos: string[] = Array.isArray(a.photos) ? a.photos.filter(isHttpUrl) : [];
-      return photos.slice(0, 4).map((url, k) => ({
+      const take = photos.slice(0, 2);
+      return take.map((url, k) => ({
         url,
-        type: "image/jpeg",
-        caption: `${a.title || "Produit"}${photos.length > 1 ? ` — photo ${k + 1}/${photos.length}` : ""}`,
+        type: 'image/jpeg',
+        caption: [
+          `*${i + 1}.* ${a.title || 'Produit'}`,
+          a.price ? fmtF(Number(a.price)) : '',
+          a.city || '',
+        ].filter(Boolean).join(' · ') + (take.length > 1 ? `  (photo ${k + 1}/${take.length})` : ''),
       }));
     }).slice(0, 12);
 
     const reply = enrichedMatches.length
-      ? `🔎 ${enrichedMatches.length} résultat(s):\n` + enrichedMatches.slice(0, 5).map((a: any) => {
+      ? `🔎 ${enrichedMatches.length} résultat(s):\n` + enrichedMatches.slice(0, 5).map((a: any, i: number) => {
           const dist = a.distance_km != null ? ` · ${formatDistance(a.distance_km).replace(/^📏\s*\*?|\*?$/g, '')}` : '';
-          return `• ${a.title} - ${a.price} FCFA (${a.city || 'N/A'})${dist}`;
-        }).join('\n')
-      : `🕵️ Aucun résultat pour le moment. Tu seras notifié dès qu\'une annonce correspond.`;
+          const tag = a.source === 'partner' ? ' 🏪' : '';
+          return `${i + 1}. ${a.title}${tag} - ${a.price} FCFA (${a.city || 'N/A'})${dist}`;
+        }).join('\n') + `\n\n💡 Répondez « intéressé N » pour être mis en relation.`
+      : `🕵️ Aucun résultat pour le moment. Tu seras notifié dès qu'une annonce correspond.`;
 
     return new Response(JSON.stringify({ success: true, matches: enrichedMatches, reply, attachments: reply_attachments }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
