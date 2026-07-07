@@ -1039,23 +1039,43 @@ serve(async (req) => {
           && /^https?:\/\//i.test(u)
           && !/^data:/i.test(u)
           && !/^blob:/i.test(u);
-        const collectAtts = (items: any[], titleField: string) =>
-          items.flatMap((p: any) => {
-            const photos: string[] = Array.isArray(p.photos) ? p.photos : [];
-            return photos.filter(isPublicImageUrl).slice(0, 4).map((url: string, k: number) => ({
+        // 🖼️ Captions préfixées par le numéro affiché dans la liste texte
+        // (« *1.* iPhone 12 — 250 000 FCFA · Cotonou ») pour que l'acheteur
+        // puisse relier immédiatement une photo à son article, même si plusieurs
+        // partenaires vendent des produits similaires. On limite à 2 photos /
+        // produit pour rester lisible sur WhatsApp.
+        const fmtPrice = (v: any) => (v ? fmt(Number(v)) : "");
+        const captionFor = (idx: number, title: string, price: any, city: any, k: number, total: number) => {
+          const bits = [
+            `*${idx}.* ${title || "Produit"}`,
+            price ? fmtPrice(price) : "",
+            city ? String(city) : "",
+          ].filter(Boolean).join(" · ");
+          return total > 1 ? `${bits}  (photo ${k + 1}/${total})` : bits;
+        };
+        const collectAtts = (items: any[], startIndex: number, titleField: string, priceField: string, cityField: string) =>
+          items.flatMap((p: any, i: number) => {
+            const photos: string[] = Array.isArray(p.photos) ? p.photos.filter(isPublicImageUrl) : [];
+            const take = photos.slice(0, 2);
+            return take.map((url: string, k: number) => ({
               url,
               type: "image/jpeg",
-              caption: `${p[titleField] || "Produit"}${photos.length > 1 ? ` — photo ${k + 1}/${photos.length}` : ""}`,
+              caption: captionFor(startIndex + i, p[titleField], p[priceField], p[cityField], k, take.length),
             }));
           });
         replyAttachments = [
-          ...collectAtts(partnerTop, "titre"),
-          ...collectAtts(matchesTop, "title"),
-          ...radarTop.flatMap((r: any) => extractProductPhotos(r).slice(0, 4).map((url: string, k: number) => ({
-            url,
-            type: "image/jpeg",
-            caption: `${r.product?.title || r.product?.name || "Annonce Radar IA"}${k > 0 ? ` — photo ${k + 1}` : ""}`,
-          }))),
+          ...collectAtts(partnerTop, 1, "titre", "prix_min", "ville"),
+          ...collectAtts(matchesTop, partnerTop.length + 1, "title", "price", "city"),
+          ...radarTop.flatMap((r: any, i: number) => {
+            const photos = extractProductPhotos(r).slice(0, 2);
+            const title = r.product?.title || r.product?.name || "Annonce Radar IA";
+            const idx = partnerTop.length + matchesTop.length + i + 1;
+            return photos.map((url: string, k: number) => ({
+              url,
+              type: "image/jpeg",
+              caption: captionFor(idx, title, r.price, r.city, k, photos.length),
+            }));
+          }),
         ].slice(0, 12);
         const radarHint = radarTop.length > 0
           ? `\n\n🛰️ *${radarTop.length} annonce${radarTop.length > 1 ? "s" : ""}* détectée${radarTop.length > 1 ? "s" : ""} via Radar IA. Nous contactons automatiquement ces vendeurs sur WhatsApp pour vous.`
