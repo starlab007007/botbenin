@@ -3,6 +3,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { User as SupabaseUser, Session } from '@supabase/supabase-js';
 import { GuestAuthService, GuestUser } from "@/services/GuestAuthService";
+import { friendlyAuthError } from "@/lib/authErrors";
 
 export interface AuthUser {
   id: string;
@@ -240,37 +241,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
+      if (!email?.trim() || !password) {
         toast({
-          title: "Erreur de connexion",
-          description: error.message,
+          title: "Champs requis",
+          description: "Veuillez saisir votre email et votre mot de passe.",
           variant: "destructive",
         });
         return false;
       }
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) {
+        const f = friendlyAuthError(error, "login");
+        toast({ title: f.title, description: f.description, variant: "destructive" });
+        return false;
+      }
 
       if (data.user) {
-        toast({
-          title: "Connexion réussie",
-          description: `Bienvenue !`,
-        });
+        toast({ title: "Connexion réussie", description: "Bienvenue !" });
         return true;
       }
     } catch (error) {
-      toast({
-        title: "Erreur de connexion",
-        description: "Une erreur est survenue",
-        variant: "destructive",
-      });
+      const f = friendlyAuthError(error, "login");
+      toast({ title: f.title, description: f.description, variant: "destructive" });
     }
-    
+
     return false;
   };
+
 
   const loginWithPhone = async (phone: string, password: string): Promise<boolean> => {
     // For now, use email login with phone as email
@@ -279,36 +280,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const loginWithGoogle = async (): Promise<boolean> => {
     try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
-        }
+          queryParams: { access_type: 'offline', prompt: 'consent' },
+        },
       });
 
       if (error) {
-        toast({
-          title: "Erreur de connexion Google",
-          description: error.message,
-          variant: "destructive",
-        });
+        const f = friendlyAuthError(error, "google");
+        toast({ title: f.title, description: f.description, variant: "destructive" });
         return false;
       }
-
       return true;
     } catch (error) {
-      toast({
-        title: "Erreur de connexion Google",
-        description: "Une erreur est survenue lors de la connexion avec Google",
-        variant: "destructive",
-      });
+      const f = friendlyAuthError(error, "google");
+      toast({ title: f.title, description: f.description, variant: "destructive" });
       return false;
     }
   };
+
 
   const register = async (userData: {
     name: string;
@@ -317,68 +309,58 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     password: string;
   }): Promise<boolean> => {
     setIsLoading(true);
-    
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email: userData.email,
-        password: userData.password,
-        options: {
-          data: {
-            full_name: userData.name,
-            phone: userData.phone,
-          },
-          emailRedirectTo: `${window.location.origin}/`
-        }
-      });
 
-      if (error) {
-        // Gérer les erreurs spécifiques d'inscription
-        let errorMessage = error.message;
-        
-        if (error.message?.includes('User already registered')) {
-          errorMessage = "Un compte existe déjà avec cette adresse email";
-        } else if (error.message?.includes('Password should be at least')) {
-          errorMessage = "Le mot de passe doit contenir au moins 6 caractères";
-        } else if (error.message?.includes('Email not confirmed')) {
-          errorMessage = "Veuillez vérifier votre email et cliquer sur le lien de confirmation";
-        } else if (error.message?.includes('Invalid email')) {
-          errorMessage = "Adresse email invalide";
-        }
-        
+    try {
+      if (!userData.name?.trim() || !userData.email?.trim() || !userData.password) {
         toast({
-          title: "Erreur d'inscription",
-          description: errorMessage,
+          title: "Informations manquantes",
+          description: "Veuillez renseigner votre nom, votre email et un mot de passe.",
           variant: "destructive",
         });
         setIsLoading(false);
         return false;
       }
 
+      const { data, error } = await supabase.auth.signUp({
+        email: userData.email.trim(),
+        password: userData.password,
+        options: {
+          data: {
+            full_name: userData.name.trim(),
+            phone: userData.phone,
+          },
+          emailRedirectTo: `${window.location.origin}/`,
+        },
+      });
+
+      if (error) {
+        const f = friendlyAuthError(error, "register");
+        toast({ title: f.title, description: f.description, variant: "destructive" });
+        setIsLoading(false);
+        return false;
+      }
+
       if (data.user) {
-        // Vérifier si l'email a été confirmé automatiquement
         const isConfirmed = data.user.email_confirmed_at !== null;
-        
         toast({
           title: "Compte créé avec succès",
-          description: isConfirmed 
-            ? "Votre compte est prêt à utiliser !" 
-            : "Vérifiez votre email pour confirmer votre compte. Vous pouvez déjà vous connecter.",
+          description: isConfirmed
+            ? "Votre compte est prêt à utiliser !"
+            : "Vérifiez votre email pour confirmer votre compte.",
         });
         setIsLoading(false);
         return true;
       }
     } catch (error) {
-      console.error('Registration error:', error);
-      toast({
-        title: "Erreur d'inscription",
-        description: "Une erreur est survenue lors de la création du compte",
-        variant: "destructive",
-      });
+      console.error('[Auth] register error:', error);
+      const f = friendlyAuthError(error, "register");
+      toast({ title: f.title, description: f.description, variant: "destructive" });
     }
-    
+
     setIsLoading(false);
     return false;
   };
+
 
   const logout = async () => {
     try {
@@ -428,13 +410,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const changePassword = async (currentPassword: string, newPassword: string): Promise<boolean> => {
     setIsLoading(true);
-    
+
     try {
-      // D'abord, vérifier le mot de passe actuel en tentant de se reconnecter
       if (!supabaseUser?.email) {
         toast({
-          title: "Erreur",
-          description: "Email utilisateur non trouvé",
+          title: "Session expirée",
+          description: "Veuillez vous reconnecter pour changer votre mot de passe.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return false;
+      }
+
+      if (!currentPassword || !newPassword) {
+        toast({
+          title: "Champs requis",
+          description: "Veuillez renseigner votre mot de passe actuel et le nouveau.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return false;
+      }
+
+      if (newPassword.length < 6) {
+        toast({
+          title: "Mot de passe trop court",
+          description: "Choisissez un mot de passe d'au moins 6 caractères.",
           variant: "destructive",
         });
         setIsLoading(false);
@@ -448,48 +449,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (signInError) {
         toast({
-          title: "Erreur",
-          description: "Mot de passe actuel incorrect",
+          title: "Mot de passe actuel incorrect",
+          description: "Vérifiez votre mot de passe actuel puis réessayez.",
           variant: "destructive",
         });
         setIsLoading(false);
         return false;
       }
 
-      // Si la vérification réussit, changer le mot de passe
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword
-      });
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
 
       if (error) {
-        let errorMessage = error.message;
-        
-        if (error.message?.includes('Password should be at least')) {
-          errorMessage = "Le nouveau mot de passe doit contenir au moins 6 caractères";
-        }
-        
-        toast({
-          title: "Erreur de changement de mot de passe",
-          description: errorMessage,
-          variant: "destructive",
-        });
+        const f = friendlyAuthError(error, "password");
+        toast({ title: f.title, description: f.description, variant: "destructive" });
         setIsLoading(false);
         return false;
       }
 
       toast({
         title: "Mot de passe changé",
-        description: "Votre mot de passe a été mis à jour avec succès",
+        description: "Votre mot de passe a été mis à jour avec succès.",
       });
       setIsLoading(false);
       return true;
     } catch (error) {
-      console.error('Password change error:', error);
-      toast({
-        title: "Erreur",
-        description: "Une erreur est survenue lors du changement de mot de passe",
-        variant: "destructive",
-      });
+      console.error('[Auth] changePassword error:', error);
+      const f = friendlyAuthError(error, "password");
+      toast({ title: f.title, description: f.description, variant: "destructive" });
       setIsLoading(false);
       return false;
     }
@@ -497,47 +483,44 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const resetPassword = async (email: string): Promise<boolean> => {
     setIsLoading(true);
-    
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`
-      });
 
-      if (error) {
-        let errorMessage = error.message;
-        
-        if (error.message?.includes('Email not found')) {
-          errorMessage = "Aucun compte trouvé avec cette adresse email";
-        } else if (error.message?.includes('Email rate limit exceeded')) {
-          errorMessage = "Trop de tentatives. Veuillez réessayer plus tard";
-        }
-        
+    try {
+      if (!email?.trim()) {
         toast({
-          title: "Erreur de réinitialisation",
-          description: errorMessage,
+          title: "Email requis",
+          description: "Veuillez saisir votre adresse email.",
           variant: "destructive",
         });
         setIsLoading(false);
         return false;
       }
 
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) {
+        const f = friendlyAuthError(error, "reset");
+        toast({ title: f.title, description: f.description, variant: "destructive" });
+        setIsLoading(false);
+        return false;
+      }
+
       toast({
         title: "Email envoyé",
-        description: "Un lien de réinitialisation a été envoyé à votre adresse email",
+        description: "Un lien de réinitialisation a été envoyé à votre adresse email.",
       });
       setIsLoading(false);
       return true;
     } catch (error) {
-      console.error('Password reset error:', error);
-      toast({
-        title: "Erreur",
-        description: "Une erreur est survenue lors de la réinitialisation",
-        variant: "destructive",
-      });
+      console.error('[Auth] resetPassword error:', error);
+      const f = friendlyAuthError(error, "reset");
+      toast({ title: f.title, description: f.description, variant: "destructive" });
       setIsLoading(false);
       return false;
     }
   };
+
 
   const enableGuestMode = () => {
     // Si déjà authentifié, on ne fait rien

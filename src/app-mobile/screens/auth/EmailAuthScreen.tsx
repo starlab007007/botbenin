@@ -59,8 +59,6 @@ export default function EmailAuthScreen() {
     Haptics.impact({ style: ImpactStyle.Medium }).catch(() => {});
     try {
       await loginWithGoogle();
-    } catch {
-      toast.error("Erreur Google");
     } finally {
       setGoogleLoading(false);
     }
@@ -73,6 +71,7 @@ export default function EmailAuthScreen() {
     if (tab === "login") {
       if (!EMAIL_RE.test(email) || password.length < 6) {
         Haptics.notification({ type: NotificationType.Error }).catch(() => {});
+        toast.error("Veuillez saisir un email valide et un mot de passe (min. 6 caractères).");
         return;
       }
       setLoading(true);
@@ -80,16 +79,18 @@ export default function EmailAuthScreen() {
         const ok = await login(email, password);
         if (ok) {
           Haptics.notification({ type: NotificationType.Success }).catch(() => {});
-          toast.success("Connexion réussie");
           navigate(consumeRedirect(), { replace: true });
         } else {
           Haptics.notification({ type: NotificationType.Error }).catch(() => {});
-          toast.error("Identifiants invalides");
         }
       } finally { setLoading(false); }
     } else if (tab === "register") {
       if (!name.trim() || !EMAIL_RE.test(email) || password.length < 6 || password !== confirm) {
         Haptics.notification({ type: NotificationType.Error }).catch(() => {});
+        if (!name.trim()) toast.error("Veuillez saisir votre nom complet.");
+        else if (!EMAIL_RE.test(email)) toast.error("Adresse email invalide.");
+        else if (password.length < 6) toast.error("Mot de passe : au moins 6 caractères.");
+        else if (password !== confirm) toast.error("Les mots de passe ne correspondent pas.");
         return;
       }
       setLoading(true);
@@ -97,16 +98,14 @@ export default function EmailAuthScreen() {
         const ok = await register({ name, email, password, phone: "" });
         if (ok) {
           Haptics.notification({ type: NotificationType.Success }).catch(() => {});
-          toast.success("Compte créé ! Vérifiez votre email.");
           setTab("login");
           setPassword(""); setConfirm(""); setSubmitted(false);
-        } else {
-          toast.error("Erreur lors de l'inscription");
         }
       } finally { setLoading(false); }
     } else {
       if (!EMAIL_RE.test(email)) {
         Haptics.notification({ type: NotificationType.Error }).catch(() => {});
+        toast.error("Veuillez saisir une adresse email valide.");
         return;
       }
       setLoading(true);
@@ -114,14 +113,12 @@ export default function EmailAuthScreen() {
         const ok = await resetPassword(email);
         if (ok) {
           Haptics.notification({ type: NotificationType.Success }).catch(() => {});
-          toast.success("Email de réinitialisation envoyé");
           setTab("login"); setSubmitted(false);
-        } else {
-          toast.error("Erreur lors de l'envoi");
         }
       } finally { setLoading(false); }
     }
   };
+
 
   const title = tab === "login" ? "Se connecter" : tab === "register" ? "Créer un compte" : "Mot de passe";
   const cta = tab === "login" ? "Se connecter" : tab === "register" ? "Créer le compte" : "Envoyer le lien";
