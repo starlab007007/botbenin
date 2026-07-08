@@ -309,68 +309,58 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     password: string;
   }): Promise<boolean> => {
     setIsLoading(true);
-    
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email: userData.email,
-        password: userData.password,
-        options: {
-          data: {
-            full_name: userData.name,
-            phone: userData.phone,
-          },
-          emailRedirectTo: `${window.location.origin}/`
-        }
-      });
 
-      if (error) {
-        // Gérer les erreurs spécifiques d'inscription
-        let errorMessage = error.message;
-        
-        if (error.message?.includes('User already registered')) {
-          errorMessage = "Un compte existe déjà avec cette adresse email";
-        } else if (error.message?.includes('Password should be at least')) {
-          errorMessage = "Le mot de passe doit contenir au moins 6 caractères";
-        } else if (error.message?.includes('Email not confirmed')) {
-          errorMessage = "Veuillez vérifier votre email et cliquer sur le lien de confirmation";
-        } else if (error.message?.includes('Invalid email')) {
-          errorMessage = "Adresse email invalide";
-        }
-        
+    try {
+      if (!userData.name?.trim() || !userData.email?.trim() || !userData.password) {
         toast({
-          title: "Erreur d'inscription",
-          description: errorMessage,
+          title: "Informations manquantes",
+          description: "Veuillez renseigner votre nom, votre email et un mot de passe.",
           variant: "destructive",
         });
         setIsLoading(false);
         return false;
       }
 
+      const { data, error } = await supabase.auth.signUp({
+        email: userData.email.trim(),
+        password: userData.password,
+        options: {
+          data: {
+            full_name: userData.name.trim(),
+            phone: userData.phone,
+          },
+          emailRedirectTo: `${window.location.origin}/`,
+        },
+      });
+
+      if (error) {
+        const f = friendlyAuthError(error, "register");
+        toast({ title: f.title, description: f.description, variant: "destructive" });
+        setIsLoading(false);
+        return false;
+      }
+
       if (data.user) {
-        // Vérifier si l'email a été confirmé automatiquement
         const isConfirmed = data.user.email_confirmed_at !== null;
-        
         toast({
           title: "Compte créé avec succès",
-          description: isConfirmed 
-            ? "Votre compte est prêt à utiliser !" 
-            : "Vérifiez votre email pour confirmer votre compte. Vous pouvez déjà vous connecter.",
+          description: isConfirmed
+            ? "Votre compte est prêt à utiliser !"
+            : "Vérifiez votre email pour confirmer votre compte.",
         });
         setIsLoading(false);
         return true;
       }
     } catch (error) {
-      console.error('Registration error:', error);
-      toast({
-        title: "Erreur d'inscription",
-        description: "Une erreur est survenue lors de la création du compte",
-        variant: "destructive",
-      });
+      console.error('[Auth] register error:', error);
+      const f = friendlyAuthError(error, "register");
+      toast({ title: f.title, description: f.description, variant: "destructive" });
     }
-    
+
     setIsLoading(false);
     return false;
   };
+
 
   const logout = async () => {
     try {
