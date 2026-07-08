@@ -63,6 +63,7 @@ const AppMobile = () => (
             <TooltipProvider>
               <Toaster />
               <Sonner />
+              <ConnectivityWatcher />
               <QuotaBanner />
               <BrowserRouter>
                 <Suspense fallback={<Fallback />}>

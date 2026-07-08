@@ -396,6 +396,7 @@ const App = () => {
           <TooltipProvider>
             <Toaster />
             <Sonner />
+            <ConnectivityWatcher />
             <QuotaBanner />
             <BrowserRouter>
               <GoogleAnalytics />
