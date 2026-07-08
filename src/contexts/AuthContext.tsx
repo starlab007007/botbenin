@@ -410,13 +410,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const changePassword = async (currentPassword: string, newPassword: string): Promise<boolean> => {
     setIsLoading(true);
-    
+
     try {
-      // D'abord, vérifier le mot de passe actuel en tentant de se reconnecter
       if (!supabaseUser?.email) {
         toast({
-          title: "Erreur",
-          description: "Email utilisateur non trouvé",
+          title: "Session expirée",
+          description: "Veuillez vous reconnecter pour changer votre mot de passe.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return false;
+      }
+
+      if (!currentPassword || !newPassword) {
+        toast({
+          title: "Champs requis",
+          description: "Veuillez renseigner votre mot de passe actuel et le nouveau.",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return false;
+      }
+
+      if (newPassword.length < 6) {
+        toast({
+          title: "Mot de passe trop court",
+          description: "Choisissez un mot de passe d'au moins 6 caractères.",
           variant: "destructive",
         });
         setIsLoading(false);
@@ -430,48 +449,33 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (signInError) {
         toast({
-          title: "Erreur",
-          description: "Mot de passe actuel incorrect",
+          title: "Mot de passe actuel incorrect",
+          description: "Vérifiez votre mot de passe actuel puis réessayez.",
           variant: "destructive",
         });
         setIsLoading(false);
         return false;
       }
 
-      // Si la vérification réussit, changer le mot de passe
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword
-      });
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
 
       if (error) {
-        let errorMessage = error.message;
-        
-        if (error.message?.includes('Password should be at least')) {
-          errorMessage = "Le nouveau mot de passe doit contenir au moins 6 caractères";
-        }
-        
-        toast({
-          title: "Erreur de changement de mot de passe",
-          description: errorMessage,
-          variant: "destructive",
-        });
+        const f = friendlyAuthError(error, "password");
+        toast({ title: f.title, description: f.description, variant: "destructive" });
         setIsLoading(false);
         return false;
       }
 
       toast({
         title: "Mot de passe changé",
-        description: "Votre mot de passe a été mis à jour avec succès",
+        description: "Votre mot de passe a été mis à jour avec succès.",
       });
       setIsLoading(false);
       return true;
     } catch (error) {
-      console.error('Password change error:', error);
-      toast({
-        title: "Erreur",
-        description: "Une erreur est survenue lors du changement de mot de passe",
-        variant: "destructive",
-      });
+      console.error('[Auth] changePassword error:', error);
+      const f = friendlyAuthError(error, "password");
+      toast({ title: f.title, description: f.description, variant: "destructive" });
       setIsLoading(false);
       return false;
     }
@@ -479,47 +483,44 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const resetPassword = async (email: string): Promise<boolean> => {
     setIsLoading(true);
-    
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`
-      });
 
-      if (error) {
-        let errorMessage = error.message;
-        
-        if (error.message?.includes('Email not found')) {
-          errorMessage = "Aucun compte trouvé avec cette adresse email";
-        } else if (error.message?.includes('Email rate limit exceeded')) {
-          errorMessage = "Trop de tentatives. Veuillez réessayer plus tard";
-        }
-        
+    try {
+      if (!email?.trim()) {
         toast({
-          title: "Erreur de réinitialisation",
-          description: errorMessage,
+          title: "Email requis",
+          description: "Veuillez saisir votre adresse email.",
           variant: "destructive",
         });
         setIsLoading(false);
         return false;
       }
 
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) {
+        const f = friendlyAuthError(error, "reset");
+        toast({ title: f.title, description: f.description, variant: "destructive" });
+        setIsLoading(false);
+        return false;
+      }
+
       toast({
         title: "Email envoyé",
-        description: "Un lien de réinitialisation a été envoyé à votre adresse email",
+        description: "Un lien de réinitialisation a été envoyé à votre adresse email.",
       });
       setIsLoading(false);
       return true;
     } catch (error) {
-      console.error('Password reset error:', error);
-      toast({
-        title: "Erreur",
-        description: "Une erreur est survenue lors de la réinitialisation",
-        variant: "destructive",
-      });
+      console.error('[Auth] resetPassword error:', error);
+      const f = friendlyAuthError(error, "reset");
+      toast({ title: f.title, description: f.description, variant: "destructive" });
       setIsLoading(false);
       return false;
     }
   };
+
 
   const enableGuestMode = () => {
     // Si déjà authentifié, on ne fait rien
