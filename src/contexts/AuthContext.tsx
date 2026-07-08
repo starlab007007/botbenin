@@ -3,6 +3,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { User as SupabaseUser, Session } from '@supabase/supabase-js';
 import { GuestAuthService, GuestUser } from "@/services/GuestAuthService";
+import { friendlyAuthError } from "@/lib/authErrors";
 
 export interface AuthUser {
   id: string;
