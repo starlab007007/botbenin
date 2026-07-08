@@ -241,37 +241,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
+      if (!email?.trim() || !password) {
         toast({
-          title: "Erreur de connexion",
-          description: error.message,
+          title: "Champs requis",
+          description: "Veuillez saisir votre email et votre mot de passe.",
           variant: "destructive",
         });
         return false;
       }
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+
+      if (error) {
+        const f = friendlyAuthError(error, "login");
+        toast({ title: f.title, description: f.description, variant: "destructive" });
+        return false;
+      }
 
       if (data.user) {
-        toast({
-          title: "Connexion réussie",
-          description: `Bienvenue !`,
-        });
+        toast({ title: "Connexion réussie", description: "Bienvenue !" });
         return true;
       }
     } catch (error) {
-      toast({
-        title: "Erreur de connexion",
-        description: "Une erreur est survenue",
-        variant: "destructive",
-      });
+      const f = friendlyAuthError(error, "login");
+      toast({ title: f.title, description: f.description, variant: "destructive" });
     }
-    
+
     return false;
   };
+
 
   const loginWithPhone = async (phone: string, password: string): Promise<boolean> => {
     // For now, use email login with phone as email
