@@ -280,36 +280,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const loginWithGoogle = async (): Promise<boolean> => {
     try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}/`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
-        }
+          queryParams: { access_type: 'offline', prompt: 'consent' },
+        },
       });
 
       if (error) {
-        toast({
-          title: "Erreur de connexion Google",
-          description: error.message,
-          variant: "destructive",
-        });
+        const f = friendlyAuthError(error, "google");
+        toast({ title: f.title, description: f.description, variant: "destructive" });
         return false;
       }
-
       return true;
     } catch (error) {
-      toast({
-        title: "Erreur de connexion Google",
-        description: "Une erreur est survenue lors de la connexion avec Google",
-        variant: "destructive",
-      });
+      const f = friendlyAuthError(error, "google");
+      toast({ title: f.title, description: f.description, variant: "destructive" });
       return false;
     }
   };
+
 
   const register = async (userData: {
     name: string;
