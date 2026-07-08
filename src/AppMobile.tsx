@@ -12,6 +12,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { MobileErrorFallback } from './app-mobile/components/MobileErrorFallback';
 import QuotaBanner from './components/QuotaBanner';
+import { ConnectivityWatcher } from './components/ConnectivityWatcher';
 
 const MobileShell = lazy(() => import('./app-mobile/layouts/MobileShell'));
 const MobileWaouhChat = lazy(() => import('./app-mobile/screens/WaouhChatScreen'));
