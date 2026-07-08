@@ -146,7 +146,7 @@ export function friendlyAuthError(
   }
 
   // Défauts par contexte
-  const defaults: Record<typeof ctx, FriendlyError> = {
+  const defaults: Record<string, FriendlyError> = {
     login: {
       title: "Connexion impossible",
       description: "Une erreur est survenue. Vérifiez vos informations puis réessayez.",
@@ -177,5 +177,6 @@ export function friendlyAuthError(
     },
   };
 
-  return defaults[ctx];
+  return defaults[ctx] || defaults.generic;
 }
+
