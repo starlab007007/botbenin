@@ -1,58 +1,43 @@
+## Diagnostic
 
-## Objectif
-Vérifier que l'envoi/réception de messages et l'affichage des conversations fonctionnent partout (WAOUH web, chat mobile natif, fenêtres match acheteur/vendeur), puis corriger les bugs détectés — sans toucher au flux verrouillé WAOUH sync v12.
+Root cause principal du bug rapporté (capture APK) : la porte d'entrée de publication SELL dans `waouh-webhook` exige `confidence >= 0.3` retourné par Gemini. Pour des produits locaux/de niche (« Mixa », « Kpakpato », marques peu connues), l'IA renvoie souvent une confidence basse même quand le message est parfaitement structuré (titre + prix + ville présents). Résultat : le bot répond « 🤔 Je n'ai pas tous les détails » et rien n'est publié → toute recherche postérieure (« je cherche mixa ») renvoie logiquement « aucune annonce trouvée ».
 
-## Constats de l'audit
+Le moteur de recherche BUY, lui, est fonctionnel : `expandKeywordVariants` couvre déjà accents/pluriels et le tokenizer de secours attrape « mixa ». Il ne reçoit simplement jamais d'article car la publication échoue en amont.
 
-### 1. Warning React bloquant (console)
-`WaouhCityBadge` place `<Badge>` comme enfant de `<PopoverTrigger asChild>`. Radix Slot exige un `forwardRef`, or `src/components/ui/badge.tsx` est une simple fonction sans ref.
-Résultat : warning répété "Function components cannot be given refs" à chaque ouverture du chat + risques de dysfonctionnement du Popover (position/focus).
+## Plan de correction
 
-### 2. "Failed to send a request to the Edge Function" (session replay)
-Erreur observée à l'entrée de `/app/chat`. Vue :
-- `WaouhWebChat` → `waouh-history` : possède déjà un fallback direct query ✅
-- `ChatScreen` mobile → `waouh-operator-send` : pas de toast utilisateur, juste `console.error`, l'utilisateur voit uniquement la bulle disparaître
-- `useWaouhInbox` → `waouh-history` : échec silencieux (inbox vide sans message)
+1. **Assouplir la porte SELL dans `supabase/functions/waouh-webhook/index.ts` (lignes ~730-735)**
+   - Supprimer le seuil `confidence >= 0.3` (peu fiable).
+   - Publier dès qu'on a `inferredPrice` (extrait par l'IA ou par la regex `\d{2,}(?:[ .]\d{3})*\s*(fcfa|cfa|xof|f)?`) **et** un titre exploitable (`product.title` ou `fallbackTitle`).
+   - Message d'erreur ciblé selon ce qui manque (prix absent vs. produit absent) au lieu du message générique.
 
-Les fonctions existent et ont `verify_jwt=false`. Cause probable : cold-start / réseau intermittent. Correctif : ajout d'un retry léger (1 essai) + toast d'erreur clair + garder l'état optimiste sur `ChatScreen` avec bouton "Réessayer".
+2. **Redéployer `waouh-webhook`** immédiatement pour appliquer le fix en prod.
 
-### 3. `useWaouhInbox` — realtime trop large
-Le canal souscrit à **tous** les INSERT/UPDATE de `waouh_conversations` et `waouh_notifications` (aucun `filter`), et déclenche un `refresh()` complet à chaque événement global. Sur un compte actif, cela sature la fonction `waouh-history` et fait clignoter la liste.
-Correctif : filtrer par `user_id=eq.<authUserId>` (ou `web_session_id`) et débouncer les refresh (250 ms).
+3. **Test E2E de bout en bout** dans l'APK / WaouhWebChat :
+   - Envoyer `Je vends: Mixa, Prix 200 FCFA Ville: Abomey-Calavi Quartier: Kpota` → doit répondre `✅ Annonce publiée`.
+   - Envoyer `je cherche mixa` depuis un autre compte / session → doit lister l'annonce.
+   - Vérifier les logs `waouh-webhook` (intent=SELL puis intent=BUY, kws=["mixa"], match trouvé).
 
-### 4. `ChatScreen` mobile — dépendances realtime incomplètes
-Le `useEffect` réabonne uniquement sur `[id, user]`. Si l'onglet perd/regagne le focus, aucun ping ; ok. Mais `markConversationRead` (import `b`) est appelé à chaque INSERT, y compris pour les messages sortants → compteur non lu remis à 0 alors qu'on attend un ACK. Ajouter une condition `direction === "in"`.
+4. **Aucun autre changement fonctionnel** : la logique de recherche, radar, négociation, dispatch reste intacte. Seule la porte d'acceptation SELL est modifiée.
 
-### 5. Petit nettoyage
-- Dans `WaouhWebChat` la logique `fetchPage` retourne `messages: []` sur erreur direct query mais le fallback tente ensuite `fetchPageDirect` — OK. Ajouter un log de niveau warn plutôt que debug pour tracer les échecs `waouh-history` répétés.
-- Vérifier que `useGlobalChatSync` (App mobile) ne double pas la souscription realtime déjà faite par `useWaouhInbox`.
+## Détail technique du patch
 
-## Correctifs
+```ts
+// waouh-webhook/index.ts (~L730)
+const fallbackTitle = String(text || "")
+  .replace(/^\s*je\s+vends?\s*:?\s*/i, "")
+  .split(/[,\n]/)[0]?.trim().slice(0, 60) || "Annonce";
+const resolvedTitle = (product.title && String(product.title).trim()) || fallbackTitle;
+const accepted = !!inferredPrice && !!resolvedTitle;
+if (!accepted) {
+  reply = !inferredPrice
+    ? "🤔 Il me manque le prix. Ex : *Je vends iPhone 12 à 120000 FCFA*."
+    : "🤔 Je n'ai pas compris le produit. Précisez son nom.";
+} else {
+  // ...insertion inchangée dans waouh_articles avec resolvedTitle
+}
+```
 
-### `src/components/ui/badge.tsx`
-Transformer `Badge` en `React.forwardRef<HTMLDivElement, BadgeProps>` et forwarder la ref sur le `<div>`. Aucun changement d'API.
+Le reste de la branche SELL (insertion `waouh_articles`, `waouh-notify-buyers`, dispatch Radar) est déjà en place et fonctionnel — il suffit de laisser passer les cas légitimes.
 
-### `src/app-mobile/screens/ChatScreen.tsx`
-- Envelopper l'échec `waouh-operator-send` avec `toast({ variant: "destructive", title: "Envoi échoué", description: "..." })`.
-- Garder le message optimiste en état "erreur" + bouton "Réessayer" au lieu de le supprimer.
-- Filtrer le `markConversationRead` sur `payload.new.direction === "in"`.
-
-### `src/hooks/useWaouhInbox.ts`
-- Ajouter `filter: authUserId ? \`user_id=eq.${authUserId}\` : \`web_session_id=eq.${sessionId}\`` sur les deux `.on(...)`.
-- Débouncer `refresh` (setTimeout 250 ms + clear).
-- En cas d'échec `functions.invoke`, retomber sur une requête directe `waouh_conversations` scopée à l'identité (comme `WaouhWebChat` le fait pour les messages).
-
-### `src/components/waouh/WaouhWebChat.tsx`
-- Passer le catch de `waouh-history` en `console.warn` (ligne 199) pour visibilité.
-- Aucun changement de logique.
-
-## Hors périmètre (verrouillé)
-- `WaouhMatchChatWindow`, `useWaouhMatchChats`, `waouh-notify-dispatch`, `waouh-match-history` — flux sync v12 verrouillé, on n'y touche pas.
-- Les fonctions edge ne sont ni modifiées ni redéployées.
-
-## Vérification
-1. Ouvrir `/app/chat` → plus de warning console Badge/SlotClone.
-2. Cliquer sur le badge ville → popover s'ouvre normalement.
-3. Envoyer un message dans une conversation mobile en coupant le réseau → toast d'erreur + bouton Réessayer ; message restauré au clic.
-4. Recevoir un message externe → inbox refresh une seule fois (pas de flood), compteur non-lu incrémenté correctement.
-5. Onglet WAOUH web : historique se charge, fallback direct query si `waouh-history` KO.
+Passe en mode build pour que j'applique et redéploie.

@@ -730,9 +730,16 @@ serve(async (req) => {
       const fallbackTitle = String(text || "")
         .replace(/^\s*je\s+vends?\s*:?\s*/i, "")
         .split(/[,\n]/)[0]?.trim().slice(0, 60) || "Annonce";
-      const accepted = (product.confidence ?? 0) >= 0.3 && !!inferredPrice;
+      // Publier dès qu'on a un prix ET un titre exploitable (IA ou fallback).
+      // La confidence Gemini est peu fiable pour les produits locaux/de niche
+      // (« Mixa », « Kpakpato », marques peu connues) et bloquait à tort.
+      const resolvedTitle = (product.title && String(product.title).trim()) || fallbackTitle;
+      const accepted = !!inferredPrice && !!resolvedTitle;
       if (!accepted) {
-        reply = "🤔 Je n'ai pas tous les détails. Pouvez-vous préciser le produit, l'état et le prix ?";
+        reply = !inferredPrice
+          ? "🤔 Il me manque le prix. Ex : *Je vends iPhone 12 à 120000 FCFA*."
+          : "🤔 Je n'ai pas compris le produit. Précisez son nom. Ex : *Je vends iPhone 12 à 120000 FCFA*.";
+
       } else {
         const photoUrls = attachments
           .filter((a: any) => /^image\//i.test(String(a?.type || "image/jpeg")))
