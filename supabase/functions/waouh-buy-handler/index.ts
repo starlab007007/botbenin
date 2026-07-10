@@ -164,12 +164,11 @@ Deno.serve(async (req) => {
 
     const combined = [...(articles || []), ...normalizedPartners];
 
-    // Filtre local supplémentaire (au cas où ilike ne matcherait pas la variante exacte)
-    const filtered = combined.filter(a =>
-      !effectiveKws.length || effectiveKws.some((k: string) => {
-        const hay = `${a.title || ''} ${a.brand || ''} ${a.model || ''} ${a.description || ''}`.toLowerCase();
-        return hay.includes(k.toLowerCase());
-      })
+    // Filtre local strict : un token complet (>=3 chars) doit apparaître dans
+    // les champs textuels. Empêche PostgREST de renvoyer des lignes hors-sujet.
+    const strictKws = effectiveKws.filter((k) => typeof k === 'string' && k.length >= 3);
+    const filtered = combined.filter((a: any) =>
+      matchesAnyKeyword([a.title, a.brand, a.model, a.description, (a as any).categorie], strictKws)
     );
 
     // Dédoublonnage par (title,price) pour éviter doublons entre sources
