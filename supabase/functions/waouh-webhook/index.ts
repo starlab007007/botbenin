@@ -961,6 +961,25 @@ serve(async (req) => {
       // Fusionne — radarSellers garde priorité chronologique
       radarSellers = [...radarSellers, ...externalListings].slice(0, 8);
 
+      // 🎯 Post-filter local strict : ne garde QUE les résultats dont un
+      // champ textuel contient réellement un mot-clé complet (>=3 chars).
+      // Empêche PostgREST de renvoyer des lignes "similaires" hors-sujet.
+      const strictKws = kws.filter((k) => typeof k === "string" && k.length >= 3);
+      if (strictKws.length > 0) {
+        const filteredMatches = (matches || []).filter((m: any) =>
+          matchesAnyKeyword([m.title, m.brand, m.model, m.description, m.category], strictKws)
+        );
+        // remplace matches par la version filtrée (mêmes items, mêmes limites)
+        (matches as any) = filteredMatches;
+        partnerMatches = partnerMatches.filter((p: any) =>
+          matchesAnyKeyword([p.titre, p.description, p.categorie, p.sous_categorie, p.vendeur_nom, Array.isArray(p.tags) ? p.tags.join(" ") : ""], strictKws)
+        );
+        radarSellers = radarSellers.filter((r: any) =>
+          matchesAnyKeyword([r.product?.title, r.product?.name, r.raw_text, r.category, r.city], strictKws)
+        );
+      }
+
+
 
 
       await sb.from("waouh_buyer_profiles").insert({
