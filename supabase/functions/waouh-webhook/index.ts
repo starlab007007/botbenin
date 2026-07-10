@@ -969,8 +969,7 @@ serve(async (req) => {
         const filteredMatches = (matches || []).filter((m: any) =>
           matchesAnyKeyword([m.title, m.brand, m.model, m.description, m.category], strictKws)
         );
-        // remplace matches par la version filtrée (mêmes items, mêmes limites)
-        (matches as any) = filteredMatches;
+        matches = filteredMatches;
         partnerMatches = partnerMatches.filter((p: any) =>
           matchesAnyKeyword([p.titre, p.description, p.categorie, p.sous_categorie, p.vendeur_nom, Array.isArray(p.tags) ? p.tags.join(" ") : ""], strictKws)
         );
