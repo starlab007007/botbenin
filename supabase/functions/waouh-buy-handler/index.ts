@@ -2,7 +2,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { rehostPhotos, normalizeBeninPhone } from '../_shared/waouhContact.ts';
 import { distanceKm, formatDistance } from '../_shared/waouh-format.ts';
-import { extractFallbackKeywords, expandKeywordVariants, escapeIlikeToken } from '../_shared/waouh-keywords.ts';
+import { extractFallbackKeywords, expandKeywordVariants, escapeIlikeToken, matchesAnyKeyword } from '../_shared/waouh-keywords.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -164,12 +164,11 @@ Deno.serve(async (req) => {
 
     const combined = [...(articles || []), ...normalizedPartners];
 
-    // Filtre local supplémentaire (au cas où ilike ne matcherait pas la variante exacte)
-    const filtered = combined.filter(a =>
-      !effectiveKws.length || effectiveKws.some((k: string) => {
-        const hay = `${a.title || ''} ${a.brand || ''} ${a.model || ''} ${a.description || ''}`.toLowerCase();
-        return hay.includes(k.toLowerCase());
-      })
+    // Filtre local strict : un token complet (>=3 chars) doit apparaître dans
+    // les champs textuels. Empêche PostgREST de renvoyer des lignes hors-sujet.
+    const strictKws = effectiveKws.filter((k) => typeof k === 'string' && k.length >= 3);
+    const filtered = combined.filter((a: any) =>
+      matchesAnyKeyword([a.title, a.brand, a.model, a.description, (a as any).categorie], strictKws)
     );
 
     // Dédoublonnage par (title,price) pour éviter doublons entre sources

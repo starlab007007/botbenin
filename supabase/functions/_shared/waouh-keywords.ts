@@ -54,14 +54,15 @@ export function expandKeywordVariants(input: string | string[]): string[] {
     if (!raw || typeof raw !== "string") continue;
     const base = stripAccents(raw.toLowerCase()).trim();
     if (!base) continue;
-    // tokens (multi-mots)
-    const parts = base.split(/[\s\-']+/).filter((p) => p.length >= 2);
-    const all = [base, ...parts];
+    // tokens (multi-mots) — min 3 chars pour éviter les substrings trop courts
+    // (ex: "za" matcherait tout titre contenant "za").
+    const parts = base.split(/[\s\-']+/).filter((p) => p.length >= 3);
+    const all = base.length >= 3 ? [base, ...parts] : parts;
     for (const t of all) {
-      if (t.length < 2) continue;
+      if (t.length < 3) continue;
       out.add(t);
-      // stemming léger
-      if (t.length > 4) {
+      // stemming léger — uniquement mots >= 6 chars (préserve "zara", "mixa"…)
+      if (t.length >= 6) {
         if (t.endsWith("es")) out.add(t.slice(0, -2));
         else if (t.endsWith("s") || t.endsWith("x")) out.add(t.slice(0, -1));
       }
@@ -73,4 +74,21 @@ export function expandKeywordVariants(input: string | string[]): string[] {
 /** Échappe les caractères spéciaux d'un pattern PostgREST ilike (%, _, ,, ()). */
 export function escapeIlikeToken(k: string): string {
   return k.replace(/[,()%_*]/g, " ").trim();
+}
+
+/**
+ * Post-filter local : ne garde une ligne que si au moins un token complet
+ * (>=3 chars) apparaît dans les champs textuels fournis. Empêche PostgREST
+ * de renvoyer des résultats sans rapport avec la requête réelle.
+ */
+export function matchesAnyKeyword(
+  fields: Array<string | null | undefined>,
+  keywords: string[]
+): boolean {
+  if (!keywords || keywords.length === 0) return true;
+  const hay = stripAccents(fields.filter(Boolean).join(" ").toLowerCase());
+  return keywords.some((k) => {
+    const kk = stripAccents(String(k || "").toLowerCase().trim());
+    return kk.length >= 3 && hay.includes(kk);
+  });
 }

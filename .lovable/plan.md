@@ -1,43 +1,46 @@
-## Diagnostic
 
-Root cause principal du bug rapporté (capture APK) : la porte d'entrée de publication SELL dans `waouh-webhook` exige `confidence >= 0.3` retourné par Gemini. Pour des produits locaux/de niche (« Mixa », « Kpakpato », marques peu connues), l'IA renvoie souvent une confidence basse même quand le message est parfaitement structuré (titre + prix + ville présents). Résultat : le bot répond « 🤔 Je n'ai pas tous les détails » et rien n'est publié → toute recherche postérieure (« je cherche mixa ») renvoie logiquement « aucune annonce trouvée ».
+# Plan — Audit messages / recherche / chat / notifications
 
-Le moteur de recherche BUY, lui, est fonctionnel : `expandKeywordVariants` couvre déjà accents/pluriels et le tokenizer de secours attrape « mixa ». Il ne reçoit simplement jamais d'article car la publication échoue en amont.
+## Objectif
+S'assurer que la recherche WhatsApp ne renvoie QUE les produits correspondant au mot-clé (plus de faux positifs), que les messages entrants/sortants circulent correctement, et que les notifications ouvrent bien la bonne discussion.
 
-## Plan de correction
+## Diagnostic à mener (lecture seule)
+1. **Recherche** — `supabase/functions/waouh-webhook/index.ts`, `waouh-buy-handler/index.ts`, `_shared/waouh-keywords.ts`
+   - Vérifier `expandKeywordVariants` : stemming trop agressif (ex : "zara" → matche tout ce qui contient "zar"/"ara").
+   - Vérifier la requête SQL : usage de `ilike '%kw%'` sans scoring → renvoie tous les produits contenant une sous-chaîne courte.
+   - Confirmer que le filtre `source='partner'` retiré n'ouvre pas trop large (catalogue non-pertinent).
+2. **Messages** — `waouh-channel-in`, `waouh-outbound-dispatch`, `_shared/waouh-sync.ts`
+   - Logs récents (déjà vus : shutdown/boot normaux, pas d'erreur).
+   - Vérifier idempotence + résolution LID (invariants v4/v7/v8 du lock).
+3. **Chat App** — `WaouhWebChat`, `WaouhMatchChatWindow`, `useGlobalChatSync`
+   - S'assurer que le fallback direct query fonctionne, que les fenêtres par (article, counterpart) restent isolées (invariant v12).
+4. **Notifications** — `useNotifications`, composant cloche
+   - Vérifier que le clic ouvre la conversation liée (article_id + counterpart) et marque `opened=true`.
 
-1. **Assouplir la porte SELL dans `supabase/functions/waouh-webhook/index.ts` (lignes ~730-735)**
-   - Supprimer le seuil `confidence >= 0.3` (peu fiable).
-   - Publier dès qu'on a `inferredPrice` (extrait par l'IA ou par la regex `\d{2,}(?:[ .]\d{3})*\s*(fcfa|cfa|xof|f)?`) **et** un titre exploitable (`product.title` ou `fallbackTitle`).
-   - Message d'erreur ciblé selon ce qui manque (prix absent vs. produit absent) au lieu du message générique.
+## Corrections prévues
+1. **Recherche plus précise** (`_shared/waouh-keywords.ts` + `waouh-webhook` + `waouh-buy-handler`)
+   - Longueur minimale d'un token = 3 caractères ; conserver le mot entier pour tokens ≤ 4 (pas de stemming).
+   - Ajouter un scoring : matcher `title` en priorité (poids 3), puis `description` (poids 1). Seuil minimal de score pour renvoyer un résultat.
+   - Utiliser `websearch_to_tsquery` FR (ou `plainto_tsquery`) sur la colonne `search_vector` déjà indexée si disponible ; sinon `ilike` sur `title` d'abord, fallback `description`.
+   - Filtre supplémentaire : au moins un token complet doit apparaître dans le titre OU la marque.
+2. **Réponse vide claire** — si 0 résultat, message unique « Aucune annonce trouvée pour "X" » (déjà existant, vérifier qu'il ne se déclenche pas quand il y a des résultats non pertinents).
+3. **Notifications → discussion**
+   - Dans le handler de clic, router vers `/app/chat` en passant `article_id` + `counterpart_user_id` ; ouvrir directement la bonne `WaouhMatchChatWindow`.
+   - Marquer `opened=true` via update ciblé.
+4. **Tests E2E**
+   - Rejouer via `supabase--curl_edge_functions` :
+     - `je cherche zara` → doit retourner uniquement les articles Zara.
+     - `je cherche mixa` → uniquement Mixa.
+     - `je vends: Mixa, Prix 200 FCFA, Cotonou` → publication OK.
+   - Vérifier arrivée de la notif côté vendeur + ouverture correcte de la fenêtre.
 
-2. **Redéployer `waouh-webhook`** immédiatement pour appliquer le fix en prod.
+## Détails techniques
+- Colonne `waouh_articles.search_vector` (tsvector) : vérifier existence via `supabase--read_query`. Si absente, ajouter migration `GENERATED ALWAYS AS (to_tsvector('french', title || ' ' || coalesce(description,''))) STORED` + index GIN.
+- Garder les invariants `waouhChatSyncLock` v1→v12 intacts (pas de modification de `WaouhMatchChatWindow`, `notify-dispatch`, `negotiation-router` sur les champs verrouillés).
+- Pas de changement de schéma RLS.
 
-3. **Test E2E de bout en bout** dans l'APK / WaouhWebChat :
-   - Envoyer `Je vends: Mixa, Prix 200 FCFA Ville: Abomey-Calavi Quartier: Kpota` → doit répondre `✅ Annonce publiée`.
-   - Envoyer `je cherche mixa` depuis un autre compte / session → doit lister l'annonce.
-   - Vérifier les logs `waouh-webhook` (intent=SELL puis intent=BUY, kws=["mixa"], match trouvé).
-
-4. **Aucun autre changement fonctionnel** : la logique de recherche, radar, négociation, dispatch reste intacte. Seule la porte d'acceptation SELL est modifiée.
-
-## Détail technique du patch
-
-```ts
-// waouh-webhook/index.ts (~L730)
-const fallbackTitle = String(text || "")
-  .replace(/^\s*je\s+vends?\s*:?\s*/i, "")
-  .split(/[,\n]/)[0]?.trim().slice(0, 60) || "Annonce";
-const resolvedTitle = (product.title && String(product.title).trim()) || fallbackTitle;
-const accepted = !!inferredPrice && !!resolvedTitle;
-if (!accepted) {
-  reply = !inferredPrice
-    ? "🤔 Il me manque le prix. Ex : *Je vends iPhone 12 à 120000 FCFA*."
-    : "🤔 Je n'ai pas compris le produit. Précisez son nom.";
-} else {
-  // ...insertion inchangée dans waouh_articles avec resolvedTitle
-}
-```
-
-Le reste de la branche SELL (insertion `waouh_articles`, `waouh-notify-buyers`, dispatch Radar) est déjà en place et fonctionnel — il suffit de laisser passer les cas légitimes.
-
-Passe en mode build pour que j'applique et redéploie.
+## Livrables
+- Edge functions redéployées : `waouh-webhook`, `waouh-buy-handler`.
+- 1 migration éventuelle (tsvector + index).
+- 1 petit fix front sur le handler de notification si le routage est cassé.
+- Rapport de test dans le message de clôture.

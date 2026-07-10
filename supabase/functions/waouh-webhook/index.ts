@@ -10,7 +10,7 @@ import {
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 import { findRadarOutreachContext, findRadarSellerOutreachContext } from "../_shared/waouh-radar.ts";
-import { extractFallbackKeywords, expandKeywordVariants, escapeIlikeToken } from "../_shared/waouh-keywords.ts";
+import { extractFallbackKeywords, expandKeywordVariants, escapeIlikeToken, matchesAnyKeyword } from "../_shared/waouh-keywords.ts";
 import { compareMarketPrice, shortMarketLine } from "../_shared/waouh-price.ts";
 
 const corsHeaders = {
@@ -882,7 +882,7 @@ serve(async (req) => {
         const orFilter = kwVariants.map((k) => `title.ilike.%${k}%,brand.ilike.%${k}%,model.ilike.%${k}%,description.ilike.%${k}%`).join(",");
         q = q.or(orFilter);
       }
-      const { data: matches } = (intent as any).__short_circuit
+      let { data: matches } = (intent as any).__short_circuit
         ? { data: [] as any[] }
         : await q.order("created_at", { ascending: false }).limit(5);
 
@@ -960,6 +960,24 @@ serve(async (req) => {
 
       // Fusionne — radarSellers garde priorité chronologique
       radarSellers = [...radarSellers, ...externalListings].slice(0, 8);
+
+      // 🎯 Post-filter local strict : ne garde QUE les résultats dont un
+      // champ textuel contient réellement un mot-clé complet (>=3 chars).
+      // Empêche PostgREST de renvoyer des lignes "similaires" hors-sujet.
+      const strictKws = kws.filter((k) => typeof k === "string" && k.length >= 3);
+      if (strictKws.length > 0) {
+        const filteredMatches = (matches || []).filter((m: any) =>
+          matchesAnyKeyword([m.title, m.brand, m.model, m.description, m.category], strictKws)
+        );
+        matches = filteredMatches;
+        partnerMatches = partnerMatches.filter((p: any) =>
+          matchesAnyKeyword([p.titre, p.description, p.categorie, p.sous_categorie, p.vendeur_nom, Array.isArray(p.tags) ? p.tags.join(" ") : ""], strictKws)
+        );
+        radarSellers = radarSellers.filter((r: any) =>
+          matchesAnyKeyword([r.product?.title, r.product?.name, r.raw_text, r.category, r.city], strictKws)
+        );
+      }
+
 
 
 
