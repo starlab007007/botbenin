@@ -882,7 +882,7 @@ serve(async (req) => {
         const orFilter = kwVariants.map((k) => `title.ilike.%${k}%,brand.ilike.%${k}%,model.ilike.%${k}%,description.ilike.%${k}%`).join(",");
         q = q.or(orFilter);
       }
-      const { data: matches } = (intent as any).__short_circuit
+      let { data: matches } = (intent as any).__short_circuit
         ? { data: [] as any[] }
         : await q.order("created_at", { ascending: false }).limit(5);
 
