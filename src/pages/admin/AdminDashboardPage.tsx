@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Users, Shield, Key, Activity, Settings, Palette, Database, Megaphone } from 'lucide-react';
+import { Users, Shield, Key, Activity, Settings, Palette, Database, Megaphone, Bot } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -50,6 +50,13 @@ export const AdminDashboardPage: React.FC = () => {
       icon: Key,
       path: '/admin/permissions',
       color: 'text-green-500',
+    },
+    {
+      title: 'Contrôle Bots & Agents IA',
+      description: 'Superviser bots, agents IA (BI, Stock, Présence QR) et sessions WhatsApp',
+      icon: Bot,
+      path: '/admin/bots-control',
+      color: 'text-cyan-500',
     },
     {
       title: 'Logs d\'Activité',

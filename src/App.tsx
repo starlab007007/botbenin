@@ -106,6 +106,7 @@ const AdminWaouhBusinessesPage = lazy(() => import("./pages/admin/AdminWaouhBusi
 const AdminWaouhDealsPage = lazy(() => import("./pages/admin/AdminWaouhDealsPage"));
 const AdminWaouhHistoriquePage = lazy(() => import("./pages/admin/AdminWaouhHistoriquePage"));
 const AdminWaouhHealthCheckPage = lazy(() => import("./pages/admin/AdminWaouhHealthCheckPage"));
+const AdminBotsControlPage = lazy(() => import("./pages/admin/AdminBotsControlPage"));
 const PartnerDashboardPage = lazy(() => import("./pages/partner/PartnerDashboardPage"));
 const PartnerBusinessesPage = lazy(() => import("./pages/partner/PartnerBusinessesPage"));
 const PartnerProductsPage = lazy(() => import("./pages/partner/PartnerProductsPage"));
@@ -272,6 +273,7 @@ const AppContent = () => {
           <Route path="/admin/knowledge-bases" element={<AdminRoute><AdminKnowledgeBasesPage /></AdminRoute>} />
           <Route path="/admin/notification-test" element={<AdminRoute><NotificationTestPage /></AdminRoute>} />
           <Route path="/admin/payment-tests" element={<AdminRoute><PaymentTestPage /></AdminRoute>} />
+          <Route path="/admin/bots-control" element={<AdminRoute><AdminBotsControlPage /></AdminRoute>} />
                     
                      {/* CRM & Prospects */}
                      <Route path="/prospects" element={<ProspectsLayout />} />
