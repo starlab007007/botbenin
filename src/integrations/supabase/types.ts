@@ -5981,10 +5981,13 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          last_ingested_at: string | null
           name: string
+          profile: Json
           row_count: number | null
           sample_rows: Json | null
           schema: Json | null
+          smart_mapping: Json
           source_type: string
           source_url: string | null
           storage_path: string | null
@@ -5994,11 +5997,14 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          last_ingested_at?: string | null
           name: string
+          profile?: Json
           row_count?: number | null
           sample_rows?: Json | null
           schema?: Json | null
-          source_type: string
+          smart_mapping?: Json
+          source_type?: string
           source_url?: string | null
           storage_path?: string | null
           updated_at?: string
@@ -6007,10 +6013,13 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          last_ingested_at?: string | null
           name?: string
+          profile?: Json
           row_count?: number | null
           sample_rows?: Json | null
           schema?: Json | null
+          smart_mapping?: Json
           source_type?: string
           source_url?: string | null
           storage_path?: string | null
@@ -6021,36 +6030,48 @@ export type Database = {
       }
       waouh_bi_queries: {
         Row: {
+          answer: string | null
+          chart_spec: Json
           created_at: string
           datasource_id: string
           id: string
+          insights: Json
           question: string
           result: Json | null
           source_id: string | null
           spec: Json | null
           summary: string | null
+          table_rows: Json
           user_id: string
         }
         Insert: {
+          answer?: string | null
+          chart_spec?: Json
           created_at?: string
           datasource_id: string
           id?: string
+          insights?: Json
           question: string
           result?: Json | null
           source_id?: string | null
           spec?: Json | null
           summary?: string | null
+          table_rows?: Json
           user_id: string
         }
         Update: {
+          answer?: string | null
+          chart_spec?: Json
           created_at?: string
           datasource_id?: string
           id?: string
+          insights?: Json
           question?: string
           result?: Json | null
           source_id?: string | null
           spec?: Json | null
           summary?: string | null
+          table_rows?: Json
           user_id?: string
         }
         Relationships: [
@@ -6066,6 +6087,44 @@ export type Database = {
             columns: ["source_id"]
             isOneToOne: false
             referencedRelation: "waouh_bi_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_bi_rows: {
+        Row: {
+          created_at: string
+          datasource_id: string
+          id: string
+          normalized_row: Json
+          row_data: Json
+          row_index: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          datasource_id: string
+          id?: string
+          normalized_row?: Json
+          row_data?: Json
+          row_index: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          datasource_id?: string
+          id?: string
+          normalized_row?: Json
+          row_data?: Json
+          row_index?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_bi_rows_datasource_id_fkey"
+            columns: ["datasource_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_bi_datasources"
             referencedColumns: ["id"]
           },
         ]
@@ -7604,6 +7663,7 @@ export type Database = {
           balance_before: number
           created_at: string
           id: string
+          metadata: Json
           movement_type: string
           note: string | null
           partner_id: string
@@ -7618,6 +7678,7 @@ export type Database = {
           balance_before: number
           created_at?: string
           id?: string
+          metadata?: Json
           movement_type: string
           note?: string | null
           partner_id: string
@@ -7632,6 +7693,7 @@ export type Database = {
           balance_before?: number
           created_at?: string
           id?: string
+          metadata?: Json
           movement_type?: string
           note?: string | null
           partner_id?: string
@@ -7814,17 +7876,61 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_presence_audit_log: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          created_at: string
+          details: Json
+          entity_id: string | null
+          entity_type: string
+          id: string
+          site_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          created_at?: string
+          details?: Json
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          site_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          created_at?: string
+          details?: Json
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          site_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_presence_audit_log_site_id_fkey"
+            columns: ["site_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_presence_sites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       waouh_presence_events: {
         Row: {
           accuracy_meters: number | null
           action: string
+          actor_user_id: string | null
           distance_meters: number | null
           id: string
           inside_radius: boolean | null
           latitude: number | null
           longitude: number | null
+          member_id: string | null
           metadata: Json
           occurred_at: string
+          request_id: string | null
           site_id: string
           source: string
           token_id: string | null
@@ -7833,13 +7939,16 @@ export type Database = {
         Insert: {
           accuracy_meters?: number | null
           action: string
+          actor_user_id?: string | null
           distance_meters?: number | null
           id?: string
           inside_radius?: boolean | null
           latitude?: number | null
           longitude?: number | null
+          member_id?: string | null
           metadata?: Json
           occurred_at?: string
+          request_id?: string | null
           site_id: string
           source?: string
           token_id?: string | null
@@ -7848,19 +7957,29 @@ export type Database = {
         Update: {
           accuracy_meters?: number | null
           action?: string
+          actor_user_id?: string | null
           distance_meters?: number | null
           id?: string
           inside_radius?: boolean | null
           latitude?: number | null
           longitude?: number | null
+          member_id?: string | null
           metadata?: Json
           occurred_at?: string
+          request_id?: string | null
           site_id?: string
           source?: string
           token_id?: string | null
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "waouh_presence_events_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_presence_members"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "waouh_presence_events_site_id_fkey"
             columns: ["site_id"]
@@ -7881,10 +8000,12 @@ export type Database = {
         Row: {
           created_at: string
           display_name: string
+          employee_code: string
           id: string
           member_email: string | null
           member_phone: string | null
           member_user_id: string | null
+          pin_hash: string | null
           role: string
           site_id: string
           status: string
@@ -7893,10 +8014,12 @@ export type Database = {
         Insert: {
           created_at?: string
           display_name: string
+          employee_code: string
           id?: string
           member_email?: string | null
           member_phone?: string | null
           member_user_id?: string | null
+          pin_hash?: string | null
           role?: string
           site_id: string
           status?: string
@@ -7905,10 +8028,12 @@ export type Database = {
         Update: {
           created_at?: string
           display_name?: string
+          employee_code?: string
           id?: string
           member_email?: string | null
           member_phone?: string | null
           member_user_id?: string | null
+          pin_hash?: string | null
           role?: string
           site_id?: string
           status?: string
@@ -8021,37 +8146,52 @@ export type Database = {
       }
       waouh_presence_sessions: {
         Row: {
+          break_seconds: number
+          break_started_at: string | null
           check_in_at: string
           check_in_event_id: string
           check_out_at: string | null
           check_out_event_id: string | null
           created_at: string
           id: string
+          member_id: string | null
           site_id: string
+          status: string
           updated_at: string
           user_id: string
+          work_date: string
         }
         Insert: {
+          break_seconds?: number
+          break_started_at?: string | null
           check_in_at?: string
           check_in_event_id: string
           check_out_at?: string | null
           check_out_event_id?: string | null
           created_at?: string
           id?: string
+          member_id?: string | null
           site_id: string
+          status?: string
           updated_at?: string
           user_id: string
+          work_date?: string
         }
         Update: {
+          break_seconds?: number
+          break_started_at?: string | null
           check_in_at?: string
           check_in_event_id?: string
           check_out_at?: string | null
           check_out_event_id?: string | null
           created_at?: string
           id?: string
+          member_id?: string | null
           site_id?: string
+          status?: string
           updated_at?: string
           user_id?: string
+          work_date?: string
         }
         Relationships: [
           {
@@ -8066,6 +8206,13 @@ export type Database = {
             columns: ["check_out_event_id"]
             isOneToOne: false
             referencedRelation: "waouh_presence_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_presence_sessions_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_presence_members"
             referencedColumns: ["id"]
           },
           {
@@ -8085,10 +8232,14 @@ export type Database = {
           id: string
           latitude: number
           longitude: number
+          max_accuracy_meters: number
           name: string
           radius_meters: number
+          require_employee_code: boolean
           require_geolocation: boolean
+          require_pin: boolean
           responsible_whatsapp: string | null
+          timezone: string
           updated_at: string
           user_id: string
         }
@@ -8099,10 +8250,14 @@ export type Database = {
           id?: string
           latitude: number
           longitude: number
+          max_accuracy_meters?: number
           name: string
           radius_meters?: number
+          require_employee_code?: boolean
           require_geolocation?: boolean
+          require_pin?: boolean
           responsible_whatsapp?: string | null
+          timezone?: string
           updated_at?: string
           user_id: string
         }
@@ -8113,10 +8268,14 @@ export type Database = {
           id?: string
           latitude?: number
           longitude?: number
+          max_accuracy_meters?: number
           name?: string
           radius_meters?: number
+          require_employee_code?: boolean
           require_geolocation?: boolean
+          require_pin?: boolean
           responsible_whatsapp?: string | null
+          timezone?: string
           updated_at?: string
           user_id?: string
         }
@@ -9019,6 +9178,47 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_stock_ai_queries: {
+        Row: {
+          analysis_scope: string
+          answer: string
+          created_at: string
+          datasource_id: string | null
+          id: string
+          question: string
+          result_json: Json
+          user_id: string
+        }
+        Insert: {
+          analysis_scope?: string
+          answer: string
+          created_at?: string
+          datasource_id?: string | null
+          id?: string
+          question: string
+          result_json?: Json
+          user_id: string
+        }
+        Update: {
+          analysis_scope?: string
+          answer?: string
+          created_at?: string
+          datasource_id?: string | null
+          id?: string
+          question?: string
+          result_json?: Json
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_stock_ai_queries_datasource_id_fkey"
+            columns: ["datasource_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_stock_data_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       waouh_stock_alert_log: {
         Row: {
           created_at: string
@@ -9101,6 +9301,143 @@ export type Database = {
             columns: ["partner_id"]
             isOneToOne: false
             referencedRelation: "waouh_partners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      waouh_stock_data_sources: {
+        Row: {
+          active_version: string | null
+          can_sync: boolean
+          configuration: Json
+          created_at: string
+          credential_ciphertext: string | null
+          id: string
+          last_error: string | null
+          last_synced_at: string | null
+          mapping: Json
+          name: string
+          row_count: number
+          source_type: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active_version?: string | null
+          can_sync?: boolean
+          configuration?: Json
+          created_at?: string
+          credential_ciphertext?: string | null
+          id?: string
+          last_error?: string | null
+          last_synced_at?: string | null
+          mapping?: Json
+          name: string
+          row_count?: number
+          source_type: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active_version?: string | null
+          can_sync?: boolean
+          configuration?: Json
+          created_at?: string
+          credential_ciphertext?: string | null
+          id?: string
+          last_error?: string | null
+          last_synced_at?: string | null
+          mapping?: Json
+          name?: string
+          row_count?: number
+          source_type?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      waouh_stock_external_records: {
+        Row: {
+          category: string | null
+          cost_price_fcfa: number | null
+          datasource_id: string
+          external_key: string
+          id: string
+          import_version: string
+          location: string | null
+          movement_date: string | null
+          movement_quantity: number | null
+          movement_type: string | null
+          name: string
+          quantity: number | null
+          raw_data: Json
+          record_type: string
+          sku: string | null
+          supplier: string | null
+          synced_at: string
+          target_stock: number | null
+          threshold_low: number | null
+          unit: string | null
+          unit_price_fcfa: number | null
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          cost_price_fcfa?: number | null
+          datasource_id: string
+          external_key: string
+          id?: string
+          import_version: string
+          location?: string | null
+          movement_date?: string | null
+          movement_quantity?: number | null
+          movement_type?: string | null
+          name: string
+          quantity?: number | null
+          raw_data?: Json
+          record_type?: string
+          sku?: string | null
+          supplier?: string | null
+          synced_at?: string
+          target_stock?: number | null
+          threshold_low?: number | null
+          unit?: string | null
+          unit_price_fcfa?: number | null
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          cost_price_fcfa?: number | null
+          datasource_id?: string
+          external_key?: string
+          id?: string
+          import_version?: string
+          location?: string | null
+          movement_date?: string | null
+          movement_quantity?: number | null
+          movement_type?: string | null
+          name?: string
+          quantity?: number | null
+          raw_data?: Json
+          record_type?: string
+          sku?: string | null
+          supplier?: string | null
+          synced_at?: string
+          target_stock?: number | null
+          threshold_low?: number | null
+          unit?: string | null
+          unit_price_fcfa?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_stock_external_records_datasource_id_fkey"
+            columns: ["datasource_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_stock_data_sources"
             referencedColumns: ["id"]
           },
         ]
@@ -10777,6 +11114,43 @@ export type Database = {
           statut?: string | null
         }
         Relationships: []
+      }
+      waouh_stock_external_records_active: {
+        Row: {
+          category: string | null
+          cost_price_fcfa: number | null
+          datasource_id: string | null
+          external_key: string | null
+          id: string | null
+          import_version: string | null
+          location: string | null
+          movement_date: string | null
+          movement_quantity: number | null
+          movement_type: string | null
+          name: string | null
+          quantity: number | null
+          raw_data: Json | null
+          record_type: string | null
+          sku: string | null
+          source_name: string | null
+          source_type: string | null
+          supplier: string | null
+          synced_at: string | null
+          target_stock: number | null
+          threshold_low: number | null
+          unit: string | null
+          unit_price_fcfa: number | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_stock_external_records_datasource_id_fkey"
+            columns: ["datasource_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_stock_data_sources"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       waouh_unified_demands: {
         Row: {
@@ -12517,10 +12891,72 @@ export type Database = {
         Args: { p_lat: number; p_lng: number; p_user: string }
         Returns: number
       }
+      waouh_presence_can_access_site: {
+        Args: { p_site_id: string }
+        Returns: boolean
+      }
+      waouh_presence_can_manage_site: {
+        Args: { p_site_id: string }
+        Returns: boolean
+      }
       waouh_presence_claim_memberships: { Args: never; Returns: number }
+      waouh_presence_claim_memberships_v5: { Args: never; Returns: number }
+      waouh_presence_create_site_v5: {
+        Args: {
+          p_active: boolean
+          p_address: string
+          p_latitude: number
+          p_longitude: number
+          p_max_accuracy_meters: number
+          p_name: string
+          p_radius_meters: number
+          p_require_employee_code: boolean
+          p_require_geolocation: boolean
+          p_require_pin: boolean
+          p_responsible_whatsapp: string
+        }
+        Returns: {
+          active: boolean
+          address: string | null
+          created_at: string
+          id: string
+          latitude: number
+          longitude: number
+          max_accuracy_meters: number
+          name: string
+          radius_meters: number
+          require_employee_code: boolean
+          require_geolocation: boolean
+          require_pin: boolean
+          responsible_whatsapp: string | null
+          timezone: string
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "waouh_presence_sites"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      waouh_presence_dashboard_v5: {
+        Args: { p_site_id?: string }
+        Returns: Json
+      }
+      waouh_presence_distance_meters: {
+        Args: { lat1: number; lat2: number; lon1: number; lon2: number }
+        Returns: number
+      }
       waouh_presence_is_manager: {
         Args: { p_site_id: string }
         Returns: boolean
+      }
+      waouh_presence_phone_digits: { Args: { value: string }; Returns: string }
+      waouh_presence_preview_qr_v5: { Args: { p_token: string }; Returns: Json }
+      waouh_presence_public_preview_v6: {
+        Args: { p_token: string }
+        Returns: Json
       }
       waouh_presence_record_qr_action: {
         Args: {
@@ -12531,6 +12967,76 @@ export type Database = {
           p_token: string
         }
         Returns: Json
+      }
+      waouh_presence_record_qr_action_public_v6: {
+        Args: {
+          p_accuracy_meters: number
+          p_action: string
+          p_employee_code: string
+          p_latitude: number
+          p_longitude: number
+          p_pin: string
+          p_request_id?: string
+          p_token: string
+        }
+        Returns: Json
+      }
+      waouh_presence_record_qr_action_v5: {
+        Args: {
+          p_accuracy_meters: number
+          p_action: string
+          p_employee_code: string
+          p_latitude: number
+          p_longitude: number
+          p_pin: string
+          p_request_id?: string
+          p_token: string
+        }
+        Returns: Json
+      }
+      waouh_presence_set_member_status_v5: {
+        Args: { p_member_id: string; p_status: string }
+        Returns: undefined
+      }
+      waouh_presence_update_site_v5: {
+        Args: {
+          p_active: boolean
+          p_address: string
+          p_latitude: number
+          p_longitude: number
+          p_max_accuracy_meters: number
+          p_name: string
+          p_radius_meters: number
+          p_require_employee_code: boolean
+          p_require_geolocation: boolean
+          p_require_pin: boolean
+          p_responsible_whatsapp: string
+          p_site_id: string
+        }
+        Returns: {
+          active: boolean
+          address: string | null
+          created_at: string
+          id: string
+          latitude: number
+          longitude: number
+          max_accuracy_meters: number
+          name: string
+          radius_meters: number
+          require_employee_code: boolean
+          require_geolocation: boolean
+          require_pin: boolean
+          responsible_whatsapp: string | null
+          timezone: string
+          updated_at: string
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "waouh_presence_sites"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       waouh_presence_upsert_member: {
         Args: {
@@ -12543,10 +13049,12 @@ export type Database = {
         Returns: {
           created_at: string
           display_name: string
+          employee_code: string
           id: string
           member_email: string | null
           member_phone: string | null
           member_user_id: string | null
+          pin_hash: string | null
           role: string
           site_id: string
           status: string
@@ -12559,6 +13067,39 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      waouh_presence_upsert_member_v5: {
+        Args: {
+          p_display_name: string
+          p_email: string
+          p_employee_code: string
+          p_member_id: string
+          p_phone: string
+          p_pin: string
+          p_role: string
+          p_site_id: string
+        }
+        Returns: {
+          created_at: string
+          display_name: string
+          employee_code: string
+          id: string
+          member_email: string | null
+          member_phone: string | null
+          member_user_id: string | null
+          pin_hash: string | null
+          role: string
+          site_id: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "waouh_presence_members"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      waouh_product_owner: { Args: { p_product_id: string }; Returns: string }
       waouh_promote_signal: { Args: { p_signal_id: string }; Returns: Json }
       waouh_radar_forget: { Args: { p_phone: string }; Returns: undefined }
       waouh_record_partner_stock_movement: {
@@ -12630,6 +13171,20 @@ export type Database = {
           p_stock_target?: number
         }
         Returns: Json
+      }
+      waouh_stock_list_sources: {
+        Args: never
+        Returns: {
+          can_sync: boolean
+          created_at: string
+          id: string
+          last_error: string
+          last_synced_at: string
+          name: string
+          row_count: number
+          source_type: string
+          status: string
+        }[]
       }
       waouh_user_pair_distance_km: {
         Args: { p_user_a: string; p_user_b: string }
