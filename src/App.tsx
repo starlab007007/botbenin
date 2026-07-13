@@ -273,6 +273,7 @@ const AppContent = () => {
           <Route path="/admin/knowledge-bases" element={<AdminRoute><AdminKnowledgeBasesPage /></AdminRoute>} />
           <Route path="/admin/notification-test" element={<AdminRoute><NotificationTestPage /></AdminRoute>} />
           <Route path="/admin/payment-tests" element={<AdminRoute><PaymentTestPage /></AdminRoute>} />
+          <Route path="/admin/bots-control" element={<AdminRoute><AdminBotsControlPage /></AdminRoute>} />
                     
                      {/* CRM & Prospects */}
                      <Route path="/prospects" element={<ProspectsLayout />} />
