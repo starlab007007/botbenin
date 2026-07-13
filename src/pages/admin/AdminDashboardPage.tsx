@@ -52,6 +52,13 @@ export const AdminDashboardPage: React.FC = () => {
       color: 'text-green-500',
     },
     {
+      title: 'Contrôle Bots & Agents IA',
+      description: 'Superviser bots, agents IA (BI, Stock, Présence QR) et sessions WhatsApp',
+      icon: Bot,
+      path: '/admin/bots-control',
+      color: 'text-cyan-500',
+    },
+    {
       title: 'Logs d\'Activité',
       description: 'Consulter l\'historique des actions',
       icon: Activity,
