@@ -11512,6 +11512,26 @@ export type Database = {
         }
         Relationships: []
       }
+      v_apresbac_kpis: {
+        Row: {
+          anomalies_open: number | null
+          anomalies_total: number | null
+          docs_published: number | null
+          docs_total: number | null
+          messages_assistant: number | null
+          messages_total: number | null
+          messages_user: number | null
+          ocr_failed: number | null
+          ocr_ok: number | null
+          ocr_total: number | null
+          programs_total: number | null
+          sessions_30d: number | null
+          sessions_7d: number | null
+          sessions_total: number | null
+          unique_users: number | null
+        }
+        Relationships: []
+      }
       v_diffusion_audience: {
         Row: {
           classe: string | null
