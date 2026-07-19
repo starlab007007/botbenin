@@ -351,6 +351,565 @@ export type Database = {
         }
         Relationships: []
       }
+      apresbac_chat_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          payload: Json
+          role: string
+          session_id: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          role: string
+          session_id: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          payload?: Json
+          role?: string
+          session_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "apresbac_chat_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "apresbac_chat_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      apresbac_chat_sessions: {
+        Row: {
+          bac_series: string | null
+          created_at: string
+          id: string
+          preview_mode: boolean
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bac_series?: string | null
+          created_at?: string
+          id?: string
+          preview_mode?: boolean
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bac_series?: string | null
+          created_at?: string
+          id?: string
+          preview_mode?: boolean
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      apresbac_chat_sources: {
+        Row: {
+          confidence_score: number | null
+          created_at: string
+          document_id: string | null
+          id: string
+          message_id: string
+          record_id: string | null
+          source_page: number | null
+          source_text: string | null
+        }
+        Insert: {
+          confidence_score?: number | null
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          message_id: string
+          record_id?: string | null
+          source_page?: number | null
+          source_text?: string | null
+        }
+        Update: {
+          confidence_score?: number | null
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          message_id?: string
+          record_id?: string | null
+          source_page?: number | null
+          source_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "apresbac_chat_sources_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "apresbac_reference_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "apresbac_chat_sources_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "apresbac_chat_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "apresbac_chat_sources_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "apresbac_program_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      apresbac_chat_tool_calls: {
+        Row: {
+          created_at: string
+          id: string
+          input_payload: Json
+          output_payload: Json
+          request_id: string
+          session_id: string
+          tool_name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          input_payload?: Json
+          output_payload?: Json
+          request_id?: string
+          session_id: string
+          tool_name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          input_payload?: Json
+          output_payload?: Json
+          request_id?: string
+          session_id?: string
+          tool_name?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "apresbac_chat_tool_calls_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "apresbac_chat_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      apresbac_ocr_extractions: {
+        Row: {
+          bac_series: string | null
+          created_at: string
+          detected_notes: Json
+          extracted_text: string | null
+          extraction_status: string
+          id: string
+          image_retained: boolean
+          user_id: string
+        }
+        Insert: {
+          bac_series?: string | null
+          created_at?: string
+          detected_notes?: Json
+          extracted_text?: string | null
+          extraction_status?: string
+          id?: string
+          image_retained?: boolean
+          user_id: string
+        }
+        Update: {
+          bac_series?: string | null
+          created_at?: string
+          detected_notes?: Json
+          extracted_text?: string | null
+          extraction_status?: string
+          id?: string
+          image_retained?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
+      apresbac_program_records: {
+        Row: {
+          academic_year: string
+          admission_mode: string | null
+          bac_series: Json | null
+          campus: string | null
+          confidence_label: string
+          confidence_score: number
+          created_at: string
+          degree: string | null
+          document_id: string
+          id: string
+          institution: string | null
+          institution_type: string | null
+          occupations: Json | null
+          outcomes: string | null
+          private_program_status: string | null
+          program_name: string | null
+          public_private_status: string | null
+          published: boolean
+          quota_aid_fpp: number | null
+          quota_fep: number | null
+          quota_scholarship: number | null
+          raw_record: Json
+          source_page: number
+          source_text: string
+          special_rules: Json
+          subjects_by_series: Json | null
+          subjects_source: string | null
+          university: string | null
+          updated_at: string
+          validated_at: string | null
+          validation_comment: string | null
+          validation_status: string
+          validator_id: string | null
+          validator_name: string | null
+        }
+        Insert: {
+          academic_year: string
+          admission_mode?: string | null
+          bac_series?: Json | null
+          campus?: string | null
+          confidence_label: string
+          confidence_score?: number
+          created_at?: string
+          degree?: string | null
+          document_id: string
+          id: string
+          institution?: string | null
+          institution_type?: string | null
+          occupations?: Json | null
+          outcomes?: string | null
+          private_program_status?: string | null
+          program_name?: string | null
+          public_private_status?: string | null
+          published?: boolean
+          quota_aid_fpp?: number | null
+          quota_fep?: number | null
+          quota_scholarship?: number | null
+          raw_record: Json
+          source_page: number
+          source_text: string
+          special_rules?: Json
+          subjects_by_series?: Json | null
+          subjects_source?: string | null
+          university?: string | null
+          updated_at?: string
+          validated_at?: string | null
+          validation_comment?: string | null
+          validation_status?: string
+          validator_id?: string | null
+          validator_name?: string | null
+        }
+        Update: {
+          academic_year?: string
+          admission_mode?: string | null
+          bac_series?: Json | null
+          campus?: string | null
+          confidence_label?: string
+          confidence_score?: number
+          created_at?: string
+          degree?: string | null
+          document_id?: string
+          id?: string
+          institution?: string | null
+          institution_type?: string | null
+          occupations?: Json | null
+          outcomes?: string | null
+          private_program_status?: string | null
+          program_name?: string | null
+          public_private_status?: string | null
+          published?: boolean
+          quota_aid_fpp?: number | null
+          quota_fep?: number | null
+          quota_scholarship?: number | null
+          raw_record?: Json
+          source_page?: number
+          source_text?: string
+          special_rules?: Json
+          subjects_by_series?: Json | null
+          subjects_source?: string | null
+          university?: string | null
+          updated_at?: string
+          validated_at?: string | null
+          validation_comment?: string | null
+          validation_status?: string
+          validator_id?: string | null
+          validator_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "apresbac_program_records_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "apresbac_reference_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      apresbac_reference_anomalies: {
+        Row: {
+          anomaly_type: string
+          created_at: string
+          document_id: string
+          field_name: string | null
+          id: string
+          message: string
+          record_id: string | null
+          resolution_comment: string | null
+          resolution_status: string
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          source_page: number | null
+          source_text: string | null
+        }
+        Insert: {
+          anomaly_type: string
+          created_at?: string
+          document_id: string
+          field_name?: string | null
+          id: string
+          message: string
+          record_id?: string | null
+          resolution_comment?: string | null
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity: string
+          source_page?: number | null
+          source_text?: string | null
+        }
+        Update: {
+          anomaly_type?: string
+          created_at?: string
+          document_id?: string
+          field_name?: string | null
+          id?: string
+          message?: string
+          record_id?: string | null
+          resolution_comment?: string | null
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          source_page?: number | null
+          source_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "apresbac_reference_anomalies_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "apresbac_reference_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "apresbac_reference_anomalies_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "apresbac_program_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      apresbac_reference_documents: {
+        Row: {
+          academic_year: string
+          authority: string | null
+          created_at: string
+          created_by: string | null
+          document_rules: Json
+          id: string
+          page_count: number | null
+          published: boolean
+          source_file_name: string | null
+          source_sha256: string
+          title: string
+          updated_at: string
+          validation_status: string
+        }
+        Insert: {
+          academic_year: string
+          authority?: string | null
+          created_at?: string
+          created_by?: string | null
+          document_rules?: Json
+          id?: string
+          page_count?: number | null
+          published?: boolean
+          source_file_name?: string | null
+          source_sha256: string
+          title: string
+          updated_at?: string
+          validation_status?: string
+        }
+        Update: {
+          academic_year?: string
+          authority?: string | null
+          created_at?: string
+          created_by?: string | null
+          document_rules?: Json
+          id?: string
+          page_count?: number | null
+          published?: boolean
+          source_file_name?: string | null
+          source_sha256?: string
+          title?: string
+          updated_at?: string
+          validation_status?: string
+        }
+        Relationships: []
+      }
+      apresbac_student_profiles: {
+        Row: {
+          academic_year: string
+          bac_series: string | null
+          consent_store_ocr_text: boolean
+          created_at: string
+          general_average: number | null
+          mention: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          academic_year?: string
+          bac_series?: string | null
+          consent_store_ocr_text?: boolean
+          created_at?: string
+          general_average?: number | null
+          mention?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          academic_year?: string
+          bac_series?: string | null
+          consent_store_ocr_text?: boolean
+          created_at?: string
+          general_average?: number | null
+          mention?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      apresbac_student_subject_results: {
+        Row: {
+          academic_year: string
+          bac_series: string
+          confirmed: boolean
+          created_at: string
+          extraction_confidence: number | null
+          id: string
+          raw_ocr_text: string | null
+          score: number
+          source: string
+          subject_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          academic_year?: string
+          bac_series: string
+          confirmed?: boolean
+          created_at?: string
+          extraction_confidence?: number | null
+          id?: string
+          raw_ocr_text?: string | null
+          score: number
+          source: string
+          subject_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          academic_year?: string
+          bac_series?: string
+          confirmed?: boolean
+          created_at?: string
+          extraction_confidence?: number | null
+          id?: string
+          raw_ocr_text?: string | null
+          score?: number
+          source?: string
+          subject_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      apresbac_validation_events: {
+        Row: {
+          actor_user_id: string | null
+          comment: string | null
+          created_at: string
+          document_id: string | null
+          id: string
+          new_status: string
+          previous_status: string | null
+          record_id: string | null
+          snapshot: Json | null
+        }
+        Insert: {
+          actor_user_id?: string | null
+          comment?: string | null
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          new_status: string
+          previous_status?: string | null
+          record_id?: string | null
+          snapshot?: Json | null
+        }
+        Update: {
+          actor_user_id?: string | null
+          comment?: string | null
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          new_status?: string
+          previous_status?: string | null
+          record_id?: string | null
+          snapshot?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "apresbac_validation_events_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "apresbac_reference_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "apresbac_validation_events_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "apresbac_program_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audience_segments: {
         Row: {
           created_at: string | null
@@ -11347,6 +11906,132 @@ export type Database = {
           status: string
           updated_at: string
         }[]
+      }
+      apresbac_get_student_notes_v1: { Args: never; Returns: Json }
+      apresbac_is_reviewer: { Args: never; Returns: boolean }
+      apresbac_normalize_search_v2: {
+        Args: { p_value: string }
+        Returns: string
+      }
+      apresbac_save_notes_v1: {
+        Args: {
+          p_bac_series: string
+          p_keep_ocr_text?: boolean
+          p_notes: Json
+          p_raw_ocr_text?: string
+          p_source?: string
+        }
+        Returns: Json
+      }
+      apresbac_search_programs_v2: {
+        Args: {
+          p_bac_series?: string
+          p_limit?: number
+          p_preview?: boolean
+          p_search?: string
+        }
+        Returns: {
+          academic_year: string
+          admission_mode: string
+          bac_series: Json
+          confidence_label: string
+          confidence_score: number
+          id: string
+          institution: string
+          occupations: Json
+          outcomes: string
+          private_program_status: string
+          program_name: string
+          public_private_status: string
+          published: boolean
+          quota_aid_fpp: number
+          quota_scholarship: number
+          source_page: number
+          source_text: string
+          special_rules: Json
+          subjects_by_series: Json
+          university: string
+          validation_status: string
+        }[]
+      }
+      apresbac_subject_suggestions_v1: {
+        Args: { p_bac_series?: string; p_preview?: boolean }
+        Returns: {
+          subject_name: string
+        }[]
+      }
+      apresbac_validate_document_v1: {
+        Args: {
+          p_comment?: string
+          p_document_id: string
+          p_new_status: string
+        }
+        Returns: {
+          academic_year: string
+          authority: string | null
+          created_at: string
+          created_by: string | null
+          document_rules: Json
+          id: string
+          page_count: number | null
+          published: boolean
+          source_file_name: string | null
+          source_sha256: string
+          title: string
+          updated_at: string
+          validation_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "apresbac_reference_documents"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      apresbac_validate_record_v1: {
+        Args: { p_comment?: string; p_new_status: string; p_record_id: string }
+        Returns: {
+          academic_year: string
+          admission_mode: string | null
+          bac_series: Json | null
+          campus: string | null
+          confidence_label: string
+          confidence_score: number
+          created_at: string
+          degree: string | null
+          document_id: string
+          id: string
+          institution: string | null
+          institution_type: string | null
+          occupations: Json | null
+          outcomes: string | null
+          private_program_status: string | null
+          program_name: string | null
+          public_private_status: string | null
+          published: boolean
+          quota_aid_fpp: number | null
+          quota_fep: number | null
+          quota_scholarship: number | null
+          raw_record: Json
+          source_page: number
+          source_text: string
+          special_rules: Json
+          subjects_by_series: Json | null
+          subjects_source: string | null
+          university: string | null
+          updated_at: string
+          validated_at: string | null
+          validation_comment: string | null
+          validation_status: string
+          validator_id: string | null
+          validator_name: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "apresbac_program_records"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       assign_admin_role: { Args: { user_email: string }; Returns: string }
       auto_fix_session_issues: {
