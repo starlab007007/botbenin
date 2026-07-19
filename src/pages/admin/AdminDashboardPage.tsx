@@ -87,6 +87,13 @@ export const AdminDashboardPage: React.FC = () => {
       color: 'text-emerald-500',
       badge: pendingDiffusion,
     },
+    {
+      title: 'Après BAC IA — Suivi',
+      description: 'Suivi des chats IA d\'orientation post-BAC : KPIs, sessions, séries, top filières, OCR',
+      icon: GraduationCap,
+      path: '/admin/apresbac',
+      color: 'text-indigo-500',
+    },
   ];
 
   return (
