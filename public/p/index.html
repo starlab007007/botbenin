@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#075e54" />
+  <meta name="description" content="Page publique de pointage Présence QR Bot.BJ" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Pointage Présence QR | Bot.BJ</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --green: #075e54;
+      --green-dark: #05483f;
+      --green-soft: #e5f5ef;
+      --canvas: #f3f7f5;
+      --card: #ffffff;
+      --text: #15231f;
+      --muted: #66756f;
+      --line: #dce8e4;
+      --danger: #a33131;
+      --warning: #946312;
+      --success: #087953;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      min-height: 100dvh;
+      background: var(--canvas);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input, select { font: inherit; }
+
+    .page {
+      width: min(100%, 560px);
+      min-height: 100dvh;
+      margin: 0 auto;
+      background: var(--canvas);
+      box-shadow: 0 12px 36px rgba(6, 59, 49, .12);
+    }
+
+    .header {
+      padding: max(18px, env(safe-area-inset-top)) 18px 20px;
+      color: white;
+      background: linear-gradient(145deg, var(--green-dark), var(--green));
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .logo {
+      width: 46px; height: 46px; border-radius: 15px;
+      display: grid; place-items: center;
+      background: rgba(255,255,255,.16);
+      border: 1px solid rgba(255,255,255,.2);
+      font-size: 22px;
+    }
+    .header h1 { margin: 0; font-size: 22px; line-height: 1.1; }
+    .header p { margin: 5px 0 0; color: #d8fff3; font-size: 12px; }
+
+    .content { padding: 15px 13px max(28px, env(safe-area-inset-bottom)); }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 21px;
+      padding: 16px;
+      box-shadow: 0 7px 20px rgba(16, 64, 52, .06);
+    }
+    .stack { display: grid; gap: 12px; }
+
+    .site-head { text-align: center; padding: 5px 0 8px; }
+    .site-icon {
+      width: 54px; height: 54px; margin: 0 auto 9px;
+      display: grid; place-items: center;
+      border-radius: 18px; background: var(--green-soft);
+      color: var(--green); font-size: 25px;
+    }
+    .site-head h2 { margin: 0; font-size: 21px; }
+    .site-head p { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+    .notice {
+      display: flex; gap: 9px; align-items: flex-start;
+      padding: 10px 11px; border-radius: 14px;
+      background: #eff8f4; color: #245247;
+      font-size: 11px; line-height: 1.45;
+    }
+
+    label { display: block; margin: 0 0 6px; font-size: 12px; font-weight: 850; }
+    select, input {
+      width: 100%; min-height: 49px;
+      border: 1px solid #cfdeda; border-radius: 14px;
+      outline: 0; background: #fbfdfc; color: var(--text);
+      padding: 0 13px;
+    }
+    select:focus, input:focus {
+      border-color: #69bca5;
+      box-shadow: 0 0 0 3px rgba(7,94,84,.09);
+    }
+
+    .actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+    .action {
+      min-height: 70px; border: 1px solid var(--line); border-radius: 16px;
+      background: #fbfdfc; color: var(--text); cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 5px; font-weight: 850; font-size: 12px;
+      transition: transform .15s ease, border-color .15s ease, background .15s ease;
+    }
+    .action span:first-child { font-size: 21px; }
+    .action:active { transform: scale(.98); }
+    .action.selected { border-color: var(--green); background: var(--green-soft); color: var(--green-dark); }
+
+    .gps {
+      padding: 11px; border: 1px solid var(--line); border-radius: 15px;
+      display: flex; gap: 10px; align-items: center; background: #fafcfb;
+    }
+    .gps-copy { flex: 1; min-width: 0; }
+    .gps-title { font-size: 12px; font-weight: 900; }
+    .gps-status { margin-top: 3px; color: var(--muted); font-size: 10.5px; line-height: 1.35; }
+
+    .btn {
+      min-height: 48px; border: 0; border-radius: 14px; padding: 0 15px;
+      cursor: pointer; font-weight: 900;
+    }
+    .btn-primary { width: 100%; color: white; background: var(--green); }
+    .btn-secondary { color: var(--green); background: var(--green-soft); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    .state { min-height: calc(100dvh - 112px); display: grid; place-items: center; padding: 22px; }
+    .state-box { width: 100%; text-align: center; }
+    .state-icon { font-size: 48px; margin-bottom: 12px; }
+    .state h2 { margin: 0; font-size: 21px; }
+    .state p { color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .error-text { color: var(--danger) !important; }
+
+    .spinner {
+      width: 38px; height: 38px; margin: 0 auto 15px;
+      border: 4px solid #d8e8e2; border-top-color: var(--green);
+      border-radius: 50%; animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .hidden { display: none !important; }
+    .code { margin-top: 10px; color: var(--muted); font-size: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .foot { padding: 14px; text-align: center; color: var(--muted); font-size: 10px; }
+
+    @media (max-width: 480px) {
+      .page { width: 100%; box-shadow: none; }
+      .content { padding-left: 10px; padding-right: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="header">
+      <div class="brand">
+        <div class="logo" aria-hidden="true">✓</div>
+        <div>
+          <h1>Présence QR</h1>
+          <p>Pointage sécurisé et géolocalisé · Bot.BJ</p>
+        </div>
+      </div>
+    </header>
+
+    <section id="loadingState" class="state">
+      <div class="state-box">
+        <div class="spinner"></div>
+        <h2>Ouverture du pointage</h2>
+        <p>Vérification du QR et chargement du site…</p>
+      </div>
+    </section>
+
+    <section id="errorState" class="state hidden">
+      <div class="state-box card">
+        <div class="state-icon">⚠️</div>
+        <h2>Pointage indisponible</h2>
+        <p id="errorMessage" class="error-text">Ce QR est invalide ou n’est plus actif.</p>
+        <button id="retryButton" class="btn btn-primary" type="button">Réessayer</button>
+        <div id="errorCode" class="code"></div>
+      </div>
+    </section>
+
+    <section id="successState" class="state hidden">
+      <div class="state-box card">
+        <div class="state-icon">✅</div>
+        <h2 id="successTitle">Pointage enregistré</h2>
+        <p id="successMessage">Votre présence a été enregistrée avec succès.</p>
+        <button id="againButton" class="btn btn-secondary" type="button">Effectuer un autre pointage</button>
+      </div>
+    </section>
+
+    <section id="formState" class="content hidden">
+      <form id="checkinForm" class="card stack">
+        <div class="site-head">
+          <div class="site-icon">📍</div>
+          <h2 id="siteName">Site</h2>
+          <p id="siteDetails"></p>
+        </div>
+
+        <div class="notice">
+          <span>ℹ️</span>
+          <span>Choisissez votre nom, confirmez les 4 derniers chiffres de votre téléphone et autorisez la position GPS.</span>
+        </div>
+
+        <div>
+          <label for="employeeSelect">Votre nom</label>
+          <select id="employeeSelect" required>
+            <option value="">— Sélectionner votre nom —</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="last4Input">4 derniers chiffres de votre téléphone</label>
+          <input id="last4Input" type="tel" inputmode="numeric" autocomplete="tel" maxlength="4" placeholder="Exemple : 1234" required />
+        </div>
+
+        <div>
+          <label>Type de pointage</label>
+          <div class="actions" id="actions">
+            <button type="button" class="action" data-action="arrival"><span>🟢</span><span>Arrivée</span></button>
+            <button type="button" class="action" data-action="break_start"><span>☕</span><span>Début pause</span></button>
+            <button type="button" class="action" data-action="break_end"><span>▶️</span><span>Retour pause</span></button>
+            <button type="button" class="action" data-action="departure"><span>🔴</span><span>Sortie</span></button>
+          </div>
+        </div>
+
+        <div class="gps">
+          <div aria-hidden="true">🛰️</div>
+          <div class="gps-copy">
+            <div class="gps-title">Position GPS</div>
+            <div id="gpsStatus" class="gps-status">Position non encore autorisée.</div>
+          </div>
+          <button id="gpsButton" class="btn btn-secondary" type="button">Activer</button>
+        </div>
+
+        <button id="submitButton" class="btn btn-primary" type="submit">Valider mon pointage</button>
+      </form>
+      <div class="foot">La position sert uniquement à vérifier la présence dans le rayon autorisé.</div>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const SUPABASE_URL = 'https://mvynepqulhflxtyymtzs.supabase.co';
+      const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJtdnluZXBxdWxobGZseHR5eW10enMiLCJyZWYiOiJtdnluZXBxdWxobGZseHR5eW10enMiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTc0NzU5ODE1MywiZXhwIjoyMDYzMTc0MTUzfQ.g1llr-Q6T3h06xFV7hCNRWZHG20wQHoBmp5zL0OAKh8';
+      const REST_URL = `${SUPABASE_URL}/rest/v1`;
+      const CHECKIN_URL = `${SUPABASE_URL}/functions/v1/waouh-attendance-checkin`;
+
+      const state = {
+        code: '',
+        site: null,
+        employees: [],
+        position: null,
+        action: '',
+        loading: false,
+      };
+
+      const el = {
+        loading: document.getElementById('loadingState'),
+        error: document.getElementById('errorState'),
+        formState: document.getElementById('formState'),
+        success: document.getElementById('successState'),
+        errorMessage: document.getElementById('errorMessage'),
+        errorCode: document.getElementById('errorCode'),
+        retry: document.getElementById('retryButton'),
+        again: document.getElementById('againButton'),
+        siteName: document.getElementById('siteName'),
+        siteDetails: document.getElementById('siteDetails'),
+        employee: document.getElementById('employeeSelect'),
+        last4: document.getElementById('last4Input'),
+        actions: document.getElementById('actions'),
+        gpsButton: document.getElementById('gpsButton'),
+        gpsStatus: document.getElementById('gpsStatus'),
+        form: document.getElementById('checkinForm'),
+        submit: document.getElementById('submitButton'),
+        successTitle: document.getElementById('successTitle'),
+        successMessage: document.getElementById('successMessage'),
+      };
+
+      function headers() {
+        return { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` };
+      }
+
+      function show(name) {
+        ['loading', 'error', 'formState', 'success'].forEach((key) => {
+          el[key].classList.toggle('hidden', key !== name);
+        });
+      }
+
+      function readCode() {
+        const query = new URLSearchParams(location.search).get('c') || '';
+        const hash = location.hash.replace(/^#/, '');
+        const pathPart = location.pathname.split('/').filter(Boolean).pop() || '';
+        const candidate = query || hash || (pathPart !== 'p' ? pathPart : '');
+        return candidate.trim().toLowerCase();
+      }
+
+      async function rest(table, params) {
+        const url = new URL(`${REST_URL}/${table}`);
+        Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+        const response = await fetch(url, { headers: headers(), cache: 'no-store' });
+        const text = await response.text();
+        let data;
+        try { data = JSON.parse(text); } catch (_) { data = null; }
+        if (!response.ok) throw new Error(data?.message || `Erreur de lecture (${response.status})`);
+        return data;
+      }
+
+      async function load() {
+        show('loading');
+        state.code = readCode();
+
+        if (!/^[a-f0-9]{6,64}$/i.test(state.code)) {
+          return fail('Le lien de pointage est incomplet ou incorrect.', 'CODE_INVALIDE');
+        }
+
+        try {
+          const exact = state.code.length > 12;
+          const sites = await rest('waouh_attendance_sites_public', {
+            select: 'id,name,address,radius_m,active,qr_token',
+            qr_token: exact ? `eq.${state.code}` : `like.${state.code}%`,
+            active: 'eq.true',
+            limit: '2',
+          });
+
+          if (!Array.isArray(sites) || sites.length === 0) {
+            return fail('Ce QR ne correspond à aucun site actif. Demandez un nouveau QR au responsable.', 'SITE_INTROUVABLE');
+          }
+          if (sites.length > 1) {
+            return fail('Ce lien court est ambigu. Demandez au responsable de régénérer le QR.', 'CODE_AMBIGU');
+          }
+
+          state.site = sites[0];
+          const employees = await rest('waouh_attendance_employees_public', {
+            select: 'id,full_name',
+            site_id: `eq.${state.site.id}`,
+            active: 'eq.true',
+            order: 'full_name.asc',
+          });
+          state.employees = Array.isArray(employees) ? employees : [];
+
+          el.siteName.textContent = state.site.name || 'Site de pointage';
+          el.siteDetails.textContent = [state.site.address, `Rayon autorisé : ${state.site.radius_m} m`].filter(Boolean).join(' · ');
+          el.employee.innerHTML = '<option value="">— Sélectionner votre nom —</option>' + state.employees
+            .map((employee) => `<option value="${escapeHtml(employee.id)}">${escapeHtml(employee.full_name)}</option>`)
+            .join('');
+
+          if (!state.employees.length) {
+            return fail('Aucun employé actif n’est renseigné pour ce site. Contactez le responsable.', 'AUCUN_EMPLOYE');
+          }
+
+          show('formState');
+        } catch (error) {
+          fail(error?.message || 'Impossible de charger la page de pointage.', 'CHARGEMENT_ECHOUE');
+        }
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? '')
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#039;');
+      }
+
+      function fail(message, code) {
+        el.errorMessage.textContent = message;
+        el.errorCode.textContent = code ? `Diagnostic : ${code}` : '';
+        show('error');
+      }
+
+      function requestPosition() {
+        if (!navigator.geolocation) {
+          el.gpsStatus.textContent = 'La géolocalisation n’est pas disponible sur ce téléphone.';
+          return;
+        }
+
+        el.gpsButton.disabled = true;
+        el.gpsButton.textContent = 'Recherche…';
+        el.gpsStatus.textContent = 'Recherche de votre position précise…';
+
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            state.position = { lat: position.coords.latitude, lng: position.coords.longitude };
+            el.gpsStatus.textContent = `Position autorisée · précision ${Math.round(position.coords.accuracy)} m`;
+            el.gpsButton.textContent = 'Actualiser';
+            el.gpsButton.disabled = false;
+          },
+          (error) => {
+            const messages = {
+              1: 'Autorisation GPS refusée. Activez la localisation dans le navigateur.',
+              2: 'Position indisponible. Activez le GPS puis réessayez.',
+              3: 'La recherche GPS a expiré. Réessayez à l’extérieur ou près d’une fenêtre.',
+            };
+            el.gpsStatus.textContent = messages[error.code] || 'Impossible d’obtenir la position.';
+            el.gpsButton.textContent = 'Réessayer';
+            el.gpsButton.disabled = false;
+          },
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+        );
+      }
+
+      async function submit(event) {
+        event.preventDefault();
+        if (state.loading) return;
+
+        const employeeId = el.employee.value;
+        const last4 = el.last4.value.replace(/\D/g, '').slice(-4);
+
+        if (!employeeId) return alert('Sélectionnez votre nom.');
+        if (last4.length !== 4) return alert('Saisissez les 4 derniers chiffres de votre téléphone.');
+        if (!state.action) return alert('Choisissez Arrivée, Pause, Retour ou Sortie.');
+        if (!state.position) return alert('Activez la position GPS avant de valider.');
+
+        state.loading = true;
+        el.submit.disabled = true;
+        el.submit.textContent = 'Validation en cours…';
+
+        try {
+          const response = await fetch(CHECKIN_URL, {
+            method: 'POST',
+            headers: { ...headers(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              qr_token: state.site.qr_token,
+              employee_id: employeeId,
+              last4,
+              action: state.action,
+              lat: state.position.lat,
+              lng: state.position.lng,
+            }),
+          });
+          const text = await response.text();
+          let data;
+          try { data = JSON.parse(text); } catch (_) { data = {}; }
+          if (!response.ok || data?.error) throw new Error(data?.error || `Pointage refusé (${response.status})`);
+
+          el.successTitle.textContent = data?.message || 'Pointage enregistré';
+          el.successMessage.textContent = data?.distance_m != null
+            ? `Validation réussie à ${data.distance_m} m du site.`
+            : 'Votre présence a été enregistrée avec succès.';
+          show('success');
+        } catch (error) {
+          alert(error?.message || 'Le pointage n’a pas pu être enregistré.');
+        } finally {
+          state.loading = false;
+          el.submit.disabled = false;
+          el.submit.textContent = 'Valider mon pointage';
+        }
+      }
+
+      el.actions.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-action]');
+        if (!button) return;
+        state.action = button.dataset.action;
+        el.actions.querySelectorAll('[data-action]').forEach((item) => item.classList.toggle('selected', item === button));
+      });
+      el.last4.addEventListener('input', () => { el.last4.value = el.last4.value.replace(/\D/g, '').slice(0, 4); });
+      el.gpsButton.addEventListener('click', requestPosition);
+      el.form.addEventListener('submit', submit);
+      el.retry.addEventListener('click', load);
+      el.again.addEventListener('click', () => {
+        state.action = '';
+        el.last4.value = '';
+        el.employee.value = '';
+        el.actions.querySelectorAll('[data-action]').forEach((item) => item.classList.remove('selected'));
+        show('formState');
+      });
+
+      void load();
+    })();
+  </script>
+</body>
+</html>
