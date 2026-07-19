@@ -276,6 +276,9 @@ const AppContent = () => {
           <Route path="/admin/notification-test" element={<AdminRoute><NotificationTestPage /></AdminRoute>} />
           <Route path="/admin/payment-tests" element={<AdminRoute><PaymentTestPage /></AdminRoute>} />
           <Route path="/admin/bots-control" element={<AdminRoute><AdminBotsControlPage /></AdminRoute>} />
+          <Route path="/admin/apresbac" element={<AdminRoute><AdminApresBacPage /></AdminRoute>} />
+          <Route path="/app/apres-bac" element={<AuthRoute><ApresBacPage /></AuthRoute>} />
+          <Route path="/apres-bac" element={<Navigate to="/app/apres-bac" replace />} />
                     
                      {/* CRM & Prospects */}
                      <Route path="/prospects" element={<ProspectsLayout />} />
