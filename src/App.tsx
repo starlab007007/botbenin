@@ -107,6 +107,8 @@ const AdminWaouhDealsPage = lazy(() => import("./pages/admin/AdminWaouhDealsPage
 const AdminWaouhHistoriquePage = lazy(() => import("./pages/admin/AdminWaouhHistoriquePage"));
 const AdminWaouhHealthCheckPage = lazy(() => import("./pages/admin/AdminWaouhHealthCheckPage"));
 const AdminBotsControlPage = lazy(() => import("./pages/admin/AdminBotsControlPage"));
+const AdminApresBacPage = lazy(() => import("./pages/admin/AdminApresBacPage"));
+const ApresBacPage = lazy(() => import("./pages/apres-bac/ApresBacPage"));
 const PartnerDashboardPage = lazy(() => import("./pages/partner/PartnerDashboardPage"));
 const PartnerBusinessesPage = lazy(() => import("./pages/partner/PartnerBusinessesPage"));
 const PartnerProductsPage = lazy(() => import("./pages/partner/PartnerProductsPage"));
@@ -274,6 +276,9 @@ const AppContent = () => {
           <Route path="/admin/notification-test" element={<AdminRoute><NotificationTestPage /></AdminRoute>} />
           <Route path="/admin/payment-tests" element={<AdminRoute><PaymentTestPage /></AdminRoute>} />
           <Route path="/admin/bots-control" element={<AdminRoute><AdminBotsControlPage /></AdminRoute>} />
+          <Route path="/admin/apresbac" element={<AdminRoute><AdminApresBacPage /></AdminRoute>} />
+          <Route path="/app/apres-bac" element={<AuthRoute><ApresBacPage /></AuthRoute>} />
+          <Route path="/apres-bac" element={<Navigate to="/app/apres-bac" replace />} />
                     
                      {/* CRM & Prospects */}
                      <Route path="/prospects" element={<ProspectsLayout />} />

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Users, Shield, Key, Activity, Settings, Palette, Database, Megaphone, Bot } from 'lucide-react';
+import { Users, Shield, Key, Activity, Settings, Palette, Database, Megaphone, Bot, GraduationCap } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -86,6 +86,13 @@ export const AdminDashboardPage: React.FC = () => {
       path: '/admin/waouh/diffusion-approvals',
       color: 'text-emerald-500',
       badge: pendingDiffusion,
+    },
+    {
+      title: 'Après BAC IA — Suivi',
+      description: 'Suivi des chats IA d\'orientation post-BAC : KPIs, sessions, séries, top filières, OCR',
+      icon: GraduationCap,
+      path: '/admin/apresbac',
+      color: 'text-indigo-500',
     },
   ];
 
