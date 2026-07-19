@@ -1,0 +1,787 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b6b5b" />
+  <meta name="description" content="AprèsBac IA, l'assistant public d'orientation après le Bac au Bénin." />
+  <meta property="og:title" content="AprèsBac IA" />
+  <meta property="og:description" content="Posez vos questions sur les filières, métiers, universités, quotas et classements possibles." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://www.bot.bj/apresbacia" />
+  <link rel="canonical" href="https://www.bot.bj/apresbacia" />
+  <title>AprèsBac IA | Bot.Bj</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --green: #0b6b5b;
+      --green-dark: #075247;
+      --green-soft: #e4f4ef;
+      --canvas: #f3f7f5;
+      --card: #ffffff;
+      --text: #15231f;
+      --muted: #64736e;
+      --line: #dbe7e3;
+      --danger: #9f3434;
+      --shadow: 0 12px 36px rgba(10, 54, 45, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: var(--canvas);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button, input, select, textarea { font: inherit; }
+
+    body {
+      min-height: 100dvh;
+      overflow: hidden;
+    }
+
+    .app {
+      width: min(100%, 860px);
+      height: 100dvh;
+      margin: 0 auto;
+      background: var(--canvas);
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      box-shadow: var(--shadow);
+    }
+
+    .header {
+      background: linear-gradient(135deg, var(--green-dark), var(--green));
+      color: white;
+      padding: max(14px, env(safe-area-inset-top)) 16px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-mark {
+      width: 44px;
+      height: 44px;
+      flex: 0 0 auto;
+      border-radius: 15px;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 255, 255, 0.16);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      font-weight: 900;
+      font-size: 18px;
+    }
+
+    .brand-copy { min-width: 0; flex: 1; }
+    .brand-copy h1 { margin: 0; font-size: 22px; line-height: 1.05; }
+    .brand-copy p {
+      margin: 4px 0 0;
+      color: #d8fff4;
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .header-actions { display: flex; gap: 7px; }
+    .icon-btn {
+      width: 40px;
+      height: 40px;
+      border: 0;
+      border-radius: 13px;
+      background: rgba(255, 255, 255, 0.13);
+      color: white;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      transition: transform .16s ease, background .16s ease;
+    }
+    .icon-btn:hover { background: rgba(255, 255, 255, 0.22); }
+    .icon-btn:active { transform: scale(.96); }
+    .icon-btn svg { width: 20px; height: 20px; }
+
+    .toolbar {
+      background: white;
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      display: grid;
+      grid-template-columns: minmax(140px, 210px) 1fr;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .field {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 0 11px;
+      background: #f8fbfa;
+    }
+    .field label { color: var(--muted); font-size: 11px; font-weight: 800; }
+    .field select {
+      flex: 1;
+      min-width: 0;
+      border: 0;
+      outline: none;
+      background: transparent;
+      color: var(--text);
+      font-weight: 850;
+      cursor: pointer;
+    }
+
+    .status {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .status-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #c19124;
+      box-shadow: 0 0 0 4px rgba(193, 145, 36, 0.12);
+      flex: 0 0 auto;
+    }
+    .status.online .status-dot {
+      background: #17a476;
+      box-shadow: 0 0 0 4px rgba(23, 164, 118, 0.12);
+    }
+    .status.error .status-dot {
+      background: #cb4b4b;
+      box-shadow: 0 0 0 4px rgba(203, 75, 75, 0.12);
+    }
+    .status-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .chat {
+      min-height: 0;
+      overflow-y: auto;
+      scroll-behavior: smooth;
+      padding: 14px 12px 22px;
+      overscroll-behavior: contain;
+    }
+
+    .message-row { display: flex; margin: 0 0 12px; }
+    .message-row.user { justify-content: flex-end; }
+    .message-row.assistant { justify-content: flex-start; }
+
+    .bubble {
+      max-width: min(90%, 680px);
+      border-radius: 20px;
+      padding: 13px 14px;
+      line-height: 1.48;
+      font-size: 14px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .user .bubble {
+      background: var(--green);
+      color: white;
+      border-bottom-right-radius: 7px;
+    }
+    .assistant .bubble {
+      background: white;
+      border: 1px solid var(--line);
+      border-bottom-left-radius: 7px;
+      box-shadow: 0 5px 16px rgba(20, 53, 44, 0.05);
+    }
+    .assistant .bubble.error {
+      background: #fff2f2;
+      border-color: #efc4c4;
+      color: var(--danger);
+    }
+
+    .summary {
+      margin-bottom: 7px;
+      color: var(--green);
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .sections { margin-top: 10px; display: grid; gap: 8px; }
+    .section {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #f7fbf9;
+      padding: 10px 11px;
+    }
+    .section h3 { margin: 0 0 5px; color: var(--green); font-size: 12px; }
+    .section p { margin: 0; font-size: 12px; color: #33423d; white-space: pre-wrap; }
+
+    .programs { margin-top: 10px; display: grid; gap: 8px; }
+    details.program {
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: #fbfdfc;
+      overflow: hidden;
+    }
+    details.program summary {
+      list-style: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 12px;
+    }
+    details.program summary::-webkit-details-marker { display: none; }
+    .program-main { min-width: 0; flex: 1; }
+    .program-title {
+      font-size: 13px;
+      font-weight: 900;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .program-subtitle {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 10.5px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .score {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      color: var(--green);
+      background: var(--green-soft);
+      font-size: 11px;
+      font-weight: 900;
+    }
+    .program-body { padding: 0 12px 12px; font-size: 12px; color: #33423d; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 9px; }
+    .chip {
+      border: 1px solid var(--line);
+      background: white;
+      border-radius: 999px;
+      padding: 5px 8px;
+      font-size: 10px;
+      font-weight: 750;
+    }
+    .program-body p { margin: 7px 0 0; line-height: 1.45; }
+
+    .followups, .quick-prompts {
+      display: flex;
+      gap: 7px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      padding: 2px 0;
+    }
+    .followups::-webkit-scrollbar, .quick-prompts::-webkit-scrollbar { display: none; }
+    .followup, .quick-prompt {
+      flex: 0 0 auto;
+      max-width: 290px;
+      border: 1px solid #badfd2;
+      background: #edf8f4;
+      color: var(--green-dark);
+      border-radius: 999px;
+      padding: 8px 11px;
+      font-size: 11px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .typing {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 750;
+    }
+    .typing-dots { display: inline-flex; gap: 4px; }
+    .typing-dots i {
+      width: 6px;
+      height: 6px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse 1s infinite ease-in-out;
+    }
+    .typing-dots i:nth-child(2) { animation-delay: .15s; }
+    .typing-dots i:nth-child(3) { animation-delay: .3s; }
+    @keyframes pulse { 0%, 100% { opacity: .25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
+
+    .composer-wrap {
+      background: white;
+      border-top: 1px solid var(--line);
+      padding: 9px 10px max(9px, env(safe-area-inset-bottom));
+    }
+    .quick-prompts { margin-bottom: 8px; }
+    .composer {
+      display: grid;
+      grid-template-columns: 1fr 50px;
+      gap: 8px;
+      align-items: end;
+    }
+    .composer textarea {
+      width: 100%;
+      min-height: 50px;
+      max-height: 126px;
+      resize: none;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      outline: none;
+      background: #f4f8f6;
+      padding: 13px 14px;
+      color: var(--text);
+      line-height: 1.4;
+    }
+    .composer textarea:focus {
+      border-color: #82c9b4;
+      box-shadow: 0 0 0 3px rgba(11, 107, 91, 0.08);
+    }
+    .send {
+      width: 50px;
+      height: 50px;
+      border: 0;
+      border-radius: 50%;
+      background: var(--green);
+      color: white;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      transition: transform .16s ease, opacity .16s ease;
+    }
+    .send:disabled { opacity: .45; cursor: not-allowed; }
+    .send:not(:disabled):active { transform: scale(.95); }
+    .send svg { width: 23px; height: 23px; }
+
+    .retry {
+      margin-top: 9px;
+      border: 1px solid #e4abab;
+      background: white;
+      color: var(--danger);
+      border-radius: 11px;
+      padding: 7px 10px;
+      font-size: 11px;
+      font-weight: 850;
+      cursor: pointer;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @media (max-width: 560px) {
+      .app { width: 100%; box-shadow: none; }
+      .toolbar { grid-template-columns: 1fr; gap: 7px; }
+      .header { padding-left: 12px; padding-right: 10px; }
+      .brand-copy h1 { font-size: 20px; }
+      .brand-mark { width: 40px; height: 40px; }
+      .bubble { max-width: 94%; }
+      .chat { padding-left: 9px; padding-right: 9px; }
+      .header-actions .icon-btn { width: 38px; height: 38px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app" aria-label="Chatbot public AprèsBac IA">
+    <header class="header">
+      <div class="brand-mark" aria-hidden="true">AB</div>
+      <div class="brand-copy">
+        <h1>AprèsBac IA</h1>
+        <p>Votre intelligence d’orientation après le Bac</p>
+      </div>
+      <div class="header-actions">
+        <button class="icon-btn" id="shareButton" type="button" title="Partager le lien" aria-label="Partager le lien">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        </button>
+        <button class="icon-btn" id="clearButton" type="button" title="Nouvelle conversation" aria-label="Nouvelle conversation">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <section class="toolbar" aria-label="Paramètres de la conversation">
+      <div class="field">
+        <label for="seriesSelect">Série du Bac</label>
+        <select id="seriesSelect" aria-label="Série du Bac"></select>
+      </div>
+      <div class="status" id="status" role="status" aria-live="polite">
+        <span class="status-dot"></span>
+        <span class="status-text" id="statusText">Connexion à AprèsBac IA…</span>
+      </div>
+    </section>
+
+    <section class="chat" id="chat" aria-live="polite"></section>
+
+    <footer class="composer-wrap">
+      <div class="quick-prompts" id="quickPrompts" aria-label="Questions rapides"></div>
+      <form class="composer" id="composer">
+        <label class="sr-only" for="messageInput">Votre question</label>
+        <textarea id="messageInput" rows="1" maxlength="1000" placeholder="Posez une question sur une filière, un métier, une université, un quota…"></textarea>
+        <button class="send" id="sendButton" type="submit" aria-label="Envoyer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </form>
+    </footer>
+  </main>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const SUPABASE_URL = 'https://mvynepqulhflxtyymtzs.supabase.co';
+      const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12eW5lcHF1bGhmbHh0eXltdHpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc1OTgxNTMsImV4cCI6MjA2MzE3NDE1M30.g1llr-Q6T3h06xFV7hCNRWZHG20wQHoBmp5zL0OAKh8';
+      const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/waouh-apresbac-chat`;
+      const PUBLIC_URL = 'https://www.bot.bj/apresbacia';
+      const STORAGE_KEY = 'botbj_apresbacia_public_chat_v1';
+      const SERIES_KEY = 'botbj_apresbacia_public_series_v1';
+
+      const seriesOptions = ['Toutes', 'A1', 'A2', 'B', 'C', 'D', 'E', 'F1', 'F2', 'F3', 'F4', 'G1', 'G2', 'G3', 'EA', 'DEAT', 'DT'];
+      const quickQuestions = [
+        'Présente-moi les filières compatibles avec ma série',
+        'Quelles universités proposent les filières de santé ?',
+        'Quels métiers après une filière informatique ?',
+        'Comment vérifier un classement possible ?'
+      ];
+
+      const initialMessage = {
+        role: 'assistant',
+        text: 'Bonjour, je suis AprèsBac IA. Sélectionnez votre série puis posez une question sur les filières, métiers, universités, quotas ou classements possibles.',
+        followUps: [
+          'Présente-moi les filières compatibles avec ma série',
+          'Montre les universités et écoles disponibles'
+        ]
+      };
+
+      const state = {
+        messages: loadMessages(),
+        sessionId: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+        sending: false,
+        lastPrompt: '',
+      };
+
+      const els = {
+        chat: document.getElementById('chat'),
+        composer: document.getElementById('composer'),
+        input: document.getElementById('messageInput'),
+        send: document.getElementById('sendButton'),
+        series: document.getElementById('seriesSelect'),
+        status: document.getElementById('status'),
+        statusText: document.getElementById('statusText'),
+        clear: document.getElementById('clearButton'),
+        share: document.getElementById('shareButton'),
+        quickPrompts: document.getElementById('quickPrompts'),
+      };
+
+      function loadMessages() {
+        try {
+          const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+          if (Array.isArray(parsed) && parsed.length) return parsed.slice(-40);
+        } catch (_) {}
+        return [initialMessage];
+      }
+
+      function saveMessages() {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.messages.slice(-40))); } catch (_) {}
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? '')
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#039;');
+      }
+
+      function toArray(value) {
+        return Array.isArray(value) ? value : [];
+      }
+
+      function selectedSeries() {
+        return els.series.value === 'Toutes' ? null : els.series.value;
+      }
+
+      function setStatus(mode, text) {
+        els.status.classList.remove('online', 'error');
+        if (mode === 'online') els.status.classList.add('online');
+        if (mode === 'error') els.status.classList.add('error');
+        els.statusText.textContent = text;
+      }
+
+      function renderSeries() {
+        const remembered = localStorage.getItem(SERIES_KEY) || 'Toutes';
+        els.series.innerHTML = seriesOptions
+          .map((value) => `<option value="${escapeHtml(value)}"${value === remembered ? ' selected' : ''}>${escapeHtml(value)}</option>`)
+          .join('');
+      }
+
+      function renderQuickPrompts() {
+        els.quickPrompts.innerHTML = quickQuestions
+          .map((text) => `<button type="button" class="quick-prompt" data-prompt="${escapeHtml(text)}">${escapeHtml(text)}</button>`)
+          .join('');
+      }
+
+      function renderPrograms(programs) {
+        return toArray(programs).slice(0, 6).map((program) => {
+          const name = program?.name || program?.program_name || 'Filière';
+          const institution = program?.institution || 'Établissement à confirmer';
+          const university = program?.university || '';
+          const score = Number.isFinite(Number(program?.match_score)) ? Math.round(Number(program.match_score)) : null;
+          const eligibility = program?.eligibility && typeof program.eligibility === 'object' ? program.eligibility : null;
+          const subjects = toArray(program?.subjects).filter(Boolean).slice(0, 8);
+          const occupations = toArray(program?.occupations).filter(Boolean).slice(0, 8);
+          const scholarship = program?.scholarship_quota;
+          const aid = program?.aid_fpp_quota;
+          const outcomes = program?.outcomes ? String(program.outcomes) : '';
+          const chips = [
+            program?.admission_mode,
+            scholarship != null ? `Bourse : ${scholarship}` : null,
+            aid != null ? `Aide/FPP : ${aid}` : null,
+            eligibility?.label,
+          ].filter(Boolean);
+
+          return `
+            <details class="program">
+              <summary>
+                <div class="program-main">
+                  <div class="program-title">${escapeHtml(name)}</div>
+                  <div class="program-subtitle">${escapeHtml([institution, university].filter(Boolean).join(' · '))}</div>
+                </div>
+                ${score == null ? '' : `<div class="score">${score}</div>`}
+              </summary>
+              <div class="program-body">
+                ${chips.length ? `<div class="chips">${chips.map((chip) => `<span class="chip">${escapeHtml(chip)}</span>`).join('')}</div>` : ''}
+                ${eligibility?.message ? `<p><strong>${escapeHtml(eligibility.message)}</strong></p>` : ''}
+                ${subjects.length ? `<p><strong>Matières :</strong> ${escapeHtml(subjects.join(', '))}</p>` : ''}
+                ${outcomes ? `<p><strong>Débouchés :</strong> ${escapeHtml(outcomes)}</p>` : ''}
+                ${occupations.length ? `<p><strong>Métiers :</strong> ${escapeHtml(occupations.join(', '))}</p>` : ''}
+              </div>
+            </details>`;
+        }).join('');
+      }
+
+      function renderMessage(message, index) {
+        const role = message.role === 'user' ? 'user' : 'assistant';
+        const errorClass = message.error ? ' error' : '';
+        const sections = toArray(message.sections)
+          .slice(0, 4)
+          .map((section) => `<article class="section"><h3>${escapeHtml(section?.title || 'Détail')}</h3><p>${escapeHtml(section?.content || '')}</p></article>`)
+          .join('');
+        const programs = renderPrograms(message.programs);
+        const followUps = toArray(message.followUps)
+          .slice(0, 4)
+          .map((text) => `<button type="button" class="followup" data-prompt="${escapeHtml(text)}">${escapeHtml(text)}</button>`)
+          .join('');
+
+        return `
+          <div class="message-row ${role}">
+            <div class="bubble${errorClass}">
+              ${message.summary ? `<div class="summary">${escapeHtml(message.summary)}</div>` : ''}
+              <div>${escapeHtml(message.text || '')}</div>
+              ${sections ? `<div class="sections">${sections}</div>` : ''}
+              ${programs ? `<div class="programs">${programs}</div>` : ''}
+              ${followUps ? `<div class="followups" style="margin-top:10px">${followUps}</div>` : ''}
+              ${message.error && message.retryPrompt ? `<button type="button" class="retry" data-retry="${escapeHtml(message.retryPrompt)}">Réessayer</button>` : ''}
+            </div>
+          </div>`;
+      }
+
+      function renderMessages() {
+        els.chat.innerHTML = state.messages.map(renderMessage).join('') + (state.sending ? `
+          <div class="message-row assistant">
+            <div class="bubble"><span class="typing">AprèsBac IA prépare la réponse <span class="typing-dots"><i></i><i></i><i></i></span></span></div>
+          </div>` : '');
+        requestAnimationFrame(() => { els.chat.scrollTop = els.chat.scrollHeight; });
+      }
+
+      function autoResize() {
+        els.input.style.height = 'auto';
+        els.input.style.height = `${Math.min(126, Math.max(50, els.input.scrollHeight))}px`;
+      }
+
+      async function invoke(body, attempt = 0) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 25000);
+
+        try {
+          const response = await fetch(FUNCTION_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+              'x-request-id': `web-public-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            },
+            body: JSON.stringify(body),
+            signal: controller.signal,
+          });
+
+          const raw = await response.text();
+          let data;
+          try { data = JSON.parse(raw); } catch (_) { throw new Error('Réponse invalide du service.'); }
+
+          if (!response.ok || data?.ok === false || data?.error) {
+            throw new Error(data?.message || data?.technical_message || `Erreur ${response.status}`);
+          }
+
+          return data;
+        } catch (error) {
+          if (attempt === 0 && (error?.name === 'AbortError' || String(error).toLowerCase().includes('network'))) {
+            await new Promise((resolve) => setTimeout(resolve, 650));
+            return invoke(body, 1);
+          }
+          throw error;
+        } finally {
+          clearTimeout(timeout);
+        }
+      }
+
+      async function healthCheck() {
+        try {
+          const data = await invoke({ action: 'health', context: { locale: 'fr-BJ', channel: 'public-web' } });
+          const count = data?.catalog?.programs;
+          setStatus('online', count ? `Service opérationnel · ${count} filières` : 'Service opérationnel');
+        } catch (_) {
+          setStatus('error', 'Service momentanément indisponible · touchez pour réessayer');
+        }
+      }
+
+      async function sendMessage(prompt) {
+        const message = String(prompt ?? els.input.value).trim();
+        if (!message || state.sending) return;
+
+        state.lastPrompt = message;
+        state.messages.push({ role: 'user', text: message });
+        state.sending = true;
+        els.send.disabled = true;
+        els.input.value = '';
+        autoResize();
+        saveMessages();
+        renderMessages();
+
+        try {
+          const data = await invoke({
+            action: 'chat',
+            message,
+            bac_series: selectedSeries(),
+            session_id: state.sessionId,
+            notes: [],
+            conversation: state.messages.slice(-8).map((entry) => ({ role: entry.role, content: entry.text })),
+            context: {
+              module_version: 'public-web-1.0.0',
+              locale: 'fr-BJ',
+              channel: 'public-web',
+              response_profile: 'COMPACT_DYNAMIC',
+              max_results: 6,
+              include: {
+                quotas: true,
+                subjects: true,
+                outcomes: true,
+                occupations: true,
+                calculations: true,
+                universities: true,
+                follow_up_suggestions: true,
+                sources: false,
+              },
+            },
+          });
+
+          state.sessionId = data?.session_id || state.sessionId;
+          state.messages.push({
+            role: 'assistant',
+            text: data?.answer || 'La réponse est disponible.',
+            summary: data?.summary || '',
+            sections: data?.sections || [],
+            programs: data?.programs || [],
+            followUps: data?.follow_up_suggestions || [],
+          });
+          setStatus('online', `Réponse reçue${data?.duration_ms ? ` en ${data.duration_ms} ms` : ''}`);
+        } catch (error) {
+          const messageText = error?.name === 'AbortError'
+            ? 'La requête a expiré. Vérifiez votre connexion puis réessayez.'
+            : (error?.message || 'AprèsBac IA ne peut pas répondre maintenant.');
+          state.messages.push({ role: 'assistant', text: messageText, error: true, retryPrompt: message });
+          setStatus('error', 'Une erreur est survenue · vous pouvez réessayer');
+        } finally {
+          state.sending = false;
+          els.send.disabled = false;
+          saveMessages();
+          renderMessages();
+          els.input.focus();
+        }
+      }
+
+      function clearConversation() {
+        const confirmed = window.confirm('Effacer cette conversation et recommencer ?');
+        if (!confirmed) return;
+        state.messages = [initialMessage];
+        state.sessionId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+        state.lastPrompt = '';
+        saveMessages();
+        renderMessages();
+      }
+
+      async function sharePage() {
+        const shareData = {
+          title: 'AprèsBac IA',
+          text: 'Posez vos questions d’orientation à AprèsBac IA.',
+          url: PUBLIC_URL,
+        };
+        try {
+          if (navigator.share) await navigator.share(shareData);
+          else {
+            await navigator.clipboard.writeText(PUBLIC_URL);
+            setStatus('online', 'Lien copié : www.bot.bj/apresbacia');
+          }
+        } catch (_) {}
+      }
+
+      els.composer.addEventListener('submit', (event) => {
+        event.preventDefault();
+        void sendMessage();
+      });
+      els.input.addEventListener('input', autoResize);
+      els.input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+          event.preventDefault();
+          void sendMessage();
+        }
+      });
+      els.series.addEventListener('change', () => {
+        localStorage.setItem(SERIES_KEY, els.series.value);
+        const value = selectedSeries();
+        setStatus('online', value ? `Série ${value} sélectionnée` : 'Toutes les séries');
+      });
+      els.clear.addEventListener('click', clearConversation);
+      els.share.addEventListener('click', () => void sharePage());
+      els.status.addEventListener('click', () => void healthCheck());
+      document.addEventListener('click', (event) => {
+        const promptButton = event.target.closest('[data-prompt]');
+        if (promptButton) void sendMessage(promptButton.getAttribute('data-prompt'));
+        const retryButton = event.target.closest('[data-retry]');
+        if (retryButton) void sendMessage(retryButton.getAttribute('data-retry'));
+      });
+
+      renderSeries();
+      renderQuickPrompts();
+      renderMessages();
+      autoResize();
+      void healthCheck();
+    })();
+  </script>
+</body>
+</html>
