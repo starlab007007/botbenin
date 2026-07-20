@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  ArrowLeft, RefreshCw, RotateCw, Trash2, CloudCheck, LayoutGrid, ChevronUp, ChevronDown,
+  ArrowLeft, RefreshCw, RotateCw, Trash2, CloudCheck as CloudCheckIcon, CheckCircle2, LayoutGrid, ChevronUp, ChevronDown,
   BarChart3, ScanLine, BarChart2, Sparkles, ShieldCheck, ListOrdered, Landmark, Search,
   GraduationCap, Send, Loader2, FileText,
 } from "lucide-react";
