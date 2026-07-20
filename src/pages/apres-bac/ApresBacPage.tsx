@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  ArrowLeft, RefreshCw, RotateCw, Trash2, CloudCheck as CloudCheckIcon, CheckCircle2, LayoutGrid, ChevronUp, ChevronDown,
+  ArrowLeft, RefreshCw, RotateCw, Trash2, CheckCircle2, LayoutGrid, ChevronUp, ChevronDown,
   BarChart3, ScanLine, BarChart2, Sparkles, ShieldCheck, ListOrdered, Landmark, Search,
   GraduationCap, Send, Loader2, FileText,
 } from "lucide-react";
@@ -210,7 +210,7 @@ export default function ApresBacPage() {
 
       {/* Bandeau statut */}
       <div className="bg-primary/5 border-b border-primary/10 px-4 py-3 flex items-center gap-2">
-        <CloudCheck className="h-5 w-5 text-primary" />
+        <CheckCircle2 className="h-5 w-5 text-primary" />
         <span className="text-sm text-primary font-medium">AprèsBac IA est opérationnel.</span>
       </div>
 
