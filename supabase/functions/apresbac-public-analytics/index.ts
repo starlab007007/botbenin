@@ -18,6 +18,7 @@ const inMemoryRate = new Map<string, number[]>();
 const MAX_EVENTS_PER_REQUEST = 20;
 const MAX_EVENTS_PER_MINUTE = 120;
 const MAX_BODY_BYTES = 48_000;
+const DEFAULT_MODEL = "google/gemini-2.5-flash-lite";
 
 function clampInt(value: unknown, min: number, max: number): number | null {
   const parsed = Number(value);
@@ -98,7 +99,7 @@ function estimateTokens(chars: number | null, overhead = 0): number | null {
 
 function estimateCost(model: string | null, inputTokens: number | null, outputTokens: number | null): number | null {
   if (inputTokens == null && outputTokens == null) return null;
-  const normalized = (model || "google/gemini-2.5-flash-estimate").toLowerCase();
+  const normalized = (model || DEFAULT_MODEL).toLowerCase();
   let inputPerMillion = 0.30;
   let outputPerMillion = 2.50;
   if (normalized.includes("flash-lite")) {
@@ -121,7 +122,12 @@ serve(async (req) => {
   try {
     const body = await req.json();
     if (body?.action === "health") {
-      return json({ ok: true, service: "apresbac-public-analytics", privacy: "metadata-only" }, 200, origin);
+      return json({
+        ok: true,
+        service: "apresbac-public-analytics",
+        privacy: "metadata-only",
+        default_model: DEFAULT_MODEL,
+      }, 200, origin);
     }
 
     const session = body?.session || {};
@@ -175,7 +181,7 @@ serve(async (req) => {
         const explicitOutput = clampInt(event.output_tokens, 0, 500_000);
         const inputTokens = explicitInput ?? estimateTokens(requestChars, eventType === "assistant_message" ? 2_000 : 0);
         const outputTokens = explicitOutput ?? estimateTokens(responseChars, 0);
-        const model = safeText(event.model, 100) || (eventType === "assistant_message" ? "google/gemini-2.5-flash-estimate" : null);
+        const model = safeText(event.model, 100) || (eventType === "assistant_message" ? DEFAULT_MODEL : null);
 
         return {
           session_id: sessionId,
