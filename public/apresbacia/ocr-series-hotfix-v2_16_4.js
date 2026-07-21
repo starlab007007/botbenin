@@ -1,625 +1,83 @@
-(() => {
-  'use strict';
-
-  const NOTES_KEY = 'botbj_apresbacia_clone_notes_v2';
-  const SERIES_KEY = 'botbj_apresbacia_clone_series_v2';
-
-  const SERIES = [
-    'Toutes',
-    'A1',
-    'A2',
-    'B',
-    'C',
-    'D',
-    'E',
-    'F1',
-    'F2',
-    'F3',
-    'F4',
-    'G1',
-    'G2',
-    'G3',
-    'EA',
-    'DEAT',
-    'DT',
-  ];
-
-  const SUBJECTS = [
-    { label: 'Mathématiques', pattern: /\b(math(?:e|é)?matiques?|maths?)\b/i },
-    { label: 'Français', pattern: /\b(fran(?:ç|c)ais|francais)\b/i },
-    { label: 'Anglais', pattern: /\b(anglais|english)\b/i },
-    { label: 'Physique-Chimie', pattern: /\b(physique(?:\s*[-/]?\s*chimie)?|p\.?\s*c\.?)\b/i },
-    { label: 'SVT', pattern: /\b(s\.?v\.?t\.?|sciences?\s+de\s+la\s+vie|biologie)\b/i },
-    { label: 'Philosophie', pattern: /\b(philosophie|philo)\b/i },
-    { label: 'Histoire-Géographie', pattern: /\b(histoire(?:\s*[-/]?\s*g(?:é|e)ographie)?|g(?:é|e)ographie|hist\.?\s*g(?:é|e)o\.?)\b/i },
-    { label: 'Économie', pattern: /\b((?:é|e)conomie|sciences?\s+(?:é|e)conomiques?)\b/i },
-    { label: 'Comptabilité', pattern: /\b(comptabilit(?:é|e)|compta)\b/i },
-    { label: 'Informatique', pattern: /\b(informatique|programmation|num(?:é|e)rique)\b/i },
-    { label: 'Électrotechnique', pattern: /\b((?:é|e)lectrotechnique|(?:é|e)lectricit(?:é|e))\b/i },
-    { label: 'Construction mécanique', pattern: /\b(construction\s+m(?:é|e)canique|m(?:é|e)canique)\b/i },
-    { label: 'Dessin technique', pattern: /\b(dessin\s+technique)\b/i },
-    { label: 'Sciences physiques', pattern: /\b(sciences?\s+physiques?)\b/i },
-    { label: 'Allemand', pattern: /\b(allemand|deutsch)\b/i },
-    { label: 'Espagnol', pattern: /\b(espagnol|espa(?:ñ|n)ol)\b/i },
-    { label: 'EPS', pattern: /\b(e\.?p\.?s\.?|education\s+physique)\b/i },
-  ];
-
-  let selectedFile = null;
-  let selectedObjectUrl = null;
-  let tesseractPromise = null;
-
-  function injectStyles() {
-    if (document.getElementById('apresbacOcrSeries2164Styles')) return;
-
-    const style = document.createElement('style');
-    style.id = 'apresbacOcrSeries2164Styles';
-    style.textContent = `
-      #seriesSelect {
-        display: block !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        min-height: 44px !important;
-        color: #13231f !important;
-        background: transparent !important;
-      }
-
-      #scanProgressText {
-        display: block !important;
-        min-height: 20px;
-        margin: 7px 0 0;
-        color: #31584f;
-        font-weight: 750;
-      }
-
-      #scanText {
-        display: block !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-      }
-
-      .scan-zone .progress {
-        display: block !important;
-      }
-
-      .ocr-detected-summary {
-        margin-top: 8px;
-        padding: 10px 12px;
-        border: 1px solid #bcded5;
-        border-radius: 13px;
-        color: #075247;
-        background: #edf8f4;
-        font-size: 12px;
-        line-height: 1.4;
-      }
-
-      .ocr-detected-summary strong {
-        display: block;
-        margin-bottom: 4px;
-      }
-    `;
-
-    document.head.appendChild(style);
-  }
-
-  function escapeHtml(value) {
-    return String(value ?? '')
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#039;');
-  }
-
-  function showToast(message) {
-    const toast = document.getElementById('toast');
-    if (!toast) return;
-
-    toast.textContent = message;
-    toast.classList.add('show');
-
-    window.clearTimeout(showToast.timer);
-    showToast.timer = window.setTimeout(
-      () => toast.classList.remove('show'),
-      2800,
-    );
-  }
-
-  function ensureSeries() {
-    const select = document.getElementById('seriesSelect');
-    if (!select) return;
-
-    const remembered = localStorage.getItem(SERIES_KEY) || 'Toutes';
-    const currentValues = Array.from(select.options).map((option) => option.value);
-    const incomplete = SERIES.some((value) => !currentValues.includes(value));
-
-    if (!select.options.length || incomplete) {
-      select.innerHTML = SERIES.map(
-        (value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`,
-      ).join('');
-    }
-
-    select.value = SERIES.includes(remembered) ? remembered : 'Toutes';
-    select.disabled = false;
-    select.removeAttribute('aria-hidden');
-
-    if (select.dataset.seriesHotfix2164 !== '1') {
-      select.dataset.seriesHotfix2164 = '1';
-      select.addEventListener('change', () => {
-        localStorage.setItem(SERIES_KEY, select.value);
-      });
-    }
-  }
-
-  function getProgressElements() {
-    const progress = document.getElementById('scanProgress');
-    const text = document.getElementById('scanProgressText');
-    const wrapper = progress?.parentElement;
-
-    if (wrapper) wrapper.classList.remove('hidden');
-
-    return { progress, text };
-  }
-
-  function setProgress(percent, message) {
-    const { progress, text } = getProgressElements();
-    const safePercent = Math.max(0, Math.min(100, Math.round(percent)));
-
-    if (progress) progress.style.width = `${safePercent}%`;
-    if (text) text.textContent = message;
-  }
-
-  function updateDetectedSummary(notes) {
-    const scanText = document.getElementById('scanText');
-    const zone = scanText?.closest('.scan-zone');
-    if (!zone) return;
-
-    zone.querySelector('.ocr-detected-summary')?.remove();
-
-    const summary = document.createElement('div');
-    summary.className = 'ocr-detected-summary';
-
-    if (!notes.length) {
-      summary.innerHTML = `
-        <strong>Aucune note automatiquement confirmée.</strong>
-        Le texte reconnu reste modifiable. Corrigez les lignes puis touchez
-        « Importer les notes détectées ».
-      `;
-    } else {
-      summary.innerHTML = `
-        <strong>${notes.length} note${notes.length > 1 ? 's' : ''} détectée${notes.length > 1 ? 's' : ''}</strong>
-        ${notes.map((item) => `${escapeHtml(item.subject)} : ${item.score}/20`).join(' · ')}
-      `;
-    }
-
-    scanText.insertAdjacentElement('afterend', summary);
-  }
-
-  function loadExternalScript(url) {
-    return new Promise((resolve, reject) => {
-      const existing = document.querySelector(`script[data-ocr-src="${url}"]`);
-
-      if (existing) {
-        if (window.Tesseract) resolve(window.Tesseract);
-        else existing.addEventListener('load', () => resolve(window.Tesseract), { once: true });
-        return;
-      }
-
-      const script = document.createElement('script');
-      script.src = url;
-      script.async = true;
-      script.crossOrigin = 'anonymous';
-      script.dataset.ocrSrc = url;
-      script.onload = () => resolve(window.Tesseract);
-      script.onerror = () => reject(new Error(`Échec du chargement OCR : ${url}`));
-      document.head.appendChild(script);
-    });
-  }
-
-  async function loadTesseract() {
-    if (window.Tesseract) return window.Tesseract;
-    if (tesseractPromise) return tesseractPromise;
-
-    const sources = [
-      'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js',
-      'https://unpkg.com/tesseract.js@5/dist/tesseract.min.js',
-    ];
-
-    tesseractPromise = (async () => {
-      let lastError = null;
-
-      for (const source of sources) {
-        try {
-          const loaded = await loadExternalScript(source);
-          if (loaded) return loaded;
-        } catch (error) {
-          lastError = error;
-        }
-      }
-
-      throw lastError || new Error('Le moteur OCR ne peut pas être chargé.');
-    })();
-
-    try {
-      return await tesseractPromise;
-    } catch (error) {
-      tesseractPromise = null;
-      throw error;
-    }
-  }
-
-  function loadImage(file) {
-    return new Promise((resolve, reject) => {
-      const image = new Image();
-      const objectUrl = URL.createObjectURL(file);
-
-      image.onload = () => {
-        URL.revokeObjectURL(objectUrl);
-        resolve(image);
-      };
-
-      image.onerror = () => {
-        URL.revokeObjectURL(objectUrl);
-        reject(new Error('Le format de cette image ne peut pas être lu. Utilisez JPG ou PNG.'));
-      };
-
-      image.src = objectUrl;
-    });
-  }
-
-  async function preprocessImage(file) {
-    setProgress(7, 'Préparation et amélioration de l’image…');
-
-    const image = await loadImage(file);
-    const maxWidth = 1900;
-    const maxHeight = 2600;
-    const ratio = Math.min(
-      1,
-      maxWidth / Math.max(1, image.naturalWidth),
-      maxHeight / Math.max(1, image.naturalHeight),
-    );
-
-    const width = Math.max(1, Math.round(image.naturalWidth * ratio));
-    const height = Math.max(1, Math.round(image.naturalHeight * ratio));
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d', { willReadFrequently: true });
-
-    canvas.width = width;
-    canvas.height = height;
-
-    context.fillStyle = '#ffffff';
-    context.fillRect(0, 0, width, height);
-    context.drawImage(image, 0, 0, width, height);
-
-    const imageData = context.getImageData(0, 0, width, height);
-    const pixels = imageData.data;
-
-    for (let index = 0; index < pixels.length; index += 4) {
-      const gray =
-        (pixels[index] * 0.299)
-        + (pixels[index + 1] * 0.587)
-        + (pixels[index + 2] * 0.114);
-      const contrasted = Math.max(0, Math.min(255, ((gray - 128) * 1.45) + 128));
-
-      pixels[index] = contrasted;
-      pixels[index + 1] = contrasted;
-      pixels[index + 2] = contrasted;
-      pixels[index + 3] = 255;
-    }
-
-    context.putImageData(imageData, 0, 0);
-
-    return await new Promise((resolve, reject) => {
-      canvas.toBlob(
-        (blob) => {
-          if (blob) resolve(blob);
-          else reject(new Error('Échec de la préparation de l’image.'));
-        },
-        'image/jpeg',
-        0.94,
-      );
-    });
-  }
-
-  function normalizeOcrText(text) {
-    return String(text || '')
-      .replace(/\r/g, '\n')
-      .replace(/[|¦]/g, ' ')
-      .replace(/[–—]/g, '-')
-      .replace(/[·•]/g, ' ')
-      .replace(/\t/g, ' ')
-      .replace(/[ ]{2,}/g, ' ')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-  }
-
-  function numericCandidates(line) {
-    const matches = [];
-    const expression = /(^|[^\d])((?:20(?:[.,]0{1,2})?)|(?:1\d(?:[.,]\d{1,2})?)|(?:\d(?:[.,]\d{1,2})?))\s*(\/\s*20)?(?=$|[^\d])/g;
-
-    for (const match of line.matchAll(expression)) {
-      const raw = match[2];
-      const value = Number(raw.replace(',', '.'));
-      if (!Number.isFinite(value) || value < 0 || value > 20) continue;
-
-      matches.push({
-        value: Math.round(value * 100) / 100,
-        raw,
-        index: Number(match.index || 0) + String(match[1] || '').length,
-        explicitTwenty: Boolean(match[3]),
-        decimal: /[.,]/.test(raw),
-      });
-    }
-
-    return matches;
-  }
-
-  function chooseScore(line, subjectMatch) {
-    const candidates = numericCandidates(line);
-    if (!candidates.length) return null;
-
-    const subjectEnd = subjectMatch ? subjectMatch.index + subjectMatch[0].length : 0;
-    const hasCoefficientWord = /coef(?:ficient)?/i.test(line);
-
-    const ranked = candidates.map((candidate, position) => {
-      let rank = 0;
-
-      if (candidate.explicitTwenty) rank += 150;
-      if (candidate.decimal) rank += 55;
-      if (candidate.index >= subjectEnd) rank += 35;
-      if (candidate.value >= 7) rank += 28;
-      if (candidate.value >= 10) rank += 12;
-      rank += position * 3;
-
-      if (candidates.length > 1 && candidate.value <= 6) rank -= 45;
-      if (hasCoefficientWord && candidate.value <= 10) rank -= 60;
-
-      return { ...candidate, rank };
-    });
-
-    ranked.sort((left, right) => right.rank - left.rank);
-    return ranked[0]?.value ?? null;
-  }
-
-  function extractNotes(text) {
-    const normalized = normalizeOcrText(text);
-    const lines = normalized
-      .split(/\n+/)
-      .map((line) => line.trim())
-      .filter(Boolean);
-    const detected = new Map();
-
-    for (let index = 0; index < lines.length; index += 1) {
-      const current = lines[index];
-      const following = lines[index + 1] || '';
-      const combined = `${current} ${following}`.trim();
-
-      for (const subject of SUBJECTS) {
-        const match = subject.pattern.exec(current) || subject.pattern.exec(combined);
-        if (!match) continue;
-
-        const score = chooseScore(current, match)
-          ?? chooseScore(combined, match);
-
-        if (score == null) continue;
-
-        detected.set(subject.label.toLowerCase(), {
-          subject: subject.label,
-          score,
-          source: 'ocr',
-        });
-      }
-    }
-
-    return Array.from(detected.values());
-  }
-
-  async function runOcr() {
-    const input = document.getElementById('scanInput');
-    const file = selectedFile || input?.files?.[0];
-    const button = document.getElementById('runOcrButton');
-    const scanText = document.getElementById('scanText');
-
-    if (!file) {
-      showToast('Choisissez ou photographiez d’abord le relevé.');
-      return;
-    }
-
-    if (!/^image\//i.test(file.type || '') && !/\.(jpe?g|png|webp)$/i.test(file.name || '')) {
-      showToast('Utilisez une image JPG, PNG ou WEBP.');
-      return;
-    }
-
-    if (button) {
-      button.disabled = true;
-      button.dataset.originalLabel = button.textContent;
-      button.textContent = 'Lecture OCR en cours…';
-    }
-
-    updateDetectedSummary([]);
-    setProgress(2, 'Initialisation du scanner OCR…');
-
-    try {
-      const [Tesseract, preparedImage] = await Promise.all([
-        loadTesseract(),
-        preprocessImage(file),
-      ]);
-
-      setProgress(12, 'Analyse du relevé…');
-
-      const result = await Tesseract.recognize(
-        preparedImage,
-        'fra+eng',
-        {
-          logger: (event) => {
-            const progress = Number(event?.progress || 0);
-            const percent = 12 + Math.round(progress * 83);
-            const status = event?.status
-              ? String(event.status).replaceAll('_', ' ')
-              : 'Analyse du relevé';
-
-            setProgress(percent, `${status} · ${Math.max(0, Math.min(100, Math.round(progress * 100)))} %`);
-          },
-          langPath: 'https://tessdata.projectnaptha.com/4.0.0',
-        },
-      );
-
-      const recognized = normalizeOcrText(result?.data?.text || '');
-      const notes = extractNotes(recognized);
-
-      if (scanText) scanText.value = recognized;
-
-      updateDetectedSummary(notes);
-      setProgress(100, notes.length
-        ? `Lecture terminée : ${notes.length} note${notes.length > 1 ? 's' : ''} détectée${notes.length > 1 ? 's' : ''}. Vérifiez avant importation.`
-        : 'Lecture terminée. Corrigez si nécessaire le texte reconnu avant l’importation.');
-
-      showToast(notes.length
-        ? `${notes.length} note${notes.length > 1 ? 's' : ''} détectée${notes.length > 1 ? 's' : ''}.`
-        : 'Texte extrait. Vérifiez-le avant l’importation.');
-    } catch (error) {
-      console.error('[AprèsBac OCR V2.16.4]', error);
-      const message = error?.message || 'Le relevé ne peut pas être analysé.';
-      setProgress(0, `${message} Vérifiez la connexion, puis réessayez.`);
-      showToast(message);
-    } finally {
-      if (button) {
-        button.disabled = false;
-        button.textContent = button.dataset.originalLabel || 'Lire le relevé avec l’OCR';
-      }
-    }
-  }
-
-  function readStoredNotes() {
-    try {
-      const value = JSON.parse(localStorage.getItem(NOTES_KEY) || '[]');
-      return Array.isArray(value) ? value : [];
-    } catch (_) {
-      return [];
-    }
-  }
-
-  function importNotes() {
-    const scanText = document.getElementById('scanText');
-    const detected = extractNotes(scanText?.value || '');
-
-    if (!detected.length) {
-      showToast('Aucune matière avec une note sur 20 n’a été détectée. Corrigez le texte puis réessayez.');
-      updateDetectedSummary([]);
-      return;
-    }
-
-    const merged = new Map();
-
-    for (const item of readStoredNotes()) {
-      if (!item?.subject) continue;
-      merged.set(String(item.subject).toLowerCase(), item);
-    }
-
-    for (const item of detected) {
-      merged.set(item.subject.toLowerCase(), item);
-    }
-
-    const notes = Array.from(merged.values())
-      .slice(0, 40)
-      .sort((left, right) => String(left.subject).localeCompare(String(right.subject), 'fr'));
-
-    localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
-
-    const modal = document.getElementById('scanModal');
-    modal?.classList.add('hidden');
-    document.body.style.overflow = '';
-
-    showToast(`${detected.length} note${detected.length > 1 ? 's' : ''} importée${detected.length > 1 ? 's' : ''}.`);
-
-    window.setTimeout(() => {
-      const url = new URL(window.location.href);
-      url.searchParams.set('v', '2.16.4');
-      url.searchParams.set('ocr', 'importe');
-      window.location.replace(url.toString());
-    }, 500);
-  }
-
-  function handleFileSelection(input) {
-    const file = input.files?.[0] || null;
-    selectedFile = file;
-
-    if (selectedObjectUrl) {
-      URL.revokeObjectURL(selectedObjectUrl);
-      selectedObjectUrl = null;
-    }
-
-    const preview = document.getElementById('scanPreview');
-    const scanText = document.getElementById('scanText');
-
-    if (!file) {
-      preview?.classList.add('hidden');
-      return;
-    }
-
-    selectedObjectUrl = URL.createObjectURL(file);
-
-    if (preview) {
-      preview.src = selectedObjectUrl;
-      preview.classList.remove('hidden');
-    }
-
-    if (scanText) scanText.value = '';
-    document.querySelector('.ocr-detected-summary')?.remove();
-    setProgress(0, 'Image prête. Touchez « Lire le relevé avec l’OCR ».');
-  }
-
-  function installEvents() {
-    document.addEventListener(
-      'change',
-      (event) => {
-        if (event.target?.id === 'scanInput') {
-          handleFileSelection(event.target);
-        }
-      },
-      true,
-    );
-
-    document.addEventListener(
-      'click',
-      (event) => {
-        const runButton = event.target.closest('#runOcrButton');
-        if (runButton) {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          void runOcr();
-          return;
-        }
-
-        const importButton = event.target.closest('#importOcrButton');
-        if (importButton) {
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          importNotes();
-        }
-      },
-      true,
-    );
-  }
-
-  function start() {
-    injectStyles();
-    ensureSeries();
-    installEvents();
-
-    window.setTimeout(ensureSeries, 250);
-    window.setTimeout(ensureSeries, 1200);
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start, { once: true });
-  } else {
-    start();
-  }
-
-  window.__APRESBAC_OCR_SERIES_V2_16_4__ = {
-    ensureSeries,
-    extractNotes,
-    runOcr,
-    importNotes,
-  };
+(()=>{'use strict';
+const V='2.16.5',NK='botbj_apresbacia_clone_notes_v2',SK='botbj_apresbacia_clone_series_v2';
+const SERIES=['Toutes','A1','A2','B','C','D','E','F1','F2','F3','F4','G1','G2','G3','EA','DEAT','DT'];
+const SUBJECTS=[
+['Mathématiques',['mathematiques','mathematique','maths','math']],
+['Français',['francais','langue francaise']],
+['Anglais',['anglais','english','langue anglaise']],
+['Physique-Chimie',['physique chimie','physique-chimie','physique et chimie','sciences physiques','pc']],
+['SVT',['svt','sciences de la vie et de la terre','biologie geologie','biologie','sciences naturelles']],
+['Philosophie',['philosophie','philo']],
+['Histoire-Géographie',['histoire geographie','histoire-geographie','histoire geo','hist geo']],
+['Économie',['economie','sciences economiques']],
+['Comptabilité',['comptabilite','compta']],
+['Gestion',['gestion','techniques de gestion']],
+['Droit',['droit','legislation']],
+['Informatique',['informatique','programmation','algorithmique','tic']],
+['Électrotechnique',['electrotechnique','electricite','electrotech']],
+['Électronique',['electronique']],
+['Construction mécanique',['construction mecanique','mecanique','technologie mecanique']],
+['Dessin technique',['dessin technique','dessin industriel']],
+['Technologie',['technologie','technologie generale']],
+['Allemand',['allemand','deutsch']],
+['Espagnol',['espagnol','espanol']],
+['Portugais',['portugais']],
+['Latin',['latin']],
+['Littérature',['litterature','litterature francaise']],
+['EPS',['eps','education physique','sport']],
+['Conduite',['conduite','note de conduite']]
+].map(([label,aliases])=>({label,aliases}));
+const IGNORE=['releve de notes','bulletin','baccalaureat','examen','session','annee scolaire','candidat','nom et prenoms','numero de table','matricule','date de naissance','moyenne generale','moyenne','total','rang','decision','admis','mention','coefficient','coef','credit','semestre','trimestre','epreuve'];
+let file=null,url=null,rotation=0,loader=null,rows=[],running=false,timer=null;
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+const norm=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[’'`´]/g,' ').replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim();
+const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');
+function toast(m){const e=$('#toast');if(!e)return;e.textContent=m;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),3000)}
+function styles(){if($('#ocr2165style'))return;const s=document.createElement('style');s.id='ocr2165style';s.textContent=`
+#seriesSelect{display:block!important;visibility:visible!important;opacity:1!important;min-height:46px!important;color:#13231f!important}
+.ocr-sources{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0}.ocr-source{min-height:64px;display:grid;grid-template-columns:38px 1fr;gap:9px;align-items:center;padding:10px 12px;border:1px solid #cbded8;border-radius:17px;color:#075f51;background:linear-gradient(#fff,#f1faf7);font-weight:850;text-align:left}.ocr-source b{width:38px;height:38px;display:grid;place-items:center;border-radius:12px;color:#fff;background:#087260;font-size:20px}.ocr-source small{display:block;color:#687770;font-size:10px}.ocr-hide{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important}.ocr-file{display:none;grid-template-columns:58px 1fr;gap:10px;align-items:center;margin-bottom:10px;padding:9px;border:1px solid #d6e4e0;border-radius:15px;background:#f7fbfa}.ocr-file.on{display:grid}.ocr-file img{width:58px;height:58px;object-fit:cover;border-radius:11px}.ocr-meta{color:#66746f;font-size:11px}.ocr-tools{display:none;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:9px}.ocr-tools.on{display:grid}.ocr-mini{min-height:38px;border:1px solid #d6e2df;border-radius:11px;background:#fff;color:#244b43;font-weight:800}.scan-zone .progress{display:block!important;height:8px;overflow:hidden;border-radius:99px;background:#e4eeeb}.scan-zone .progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,#087260,#2f66eb);transition:width .2s}#scanProgressText{display:block!important;min-height:22px;margin:7px 0;color:#31584f;font-weight:750}#scanText{display:block!important;visibility:visible!important;opacity:1!important;min-height:160px!important}.ocr-quality,.ocr-review{display:none;margin:9px 0}.ocr-quality.on,.ocr-review.on{display:block}.ocr-quality{padding:10px 12px;border:1px solid #ccddd8;border-radius:14px;background:#f5faf8;color:#214b42;font-size:12px}.ocr-head{display:flex;gap:8px;align-items:center;margin-bottom:8px}.ocr-head strong{flex:1}.ocr-add{min-height:35px;border:1px solid #cbded8;border-radius:10px;background:#eff9f6;color:#075f51;font-weight:850}.ocr-list{display:grid;gap:7px}.ocr-row{display:grid;grid-template-columns:26px minmax(0,1fr) 82px 32px;gap:6px;align-items:center;padding:7px;border:1px solid #dce6e3;border-radius:12px;background:#fff}.ocr-row input[type=checkbox]{width:18px;height:18px;accent-color:#087260}.ocr-row input[type=text],.ocr-row input[type=number]{width:100%;min-width:0;min-height:38px;padding:7px;border:1px solid #d5e0dd;border-radius:9px}.ocr-del{width:32px;height:32px;border:0;border-radius:9px;background:#fff0f2;color:#af3546;font-size:18px}.ocr-conf{grid-column:2/-1;color:#71807a;font-size:10px}@media(max-width:430px){.ocr-sources{grid-template-columns:1fr}.ocr-row{grid-template-columns:24px minmax(0,1fr) 72px 30px}}
+`;document.head.appendChild(s)}
+function series(){const e=$('#seriesSelect');if(!e)return;const old=localStorage.getItem(SK)||'Toutes',vals=[...e.options].map(o=>o.value);if(!e.options.length||SERIES.some(x=>!vals.includes(x)))e.innerHTML=SERIES.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');e.value=SERIES.includes(old)?old:'Toutes';e.disabled=false;e.removeAttribute('aria-hidden');if(!e.dataset.v2165){e.dataset.v2165='1';e.addEventListener('change',()=>localStorage.setItem(SK,e.value))}}
+function markup(){const z=$('#scanModal .scan-zone'),legacy=$('#scanInput'),preview=$('#scanPreview');if(!z||!legacy||z.dataset.v2165)return;z.dataset.v2165='1';legacy.classList.add('ocr-hide');legacy.removeAttribute('capture');legacy.accept='image/jpeg,image/png,image/webp,image/heic,image/heif';
+const a=document.createElement('div');a.className='ocr-sources';a.innerHTML=`<button id="ocrCameraBtn" class="ocr-source" type="button"><b>📷</b><span>Prendre une photo<small>Appareil photo arrière</small></span></button><button id="ocrFileBtn" class="ocr-source" type="button"><b>🖼</b><span>Choisir un fichier<small>Photo existante</small></span></button><input id="ocrCamera" class="ocr-hide" type="file" accept="image/*" capture="environment"><input id="ocrFile" class="ocr-hide" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif">`;legacy.before(a);
+const c=document.createElement('div');c.id='ocrFileCard';c.className='ocr-file';c.innerHTML='<img id="ocrThumb" alt=""><div><strong id="ocrName"></strong><div id="ocrMeta" class="ocr-meta"></div></div>';a.after(c);
+const t=document.createElement('div');t.id='ocrTools';t.className='ocr-tools';t.innerHTML='<button class="ocr-mini" data-rotate="-90" type="button">↶ Tourner</button><button class="ocr-mini" data-rotate="90" type="button">↷ Tourner</button><button id="ocrChange" class="ocr-mini" type="button">Changer</button>';preview.after(t);
+const q=document.createElement('div');q.id='ocrQuality';q.className='ocr-quality';$('#scanText')?.before(q);
+const r=document.createElement('div');r.id='ocrReview';r.className='ocr-review';r.innerHTML='<div class="ocr-head"><strong id="ocrTitle">Notes détectées</strong><button id="ocrAdd" class="ocr-add" type="button">+ Ajouter</button></div><div id="ocrList" class="ocr-list"></div>';$('#importOcrButton')?.before(r)}
+function progress(p,m){const bar=$('#scanProgress'),txt=$('#scanProgressText'),wrap=bar?.parentElement?.parentElement;wrap?.classList.remove('hidden');if(bar)bar.style.width=`${clamp(Math.round(p),0,100)}%`;if(txt)txt.textContent=m}
+const bytes=n=>!n?'':n<1048576?`${Math.max(1,Math.round(n/1024))} Ko`:`${(n/1048576).toFixed(1)} Mo`;
+function reset(){rows=[];if($('#scanText'))$('#scanText').value='';$('#ocrQuality')?.classList.remove('on');$('#ocrReview')?.classList.remove('on');if($('#ocrList'))$('#ocrList').innerHTML='';progress(0,'Image prête. Lancez l’analyse approfondie.')}
+function select(inp){const f=inp?.files?.[0];if(!f)return;if(!(/^image\//i.test(f.type||'')||/\.(jpe?g|png|webp|heic|heif)$/i.test(f.name||''))){toast('Choisissez une photo JPG, PNG, WEBP, HEIC ou HEIF.');return}file=f;rotation=0;if(url)URL.revokeObjectURL(url);url=URL.createObjectURL(f);const p=$('#scanPreview');if(p){p.src=url;p.classList.remove('hidden');p.style.transform='rotate(0deg)'}if($('#ocrThumb'))$('#ocrThumb').src=url;$('#ocrFileCard')?.classList.add('on');$('#ocrTools')?.classList.add('on');if($('#ocrName'))$('#ocrName').textContent=f.name||'Photo du relevé';if($('#ocrMeta'))$('#ocrMeta').textContent=[f.type||'image',bytes(f.size)].filter(Boolean).join(' · ');reset()}
+function loadScript(src){return new Promise((ok,no)=>{const old=document.querySelector(`script[data-ocr="${src}"]`);if(old){if(window.Tesseract)ok(window.Tesseract);else old.addEventListener('load',()=>ok(window.Tesseract),{once:true});return}const s=document.createElement('script');s.src=src;s.async=true;s.crossOrigin='anonymous';s.dataset.ocr=src;s.onload=()=>ok(window.Tesseract);s.onerror=()=>no(Error('Chargement OCR impossible'));document.head.appendChild(s)})}
+async function tesseract(){if(window.Tesseract)return window.Tesseract;if(loader)return loader;loader=(async()=>{let err;for(const src of ['https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js','https://unpkg.com/tesseract.js@5/dist/tesseract.min.js'])try{return await loadScript(src)}catch(e){err=e}throw err||Error('Moteur OCR indisponible')})();try{return await loader}catch(e){loader=null;throw e}}
+async function decode(f){if(window.createImageBitmap)try{return await createImageBitmap(f,{imageOrientation:'from-image'})}catch{}return await new Promise((ok,no)=>{const i=new Image(),u=URL.createObjectURL(f);i.onload=()=>{URL.revokeObjectURL(u);ok(i)};i.onerror=()=>{URL.revokeObjectURL(u);no(Error('Image illisible. Essayez JPEG ou PNG.'))};i.src=u})}
+function canvasOf(img){const w=img.naturalWidth||img.width,h=img.naturalHeight||img.height,s=Math.min(1,2400/Math.max(w,h)),sw=Math.max(1,Math.round(w*s)),sh=Math.max(1,Math.round(h*s)),turn=Math.abs(rotation%180)===90,c=document.createElement('canvas');c.width=turn?sh:sw;c.height=turn?sw:sh;const x=c.getContext('2d',{willReadFrequently:true});x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.translate(c.width/2,c.height/2);x.rotate(rotation*Math.PI/180);x.drawImage(img,-sw/2,-sh/2,sw,sh);return c}
+function clone(c){const n=document.createElement('canvas');n.width=c.width;n.height=c.height;n.getContext('2d').drawImage(c,0,0);return n}
+function gray(c){const n=clone(c),x=n.getContext('2d',{willReadFrequently:true}),d=x.getImageData(0,0,n.width,n.height),p=d.data;for(let i=0;i<p.length;i+=4){const g=.299*p[i]+.587*p[i+1]+.114*p[i+2],v=clamp((g-128)*1.65+128,0,255);p[i]=p[i+1]=p[i+2]=v;p[i+3]=255}x.putImageData(d,0,0);return n}
+function binary(c){const n=clone(c),x=n.getContext('2d',{willReadFrequently:true}),d=x.getImageData(0,0,n.width,n.height),p=d.data,h=Array(256).fill(0),g=new Uint8Array(p.length/4);for(let i=0,j=0;i<p.length;i+=4,j++){g[j]=Math.round(.299*p[i]+.587*p[i+1]+.114*p[i+2]);h[g[j]]++}let sum=0,total=g.length;for(let i=0;i<256;i++)sum+=i*h[i];let wb=0,sb=0,best=0,th=150;for(let i=0;i<256;i++){wb+=h[i];if(!wb)continue;const wf=total-wb;if(!wf)break;sb+=i*h[i];const mb=sb/wb,mf=(sum-sb)/wf,v=wb*wf*(mb-mf)**2;if(v>best){best=v;th=i}}for(let i=0,j=0;i<p.length;i+=4,j++){const v=g[j]<=th?0:255;p[i]=p[i+1]=p[i+2]=v;p[i+3]=255}x.putImageData(d,0,0);return n}
+async function variants(f){const i=await decode(f),base=canvasOf(i);i.close?.();return[{name:'contraste',src:gray(base),psm:'6'},{name:'tableau',src:binary(base),psm:'11'},{name:'naturel',src:base,psm:'4'}]}
+function linesFromWords(words){if(!Array.isArray(words))return[];const a=words.filter(w=>w?.text?.trim()&&w.bbox&&Number(w.confidence||0)>=8).map(w=>({t:w.text.trim(),x:w.bbox.x0,y:(w.bbox.y0+w.bbox.y1)/2,h:Math.max(1,w.bbox.y1-w.bbox.y0)})).sort((a,b)=>a.y-b.y||a.x-b.x);if(!a.length)return[];const hs=a.map(w=>w.h).sort((a,b)=>a-b),tol=Math.max(5,hs[Math.floor(hs.length/2)]*.6),groups=[];for(const w of a){let g=groups.find(r=>Math.abs(r.y-w.y)<tol);if(!g)groups.push(g={y:w.y,w:[]});g.w.push(w);g.y=g.w.reduce((s,z)=>s+z.y,0)/g.w.length}return groups.sort((a,b)=>a.y-b.y).map(g=>g.w.sort((a,b)=>a.x-b.x).map(w=>w.t).join(' ').replace(/\s+/g,' ').trim()).filter(Boolean)}
+const clean=s=>String(s||'').replace(/\r/g,'\n').replace(/[|¦]/g,' ').replace(/[–—]/g,'-').replace(/[·•]/g,' ').replace(/\t/g,' ').replace(/[ ]{2,}/g,' ').replace(/\n{3,}/g,'\n\n').trim();
+function lev(a,b){const m=Array.from({length:a.length+1},(_,i)=>[i]);for(let j=0;j<=b.length;j++)m[0][j]=j;for(let i=1;i<=a.length;i++)for(let j=1;j<=b.length;j++)m[i][j]=Math.min(m[i-1][j]+1,m[i][j-1]+1,m[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return m[a.length][b.length]}
+function subject(line){const n=norm(line);let best=null;for(const s of SUBJECTS)for(const aa of s.aliases){const a=norm(aa),i=n.indexOf(a);if(i>=0){const c={label:s.label,score:1,len:a.length,kind:'exact'};if(!best||c.len>best.len)best=c;continue}if(a.length<5)continue;const lt=n.split(' '),at=a.split(' ');for(let k=0;k<=lt.length-at.length;k++){const w=lt.slice(k,k+at.length).join(' '),sim=1-lev(w,a)/Math.max(w.length,a.length);if(sim>=(a.length>=12?.72:.8)&&(!best||sim>best.score))best={label:s.label,score:sim,len:w.length,kind:'fuzzy'}}}return best}
+const repair=s=>String(s||'').trim().replace(/\s+/g,'').replace(/[OoQ]/g,'0').replace(/[Il|!]/g,'1').replace(/[Ss]/g,'5').replace(/[Bb]/g,'8').replace(/[,;:]/g,'.').replace(/[^0-9./]/g,'');
+function numbers(line){const out=[];String(line||'').split(/\s+/).forEach((tok,i)=>{let r=repair(tok);if(/^\d{3}$/.test(r)&&Number(r)>20)r=`${r.slice(0,2)}.${r.slice(2)}`;const f=r.match(/^(\d{1,2}(?:\.\d{1,2})?)\/20$/),raw=f?f[1]:r;if(!/^\d{1,2}(?:\.\d{1,2})?$/.test(raw))return;const v=Number(raw);if(v>=0&&v<=20)out.push({v:+v.toFixed(2),i,tw:!!f,dec:raw.includes('.'),raw:tok})});return out}
+function score(line,s){const a=numbers(line),bad=/coef|coefficient|rang|total|annee|session|matricule|numero|table/.test(norm(line));if(!a.length)return null;return a.map((x,i)=>({...x,r:(x.tw?150:0)+(x.dec?55:0)+(x.v>=5?20:0)+(x.v>=8?15:0)+(i===a.length-1?10:0)+(s?.kind==='exact'?18:0)-(bad&&x.v<=10?70:0)})).sort((a,b)=>b.r-a.r)[0]}
+function generic(line){const sc=score(line);if(!sc)return null;const k=line.lastIndexOf(sc.raw),name=String(k>=0?line.slice(0,k):line.replace(sc.raw,'')).replace(/^[^A-Za-zÀ-ÿ]+/,'').replace(/[^A-Za-zÀ-ÿ0-9()'’/\- ]+$/g,'').replace(/\s+/g,' ').trim(),n=norm(name);if(name.length<3||name.length>50||!/[A-Za-zÀ-ÿ]{3}/.test(name)||IGNORE.some(x=>n.includes(norm(x))))return null;return{sub:name,val:sc.v,conf:48+(sc.tw?16:0),ev:line}}
+function extract(ls,pass){const out=[],a=ls.map(clean).map(x=>x.trim()).filter(Boolean);for(let i=0;i<a.length;i++){const windows=[a[i],`${a[i]} ${a[i+1]||''}`,`${a[i]} ${a[i+1]||''} ${a[i+2]||''}`];let done=false;for(const w of windows){const s=subject(w),sc=s&&score(w,s);if(s&&sc){out.push({sub:s.label,val:sc.v,conf:clamp(58+(s.kind==='exact'?21:8)+(sc.tw?12:0)+(sc.dec?5:0),0,99),pass,ev:w});done=true;break}}if(!done){const g=generic(a[i]);if(g)out.push({...g,pass})}}return out}
+function merge(a){const b=new Map;for(const x of a){const k=norm(x.sub);if(!k)continue;if(!b.has(k))b.set(k,[]);b.get(k).push(x)}const out=[];for(const g of b.values()){const scores=new Map;for(const x of g){const k=x.val.toFixed(2);if(!scores.has(k))scores.set(k,[]);scores.get(k).push(x)}const win=[...scores].map(([k,v])=>({val:+k,v,s:v.length,c:Math.max(...v.map(x=>x.conf))+(v.length-1)*9})).sort((a,b)=>b.s-a.s||b.c-a.c)[0],rep=win.v.sort((a,b)=>b.conf-a.conf)[0];out.push({id:`${Date.now()}-${Math.random().toString(36).slice(2)}`,subject:rep.sub,score:win.val,confidence:clamp(win.c,0,99),evidence:rep.ev,checked:true})}return out.sort((a,b)=>b.confidence-a.confidence).slice(0,45)}
+function render(a){rows=a.map(x=>({...x}));const box=$('#ocrReview'),list=$('#ocrList'),title=$('#ocrTitle');if(!box||!list)return;box.classList.add('on');if(title)title.textContent=`${a.length} note${a.length>1?'s':''} détectée${a.length>1?'s':''} — à vérifier`;if(!a.length){list.innerHTML='<div class="ocr-quality on"><strong>Aucune ligne confirmée.</strong>Ajoutez une ligne manuellement ou corrigez le texte reconnu.</div>';return}list.innerHTML=a.map(x=>`<div class="ocr-row" data-row="${esc(x.id)}"><input type="checkbox" data-f="check" ${x.checked?'checked':''}><input type="text" data-f="subject" value="${esc(x.subject)}" maxlength="60"><input type="number" data-f="score" value="${esc(x.score)}" min="0" max="20" step=".01"><button class="ocr-del" data-del="${esc(x.id)}" type="button">×</button><div class="ocr-conf">Confiance ${Math.round(x.confidence)} %${x.evidence?` · ${esc(x.evidence.slice(0,90))}`:''}</div></div>`).join('')}
+function quality(conf,passes,lines,count){const q=$('#ocrQuality');if(!q)return;q.classList.add('on');q.innerHTML=`<strong>Analyse approfondie terminée</strong>Qualité ${conf>=75?'bonne':conf>=50?'moyenne':'faible'} (${Math.round(conf)} %). ${passes} lectures, ${lines} lignes reconnues, ${count} notes proposées. Vérifiez avant importation.`}
+async function adapter(T,log){if(T.createWorker)try{const w=await T.createWorker('fra+eng',T.OEM?.LSTM_ONLY??1,{logger:log,langPath:'https://tessdata.projectnaptha.com/4.0.0'});return{run:async(src,psm)=>{await w.setParameters({tessedit_pageseg_mode:String(psm),preserve_interword_spaces:'1',user_defined_dpi:'300'});return w.recognize(src)},end:()=>w.terminate()}}catch(e){console.warn(e)}return{run:(src,psm)=>T.recognize(src,'fra+eng',{logger:log,langPath:'https://tessdata.projectnaptha.com/4.0.0'},{tessedit_pageseg_mode:String(psm),preserve_interword_spaces:'1'}),end:async()=>{}}}
+async function run(){if(running)return;const f=file||$('#ocrCamera')?.files?.[0]||$('#ocrFile')?.files?.[0]||$('#scanInput')?.files?.[0],btn=$('#runOcrButton'),txt=$('#scanText');if(!f){toast('Prenez une photo ou choisissez le relevé.');return}running=true;if(btn){btn.disabled=true;btn.dataset.old=btn.textContent;btn.textContent='Analyse approfondie en cours…'}render([]);progress(1,'Préparation du document…');let ad;try{const [T,v]=await Promise.all([tesseract(),variants(f)]),res=[];let pass=0;ad=await adapter(T,e=>{const p=Number(e?.progress||0);progress(8+((pass+p)/v.length)*88,`Lecture ${pass+1}/${v.length} · ${String(e?.status||'analyse').replaceAll('_',' ')} · ${Math.round(p*100)} %`)});for(let i=0;i<v.length;i++){pass=i;const z=v[i],r=await ad.run(z.src,z.psm),raw=clean(r?.data?.text||''),ls=[...new Set([...linesFromWords(r?.data?.words),...raw.split(/\n+/).filter(Boolean)])];res.push({name:z.name,confidence:Number(r?.data?.confidence||0),text:raw,lines:ls});render(merge(res.flatMap(x=>extract(x.lines,x.name))))}const all=[...new Set(res.flatMap(x=>x.lines))],m=merge(res.flatMap(x=>extract(x.lines,x.name))),best=res.slice().sort((a,b)=>b.confidence-a.confidence||b.text.length-a.text.length)[0]?.text||all.join('\n'),conf=res.reduce((s,x)=>s+x.confidence,0)/(res.length||1);if(txt)txt.value=best;render(m);quality(conf,res.length,all.length,m.length);progress(100,m.length?`${m.length} notes proposées. Vérifiez-les.`:'Texte lu. Corrigez-le ou ajoutez les notes manuellement.');toast(m.length?`${m.length} notes détectées.`:'Texte extrait : vérifiez ou ajoutez les notes.')}catch(e){console.error(`[OCR ${V}]`,e);progress(0,`${e?.message||'Analyse impossible.'} Essayez une photo nette et bien cadrée.`);toast(e?.message||'Analyse impossible.')}finally{try{await ad?.end()}catch{}running=false;if(btn){btn.disabled=false;btn.textContent=btn.dataset.old||'Lire le relevé avec l’OCR'}}}
+function domRows(){return $$('[data-row]').map(e=>({id:e.dataset.row,checked:e.querySelector('[data-f=check]')?.checked,subject:e.querySelector('[data-f=subject]')?.value.trim(),score:Number(e.querySelector('[data-f=score]')?.value),confidence:100}))}
+function stored(){try{const v=JSON.parse(localStorage.getItem(NK)||'[]');return Array.isArray(v)?v:[]}catch{return[]}}
+function importNotes(){const a=domRows().filter(x=>x.checked&&x.subject&&Number.isFinite(x.score)&&x.score>=0&&x.score<=20);if(!a.length){toast('Cochez au moins une matière avec une note valide.');return}const m=new Map;for(const x of stored())if(x?.subject)m.set(norm(x.subject),x);for(const x of a)m.set(norm(x.subject),{subject:x.subject,score:+x.score.toFixed(2),source:'ocr'});localStorage.setItem(NK,JSON.stringify([...m.values()].slice(0,50).sort((a,b)=>String(a.subject).localeCompare(String(b.subject),'fr'))));$('#scanModal')?.classList.add('hidden');document.body.style.overflow='';toast(`${a.length} notes importées.`);setTimeout(()=>{const u=new URL(location.href);u.searchParams.set('v',V);u.searchParams.set('ocr','importe');location.replace(u)},450)}
+function add(){render([...domRows(),{id:`${Date.now()}-${Math.random().toString(36).slice(2)}`,subject:'',score:'',confidence:100,evidence:'Ajout manuel',checked:true}]);setTimeout(()=>$$('[data-row]').at(-1)?.querySelector('[data-f=subject]')?.focus())}
+function reparse(){clearTimeout(timer);timer=setTimeout(()=>{if(running)return;const t=$('#scanText')?.value||'';if(t.trim())render(merge(extract(clean(t).split(/\n+/).filter(Boolean),'texte corrigé')))},650)}
+function events(){document.addEventListener('change',e=>{if(['ocrCamera','ocrFile','scanInput'].includes(e.target?.id)){e.stopImmediatePropagation();select(e.target)}},true);document.addEventListener('input',e=>{if(e.target?.id==='scanText')reparse()},true);document.addEventListener('click',e=>{let x;if((x=e.target.closest('#ocrCameraBtn'))){e.preventDefault();e.stopImmediatePropagation();$('#ocrCamera')?.click();return}if((x=e.target.closest('#ocrFileBtn,#ocrChange'))){e.preventDefault();e.stopImmediatePropagation();$('#ocrFile')?.click();return}if((x=e.target.closest('[data-rotate]'))){e.preventDefault();e.stopImmediatePropagation();rotation=(rotation+Number(x.dataset.rotate)+360)%360;const p=$('#scanPreview');if(p)p.style.transform=`rotate(${rotation}deg)`;progress(0,`Rotation ${rotation}°. Relancez l’analyse.`);return}if((x=e.target.closest('#runOcrButton'))){e.preventDefault();e.stopImmediatePropagation();void run();return}if((x=e.target.closest('#ocrAdd'))){e.preventDefault();e.stopImmediatePropagation();add();return}if((x=e.target.closest('[data-del]'))){e.preventDefault();e.stopImmediatePropagation();x.closest('[data-row]')?.remove();return}if((x=e.target.closest('#importOcrButton'))){e.preventDefault();e.stopImmediatePropagation();importNotes()}},true)}
+function start(){styles();series();markup();events();setTimeout(series,250);setTimeout(series,1200);setTimeout(markup,500)}
+document.readyState==='loading'?document.addEventListener('DOMContentLoaded',start,{once:true}):start();
+window.__APRESBAC_OCR_V2165={run,extract,merge,series};
 })();
