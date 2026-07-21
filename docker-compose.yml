@@ -1,26 +1,38 @@
-
-
 services:
   react-app:
     build: .
     container_name: react-app-botjs
     restart: always
+
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.react-app-bot.rule=Host(`bot.bj`)"
       - "traefik.http.routers.react-app-bot.entrypoints=websecure"
-
       - "traefik.http.routers.react-app-bot.tls.certresolver=myresolver"
-#      - "traefik.http.routers.react-app-bot.tls.certresolver=letsencrypt"
       - "traefik.http.services.react-app-bot.loadbalancer.server.port=80"
       - "traefik.port=80"
 
-
     ports:
       - 8084:80
+
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+
+    stop_grace_period: 30s
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://127.0.0.1/apresbacia || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
     networks:
       - web
-
 
 networks:
   web:
