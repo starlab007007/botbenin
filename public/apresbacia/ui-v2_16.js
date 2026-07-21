@@ -25,10 +25,15 @@
   function showToast(message) {
     const toast = document.getElementById('toast');
     if (!toast) return;
+
     toast.textContent = message;
     toast.classList.add('show');
+
     clearTimeout(showToast.timer);
-    showToast.timer = setTimeout(() => toast.classList.remove('show'), 2400);
+    showToast.timer = setTimeout(
+      () => toast.classList.remove('show'),
+      2400,
+    );
   }
 
   function openModal(modal) {
@@ -50,81 +55,145 @@
 
   function currentSeries() {
     const select = document.getElementById('seriesSelect');
-    return select && select.value !== 'Toutes' ? select.value : null;
+    return select && select.value !== 'Toutes'
+      ? select.value
+      : null;
   }
 
   function buildResetModal() {
     if (document.getElementById('abResetModal')) return;
+
     const modal = document.createElement('div');
     modal.id = 'abResetModal';
     modal.className = 'modal hidden';
     modal.setAttribute('role', 'dialog');
     modal.setAttribute('aria-modal', 'true');
+
     modal.innerHTML = `
       <div class="sheet">
         <div class="sheet-head">
           <h2>Réinitialiser AprèsBac IA</h2>
-          <button class="close" type="button" data-ab-close="abResetModal" aria-label="Fermer">×</button>
+          <button
+            class="close"
+            type="button"
+            data-ab-close="abResetModal"
+            aria-label="Fermer"
+          >×</button>
         </div>
+
         <div class="ab-reset-intro">
           <strong>Reprendre librement votre orientation</strong>
-          <span>Choisissez uniquement les informations à effacer sur cet appareil.</span>
+          <span>
+            Choisissez uniquement les informations à effacer sur cet appareil.
+          </span>
         </div>
+
         <div class="ab-reset-grid">
-          <button type="button" class="ab-reset-option" data-ab-reset="chat">
+          <button
+            type="button"
+            class="ab-reset-option"
+            data-ab-reset="chat"
+          >
             <span class="ab-reset-icon">💬</span>
-            <span><strong>Nouvelle conversation</strong><small>Effacer toutes les discussions et démarrer un nouveau chat.</small></span>
+            <span>
+              <strong>Nouvelle conversation</strong>
+              <small>
+                Effacer toutes les discussions et démarrer un nouveau chat.
+              </small>
+            </span>
           </button>
-          <button type="button" class="ab-reset-option" data-ab-reset="notes">
+
+          <button
+            type="button"
+            class="ab-reset-option"
+            data-ab-reset="notes"
+          >
             <span class="ab-reset-icon">📊</span>
-            <span><strong>Réinitialiser mes notes</strong><small>Supprimer les notes saisies manuellement ou importées par OCR.</small></span>
+            <span>
+              <strong>Réinitialiser mes notes</strong>
+              <small>
+                Supprimer les notes saisies manuellement ou importées par OCR.
+              </small>
+            </span>
           </button>
-          <button type="button" class="ab-reset-option danger" data-ab-reset="all">
+
+          <button
+            type="button"
+            class="ab-reset-option danger"
+            data-ab-reset="all"
+          >
             <span class="ab-reset-icon">↺</span>
-            <span><strong>Tout reprendre à zéro</strong><small>Effacer discussions, notes, série et préférences locales.</small></span>
+            <span>
+              <strong>Tout reprendre à zéro</strong>
+              <small>
+                Effacer discussions, notes, série et préférences locales.
+              </small>
+            </span>
           </button>
         </div>
-      </div>`;
+      </div>
+    `;
+
     document.body.appendChild(modal);
   }
 
   function reset(scope) {
-    if (scope === 'chat' || scope === 'all') localStorage.removeItem(MESSAGES_KEY);
-    if (scope === 'notes' || scope === 'all') localStorage.removeItem(NOTES_KEY);
+    if (scope === 'chat' || scope === 'all') {
+      localStorage.removeItem(MESSAGES_KEY);
+    }
+
+    if (scope === 'notes' || scope === 'all') {
+      localStorage.removeItem(NOTES_KEY);
+    }
+
     if (scope === 'all') {
       localStorage.removeItem(SERIES_KEY);
       localStorage.removeItem(COLLAPSED_KEY);
     }
+
     closeModal(document.getElementById('abResetModal'));
+
     const labels = {
       chat: 'Nouvelle conversation prête.',
       notes: 'Toutes les notes ont été supprimées.',
       all: 'AprèsBac IA a été entièrement réinitialisé.',
     };
+
     showToast(labels[scope] || 'Réinitialisation terminée.');
-    setTimeout(() => location.reload(), 320);
+
+    setTimeout(() => {
+      location.reload();
+    }, 320);
   }
 
   function updateToolStates() {
     const count = notesCount();
     const series = currentSeries();
+
     document.querySelectorAll('.tool[data-tool]').forEach((tool) => {
       const action = tool.dataset.tool;
+
       let meta = tool.querySelector('.tool-meta');
       if (!meta) {
         meta = document.createElement('span');
         meta.className = 'tool-meta';
         tool.appendChild(meta);
       }
+
       tool.classList.remove('ab-ready', 'ab-needs-data');
+
       if (action === 'notes') {
-        meta.textContent = count ? `${count} note${count > 1 ? 's' : ''} enregistrée${count > 1 ? 's' : ''}` : 'Saisie intelligente';
+        meta.textContent = count
+          ? `${count} note${count > 1 ? 's' : ''} enregistrée${count > 1 ? 's' : ''}`
+          : 'Saisie intelligente';
         return;
       }
+
       if (action === 'scan') {
         meta.textContent = 'Photo + OCR';
         return;
       }
+
       if (personalizedTools.has(action)) {
         if (!count) {
           tool.classList.add('ab-needs-data');
@@ -135,76 +204,131 @@
         }
         return;
       }
+
       if (action === 'universities') {
-        meta.textContent = series ? `Série ${series}` : 'Toutes les séries';
+        meta.textContent = series
+          ? `Série ${series}`
+          : 'Toutes les séries';
         return;
       }
-      if (action === 'explore') meta.textContent = series ? `Catalogue filtré : ${series}` : 'Catalogue public';
+
+      if (action === 'explore') {
+        meta.textContent = series
+          ? `Catalogue filtré : ${series}`
+          : 'Catalogue public';
+      }
     });
   }
 
   function restoreCollapsedState() {
     if (localStorage.getItem(COLLAPSED_KEY) !== '1') return;
+
     document.getElementById('toolsGrid')?.classList.add('hidden');
+
     const label = document.getElementById('collapseText');
     if (label) label.textContent = 'Afficher';
-    const arrow = document.querySelector('#collapseButton span:last-child');
+
+    const arrow = document.querySelector(
+      '#collapseButton span:last-child',
+    );
     if (arrow) arrow.textContent = '⌄';
   }
 
   function improveHeader() {
-    document.getElementById('backButton')?.setAttribute('aria-hidden', 'true');
+    document.getElementById('backButton')?.setAttribute(
+      'aria-hidden',
+      'true',
+    );
+
     const clear = document.getElementById('clearButton');
     if (clear) {
       clear.setAttribute('aria-label', 'Réinitialiser');
-      clear.setAttribute('title', 'Nouvelle conversation, notes ou remise à zéro');
+      clear.setAttribute(
+        'title',
+        'Nouvelle conversation, notes ou remise à zéro',
+      );
     }
-    document.querySelector('.bottom-nav')?.setAttribute('aria-hidden', 'true');
+
+    document.querySelector('.bottom-nav')?.setAttribute(
+      'aria-hidden',
+      'true',
+    );
   }
 
-  document.addEventListener('click', (event) => {
-    const clear = event.target.closest('#clearButton');
-    if (clear) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      openModal(document.getElementById('abResetModal'));
-      return;
-    }
-    const resetButton = event.target.closest('[data-ab-reset]');
-    if (resetButton) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      reset(resetButton.dataset.abReset);
-      return;
-    }
-    const closeButton = event.target.closest('[data-ab-close]');
-    if (closeButton) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      closeModal(document.getElementById(closeButton.dataset.abClose));
-      return;
-    }
-    const collapse = event.target.closest('#collapseButton');
-    if (collapse) {
-      setTimeout(() => {
-        const collapsed = document.getElementById('toolsGrid')?.classList.contains('hidden');
-        localStorage.setItem(COLLAPSED_KEY, collapsed ? '1' : '0');
-      }, 0);
-    }
-  }, true);
+  document.addEventListener(
+    'click',
+    (event) => {
+      const clear = event.target.closest('#clearButton');
+
+      if (clear) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        openModal(document.getElementById('abResetModal'));
+        return;
+      }
+
+      const resetButton = event.target.closest('[data-ab-reset]');
+
+      if (resetButton) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        reset(resetButton.dataset.abReset);
+        return;
+      }
+
+      const closeButton = event.target.closest('[data-ab-close]');
+
+      if (closeButton) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        closeModal(
+          document.getElementById(closeButton.dataset.abClose),
+        );
+        return;
+      }
+
+      const collapse = event.target.closest('#collapseButton');
+
+      if (collapse) {
+        setTimeout(() => {
+          const collapsed = document
+            .getElementById('toolsGrid')
+            ?.classList.contains('hidden');
+
+          localStorage.setItem(
+            COLLAPSED_KEY,
+            collapsed ? '1' : '0',
+          );
+        }, 0);
+      }
+    },
+    true,
+  );
 
   document.addEventListener('DOMContentLoaded', () => {
     buildResetModal();
     improveHeader();
     restoreCollapsedState();
     updateToolStates();
+
     const notes = document.getElementById('notesCount');
+
     if (notes && 'MutationObserver' in window) {
       const observer = new MutationObserver(updateToolStates);
-      observer.observe(notes, { childList: true, characterData: true, subtree: true });
+      observer.observe(notes, {
+        childList: true,
+        characterData: true,
+        subtree: true,
+      });
     }
-    document.getElementById('seriesSelect')?.addEventListener('change', updateToolStates);
-    document.querySelectorAll('.suggestion').forEach((button) => button.setAttribute('title', button.textContent.trim()));
+
+    document
+      .getElementById('seriesSelect')
+      ?.addEventListener('change', updateToolStates);
+
+    document.querySelectorAll('.suggestion').forEach((button) => {
+      button.setAttribute('title', button.textContent.trim());
+    });
   });
 
   window.__APRESBAC_V2_16__ = {
@@ -213,4 +337,74 @@
     resetAll: () => reset('all'),
     updateToolStates,
   };
+})();
+
+// HOTFIX_STANDALONE_V2_16_2
+(() => {
+  'use strict';
+
+  const removableSelectors = [
+    '#backButton',
+    '.bottom-nav',
+    '.bottom-menu',
+    '.bottom-tabs',
+    '.mobile-bottom-nav',
+    '.mobile-nav',
+    '.site-bottom-nav',
+    '.app-bottom-nav',
+    'footer.app-footer',
+    'footer.bottom-footer',
+    'nav[aria-label="Bottom Navigation"]',
+    'nav[aria-label="Navigation inférieure"]',
+    '[data-bottom-nav]',
+    '[data-mobile-nav]',
+    '[data-footer-nav]',
+    '.bottom-bar',
+    '.tabbar',
+    '.tabs-bottom',
+    '.footer-tabs',
+  ];
+
+  const cleanStandaloneChrome = () => {
+    document.body?.classList.add('apresbac-standalone');
+
+    removableSelectors.forEach((selector) => {
+      document.querySelectorAll(selector).forEach((element) => {
+        element.remove();
+      });
+    });
+
+    const input = document.getElementById('messageInput');
+    if (input) {
+      input.style.height = 'auto';
+      input.style.minHeight = '118px';
+    }
+  };
+
+  const start = () => {
+    cleanStandaloneChrome();
+
+    if ('MutationObserver' in window && document.body) {
+      const observer = new MutationObserver(cleanStandaloneChrome);
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+
+      window.setTimeout(() => observer.disconnect(), 15000);
+    }
+
+    window.addEventListener('resize', cleanStandaloneChrome, {
+      passive: true,
+    });
+
+    window.setTimeout(cleanStandaloneChrome, 300);
+    window.setTimeout(cleanStandaloneChrome, 1200);
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start, { once: true });
+  } else {
+    start();
+  }
 })();
