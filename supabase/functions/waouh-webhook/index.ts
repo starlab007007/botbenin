@@ -249,7 +249,7 @@ async function ai(system: string, user: string, json = true) {
     method: "POST",
     headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
+      model: "google/gemini-2.5-flash-lite",
       messages: [{ role: "system", content: system }, { role: "user", content: user }],
       ...(json ? { response_format: { type: "json_object" } } : {}),
     }),

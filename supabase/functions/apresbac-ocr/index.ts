@@ -28,7 +28,7 @@ serve(async (req) => {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-2.5-flash-lite",
         messages: [
           { role: "system", content: "Tu es un OCR de relevé de notes du BAC (Bénin). Extrait uniquement les matières et notes. Réponds STRICTEMENT en JSON: {\"notes\":[{\"subject_name\":\"...\",\"score\":12.5}],\"general_average\":13.4,\"mention\":\"AB|B|TB|P\",\"bac_series\":\"A1|A2|B|C|D|E|F|G|H\"}. Si absent, mets null." },
           { role: "user", content: [

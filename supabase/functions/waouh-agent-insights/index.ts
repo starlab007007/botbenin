@@ -174,7 +174,7 @@ async function answerQuestion(ctx: any): Promise<string> {
     last: (c.messages || []).slice(-2).map((m: any) => `${m.role}: ${m.content}`).join(" | "),
   }));
   const body = {
-    model: "google/gemini-2.5-flash",
+    model: "google/gemini-2.5-flash-lite",
     messages: [
       { role: "system", content: `Tu es un analyste business qui répond en français, en 3-6 lignes claires, avec chiffres concrets si dispo. Base-toi uniquement sur les données fournies.` },
       { role: "user", content: JSON.stringify({

@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-flash-lite',
         messages: [
           { role: 'system', content: 'Tu extrais une recherche d\'achat. JSON: keywords (array), category, price_min, price_max, radius_km (default 30).' },
           { role: 'user', content: message },

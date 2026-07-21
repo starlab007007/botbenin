@@ -190,7 +190,7 @@ export async function marketAnalysisAI(opts: { title: string; price: number; min
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: "google/gemini-2.5-flash-lite",
         messages: [
           { role: "system", content: 'Tu es analyste marché Bénin (Cotonou et environs). Donne UNE seule phrase factuelle (≤25 mots), neutre et chiffrée, qui qualifie le prix proposé par rapport à la fourchette marché et à la ville. Pas de bla-bla. JSON: {"note": string}.' },
           { role: "user", content: `Produit: ${opts.title}\nPrix proposé: ${opts.price} FCFA\nFourchette marché: ${opts.min} – ${opts.max} FCFA\nVille: ${opts.city || "Cotonou"}` },

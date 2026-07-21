@@ -411,10 +411,10 @@ export default function WaouhPage() {
               <div className="grid md:grid-cols-3 gap-3">
                 <div>
                   <Label>Modèle</Label>
-                  <Select value={settings.ai?.model ?? "google/gemini-2.5-flash"} onValueChange={(v) => saveSetting("ai", { ...settings.ai, model: v })}>
+                  <Select value={settings.ai?.model ?? "google/gemini-2.5-flash-lite"} onValueChange={(v) => saveSetting("ai", { ...settings.ai, model: v })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="google/gemini-2.5-flash">Gemini 2.5 Flash (rapide)</SelectItem>
+                      <SelectItem value="google/gemini-2.5-flash-lite">Gemini 2.5 Flash (rapide)</SelectItem>
                       <SelectItem value="google/gemini-2.5-pro">Gemini 2.5 Pro (vision/négo)</SelectItem>
                       <SelectItem value="google/gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (low-cost)</SelectItem>
                     </SelectContent>

@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-flash-lite',
         messages: [
           { role: 'system', content: 'Tu extrais des annonces de vente. Réponds UNIQUEMENT en JSON avec: title, category (smartphone|ordinateur|vetement|vehicule|electromenager|meuble|autre), brand, model, condition (neuf|tres_bon|bon|moyen|use), price (number FCFA), description.' },
           { role: 'user', content: message },

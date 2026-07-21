@@ -8,7 +8,7 @@ const cors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const MODEL = "google/gemini-2.5-flash";
+const MODEL = "google/gemini-2.5-flash-lite";
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 function scoreProgram(p: any, keywords: string[]): number {

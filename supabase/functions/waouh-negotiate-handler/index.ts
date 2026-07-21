@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-flash-lite',
         messages: [
           { role: 'system', content: 'Tu négocies des prix au Bénin. Réponds JSON: { fair_price, counter_offer, advice (court, en français) }.' },
           { role: 'user', content: `Article: ${article.title} ${article.brand || ''} ${article.model || ''}, prix demandé: ${article.price} FCFA. Acheteur propose: ${offered_price} FCFA. Marché ${article.market_price_min || '?'}-${article.market_price_max || '?'}. Message: ${message || ''}` },

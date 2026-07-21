@@ -155,7 +155,7 @@ Génère UNIQUEMENT le texte promotionnel, sans commentaire.`
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
+          model: 'google/gemini-2.5-flash-lite',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: 'Génère le texte promotionnel maintenant.' }
@@ -281,7 +281,7 @@ Génère un paragraphe fluide qui raconte l'histoire complète. UNIQUEMENT le te
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
+          model: 'google/gemini-2.5-flash-lite',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: 'Génère le résumé vidéo maintenant.' }

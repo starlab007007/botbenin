@@ -37,7 +37,7 @@ serve(async (req) => {
         const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-          body: JSON.stringify({ model: "google/gemini-2.5-flash", messages: [{ role: "system", content: sys }, { role: "user", content: `${ctx}\n\nQuestion: ${q}` }] }),
+          body: JSON.stringify({ model: "google/gemini-2.5-flash-lite", messages: [{ role: "system", content: sys }, { role: "user", content: `${ctx}\n\nQuestion: ${q}` }] }),
         });
         if (r.ok) { const j = await r.json(); insight = j.choices?.[0]?.message?.content || ""; }
       } catch (_) {}
