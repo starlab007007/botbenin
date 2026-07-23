@@ -325,3 +325,6 @@ verify_jwt = false
 
 
 
+
+[functions.waouh-fa-chat]
+verify_jwt = false
