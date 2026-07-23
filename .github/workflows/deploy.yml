@@ -9,7 +9,7 @@ on:
 
 concurrency:
   group: deploy-botbj-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   deploy:
@@ -110,9 +110,9 @@ jobs:
             curl -sSI 'http://127.0.0.1:8084/apresbacia?v=controle' \
               | tr -d '\r' \
               | grep -qi '^location: https://bot.bj/apresbacia$' || {
-                echo "❌ L'URL avec paramètres n'est pas redirigée vers l'URL canonique"
-                exit 1
-              }
+              echo "❌ L'URL avec paramètres n'est pas redirigée vers l'URL canonique"
+              exit 1
+            }
 
             echo "🧪 Vérification des fichiers de production..."
             docker compose exec -T react-app test -f /usr/share/nginx/html/apresbacia/index.html
