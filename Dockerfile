@@ -117,6 +117,23 @@ server {
         expires -1;
     }
 
+    # URL publique canonique FA IA V5.2
+    location = /fa/ {
+        return 308 https://bot.bj/fa;
+    }
+
+    location = /fa/index.html {
+        return 308 https://bot.bj/fa;
+    }
+
+    location = /fa {
+        if (\$args != "") {
+            return 308 https://bot.bj/fa;
+        }
+        try_files /fa/index.html =404;
+        expires -1;
+    }
+
     # Gestion optimale pour SPA (Single Page Application)
     location / {
         try_files \$uri \$uri/ @fallback;
@@ -190,10 +207,13 @@ EOF
 # Copie des fichiers buildés
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# Vérification que index.html existe et permissions
+# Vérification que les modules publics existent et permissions
 RUN ls -la /usr/share/nginx/html/ && \
     test -f /usr/share/nginx/html/index.html && \
     test -f /usr/share/nginx/html/apresbacia/index.html && \
+    test -f /usr/share/nginx/html/fa/index.html && \
+    test -f /usr/share/nginx/html/fa/app.js && \
+    test -f /usr/share/nginx/html/fa/auth-bridge.js && \
     chmod -R 755 /usr/share/nginx/html && \
     chown -R nginx:nginx /usr/share/nginx/html
 
@@ -211,6 +231,8 @@ set -e
 echo "🔍 Vérification des fichiers..."
 ls -la /usr/share/nginx/html/
 test -f /usr/share/nginx/html/apresbacia/index.html
+test -f /usr/share/nginx/html/fa/index.html
+test -f /usr/share/nginx/html/fa/app.js
 echo "📄 Contenu de index.html:"
 head -10 /usr/share/nginx/html/index.html
 
