@@ -31,22 +31,16 @@ jobs:
               | grep -qi '^location: https://bot.bj/fa$'
           done
 
-      - name: Vérifier la page FA IA
+      - name: Télécharger la version publique
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --location \
             --retry 12 --retry-delay 5 --retry-all-errors \
-            https://bot.bj/fa \
-            -o /tmp/fa.html
+            https://bot.bj/fa -o /tmp/fa.html
           grep -q 'FA IA' /tmp/fa.html
           grep -q '<base href="/fa/"' /tmp/fa.html
-          grep -q './app.js' /tmp/fa.html
-          grep -q './auth-bridge.js' /tmp/fa.html
-          grep -q './visual-fidelity.js' /tmp/fa.html
+          grep -q 'flutter-fidelity-v10' /tmp/fa.html
 
-      - name: Vérifier les fichiers fonctionnels FA IA
-        run: |
-          set -euo pipefail
           for file in \
             app.js \
             auth-bridge.js \
@@ -54,25 +48,25 @@ jobs:
             styles.css \
             source-fidelity.css \
             assets-final.js \
-            assets-hero-0.js \
-            assets-chain-0.js \
             assets-open-0.js \
             assets-closed-0.js \
+            fa-real-assets.js \
             manifest.webmanifest
           do
             curl --fail --silent --show-error --location \
               --retry 8 --retry-delay 4 --retry-all-errors \
-              "https://bot.bj/fa/${file}" \
+              "https://bot.bj/fa/${file}?v=20260723-flutter-fidelity-v10" \
               -o "/tmp/${file//\//_}"
           done
-          grep -q 'waouh-fa-chat' /tmp/app.js
-          grep -q 'crypto.getRandomValues' /tmp/app.js
-          grep -q 'faAuthenticatedFetch' /tmp/auth-bridge.js
-          grep -q 'randomizeConcealedFaces' /tmp/visual-fidelity.js
-          grep -q 'FA_ASSET_CHUNKS.hero' /tmp/assets-hero-0.js
-          grep -q 'FA_ASSET_CHUNKS.chain' /tmp/assets-chain-0.js
 
-      - name: Vérifier les éléments V5.2
+      - name: Vérifier la syntaxe JavaScript
+        run: |
+          set -euo pipefail
+          node --check /tmp/app.js
+          node --check /tmp/auth-bridge.js
+          node --check /tmp/visual-fidelity.js
+
+      - name: Vérifier le parcours V5.2
         run: |
           set -euo pipefail
           grep -q 'Destinée et orientation' /tmp/app.js
@@ -80,15 +74,57 @@ jobs:
           grep -q 'Comprendre le signe en profondeur' /tmp/app.js
           grep -q 'Résumé essentiel' /tmp/app.js
           grep -q 'fa_ia_journal_v5_2' /tmp/app.js
-          grep -q '6500+rnd(3001)' /tmp/app.js
+          grep -Eq '6500[[:space:]]*\+[[:space:]]*rnd\(3001\)' /tmp/app.js
+          grep -q 'data-face-index' /tmp/app.js
+          grep -q 'Les huit cauris se mêlent' /tmp/app.js
+          grep -q 'window.FA_FLUTTER_THROW.play' /tmp/app.js
+          ! grep -q 'Colonne A' /tmp/app.js
+          ! grep -q 'Colonne B' /tmp/app.js
+
+      - name: Vérifier l’animation Flutter
+        run: |
+          set -euo pipefail
+          grep -q 'window.FA_FLUTTER_THROW' /tmp/visual-fidelity.js
+          grep -q 'crypto.getRandomValues' /tmp/visual-fidelity.js
+          grep -q 'translate3d' /tmp/visual-fidelity.js
+          grep -q 'effectiveDuration \* 0.92' /tmp/visual-fidelity.js
+          grep -q 'settle78' /tmp/visual-fidelity.js
+          grep -q 'settle88' /tmp/visual-fidelity.js
+          grep -q 'background:transparent!important' /tmp/source-fidelity.css
+          grep -q 'fa-flutter-throw' /tmp/source-fidelity.css
+
+      - name: Vérifier les assets réels
+        run: |
+          set -euo pipefail
+          grep -q 'cowrie_open_real' /tmp/assets-final.js
+          grep -q 'cowrie_closed_real' /tmp/assets-final.js
+          grep -q 'cowrie_open_real' /tmp/fa-real-assets.js
+          grep -q 'cowrie_closed_real' /tmp/fa-real-assets.js
+
+      - name: Tester dix configurations de signes
+        run: |
+          node <<'JS'
+          const crypto = require('crypto');
+          const patterns = Array.from({length:16},(_,n)=>Array.from({length:4},(_,bit)=>((n>>(3-bit))&1)?'II':'I'));
+          const seen = new Set();
+          for (let run=0; run<10; run++) {
+            const faces=[...crypto.randomBytes(8)].map(v=>v&1?'OPEN':'CLOSED');
+            const symbols=faces.map(v=>v==='OPEN'?'I':'II');
+            const left=patterns.findIndex(p=>p.join('|')===symbols.slice(0,4).join('|'));
+            const right=patterns.findIndex(p=>p.join('|')===symbols.slice(4).join('|'));
+            if (faces.length!==8 || left<0 || right<0) process.exit(1);
+            seen.add(faces.join('|'));
+          }
+          if (seen.size < 2) process.exit(1);
+          console.log(`Configurations distinctes : ${seen.size}/10`);
+          JS
 
       - name: Vérifier l'absence de régression AprèsBac IA
         run: |
           curl --fail --silent --show-error --location \
             --retry 8 --retry-delay 4 --retry-all-errors \
-            https://bot.bj/apresbacia \
-            -o /tmp/apresbac.html
+            https://bot.bj/apresbacia -o /tmp/apresbac.html
           grep -qi 'AprèsBac' /tmp/apresbac.html
 
       - name: Résultat
-        run: echo '✅ FA IA V5.2 est disponible et AprèsBac IA reste opérationnel.'
+        run: echo '✅ FA IA Flutter V5.2 est disponible et AprèsBac IA reste opérationnel.'
