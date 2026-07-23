@@ -77,7 +77,8 @@ jobs:
           grep -Eq '6500[[:space:]]*\+[[:space:]]*rnd\(3001\)' /tmp/app.js
           grep -q 'data-face-index' /tmp/app.js
           grep -q 'Les huit cauris se mêlent' /tmp/app.js
-          grep -q 'window.FA_FLUTTER_THROW.play' /tmp/app.js
+          grep -q 'FA_FLUTTER_THROW' /tmp/app.js
+          grep -q 'play({ duration, finalFaces })' /tmp/app.js
           ! grep -q 'Colonne A' /tmp/app.js
           ! grep -q 'Colonne B' /tmp/app.js
 
