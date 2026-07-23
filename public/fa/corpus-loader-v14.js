@@ -31,13 +31,35 @@
 
   const exactReading = (entry, displayedName) => `Interprétation intégrale du livre — ${displayedName}\n\n${entry.text}\n\nRéférence documentaire : entrée n° ${entry.number} — « ${entry.original_title} », page PDF ${entry.pdf_page}.`;
 
+  const normalizeHeading = (value) => String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/[^A-Z ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  function sanitizeCorpus(corpus) {
+    for (const entry of Object.values(corpus.entries || {})) {
+      const paragraphs = String(entry.text || '').split(/\n\n+/).map((part) => part.trim()).filter(Boolean);
+      while (paragraphs.length && /^LES DERIVE/.test(normalizeHeading(paragraphs.at(-1)))) paragraphs.pop();
+      entry.text = paragraphs.join('\n\n');
+
+      // Deux titres sont coupés sur plusieurs lignes dans l’extraction du PDF.
+      // On retire uniquement le fragment de titre répété, sans réécrire le corpus.
+      if (entry.number === 41 && entry.text.startsWith('TRUNKPIN Est le')) entry.text = entry.text.slice('TRUNKPIN '.length);
+      if (entry.number === 126 && entry.text.startsWith('ABLA AKLAN DO ABLAdit')) entry.text = entry.text.slice('ABLA '.length);
+    }
+    return corpus;
+  }
+
   async function decodeCorpus() {
     const binary = atob(window.FA_BOOK_CORPUS_B64 || '');
     const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
     if (typeof DecompressionStream !== 'function') throw new Error('Décompression du corpus non prise en charge par ce navigateur.');
     const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
     const text = await new Response(stream).text();
-    const corpus = JSON.parse(text);
+    const corpus = sanitizeCorpus(JSON.parse(text));
     if (corpus.version !== CORPUS_VERSION || corpus.documented_count !== 237 || corpus.missing_count !== 19) {
       throw new Error('Corpus FA incomplet ou version inattendue.');
     }
