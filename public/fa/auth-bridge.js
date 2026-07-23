@@ -97,7 +97,7 @@
       const accessToken = await token(forceNew);
       const headers = new Headers(init.headers || (typeof input !== 'string' ? input.headers : undefined));
       headers.set('apikey', ANON_KEY);
-      if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
+      headers.set('Authorization', `Bearer ${accessToken || ANON_KEY}`);
       return nativeFetch(input, { ...init, headers });
     };
 
