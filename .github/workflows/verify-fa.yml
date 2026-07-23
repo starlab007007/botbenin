@@ -8,6 +8,9 @@ on:
       - completed
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 concurrency:
   group: verify-fa-production
   cancel-in-progress: true
@@ -18,6 +21,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+        with:
+          ref: prod
+          fetch-depth: 0
+
       - name: Attendre la propagation de production
         run: sleep 20
 
@@ -41,17 +50,7 @@ jobs:
           grep -q '<base href="/fa/"' /tmp/fa.html
           grep -q 'flutter-fidelity-v10' /tmp/fa.html
 
-          for file in \
-            app.js \
-            auth-bridge.js \
-            visual-fidelity.js \
-            styles.css \
-            source-fidelity.css \
-            assets-final.js \
-            assets-open-0.js \
-            assets-closed-0.js \
-            fa-real-assets.js \
-            manifest.webmanifest
+          for file in app.js auth-bridge.js visual-fidelity.js styles.css source-fidelity.css assets-final.js assets-open-0.js assets-closed-0.js fa-real-assets.js manifest.webmanifest
           do
             curl --fail --silent --show-error --location \
               --retry 8 --retry-delay 4 --retry-all-errors \
@@ -126,6 +125,30 @@ jobs:
             --retry 8 --retry-delay 4 --retry-all-errors \
             https://bot.bj/apresbacia -o /tmp/apresbac.html
           grep -qi 'AprèsBac' /tmp/apresbac.html
+
+      - name: Publier le reçu de validation
+        env:
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          SOURCE_RUN: ${{ github.event.workflow_run.id || github.run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p .verification
+          cat > .verification/fa-production.json <<JSON
+          {
+            "status": "passed",
+            "source_sha": "${SOURCE_SHA}",
+            "workflow_run": "${SOURCE_RUN}",
+            "validated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "url": "https://bot.bj/fa",
+            "version": "flutter-fidelity-v10"
+          }
+          JSON
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B fa-production-verified
+          git add .verification/fa-production.json
+          git commit -m "test(fa): production validée ${SOURCE_SHA}"
+          git push --force origin HEAD:fa-production-verified
 
       - name: Résultat
         run: echo '✅ FA IA Flutter V5.2 est disponible et AprèsBac IA reste opérationnel.'
