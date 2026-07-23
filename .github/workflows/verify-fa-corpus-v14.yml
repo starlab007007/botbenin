@@ -1,0 +1,56 @@
+name: Verify FA Corpus V14
+
+on:
+  push:
+    branches:
+      - prod
+    paths:
+      - 'public/fa/corpus-*-v14.js'
+      - 'public/fa/index.html'
+      - 'scripts/verify-fa-corpus-v14.mjs'
+      - '.github/workflows/verify-fa-corpus-v14.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-fa-corpus-v14
+  cancel-in-progress: true
+
+jobs:
+  verify-corpus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+        with:
+          ref: prod
+
+      - name: Configurer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Vérifier la syntaxe des scripts du corpus
+        run: |
+          set -euo pipefail
+          node --check public/fa/corpus-loader-v14.js
+          node --check public/fa/corpus-enforcement-v14.js
+          node --check public/fa/corpus-pack-init-v14.js
+          for file in public/fa/corpus-pack-{0..4}-v14.js; do node --check "$file"; done
+
+      - name: Vérifier les 256 clés et les 237 interprétations documentées
+        run: node scripts/verify-fa-corpus-v14.mjs
+
+      - name: Vérifier l’activation dans la page FA IA
+        run: |
+          set -euo pipefail
+          grep -q 'corpus-pack-init-v14.js' public/fa/index.html
+          grep -q 'corpus-loader-v14.js' public/fa/index.html
+          grep -q 'corpus-enforcement-v14.js' public/fa/index.html
+          grep -q '20260723-corpus-v14' public/fa/index.html
+
+      - name: Résultat
+        run: echo '✅ Corpus FA V14 validé — 237 interprétations exactes et 19 signes explicitement signalés.'
