@@ -88,7 +88,42 @@
   function focus(message) { const normalized = norm(message); const exact = F.find((x) => norm(x.label) === normalized); if (exact) return exact; if (/LUMIERE|POSITIF|OUVERTURE/.test(normalized)) return F[1]; if (/VIGILANCE|DANGER|OBSTACLE/.test(normalized)) return F[2]; if (/AMOUR|FAMILLE|RELATION|MARIAGE/.test(normalized)) return F[3]; if (/TRAVAIL|ARGENT|PROJET|ENTREPRISE/.test(normalized)) return F[4]; if (/SANTE|CORPS|EQUILIBRE/.test(normalized)) return F[5]; if (/CONSEIL|ACTION|FAIRE|EVITER/.test(normalized)) return F[6]; if (/RESUME|ESSENTIEL/.test(normalized)) return F[7]; return F[0]; }
   function payload(message, history) { const selected = focus(message); return { action: 'interpret', sign: { reference: s.sign.ref, canonical_name: s.sign.name, x: s.sign.x.name, y: s.sign.y.name, column_a: s.sign.a, column_b: s.sign.b }, context: { category: s.cat, intention: s.intent, locale: 'fr-BJ' }, focus: { intent_key: selected.key, label: selected.label, instruction: selected.instruction, required_sections: [selected.label], excluded_angles: [] }, history: history.slice(-8).map((x) => ({ role: x.r, content: x.t })), user_message: message, constraints: { document_only: true, simple_french: true, detail_level: 'exhaustive', max_words: 900, hide_sources: true, speak_as_fa_knowledge: true, differentiate_each_payload: true, contextualize_with_intention: true, no_invented_ritual: true, no_occult_accusation: true } }; }
   function fallback(message) { const selected = focus(message), x = s.sign.x, y = s.sign.y; const heading = { comprehensive: `Lecture approfondie de ${s.sign.name}`, positive: '✨ Lumière et ouvertures', warning: '⚠️ Vigilances et obstacles', relationship: '🤝 Amour, famille et relations', work: '💼 Travail, argent et projets', health: '🌿 Santé et équilibre', action: '🧭 Conseils et conduite à tenir', summary: 'À retenir' }[selected.key]; const text = selected.key === 'positive' ? `Les forces disponibles sont ${x.light} et ${y.light}. Leur expression favorable dépend de décisions cohérentes et mesurées.` : selected.key === 'warning' ? `La vigilance concerne ${x.shadow}, ainsi que ${y.shadow}. Le signe invite à vérifier les faits et à éviter toute décision prise dans la peur ou la précipitation.` : selected.key === 'relationship' ? `Dans les relations, ${x.theme} rencontre ${y.theme}. La qualité de la parole, la clarté des engagements et le respect de la place de chacun sont déterminants.` : selected.key === 'work' ? `Dans le travail et les projets, ce signe relie ${x.theme} à ${y.theme}. Il recommande de ${x.action}, puis de ${y.action}.` : selected.key === 'health' ? 'Sur le plan symbolique, le signe invite à préserver l’équilibre, à écouter les signaux concrets du corps et à ne pas négliger le repos. Cette lecture ne constitue pas un diagnostic.' : selected.key === 'action' ? `Il est recommandé de ${x.action}, puis de ${y.action}. Toute pratique traditionnelle réservée doit être validée par un Bokonon qualifié.` : selected.key === 'summary' ? `Force : ${x.light}. Vigilance : ${y.shadow}. Condition : agir avec clarté. Orientation : ${x.action}.` : `Ce signe associe ${x.theme} et ${y.theme}. Sa lumière réunit ${x.light} et ${y.light}. Sa vigilance concerne ${x.shadow} et ${y.shadow}. Dans votre situation « ${s.cat} », l’évolution favorable dépend de la capacité à ${x.action}, puis à ${y.action}.`; return `${heading}\n\n${text}`; }
-  async function answer(message, history) { try { const request = window.faAuthenticatedFetch || fetch; const response = await request(E, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: K, Authorization: `Bearer ${K}` }, body: JSON.stringify(payload(message, history)) }); if (!response.ok) throw new Error(`HTTP ${response.status}`); const data = await response.json(); if (!data.answer) throw new Error('Réponse vide'); return data.answer; } catch { return fallback(message); } }
+  const DEV_KEY = 'fa_ia_device_v1';
+  const CODE_KEY = 'fa_ia_access_code_v1';
+  function deviceId() { let v = localStorage.getItem(DEV_KEY); if (!v) { v = (crypto.randomUUID ? crypto.randomUUID() : `dev-${Date.now()}-${Math.random().toString(36).slice(2)}`); localStorage.setItem(DEV_KEY, v); } return v; }
+  function accessCode() { return (localStorage.getItem(CODE_KEY) || '').trim() || null; }
+  function setAccessCode(v) { if (v) localStorage.setItem(CODE_KEY, v); else localStorage.removeItem(CODE_KEY); }
+  async function callFa(body) {
+    const request = window.faAuthenticatedFetch || fetch;
+    const headers = { 'Content-Type': 'application/json', apikey: K, Authorization: `Bearer ${K}`, 'x-fa-device': deviceId() };
+    const code = accessCode(); if (code) headers['x-fa-code'] = code;
+    const response = await request(E, { method: 'POST', headers, body: JSON.stringify({ ...body, device_id: deviceId(), access_code: code }) });
+    const data = await response.json().catch(() => ({}));
+    return { status: response.status, ok: response.ok, data };
+  }
+  async function answer(message, history) {
+    try {
+      let res = await callFa(payload(message, history));
+      if (res.status === 402 && (res.data?.reason === 'code_exhausted' || res.data?.reason === 'code_invalid' || res.data?.reason === 'code_expired' || res.data?.reason === 'code_inactive')) {
+        setAccessCode(null);
+      }
+      if (res.status === 402) {
+        const msg = res.data?.message || 'Quota atteint.';
+        const entered = window.prompt(`${msg}\n\nEntrez un code d'accès à 6 chiffres pour continuer (ou annulez) :`, '');
+        const clean = (entered || '').replace(/\D/g, '');
+        if (clean.length === 6) {
+          setAccessCode(clean);
+          res = await callFa(payload(message, history));
+        }
+      }
+      if (!res.ok) throw new Error(res.data?.message || `HTTP ${res.status}`);
+      if (!res.data?.answer) throw new Error('Réponse vide');
+      return res.data.answer;
+    } catch (err) {
+      toast(String(err.message || err));
+      return fallback(message);
+    }
+  }
   async function send(quick) { const input = document.getElementById('chat'); const message = (quick || input?.value || '').trim(); if (!message || s.typing) return; const history = [...s.msg]; s.msg.push({ r: 'user', t: message }); s.quick = []; s.typing = true; render(); const response = await answer(message, history); s.msg.push({ r: 'assistant', t: response }); s.quick = F.map((x) => x.label); s.typing = false; save(); render(); }
 
   function list() { try { const parsed = JSON.parse(localStorage.getItem(J) || '[]'); return (Array.isArray(parsed) ? parsed : parsed.entries || []).sort((a, b) => new Date(b.date) - new Date(a.date)); } catch { return []; } }
