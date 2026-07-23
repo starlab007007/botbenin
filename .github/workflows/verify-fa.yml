@@ -1,0 +1,77 @@
+name: Verify FA IA Production
+
+on:
+  workflow_run:
+    workflows:
+      - Deploy React App botbj
+    types:
+      - completed
+  workflow_dispatch:
+
+concurrency:
+  group: verify-fa-production
+  cancel-in-progress: true
+
+jobs:
+  verify-fa:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Attendre la propagation de production
+        run: sleep 20
+
+      - name: Vérifier la page FA IA
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location \
+            --retry 12 --retry-delay 5 --retry-all-errors \
+            https://bot.bj/fa \
+            -o /tmp/fa.html
+          grep -q 'FA IA' /tmp/fa.html
+          grep -q './app.js' /tmp/fa.html
+          grep -q './auth-bridge.js' /tmp/fa.html
+          grep -q './visual-fidelity.js' /tmp/fa.html
+
+      - name: Vérifier les fichiers fonctionnels FA IA
+        run: |
+          set -euo pipefail
+          for file in \
+            app.js \
+            auth-bridge.js \
+            visual-fidelity.js \
+            styles.css \
+            source-fidelity.css \
+            assets-final.js \
+            manifest.webmanifest
+          do
+            curl --fail --silent --show-error --location \
+              --retry 8 --retry-delay 4 --retry-all-errors \
+              "https://bot.bj/fa/${file}" \
+              -o "/tmp/${file//\//_}"
+          done
+          grep -q 'waouh-fa-chat' /tmp/app.js
+          grep -q 'crypto.getRandomValues' /tmp/app.js
+          grep -q 'faAuthenticatedFetch' /tmp/auth-bridge.js
+          grep -q 'randomizeConcealedFaces' /tmp/visual-fidelity.js
+
+      - name: Vérifier les éléments V5.2
+        run: |
+          set -euo pipefail
+          grep -q 'Destinée et orientation' /tmp/app.js
+          grep -q 'Projet communautaire' /tmp/app.js
+          grep -q 'Comprendre le signe en profondeur' /tmp/app.js
+          grep -q 'Résumé essentiel' /tmp/app.js
+          grep -q 'fa_ia_journal_v5_2' /tmp/app.js
+          grep -q '6500+rnd(3001)' /tmp/app.js
+
+      - name: Vérifier l'absence de régression AprèsBac IA
+        run: |
+          curl --fail --silent --show-error --location \
+            --retry 8 --retry-delay 4 --retry-all-errors \
+            https://bot.bj/apresbacia \
+            -o /tmp/apresbac.html
+          grep -qi 'AprèsBac' /tmp/apresbac.html
+
+      - name: Résultat
+        run: echo '✅ FA IA V5.2 est disponible et AprèsBac IA reste opérationnel.'
