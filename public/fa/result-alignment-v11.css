@@ -1,0 +1,121 @@
+/* FA IA V5.2 — alignement fidèle des huit cauris sur la chaîne de révélation */
+.reveal-chain {
+  --fa-left-cord: 28%;
+  --fa-right-cord: 72%;
+  min-height: 660px !important;
+  height: 660px;
+  overflow: hidden !important;
+}
+
+.reveal-chain .cowrie-grid {
+  position: absolute !important;
+  inset: 0 !important;
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: visible !important;
+  transform: none !important;
+}
+
+.reveal-chain .cowrie-slot {
+  position: absolute !important;
+  z-index: 8;
+  width: 112px;
+  height: 124px;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%) !important;
+  transform-origin: center center;
+  overflow: visible !important;
+}
+
+.reveal-chain .cowrie {
+  width: 98px !important;
+  height: 90px !important;
+  max-height: none !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  flex: 0 0 auto;
+}
+
+.reveal-chain .trait {
+  position: relative;
+  z-index: 10;
+  min-height: 30px;
+  margin-top: -1px;
+  color: #fff;
+  font-size: 25px;
+  line-height: 30px;
+  font-weight: 900;
+  text-align: center;
+  text-shadow: 0 2px 5px rgba(0, 0, 0, .65);
+}
+
+/* Colonne gauche : exactement sur le montant gauche de la chaîne. */
+.reveal-chain .cowrie-slot[data-face-index="0"],
+.reveal-chain .cowrie-slot[data-face-index="1"],
+.reveal-chain .cowrie-slot[data-face-index="2"],
+.reveal-chain .cowrie-slot[data-face-index="3"] {
+  left: var(--fa-left-cord) !important;
+}
+
+/* Colonne droite : exactement sur le montant droit de la chaîne. */
+.reveal-chain .cowrie-slot[data-face-index="4"],
+.reveal-chain .cowrie-slot[data-face-index="5"],
+.reveal-chain .cowrie-slot[data-face-index="6"],
+.reveal-chain .cowrie-slot[data-face-index="7"] {
+  left: var(--fa-right-cord) !important;
+}
+
+/* Quatre niveaux réguliers, avec une marge basse suffisante pour I / II. */
+.reveal-chain .cowrie-slot[data-face-index="0"],
+.reveal-chain .cowrie-slot[data-face-index="4"] { top: 160px !important; }
+.reveal-chain .cowrie-slot[data-face-index="1"],
+.reveal-chain .cowrie-slot[data-face-index="5"] { top: 300px !important; }
+.reveal-chain .cowrie-slot[data-face-index="2"],
+.reveal-chain .cowrie-slot[data-face-index="6"] { top: 440px !important; }
+.reveal-chain .cowrie-slot[data-face-index="3"],
+.reveal-chain .cowrie-slot[data-face-index="7"] { top: 580px !important; }
+
+/* La chaîne reste derrière les cauris et atteint la dernière rangée. */
+.reveal-chain::after {
+  bottom: 28px !important;
+  background-position: var(--fa-left-cord) 0, var(--fa-right-cord) 0 !important;
+}
+
+@media (max-width: 520px) {
+  .reveal-chain {
+    --fa-left-cord: 27%;
+    --fa-right-cord: 73%;
+    min-height: 610px !important;
+    height: 610px;
+  }
+
+  .reveal-chain .cowrie-slot {
+    width: 96px;
+    height: 112px;
+  }
+
+  .reveal-chain .cowrie {
+    width: 86px !important;
+    height: 80px !important;
+  }
+
+  .reveal-chain .trait {
+    min-height: 28px;
+    font-size: 23px;
+    line-height: 28px;
+  }
+
+  .reveal-chain .cowrie-slot[data-face-index="0"],
+  .reveal-chain .cowrie-slot[data-face-index="4"] { top: 148px !important; }
+  .reveal-chain .cowrie-slot[data-face-index="1"],
+  .reveal-chain .cowrie-slot[data-face-index="5"] { top: 274px !important; }
+  .reveal-chain .cowrie-slot[data-face-index="2"],
+  .reveal-chain .cowrie-slot[data-face-index="6"] { top: 400px !important; }
+  .reveal-chain .cowrie-slot[data-face-index="3"],
+  .reveal-chain .cowrie-slot[data-face-index="7"] { top: 526px !important; }
+}
