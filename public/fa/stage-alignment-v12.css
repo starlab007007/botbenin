@@ -1,0 +1,114 @@
+/* FA IA V5.2 — alignement fidèle de la chaîne avant et pendant le lancer */
+.chain-card {
+  --fa-left-cord: 28%;
+  --fa-right-cord: 72%;
+  min-height: 660px !important;
+  height: 660px;
+  overflow: hidden !important;
+}
+
+.chain-card .cowrie-grid {
+  position: absolute !important;
+  inset: 0 !important;
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  overflow: visible !important;
+}
+
+/* Les positions sont calculées sans transform CSS afin de laisser
+   la Web Animations API déplacer librement chaque cauri pendant le lancer. */
+.chain-card .cowrie-slot {
+  position: absolute !important;
+  z-index: 8;
+  width: 112px;
+  height: 112px;
+  min-height: 0 !important;
+  margin-left: -56px;
+  margin-top: -56px;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  overflow: visible !important;
+  transform-origin: center center;
+}
+
+.chain-card .cowrie {
+  width: 98px !important;
+  height: 90px !important;
+  max-height: none !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  margin: 0 !important;
+  flex: 0 0 auto;
+}
+
+/* Axe gauche : quatre cauris centrés sur la corde gauche. */
+.chain-card .cowrie-slot[data-face-index="0"],
+.chain-card .cowrie-slot[data-face-index="1"],
+.chain-card .cowrie-slot[data-face-index="2"],
+.chain-card .cowrie-slot[data-face-index="3"] {
+  left: var(--fa-left-cord) !important;
+}
+
+/* Axe droit : quatre cauris centrés sur la corde droite. */
+.chain-card .cowrie-slot[data-face-index="4"],
+.chain-card .cowrie-slot[data-face-index="5"],
+.chain-card .cowrie-slot[data-face-index="6"],
+.chain-card .cowrie-slot[data-face-index="7"] {
+  left: var(--fa-right-cord) !important;
+}
+
+/* Quatre niveaux réguliers et entièrement contenus dans la carte. */
+.chain-card .cowrie-slot[data-face-index="0"],
+.chain-card .cowrie-slot[data-face-index="4"] { top: 160px !important; }
+.chain-card .cowrie-slot[data-face-index="1"],
+.chain-card .cowrie-slot[data-face-index="5"] { top: 300px !important; }
+.chain-card .cowrie-slot[data-face-index="2"],
+.chain-card .cowrie-slot[data-face-index="6"] { top: 440px !important; }
+.chain-card .cowrie-slot[data-face-index="3"],
+.chain-card .cowrie-slot[data-face-index="7"] { top: 580px !important; }
+
+/* Les deux cordes utilisent exactement les mêmes axes que les cauris. */
+.chain-card::after {
+  bottom: 28px !important;
+  background-position: var(--fa-left-cord) 0, var(--fa-right-cord) 0 !important;
+}
+
+/* Le message de phase reste lisible sans recouvrir toute la largeur. */
+.chain-card .phase {
+  width: max-content;
+  max-width: calc(100% - 32px);
+  text-align: center;
+  white-space: normal;
+}
+
+@media (max-width: 520px) {
+  .chain-card {
+    --fa-left-cord: 27%;
+    --fa-right-cord: 73%;
+    min-height: 610px !important;
+    height: 610px;
+  }
+
+  .chain-card .cowrie-slot {
+    width: 96px;
+    height: 108px;
+    margin-left: -48px;
+    margin-top: -54px;
+  }
+
+  .chain-card .cowrie {
+    width: 86px !important;
+    height: 80px !important;
+  }
+
+  .chain-card .cowrie-slot[data-face-index="0"],
+  .chain-card .cowrie-slot[data-face-index="4"] { top: 148px !important; }
+  .chain-card .cowrie-slot[data-face-index="1"],
+  .chain-card .cowrie-slot[data-face-index="5"] { top: 274px !important; }
+  .chain-card .cowrie-slot[data-face-index="2"],
+  .chain-card .cowrie-slot[data-face-index="6"] { top: 400px !important; }
+  .chain-card .cowrie-slot[data-face-index="3"],
+  .chain-card .cowrie-slot[data-face-index="7"] { top: 526px !important; }
+}
