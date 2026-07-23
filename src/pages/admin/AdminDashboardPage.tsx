@@ -94,6 +94,13 @@ export const AdminDashboardPage: React.FC = () => {
       path: '/admin/apresbac',
       color: 'text-indigo-500',
     },
+    {
+      title: 'FA IA — Suivi & Codes',
+      description: 'Consultations bot.bj/fa, codes d\'accès 6 chiffres, quotas quotidiens et statistiques',
+      icon: Sparkles,
+      path: '/admin/fa',
+      color: 'text-amber-500',
+    },
   ];
 
   return (
