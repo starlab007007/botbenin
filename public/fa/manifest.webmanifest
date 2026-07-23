@@ -1,0 +1,12 @@
+{
+  "name": "FA IA — Consultation du Fâ",
+  "short_name": "FA IA",
+  "description": "Consultation numérique du Fâ — une intention, un lancer, un signe.",
+  "start_url": "/fa",
+  "scope": "/fa/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f4f0ea",
+  "theme_color": "#150b07",
+  "lang": "fr-BJ"
+}
