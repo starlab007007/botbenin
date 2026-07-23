@@ -1,0 +1,230 @@
+name: Apply FA Flutter fidelity patch
+
+on:
+  push:
+    branches: [prod]
+    paths:
+      - .github/workflows/fa-flutter-fidelity-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: prod
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Patch FA IA runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path('public/fa/app.js')
+          text = path.read_text(encoding='utf-8')
+
+          replacements = []
+
+          old_grid = '''function grid(show=false){let o=[0,4,1,5,2,6,3,7];return `<div class="cowrie-grid">${o.map(i=>{let f=s.faces[i],u=f==='OPEN'?A.cowrie_open_real:A.cowrie_closed_real;return `<div class="cowrie-slot"><img class="cowrie" src="${u}"><div class="trait">${show?(f==='OPEN'?'I':'II'):''}</div></div>`}).join('')}</div>`}'''
+          new_grid = '''function grid(show=false){let o=[0,4,1,5,2,6,3,7];return `<div class="cowrie-grid">${o.map(i=>{let f=s.faces[i],visible=(!show&&s.throwing)?'OPEN':f,u=visible==='OPEN'?A.cowrie_open_real:A.cowrie_closed_real;return `<div class="cowrie-slot" data-face-index="${i}"><img class="cowrie" data-face-index="${i}" src="${u}" alt="Cauri"><div class="trait">${show?(f==='OPEN'?'I':'II'):''}</div></div>`}).join('')}</div>`}'''
+          replacements.append((old_grid, new_grid, 'grid'))
+
+          old_stage = '''function stage(){return `<div class="chain-stage"><div class="chain-card ${s.throwing?'throwing':''}" style="background-image:linear-gradient(#16090233,#16090288),url('${A.fa_chain_reference||''}')"><div class="chain-title">CHAÎNE DU FÂ</div><div class="phase">${esc(s.phase)}</div>${grid(false)}</div><button class="big-brown" data-a="throw" ${s.throwing?'disabled':''}>◉ ${s.throwing?'Le Fâ se révèle…':'Lancer le Fâ'}</button><button class="text-action" data-a="change">✎ Changer mon intention</button></div>`}'''
+          new_stage = '''function stage(){return `<div class="chain-stage"><div class="chain-card ${s.throwing?'throwing':''}"><div class="chain-title">CHAÎNE DU FÂ</div><div class="phase">${esc(s.phase)}</div>${grid(false)}</div><button class="big-brown" data-a="throw" ${s.throwing?'disabled':''}>◉ ${s.throwing?'Le Fâ se révèle…':'Lancer le Fâ'}</button><button class="text-action" data-a="change" ${s.throwing?'disabled':''}>✎ Changer mon intention</button></div>`}'''
+          replacements.append((old_stage, new_stage, 'stage'))
+
+          old_act = '''function act(a){if(a==='start')start();else if(a==='journal'){s.screen='journal';render()}else if(a==='back'){s.screen==='consult'&&s.step?s.step--:(s.screen='home');render()}else if(a==='intent')intent(false);else if(a==='silent')intent(true);else if(a==='throw')throwFa();else if(a==='change'){s.step=1;render()}else if(a==='send')send();else if(a==='save'){save();toast('Consultation enregistrée.')}else if(a==='copy')copy();else if(a==='fav')fav(s.id);else if(a==='clear'&&confirm('Vider le journal ?')){localStorage.removeItem(J);render()}}'''
+          new_act = '''function act(a){if(s.throwing&&['start','journal','back','change','clear'].includes(a))return;if(a==='start')start();else if(a==='journal'){s.screen='journal';render()}else if(a==='back'){s.screen==='consult'&&s.step?s.step--:(s.screen='home');render()}else if(a==='intent')intent(false);else if(a==='silent')intent(true);else if(a==='throw')throwFa();else if(a==='change'){s.step=1;render()}else if(a==='send')send();else if(a==='save'){save();toast('Consultation enregistrée.')}else if(a==='copy')copy();else if(a==='fav')fav(s.id);else if(a==='clear'&&confirm('Vider le journal ?')){localStorage.removeItem(J);render()}}'''
+          replacements.append((old_act, new_act, 'act'))
+
+          old_throw = '''async function throwFa(){if(s.throwing)return;s.faces=Array.from({length:8},()=>rnd(2)?'OPEN':'CLOSED');s.throwing=true;render();let d=6500+rnd(3001),p=[['La chaîne s’éveille',.08],['Les cauris se mêlent',.23],['Le mouvement s’intensifie',.43],['Les faces restent cachées',.66],['La chaîne se stabilise',.84],['Le signe se révèle',.94]],t=performance.now(),i=0;await new Promise(ok=>{let q=n=>{let r=(n-t)/d;if(i<p.length&&r>=p[i][1]){s.phase=p[i++][0];render()}r<1?requestAnimationFrame(q):ok()};requestAnimationFrame(q)});s.sign=resolve(s.faces);s.phase=s.sign.name;s.throwing=false;render();await new Promise(r=>setTimeout(r,720));s.screen='result';s.id=crypto.randomUUID?crypto.randomUUID():`fa-${Date.now()}`;s.date=new Date().toISOString();s.msg=[{r:'assistant',t:`Les huit faces ont formé ${s.sign.name}. Posez-moi vos questions sur ce signe.`}];s.typing=true;render();let z=await answer('Comprendre le signe en profondeur',[]);s.msg.push({r:'assistant',t:z});s.quick=F.map(x=>x.label);s.typing=false;save();render()}'''
+          new_throw = '''async function throwFa(){if(s.throwing)return;const finalFaces=Array.from({length:8},()=>rnd(2)?'OPEN':'CLOSED');s.faces=finalFaces;s.throwing=true;s.phase='Le silence s’installe';render();const d=6500+rnd(3001),p=[['La chaîne s’éveille',.08],['Les huit cauris se mêlent',.23],['Le mouvement s’intensifie',.43],['Les faces restent cachées',.66],['La chaîne se stabilise',.84],['Le signe se révèle',.94]],timers=p.map(([label,ratio])=>setTimeout(()=>{s.phase=label;const e=document.querySelector('.chain-card.throwing .phase');if(e)e.textContent=label;const b=document.querySelector('[data-a="throw"]');if(b){b.disabled=true;b.textContent='◉ Le Fâ se révèle…'}},Math.round(d*ratio)));try{if(window.FA_FLUTTER_THROW?.play)await window.FA_FLUTTER_THROW.play({duration:d,finalFaces});else await new Promise(r=>setTimeout(r,d))}finally{timers.forEach(clearTimeout)}s.sign=resolve(finalFaces);s.phase=s.sign.name;s.throwing=false;render();await new Promise(r=>setTimeout(r,720));s.screen='result';s.id=crypto.randomUUID?crypto.randomUUID():`fa-${Date.now()}`;s.date=new Date().toISOString();s.msg=[{r:'assistant',t:`Les huit faces ont formé ${s.sign.name}. Posez-moi vos questions sur ce signe.`}];s.typing=true;render();let z=await answer('Comprendre le signe en profondeur',[]);s.msg.push({r:'assistant',t:z});s.quick=F.map(x=>x.label);s.typing=false;save();render()}'''
+          replacements.append((old_throw, new_throw, 'throwFa'))
+
+          for old, new, label in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'Patch {label}: expected 1 occurrence, found {count}')
+              text = text.replace(old, new, 1)
+
+          old_end = '''window.addEventListener('online',render);window.addEventListener('offline',render);window.__FA_IA_TEST__={B,C,F,resolve,focus};render();})();'''
+          new_end = '''window.addEventListener('online',render);window.addEventListener('offline',render);window.addEventListener('pagehide',()=>window.FA_FLUTTER_THROW?.cancel?.());window.__FA_IA_TEST__={B,C,F,resolve,focus,verifyFaces:f=>({valid:Array.isArray(f)&&f.length===8&&f.every(x=>x==='OPEN'||x==='CLOSED'),sign:resolve(f)})};render();})();'''
+          if text.count(old_end) != 1:
+              raise SystemExit('Patch end listeners: anchor not found exactly once')
+          text = text.replace(old_end, new_end, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
+          cat > public/fa/visual-fidelity.js <<'JS'
+          (() => {
+            'use strict';
+
+            let active = null;
+            const secureFloat = () => {
+              const value = new Uint32Array(1);
+              crypto.getRandomValues(value);
+              return value[0] / 0xffffffff;
+            };
+            const between = (min, max) => min + secureFloat() * (max - min);
+            const integer = (min, max) => Math.floor(between(min, max + 1));
+            const choose = (values) => values[integer(0, values.length - 1)];
+            const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+            function cleanNode(node) {
+              if (node?.isConnected) node.remove();
+            }
+
+            function cancel() {
+              if (!active) return;
+              active.cancelled = true;
+              active.timers.forEach(clearTimeout);
+              active.animations.forEach((animation) => {
+                try { animation.cancel(); } catch {}
+              });
+              active.slots.forEach((slot) => {
+                slot.style.removeProperty('transform');
+                slot.style.removeProperty('filter');
+                slot.style.removeProperty('z-index');
+              });
+              active.temporary.forEach(cleanNode);
+              active.root?.classList.remove('fa-flutter-throw', 'fa-motion-ready');
+              active = null;
+            }
+
+            function indexedItems(root) {
+              return [...root.querySelectorAll('.cowrie-slot[data-face-index]')]
+                .map((slot) => ({
+                  slot,
+                  image: slot.querySelector('.cowrie[data-face-index]'),
+                  index: Number(slot.dataset.faceIndex),
+                }))
+                .filter((item) => item.image && Number.isInteger(item.index) && item.index >= 0 && item.index < 8);
+            }
+
+            function sourceFor(face) {
+              const assets = window.FA_ASSETS || {};
+              return face === 'OPEN' ? assets.cowrie_open_real : assets.cowrie_closed_real;
+            }
+
+            function positionToDelta(anchor, targetX, targetY) {
+              return [targetX - anchor.x, targetY - anchor.y];
+            }
+
+            function createPath(rootRect, slotRect, visualOrder, compact) {
+              const anchor = {
+                x: slotRect.left - rootRect.left + slotRect.width / 2,
+                y: slotRect.top - rootRect.top + slotRect.height / 2,
+              };
+              const marginX = Math.max(42, slotRect.width * .55);
+              const marginTop = Math.max(92, slotRect.height * .75);
+              const marginBottom = Math.max(58, slotRect.height * .5);
+              const minX = marginX;
+              const maxX = rootRect.width - marginX;
+              const minY = marginTop;
+              const maxY = rootRect.height - marginBottom;
+              const leftSide = anchor.x < rootRect.width / 2;
+              const randomTarget = () => [between(minX, maxX), between(minY, maxY)];
+              const oppositeTarget = () => [leftSide ? between(rootRect.width * .57, maxX) : between(minX, rootRect.width * .43), between(minY, maxY)];
+              const centerTarget = () => [between(rootRect.width * .38, rootRect.width * .62), between(rootRect.height * .25, rootRect.height * .75)];
+              const targets = compact ? [centerTarget(), oppositeTarget(), randomTarget(), centerTarget()] : [randomTarget(), oppositeTarget(), centerTarget(), randomTarget()];
+              if (visualOrder % 3 === 0) targets[0] = [between(minX, maxX), between(minY, rootRect.height * .3)];
+              if (visualOrder % 3 === 1) targets[3] = [between(minX, maxX), between(rootRect.height * .68, maxY)];
+              const points = targets.map(([x, y]) => positionToDelta(anchor, x, y));
+              const direction = secureFloat() > .5 ? 1 : -1;
+              return {
+                points,
+                rotations: [between(180, 320) * direction, between(340, 620) * -direction, between(480, 720) * direction, between(260, 560) * -direction],
+                scales: [between(.86, 1.08), between(.82, 1.15), between(.88, 1.12), between(.9, 1.1)],
+                flips: [between(.35, 1), between(.35, 1), between(.4, 1), between(.5, 1)],
+                settle78: [between(-55, 55), between(-55, 55)],
+                settle88: [between(-22, 22), between(-22, 22)],
+                overshoot: [between(-7, 7), between(-7, 7)],
+                delay: compact ? between(0, 35) : between(0, 115),
+                easing: choose(['cubic-bezier(.22,.72,.28,1)','cubic-bezier(.18,.82,.34,1)','cubic-bezier(.26,.66,.22,1)']),
+              };
+            }
+
+            function keyframes(path, compact) {
+              const frame = (offset, xy, rotation, scale, flip, blur, shadow) => ({offset,transform:`translate3d(${xy[0].toFixed(1)}px,${xy[1].toFixed(1)}px,0) rotate(${rotation.toFixed(1)}deg) scale(${scale.toFixed(3)}) scaleX(${flip.toFixed(3)})`,filter:`blur(${blur}px) drop-shadow(0 ${shadow}px ${Math.round(shadow*1.18)}px rgba(0,0,0,.42))`});
+              return [frame(0,[0,0],0,1,1,0,8),frame(.12,path.points[0],path.rotations[0],path.scales[0],path.flips[0],compact?0:.18,11),frame(.28,path.points[1],path.rotations[1],path.scales[1],path.flips[1],compact?0:.42,15),frame(.46,path.points[2],path.rotations[2],path.scales[2],path.flips[2],compact?0:.48,17),frame(.64,path.points[3],path.rotations[3],path.scales[3],path.flips[3],compact?0:.24,13),frame(.78,path.settle78,between(-34,34),between(.97,1.04),1,0,10),frame(.88,path.settle88,between(-14,14),between(.99,1.025),1,0,9),frame(.95,path.overshoot,between(-6,6),1.008,1,0,8),frame(1,[0,0],0,1,1,0,8)];
+            }
+
+            function addAtmosphere(root, duration, compact) {
+              const halo=document.createElement('div');halo.className='fa-mystic-halo';root.appendChild(halo);active.temporary.push(halo);active.animations.push(halo.animate([{opacity:0,transform:'translate(-50%,-50%) scale(.72)'},{offset:.38,opacity:compact?.18:.58,transform:'translate(-50%,-50%) scale(1.12)'},{offset:.82,opacity:.2,transform:'translate(-50%,-50%) scale(.96)'},{opacity:0,transform:'translate(-50%,-50%) scale(.84)'}],{duration,easing:'ease-in-out',fill:'both'}));
+              const layer=document.createElement('div');layer.className='fa-mystic-particles';root.appendChild(layer);active.temporary.push(layer);const count=compact?8:integer(16,24);for(let i=0;i<count;i+=1){const particle=document.createElement('i');particle.style.left=`${between(7,93)}%`;particle.style.top=`${between(18,92)}%`;const size=between(1,3);particle.style.width=`${size}px`;particle.style.height=`${size}px`;layer.appendChild(particle);active.animations.push(particle.animate([{opacity:0,transform:'translate3d(0,0,0) scale(.7)'},{offset:.22,opacity:between(.12,.4)},{offset:.72,opacity:between(.08,.3),transform:`translate3d(${between(-38,38)}px,${between(-90,-210)}px,0) scale(1.05)`},{opacity:0,transform:`translate3d(${between(-46,46)}px,${between(-160,-260)}px,0) scale(.4)`}],{duration:between(2300,4300),iterations:Infinity,easing:'ease-out'}));}
+            }
+
+            function scheduleFaceMix(item, finalFaces, revealAt) {
+              const loop=()=>{if(!active||active.cancelled)return;const elapsed=performance.now()-active.startedAt;if(elapsed>=revealAt){item.image.src=sourceFor(finalFaces[item.index]);return}item.image.src=sourceFor(secureFloat()>.5?'OPEN':'CLOSED');const timer=setTimeout(loop,integer(220,360));active.timers.push(timer)};const timer=setTimeout(loop,integer(0,150));active.timers.push(timer);
+            }
+
+            async function play({duration,finalFaces}) {
+              cancel();const root=document.querySelector('.chain-card.throwing');if(!root)throw new Error('Carte de lancer introuvable.');if(!Array.isArray(finalFaces)||finalFaces.length!==8||!finalFaces.every(face=>face==='OPEN'||face==='CLOSED'))throw new Error('Configuration finale des huit cauris invalide.');const items=indexedItems(root);if(items.length!==8)throw new Error(`Huit cauris attendus, ${items.length} trouvés.`);const compact=reducedMotion();const effectiveDuration=compact?Math.min(2300,duration):duration;const rootRect=root.getBoundingClientRect();active={root,slots:items.map(item=>item.slot),animations:[],timers:[],temporary:[],cancelled:false,startedAt:performance.now()};root.classList.add('fa-flutter-throw');items.forEach((item,visualOrder)=>{const path=createPath(rootRect,item.slot.getBoundingClientRect(),visualOrder,compact);const animation=item.slot.animate(keyframes(path,compact),{duration:Math.max(400,effectiveDuration-path.delay),delay:path.delay,easing:path.easing,fill:'both'});active.animations.push(animation);scheduleFaceMix(item,finalFaces,effectiveDuration*.92)});addAtmosphere(root,effectiveDuration,compact);root.classList.add('fa-motion-ready');const revealTimer=setTimeout(()=>{if(!active||active.cancelled)return;items.forEach(item=>{item.image.src=sourceFor(finalFaces[item.index])})},Math.round(effectiveDuration*.92));active.timers.push(revealTimer);await sleep(effectiveDuration);if(!active||active.cancelled)return;items.forEach(item=>{item.image.src=sourceFor(finalFaces[item.index])});active.animations.forEach(animation=>{try{animation.finish()}catch{}});active.timers.forEach(clearTimeout);active.timers=[];active.temporary.forEach(cleanNode);active.temporary=[];active.root.classList.remove('fa-flutter-throw','fa-motion-ready');active=null;
+            }
+
+            window.FA_FLUTTER_THROW={play,cancel};window.addEventListener('pagehide',cancel);window.addEventListener('beforeunload',cancel);
+          })();
+          JS
+
+          cat >> public/fa/source-fidelity.css <<'CSS'
+
+          /* FA IA Flutter V5.2 — continuous throw fidelity */
+          .chain-card,.reveal-chain{overflow:hidden!important;background-image:radial-gradient(circle at 50% 36%,rgba(112,61,24,.44),rgba(20,8,3,.98) 70%),linear-gradient(145deg,#2d170c,#100704)!important}
+          .cowrie-grid{z-index:3;animation:none!important;transform:none!important}
+          .cowrie-slot{overflow:visible!important;background:transparent!important;border:0!important;will-change:transform,filter;transform-origin:center center}
+          .cowrie-slot::before{display:none!important}
+          .cowrie{display:block;object-fit:contain;background:transparent!important;border:0!important;box-shadow:none!important;backface-visibility:hidden;will-change:transform,filter,opacity}
+          .throwing .cowrie-grid,.throwing .cowrie-slot,.throwing .cowrie,.fa-flutter-throw .cowrie-grid,.fa-flutter-throw .cowrie-slot,.fa-flutter-throw .cowrie{animation:none!important}
+          .fa-flutter-throw .cowrie-slot{z-index:6}
+          .fa-mystic-halo{position:absolute;z-index:2;left:50%;top:51%;width:72%;aspect-ratio:1;border-radius:50%;pointer-events:none;background:radial-gradient(circle,rgba(224,171,71,.18),rgba(224,171,71,.04) 45%,transparent 72%);filter:blur(8px)}
+          .fa-mystic-particles{position:absolute;z-index:2;inset:0;overflow:hidden;pointer-events:none}
+          .fa-mystic-particles i{position:absolute;display:block;border-radius:50%;background:rgba(236,190,95,.88);box-shadow:0 0 7px rgba(225,170,66,.48)}
+          .text-action:disabled{opacity:.45;pointer-events:none}
+          @media(prefers-reduced-motion:reduce){.throwing::before,.throwing::after,.throwing .cowrie-grid{animation:none!important}.fa-mystic-particles{display:none}}
+          CSS
+
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+          path=Path('public/fa/index.html');text=path.read_text(encoding='utf-8');stamp='20260723-flutter-fidelity-v6';text=re.sub(r'(source-fidelity\.css)(?:\?v=[^"\']+)?',rf'\1?v={stamp}',text);text=re.sub(r'(app\.js)(?:\?v=[^"\']+)?',rf'\1?v={stamp}',text);text=re.sub(r'(visual-fidelity\.js)(?:\?v=[^"\']+)?',rf'\1?v={stamp}',text);path.write_text(text,encoding='utf-8')
+          PY
+
+          cat > scripts/test-fa-flutter-fidelity.mjs <<'JS'
+          import fs from 'node:fs';import assert from 'node:assert/strict';import crypto from 'node:crypto';
+          const app=fs.readFileSync('public/fa/app.js','utf8'),animation=fs.readFileSync('public/fa/visual-fidelity.js','utf8'),css=fs.readFileSync('public/fa/source-fidelity.css','utf8');assert.match(app,/data-face-index/);assert.match(app,/FA_FLUTTER_THROW\.play/);assert.doesNotMatch(app,/s\.phase=p\[i\+\+\]\[0\];render\(\)/);assert.match(animation,/crypto\.getRandomValues/);assert.match(animation,/translate3d/);assert.match(animation,/\.92/);assert.match(css,/FA IA Flutter V5\.2/);assert.match(css,/background:transparent!important/);const patterns=[];for(let n=0;n<16;n+=1)patterns.push(Array.from({length:4},(_,bit)=>((n>>(3-bit))&1)?'II':'I'));const seen=new Set();for(let run=0;run<10;run+=1){const bytes=crypto.randomBytes(8),faces=[...bytes].map(value=>value&1?'OPEN':'CLOSED');assert.equal(faces.length,8);const symbols=faces.map(face=>face==='OPEN'?'I':'II'),left=patterns.findIndex(p=>p.join('|')===symbols.slice(0,4).join('|')),right=patterns.findIndex(p=>p.join('|')===symbols.slice(4).join('|'));assert.ok(left>=0&&right>=0);seen.add(faces.join(''))}assert.ok(seen.size>1);console.log(`FA Flutter fidelity tests: OK — ${seen.size} configurations distinctes sur 10.`)
+          JS
+
+          node scripts/test-fa-flutter-fidelity.mjs
+          git diff --check
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Commit production patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/fa/app.js public/fa/visual-fidelity.js public/fa/source-fidelity.css public/fa/index.html scripts/test-fa-flutter-fidelity.mjs
+          git commit -m "feat(fa): aligner le lancer web sur Flutter V5.2"
+          git push origin HEAD:prod
