@@ -2194,6 +2194,146 @@ export type Database = {
           },
         ]
       }
+      fa_access_codes: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          max_uses: number
+          notes: string | null
+          updated_at: string
+          uses_count: number
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          max_uses?: number
+          notes?: string | null
+          updated_at?: string
+          uses_count?: number
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          max_uses?: number
+          notes?: string | null
+          updated_at?: string
+          uses_count?: number
+        }
+        Relationships: []
+      }
+      fa_consultations: {
+        Row: {
+          answer: string | null
+          category: string | null
+          code_id: string | null
+          code_value: string | null
+          consultation_day: string | null
+          created_at: string
+          device_id: string
+          error: string | null
+          focus_key: string | null
+          id: string
+          intention: string | null
+          ip_address: unknown
+          question: string | null
+          sign_name: string | null
+          sign_ref: string | null
+          status: string
+          tokens_in: number | null
+          tokens_out: number | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          answer?: string | null
+          category?: string | null
+          code_id?: string | null
+          code_value?: string | null
+          consultation_day?: string | null
+          created_at?: string
+          device_id: string
+          error?: string | null
+          focus_key?: string | null
+          id?: string
+          intention?: string | null
+          ip_address?: unknown
+          question?: string | null
+          sign_name?: string | null
+          sign_ref?: string | null
+          status?: string
+          tokens_in?: number | null
+          tokens_out?: number | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          answer?: string | null
+          category?: string | null
+          code_id?: string | null
+          code_value?: string | null
+          consultation_day?: string | null
+          created_at?: string
+          device_id?: string
+          error?: string | null
+          focus_key?: string | null
+          id?: string
+          intention?: string | null
+          ip_address?: unknown
+          question?: string | null
+          sign_name?: string | null
+          sign_ref?: string | null
+          status?: string
+          tokens_in?: number | null
+          tokens_out?: number | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fa_consultations_code_id_fkey"
+            columns: ["code_id"]
+            isOneToOne: false
+            referencedRelation: "fa_access_codes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fa_settings: {
+        Row: {
+          code_uses: number
+          free_daily_limit: number
+          id: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          code_uses?: number
+          free_daily_limit?: number
+          id?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          code_uses?: number
+          free_daily_limit?: number
+          id?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       facebook_credentials: {
         Row: {
           access_token: string
@@ -11568,6 +11708,22 @@ export type Database = {
         }
         Relationships: []
       }
+      v_fa_kpis: {
+        Row: {
+          codes_active: number | null
+          codes_exhausted: number | null
+          codes_expired: number | null
+          codes_total: number | null
+          consultations_free: number | null
+          consultations_with_code: number | null
+          today_consultations: number | null
+          total_consultations: number | null
+          unique_devices: number | null
+          unique_users: number | null
+          week_consultations: number | null
+        }
+        Relationships: []
+      }
       waouh_attendance_employees_public: {
         Row: {
           active: boolean | null
@@ -12250,6 +12406,10 @@ export type Database = {
         | { Args: { table_name: string }; Returns: string }
       enablelongtransactions: { Args: never; Returns: string }
       equals: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
+      fa_consume_quota: {
+        Args: { p_code: string; p_device_id: string; p_user_id: string }
+        Returns: Json
+      }
       fix_all_user_issues: {
         Args: never
         Returns: {
