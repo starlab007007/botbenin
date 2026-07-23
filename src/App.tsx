@@ -278,6 +278,7 @@ const AppContent = () => {
           <Route path="/admin/payment-tests" element={<AdminRoute><PaymentTestPage /></AdminRoute>} />
           <Route path="/admin/bots-control" element={<AdminRoute><AdminBotsControlPage /></AdminRoute>} />
           <Route path="/admin/apresbac" element={<AdminRoute><AdminApresBacPage /></AdminRoute>} />
+          <Route path="/admin/fa" element={<AdminRoute><AdminFaPage /></AdminRoute>} />
           <Route path="/app/apres-bac" element={<AuthRoute><ApresBacPage /></AuthRoute>} />
           <Route path="/apres-bac" element={<Navigate to="/app/apres-bac" replace />} />
                     
