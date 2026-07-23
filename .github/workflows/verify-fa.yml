@@ -21,6 +21,16 @@ jobs:
       - name: Attendre la propagation de production
         run: sleep 20
 
+      - name: Vérifier les URL canoniques FA IA
+        run: |
+          set -euo pipefail
+          for source in 'https://bot.bj/fa/' 'https://bot.bj/fa/index.html' 'https://bot.bj/fa?v=controle'
+          do
+            curl --silent --show-error --head "$source" \
+              | tr -d '\r' \
+              | grep -qi '^location: https://bot.bj/fa$'
+          done
+
       - name: Vérifier la page FA IA
         run: |
           set -euo pipefail
@@ -29,6 +39,7 @@ jobs:
             https://bot.bj/fa \
             -o /tmp/fa.html
           grep -q 'FA IA' /tmp/fa.html
+          grep -q '<base href="/fa/"' /tmp/fa.html
           grep -q './app.js' /tmp/fa.html
           grep -q './auth-bridge.js' /tmp/fa.html
           grep -q './visual-fidelity.js' /tmp/fa.html
@@ -43,6 +54,10 @@ jobs:
             styles.css \
             source-fidelity.css \
             assets-final.js \
+            assets-hero-0.js \
+            assets-chain-0.js \
+            assets-open-0.js \
+            assets-closed-0.js \
             manifest.webmanifest
           do
             curl --fail --silent --show-error --location \
@@ -54,6 +69,8 @@ jobs:
           grep -q 'crypto.getRandomValues' /tmp/app.js
           grep -q 'faAuthenticatedFetch' /tmp/auth-bridge.js
           grep -q 'randomizeConcealedFaces' /tmp/visual-fidelity.js
+          grep -q 'FA_ASSET_CHUNKS.hero' /tmp/assets-hero-0.js
+          grep -q 'FA_ASSET_CHUNKS.chain' /tmp/assets-chain-0.js
 
       - name: Vérifier les éléments V5.2
         run: |
