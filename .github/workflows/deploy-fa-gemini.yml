@@ -1,0 +1,104 @@
+name: Deploy FA Gemini Direct
+
+on:
+  push:
+    branches: [prod]
+    paths:
+      - 'supabase/functions/waouh-fa-chat/index.ts'
+      - '.github/workflows/deploy-fa-gemini.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-fa-gemini-direct
+  cancel-in-progress: true
+
+jobs:
+  deploy-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_PROJECT_REF: mvynepqulhflxtyymtzs
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: prod
+
+      - name: Vérifier les secrets requis
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ -n "${SUPABASE_ACCESS_TOKEN:-}" ] || { echo '::error::Secret GitHub SUPABASE_ACCESS_TOKEN absent'; exit 1; }
+          [ -n "${GEMINI_API_KEY:-}" ] || { echo '::error::Secret GitHub GEMINI_API_KEY absent'; exit 1; }
+          [ -n "${SUPABASE_ANON_KEY:-}" ] || { echo '::error::Secret GitHub SUPABASE_ANON_KEY absent'; exit 1; }
+
+      - name: Vérifier le fournisseur dans le code
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'gemini-2.5-flash-lite' supabase/functions/waouh-fa-chat/index.ts
+          grep -q 'generativelanguage.googleapis.com' supabase/functions/waouh-fa-chat/index.ts
+          ! grep -q 'ai.gateway.lovable.dev' supabase/functions/waouh-fa-chat/index.ts
+          ! grep -q 'LOVABLE_API_KEY' supabase/functions/waouh-fa-chat/index.ts
+
+      - name: Installer Supabase CLI
+        run: npm install --global supabase@2.109.0
+
+      - name: Synchroniser le secret Gemini dans Supabase
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase secrets set GEMINI_API_KEY="$GEMINI_API_KEY" --project-ref "$SUPABASE_PROJECT_REF"
+
+      - name: Déployer waouh-fa-chat
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase functions deploy waouh-fa-chat \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --no-verify-jwt \
+            --use-api
+
+      - name: Tester trois payloads FA IA
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint="https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/waouh-fa-chat"
+
+          test_payload() {
+            local key="$1"
+            local label="$2"
+            local file="response-${key}.json"
+            local code
+            code=$(curl -sS -o "$file" -w '%{http_code}' \
+              -X POST "$endpoint" \
+              -H "Content-Type: application/json" \
+              -H "apikey: ${SUPABASE_ANON_KEY}" \
+              --data "$(jq -nc \
+                --arg k "$key" \
+                --arg l "$label" \
+                '{action:"interpret",sign:{canonical_name:"SA - LOSSO",reference:"9-4",x:"SA",y:"LOSSO",column_a:["II","I","I","I"],column_b:["I","I","II","II"]},context:{category:"Travail et vocation",intention:"Comprendre une difficulté professionnelle",locale:"fr-BJ"},focus:{intent_key:$k,label:$l,instruction:"Analyser le signe dans le contexte de la consultation."},history:[],user_message:"Interprétation intégrale du signe SA - LOSSO à utiliser exclusivement : le signe invite à examiner les alliances, les risques cachés et les conditions d’une progression prudente. Réponds sans citer de source.",device_id:("github-diagnostic-"+$k)}')")
+
+            echo "HTTP ${code} pour ${key}"
+            cat "$file"
+            echo
+            [ "$code" = "200" ] || exit 1
+            jq -e '.answer | strings | length > 0' "$file" >/dev/null
+            jq -e '.provider == "google-gemini"' "$file" >/dev/null
+            jq -e '.model == "gemini-2.5-flash-lite"' "$file" >/dev/null
+            ! grep -qi 'lovable' "$file"
+          }
+
+          test_payload comprehensive 'Comprendre le signe en profondeur'
+          test_payload action 'Conseils et conduite à tenir'
+          test_payload summary 'Résumé essentiel'
+
+      - name: Résultat
+        run: echo '✅ waouh-fa-chat déployé et validé avec Google Gemini 2.5 Flash-Lite'
