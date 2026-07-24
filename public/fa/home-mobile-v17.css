@@ -1,0 +1,37 @@
+/* FA IA V17 — accueil mobile immersif, sans défilement */
+@media (max-width:520px){
+  html,body{overflow-x:hidden}
+  .app-shell:has(.home-screen){min-height:100dvh;overflow:hidden}
+  .app-shell:has(.home-screen) .topbar{position:relative;min-height:66px;height:66px;padding:9px 18px 8px;gap:8px}
+  .app-shell:has(.home-screen) .topbar h1{font-size:27px;line-height:1;font-weight:900;letter-spacing:-.025em}
+  .app-shell:has(.home-screen) .topbar p{margin-top:5px;font-size:13px;line-height:1;font-weight:700}
+  .home-screen{height:calc(100dvh - 66px);min-height:0;padding:12px 14px 10px!important;display:grid;grid-template-rows:minmax(0,1fr) auto;gap:11px;overflow:hidden}
+  .home-screen .hero{height:auto!important;min-height:0;border-radius:30px;background-position:center 24%!important;box-shadow:0 14px 30px rgba(44,20,8,.28)}
+  .home-screen .hero:after{background:linear-gradient(to bottom,rgba(0,0,0,.03) 0,rgba(0,0,0,.08) 36%,rgba(20,9,5,.54) 62%,rgba(20,9,5,.96) 100%)}
+  .home-screen .hero-content{left:20px;right:20px;bottom:18px}
+  .home-screen .badge{padding:6px 11px;font-size:10px;line-height:1;letter-spacing:.095em}
+  .home-screen .hero-title{margin:10px 0 13px;font-size:clamp(35px,10.3vw,42px);line-height:.99;letter-spacing:-.045em;font-weight:950;word-break:normal;hyphens:none;text-wrap:balance}
+  .home-screen .primary{min-height:58px;height:58px;border-radius:21px;font-size:18px;line-height:1;font-weight:900;box-shadow:0 8px 18px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.22)}
+  .home-screen .actions-grid{margin-top:0;gap:10px;align-items:stretch}
+  .home-screen .compact-card{min-height:112px;height:112px;border-radius:23px;padding:12px 13px;overflow:hidden;box-shadow:0 7px 18px rgba(58,31,14,.07)}
+  .home-screen .compact-card .card-icon{width:39px;height:39px;border-radius:12px;font-size:19px;flex:0 0 auto}
+  .home-screen .compact-card h3{margin:auto 0 3px;font-size:clamp(17px,5vw,20px);line-height:1.05;letter-spacing:-.025em;font-weight:900;word-break:normal;overflow-wrap:normal;hyphens:none;white-space:normal}
+  .home-screen .compact-card p{font-size:13px;line-height:1.15;font-weight:650}
+  .home-screen .hint-card{display:none!important}
+}
+@media (max-width:520px) and (max-height:760px){
+  .app-shell:has(.home-screen) .topbar{min-height:60px;height:60px;padding-top:7px;padding-bottom:6px}
+  .app-shell:has(.home-screen) .topbar h1{font-size:25px}
+  .app-shell:has(.home-screen) .topbar p{font-size:12px;margin-top:4px}
+  .home-screen{height:calc(100dvh - 60px);padding:9px 12px 8px!important;gap:8px}
+  .home-screen .hero{border-radius:27px}
+  .home-screen .hero-content{left:17px;right:17px;bottom:14px}
+  .home-screen .badge{font-size:9px;padding:5px 9px}
+  .home-screen .hero-title{font-size:clamp(31px,9.6vw,37px);margin:8px 0 10px;line-height:.98}
+  .home-screen .primary{height:53px;min-height:53px;border-radius:19px;font-size:17px}
+  .home-screen .compact-card{height:101px;min-height:101px;padding:10px 11px;border-radius:21px}
+  .home-screen .compact-card .card-icon{width:34px;height:34px;font-size:17px}
+  .home-screen .compact-card h3{font-size:16px}
+  .home-screen .compact-card p{font-size:12px}
+}
+@media (min-width:521px){.home-screen .hint-card{display:flex}}
