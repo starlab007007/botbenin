@@ -49,7 +49,7 @@ jobs:
             https://bot.bj/fa -o /tmp/fa-public/index.html
           grep -q 'FA IA' /tmp/fa-public/index.html
           grep -q '<base href="/fa/"' /tmp/fa-public/index.html
-          grep -q '20260724-corpus-v15' /tmp/fa-public/index.html
+          grep -q '20260724-corpus-v15-1' /tmp/fa-public/index.html
 
           for file in \
             app.js auth-bridge.js visual-fidelity.js styles.css source-fidelity.css \
@@ -59,7 +59,7 @@ jobs:
           do
             curl --fail --silent --show-error --location \
               --retry 8 --retry-delay 4 --retry-all-errors \
-              "https://bot.bj/fa/${file}?v=20260724-corpus-v15" \
+              "https://bot.bj/fa/${file}?v=20260724-corpus-v15-1" \
               -o "/tmp/fa-public/${file}"
           done
 
@@ -87,6 +87,7 @@ jobs:
           grep -q 'Les huit cauris se mêlent' /tmp/fa-public/app.js
           grep -q 'FA_FLUTTER_THROW' /tmp/fa-public/app.js
           grep -q 'play({ duration, finalFaces })' /tmp/fa-public/app.js
+          grep -q '<h3>Télé-consultation</h3>' /tmp/fa-public/app.js
           ! grep -q 'Colonne A' /tmp/fa-public/app.js
           ! grep -q 'Colonne B' /tmp/fa-public/app.js
 
@@ -113,7 +114,11 @@ jobs:
           grep -q 'contextualize_with_consultation: true' /tmp/fa-public/corpus-enforcement-v14.js
           grep -q 'no_source_reference_in_answer: true' /tmp/fa-public/corpus-enforcement-v14.js
           grep -q 'do_not_mention_book: true' /tmp/fa-public/corpus-enforcement-v14.js
+          grep -q 'response.status === 402' /tmp/fa-public/corpus-enforcement-v14.js
           grep -q '2026-07-24-corpus-presentation-v15' /tmp/fa-public/corpus-loader-v14.js
+          grep -q 'max_words: 320' /tmp/fa-public/app.js
+          grep -q 'fallback(message, history)' /tmp/fa-public/app.js
+          ! grep -q 'Les forces disponibles sont ${x.light}' /tmp/fa-public/app.js
 
       - name: Vérifier les assets réels
         run: |
@@ -162,7 +167,7 @@ jobs:
             "workflow_run": "${SOURCE_RUN}",
             "validated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "url": "https://bot.bj/fa",
-            "version": "corpus-v15"
+            "version": "corpus-v15-1"
           }
           JSON
           git config user.name "github-actions[bot]"
@@ -173,4 +178,4 @@ jobs:
           git push --force origin HEAD:fa-production-verified
 
       - name: Résultat
-        run: echo '✅ FA IA V5.2 — corpus V15, interprétation intégrale et analyses contextualisées validés.'
+        run: echo '✅ FA IA V5.2 — corpus V15.1, interprétation intégrale nettoyée et analyses contextualisées validés.'
