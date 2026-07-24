@@ -1,5 +1,5 @@
 // FA IA chat — quota + codes d’accès + journalisation.
-// Appel direct à l’API Google Gemini 2.5 Flash-Lite, sans passerelle Lovable.
+// Appel direct à l’API officielle Google Gemini, sans passerelle Lovable.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 
@@ -7,20 +7,18 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-fa-device, x-fa-code",
 };
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8" },
-  });
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+  status,
+  headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8" },
+});
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_API_KEY") || "";
-const GEMINI_MODEL = "gemini-2.5-flash-lite";
-const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite";
 
-function buildSystemPrompt(payload: any): string {
-  const { sign, context, focus, constraints } = payload || {};
+function buildSystemPrompt(payload: any, maxWords: number): string {
+  const { sign, context, focus } = payload || {};
   return [
     "Tu es FA IA, un assistant numérique expert en interprétation contextuelle du Fâ en français clair.",
     "Utilise exclusivement l’interprétation intégrale du signe transmise dans le message utilisateur comme fondement de l’analyse.",
@@ -33,7 +31,7 @@ function buildSystemPrompt(payload: any): string {
     `Signe : ${sign?.canonical_name ?? "?"} (référence technique ${sign?.reference ?? "?"}).`,
     `Contexte : catégorie « ${context?.category ?? "?"} », intention « ${context?.intention ?? "?"} », locale ${context?.locale ?? "fr-BJ"}.`,
     `Angle demandé : ${focus?.label ?? "Comprendre le signe"}. ${focus?.instruction ?? ""}`,
-    `Longueur maximale : ${Math.min(Number(constraints?.max_words) || 260, 400)} mots.`,
+    `Longueur maximale : ${maxWords} mots.`,
     "Structure la réponse en paragraphes courts avec des sous-titres utiles, sans longue introduction.",
   ].join("\n");
 }
@@ -65,8 +63,7 @@ serve(async (req) => {
     const userMessage = String(body?.user_message || "").slice(0, 16000).trim();
     if (!userMessage) return json({ error: "user_message requis" }, 400);
 
-    const deviceId = String(body?.device_id || req.headers.get("x-fa-device") || "")
-      .slice(0, 128) || `anon-${crypto.randomUUID()}`;
+    const deviceId = String(body?.device_id || req.headers.get("x-fa-device") || "").slice(0, 128) || `anon-${crypto.randomUUID()}`;
     const rawCode = String(body?.access_code || req.headers.get("x-fa-code") || "").replace(/\D/g, "");
     const accessCode = rawCode.length === 6 ? rawCode : null;
 
@@ -80,11 +77,12 @@ serve(async (req) => {
       } catch (_) { /* utilisateur anonyme */ }
     }
 
-    const { data: quotaRes, error: quotaErr } = await admin.rpc("fa_consume_quota", {
-      p_device_id: deviceId,
-      p_user_id: userId,
-      p_code: accessCode,
-    });
+    const [{ data: settings }, quotaResult] = await Promise.all([
+      admin.from("fa_settings").select("free_daily_limit,code_uses,gemini_model,max_output_words").eq("id", 1).maybeSingle(),
+      admin.rpc("fa_consume_quota", { p_device_id: deviceId, p_user_id: userId, p_code: accessCode }),
+    ]);
+
+    const { data: quotaRes, error: quotaErr } = quotaResult;
     if (quotaErr) {
       console.error("fa_consume_quota error", quotaErr);
       return json({ error: "quota_check_failed", detail: quotaErr.message }, 500);
@@ -92,12 +90,13 @@ serve(async (req) => {
 
     const quota = quotaRes as any;
     if (!quota?.allowed) {
+      const codeMax = Number(quota?.max_uses || settings?.code_uses || 3);
       const reasonMap: Record<string, string> = {
-        code_invalid: "Ce code est introuvable. Vérifiez auprès de l’administrateur.",
-        code_inactive: "Ce code a été désactivé. Demandez un nouveau code.",
-        code_expired: "Ce code a expiré. Demandez un nouveau code.",
-        code_exhausted: "Ce code a déjà été utilisé 3 fois. Demandez un nouveau code auprès de l’administrateur.",
-        daily_quota_exceeded: "Vous avez déjà consulté aujourd’hui. Entrez un code d’accès pour continuer ou revenez demain.",
+        code_invalid: "Ce code est introuvable. Vérifiez-le ou demandez un nouveau code à l’administrateur.",
+        code_inactive: "Ce code a été désactivé. Demandez un nouveau code à l’administrateur.",
+        code_expired: "Ce code a expiré. Demandez son renouvellement à l’administrateur.",
+        code_exhausted: `Ce code a déjà été utilisé ${codeMax} fois. Demandez un nouveau code pour continuer.`,
+        daily_quota_exceeded: "Vous avez atteint votre consultation gratuite du jour. Revenez demain ou saisissez un code d’accès pour continuer.",
       };
       return json({
         error: "quota_exceeded",
@@ -109,59 +108,70 @@ serve(async (req) => {
 
     if (!GEMINI_API_KEY) {
       console.error("Secret Gemini absent : GEMINI_API_KEY ou GOOGLE_API_KEY");
-      return json({
-        error: "gemini_key_missing",
-        message: "La clé serveur Gemini n’est pas configurée.",
-      }, 500);
+      return json({ error: "gemini_key_missing", message: "La clé serveur Gemini n’est pas configurée." }, 500);
     }
 
-    const maxWords = Math.min(Math.max(Number(body?.constraints?.max_words) || 260, 60), 400);
-    const geminiResponse = await fetch(GEMINI_ENDPOINT, {
+    const model = Deno.env.get("GEMINI_MODEL") || settings?.gemini_model || DEFAULT_GEMINI_MODEL;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+    const configuredMaxWords = Number(settings?.max_output_words || 300);
+    const requestedMaxWords = Number(body?.constraints?.max_words || configuredMaxWords);
+    const maxWords = Math.min(Math.max(requestedMaxWords, 60), configuredMaxWords, 800);
+
+    const geminiResponse = await fetch(endpoint, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": GEMINI_API_KEY,
-      },
+      headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: buildSystemPrompt(body) }] },
+        systemInstruction: { parts: [{ text: buildSystemPrompt(body, maxWords) }] },
         contents: toGeminiContents(body?.history, userMessage),
         generationConfig: {
           temperature: 0.55,
           topP: 0.9,
-          maxOutputTokens: Math.min(Math.max(maxWords * 3, 320), 1600),
+          maxOutputTokens: Math.min(Math.max(maxWords * 3, 320), 2400),
         },
       }),
     });
 
     const rawGemini = await geminiResponse.text();
-    if (geminiResponse.status === 429) {
-      return json({ error: "rate_limited", message: "Trop de requêtes Gemini. Réessayez dans un instant." }, 429);
-    }
     if (!geminiResponse.ok) {
+      const status = geminiResponse.status === 429 ? 429 : 502;
+      const errorCode = geminiResponse.status === 429 ? "rate_limited" : "gemini_error";
+      const message = geminiResponse.status === 429
+        ? "Le quota Gemini est momentanément atteint. Revenez après quelques instants."
+        : "Gemini n’a pas pu générer la réponse.";
       console.error("Gemini API error", geminiResponse.status, rawGemini.slice(0, 1000));
-      return json({
-        error: "gemini_error",
-        message: "Gemini n’a pas pu générer la réponse.",
-        detail: rawGemini.slice(0, 1000),
-      }, 502);
+      await admin.from("fa_consultations").insert({
+        code_id: quota?.code_id || null,
+        code_value: quota?.code_value || null,
+        code_use_number: quota?.uses_count || null,
+        quota_via: quota?.via || null,
+        device_id: deviceId,
+        user_id: userId,
+        sign_ref: body?.sign?.reference ?? null,
+        sign_name: body?.sign?.canonical_name ?? null,
+        category: body?.context?.category ?? null,
+        intention: body?.context?.intention ?? null,
+        question: userMessage,
+        focus_key: body?.focus?.intent_key ?? null,
+        provider: "google-gemini-direct",
+        model,
+        status: "error",
+        error: `${geminiResponse.status}: ${rawGemini.slice(0, 1000)}`,
+      });
+      return json({ error: errorCode, message, detail: rawGemini.slice(0, 1000), model }, status);
     }
 
     let geminiJson: any;
     try { geminiJson = JSON.parse(rawGemini); }
-    catch {
-      console.error("Gemini réponse non JSON", rawGemini.slice(0, 1000));
-      return json({ error: "gemini_invalid_response" }, 502);
-    }
+    catch { return json({ error: "gemini_invalid_response", model }, 502); }
 
     const answer = extractGeminiText(geminiJson);
-    if (!answer) {
-      console.error("Gemini empty answer", JSON.stringify(geminiJson).slice(0, 1500));
-      return json({ error: "empty_answer", finish_reason: geminiJson?.candidates?.[0]?.finishReason }, 502);
-    }
+    if (!answer) return json({ error: "empty_answer", finish_reason: geminiJson?.candidates?.[0]?.finishReason, model }, 502);
 
     await admin.from("fa_consultations").insert({
       code_id: quota?.code_id || null,
       code_value: quota?.code_value || null,
+      code_use_number: quota?.uses_count || null,
+      quota_via: quota?.via || null,
       device_id: deviceId,
       user_id: userId,
       sign_ref: body?.sign?.reference ?? null,
@@ -173,6 +183,8 @@ serve(async (req) => {
       focus_key: body?.focus?.intent_key ?? null,
       ip_address: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
       user_agent: req.headers.get("user-agent") || null,
+      provider: "google-gemini-direct",
+      model,
       status: "ok",
       tokens_in: geminiJson?.usageMetadata?.promptTokenCount ?? null,
       tokens_out: geminiJson?.usageMetadata?.candidatesTokenCount ?? null,
@@ -181,12 +193,14 @@ serve(async (req) => {
     return json({
       answer,
       provider: "google-gemini-direct",
-      model: GEMINI_MODEL,
+      model,
+      usage: geminiJson?.usageMetadata || null,
       quota: {
         via: quota.via,
         remaining: quota.remaining ?? null,
         code_uses: quota.uses_count ?? null,
         code_max: quota.max_uses ?? null,
+        renew_required: Boolean(quota.renew_required),
       },
     });
   } catch (error) {
