@@ -22,6 +22,9 @@
     .replace(/Interprétation intégrale\s+du\s+livre/gi, 'Interprétation intégrale')
     .replace(/Texte correspondant à l[’']entrée[^\n.!?…]*(?:[.!?…]+|$)/gi, '')
     .replace(/^\s*(?:Référence documentaire|Référence du document|Source documentaire|Source|Page PDF|Entrée n[°o])\s*:.*$/gmi, '')
+    .replace(/\b(?:selon|d[’']après|dans)\s+(?:le|ce)\s+livre\b\s*[:,]?\s*/gi, '')
+    .replace(/\b(?:le|ce)\s+livre\s+(?:indique|mentionne|précise|explique|dit)\s+(?:que\s+)?/gi, '')
+    .replace(/\b(?:tiré|tirée|issu|issue)\s+du\s+livre\b/gi, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 
@@ -204,6 +207,7 @@
 
     try {
       const response = await previousFetch(url, { ...options, body: JSON.stringify(enriched) });
+      if (response.status === 402) return response;
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.clone().json();
       if (!data?.answer) throw new Error('Réponse vide');
