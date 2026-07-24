@@ -51,10 +51,42 @@ jobs:
             RELEASE_DIR="/tmp/botbenin-release-${DEPLOY_SHA}"
             APP_DIR="/home/debian/botbenin"
 
+            echo "🧹 Nettoyage préventif de l’espace disque..."
+            df -h / /tmp || true
+
+            # Supprimer les archives et répertoires temporaires laissés par les anciens déploiements.
+            find /tmp -maxdepth 1 -type f -name 'botbenin-*.tar.gz' -delete 2>/dev/null || true
+            find /tmp -maxdepth 1 -type d -name 'botbenin-release-*' -exec rm -rf {} + 2>/dev/null || true
+
+            # Libérer les caches Docker inutilisés sans interrompre les conteneurs actifs.
+            docker container prune -f >/dev/null 2>&1 || true
+            docker builder prune -af >/dev/null 2>&1 || true
+            docker image prune -af >/dev/null 2>&1 || true
+
+            # Purger les fichiers temporaires anciens et les journaux systemd archivés.
+            find /tmp -mindepth 1 -maxdepth 1 -type f -mtime +2 -delete 2>/dev/null || true
+            journalctl --vacuum-time=7d >/dev/null 2>&1 || true
+
+            AVAILABLE_KB=$(df -Pk /tmp | awk 'NR==2 {print $4}')
+            MIN_REQUIRED_KB=524288
+            if [ "${AVAILABLE_KB:-0}" -lt "$MIN_REQUIRED_KB" ]; then
+              echo "❌ Espace disque insuffisant dans /tmp après nettoyage. Minimum requis : 512 Mo."
+              df -h / /tmp || true
+              docker system df || true
+              exit 1
+            fi
+
+            echo "✅ Espace disponible après nettoyage : $((AVAILABLE_KB / 1024)) Mo"
             echo "📥 Téléchargement authentifié du commit ${DEPLOY_SHA}..."
             rm -rf "$RELEASE_DIR"
             rm -f "$RELEASE_ARCHIVE"
             mkdir -p "$RELEASE_DIR" "$APP_DIR"
+
+            cleanup_release() {
+              rm -rf "$RELEASE_DIR" 2>/dev/null || true
+              rm -f "$RELEASE_ARCHIVE" 2>/dev/null || true
+            }
+            trap cleanup_release EXIT INT TERM
 
             DOWNLOAD_OK=0
             for ATTEMPT in 1 2 3; do
@@ -102,8 +134,8 @@ jobs:
             fi
 
             cd "$APP_DIR"
-            rm -rf "$RELEASE_DIR"
-            rm -f "$RELEASE_ARCHIVE"
+            cleanup_release
+            trap - EXIT INT TERM
 
             echo "🔨 Construction Docker..."
             docker compose build --pull
