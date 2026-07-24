@@ -1,4 +1,4 @@
-name: Verify FA Corpus V14
+name: Verify FA Corpus V15
 
 on:
   push:
@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: verify-fa-corpus-v14
+  group: verify-fa-corpus-v15
   cancel-in-progress: true
 
 jobs:
@@ -41,7 +41,7 @@ jobs:
           node --check public/fa/corpus-pack-init-v14.js
           for file in public/fa/corpus-pack-{0..4}-v14.js; do node --check "$file"; done
 
-      - name: Vérifier les 256 clés et les 237 interprétations documentées
+      - name: Vérifier le corpus et les règles de réponse
         run: node scripts/verify-fa-corpus-v14.mjs
 
       - name: Vérifier l’activation dans la page FA IA
@@ -50,7 +50,7 @@ jobs:
           grep -q 'corpus-pack-init-v14.js' public/fa/index.html
           grep -q 'corpus-loader-v14.js' public/fa/index.html
           grep -q 'corpus-enforcement-v14.js' public/fa/index.html
-          grep -q '20260723-corpus-v14' public/fa/index.html
+          grep -q '20260724-corpus-v15' public/fa/index.html
 
       - name: Résultat
-        run: echo '✅ Corpus FA V14 validé — 237 interprétations exactes et 19 signes explicitement signalés.'
+        run: echo '✅ Corpus FA V15 validé — interprétation intégrale sans références et analyses IA contextualisées.'
