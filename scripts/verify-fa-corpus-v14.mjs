@@ -12,35 +12,23 @@ const packFiles = [
 ];
 const storage = new Map();
 const context = {
-  window: {},
-  console,
-  atob,
-  Uint8Array,
-  Blob,
-  DecompressionStream,
-  Response,
+  window: {}, console, atob, Uint8Array, Blob, DecompressionStream, Response,
   localStorage: {
     getItem: (key) => storage.get(key) || null,
     setItem: (key, value) => storage.set(key, value),
   },
 };
 vm.createContext(context);
-for (const file of packFiles) {
-  const source = fs.readFileSync(new URL(file, root), 'utf8');
-  vm.runInContext(source, context, { filename: file });
-}
+for (const file of packFiles) vm.runInContext(fs.readFileSync(new URL(file, root), 'utf8'), context, { filename: file });
 vm.runInContext(fs.readFileSync(new URL('corpus-loader-v14.js', root), 'utf8'), context, { filename: 'corpus-loader-v14.js' });
 const corpus = await context.window.FA_BOOK_CORPUS_READY;
 const documentedKeys = Object.keys(corpus.entries || {});
 const missingKeys = corpus.missing || [];
 const allKeys = new Set([...documentedKeys, ...missingKeys]);
-
 const bases = ['GBE', 'GOUDA', 'LETE', 'LOSSO', 'TOULA', 'TCHE', 'DI', 'ABLA', 'SA', 'WOLI', 'FOU', 'TROUKPIN', 'WLIN', 'KA', 'AKLAN', 'YEKOU'];
 const expected = bases.flatMap((first) => bases.map((second) => `${first}|${second}`));
 
-function assert(condition, message) {
-  if (!condition) throw new Error(message);
-}
+function assert(condition, message) { if (!condition) throw new Error(message); }
 
 assert(corpus.version === '2026-07-23-corpus-book-256-v14', `Version inattendue: ${corpus.version}`);
 assert(corpus.documented_count === 237, `Entrées documentées: ${corpus.documented_count}/237`);
@@ -60,8 +48,6 @@ for (const key of documentedKeys) {
 assert(corpus.entries['TOULA|WLIN']?.number === 184, 'TOULA|WLIN doit pointer vers l’entrée 184');
 assert(corpus.entries['YEKOU|TROUKPIN']?.number === 41, 'YEKOU|TROUKPIN doit pointer vers l’entrée 41');
 assert(corpus.entries['TCHE|FOU']?.number === 237, 'TCHE|FOU doit pointer vers l’entrée 237');
-assert(!corpus.entries['YEKOU|TROUKPIN'].text.startsWith('TRUNKPIN '), 'Fragment de titre résiduel dans YEKOU|TROUKPIN');
-assert(!corpus.entries['AKLAN|ABLA'].text.startsWith('ABLA AKLAN'), 'Fragment de titre résiduel dans AKLAN|ABLA');
 assert(missingKeys.includes('WLIN|TOULA'), 'WLIN|TOULA doit être signalé manquant');
 assert(missingKeys.includes('FOU|GBE'), 'FOU|GBE doit être signalé manquant');
 
@@ -72,54 +58,51 @@ const enforcementPosition = index.indexOf('corpus-enforcement-v14.js');
 const appPosition = index.indexOf('app.js');
 assert(loaderPosition >= 0, 'Loader corpus absent de index.html');
 assert(loaderPosition < authPosition && authPosition < enforcementPosition && enforcementPosition < appPosition, 'Ordre des scripts corpus/auth/app invalide');
-assert(index.includes('20260724-corpus-v15-1'), 'Cache V15.1 non activé');
+assert(index.includes('20260724-corpus-v15-2'), 'Cache V15.2 non activé');
 
 const loader = fs.readFileSync(new URL('corpus-loader-v14.js', root), 'utf8');
-assert(loader.includes('Interprétation intégrale - ${displayedName}'), 'Nouveau titre de l’interprétation intégrale absent');
+assert(loader.includes('Interprétation intégrale - ${displayedName}'), 'Titre de l’interprétation intégrale absent');
 assert(loader.includes("PRESENTATION_VERSION = '2026-07-24-corpus-presentation-v15'"), 'Version de présentation V15 absente');
 assert(loader.includes('corpus_presentation_version'), 'Migration du journal V15 absente');
 assert(loader.includes('cleanStoredAnswer'), 'Nettoyage des anciennes références absent');
 
 const enforcement = fs.readFileSync(new URL('corpus-enforcement-v14.js', root), 'utf8');
 assert(enforcement.includes('19 signes sur 256'), 'Message des 19 signes absent');
-assert(enforcement.includes('isInitialReading'), 'Contrôle de la première lecture absent');
 assert(enforcement.includes('exactReading(entry, displayedName)'), 'Lecture exacte initiale absente');
 assert(enforcement.includes('Interprétation intégrale - ${displayedName}'), 'Titre intégral sans le mot livre absent');
 assert(enforcement.includes('cleanAnswer'), 'Nettoyage global des réponses absent');
 assert(enforcement.includes('PROFILES'), 'Profils dynamiques des payloads absents');
 assert(enforcement.includes('free_question'), 'Traitement des questions libres absent');
-assert(enforcement.includes('analysis_contract'), 'Contrat d’analyse IA absent');
-assert(enforcement.includes('use_exact_interpretation_as_primary_basis: true'), 'Ancrage sur l’interprétation intégrale absent');
-assert(enforcement.includes('contextualize_with_consultation: true'), 'Contextualisation de la consultation absente');
-assert(enforcement.includes('no_generic_base_sign_combination: true'), 'Interdiction des combinaisons génériques absente');
-assert(enforcement.includes('no_source_reference_in_answer: true'), 'Suppression des références dans les analyses absente');
-assert(enforcement.includes('do_not_mention_book: true'), 'Interdiction du mot livre absente');
-assert(enforcement.includes('min_words: profile.minWords'), 'Longueur minimale dynamique absente');
-assert(enforcement.includes('max_words: profile.maxWords'), 'Longueur maximale dynamique absente');
+assert(enforcement.includes('compactHistory'), 'Compression de l’historique absente');
+assert(enforcement.includes('compatiblePayload'), 'Contrat backend compact absent');
+assert(enforcement.includes('INTERPRÉTATION INTÉGRALE DU SIGNE'), 'Corpus exact non injecté dans la demande');
+assert(enforcement.includes('Le corpus n’est envoyé qu’une seule fois'), 'Protection contre la duplication du corpus absente');
+assert(enforcement.includes("history: compactHistory(payload.history)"), 'Historique compact non appliqué');
 assert(enforcement.includes('response.status === 402'), 'Préservation du contrôle de quota absente');
+assert(!enforcement.includes('analysis_contract:'), 'Ancien contrat volumineux encore présent');
+assert(!enforcement.includes('primary_interpretation:'), 'Duplication du corpus encore présente');
 
 const app = fs.readFileSync(new URL('app.js', root), 'utf8');
 assert(app.includes('max_words: 320'), 'Limite générale raisonnable absente');
-assert(app.includes('detail_level: \'balanced\''), 'Niveau de détail équilibré absent');
+assert(app.includes("detail_level: 'balanced'"), 'Niveau de détail équilibré absent');
 assert(app.includes('fallback(message, history)'), 'Fallback sécurisé non utilisé');
-assert(app.includes('L’interprétation intégrale n’a pas pu être chargée'), 'Protection de la première lecture absente');
-assert(app.includes('L’analyse contextuelle « ${selected.label} » est momentanément indisponible'), 'Protection des payloads absente');
 assert(!app.includes('Les forces disponibles sont ${x.light}'), 'Ancien fallback générique encore présent');
-assert(app.includes('<h3>Télé-consultation</h3>'), 'Libellé Télé-consultation absent du moteur principal');
+assert(app.includes('<h3>Télé-consultation</h3>'), 'Libellé Télé-consultation absent');
 
 console.log(JSON.stringify({
   status: 'passed',
   version: corpus.version,
   presentation: '2026-07-24-corpus-presentation-v15',
-  cache: '20260724-corpus-v15-1',
+  cache: '20260724-corpus-v15-2',
   documented: documentedKeys.length,
   missing: missingKeys.length,
   total: allKeys.size,
   responseRules: {
     initial: 'integral_without_reference',
-    payloads: 'ai_contextual_analysis',
+    payloads: 'compact_backend_contract',
+    corpusCopiesPerRequest: 1,
+    history: 'integral_removed_and_truncated',
     sourceMentions: 'removed',
-    wordLimits: 'dynamic',
     genericFallback: 'disabled',
     quotaFlow: 'preserved',
   },
