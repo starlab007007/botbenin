@@ -117,14 +117,65 @@ serve(async (req) => {
       const maxUses = Math.min(Math.max(Number(body?.max_uses) || 3, 1), 100);
       const expiresAt = body?.expires_at || null;
       const notes = String(body?.notes || "").slice(0, 500) || null;
-      const { data, error } = await admin.rpc("fa_generate_codes", {
-        p_count: count,
-        p_max_uses: maxUses,
-        p_expires_at: expiresAt,
-        p_notes: notes,
+
+      const generated: any[] = [];
+      let attempts = 0;
+      const maxAttempts = count * 20;
+
+      while (generated.length < count && attempts < maxAttempts) {
+        attempts += 1;
+
+        const code = String(
+          crypto.getRandomValues(new Uint32Array(1))[0] % 1000000
+        ).padStart(6, "0");
+
+        const { data, error } = await admin
+          .from("fa_access_codes")
+          .insert({
+            code,
+            max_uses: maxUses,
+            uses_count: 0,
+            active: true,
+            expires_at: expiresAt,
+            notes,
+            created_by: user.id,
+          })
+          .select("*")
+          .single();
+
+        if (!error && data) {
+          generated.push(data);
+          continue;
+        }
+
+        // Le code existe déjà : générer automatiquement un autre code.
+        if (error?.code === "23505") {
+          continue;
+        }
+
+        console.error("fa_access_codes insert error", error);
+        return json({
+          error: "generate_failed",
+          message: "La génération des codes a échoué.",
+          detail: error?.message || "Erreur inconnue",
+          code: error?.code || null,
+        }, 400);
+      }
+
+      if (generated.length !== count) {
+        return json({
+          error: "generation_incomplete",
+          message: "Tous les codes demandés n’ont pas pu être générés.",
+          generated_count: generated.length,
+          requested_count: count,
+        }, 500);
+      }
+
+      return json({
+        generated,
+        count: generated.length,
+        message: `${generated.length} code(s) généré(s).`,
       });
-      if (error) return json({ error: "generate_failed", detail: error.message }, 400);
-      return json({ generated: data || [], count: data?.length || 0 });
     }
 
     if (action === "reset_code") {

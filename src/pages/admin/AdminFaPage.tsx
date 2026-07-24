@@ -123,8 +123,44 @@ export default function AdminFaPage() {
 
   const invokeAdmin = async (body: Record<string, unknown>) => {
     const { data, error } = await supabase.functions.invoke('fa-admin', { body });
-    if (error) throw new Error(error.message || 'Erreur fa-admin');
-    if (data?.error) throw new Error(data.message || data.detail || data.error);
+
+    if (error) {
+      let detail = error.message || 'Erreur fa-admin';
+
+      try {
+        const context = (error as any)?.context;
+
+        if (context instanceof Response) {
+          const raw = await context.clone().text();
+
+          try {
+            const parsed = JSON.parse(raw);
+            detail =
+              parsed?.message ||
+              parsed?.detail ||
+              parsed?.error ||
+              raw ||
+              detail;
+          } catch {
+            detail = raw || detail;
+          }
+        }
+      } catch {
+        // Conserver le message initial
+      }
+
+      throw new Error(detail);
+    }
+
+    if (data?.error) {
+      throw new Error(
+        data.message ||
+        data.detail ||
+        data.error ||
+        'Erreur fa-admin'
+      );
+    }
+
     return data;
   };
 
