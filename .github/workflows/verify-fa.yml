@@ -43,63 +43,85 @@ jobs:
       - name: Télécharger la version publique
         run: |
           set -euo pipefail
+          mkdir -p /tmp/fa-public
           curl --fail --silent --show-error --location \
             --retry 12 --retry-delay 5 --retry-all-errors \
-            https://bot.bj/fa -o /tmp/fa.html
-          grep -q 'FA IA' /tmp/fa.html
-          grep -q '<base href="/fa/"' /tmp/fa.html
-          grep -q 'flutter-fidelity-v10' /tmp/fa.html
+            https://bot.bj/fa -o /tmp/fa-public/index.html
+          grep -q 'FA IA' /tmp/fa-public/index.html
+          grep -q '<base href="/fa/"' /tmp/fa-public/index.html
+          grep -q '20260724-corpus-v15' /tmp/fa-public/index.html
 
-          for file in app.js auth-bridge.js visual-fidelity.js styles.css source-fidelity.css assets-final.js assets-open-0.js assets-closed-0.js fa-real-assets.js manifest.webmanifest
+          for file in \
+            app.js auth-bridge.js visual-fidelity.js styles.css source-fidelity.css \
+            assets-final.js assets-open-0.js assets-closed-0.js fa-real-assets.js manifest.webmanifest \
+            corpus-loader-v14.js corpus-enforcement-v14.js corpus-pack-init-v14.js \
+            corpus-pack-0-v14.js corpus-pack-1-v14.js corpus-pack-2-v14.js corpus-pack-3-v14.js corpus-pack-4-v14.js
           do
             curl --fail --silent --show-error --location \
               --retry 8 --retry-delay 4 --retry-all-errors \
-              "https://bot.bj/fa/${file}?v=20260723-flutter-fidelity-v10" \
-              -o "/tmp/${file//\//_}"
+              "https://bot.bj/fa/${file}?v=20260724-corpus-v15" \
+              -o "/tmp/fa-public/${file}"
           done
 
       - name: Vérifier la syntaxe JavaScript
         run: |
           set -euo pipefail
-          node --check /tmp/app.js
-          node --check /tmp/auth-bridge.js
-          node --check /tmp/visual-fidelity.js
+          node --check /tmp/fa-public/app.js
+          node --check /tmp/fa-public/auth-bridge.js
+          node --check /tmp/fa-public/visual-fidelity.js
+          node --check /tmp/fa-public/corpus-loader-v14.js
+          node --check /tmp/fa-public/corpus-enforcement-v14.js
+          node --check /tmp/fa-public/corpus-pack-init-v14.js
+          for file in /tmp/fa-public/corpus-pack-{0..4}-v14.js; do node --check "$file"; done
 
       - name: Vérifier le parcours V5.2
         run: |
           set -euo pipefail
-          grep -q 'Destinée et orientation' /tmp/app.js
-          grep -q 'Projet communautaire' /tmp/app.js
-          grep -q 'Comprendre le signe en profondeur' /tmp/app.js
-          grep -q 'Résumé essentiel' /tmp/app.js
-          grep -q 'fa_ia_journal_v5_2' /tmp/app.js
-          grep -Eq '6500[[:space:]]*\+[[:space:]]*rnd\(3001\)' /tmp/app.js
-          grep -q 'data-face-index' /tmp/app.js
-          grep -q 'Les huit cauris se mêlent' /tmp/app.js
-          grep -q 'FA_FLUTTER_THROW' /tmp/app.js
-          grep -q 'play({ duration, finalFaces })' /tmp/app.js
-          ! grep -q 'Colonne A' /tmp/app.js
-          ! grep -q 'Colonne B' /tmp/app.js
+          grep -q 'Destinée et orientation' /tmp/fa-public/app.js
+          grep -q 'Projet communautaire' /tmp/fa-public/app.js
+          grep -q 'Comprendre le signe en profondeur' /tmp/fa-public/app.js
+          grep -q 'Résumé essentiel' /tmp/fa-public/app.js
+          grep -q 'fa_ia_journal_v5_2' /tmp/fa-public/app.js
+          grep -Eq '6500[[:space:]]*\+[[:space:]]*rnd\(3001\)' /tmp/fa-public/app.js
+          grep -q 'data-face-index' /tmp/fa-public/app.js
+          grep -q 'Les huit cauris se mêlent' /tmp/fa-public/app.js
+          grep -q 'FA_FLUTTER_THROW' /tmp/fa-public/app.js
+          grep -q 'play({ duration, finalFaces })' /tmp/fa-public/app.js
+          ! grep -q 'Colonne A' /tmp/fa-public/app.js
+          ! grep -q 'Colonne B' /tmp/fa-public/app.js
 
       - name: Vérifier l’animation Flutter
         run: |
           set -euo pipefail
-          grep -q 'window.FA_FLUTTER_THROW' /tmp/visual-fidelity.js
-          grep -q 'crypto.getRandomValues' /tmp/visual-fidelity.js
-          grep -q 'translate3d' /tmp/visual-fidelity.js
-          grep -q 'effectiveDuration \* 0.92' /tmp/visual-fidelity.js
-          grep -q 'settle78' /tmp/visual-fidelity.js
-          grep -q 'settle88' /tmp/visual-fidelity.js
-          grep -q 'background:transparent!important' /tmp/source-fidelity.css
-          grep -q 'fa-flutter-throw' /tmp/source-fidelity.css
+          grep -q 'window.FA_FLUTTER_THROW' /tmp/fa-public/visual-fidelity.js
+          grep -q 'crypto.getRandomValues' /tmp/fa-public/visual-fidelity.js
+          grep -q 'translate3d' /tmp/fa-public/visual-fidelity.js
+          grep -q 'effectiveDuration \* 0.92' /tmp/fa-public/visual-fidelity.js
+          grep -q 'settle78' /tmp/fa-public/visual-fidelity.js
+          grep -q 'settle88' /tmp/fa-public/visual-fidelity.js
+          grep -q 'background:transparent!important' /tmp/fa-public/source-fidelity.css
+          grep -q 'fa-flutter-throw' /tmp/fa-public/source-fidelity.css
+
+      - name: Vérifier le corpus et les analyses IA
+        run: |
+          set -euo pipefail
+          grep -q 'Interprétation intégrale - ${displayedName}' /tmp/fa-public/corpus-enforcement-v14.js
+          grep -q 'cleanAnswer' /tmp/fa-public/corpus-enforcement-v14.js
+          grep -q 'PROFILES' /tmp/fa-public/corpus-enforcement-v14.js
+          grep -q 'analysis_contract' /tmp/fa-public/corpus-enforcement-v14.js
+          grep -q 'use_exact_interpretation_as_primary_basis: true' /tmp/fa-public/corpus-enforcement-v14.js
+          grep -q 'contextualize_with_consultation: true' /tmp/fa-public/corpus-enforcement-v14.js
+          grep -q 'no_source_reference_in_answer: true' /tmp/fa-public/corpus-enforcement-v14.js
+          grep -q 'do_not_mention_book: true' /tmp/fa-public/corpus-enforcement-v14.js
+          grep -q '2026-07-24-corpus-presentation-v15' /tmp/fa-public/corpus-loader-v14.js
 
       - name: Vérifier les assets réels
         run: |
           set -euo pipefail
-          grep -q 'cowrie_open_real' /tmp/assets-final.js
-          grep -q 'cowrie_closed_real' /tmp/assets-final.js
-          grep -q 'cowrie_open_real' /tmp/fa-real-assets.js
-          grep -q 'cowrie_closed_real' /tmp/fa-real-assets.js
+          grep -q 'cowrie_open_real' /tmp/fa-public/assets-final.js
+          grep -q 'cowrie_closed_real' /tmp/fa-public/assets-final.js
+          grep -q 'cowrie_open_real' /tmp/fa-public/fa-real-assets.js
+          grep -q 'cowrie_closed_real' /tmp/fa-public/fa-real-assets.js
 
       - name: Tester dix configurations de signes
         run: |
@@ -140,7 +162,7 @@ jobs:
             "workflow_run": "${SOURCE_RUN}",
             "validated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "url": "https://bot.bj/fa",
-            "version": "flutter-fidelity-v10"
+            "version": "corpus-v15"
           }
           JSON
           git config user.name "github-actions[bot]"
@@ -151,4 +173,4 @@ jobs:
           git push --force origin HEAD:fa-production-verified
 
       - name: Résultat
-        run: echo '✅ FA IA Flutter V5.2 est disponible et AprèsBac IA reste opérationnel.'
+        run: echo '✅ FA IA V5.2 — corpus V15, interprétation intégrale et analyses contextualisées validés.'
