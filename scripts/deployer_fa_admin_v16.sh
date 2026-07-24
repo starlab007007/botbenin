@@ -61,22 +61,35 @@ path = Path(sys.argv[1])
 lines = path.read_text(encoding="utf-8").splitlines()
 out = []
 section = ""
+skip_section = False
 
 for line in lines:
     stripped = line.strip()
 
-    if stripped == "[inbucket]":
-        section = "local_smtp"
-        out.append("[local_smtp]")
-        continue
-
-    if stripped == "[edge-runtime]":
-        section = "edge_runtime"
-        out.append("[edge_runtime]")
-        continue
-
     if stripped.startswith("[") and stripped.endswith("]"):
-        section = stripped[1:-1]
+        section_name = stripped[1:-1]
+
+        # Les anciennes sections edge-runtime / edge_runtime ne sont pas
+        # nécessaires pour db push ou functions deploy et sont incompatibles
+        # avec certaines versions récentes du CLI.
+        if section_name in {"edge-runtime", "edge_runtime"}:
+            section = section_name
+            skip_section = True
+            continue
+
+        skip_section = False
+        section = section_name
+
+        if section_name == "inbucket":
+            section = "local_smtp"
+            out.append("[local_smtp]")
+            continue
+
+        out.append(line)
+        continue
+
+    if skip_section:
+        continue
 
     if section == "local_smtp" and re.match(r"^\s*api_port\s*=", line):
         continue
