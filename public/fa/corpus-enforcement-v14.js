@@ -34,83 +34,37 @@
   });
 
   const missingMessage = (name) => `${name} fait partie des 19 signes sur 256 dont l’interprétation n’est pas présente dans la version actuelle du corpus. Son contenu sera complété bientôt. Aucune interprétation ne sera générée ou inventée avant cette complétion.`;
-
   const exactReading = (entry, displayedName) => `Interprétation intégrale - ${displayedName}\n\n${entry.text}`;
 
   const PROFILES = {
-    comprehensive: {
-      title: 'Comprendre le signe en profondeur',
-      minWords: 190,
-      maxWords: 300,
-      instruction: 'À partir de l’interprétation intégrale du signe, expliquer son message central dans le contexte précis de la consultation. Distinguer clairement la dynamique principale, les forces disponibles, les difficultés, les conditions d’évolution et l’orientation la plus juste. Ne pas recopier intégralement le corpus et ne pas produire de généralités détachées de la question.',
-      structure: ['Message central', 'Application à la situation', 'Point de vigilance', 'Orientation'],
-    },
-    positive: {
-      title: 'Lumière et ouvertures',
-      minWords: 120,
-      maxWords: 210,
-      instruction: 'Identifier les ouvertures, protections, qualités et possibilités favorables réellement soutenues par l’interprétation intégrale. Expliquer comment elles peuvent se manifester dans le contexte de la consultation et sous quelles conditions elles deviennent utiles.',
-      structure: ['Ouvertures', 'Conditions favorables', 'Conseil'],
-    },
-    warning: {
-      title: 'Vigilances et obstacles',
-      minWords: 120,
-      maxWords: 210,
-      instruction: 'Dégager les risques, erreurs, blocages, excès ou comportements aggravants contenus dans l’interprétation intégrale. Les relier directement à la situation de l’utilisateur, sans fatalisme, sans accusation occulte et sans dramatisation.',
-      structure: ['Vigilances', 'Ce qui peut aggraver', 'Prudence à adopter'],
-    },
-    relationship: {
-      title: 'Amour, famille et relations',
-      minWords: 140,
-      maxWords: 230,
-      instruction: 'Analyser uniquement la dimension relationnelle du signe : couple, famille, entourage, confiance, parole, loyauté, limites et responsabilités. Adapter l’analyse à la question posée et au contexte de consultation.',
-      structure: ['Dynamique relationnelle', 'Risque relationnel', 'Attitude recommandée'],
-    },
-    work: {
-      title: 'Travail, argent et projets',
-      minWords: 140,
-      maxWords: 230,
-      instruction: 'Interpréter le signe dans les domaines du travail, de l’argent, de l’entreprise et des projets. Montrer les opportunités, les contraintes concrètes, les décisions à éviter et les conditions de progression, en restant strictement ancré dans l’interprétation intégrale.',
-      structure: ['Potentiel', 'Contraintes', 'Décision utile'],
-    },
-    health: {
-      title: 'Santé et équilibre',
-      minWords: 100,
-      maxWords: 180,
-      instruction: 'Présenter uniquement une lecture symbolique de l’équilibre, du rythme de vie, du repos, des tensions et de la prudence. Ne poser aucun diagnostic, ne recommander aucun traitement et orienter vers un professionnel de santé en présence de symptômes ou de danger.',
-      structure: ['Lecture symbolique', 'Équilibre à préserver', 'Prudence'],
-    },
-    action: {
-      title: 'Conseils et conduite à tenir',
-      minWords: 110,
-      maxWords: 190,
-      instruction: 'Transformer l’interprétation intégrale en conseils pratiques, réalistes et hiérarchisés pour la situation présente. Distinguer ce qu’il faut clarifier, éviter, entreprendre et observer. Ne détailler aucun rituel réservé ; toute pratique traditionnelle doit être validée par un Bokonon qualifié.',
-      structure: ['À clarifier', 'À éviter', 'À faire maintenant'],
-    },
-    summary: {
-      title: 'Résumé essentiel',
-      minWords: 65,
-      maxWords: 120,
-      instruction: 'Donner une synthèse très claire et concise de l’interprétation appliquée à la consultation : message principal, force, vigilance et orientation immédiate. Ne pas répéter de longues phrases du corpus.',
-      structure: ['Message', 'Force', 'Vigilance', 'Orientation'],
-    },
-    free_question: {
-      title: 'Réponse à votre question',
-      minWords: 130,
-      maxWords: 230,
-      instruction: 'Répondre directement et précisément à la question libre de l’utilisateur en interprétant l’interprétation intégrale dans son contexte. Expliquer le lien entre le signe et la question, distinguer ce qui est favorable, ce qui demande prudence et l’orientation concrète à retenir.',
-      structure: ['Réponse directe', 'Lecture du signe dans ce contexte', 'Orientation'],
-    },
+    comprehensive: ['Comprendre le signe en profondeur', 300, 'Explique le message central, les forces, les difficultés, les conditions d’évolution et l’orientation juste dans le contexte précis de la consultation.'],
+    positive: ['Lumière et ouvertures', 210, 'Analyse les forces, protections, ouvertures et conditions favorables réellement soutenues par l’interprétation intégrale.'],
+    warning: ['Vigilances et obstacles', 210, 'Analyse les risques, blocages et comportements aggravants sans fatalité ni dramatisation.'],
+    relationship: ['Amour, famille et relations', 230, 'Analyse le couple, la famille, l’entourage, la confiance, la parole, les limites et les responsabilités.'],
+    work: ['Travail, argent et projets', 230, 'Analyse le travail, les ressources, l’entreprise, les projets, les opportunités et les contraintes concrètes.'],
+    health: ['Santé et équilibre', 180, 'Donne uniquement une lecture symbolique de l’équilibre, du rythme de vie, du repos et de la prudence, sans diagnostic ni traitement.'],
+    action: ['Conseils et conduite à tenir', 190, 'Transforme le message en conseils pratiques et hiérarchisés : ce qu’il faut clarifier, éviter, entreprendre et observer, sans inventer de rituel.'],
+    summary: ['Résumé essentiel', 120, 'Donne une synthèse concise : message principal, force, vigilance et orientation immédiate.'],
+    free_question: ['Réponse à votre question', 230, 'Réponds directement à la question de l’utilisateur en reliant précisément le signe au contexte de la consultation.'],
   };
 
   const selectProfile = (payload) => {
-    const requestedKey = payload.focus?.intent_key || 'comprehensive';
-    const focusLabel = normalizeText(payload.focus?.label);
-    const userMessage = normalizeText(payload.user_message);
-    const isFreeQuestion = requestedKey === 'comprehensive' && userMessage && focusLabel && userMessage !== focusLabel;
-    const key = isFreeQuestion ? 'free_question' : (PROFILES[requestedKey] ? requestedKey : 'free_question');
-    return { key, profile: PROFILES[key] };
+    const requested = payload.focus?.intent_key || 'comprehensive';
+    const label = normalizeText(payload.focus?.label);
+    const message = normalizeText(payload.user_message);
+    const free = requested === 'comprehensive' && message && label && message !== label;
+    const key = free ? 'free_question' : (PROFILES[requested] ? requested : 'free_question');
+    const [title, maxWords, instruction] = PROFILES[key];
+    return { key, title, maxWords, instruction };
   };
+
+  const compactHistory = (history) => (Array.isArray(history) ? history : [])
+    .filter((item) => !/^Interprétation intégrale\s*-/i.test(String(item?.content || '')))
+    .slice(-6)
+    .map((item) => ({
+      role: item.role === 'user' ? 'user' : 'assistant',
+      content: String(item.content || '').slice(0, 1200),
+    }));
 
   window.faAuthenticatedFetch = async (url, options = {}) => {
     let payload;
@@ -131,8 +85,8 @@
 
     if (!entry) return makeResponse(missingMessage(displayedName), { corpus_key: key, corpus_missing: true });
 
-    const isInitialReading = (payload.focus?.intent_key === 'comprehensive') && (!Array.isArray(payload.history) || payload.history.length === 0);
-    if (isInitialReading) {
+    const initial = payload.focus?.intent_key === 'comprehensive' && (!Array.isArray(payload.history) || payload.history.length === 0);
+    if (initial) {
       return makeResponse(exactReading(entry, displayedName), {
         corpus_key: key,
         corpus_entry_number: entry.number,
@@ -140,90 +94,74 @@
       });
     }
 
-    const { key: analysisKey, profile } = selectProfile(payload);
-    const consultationQuestion = payload.user_message || payload.context?.intention || '';
-    const enriched = {
-      ...payload,
+    const profile = selectProfile(payload);
+    const originalQuestion = String(payload.user_message || payload.context?.intention || '').trim();
+    const transportMessage = [
+      `DEMANDE : ${originalQuestion || profile.title}`,
+      `THÈME DE CONSULTATION : ${payload.context?.category || 'Question libre'}`,
+      `INTENTION : ${payload.context?.intention || 'Non précisée'}`,
+      `ANGLE D’ANALYSE : ${profile.title}`,
+      `CONSIGNE : ${profile.instruction}`,
+      `INTERPRÉTATION INTÉGRALE DU SIGNE ${displayedName} À UTILISER EXCLUSIVEMENT :`,
+      entry.text,
+      `RÉPONSE ATTENDUE : français clair, précis et contextualisé, maximum ${profile.maxWords} mots. Ne mentionne aucune source, page, entrée ou livre. N’invente aucun verset, rituel, interdit ou prescription.`,
+    ].join('\n\n');
+
+    // Le backend historique waouh-fa-chat attend ce contrat compact.
+    // Le corpus n’est envoyé qu’une seule fois pour éviter les dépassements de taille et de contexte.
+    const compatiblePayload = {
+      action: 'interpret',
+      sign: payload.sign,
+      context: {
+        category: payload.context?.category || '',
+        intention: payload.context?.intention || '',
+        locale: payload.context?.locale || 'fr-BJ',
+      },
       focus: {
-        ...(payload.focus || {}),
-        intent_key: analysisKey,
+        intent_key: profile.key,
         label: profile.title,
         instruction: profile.instruction,
-        required_sections: profile.structure,
+        required_sections: [profile.title],
+        excluded_angles: [],
       },
-      context: {
-        ...(payload.context || {}),
-        consultation_question: consultationQuestion,
-        interpretation_mode: 'contextual_divinatory_analysis',
-      },
-      corpus: {
-        version: corpus.version,
-        source: corpus.source,
-        key,
-        entry_number: entry.number,
-        original_title: entry.original_title,
-        pdf_page: entry.pdf_page,
-        exact_text: entry.text,
-        primary_interpretation: entry.text,
-      },
-      analysis_contract: {
-        role: 'Assistant IA expert en interprétation divinatoire du Fâ, rigoureux, clair et prudent.',
-        primary_basis: 'Utiliser exclusivement l’interprétation intégrale fournie dans corpus.exact_text comme fondement de l’analyse.',
-        task: profile.instruction,
-        consultation_theme: payload.context?.category || '',
-        consultation_intention: payload.context?.intention || '',
-        user_question: consultationQuestion,
-        output_title: profile.title,
-        output_sections: profile.structure,
-        style: 'Français clair, précis, compréhensible, contextualisé, sans répétition et sans longue introduction.',
-        forbidden: [
-          'Inventer un verset, un proverbe, un rituel, un interdit ou une prescription absente du corpus',
-          'Combiner de manière générique les deux signes fondamentaux à la place du signe exact',
-          'Mentionner le livre, la page, le numéro d’entrée, une référence documentaire ou une source',
-          'Recopier intégralement l’interprétation intégrale dans la réponse analytique',
-          'Présenter une prédiction comme certaine ou fatale',
-        ],
-      },
+      history: compactHistory(payload.history),
+      user_message: transportMessage,
       constraints: {
-        ...(payload.constraints || {}),
         document_only: true,
-        exact_corpus_entry_required: true,
-        use_exact_interpretation_as_primary_basis: true,
-        contextualize_with_consultation: true,
-        answer_user_question_directly: true,
-        refuse_external_knowledge: true,
-        refuse_invention: true,
-        no_generic_base_sign_combination: true,
-        no_source_reference_in_answer: true,
-        do_not_mention_book: true,
-        do_not_repeat_full_corpus: true,
         simple_french: true,
-        concise_but_substantive: true,
-        min_words: profile.minWords,
         max_words: profile.maxWords,
-        max_paragraphs: 5,
+        hide_sources: true,
+        differentiate_each_payload: true,
+        contextualize_with_intention: true,
+        no_invented_ritual: true,
+        no_occult_accusation: true,
       },
+      device_id: payload.device_id,
+      access_code: payload.access_code,
     };
 
     try {
-      const response = await previousFetch(url, { ...options, body: JSON.stringify(enriched) });
+      const response = await previousFetch(url, { ...options, body: JSON.stringify(compatiblePayload) });
       if (response.status === 402) return response;
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.clone().json();
+      const text = await response.clone().text();
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${text.slice(0, 300)}`);
+      let data;
+      try { data = JSON.parse(text); } catch { throw new Error('Réponse serveur non JSON'); }
       if (!data?.answer) throw new Error('Réponse vide');
       const { answer, ...metadata } = data;
       return makeResponse(answer, {
         ...metadata,
         corpus_key: key,
         corpus_analysis: true,
-        analysis_intent: analysisKey,
+        analysis_intent: profile.key,
       });
     } catch (error) {
-      console.warn('Analyse contextuelle FA indisponible', error);
-      return makeResponse(`L’analyse contextuelle « ${profile.title} » est momentanément indisponible. Votre interprétation intégrale reste conservée. Veuillez relancer cette demande dans quelques instants.`, {
+      console.error('Échec waouh-fa-chat', { message: error.message, corpusKey: key, intent: profile.key });
+      return makeResponse(`L’analyse « ${profile.title} » n’a pas pu être générée. Vérifiez votre connexion puis relancez ce payload. L’interprétation intégrale du signe reste disponible au-dessus.`, {
         corpus_key: key,
         corpus_analysis_unavailable: true,
-        analysis_intent: analysisKey,
+        analysis_intent: profile.key,
+        diagnostic: String(error.message || error).slice(0, 180),
       });
     }
   };
