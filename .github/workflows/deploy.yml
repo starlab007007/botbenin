@@ -20,6 +20,7 @@ jobs:
 
       - name: Préparer l'archive de déploiement
         run: |
+          set -euo pipefail
           tar \
             --exclude='.git' \
             --exclude='node_modules' \
@@ -28,15 +29,58 @@ jobs:
             --exclude='*.tgz' \
             -czf /tmp/botbenin-release.tgz .
           mv /tmp/botbenin-release.tgz ./botbenin-release.tgz
+          test -s ./botbenin-release.tgz
+          echo "Archive prête : $(du -h ./botbenin-release.tgz | cut -f1)"
 
-      - name: Envoyer le code sur le VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: botbenin-release.tgz
-          target: /tmp
+      - name: Configurer la connexion SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_deploy"
+          chmod 600 "$HOME/.ssh/id_deploy"
+          ssh-keyscan -T 20 -H "$VPS_HOST" >> "$HOME/.ssh/known_hosts" 2>/dev/null || true
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+      - name: Envoyer le code sur le VPS avec reprises automatiques
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+          SUCCESS=0
+          for ATTEMPT in 1 2 3; do
+            echo "📤 Tentative SCP ${ATTEMPT}/3..."
+            if scp \
+              -i "$HOME/.ssh/id_deploy" \
+              -o BatchMode=yes \
+              -o StrictHostKeyChecking=yes \
+              -o ConnectTimeout=30 \
+              -o ConnectionAttempts=3 \
+              -o ServerAliveInterval=15 \
+              -o ServerAliveCountMax=4 \
+              ./botbenin-release.tgz \
+              "${VPS_USER}@${VPS_HOST}:/tmp/botbenin-release.tgz.incoming"; then
+              ssh \
+                -i "$HOME/.ssh/id_deploy" \
+                -o BatchMode=yes \
+                -o StrictHostKeyChecking=yes \
+                -o ConnectTimeout=30 \
+                "${VPS_USER}@${VPS_HOST}" \
+                "test -s /tmp/botbenin-release.tgz.incoming && mv -f /tmp/botbenin-release.tgz.incoming /tmp/botbenin-release.tgz"
+              SUCCESS=1
+              break
+            fi
+            echo "⚠️ Échec de la tentative ${ATTEMPT}; nouvelle tentative dans 15 secondes."
+            sleep 15
+          done
+          if [ "$SUCCESS" -ne 1 ]; then
+            echo "❌ Impossible de transférer l'archive sur le VPS après 3 tentatives."
+            exit 1
+          fi
+          echo "✅ Archive transférée et validée sur le VPS."
 
       - name: Déployer sur le VPS avec Docker Compose
         uses: appleboy/ssh-action@v0.1.10
@@ -49,13 +93,14 @@ jobs:
             set -e
 
             echo "📥 Mise à jour du code depuis l'archive GitHub Actions..."
-            if [ ! -f /tmp/botbenin-release.tgz ]; then
-              echo "❌ Archive de déploiement introuvable sur le VPS"
+            if [ ! -s /tmp/botbenin-release.tgz ]; then
+              echo "❌ Archive de déploiement introuvable ou vide sur le VPS"
               exit 1
             fi
 
             rm -rf /tmp/botbenin-release
             mkdir -p /tmp/botbenin-release /home/debian/botbenin
+            tar -tzf /tmp/botbenin-release.tgz >/dev/null
             tar -xzf /tmp/botbenin-release.tgz -C /tmp/botbenin-release
 
             if command -v rsync >/dev/null 2>&1; then
@@ -106,6 +151,24 @@ jobs:
               exit 1
             fi
 
+            echo "🧪 Test de santé local FA IA..."
+            FA_READY=0
+            for i in $(seq 1 15); do
+              if curl -fsS http://127.0.0.1:8084/fa >/dev/null 2>&1; then
+                FA_READY=1
+                echo "✅ FA IA accessible localement"
+                break
+              fi
+              echo "⏳ Tentative FA IA $i/15..."
+              sleep 4
+            done
+
+            if [ "$FA_READY" -ne 1 ]; then
+              echo "❌ FA IA n'est pas accessible localement"
+              docker compose logs --tail=150
+              exit 1
+            fi
+
             echo "🧪 Vérification de la redirection vers l'URL courte..."
             curl -sSI 'http://127.0.0.1:8084/apresbacia?v=controle' \
               | tr -d '\r' \
@@ -117,13 +180,15 @@ jobs:
             echo "🧪 Vérification des fichiers de production..."
             docker compose exec -T react-app test -f /usr/share/nginx/html/apresbacia/index.html
             docker compose exec -T react-app test -f /usr/share/nginx/html/apresbacia/production-finalization-v2_17.js
+            docker compose exec -T react-app test -f /usr/share/nginx/html/fa/index.html
+            docker compose exec -T react-app test -f /usr/share/nginx/html/fa/home-optimal-v20.css
 
             echo "🧪 Vérification publique HTTPS..."
             PUBLIC_READY=0
             for i in $(seq 1 15); do
-              if curl -fsS https://bot.bj/apresbacia >/dev/null 2>&1; then
+              if curl -fsS https://bot.bj/apresbacia >/dev/null 2>&1 && curl -fsS https://bot.bj/fa >/dev/null 2>&1; then
                 PUBLIC_READY=1
-                echo "✅ URL publique accessible"
+                echo "✅ URLs publiques accessibles"
                 break
               fi
               echo "⏳ Tentative publique $i/15..."
@@ -131,7 +196,7 @@ jobs:
             done
 
             if [ "$PUBLIC_READY" -ne 1 ]; then
-              echo "❌ URL publique inaccessible"
+              echo "❌ Une URL publique est inaccessible"
               exit 1
             fi
 
@@ -168,4 +233,5 @@ jobs:
             docker image prune -af || echo "⚠️ Nettoyage final partiel"
 
             echo "✅ Déploiement terminé avec succès"
-            echo "🌐 URL publique unique : https://bot.bj/apresbacia"
+            echo "🌐 URL FA IA : https://bot.bj/fa"
+            echo "🌐 URL AprèsBac IA : https://bot.bj/apresbacia"
