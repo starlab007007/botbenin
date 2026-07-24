@@ -1,0 +1,96 @@
+/* FA IA — accueil mobile V18. CSS uniquement, aucun impact fonctionnel. */
+@media (max-width:520px){
+  html,body{overflow-x:hidden}
+
+  /* Les sélecteurs suivants n'existent que sur l'accueil. */
+  .hero{
+    height:min(52dvh,470px)!important;
+    min-height:355px;
+    border-radius:28px;
+    background-position:center 22%!important;
+    box-shadow:0 14px 30px rgba(45,21,8,.28);
+  }
+  .hero:after{
+    background:linear-gradient(to bottom,rgba(0,0,0,.03) 0%,rgba(0,0,0,.10) 35%,rgba(20,9,5,.55) 64%,rgba(20,9,5,.97) 100%)!important;
+  }
+  .hero-content{left:18px;right:18px;bottom:16px}
+  .badge{padding:6px 10px;font-size:9px;line-height:1;letter-spacing:1px}
+  .hero-title{
+    margin:9px 0 12px;
+    font-size:clamp(31px,9.4vw,39px)!important;
+    line-height:.98;
+    letter-spacing:-1.1px;
+    font-weight:950;
+  }
+  .hero .primary{
+    min-height:52px;
+    height:52px;
+    border-radius:19px;
+    font-size:17px;
+    line-height:1;
+    box-shadow:0 7px 16px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.22);
+  }
+
+  .hero + .actions-grid{
+    margin-top:10px;
+    gap:9px;
+  }
+  .hero + .actions-grid .compact-card{
+    height:101px;
+    min-height:101px;
+    border-radius:21px;
+    padding:10px 11px;
+    box-shadow:0 6px 16px rgba(58,31,14,.07);
+    overflow:hidden;
+  }
+  .hero + .actions-grid .card-icon{
+    width:34px;
+    height:34px;
+    border-radius:11px;
+    font-size:17px;
+    flex:0 0 auto;
+  }
+  .hero + .actions-grid h3{
+    margin:auto 0 3px;
+    font-size:clamp(14px,4vw,18px);
+    line-height:1.03;
+    letter-spacing:-.3px;
+    font-weight:900;
+    white-space:nowrap;
+    overflow:visible;
+    hyphens:none;
+  }
+  .hero + .actions-grid p{
+    margin:0;
+    font-size:12px;
+    line-height:1.12;
+    font-weight:650;
+  }
+  .hero + .actions-grid + .hint-card{display:none!important}
+
+  /* L'accueil utilise déjà .screen ; cette réduction garde tous ses boutons dans le viewport. */
+  .screen:has(> .hero){padding:10px 12px calc(8px + env(safe-area-inset-bottom))}
+}
+
+@media (max-width:520px) and (max-height:760px){
+  .hero{
+    height:calc(100dvh - 238px)!important;
+    min-height:315px;
+    max-height:410px;
+    border-radius:25px;
+  }
+  .hero-content{left:16px;right:16px;bottom:13px}
+  .badge{padding:5px 9px;font-size:8px}
+  .hero-title{font-size:clamp(28px,8.8vw,35px)!important;margin:7px 0 9px}
+  .hero .primary{height:48px;min-height:48px;border-radius:17px;font-size:16px}
+  .hero + .actions-grid{margin-top:8px;gap:8px}
+  .hero + .actions-grid .compact-card{height:91px;min-height:91px;padding:8px 10px;border-radius:19px}
+  .hero + .actions-grid .card-icon{width:30px;height:30px;font-size:15px}
+  .hero + .actions-grid h3{font-size:14px}
+  .hero + .actions-grid p{font-size:11px}
+}
+
+@media (max-width:360px){
+  .hero + .actions-grid h3{font-size:13px;letter-spacing:-.5px}
+  .hero + .actions-grid p{font-size:10.5px}
+}
