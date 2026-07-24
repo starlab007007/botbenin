@@ -1,14 +1,38 @@
-// Shared helpers for the WAOUH AI Agent module (WhatsApp).
-// - Lovable AI Gateway calls (chat, embeddings, STT, vision)
-// - System-prompt builder per agent (commerce / docs / website)
-// - runAgentTurn: unified turn logic with partner-products join and takeover awareness
+// Shared helpers for the WAOUH AI Agent module.
+// Appels directs à Google Gemini pour le chat et les embeddings.
 
-const GATEWAY = "https://ai.gateway.lovable.dev/v1";
+const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
+const DEFAULT_CHAT_MODEL = "gemini-2.5-flash-lite";
+const EMBEDDING_MODEL = "gemini-embedding-001";
 
-export function getLovableKey(): string {
-  const k = Deno.env.get("LOVABLE_API_KEY");
-  if (!k) throw new Error("LOVABLE_API_KEY manquant");
-  return k;
+export function getGeminiKey(): string {
+  const key = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_API_KEY");
+  if (!key) throw new Error("GEMINI_API_KEY ou GOOGLE_API_KEY manquant");
+  return key;
+}
+
+function normalizeModel(model?: string): string {
+  const value = String(model || DEFAULT_CHAT_MODEL).replace(/^google\//, "");
+  if (/gemini/i.test(value)) return value;
+  return DEFAULT_CHAT_MODEL;
+}
+
+function textContent(content: any): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content.map((part) => {
+      if (typeof part === "string") return part;
+      if (part?.type === "text") return String(part.text || "");
+      return "";
+    }).filter(Boolean).join("\n");
+  }
+  return String(content || "");
+}
+
+function extractText(data: any): string {
+  const parts = data?.candidates?.[0]?.content?.parts;
+  if (!Array.isArray(parts)) return "";
+  return parts.map((part: any) => typeof part?.text === "string" ? part.text : "").join("").trim();
 }
 
 export async function chatCompletion(opts: {
@@ -18,47 +42,59 @@ export async function chatCompletion(opts: {
   jsonMode?: boolean;
   temperature?: number;
 }): Promise<string> {
-  const body: any = {
-    model: opts.model || "google/gemini-3-flash-preview",
-    messages: [
-      ...(opts.system ? [{ role: "system", content: opts.system }] : []),
-      ...opts.messages,
-    ],
+  const model = normalizeModel(opts.model);
+  const contents = (opts.messages || []).map((message) => ({
+    role: message.role === "assistant" || message.role === "model" ? "model" : "user",
+    parts: [{ text: textContent(message.content).slice(0, 20000) }],
+  })).filter((item) => item.parts[0].text.trim());
+
+  const generationConfig: Record<string, unknown> = {
     temperature: opts.temperature ?? 0.7,
+    maxOutputTokens: 1600,
   };
-  if (opts.jsonMode) body.response_format = { type: "json_object" };
-  const res = await fetch(`${GATEWAY}/chat/completions`, {
+  if (opts.jsonMode) generationConfig.responseMimeType = "application/json";
+
+  const response = await fetch(`${GEMINI_API_BASE}/${model}:generateContent`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${getLovableKey()}`,
+      "x-goog-api-key": getGeminiKey(),
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      ...(opts.system ? { systemInstruction: { parts: [{ text: opts.system }] } } : {}),
+      contents,
+      generationConfig,
+    }),
   });
-  if (!res.ok) {
-    const t = await res.text();
-    throw new Error(`AI chat ${res.status}: ${t}`);
-  }
-  const j = await res.json();
-  return j?.choices?.[0]?.message?.content ?? "";
+
+  const raw = await response.text();
+  if (!response.ok) throw new Error(`Gemini chat ${response.status}: ${raw.slice(0, 1000)}`);
+  const data = JSON.parse(raw);
+  const answer = extractText(data);
+  if (!answer) throw new Error(`Gemini chat vide: ${raw.slice(0, 1000)}`);
+  return answer;
 }
 
 export async function embedText(text: string): Promise<number[]> {
-  const res = await fetch(`${GATEWAY}/embeddings`, {
+  const response = await fetch(`${GEMINI_API_BASE}/${EMBEDDING_MODEL}:embedContent`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${getLovableKey()}`,
+      "x-goog-api-key": getGeminiKey(),
     },
     body: JSON.stringify({
-      model: "openai/text-embedding-3-small",
-      input: text.slice(0, 6000),
-      dimensions: 768,
+      model: `models/${EMBEDDING_MODEL}`,
+      content: { parts: [{ text: String(text || "").slice(0, 12000) }] },
+      taskType: "RETRIEVAL_QUERY",
+      outputDimensionality: 768,
     }),
   });
-  if (!res.ok) throw new Error(`Embed ${res.status}: ${await res.text()}`);
-  const j = await res.json();
-  return j?.data?.[0]?.embedding as number[];
+  const raw = await response.text();
+  if (!response.ok) throw new Error(`Gemini embedding ${response.status}: ${raw.slice(0, 1000)}`);
+  const data = JSON.parse(raw);
+  const values = data?.embedding?.values;
+  if (!Array.isArray(values)) throw new Error("Embedding Gemini vide");
+  return values as number[];
 }
 
 export function chunkText(text: string, size = 800, overlap = 100): string[] {
@@ -73,7 +109,6 @@ export function chunkText(text: string, size = 800, overlap = 100): string[] {
   return chunks;
 }
 
-// Build a system prompt tailored to the agent_type.
 export function buildSystemPrompt(agent: any, products: any[] = []): string {
   const persona = agent.persona || {};
   const caps = agent.capabilities || {};
@@ -82,7 +117,6 @@ export function buildSystemPrompt(agent: any, products: any[] = []): string {
   const emojis = persona.emojis !== false;
   const type = agent.agent_type || "commerce";
 
-  // DOCS mode — strict RAG on uploaded documents.
   if (type === "docs") {
     return `Tu es ${name}, assistant documentaire de "${agent.name}". Tu réponds TOUJOURS en français, avec un ton ${tone}${emojis ? " et quelques emojis discrets" : ""}.
 
@@ -94,7 +128,6 @@ RÈGLES ABSOLUES :
 - Ne mentionne jamais que tu es une IA sauf si on te le demande directement.`;
   }
 
-  // WEBSITE mode — restricted to a domain's content.
   if (type === "website") {
     const domain = agent.website_url ? new URL(agent.website_url).hostname : "notre site";
     return `Tu es ${name}, assistant en ligne de "${agent.name}" (${domain}). Tu réponds TOUJOURS en français, avec un ton ${tone}${emojis ? " et quelques emojis" : ""}.
@@ -107,22 +140,20 @@ RÈGLES ABSOLUES :
 - Ne mentionne pas que tu es une IA sauf si on te le demande.`;
   }
 
-  // COMMERCE mode (default) — with product catalog.
   const catalog = (products || [])
     .filter((p) => p.active !== false && p.disponible !== false)
     .slice(0, 40)
     .map((p) => {
-      const price =
-        p.price_fcfa != null
-          ? `${Number(p.price_fcfa).toLocaleString("fr-FR")} FCFA`
-          : (p.prix_min != null
-            ? (p.prix_max && p.prix_max !== p.prix_min
-                ? `${Number(p.prix_min).toLocaleString("fr-FR")}–${Number(p.prix_max).toLocaleString("fr-FR")} FCFA`
-                : `${Number(p.prix_min).toLocaleString("fr-FR")} FCFA`)
-            : "sur demande");
+      const price = p.price_fcfa != null
+        ? `${Number(p.price_fcfa).toLocaleString("fr-FR")} FCFA`
+        : (p.prix_min != null
+          ? (p.prix_max && p.prix_max !== p.prix_min
+            ? `${Number(p.prix_min).toLocaleString("fr-FR")}–${Number(p.prix_max).toLocaleString("fr-FR")} FCFA`
+            : `${Number(p.prix_min).toLocaleString("fr-FR")} FCFA`)
+          : "sur demande");
       const unit = p.unite ? ` / ${p.unite}` : "";
       const stock = p.stock_estime ? ` (stock: ${p.stock_estime})` : "";
-      return `- ${p.name || p.nom} (${price}${unit})${stock}${(p.description ? ` — ${p.description}` : "")}`;
+      return `- ${p.name || p.nom} (${price}${unit})${stock}${p.description ? ` — ${p.description}` : ""}`;
     })
     .join("\n") || "(catalogue vide)";
 
@@ -150,36 +181,32 @@ RÈGLES ABSOLUES :
 - Utilise les FAITS ci-dessous du contexte quand ils sont pertinents.`;
 }
 
-// Load products for a commerce agent from BOTH sources:
-// - New link table `waouh_ai_agent_partner_products` -> `waouh_partner_products`
-// - Legacy `waouh_ai_agent_products` (backwards compat)
 async function loadAgentProducts(supabase: any, agent_id: string): Promise<any[]> {
   const [{ data: legacy }, { data: links }] = await Promise.all([
     supabase.from("waouh_ai_agent_products").select("*").eq("agent_id", agent_id).eq("active", true).order("position"),
     supabase.from("waouh_ai_agent_partner_products").select("product_id").eq("agent_id", agent_id),
   ]);
   let partnerProducts: any[] = [];
-  const productIds = (links || []).map((l: any) => l.product_id).filter(Boolean);
+  const productIds = (links || []).map((link: any) => link.product_id).filter(Boolean);
   if (productIds.length) {
-    const { data: pp } = await supabase
+    const { data } = await supabase
       .from("waouh_partner_products")
       .select("id, nom, description, prix_min, prix_max, unite, stock_estime, disponible, categorie")
       .in("id", productIds);
-    partnerProducts = (pp || []).map((p: any) => ({
-      name: p.nom,
-      description: p.description,
-      prix_min: p.prix_min,
-      prix_max: p.prix_max,
-      unite: p.unite,
-      stock_estime: p.stock_estime,
-      disponible: p.disponible,
-      active: p.disponible !== false,
+    partnerProducts = (data || []).map((product: any) => ({
+      name: product.nom,
+      description: product.description,
+      prix_min: product.prix_min,
+      prix_max: product.prix_max,
+      unite: product.unite,
+      stock_estime: product.stock_estime,
+      disponible: product.disponible,
+      active: product.disponible !== false,
     }));
   }
   return [...partnerProducts, ...(legacy || [])];
 }
 
-// Shared: run one agent turn (used by both waouh-agent-chat and waouh-agent-webhook)
 export async function runAgentTurn(supabase: any, agent_id: string, message: string, opts: {
   history?: Array<{ role: string; content: string }>;
   contact_phone?: string;
@@ -190,71 +217,64 @@ export async function runAgentTurn(supabase: any, agent_id: string, message: str
   const { data: agent } = await supabase.from("waouh_ai_agents").select("*").eq("id", agent_id).maybeSingle();
   if (!agent) throw new Error("agent introuvable");
 
-  // Contact-level pause check (WhatsApp path)
   if (opts.persist && opts.contact_phone) {
     const paused: string[] = Array.isArray(agent.paused_contacts) ? agent.paused_contacts : [];
-    if (paused.includes(opts.contact_phone)) {
-      return { reply: "", needs_handoff: false, skipped: true, reason: "contact_paused" };
-    }
-    // Existing conversation in human takeover mode: don't reply, just log inbound
-    const { data: convCheck } = await supabase.from("waouh_ai_agent_conversations")
+    if (paused.includes(opts.contact_phone)) return { reply: "", needs_handoff: false, skipped: true, reason: "contact_paused" };
+    const { data: conversation } = await supabase.from("waouh_ai_agent_conversations")
       .select("id, human_takeover, messages").eq("agent_id", agent_id).eq("wa_contact_phone", opts.contact_phone).maybeSingle();
-    if (convCheck?.human_takeover) {
-      const newMsgs = [
-        ...((convCheck.messages as any[]) || []),
-        { role: "user", content: message, ts: Date.now() },
-      ].slice(-40);
-      await supabase.from("waouh_ai_agent_conversations").update({
-        messages: newMsgs, last_activity: new Date().toISOString(),
-      }).eq("id", convCheck.id);
+    if (conversation?.human_takeover) {
+      const messages = [...((conversation.messages as any[]) || []), { role: "user", content: message, ts: Date.now() }].slice(-40);
+      await supabase.from("waouh_ai_agent_conversations").update({ messages, last_activity: new Date().toISOString() }).eq("id", conversation.id);
       return { reply: "", needs_handoff: true, skipped: true, reason: "human_takeover" };
     }
   }
 
-  const products = agent.agent_type === "commerce" || !agent.agent_type
-    ? await loadAgentProducts(supabase, agent_id)
-    : [];
-
+  const products = agent.agent_type === "commerce" || !agent.agent_type ? await loadAgentProducts(supabase, agent_id) : [];
   let context = "";
   try {
-    const emb = await embedText(message);
+    const embedding = await embedText(message);
     const { data: matches } = await supabase.rpc("match_agent_chunks", {
-      _agent_id: agent_id, _query_embedding: emb, _match_count: 5,
+      _agent_id: agent_id,
+      _query_embedding: embedding,
+      _match_count: 5,
     });
-    if (matches?.length) context = "\n\nFAITS PERTINENTS :\n" + matches.map((m: any) => `• ${m.content}`).join("\n");
-  } catch (e) { console.error("rag err", e); }
+    if (matches?.length) context = "\n\nFAITS PERTINENTS :\n" + matches.map((match: any) => `• ${match.content}`).join("\n");
+  } catch (error) { console.error("rag err", error); }
 
   const system = buildSystemPrompt(agent, products) + context;
   const history = (opts.history || []).slice(-8);
-  const reply = await chatCompletion({
-    system, messages: [...history, { role: "user", content: message }], temperature: 0.6,
-  });
+  const reply = await chatCompletion({ system, messages: [...history, { role: "user", content: message }], temperature: 0.6 });
   const needs_handoff = HANDOFF.test(message);
 
   if (opts.persist && opts.contact_phone) {
     const { data: existing } = await supabase.from("waouh_ai_agent_conversations")
       .select("id, messages, needs_handoff").eq("agent_id", agent_id).eq("wa_contact_phone", opts.contact_phone).maybeSingle();
-    const newMsgs = [
+    const messages = [
       ...(existing?.messages || []),
       { role: "user", content: message, ts: Date.now() },
       { role: "assistant", content: reply, ts: Date.now() },
     ].slice(-40);
     if (existing) {
       await supabase.from("waouh_ai_agent_conversations").update({
-        messages: newMsgs, last_activity: new Date().toISOString(),
+        messages,
+        last_activity: new Date().toISOString(),
         needs_handoff: existing.needs_handoff || needs_handoff,
       }).eq("id", existing.id);
     } else {
       await supabase.from("waouh_ai_agent_conversations").insert({
-        agent_id, user_id: agent.user_id, wa_contact_phone: opts.contact_phone,
-        wa_contact_name: opts.contact_name || null, messages: newMsgs, needs_handoff,
+        agent_id,
+        user_id: agent.user_id,
+        wa_contact_phone: opts.contact_phone,
+        wa_contact_name: opts.contact_name || null,
+        messages,
+        needs_handoff,
       });
     }
     await supabase.from("waouh_ai_agents").update({
       stats: {
         ...(agent.stats || {}),
-        messages_handled: ((agent.stats?.messages_handled) || 0) + 1,
-        handoffs: ((agent.stats?.handoffs) || 0) + (needs_handoff ? 1 : 0),
+        messages_handled: (agent.stats?.messages_handled || 0) + 1,
+        handoffs: (agent.stats?.handoffs || 0) + (needs_handoff ? 1 : 0),
       },
     }).eq("id", agent_id);
   }
