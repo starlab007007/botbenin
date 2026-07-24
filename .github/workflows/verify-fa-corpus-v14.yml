@@ -1,4 +1,4 @@
-name: Verify FA Corpus V15
+name: Verify FA Corpus V15.1
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
       - prod
     paths:
       - 'public/fa/corpus-*-v14.js'
+      - 'public/fa/app.js'
       - 'public/fa/index.html'
       - 'scripts/verify-fa-corpus-v14.mjs'
       - '.github/workflows/verify-fa-corpus-v14.yml'
@@ -15,7 +16,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: verify-fa-corpus-v15
+  group: verify-fa-corpus-v15-1
   cancel-in-progress: true
 
 jobs:
@@ -36,6 +37,7 @@ jobs:
       - name: Vérifier la syntaxe des scripts du corpus
         run: |
           set -euo pipefail
+          node --check public/fa/app.js
           node --check public/fa/corpus-loader-v14.js
           node --check public/fa/corpus-enforcement-v14.js
           node --check public/fa/corpus-pack-init-v14.js
@@ -50,7 +52,7 @@ jobs:
           grep -q 'corpus-pack-init-v14.js' public/fa/index.html
           grep -q 'corpus-loader-v14.js' public/fa/index.html
           grep -q 'corpus-enforcement-v14.js' public/fa/index.html
-          grep -q '20260724-corpus-v15' public/fa/index.html
+          grep -q '20260724-corpus-v15-1' public/fa/index.html
 
       - name: Résultat
-        run: echo '✅ Corpus FA V15 validé — interprétation intégrale sans références et analyses IA contextualisées.'
+        run: echo '✅ Corpus FA V15.1 validé — interprétation intégrale nettoyée et analyses IA contextualisées.'
