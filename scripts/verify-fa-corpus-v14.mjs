@@ -72,19 +72,44 @@ const enforcementPosition = index.indexOf('corpus-enforcement-v14.js');
 const appPosition = index.indexOf('app.js');
 assert(loaderPosition >= 0, 'Loader corpus absent de index.html');
 assert(loaderPosition < authPosition && authPosition < enforcementPosition && enforcementPosition < appPosition, 'Ordre des scripts corpus/auth/app invalide');
+assert(index.includes('20260724-corpus-v15'), 'Cache V15 non activé');
+
+const loader = fs.readFileSync(new URL('corpus-loader-v14.js', root), 'utf8');
+assert(loader.includes('Interprétation intégrale - ${displayedName}'), 'Nouveau titre de l’interprétation intégrale absent');
+assert(loader.includes("PRESENTATION_VERSION = '2026-07-24-corpus-presentation-v15'"), 'Version de présentation V15 absente');
+assert(loader.includes('corpus_presentation_version'), 'Migration du journal V15 absente');
+assert(loader.includes('cleanStoredAnswer'), 'Nettoyage des anciennes références absent');
 
 const enforcement = fs.readFileSync(new URL('corpus-enforcement-v14.js', root), 'utf8');
 assert(enforcement.includes('19 signes sur 256'), 'Message des 19 signes absent');
 assert(enforcement.includes('isInitialReading'), 'Contrôle de la première lecture absent');
 assert(enforcement.includes('exactReading(entry, displayedName)'), 'Lecture exacte initiale absente');
+assert(enforcement.includes('Interprétation intégrale - ${displayedName}'), 'Titre intégral sans le mot livre absent');
+assert(enforcement.includes('cleanAnswer'), 'Nettoyage global des réponses absent');
+assert(enforcement.includes('PROFILES'), 'Profils dynamiques des payloads absents');
+assert(enforcement.includes('free_question'), 'Traitement des questions libres absent');
+assert(enforcement.includes('analysis_contract'), 'Contrat d’analyse IA absent');
+assert(enforcement.includes('use_exact_interpretation_as_primary_basis: true'), 'Ancrage sur l’interprétation intégrale absent');
+assert(enforcement.includes('contextualize_with_consultation: true'), 'Contextualisation de la consultation absente');
 assert(enforcement.includes('no_generic_base_sign_combination: true'), 'Interdiction des combinaisons génériques absente');
+assert(enforcement.includes('no_source_reference_in_answer: true'), 'Suppression des références dans les analyses absente');
+assert(enforcement.includes('do_not_mention_book: true'), 'Interdiction du mot livre absente');
+assert(enforcement.includes('min_words: profile.minWords'), 'Longueur minimale dynamique absente');
+assert(enforcement.includes('max_words: profile.maxWords'), 'Longueur maximale dynamique absente');
 
 console.log(JSON.stringify({
   status: 'passed',
   version: corpus.version,
+  presentation: '2026-07-24-corpus-presentation-v15',
   documented: documentedKeys.length,
   missing: missingKeys.length,
   total: allKeys.size,
+  responseRules: {
+    initial: 'integral_without_reference',
+    payloads: 'ai_contextual_analysis',
+    sourceMentions: 'removed',
+    wordLimits: 'dynamic',
+  },
   samples: {
     'TOULA|WLIN': corpus.entries['TOULA|WLIN'].number,
     'YEKOU|TROUKPIN': corpus.entries['YEKOU|TROUKPIN'].number,
