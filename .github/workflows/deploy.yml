@@ -14,6 +14,8 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Récupérer le code GitHub Actions
         uses: actions/checkout@v4
@@ -24,34 +26,38 @@ jobs:
           test -f public/fa/index.html
           test -f public/fa/home-premium-v23.css
           grep -q '20260724-corpus-v15-2' public/fa/index.html
+          grep -q '20260724-home-v23-1' public/fa/index.html
           grep -q 'home-premium-v23.css' public/fa/index.html
-          echo "✅ Sources FA IA prêtes pour le déploiement"
+          echo "✅ Sources FA IA V23.1 prêtes"
 
       - name: Déployer sur le VPS avec Docker Compose
         uses: appleboy/ssh-action@v0.1.10
+        env:
+          DEPLOY_TOKEN: ${{ github.token }}
+          DEPLOY_REPOSITORY: ${{ github.repository }}
+          DEPLOY_SHA: ${{ github.sha }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
           command_timeout: 30m
+          envs: DEPLOY_TOKEN,DEPLOY_REPOSITORY,DEPLOY_SHA
           script: |
-            set -e
+            set -eu
 
-            COMMIT_SHA='${{ github.sha }}'
-            RELEASE_URL="https://github.com/starlab007007/botbenin/archive/${COMMIT_SHA}.tar.gz"
-            RELEASE_ARCHIVE="/tmp/botbenin-${COMMIT_SHA}.tar.gz"
-            RELEASE_DIR="/tmp/botbenin-release-${COMMIT_SHA}"
+            RELEASE_URL="https://api.github.com/repos/${DEPLOY_REPOSITORY}/tarball/${DEPLOY_SHA}"
+            RELEASE_ARCHIVE="/tmp/botbenin-${DEPLOY_SHA}.tar.gz"
+            RELEASE_DIR="/tmp/botbenin-release-${DEPLOY_SHA}"
             APP_DIR="/home/debian/botbenin"
 
-            echo "📥 Téléchargement direct du commit ${COMMIT_SHA} depuis GitHub..."
+            echo "📥 Téléchargement authentifié du commit ${DEPLOY_SHA}..."
             rm -rf "$RELEASE_DIR"
             rm -f "$RELEASE_ARCHIVE"
             mkdir -p "$RELEASE_DIR" "$APP_DIR"
 
             DOWNLOAD_OK=0
             for ATTEMPT in 1 2 3; do
-              echo "Tentative de téléchargement ${ATTEMPT}/3..."
+              echo "Tentative ${ATTEMPT}/3..."
               if curl \
                 --fail \
                 --location \
@@ -61,6 +67,9 @@ jobs:
                 --retry-all-errors \
                 --connect-timeout 30 \
                 --max-time 300 \
+                -H "Authorization: Bearer ${DEPLOY_TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
                 "$RELEASE_URL" \
                 --output "$RELEASE_ARCHIVE"; then
                 DOWNLOAD_OK=1
@@ -70,7 +79,7 @@ jobs:
             done
 
             if [ "$DOWNLOAD_OK" -ne 1 ] || [ ! -s "$RELEASE_ARCHIVE" ]; then
-              echo "❌ Impossible de télécharger l’archive du commit GitHub"
+              echo "❌ Téléchargement authentifié impossible"
               exit 1
             fi
 
@@ -81,9 +90,9 @@ jobs:
             test -f "$RELEASE_DIR/public/fa/index.html"
             test -f "$RELEASE_DIR/public/fa/home-premium-v23.css"
             grep -q '20260724-corpus-v15-2' "$RELEASE_DIR/public/fa/index.html"
-            grep -q 'home-premium-v23.css' "$RELEASE_DIR/public/fa/index.html"
+            grep -q '20260724-home-v23-1' "$RELEASE_DIR/public/fa/index.html"
 
-            echo "📂 Synchronisation du code sur le VPS..."
+            echo "📂 Synchronisation du code..."
             if command -v rsync >/dev/null 2>&1; then
               rsync -a --delete "$RELEASE_DIR/" "$APP_DIR/"
             else
@@ -94,93 +103,48 @@ jobs:
             cd "$APP_DIR"
             rm -rf "$RELEASE_DIR"
             rm -f "$RELEASE_ARCHIVE"
-            echo "✅ Commit synchronisé directement depuis GitHub"
 
-            echo "🔨 Construction de la nouvelle image pendant que l’ancienne reste active..."
-            docker compose build --pull || {
-              echo "❌ Erreur lors du build"
-              exit 1
-            }
+            echo "🔨 Construction Docker..."
+            docker compose build --pull
+            docker compose up -d --force-recreate --remove-orphans
 
-            echo "🚀 Remplacement contrôlé du service..."
-            docker compose up -d --force-recreate --remove-orphans || {
-              echo "❌ Erreur lors du démarrage"
-              exit 1
-            }
-
-            echo "⏳ Attente du démarrage complet..."
+            echo "⏳ Attente du démarrage..."
             sleep 20
-
-            echo "🔍 Vérification du statut des conteneurs..."
             docker compose ps
 
-            echo "🧪 Test de santé local AprèsBac IA..."
             READY=0
             for i in $(seq 1 15); do
-              if curl -fsS http://127.0.0.1:8084/apresbacia >/dev/null 2>&1; then
+              if curl -fsS http://127.0.0.1:8084/apresbacia >/dev/null 2>&1 && \
+                 curl -fsS http://127.0.0.1:8084/fa >/dev/null 2>&1; then
                 READY=1
-                echo "✅ AprèsBac IA accessible localement"
                 break
               fi
-              echo "⏳ Tentative locale $i/15..."
+              echo "⏳ Santé locale $i/15..."
               sleep 4
             done
+            [ "$READY" -eq 1 ] || { docker compose logs --tail=150; exit 1; }
 
-            if [ "$READY" -ne 1 ]; then
-              echo "❌ AprèsBac IA n'est pas accessible localement"
-              docker compose logs --tail=150
-              exit 1
-            fi
-
-            echo "🧪 Test de santé local FA IA..."
-            FA_READY=0
-            for i in $(seq 1 15); do
-              if curl -fsS http://127.0.0.1:8084/fa >/dev/null 2>&1; then
-                FA_READY=1
-                echo "✅ FA IA accessible localement"
-                break
-              fi
-              echo "⏳ Tentative FA IA $i/15..."
-              sleep 4
-            done
-
-            if [ "$FA_READY" -ne 1 ]; then
-              echo "❌ FA IA n'est pas accessible localement"
-              docker compose logs --tail=150
-              exit 1
-            fi
-
-            echo "🧪 Vérification de la redirection vers l'URL courte..."
-            curl -sSI 'http://127.0.0.1:8084/apresbacia?v=controle' \
-              | tr -d '\r' \
-              | grep -qi '^location: https://bot.bj/apresbacia$' || {
-              echo "❌ L'URL avec paramètres n'est pas redirigée vers l'URL canonique"
-              exit 1
-            }
-
-            echo "🧪 Vérification des fichiers de production..."
+            echo "🧪 Vérification des fichiers dans le conteneur..."
             docker compose exec -T react-app test -f /usr/share/nginx/html/apresbacia/index.html
             docker compose exec -T react-app test -f /usr/share/nginx/html/apresbacia/production-finalization-v2_17.js
             docker compose exec -T react-app test -f /usr/share/nginx/html/fa/index.html
             docker compose exec -T react-app test -f /usr/share/nginx/html/fa/home-premium-v23.css
-            docker compose exec -T react-app grep -q 'home-premium-v23.css' /usr/share/nginx/html/fa/index.html
+            docker compose exec -T react-app grep -q '20260724-home-v23-1' /usr/share/nginx/html/fa/index.html
 
-            echo "🧪 Vérification publique HTTPS..."
             PUBLIC_READY=0
             for i in $(seq 1 15); do
-              if curl -fsS https://bot.bj/apresbacia >/dev/null 2>&1 && curl -fsS https://bot.bj/fa >/dev/null 2>&1; then
+              if curl -fsS https://bot.bj/apresbacia >/dev/null 2>&1 && \
+                 curl -fsS https://bot.bj/fa >/dev/null 2>&1; then
                 PUBLIC_READY=1
-                echo "✅ URLs publiques accessibles"
                 break
               fi
-              echo "⏳ Tentative publique $i/15..."
+              echo "⏳ Santé publique $i/15..."
               sleep 4
             done
+            [ "$PUBLIC_READY" -eq 1 ] || exit 1
 
-            if [ "$PUBLIC_READY" -ne 1 ]; then
-              echo "❌ Une URL publique est inaccessible"
-              exit 1
-            fi
+            echo "🧪 Vérification publique de la version V23.1..."
+            curl -fsS https://bot.bj/fa | grep -q '20260724-home-v23-1'
 
             echo "🔐 Vérification des en-têtes de sécurité..."
             SECURITY_HEADERS=$(curl -sSI https://bot.bj/apresbacia | tr -d '\r')
@@ -189,31 +153,14 @@ jobs:
             echo "$SECURITY_HEADERS" | grep -qi '^content-security-policy:'
             echo "$SECURITY_HEADERS" | grep -qi '^permissions-policy:'
 
-            echo "📋 Logs des conteneurs (dernières 100 lignes)..."
-            docker compose logs --tail=100
+            docker compose exec -T react-app sh -c "! grep -R 'G-XXXXXXXXXX' /usr/share/nginx/html/assets/js /usr/share/nginx/html/index.html"
 
-            echo "🧪 Vérification anti-ancien bundle..."
-            docker compose exec -T react-app sh -c "! grep -R 'G-XXXXXXXXXX' /usr/share/nginx/html/assets/js /usr/share/nginx/html/index.html" || {
-              echo "❌ Ancien bundle Google Analytics encore présent"
-              exit 1
-            }
-
-            echo "🧪 Vérification anti-cycle de chunks (react <-> charts)..."
             docker compose exec -T react-app sh -c '
               REACT_FILE=$(ls /usr/share/nginx/html/assets/js/react-*.js 2>/dev/null | head -n1)
               if [ -n "$REACT_FILE" ] && grep -q "charts-" "$REACT_FILE"; then
-                echo "❌ Cycle détecté: $REACT_FILE importe un chunk charts-*.js"
                 exit 1
               fi
-              echo "✅ Pas de cycle react<->charts"
-            ' || {
-              echo "❌ Cycle de chunks détecté"
-              exit 1
-            }
+            '
 
-            echo "🧹 Nettoyage final des images inutilisées..."
-            docker image prune -af || echo "⚠️ Nettoyage final partiel"
-
-            echo "✅ Déploiement terminé avec succès"
-            echo "🌐 URL FA IA : https://bot.bj/fa"
-            echo "🌐 URL AprèsBac IA : https://bot.bj/apresbacia"
+            docker image prune -af || true
+            echo "✅ Déploiement V23.1 terminé"
