@@ -72,7 +72,7 @@ const enforcementPosition = index.indexOf('corpus-enforcement-v14.js');
 const appPosition = index.indexOf('app.js');
 assert(loaderPosition >= 0, 'Loader corpus absent de index.html');
 assert(loaderPosition < authPosition && authPosition < enforcementPosition && enforcementPosition < appPosition, 'Ordre des scripts corpus/auth/app invalide');
-assert(index.includes('20260724-corpus-v15'), 'Cache V15 non activé');
+assert(index.includes('20260724-corpus-v15-1'), 'Cache V15.1 non activé');
 
 const loader = fs.readFileSync(new URL('corpus-loader-v14.js', root), 'utf8');
 assert(loader.includes('Interprétation intégrale - ${displayedName}'), 'Nouveau titre de l’interprétation intégrale absent');
@@ -96,11 +96,22 @@ assert(enforcement.includes('no_source_reference_in_answer: true'), 'Suppression
 assert(enforcement.includes('do_not_mention_book: true'), 'Interdiction du mot livre absente');
 assert(enforcement.includes('min_words: profile.minWords'), 'Longueur minimale dynamique absente');
 assert(enforcement.includes('max_words: profile.maxWords'), 'Longueur maximale dynamique absente');
+assert(enforcement.includes('response.status === 402'), 'Préservation du contrôle de quota absente');
+
+const app = fs.readFileSync(new URL('app.js', root), 'utf8');
+assert(app.includes('max_words: 320'), 'Limite générale raisonnable absente');
+assert(app.includes('detail_level: \'balanced\''), 'Niveau de détail équilibré absent');
+assert(app.includes('fallback(message, history)'), 'Fallback sécurisé non utilisé');
+assert(app.includes('L’interprétation intégrale n’a pas pu être chargée'), 'Protection de la première lecture absente');
+assert(app.includes('L’analyse contextuelle « ${selected.label} » est momentanément indisponible'), 'Protection des payloads absente');
+assert(!app.includes('Les forces disponibles sont ${x.light}'), 'Ancien fallback générique encore présent');
+assert(app.includes('<h3>Télé-consultation</h3>'), 'Libellé Télé-consultation absent du moteur principal');
 
 console.log(JSON.stringify({
   status: 'passed',
   version: corpus.version,
   presentation: '2026-07-24-corpus-presentation-v15',
+  cache: '20260724-corpus-v15-1',
   documented: documentedKeys.length,
   missing: missingKeys.length,
   total: allKeys.size,
@@ -109,6 +120,8 @@ console.log(JSON.stringify({
     payloads: 'ai_contextual_analysis',
     sourceMentions: 'removed',
     wordLimits: 'dynamic',
+    genericFallback: 'disabled',
+    quotaFlow: 'preserved',
   },
   samples: {
     'TOULA|WLIN': corpus.entries['TOULA|WLIN'].number,
