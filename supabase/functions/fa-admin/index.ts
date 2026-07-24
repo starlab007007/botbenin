@@ -28,9 +28,13 @@ async function requireAdmin(req: Request) {
 
   const { data: allowed, error: roleError } = await admin.rpc("has_role", {
     _user_id: data.user.id,
-    _role: "admin",
+    _role_name: "admin",
   });
-  if (roleError || !allowed) throw new Error("ADMIN_REQUIRED");
+  if (roleError) {
+    console.error("has_role error", roleError);
+    throw new Error(`ADMIN_CHECK_FAILED:${roleError.message}`);
+  }
+  if (!allowed) throw new Error("ADMIN_REQUIRED");
   return { admin, user: data.user };
 }
 
@@ -148,7 +152,6 @@ serve(async (req) => {
           continue;
         }
 
-        // Le code existe déjà : générer automatiquement un autre code.
         if (error?.code === "23505") {
           continue;
         }
@@ -237,6 +240,7 @@ serve(async (req) => {
     const message = String((error as Error).message || error);
     if (message === "AUTH_REQUIRED" || message === "AUTH_INVALID") return json({ error: message }, 401);
     if (message === "ADMIN_REQUIRED") return json({ error: message }, 403);
+    if (message.startsWith("ADMIN_CHECK_FAILED:")) return json({ error: "ADMIN_CHECK_FAILED", detail: message.slice("ADMIN_CHECK_FAILED:".length) }, 500);
     if (message === "SUPABASE_ACCESS_TOKEN_MISSING") return json({ error: message, message: "Ajoutez SUPABASE_ACCESS_TOKEN aux secrets Supabase pour permettre la mise à jour de la clé depuis l’interface." }, 503);
     console.error("fa-admin error", error);
     return json({ error: "internal", detail: message }, 500);
