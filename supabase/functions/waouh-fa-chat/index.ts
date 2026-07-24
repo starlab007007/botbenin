@@ -1,5 +1,5 @@
-// FA IA chat — enforces daily quota + 6-digit access codes, logs consultations,
-// calls Lovable AI Gateway (Gemini 2.5 Flash Lite) with the FA payload.
+// FA IA chat — quota + codes d’accès + journalisation.
+// Appel direct à l’API Google Gemini 2.5 Flash-Lite, sans passerelle Lovable.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 
@@ -7,25 +7,53 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-fa-device, x-fa-code",
 };
-const json = (b: unknown, s = 200) =>
-  new Response(JSON.stringify(b), { status: s, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json; charset=utf-8" },
+  });
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY") ?? "";
+const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_API_KEY") || "";
+const GEMINI_MODEL = "gemini-2.5-flash-lite";
+const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 function buildSystemPrompt(payload: any): string {
   const { sign, context, focus, constraints } = payload || {};
   return [
-    "Tu es FA IA, un guide bienveillant qui interprète le Fâ (géomancie béninoise) en français simple.",
-    "Reste strictement dans les limites symboliques du signe demandé. Ne diagnostique jamais.",
-    "N'invente aucun rituel réservé. Aucune accusation occulte. Une pratique rituelle doit être validée par un Bokonon.",
-    `Signe : ${sign?.canonical_name ?? "?"} (ref ${sign?.reference ?? "?"}) — Colonne A : ${(sign?.column_a || []).join(" ")} — Colonne B : ${(sign?.column_b || []).join(" ")}.`,
-    `Contexte utilisateur : catégorie « ${context?.category ?? "?"} », intention « ${context?.intention ?? "?"} », locale ${context?.locale ?? "fr-BJ"}.`,
-    `Focus demandé : ${focus?.label ?? "Comprendre le signe"} — instruction : ${focus?.instruction ?? ""}.`,
-    `Contraintes : détail ${constraints?.detail_level ?? "élevé"}, max ${constraints?.max_words ?? 900} mots, français simple, sans citer de sources externes.`,
-    "Structure ta réponse en paragraphes clairs, avec des sous-titres si utile.",
+    "Tu es FA IA, un assistant numérique expert en interprétation contextuelle du Fâ en français clair.",
+    "Utilise exclusivement l’interprétation intégrale du signe transmise dans le message utilisateur comme fondement de l’analyse.",
+    "Réponds directement à la demande et adapte la lecture au thème et à l’intention de la consultation.",
+    "Ne cite jamais un livre, une page, un numéro d’entrée, une source ou une référence documentaire.",
+    "N’invente aucun verset, proverbe, rituel, interdit, sacrifice ou prescription absent du corpus transmis.",
+    "Ne combine pas génériquement les deux signes de base à la place du signe exact.",
+    "Ne formule aucune prédiction certaine ou fatale. Ne diagnostique jamais.",
+    "Toute pratique traditionnelle réservée doit être validée par un Bokonon qualifié.",
+    `Signe : ${sign?.canonical_name ?? "?"} (référence technique ${sign?.reference ?? "?"}).`,
+    `Contexte : catégorie « ${context?.category ?? "?"} », intention « ${context?.intention ?? "?"} », locale ${context?.locale ?? "fr-BJ"}.`,
+    `Angle demandé : ${focus?.label ?? "Comprendre le signe"}. ${focus?.instruction ?? ""}`,
+    `Longueur maximale : ${Math.min(Number(constraints?.max_words) || 260, 400)} mots.`,
+    "Structure la réponse en paragraphes courts avec des sous-titres utiles, sans longue introduction.",
   ].join("\n");
+}
+
+function toGeminiContents(history: any[], userMessage: string) {
+  const contents = (Array.isArray(history) ? history : [])
+    .slice(-6)
+    .map((message: any) => ({
+      role: message?.role === "assistant" || message?.role === "model" ? "model" : "user",
+      parts: [{ text: String(message?.content || "").slice(0, 1800) }],
+    }))
+    .filter((item: any) => item.parts[0].text.trim().length > 0);
+  contents.push({ role: "user", parts: [{ text: userMessage }] });
+  return contents;
+}
+
+function extractGeminiText(data: any): string {
+  const parts = data?.candidates?.[0]?.content?.parts;
+  if (!Array.isArray(parts)) return "";
+  return parts.map((part: any) => typeof part?.text === "string" ? part.text : "").join("").trim();
 }
 
 serve(async (req) => {
@@ -34,17 +62,14 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const userMessage: string = (body?.user_message || "").toString().slice(0, 4000);
+    const userMessage = String(body?.user_message || "").slice(0, 16000).trim();
     if (!userMessage) return json({ error: "user_message requis" }, 400);
 
-    // Device fingerprint + optional access code
-    const deviceId = String(
-      body?.device_id || req.headers.get("x-fa-device") || ""
-    ).slice(0, 128) || `anon-${crypto.randomUUID()}`;
+    const deviceId = String(body?.device_id || req.headers.get("x-fa-device") || "")
+      .slice(0, 128) || `anon-${crypto.randomUUID()}`;
     const rawCode = String(body?.access_code || req.headers.get("x-fa-code") || "").replace(/\D/g, "");
     const accessCode = rawCode.length === 6 ? rawCode : null;
 
-    // Optional authenticated user
     let userId: string | null = null;
     const authHeader = req.headers.get("authorization") || "";
     const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
@@ -52,10 +77,9 @@ serve(async (req) => {
       try {
         const { data } = await admin.auth.getUser(token);
         userId = data.user?.id ?? null;
-      } catch (_) { /* ignore */ }
+      } catch (_) { /* utilisateur anonyme */ }
     }
 
-    // Enforce quota atomically
     const { data: quotaRes, error: quotaErr } = await admin.rpc("fa_consume_quota", {
       p_device_id: deviceId,
       p_user_id: userId,
@@ -65,14 +89,15 @@ serve(async (req) => {
       console.error("fa_consume_quota error", quotaErr);
       return json({ error: "quota_check_failed", detail: quotaErr.message }, 500);
     }
+
     const quota = quotaRes as any;
     if (!quota?.allowed) {
       const reasonMap: Record<string, string> = {
-        code_invalid: "Ce code est introuvable. Vérifiez auprès de l'administrateur.",
+        code_invalid: "Ce code est introuvable. Vérifiez auprès de l’administrateur.",
         code_inactive: "Ce code a été désactivé. Demandez un nouveau code.",
         code_expired: "Ce code a expiré. Demandez un nouveau code.",
-        code_exhausted: "Ce code a déjà été utilisé 3 fois. Demandez un nouveau code auprès de l'administrateur.",
-        daily_quota_exceeded: "Vous avez déjà consulté aujourd'hui. Entrez un code d'accès pour continuer ou revenez demain.",
+        code_exhausted: "Ce code a déjà été utilisé 3 fois. Demandez un nouveau code auprès de l’administrateur.",
+        daily_quota_exceeded: "Vous avez déjà consulté aujourd’hui. Entrez un code d’accès pour continuer ou revenez demain.",
       };
       return json({
         error: "quota_exceeded",
@@ -82,47 +107,58 @@ serve(async (req) => {
       }, 402);
     }
 
-    // AI call
-    if (!LOVABLE_API_KEY) {
-      return json({ error: "LOVABLE_API_KEY manquant" }, 500);
+    if (!GEMINI_API_KEY) {
+      console.error("Secret Gemini absent : GEMINI_API_KEY ou GOOGLE_API_KEY");
+      return json({
+        error: "gemini_key_missing",
+        message: "La clé serveur Gemini n’est pas configurée.",
+      }, 500);
     }
-    const systemPrompt = buildSystemPrompt(body);
-    const history = Array.isArray(body?.history) ? body.history : [];
-    const messages = [
-      { role: "system", content: systemPrompt },
-      ...history.slice(-8).map((m: any) => ({
-        role: m.role === "user" ? "user" : "assistant",
-        content: String(m.content || "").slice(0, 2000),
-      })),
-      { role: "user", content: userMessage },
-    ];
 
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const maxWords = Math.min(Math.max(Number(body?.constraints?.max_words) || 260, 60), 400);
+    const geminiResponse = await fetch(GEMINI_ENDPOINT, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "x-goog-api-key": GEMINI_API_KEY,
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
-        messages,
-        temperature: 0.7,
-        max_tokens: 1200,
+        systemInstruction: { parts: [{ text: buildSystemPrompt(body) }] },
+        contents: toGeminiContents(body?.history, userMessage),
+        generationConfig: {
+          temperature: 0.55,
+          topP: 0.9,
+          maxOutputTokens: Math.min(Math.max(maxWords * 3, 320), 1600),
+        },
       }),
     });
 
-    if (aiRes.status === 429) return json({ error: "rate_limited", message: "Trop de requêtes, réessayez dans un instant." }, 429);
-    if (aiRes.status === 402) return json({ error: "ai_credits", message: "Crédits IA épuisés, contactez l'administrateur." }, 402);
-    if (!aiRes.ok) {
-      const errText = await aiRes.text().catch(() => "");
-      console.error("AI gateway error", aiRes.status, errText);
-      return json({ error: "ai_error", detail: errText }, 500);
+    const rawGemini = await geminiResponse.text();
+    if (geminiResponse.status === 429) {
+      return json({ error: "rate_limited", message: "Trop de requêtes Gemini. Réessayez dans un instant." }, 429);
     }
-    const aiJson = await aiRes.json();
-    const answer: string = aiJson?.choices?.[0]?.message?.content ?? "";
-    if (!answer) return json({ error: "empty_answer" }, 500);
+    if (!geminiResponse.ok) {
+      console.error("Gemini API error", geminiResponse.status, rawGemini.slice(0, 1000));
+      return json({
+        error: "gemini_error",
+        message: "Gemini n’a pas pu générer la réponse.",
+        detail: rawGemini.slice(0, 1000),
+      }, 502);
+    }
 
-    // Log consultation
+    let geminiJson: any;
+    try { geminiJson = JSON.parse(rawGemini); }
+    catch {
+      console.error("Gemini réponse non JSON", rawGemini.slice(0, 1000));
+      return json({ error: "gemini_invalid_response" }, 502);
+    }
+
+    const answer = extractGeminiText(geminiJson);
+    if (!answer) {
+      console.error("Gemini empty answer", JSON.stringify(geminiJson).slice(0, 1500));
+      return json({ error: "empty_answer", finish_reason: geminiJson?.candidates?.[0]?.finishReason }, 502);
+    }
+
     await admin.from("fa_consultations").insert({
       code_id: quota?.code_id || null,
       code_value: quota?.code_value || null,
@@ -138,12 +174,14 @@ serve(async (req) => {
       ip_address: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
       user_agent: req.headers.get("user-agent") || null,
       status: "ok",
-      tokens_in: aiJson?.usage?.prompt_tokens ?? null,
-      tokens_out: aiJson?.usage?.completion_tokens ?? null,
+      tokens_in: geminiJson?.usageMetadata?.promptTokenCount ?? null,
+      tokens_out: geminiJson?.usageMetadata?.candidatesTokenCount ?? null,
     });
 
     return json({
       answer,
+      provider: "google-gemini-direct",
+      model: GEMINI_MODEL,
       quota: {
         via: quota.via,
         remaining: quota.remaining ?? null,
@@ -151,8 +189,8 @@ serve(async (req) => {
         code_max: quota.max_uses ?? null,
       },
     });
-  } catch (e) {
-    console.error("waouh-fa-chat error", e);
-    return json({ error: "internal", detail: String((e as Error).message) }, 500);
+  } catch (error) {
+    console.error("waouh-fa-chat error", error);
+    return json({ error: "internal", detail: String((error as Error).message) }, 500);
   }
 });
