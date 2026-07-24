@@ -1,0 +1,57 @@
+/* FA IA V19 — enrichissement premium de l'accueil uniquement */
+.fa-home-rich{position:relative;background:
+  radial-gradient(circle at 50% 0,rgba(196,126,39,.14),transparent 26%),
+  linear-gradient(180deg,#150b07 0,#201008 28%,#f4f0ea 28.1%,#f4f0ea 100%)}
+.fa-welcome{text-align:center;color:#fff;padding:2px 8px 9px}
+.fa-welcome h2{margin:0;font-family:Georgia,"Times New Roman",serif;font-size:34px;line-height:1;font-weight:700;letter-spacing:-.02em;text-shadow:0 3px 14px rgba(0,0,0,.3)}
+.fa-welcome p{margin:6px 0 0;color:#e6b85c;font-family:Georgia,"Times New Roman",serif;font-size:18px;line-height:1.1;font-weight:600}
+.fa-trust-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:10px 0 11px;padding:9px;border:1px solid rgba(231,178,78,.14);border-radius:22px;background:linear-gradient(180deg,rgba(31,16,8,.98),rgba(18,9,5,.98));box-shadow:0 10px 28px rgba(36,16,6,.18),inset 0 1px 0 rgba(255,255,255,.035)}
+.fa-trust-strip>div{min-width:0;display:flex;align-items:center;gap:7px;color:#fff}
+.fa-trust-icon{width:30px;height:30px;flex:0 0 30px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#6c451a,#2d1809);color:#f4c968;font-size:15px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05)}
+.fa-trust-strip strong,.fa-trust-strip small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fa-trust-strip strong{font-size:11px;line-height:1.05}
+.fa-trust-strip small{margin-top:2px;color:#b9aaa0;font-size:9px;line-height:1.05}
+.fa-home-rich .hero{order:2}
+.fa-home-rich .hero-content{left:16px;right:16px;bottom:14px}
+.fa-home-rich .hero-title{margin:8px 0 10px}
+.fa-home-rich .hero .primary{justify-content:flex-start;padding:0 13px;background:linear-gradient(90deg,#efb647,#f5c864 55%,#e7a93c);border:1px solid rgba(255,255,255,.18);box-shadow:0 9px 24px rgba(169,104,20,.3),inset 0 1px 0 rgba(255,255,255,.3)}
+.fa-cta-symbol,.fa-cta-arrow{display:grid;place-items:center;flex:0 0 42px;width:42px;height:42px;border-radius:50%;background:#160b06;color:#f0bd55}
+.fa-cta-symbol{font-size:19px}.fa-cta-arrow{margin-left:auto;font-size:34px;line-height:1;font-weight:300}
+.fa-cta-copy{display:flex;flex-direction:column;align-items:flex-start;margin-left:12px;line-height:1}
+.fa-cta-copy strong{font-family:Georgia,"Times New Roman",serif;font-size:21px;font-weight:700}
+.fa-cta-copy small{margin-top:5px;font-size:12px;font-weight:700;letter-spacing:.01em}
+.fa-home-rich .actions-grid{margin-top:0}
+.fa-home-rich .compact-card{position:relative;background:linear-gradient(145deg,#241308,#130a05);border-color:rgba(231,178,78,.12);color:#fff;box-shadow:0 10px 24px rgba(52,24,8,.18),inset 0 1px 0 rgba(255,255,255,.03)}
+.fa-home-rich .compact-card h3{color:#fff;margin:8px 0 4px!important;font-size:17px!important;white-space:normal!important}
+.fa-home-rich .compact-card p{color:#b8aaa0}
+.fa-home-rich .card-icon{background:linear-gradient(145deg,#173f34,#0c261f)!important;color:#54d8b8!important}
+.fa-home-rich .compact-card:nth-child(2) .card-icon{background:linear-gradient(145deg,#5a300c,#2f1706)!important;color:#f0bd55!important}
+.fa-card-tag{display:inline-flex;align-self:flex-start;margin-top:auto;padding:5px 9px;border-radius:999px;font-size:10px;font-weight:800;line-height:1}
+.fa-card-tag.green{background:rgba(0,110,83,.24);color:#54d8b8}.fa-card-tag.gold{background:rgba(164,91,12,.22);color:#eab04b}
+.fa-home-rich .hint-card{margin-top:9px;border-color:rgba(231,178,78,.12);background:linear-gradient(180deg,#26160d,#160b06);color:#cbb49d;justify-content:center;text-align:center;padding:10px 12px;border-radius:18px;font-family:Georgia,"Times New Roman",serif;font-size:13px;box-shadow:0 8px 20px rgba(45,21,8,.15)}
+.fa-home-rich .hint-card span:first-child{color:#f0bd55}
+@media(max-width:520px){
+  .fa-home-rich{padding-top:6px!important;background:linear-gradient(180deg,#150b07 0,#1d0e07 38%,#f4f0ea 38.1%,#f4f0ea 100%)}
+  .fa-welcome h2{font-size:31px}.fa-welcome p{font-size:16px}
+  .fa-trust-strip{margin-top:7px;margin-bottom:8px;padding:7px;border-radius:19px;gap:5px}
+  .fa-trust-icon{width:27px;height:27px;flex-basis:27px;font-size:13px}
+  .fa-trust-strip strong{font-size:10px}.fa-trust-strip small{font-size:8px}
+  .fa-home-rich .hero{height:clamp(285px,40dvh,365px)!important;min-height:285px}
+  .fa-home-rich .hero-title{font-size:clamp(28px,8.5vw,35px)!important;line-height:.98}
+  .fa-home-rich .hero .primary{height:58px;min-height:58px;border-radius:25px}
+  .fa-cta-symbol,.fa-cta-arrow{width:40px;height:40px;flex-basis:40px}
+  .fa-cta-copy strong{font-size:19px}.fa-cta-copy small{font-size:11px}
+  .fa-home-rich .actions-grid{gap:8px}
+  .fa-home-rich .compact-card{height:112px;min-height:112px;padding:10px 11px;border-radius:21px}
+  .fa-home-rich .compact-card .card-icon{width:32px;height:32px;font-size:16px}
+  .fa-home-rich .compact-card h3{font-size:15px!important;line-height:1.02!important}
+  .fa-home-rich .compact-card p{font-size:11px!important}
+  .fa-card-tag{font-size:9px;padding:4px 7px}
+  .fa-home-rich .hint-card{display:flex!important;font-size:12px;margin-top:8px;padding:8px 10px}
+}
+@media(max-width:520px) and (max-height:760px){
+  .fa-welcome{padding-bottom:5px}.fa-welcome h2{font-size:27px}.fa-welcome p{font-size:14px;margin-top:3px}
+  .fa-trust-strip{margin-top:5px;margin-bottom:6px;padding:6px}.fa-trust-strip small{display:none}
+  .fa-home-rich .hero{height:clamp(255px,36dvh,315px)!important;min-height:255px}
+  .fa-home-rich .compact-card{height:98px;min-height:98px}.fa-home-rich .hint-card{font-size:11px;padding:7px 9px}
+}
