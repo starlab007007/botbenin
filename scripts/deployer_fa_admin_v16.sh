@@ -8,20 +8,30 @@ CLI_VERSION="2.109.0"
 STAMP="$(date +%Y%m%d_%H%M%S)"
 LOG="$HOME/Downloads/fa_admin_v16_deploiement_${STAMP}.log"
 MIGRATION="supabase/migrations/20260724113000_fa_admin_console_v16.sql"
+CONFIG="supabase/config.toml"
+CONFIG_BACKUP="/tmp/fa_admin_config_${STAMP}.toml"
 
 exec > >(tee -a "$LOG") 2>&1
+
+restore_config() {
+  if [ -f "$CONFIG_BACKUP" ]; then
+    cp "$CONFIG_BACKUP" "$CONFIG"
+    rm -f "$CONFIG_BACKUP"
+  fi
+}
+trap restore_config EXIT
 
 fail() { echo "ERREUR : $1" >&2; echo "Journal : $LOG"; exit 1; }
 ok() { echo "✓ $1"; }
 step() { echo; echo "▶ $1"; }
 
 cd "$PROJECT" || fail "Projet introuvable : $PROJECT"
-[ -f supabase/config.toml ] || fail "supabase/config.toml introuvable"
+[ -f "$CONFIG" ] || fail "supabase/config.toml introuvable"
 [ -f "$MIGRATION" ] || fail "Migration introuvable : $MIGRATION"
 [ -f supabase/functions/waouh-fa-chat/index.ts ] || fail "waouh-fa-chat introuvable"
 [ -f supabase/functions/fa-admin/index.ts ] || fail "fa-admin introuvable"
 
-CURRENT_REF="$(grep -E '^[[:space:]]*project_id[[:space:]]*=' supabase/config.toml | head -1 | sed -E 's/.*=[[:space:]]*"([^"]+)".*/\1/')"
+CURRENT_REF="$(grep -E '^[[:space:]]*project_id[[:space:]]*=' "$CONFIG" | head -1 | sed -E 's/.*=[[:space:]]*"([^"]+)".*/\1/')"
 [ "$CURRENT_REF" = "$PROJECT_REF" ] || fail "Mauvais projet Supabase : $CURRENT_REF"
 
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
@@ -39,6 +49,52 @@ echo "Dossier : $PROJECT"
 echo "Branche : $(git branch --show-current)"
 echo "Commit : $(git rev-parse --short HEAD)"
 ok "Aucune synchronisation Git automatique ne sera exécutée"
+
+step "Normalisation temporaire de la configuration Supabase CLI"
+cp "$CONFIG" "$CONFIG_BACKUP"
+python3 - "$CONFIG" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+lines = path.read_text(encoding="utf-8").splitlines()
+out = []
+section = ""
+
+for line in lines:
+    stripped = line.strip()
+
+    if stripped == "[inbucket]":
+        section = "local_smtp"
+        out.append("[local_smtp]")
+        continue
+
+    if stripped == "[edge-runtime]":
+        section = "edge_runtime"
+        out.append("[edge_runtime]")
+        continue
+
+    if stripped.startswith("[") and stripped.endswith("]"):
+        section = stripped[1:-1]
+
+    if section == "local_smtp" and re.match(r"^\s*api_port\s*=", line):
+        continue
+
+    if section == "auth" and re.match(r"^\s*enable_confirmations\s*=", line):
+        continue
+
+    if section == "realtime" and re.match(r"^\s*ip_version\s*=", line):
+        value = line.split("=", 1)[1].strip().strip('"').lower()
+        normalized = "IPv4" if value == "ipv4" else "IPv6"
+        out.append(f'ip_version = "{normalized}"')
+        continue
+
+    out.append(line)
+
+path.write_text("\n".join(out) + "\n", encoding="utf-8")
+PY
+ok "Configuration temporairement compatible avec le CLI actuel"
 
 step "Connexion et liaison Supabase"
 "${SUPABASE[@]}" login
