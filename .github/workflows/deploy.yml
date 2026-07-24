@@ -18,69 +18,14 @@ jobs:
       - name: Récupérer le code GitHub Actions
         uses: actions/checkout@v4
 
-      - name: Préparer l'archive de déploiement
+      - name: Vérifier les fichiers FA IA avant déploiement
         run: |
           set -euo pipefail
-          tar \
-            --exclude='.git' \
-            --exclude='node_modules' \
-            --exclude='dist' \
-            --exclude='*.log' \
-            --exclude='*.tgz' \
-            -czf /tmp/botbenin-release.tgz .
-          mv /tmp/botbenin-release.tgz ./botbenin-release.tgz
-          test -s ./botbenin-release.tgz
-          echo "Archive prête : $(du -h ./botbenin-release.tgz | cut -f1)"
-
-      - name: Configurer la connexion SSH
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-        run: |
-          set -euo pipefail
-          install -m 700 -d "$HOME/.ssh"
-          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_deploy"
-          chmod 600 "$HOME/.ssh/id_deploy"
-          ssh-keyscan -T 20 -H "$VPS_HOST" >> "$HOME/.ssh/known_hosts" 2>/dev/null || true
-          chmod 600 "$HOME/.ssh/known_hosts"
-
-      - name: Envoyer le code sur le VPS avec reprises automatiques
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-        run: |
-          set -euo pipefail
-          SUCCESS=0
-          for ATTEMPT in 1 2 3; do
-            echo "📤 Tentative SCP ${ATTEMPT}/3..."
-            if scp \
-              -i "$HOME/.ssh/id_deploy" \
-              -o BatchMode=yes \
-              -o StrictHostKeyChecking=yes \
-              -o ConnectTimeout=30 \
-              -o ConnectionAttempts=3 \
-              -o ServerAliveInterval=15 \
-              -o ServerAliveCountMax=4 \
-              ./botbenin-release.tgz \
-              "${VPS_USER}@${VPS_HOST}:/tmp/botbenin-release.tgz.incoming"; then
-              ssh \
-                -i "$HOME/.ssh/id_deploy" \
-                -o BatchMode=yes \
-                -o StrictHostKeyChecking=yes \
-                -o ConnectTimeout=30 \
-                "${VPS_USER}@${VPS_HOST}" \
-                "test -s /tmp/botbenin-release.tgz.incoming && mv -f /tmp/botbenin-release.tgz.incoming /tmp/botbenin-release.tgz"
-              SUCCESS=1
-              break
-            fi
-            echo "⚠️ Échec de la tentative ${ATTEMPT}; nouvelle tentative dans 15 secondes."
-            sleep 15
-          done
-          if [ "$SUCCESS" -ne 1 ]; then
-            echo "❌ Impossible de transférer l'archive sur le VPS après 3 tentatives."
-            exit 1
-          fi
-          echo "✅ Archive transférée et validée sur le VPS."
+          test -f public/fa/index.html
+          test -f public/fa/home-premium-v23.css
+          grep -q '20260724-corpus-v15-2' public/fa/index.html
+          grep -q 'home-premium-v23.css' public/fa/index.html
+          echo "✅ Sources FA IA prêtes pour le déploiement"
 
       - name: Déployer sur le VPS avec Docker Compose
         uses: appleboy/ssh-action@v0.1.10
@@ -88,34 +33,70 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
           command_timeout: 30m
           script: |
             set -e
 
-            echo "📥 Mise à jour du code depuis l'archive GitHub Actions..."
-            if [ ! -s /tmp/botbenin-release.tgz ]; then
-              echo "❌ Archive de déploiement introuvable ou vide sur le VPS"
+            COMMIT_SHA='${{ github.sha }}'
+            RELEASE_URL="https://github.com/starlab007007/botbenin/archive/${COMMIT_SHA}.tar.gz"
+            RELEASE_ARCHIVE="/tmp/botbenin-${COMMIT_SHA}.tar.gz"
+            RELEASE_DIR="/tmp/botbenin-release-${COMMIT_SHA}"
+            APP_DIR="/home/debian/botbenin"
+
+            echo "📥 Téléchargement direct du commit ${COMMIT_SHA} depuis GitHub..."
+            rm -rf "$RELEASE_DIR"
+            rm -f "$RELEASE_ARCHIVE"
+            mkdir -p "$RELEASE_DIR" "$APP_DIR"
+
+            DOWNLOAD_OK=0
+            for ATTEMPT in 1 2 3; do
+              echo "Tentative de téléchargement ${ATTEMPT}/3..."
+              if curl \
+                --fail \
+                --location \
+                --show-error \
+                --silent \
+                --retry 3 \
+                --retry-all-errors \
+                --connect-timeout 30 \
+                --max-time 300 \
+                "$RELEASE_URL" \
+                --output "$RELEASE_ARCHIVE"; then
+                DOWNLOAD_OK=1
+                break
+              fi
+              sleep 15
+            done
+
+            if [ "$DOWNLOAD_OK" -ne 1 ] || [ ! -s "$RELEASE_ARCHIVE" ]; then
+              echo "❌ Impossible de télécharger l’archive du commit GitHub"
               exit 1
             fi
 
-            rm -rf /tmp/botbenin-release
-            mkdir -p /tmp/botbenin-release /home/debian/botbenin
-            tar -tzf /tmp/botbenin-release.tgz >/dev/null
-            tar -xzf /tmp/botbenin-release.tgz -C /tmp/botbenin-release
+            echo "🔎 Validation de l’archive..."
+            tar -tzf "$RELEASE_ARCHIVE" >/dev/null
+            tar -xzf "$RELEASE_ARCHIVE" --strip-components=1 -C "$RELEASE_DIR"
 
+            test -f "$RELEASE_DIR/public/fa/index.html"
+            test -f "$RELEASE_DIR/public/fa/home-premium-v23.css"
+            grep -q '20260724-corpus-v15-2' "$RELEASE_DIR/public/fa/index.html"
+            grep -q 'home-premium-v23.css' "$RELEASE_DIR/public/fa/index.html"
+
+            echo "📂 Synchronisation du code sur le VPS..."
             if command -v rsync >/dev/null 2>&1; then
-              rsync -a --delete /tmp/botbenin-release/ /home/debian/botbenin/
+              rsync -a --delete "$RELEASE_DIR/" "$APP_DIR/"
             else
-              rm -rf /home/debian/botbenin/* /home/debian/botbenin/.[!.]* /home/debian/botbenin/..?* 2>/dev/null || true
-              cp -a /tmp/botbenin-release/. /home/debian/botbenin/
+              rm -rf "$APP_DIR"/* "$APP_DIR"/.[!.]* "$APP_DIR"/..?* 2>/dev/null || true
+              cp -a "$RELEASE_DIR"/. "$APP_DIR"/
             fi
 
-            cd /home/debian/botbenin/
-            rm -rf /tmp/botbenin-release
-            rm -f /tmp/botbenin-release.tgz
-            echo "✅ Code synchronisé sans accès GitHub SSH côté VPS"
+            cd "$APP_DIR"
+            rm -rf "$RELEASE_DIR"
+            rm -f "$RELEASE_ARCHIVE"
+            echo "✅ Commit synchronisé directement depuis GitHub"
 
-            echo "🔨 Construction de la nouvelle image pendant que l'ancienne reste active..."
+            echo "🔨 Construction de la nouvelle image pendant que l’ancienne reste active..."
             docker compose build --pull || {
               echo "❌ Erreur lors du build"
               exit 1
@@ -181,7 +162,8 @@ jobs:
             docker compose exec -T react-app test -f /usr/share/nginx/html/apresbacia/index.html
             docker compose exec -T react-app test -f /usr/share/nginx/html/apresbacia/production-finalization-v2_17.js
             docker compose exec -T react-app test -f /usr/share/nginx/html/fa/index.html
-            docker compose exec -T react-app test -f /usr/share/nginx/html/fa/home-optimal-v20.css
+            docker compose exec -T react-app test -f /usr/share/nginx/html/fa/home-premium-v23.css
+            docker compose exec -T react-app grep -q 'home-premium-v23.css' /usr/share/nginx/html/fa/index.html
 
             echo "🧪 Vérification publique HTTPS..."
             PUBLIC_READY=0
