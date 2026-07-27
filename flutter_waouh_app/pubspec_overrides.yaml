@@ -1,0 +1,3 @@
+dependency_overrides:
+  ua_client_hints:
+    path: third_party/ua_client_hints

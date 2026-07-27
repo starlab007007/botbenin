@@ -1,0 +1,21 @@
+WAOUH V13 - 20260726_151504
+SOURCE=/Users/macbook/Downloads/WAOUH_CONSOLIDE_V12_20260726_150106
+TARGET=/Users/macbook/Downloads/WAOUH_CONSOLIDE_V13_20260726_151504
+AGP_VERSION=8.11.1
+GRADLE_VERSION=8.14.3
+KOTLIN_VERSION=2.2.20
+
+[AVANT]
+--- android/settings.gradle
+a83de8ebcfc0427ff9d6a54dfddef8969ee5e3074282b4a9fb62ac49ede1b38f  android/settings.gradle
+21:    id "com.android.application" version "8.6.1" apply false
+22:    id "org.jetbrains.kotlin.android" version "2.0.21" apply false
+--- android/build.gradle
+70a0189c7624514e9c9f566d4ff7f9942a44ed37adff4845dacc845b1860a1b3  android/build.gradle
+--- android/gradle/wrapper/gradle-wrapper.properties
+f83fd11364dfd555c710c7db1073cea5e8a58a01e28752b2d04bf08132d8d6b5  android/gradle/wrapper/gradle-wrapper.properties
+5:distributionUrl=https\://services.gradle.org/distributions/gradle-8.7-all.zip
+--- android/app/build.gradle
+425ecd1d946712644dceb74585c35e214cebc0656f35121a276b6f768220c23d  android/app/build.gradle
+4:    id "com.android.application"
+5:    id "org.jetbrains.kotlin.android"

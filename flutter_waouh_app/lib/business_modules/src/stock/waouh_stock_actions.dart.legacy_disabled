@@ -1,0 +1,1203 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../shared/waouh_business_ui.dart';
+import 'waouh_stock_models.dart';
+import 'waouh_stock_repository.dart';
+
+class WaouhStockMovementInput {
+  const WaouhStockMovementInput({
+    required this.quantity,
+    required this.reason,
+    this.note,
+  });
+
+  final int quantity;
+  final String reason;
+  final String? note;
+}
+
+Future<WaouhStockMovementInput?> showWaouhStockMovementSheet(
+  BuildContext context, {
+  required WaouhStockProduct product,
+  required bool incoming,
+}) =>
+    showModalBottomSheet<WaouhStockMovementInput>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) =>
+          _WaouhStockMovementSheet(product: product, incoming: incoming),
+    );
+
+class _WaouhStockMovementSheet extends StatefulWidget {
+  const _WaouhStockMovementSheet({
+    required this.product,
+    required this.incoming,
+  });
+
+  final WaouhStockProduct product;
+  final bool incoming;
+
+  @override
+  State<_WaouhStockMovementSheet> createState() =>
+      _WaouhStockMovementSheetState();
+}
+
+class _WaouhStockMovementSheetState extends State<_WaouhStockMovementSheet> {
+  final _quantity = TextEditingController();
+  final _note = TextEditingController();
+  String? _reason;
+
+  List<String> get _reasons => widget.incoming
+      ? const [
+          'Livraison fournisseur',
+          'Retour client',
+          'Inventaire',
+          'Autre entrée',
+        ]
+      : const [
+          'Vente comptoir',
+          'Vente WhatsApp',
+          'Perte / casse',
+          'Retour fournisseur',
+          'Autre sortie',
+        ];
+
+  @override
+  void dispose() {
+    _quantity.dispose();
+    _note.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final quantity = int.tryParse(_quantity.text.trim());
+    if (quantity == null || quantity <= 0 || _reason == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Indiquez une quantité et un motif.')),
+      );
+      return;
+    }
+    Navigator.of(context).pop(
+      WaouhStockMovementInput(
+        quantity: quantity,
+        reason: _reason!,
+        note: _note.text.trim().isEmpty ? null : _note.text.trim(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final title = widget.incoming ? 'Entrée de stock' : 'Sortie de stock';
+    final color =
+        widget.incoming ? WaouhBusinessColors.jade : WaouhBusinessColors.red;
+    return WaouhBusinessUiScope(
+      child: SafeArea(
+        top: false,
+        child: Container(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            20,
+            20,
+            20 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          decoration: const BoxDecoration(
+            color: WaouhBusinessColors.pearl,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: Icon(
+                        widget.incoming
+                            ? Icons.add_rounded
+                            : Icons.remove_rounded,
+                        color: color,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  'Produit',
+                  style: TextStyle(
+                    color: WaouhBusinessColors.muted,
+                    fontSize: 12.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  widget.product.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                TextField(
+                  controller: _quantity,
+                  autofocus: true,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    labelText: 'Quantité',
+                    suffixText: widget.product.unit ?? 'unités',
+                  ),
+                ),
+                const SizedBox(height: 18),
+                const Text(
+                  'Motif',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _reasons
+                      .map(
+                        (reason) => ChoiceChip(
+                          label: Text(reason),
+                          selected: _reason == reason,
+                          onSelected: (_) => setState(() => _reason = reason),
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 18),
+                TextField(
+                  controller: _note,
+                  minLines: 1,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Note (facultative)',
+                  ),
+                ),
+                const SizedBox(height: 22),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Annuler'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: _submit,
+                        style: FilledButton.styleFrom(backgroundColor: color),
+                        child: const Text('Confirmer'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String waouhStockRecommendationText(WaouhStockInsight insight) {
+  final lines = <String>[
+    'Analyse de stock',
+    insight.summary,
+    '',
+    'Réapprovisionnement conseillé :',
+    ...insight.items.map(
+      (item) =>
+          '• ${item.name} : +${item.recommendedQuantity} ${item.unit ?? 'unités'}',
+    ),
+  ];
+  return lines.join('\n');
+}
+
+Future<void> showWaouhStockInsightSheet(
+  BuildContext context, {
+  required WaouhStockInsight insight,
+  required WaouhStockRepository repository,
+}) =>
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _WaouhStockInsightSheet(
+        insight: insight,
+        repository: repository,
+      ),
+    );
+
+class _WaouhStockInsightSheet extends StatelessWidget {
+  const _WaouhStockInsightSheet({
+    required this.insight,
+    required this.repository,
+  });
+
+  final WaouhStockInsight insight;
+  final WaouhStockRepository repository;
+
+  @override
+  Widget build(BuildContext context) {
+    final message = waouhStockRecommendationText(insight);
+    return WaouhBusinessUiScope(
+      child: SafeArea(
+        top: false,
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * .84,
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+          decoration: const BoxDecoration(
+            color: WaouhBusinessColors.pearl,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Analyse de votre stock',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                insight.summary,
+                style: const TextStyle(
+                  color: WaouhBusinessColors.muted,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        await Clipboard.setData(ClipboardData(text: message));
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Recommandation copiée.'),
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.copy_rounded),
+                      label: const Text('Copier'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: insight.items.isEmpty
+                          ? null
+                          : () => showModalBottomSheet<void>(
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor: Colors.transparent,
+                                builder: (_) => _RecommendationWhatsAppSheet(
+                                  repository: repository,
+                                  message: message,
+                                ),
+                              ),
+                      icon: const Icon(Icons.send_rounded),
+                      label: const Text('Envoyer'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Expanded(
+                child: insight.items.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Aucune alerte de stock.',
+                          style: TextStyle(color: WaouhBusinessColors.muted),
+                        ),
+                      )
+                    : ListView.separated(
+                        itemCount: insight.items.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (_, index) {
+                          final item = insight.items[index];
+                          return WaouhBusinessSurface(
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.warning_amber_rounded,
+                                  color: WaouhBusinessColors.orange,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        item.name,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        'Stock : ${item.stock} · Seuil : ${item.minimum}',
+                                        style: const TextStyle(
+                                          color: WaouhBusinessColors.muted,
+                                          fontSize: 12.5,
+                                        ),
+                                      ),
+                                      if (item.daysUntilOut != null)
+                                        Text(
+                                          'Risque de rupture sous ${item.daysUntilOut} jour${item.daysUntilOut == 1 ? '' : 's'}',
+                                          style: const TextStyle(
+                                            color: WaouhBusinessColors.red,
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                Text(
+                                  '+${item.recommendedQuantity}',
+                                  style: const TextStyle(
+                                    color: WaouhBusinessColors.jade,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RecommendationWhatsAppSheet extends StatefulWidget {
+  const _RecommendationWhatsAppSheet({
+    required this.repository,
+    required this.message,
+  });
+
+  final WaouhStockRepository repository;
+  final String message;
+
+  @override
+  State<_RecommendationWhatsAppSheet> createState() =>
+      _RecommendationWhatsAppSheetState();
+}
+
+class _RecommendationWhatsAppSheetState
+    extends State<_RecommendationWhatsAppSheet> {
+  final _recipient = TextEditingController();
+  List<WaouhStockWhatsAppSession> _sessions = const [];
+  String? _session;
+  Object? _error;
+  bool _loading = true;
+  bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSessions();
+  }
+
+  @override
+  void dispose() {
+    _recipient.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadSessions() async {
+    try {
+      final sessions = await widget.repository.fetchWhatsAppSessions();
+      if (!mounted) return;
+      setState(() {
+        _sessions = sessions;
+        final connected = sessions.where((item) => item.isConnected).toList();
+        _session = connected.isEmpty ? null : connected.first.sessionName;
+        _session ??= sessions.isEmpty ? null : sessions.first.sessionName;
+      });
+    } catch (error) {
+      if (mounted) setState(() => _error = error);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _send() async {
+    final session = _session;
+    if (session == null || _recipient.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Choisissez une ligne et indiquez le destinataire.'),
+        ),
+      );
+      return;
+    }
+    setState(() => _sending = true);
+    try {
+      await widget.repository.sendRecommendation(
+        sessionName: session,
+        recipient: _recipient.text.trim(),
+        message: widget.message,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Recommandation envoyée sur WhatsApp.')),
+      );
+    } catch (error) {
+      if (mounted) setState(() => _error = error);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return WaouhBusinessUiScope(
+      child: SafeArea(
+        top: false,
+        child: Container(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            20,
+            20,
+            20 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          decoration: const BoxDecoration(
+            color: WaouhBusinessColors.pearl,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Envoyer la recommandation',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 5),
+                const Text(
+                  'L’envoi reste soumis à votre confirmation.',
+                  style: TextStyle(color: WaouhBusinessColors.muted),
+                ),
+                const SizedBox(height: 18),
+                if (_loading)
+                  const Center(child: CircularProgressIndicator())
+                else ...[
+                  if (_sessions.isEmpty)
+                    const _StockActionError(
+                      message:
+                          'Aucune ligne WhatsApp n’est disponible. Connectez une ligne dans WhatsApp IA Studio.',
+                    )
+                  else ...[
+                    DropdownButtonFormField<String>(
+                      value: _session,
+                      decoration: const InputDecoration(
+                        labelText: 'Ligne WhatsApp',
+                      ),
+                      items: _sessions
+                          .map(
+                            (item) => DropdownMenuItem<String>(
+                              value: item.sessionName,
+                              child: Text(item.label),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: _sending
+                          ? null
+                          : (value) => setState(() => _session = value),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _recipient,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(
+                        labelText: 'Numéro destinataire',
+                        hintText: 'Ex. 22997000000@c.us',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: WaouhBusinessColors.blue.withValues(alpha: .08),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Text(
+                        widget.message,
+                        maxLines: 7,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12.5, height: 1.35),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: _sending ? null : _send,
+                        icon: _sending
+                            ? const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.send_rounded),
+                        label: const Text('Envoyer sur WhatsApp'),
+                      ),
+                    ),
+                  ],
+                ],
+                if (_error != null) ...[
+                  const SizedBox(height: 14),
+                  _StockActionError(message: '$_error'),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StockActionError extends StatelessWidget {
+  const _StockActionError({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: WaouhBusinessColors.red.withValues(alpha: .09),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Text(
+          message,
+          style: const TextStyle(
+            color: WaouhBusinessColors.red,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      );
+}
+
+Future<void> showWaouhStockAlertSettingsSheet(
+  BuildContext context, {
+  required WaouhStockRepository repository,
+}) =>
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _StockAlertSettingsSheet(repository: repository),
+    );
+
+class _StockAlertSettingsSheet extends StatefulWidget {
+  const _StockAlertSettingsSheet({required this.repository});
+
+  final WaouhStockRepository repository;
+
+  @override
+  State<_StockAlertSettingsSheet> createState() =>
+      _StockAlertSettingsSheetState();
+}
+
+class _StockAlertSettingsSheetState extends State<_StockAlertSettingsSheet> {
+  final _recipient = TextEditingController();
+  List<WaouhStockPartner> _partners = const [];
+  List<WaouhStockWhatsAppSession> _sessions = const [];
+  String? _partnerId;
+  String? _sessionName;
+  bool _enabled = false;
+  bool _loading = true;
+  bool _saving = false;
+  Object? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _recipient.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final results = await Future.wait([
+        widget.repository.fetchPartners(),
+        widget.repository.fetchWhatsAppSessions(),
+      ]);
+      if (!mounted) return;
+      final partners = results[0] as List<WaouhStockPartner>;
+      final sessions = results[1] as List<WaouhStockWhatsAppSession>;
+      setState(() {
+        _partners = partners;
+        _sessions = sessions;
+        _partnerId = partners.isEmpty ? null : partners.first.id;
+        final connected = sessions.where((item) => item.isConnected).toList();
+        _sessionName = connected.isEmpty
+            ? (sessions.isEmpty ? null : sessions.first.sessionName)
+            : connected.first.sessionName;
+      });
+      await _loadSetting();
+    } catch (error) {
+      if (mounted) setState(() => _error = error);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadSetting() async {
+    final partnerId = _partnerId;
+    if (partnerId == null) return;
+    try {
+      final setting = await widget.repository.fetchAlertSetting(partnerId);
+      if (!mounted || setting == null) return;
+      setState(() {
+        _enabled = setting.enabled;
+        _recipient.text = setting.recipient ?? '';
+        _sessionName = setting.sessionName ?? _sessionName;
+      });
+    } catch (error) {
+      if (mounted) setState(() => _error = error);
+    }
+  }
+
+  Future<void> _save() async {
+    final partnerId = _partnerId;
+    if (partnerId == null) {
+      setState(
+          () => _error = StateError('Créez d’abord votre espace partenaire.'));
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await widget.repository.saveAlertSetting(
+        partnerId: partnerId,
+        enabled: _enabled,
+        recipient: _recipient.text,
+        sessionName: _sessionName,
+      );
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Alertes Stock enregistrées.')),
+      );
+    } catch (error) {
+      if (mounted) setState(() => _error = error);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => WaouhBusinessUiScope(
+        child: SafeArea(
+          top: false,
+          child: Container(
+            padding: EdgeInsets.fromLTRB(
+              20,
+              20,
+              20,
+              20 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            decoration: const BoxDecoration(
+              color: WaouhBusinessColors.pearl,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Alertes Stock WhatsApp',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 5),
+                  const Text(
+                    'Une alerte est envoyée après un mouvement qui passe sous le seuil. Une seule alerte par produit et par jour.',
+                    style: TextStyle(
+                      color: WaouhBusinessColors.muted,
+                      height: 1.3,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  if (_loading)
+                    const Center(child: CircularProgressIndicator())
+                  else ...[
+                    if (_partners.isEmpty)
+                      const _StockActionError(
+                        message:
+                            'Aucun espace partenaire n’est disponible pour configurer une alerte.',
+                      )
+                    else ...[
+                      DropdownButtonFormField<String>(
+                        value: _partnerId,
+                        decoration:
+                            const InputDecoration(labelText: 'Espace stock'),
+                        items: _partners
+                            .map(
+                              (partner) => DropdownMenuItem(
+                                value: partner.id,
+                                child: Text(partner.name),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: _saving
+                            ? null
+                            : (value) async {
+                                setState(() {
+                                  _partnerId = value;
+                                  _enabled = false;
+                                  _recipient.clear();
+                                });
+                                await _loadSetting();
+                              },
+                      ),
+                      const SizedBox(height: 10),
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        value: _enabled,
+                        title: const Text(
+                          'Activer les alertes',
+                          style: TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        subtitle: const Text(
+                          'Déclenchées uniquement sur passage sous le seuil.',
+                          style: TextStyle(
+                            color: WaouhBusinessColors.muted,
+                            fontSize: 12,
+                          ),
+                        ),
+                        onChanged: _saving
+                            ? null
+                            : (value) => setState(() => _enabled = value),
+                      ),
+                      if (_enabled) ...[
+                        const SizedBox(height: 6),
+                        DropdownButtonFormField<String>(
+                          value: _sessionName,
+                          decoration: const InputDecoration(
+                            labelText: 'Ligne WhatsApp',
+                          ),
+                          items: _sessions
+                              .map(
+                                (item) => DropdownMenuItem(
+                                  value: item.sessionName,
+                                  child: Text(item.label),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: _saving
+                              ? null
+                              : (value) => setState(() => _sessionName = value),
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: _recipient,
+                          keyboardType: TextInputType.phone,
+                          decoration: const InputDecoration(
+                            labelText: 'Numéro WhatsApp destinataire',
+                            hintText: 'Ex. +229 97 00 00 00',
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 18),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _saving ? null : _save,
+                          icon: const Icon(Icons.notifications_active_outlined),
+                          label: const Text('Enregistrer les alertes'),
+                        ),
+                      ),
+                    ],
+                  ],
+                  if (_error != null) ...[
+                    const SizedBox(height: 14),
+                    _StockActionError(message: '$_error'),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
+Future<WaouhStockNewProduct?> showWaouhStockCreateProductSheet(
+  BuildContext context, {
+  required WaouhStockRepository repository,
+  required List<WaouhStockPartner> partners,
+}) =>
+    showModalBottomSheet<WaouhStockNewProduct>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _WaouhStockCreateProductSheet(
+        repository: repository,
+        partners: partners,
+      ),
+    );
+
+class _WaouhStockCreateProductSheet extends StatefulWidget {
+  const _WaouhStockCreateProductSheet({
+    required this.repository,
+    required this.partners,
+  });
+
+  final WaouhStockRepository repository;
+  final List<WaouhStockPartner> partners;
+
+  @override
+  State<_WaouhStockCreateProductSheet> createState() =>
+      _WaouhStockCreateProductSheetState();
+}
+
+class _WaouhStockCreateProductSheetState
+    extends State<_WaouhStockCreateProductSheet> {
+  final _name = TextEditingController();
+  final _category = TextEditingController();
+  final _unit = TextEditingController();
+  final _price = TextEditingController();
+  final _stock = TextEditingController(text: '0');
+  final _minimum = TextEditingController(text: '0');
+  final _target = TextEditingController();
+  final _description = TextEditingController();
+
+  late String _partnerId;
+  List<WaouhStockBusiness> _businesses = const [];
+  String? _businessId;
+  bool _loadingBusinesses = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _partnerId = widget.partners.first.id;
+    _loadBusinesses();
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _category.dispose();
+    _unit.dispose();
+    _price.dispose();
+    _stock.dispose();
+    _minimum.dispose();
+    _target.dispose();
+    _description.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadBusinesses() async {
+    setState(() {
+      _loadingBusinesses = true;
+      _businesses = const [];
+      _businessId = null;
+    });
+    try {
+      final values = await widget.repository.fetchBusinesses(_partnerId);
+      if (!mounted) return;
+      setState(() {
+        _businesses = values;
+        _businessId = values.isEmpty ? null : values.first.id;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('$error')));
+    } finally {
+      if (mounted) setState(() => _loadingBusinesses = false);
+    }
+  }
+
+  void _submit() {
+    final stock = int.tryParse(_stock.text.trim());
+    final minimum = int.tryParse(_minimum.text.trim());
+    final target =
+        _target.text.trim().isEmpty ? null : int.tryParse(_target.text.trim());
+    final price = _price.text.trim().isEmpty
+        ? null
+        : num.tryParse(_price.text.trim().replaceAll(',', '.'));
+    if (_name.text.trim().isEmpty || _businessId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nom et activité sont requis.')),
+      );
+      return;
+    }
+    if (stock == null ||
+        minimum == null ||
+        stock < 0 ||
+        minimum < 0 ||
+        (target != null && (target < 0 || target < minimum)) ||
+        (_price.text.trim().isNotEmpty && price == null)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Vérifiez les quantités, le prix et l’objectif.')),
+      );
+      return;
+    }
+    Navigator.of(context).pop(
+      WaouhStockNewProduct(
+        partnerId: _partnerId,
+        businessId: _businessId!,
+        name: _name.text.trim(),
+        stock: stock,
+        minimum: minimum,
+        target: target,
+        category: _category.text.trim().isEmpty ? null : _category.text.trim(),
+        unit: _unit.text.trim().isEmpty ? null : _unit.text.trim(),
+        price: price,
+        description:
+            _description.text.trim().isEmpty ? null : _description.text.trim(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => WaouhBusinessUiScope(
+        child: SafeArea(
+          top: false,
+          child: Container(
+            decoration: const BoxDecoration(
+              color: WaouhBusinessColors.pearl,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            padding: EdgeInsets.fromLTRB(
+              20,
+              16,
+              20,
+              20 + MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: WaouhBusinessColors.line,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Ajouter un produit',
+                          style: TextStyle(
+                              fontSize: 21, fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: _partnerId,
+                    decoration:
+                        const InputDecoration(labelText: 'Espace stock'),
+                    items: widget.partners
+                        .map((partner) => DropdownMenuItem(
+                              value: partner.id,
+                              child: Text(partner.name),
+                            ))
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null || value == _partnerId) return;
+                      setState(() => _partnerId = value);
+                      _loadBusinesses();
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  if (_loadingBusinesses)
+                    const LinearProgressIndicator()
+                  else if (_businesses.isEmpty)
+                    const _WaouhStockNoBusinessHint()
+                  else
+                    DropdownButtonFormField<String>(
+                      value: _businessId,
+                      decoration: const InputDecoration(labelText: 'Activité'),
+                      items: _businesses
+                          .map((business) => DropdownMenuItem(
+                                value: business.id,
+                                child: Text(business.name),
+                              ))
+                          .toList(),
+                      onChanged: (value) => setState(() => _businessId = value),
+                    ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _name,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration:
+                        const InputDecoration(labelText: 'Nom du produit'),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _category,
+                          textCapitalization: TextCapitalization.sentences,
+                          decoration:
+                              const InputDecoration(labelText: 'Catégorie'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: _unit,
+                          textCapitalization: TextCapitalization.sentences,
+                          decoration: const InputDecoration(labelText: 'Unité'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _price,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                        labelText: 'Prix unitaire (facultatif)'),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _stock,
+                          keyboardType: TextInputType.number,
+                          decoration:
+                              const InputDecoration(labelText: 'Stock initial'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: _minimum,
+                          keyboardType: TextInputType.number,
+                          decoration:
+                              const InputDecoration(labelText: 'Seuil minimum'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _target,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                        labelText: 'Objectif stock (facultatif)'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _description,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                        labelText: 'Description (facultative)'),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _loadingBusinesses || _businessId == null
+                          ? null
+                          : _submit,
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Ajouter au stock'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+}
+
+class _WaouhStockNoBusinessHint extends StatelessWidget {
+  const _WaouhStockNoBusinessHint();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: WaouhBusinessColors.orange.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.storefront_outlined, color: WaouhBusinessColors.orange),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Créez d’abord une activité liée à cet espace partenaire pour y ajouter des produits.',
+                style: TextStyle(color: WaouhBusinessColors.muted, height: 1.3),
+              ),
+            ),
+          ],
+        ),
+      );
+}

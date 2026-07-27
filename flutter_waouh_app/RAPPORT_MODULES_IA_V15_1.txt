@@ -1,0 +1,15 @@
+WAOUH V15.1 - MODULES IA
+PROJECT=/Users/macbook/Downloads/WAOUH_CONSOLIDE_V15_20260726_165849
+DART_COUNT=15
+ASSET_COUNT=5
+FA_LINES=4817
+APRESBAC_LINES=3162
+HUB_LINES=263
+HUB_SHA=f9f142c66c4cb5429b21d16ac4a278245b779e55b3a1c0a98daa0a570e1cff03
+
+160:          path: '/app/ia',
+161:          builder: (_, __) => const LiveIaFinalHubScreen(),
+168:          path: '/app/apresbac',
+169:          builder: (_, __) => LiveApresBacIaScreen(client: legacy.supabase),
+171:        GoRoute(path: '/app/fa-ia', builder: (_, __) => const FaIaHomeScreen()),
+303:                2 => '/app/ia',

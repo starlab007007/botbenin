@@ -1,0 +1,33 @@
+{
+  "web_commit": "6074d64ae6d54f22e040bb66b119758583d43b82",
+  "source": "public/fa",
+  "assets": [
+    {
+      "file": "fa_chain_mystic_hero.webp",
+      "bytes": 14042,
+      "sha256": "b547fc8c55b2d26b0a2180be2b52c8814226cf1d847690fd412781424daff155"
+    },
+    {
+      "file": "fa_chain_reference.webp",
+      "bytes": 6332,
+      "sha256": "7020d0b87f7bcb77c85d1f146ec9763772e4264728aea9a976fb8900117d0e54"
+    },
+    {
+      "file": "cowrie_open_real.webp",
+      "bytes": 7230,
+      "sha256": "b4ed54d1902e127b84cfeee69920360f32169c6965e44d2b637075e321e955c7"
+    },
+    {
+      "file": "cowrie_closed_real.webp",
+      "bytes": 5276,
+      "sha256": "c356b211f63484729a0481da9842884271c3694cb7aff7b55c6fad40f8f7b651"
+    }
+  ],
+  "corpus": {
+    "file": "fa_256_document_corpus.json",
+    "documented": 237,
+    "missing": 19,
+    "total": 256,
+    "sha256": "1c857d978c89ed1b15ef194de5289422aa6f50d051b228fef777ba6db6b87f2a"
+  }
+}

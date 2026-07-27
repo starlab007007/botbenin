@@ -14,7 +14,8 @@ class WhatsAppSheetFrame extends StatelessWidget {
   Widget build(BuildContext context) => SafeArea(
         top: false,
         child: Container(
-          constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .86),
+          constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * .86),
           decoration: const BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
@@ -35,7 +36,8 @@ class WhatsAppSheetFrame extends StatelessWidget {
                 Expanded(
                   child: Text(
                     title,
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                    style: const TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.w900),
                   ),
                 ),
                 IconButton(

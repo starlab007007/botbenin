@@ -9,32 +9,23 @@ class LiveWhatsAppIaException implements Exception {
 
 class LiveWhatsAppSession {
   const LiveWhatsAppSession({
-    this.id = '',
     required this.name,
     required this.status,
-    this.wahaSessionName,
     this.phone,
     this.createdAt,
   });
 
-  final String id;
   final String name;
-  final String? wahaSessionName;
   final String status;
   final String? phone;
   final DateTime? createdAt;
 
-  bool get isWorking => const {
-        'WORKING',
-        'AUTHENTICATED',
-        'READY',
-        'CONNECTED',
-      }.contains(status.toUpperCase());
+  bool get isWorking =>
+      status.toUpperCase() == 'WORKING' || status.toLowerCase() == 'connected';
 
   bool get needsQr => const {
         'SCAN_QR_CODE',
         'STARTING',
-        'CONNECTING',
         'STOPPED',
         'DISCONNECTED',
       }.contains(status.toUpperCase());
@@ -52,9 +43,7 @@ class LiveWhatsAppSession {
 
   factory LiveWhatsAppSession.fromDatabase(Map<String, dynamic> row) =>
       LiveWhatsAppSession(
-        id: '${row['id'] ?? ''}',
         name: '${row['session_name'] ?? ''}',
-        wahaSessionName: row['waha_session_name']?.toString(),
         status: '${row['status'] ?? 'STOPPED'}',
         phone: row['phone_number']?.toString(),
         createdAt: DateTime.tryParse('${row['created_at'] ?? ''}')?.toLocal(),
@@ -69,7 +58,6 @@ class LiveWhatsAppSession {
         : const <String, dynamic>{};
     return LiveWhatsAppSession(
       name: '${row['name'] ?? row['session_name'] ?? ''}',
-      wahaSessionName: '${row['name'] ?? row['waha_session_name'] ?? ''}',
       status: '${row['status'] ?? 'DISCONNECTED'}',
       phone: metadata['phone_number']?.toString() ??
           metadata['account']?.toString(),

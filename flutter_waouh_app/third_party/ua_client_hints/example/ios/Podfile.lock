@@ -1,0 +1,22 @@
+PODS:
+  - Flutter (1.0.0)
+  - ua_client_hints (1.5.0):
+    - Flutter
+
+DEPENDENCIES:
+  - Flutter (from `Flutter`)
+  - ua_client_hints (from `.symlinks/plugins/ua_client_hints/ios`)
+
+EXTERNAL SOURCES:
+  Flutter:
+    :path: Flutter
+  ua_client_hints:
+    :path: ".symlinks/plugins/ua_client_hints/ios"
+
+SPEC CHECKSUMS:
+  Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
+  ua_client_hints: 7ad93d6abd2bd029beb767388caa0380cdef3757
+
+PODFILE CHECKSUM: c4c93c5f6502fe2754f48404d3594bf779584011
+
+COCOAPODS: 1.15.2

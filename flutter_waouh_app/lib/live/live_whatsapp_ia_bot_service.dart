@@ -4,7 +4,8 @@ import 'live_whatsapp_ia_gateway.dart';
 import 'live_whatsapp_ia_models.dart';
 
 class LiveWhatsAppIaBotService {
-  LiveWhatsAppIaBotService(this.client) : gateway = LiveWhatsAppIaGateway(client);
+  LiveWhatsAppIaBotService(this.client)
+      : gateway = LiveWhatsAppIaGateway(client);
 
   final SupabaseClient client;
   final LiveWhatsAppIaGateway gateway;
@@ -32,7 +33,12 @@ class LiveWhatsAppIaBotService {
     if (!hooks.any((item) => item['url']?.toString() == url)) {
       hooks.add({
         'url': url,
-        'events': ['message', 'message.reaction', 'message.status', 'session.status'],
+        'events': [
+          'message',
+          'message.reaction',
+          'message.status',
+          'session.status'
+        ],
         'hmac': false,
         'retries': 3,
       });
@@ -40,7 +46,10 @@ class LiveWhatsAppIaBotService {
     await gateway.request(
       path: '/api/sessions/$sessionName',
       method: 'PUT',
-      body: {'name': sessionName, 'config': {...config, 'webhooks': hooks}},
+      body: {
+        'name': sessionName,
+        'config': {...config, 'webhooks': hooks}
+      },
     );
   }
 
@@ -67,11 +76,17 @@ class LiveWhatsAppIaBotService {
     await gateway.request(
       path: '/api/sessions/$sessionName',
       method: 'PUT',
-      body: {'name': sessionName, 'config': {...config, 'webhooks': hooks}},
+      body: {
+        'name': sessionName,
+        'config': {...config, 'webhooks': hooks}
+      },
     );
   }
 
   List<Map<String, dynamic>> _hooks(dynamic value) => value is List
-      ? value.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList()
+      ? value
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList()
       : <Map<String, dynamic>>[];
 }

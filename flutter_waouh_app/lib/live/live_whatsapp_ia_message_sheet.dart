@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../main.dart' as legacy;
 import 'live_whatsapp_ia_gateway.dart';
-import 'live_whatsapp_ia_models.dart';
 import 'live_whatsapp_ia_sheets.dart';
 
 Future<void> showNativeWhatsAppTestMessageSheet(
   BuildContext context, {
   required String sessionName,
-}) => showModalBottomSheet<void>(
+}) =>
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -53,9 +53,13 @@ class _TestMessageSheetState extends State<_TestMessageSheet> {
     setState(() => busy = true);
     try {
       await gateway.request(
-        path: '/api/sessions/${widget.sessionName}/messages/text',
+        path: '/api/sendText',
         method: 'POST',
-        body: {'to': '$digits@c.us', 'text': text},
+        body: {
+          'session': widget.sessionName,
+          'chatId': '$digits@c.us',
+          'text': text,
+        },
       );
       if (!mounted) return;
       Navigator.pop(context);
@@ -81,7 +85,8 @@ class _TestMessageSheetState extends State<_TestMessageSheet> {
   Widget build(BuildContext context) => WhatsAppSheetFrame(
         title: 'Message test',
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Destinataire', style: TextStyle(fontWeight: FontWeight.w900)),
+          const Text('Destinataire',
+              style: TextStyle(fontWeight: FontWeight.w900)),
           const SizedBox(height: 8),
           TextField(
             controller: recipient,

@@ -2,6 +2,25 @@ import 'dart:math' as math;
 
 const _earthRadiusKm = 6371.0;
 
+/// Portées officielles du Radar WAOUH.
+const liveRadarRadiusOptionsKm = <double>[0.5, 1, 2, 5, 10];
+
+double normalizeLiveRadarRadiusKm(num? value) {
+  final requested = value?.toDouble() ?? 2;
+  return liveRadarRadiusOptionsKm.reduce(
+    (best, candidate) =>
+        (candidate - requested).abs() < (best - requested).abs()
+            ? candidate
+            : best,
+  );
+}
+
+String liveRadarRadiusLabel(double radiusKm) {
+  if (radiusKm < 1) return '${(radiusKm * 1000).round()} m';
+  if (radiusKm == radiusKm.roundToDouble()) return '${radiusKm.round()} km';
+  return '${radiusKm.toStringAsFixed(1)} km';
+}
+
 enum LiveRadarItemType { sell, buy, status }
 
 extension LiveRadarItemTypeCopy on LiveRadarItemType {
@@ -33,10 +52,11 @@ class LiveRadarRing {
 }
 
 const liveRadarRings = <LiveRadarRing>[
-  LiveRadarRing(id: 1, maxKm: 1, label: '≤ 1 km', colorValue: 0xFFEF4444),
-  LiveRadarRing(id: 2, maxKm: 5, label: '1–5 km', colorValue: 0xFFF59E0B),
-  LiveRadarRing(id: 3, maxKm: 20, label: '5–20 km', colorValue: 0xFFEAB308),
-  LiveRadarRing(id: 4, maxKm: 100, label: '20–100 km', colorValue: 0xFF22C55E),
+  LiveRadarRing(id: 1, maxKm: .5, label: '≤ 500 m', colorValue: 0xFFEF4444),
+  LiveRadarRing(id: 2, maxKm: 1, label: '500 m–1 km', colorValue: 0xFFF97316),
+  LiveRadarRing(id: 3, maxKm: 2, label: '1–2 km', colorValue: 0xFFEAB308),
+  LiveRadarRing(id: 4, maxKm: 5, label: '2–5 km', colorValue: 0xFF22C55E),
+  LiveRadarRing(id: 5, maxKm: 10, label: '5–10 km', colorValue: 0xFF0EA5A4),
 ];
 
 class LiveRadarFilters {
@@ -46,9 +66,10 @@ class LiveRadarFilters {
     this.priceMax,
     this.types = const [],
     this.verifiedOnly = false,
-    this.photoOnly = true,
+    this.photoOnly = false,
     this.urgent = false,
-    this.autoPauseMs = 90000,
+    this.radiusKm = 2,
+    this.autoPauseMs,
   });
 
   final String? category;
@@ -58,9 +79,22 @@ class LiveRadarFilters {
   final bool verifiedOnly;
   final bool photoOnly;
   final bool urgent;
+
+  /// Portée choisie hors mode urgence.
+  final double radiusKm;
+
+  /// Compatibilité des anciens écrans.
   final int? autoPauseMs;
 
-  int get maxRadiusKm => urgent ? 5 : liveRadarRings.last.maxKm.toInt();
+  /// Le mode urgence limite toujours la recherche à 500 mètres.
+  double get effectiveRadiusKm =>
+      urgent ? .5 : normalizeLiveRadarRadiusKm(radiusKm);
+
+  /// Maintenu pour les écrans historiques qui attendent un entier.
+  /// Le mode urgence limite toujours la recherche à 500 mètres.
+
+  /// Maintenu pour les écrans historiques qui attendent un entier.
+  int get maxRadiusKm => effectiveRadiusKm.ceil();
 
   int get activeCount =>
       (category == null || category!.trim().isEmpty ? 0 : 1) +
@@ -81,6 +115,7 @@ class LiveRadarFilters {
     bool? verifiedOnly,
     bool? photoOnly,
     bool? urgent,
+    double? radiusKm,
     int? autoPauseMs,
     bool clearAutoPause = false,
   }) =>
@@ -92,6 +127,7 @@ class LiveRadarFilters {
         verifiedOnly: verifiedOnly ?? this.verifiedOnly,
         photoOnly: photoOnly ?? this.photoOnly,
         urgent: urgent ?? this.urgent,
+        radiusKm: radiusKm ?? this.radiusKm,
         autoPauseMs: clearAutoPause ? null : (autoPauseMs ?? this.autoPauseMs),
       );
 
@@ -103,6 +139,7 @@ class LiveRadarFilters {
         'verified_only': verifiedOnly,
         'photo_only': photoOnly,
         'urgent': urgent,
+        'radius_km': radiusKm,
         'auto_pause_ms': autoPauseMs,
       };
 
@@ -125,9 +162,12 @@ class LiveRadarFilters {
       priceMax: _numOrNull(row['price_max']),
       types: types,
       verifiedOnly: row['verified_only'] == true,
-      photoOnly: row['photo_only'] != false,
+      photoOnly: row['photo_only'] == true,
       urgent: row['urgent'] == true,
-      autoPauseMs: row.containsKey('auto_pause_ms') ? _intOrNull(row['auto_pause_ms']) : 90000,
+      radiusKm: normalizeLiveRadarRadiusKm(_numOrNull(row['radius_km'])),
+      autoPauseMs: row.containsKey('auto_pause_ms')
+          ? _intOrNull(row['auto_pause_ms'])
+          : null,
     );
   }
 }
@@ -205,7 +245,9 @@ double liveRadarDistanceKm(double lat1, double lng1, double lat2, double lng2) {
   final dLat = _rad(lat2 - lat1);
   final dLng = _rad(lng2 - lng1);
   final a = math.pow(math.sin(dLat / 2), 2) +
-      math.cos(_rad(lat1)) * math.cos(_rad(lat2)) * math.pow(math.sin(dLng / 2), 2);
+      math.cos(_rad(lat1)) *
+          math.cos(_rad(lat2)) *
+          math.pow(math.sin(dLng / 2), 2);
   return 2 * _earthRadiusKm * math.asin(math.min(1, math.sqrt(a)));
 }
 
@@ -214,7 +256,8 @@ double liveRadarBearing(double lat1, double lng1, double lat2, double lng2) {
   final phi2 = _rad(lat2);
   final deltaLng = _rad(lng2 - lng1);
   final y = math.sin(deltaLng) * math.cos(phi2);
-  final x = math.cos(phi1) * math.sin(phi2) - math.sin(phi1) * math.cos(phi2) * math.cos(deltaLng);
+  final x = math.cos(phi1) * math.sin(phi2) -
+      math.sin(phi1) * math.cos(phi2) * math.cos(deltaLng);
   return (_deg(math.atan2(y, x)) + 360) % 360;
 }
 
@@ -225,11 +268,17 @@ LiveRadarRing? liveRadarRingFor(double distanceKm) {
   return null;
 }
 
-({double minLat, double maxLat, double minLng, double maxLng}) liveRadarBounds(double latitude, double longitude, double radiusKm) {
+({double minLat, double maxLat, double minLng, double maxLng}) liveRadarBounds(
+    double latitude, double longitude, double radiusKm) {
   final dLat = radiusKm / 110.574;
   final cos = math.cos(_rad(latitude));
   final dLng = radiusKm / (111.32 * (cos == 0 ? 1 : cos));
-  return (minLat: latitude - dLat, maxLat: latitude + dLat, minLng: longitude - dLng, maxLng: longitude + dLng);
+  return (
+    minLat: latitude - dLat,
+    maxLat: latitude + dLat,
+    minLng: longitude - dLng,
+    maxLng: longitude + dLng
+  );
 }
 
 String liveRadarDistance(double km) {
@@ -259,5 +308,7 @@ String liveRadarMoney(num value) {
 double _rad(double value) => value * math.pi / 180;
 double _deg(double value) => value * 180 / math.pi;
 
-num? _numOrNull(dynamic value) => value is num ? value : num.tryParse('${value ?? ''}');
-int? _intOrNull(dynamic value) => value is int ? value : int.tryParse('${value ?? ''}');
+num? _numOrNull(dynamic value) =>
+    value is num ? value : num.tryParse('${value ?? ''}');
+int? _intOrNull(dynamic value) =>
+    value is int ? value : int.tryParse('${value ?? ''}');
