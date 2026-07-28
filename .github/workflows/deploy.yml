@@ -3,12 +3,11 @@ name: Deploy React App botbj
 on:
   push:
     branches:
-      - main
       - prod
   workflow_dispatch:
 
 concurrency:
-  group: deploy-botbj-${{ github.ref }}
+  group: deploy-botbj-production
   cancel-in-progress: true
 
 jobs:
@@ -20,7 +19,7 @@ jobs:
       - name: Récupérer le code GitHub Actions
         uses: actions/checkout@v4
 
-      - name: Vérifier les fichiers FA IA avant déploiement
+      - name: Vérifier les sources critiques avant déploiement
         run: |
           set -euo pipefail
           test -f public/fa/index.html
@@ -28,7 +27,14 @@ jobs:
           grep -q '20260724-corpus-v15-2' public/fa/index.html
           grep -q '20260724-home-v23-1' public/fa/index.html
           grep -q 'home-premium-v23.css' public/fa/index.html
-          echo "✅ Sources FA IA V23.1 prêtes"
+
+          test -f src/pages/PublicAgentWebChatPage.tsx
+          test -f src/pages/NotFound.tsx
+          grep -q 'PUBLIC_AGENT_API_BASE' src/pages/PublicAgentWebChatPage.tsx
+          grep -q 'PUBLIC_AGENT_SLUG' src/pages/NotFound.tsx
+          grep -q 'PublicAgentWebChatPage' src/pages/NotFound.tsx
+
+          echo "✅ Sources FA IA et Web Chat public prêtes"
 
       - name: Déployer sur le VPS avec Docker Compose
         uses: appleboy/ssh-action@v0.1.10
@@ -54,16 +60,13 @@ jobs:
             echo "🧹 Nettoyage préventif de l’espace disque..."
             df -h / /tmp || true
 
-            # Supprimer les archives et répertoires temporaires laissés par les anciens déploiements.
             find /tmp -maxdepth 1 -type f -name 'botbenin-*.tar.gz' -delete 2>/dev/null || true
             find /tmp -maxdepth 1 -type d -name 'botbenin-release-*' -exec rm -rf {} + 2>/dev/null || true
 
-            # Libérer les caches Docker inutilisés sans interrompre les conteneurs actifs.
             docker container prune -f >/dev/null 2>&1 || true
             docker builder prune -af >/dev/null 2>&1 || true
             docker image prune -af >/dev/null 2>&1 || true
 
-            # Purger les fichiers temporaires anciens et les journaux systemd archivés.
             find /tmp -mindepth 1 -maxdepth 1 -type f -mtime +2 -delete 2>/dev/null || true
             journalctl --vacuum-time=7d >/dev/null 2>&1 || true
 
@@ -122,8 +125,11 @@ jobs:
 
             test -f "$RELEASE_DIR/public/fa/index.html"
             test -f "$RELEASE_DIR/public/fa/home-premium-v23.css"
+            test -f "$RELEASE_DIR/src/pages/PublicAgentWebChatPage.tsx"
+            test -f "$RELEASE_DIR/src/pages/NotFound.tsx"
             grep -q '20260724-corpus-v15-2' "$RELEASE_DIR/public/fa/index.html"
             grep -q '20260724-home-v23-1' "$RELEASE_DIR/public/fa/index.html"
+            grep -q 'PUBLIC_AGENT_SLUG' "$RELEASE_DIR/src/pages/NotFound.tsx"
 
             echo "📂 Synchronisation du code..."
             if command -v rsync >/dev/null 2>&1; then
@@ -148,7 +154,8 @@ jobs:
             READY=0
             for i in $(seq 1 15); do
               if curl -fsSL http://127.0.0.1:8084/apresbacia >/dev/null 2>&1 && \
-                 curl -fsSL http://127.0.0.1:8084/fa >/dev/null 2>&1; then
+                 curl -fsSL http://127.0.0.1:8084/fa >/dev/null 2>&1 && \
+                 curl -fsSL http://127.0.0.1:8084/ecqdg4yzr >/dev/null 2>&1; then
                 READY=1
                 break
               fi
@@ -163,18 +170,25 @@ jobs:
             docker compose exec -T react-app test -f /usr/share/nginx/html/fa/index.html
             docker compose exec -T react-app test -f /usr/share/nginx/html/fa/home-premium-v23.css
             docker compose exec -T react-app grep -q '20260724-home-v23-1' /usr/share/nginx/html/fa/index.html
+            docker compose exec -T react-app sh -c "grep -R -q 'Le Web Chat est momentanément indisponible' /usr/share/nginx/html/assets/js"
+
+            PUBLIC_AGENT_CHUNK=$(docker compose exec -T react-app sh -c "ls /usr/share/nginx/html/assets/js/PublicAgentWebChatPage-*.js 2>/dev/null | head -n1" | tr -d '\r')
+            [ -n "$PUBLIC_AGENT_CHUNK" ] || { echo "❌ Chunk Web Chat public absent"; exit 1; }
+            PUBLIC_AGENT_ASSET=$(basename "$PUBLIC_AGENT_CHUNK")
 
             PUBLIC_READY=0
             for i in $(seq 1 15); do
               if curl -fsSL https://bot.bj/apresbacia >/dev/null 2>&1 && \
-                 curl -fsSL https://bot.bj/fa >/dev/null 2>&1; then
+                 curl -fsSL https://bot.bj/fa >/dev/null 2>&1 && \
+                 curl -fsSL -H 'Cache-Control: no-cache' "https://bot.bj/ecqdg4yzr?deploy_check=${DEPLOY_SHA}" >/dev/null 2>&1 && \
+                 curl -fsSL -H 'Cache-Control: no-cache' "https://bot.bj/assets/js/${PUBLIC_AGENT_ASSET}?deploy_check=${DEPLOY_SHA}" | grep -q 'Le Web Chat est momentanément indisponible'; then
                 PUBLIC_READY=1
                 break
               fi
               echo "⏳ Santé publique $i/15..."
               sleep 4
             done
-            [ "$PUBLIC_READY" -eq 1 ] || exit 1
+            [ "$PUBLIC_READY" -eq 1 ] || { echo "❌ Web Chat public non publié"; exit 1; }
 
             echo "🧪 Vérification publique de la version V23.1..."
             PUBLIC_FA_HTML=$(curl -fsSL --retry 3 --retry-all-errors 'https://bot.bj/fa?deploy_check=20260724-home-v23-1')
@@ -202,4 +216,4 @@ jobs:
             '
 
             docker image prune -af || true
-            echo "✅ Déploiement V23.1 terminé"
+            echo "✅ Déploiement production et Web Chat public terminé"
