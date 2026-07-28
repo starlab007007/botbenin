@@ -1,68 +1,78 @@
 
-# Module « Après BAC IA » — Chat étudiant + Back-office admin
+# Document d'Architecture WAOUH / bot.bj — Livrable
 
-## Constat
-La DB `apresbac_*` est déjà scaffoldée (615 programmes, 1368 anomalies, 1 doc de référence, 1 profil étudiant), mais **il n'existe aucun code** : 0 route front, 0 edge function, 0 message enregistré. On construit donc le module complet en s'appuyant sur ce schéma.
+## Objectif
+Produire **un dossier d'architecture complet** de la plateforme (fonctionnel, technique, schéma BDD, cadre d'interopérabilité) livré en **DOCX + PDF téléchargeables**, et accessible depuis une page dédiée `/docs/architecture`.
 
-## Périmètre
+## Livrables
 
-### 1. App étudiant `/app/apres-bac`
-- **Page d'accueil** : bandeau série BAC (A1/A2/B/C/D/E/F/G/H), moyenne saisie/OCR, mention. Bouton "Nouvelle conversation".
-- **Chat IA orientation** : composant `ApresBacChat.tsx` basé sur nos patterns chat (parts, streaming), avec :
-  - Sélecteur série BAC en tête de conversation (`apresbac_chat_sessions.bac_series`).
-  - Rendu markdown des réponses + affichage inline des sources citées (programme, page PDF, extrait).
-  - Bouton "Importer mon relevé" (OCR).
-- **OCR relevé de notes** : dialogue "Import relevé" → upload image/PDF → edge function `apresbac-ocr` (Gemini Vision) qui remplit `apresbac_ocr_extractions` puis propose validation des matières/notes détectées, écrit dans `apresbac_student_subject_results` (confirmed=true après revue).
-- **Profil étudiant** : `apresbac_student_profiles` mis à jour (série, moyenne, mention, consent_store_ocr_text).
+### 1. Document principal (DOCX + PDF)
+Fichier : `Architecture_WAOUH_v1.docx` + `.pdf` dans `/mnt/documents/`.
 
-### 2. Edge functions (Deno / Gemini via LOVABLE_API_KEY)
-- `apresbac-chat` : reçoit `{ session_id, message, bac_series }`.
-  1. Charge le profil + notes confirmées de l'utilisateur.
-  2. RAG : requête SQL sur `apresbac_program_records` filtrée par `bac_series` (JSONB `?|`), scoring par pertinence texte (`ts_rank` sur program_name/outcomes/occupations).
-  3. Appelle Gemini 2.5 Flash avec system prompt "orientation post-BAC Bénin" + top-K programmes en contexte + historique tronqué.
-  4. Persiste user + assistant messages dans `apresbac_chat_messages`, écrit les sources citées dans `apresbac_chat_sources` (record_id → programme, document_id, page, extrait, score).
-  5. Écrit tool calls éventuels (recherche filière, éligibilité) dans `apresbac_chat_tool_calls`.
-  6. Retourne réponse + sources.
-- `apresbac-ocr` : Gemini Vision → parse notes → `apresbac_ocr_extractions` + suggestions à confirmer.
-- `apresbac-eligibility` : outil interne (utilisé par le chat) qui calcule pour un `program_id` + série + moyenne si l'étudiant est éligible (via `bac_series`, `special_rules`, `subjects_by_series`).
+Structure (≈ 40-50 pages) :
 
-### 3. Back-office admin `/admin/apresbac` (AdminRoute)
-Page `AdminApresBacPage.tsx` avec **KPIs globaux** demandés :
-- Nombre de sessions (total + 7j + 30j)
-- Nombre de messages (user vs assistant)
-- Utilisateurs uniques (via `user_id` sessions/messages)
-- OCR effectués (statuts : ok / low_confidence / failed)
-- Répartition sessions par **série BAC** (bar chart Recharts)
-- Top 10 filières les plus citées (via `apresbac_chat_sources.record_id` joint sur `apresbac_program_records.program_name`)
-- Taux de messages assistant **sans source citée** (indicateur hallucinations)
-- Anomalies de référence : 1368 total, breakdown par sévérité, non résolues
-- Petit tableau "Dernières sessions" (utilisateur, série, #messages, dernier message) avec lien vers détail read-only (fil complet + sources + tool calls) — utile même en mode KPI.
-- Carte "Documents de référence" (`apresbac_reference_documents` publiés / non publiés).
+1. **Résumé exécutif** — vision, positionnement Afrique (FCFA, Mobile Money, français + langues locales), stack.
+2. **Architecture fonctionnelle**
+   - Cartographie des 30+ modules groupés par domaine :
+     - Chat & Marketplace (WAOUH Chat, Match, Radar, Diffusion)
+     - Agents IA (Commerce, Docs, Site, BI, Stock, Présence QR)
+     - WhatsApp IA (WAHA sessions, QR + pairing code)
+     - Après BAC IA (chat orientation + OCR relevé)
+     - FA IA (consultation + quotas)
+     - IA Clinique, IA Visual Creator, Kpakpato Vocal
+     - CRM, Prospects, Campagnes qualification
+     - Administration (bots-control, apresbac, fa, deals, users, roles)
+   - Parcours utilisateurs clés (acheteur, vendeur, livreur, partenaire, admin, étudiant).
+3. **Architecture technique**
+   - Diagramme d'ensemble (React/Vite front + Flutter mobile → Supabase → Edge Functions → Providers externes).
+   - Stack : React 18 + TS, Tailwind, shadcn, Capacitor mobile, Supabase (Postgres + Auth + Storage + Realtime + Edge Functions Deno), Lovable AI Gateway (Gemini 2.5 Flash-Lite), ElevenLabs, Hugging Face NLLB, WAHA, Qosic, Firecrawl, Nominatim.
+   - Sécurité : RLS, `has_role`, permissions granulaires `resource.action.scope`, rate-limiting, secrets serveur.
+   - Déploiement : Docker Compose sur VPS, GitHub Actions.
+   - Performance : bundle splitting, snapshots offline, Service Worker, WebP client-side, cron purge-logs.
+4. **Schéma de base de données**
+   - Inventaire des ≈ 200 tables regroupées par domaine (waouh_*, apresbac_*, fa_*, wa_*, user_*, etc.).
+   - Diagramme ER (Mermaid) des sous-domaines critiques : Deals/Négociation, Après BAC, FA IA, Agents IA, Partners.
+   - Fonctions clés (`has_role`, `fa_consume_quota`, `apresbac_*`, `admin_list_waouh_deals`, RAG helpers).
+   - Politique RLS et grants.
+5. **Cadre d'interopérabilité** (section demandée explicitement)
+   - **Principes** : API-first, contrats OpenAPI, événements, idempotence, versioning.
+   - **Couches d'interop** :
+     - **API REST/RPC** via Edge Functions (auth JWT anon/authenticated/service_role).
+     - **Realtime** (Postgres changes) pour chat, notifications, présence.
+     - **Webhooks entrants** (WAHA, Qosic, Firecrawl) et **sortants** (partenaires).
+     - **Connecteurs data** (Google Sheets, Excel/CSV, sources BI).
+     - **Identifiants unifiés** : `device_id`, `user_id`, `phone_e164`, `lid_phone_map`.
+   - **Standards proposés** : OpenAPI 3.1, JSON:API, ISO 8601, E.164, ISO 4217 (XOF), OAuth2/JWT, HMAC signatures webhooks.
+   - **Gouvernance** : registre d'API, SLA, quotas, observabilité (logs edge, admin_logs), RGPD/consentement.
+   - **Matrice d'intégration** (partenaire ↔ canal ↔ protocole ↔ auth) sous forme de tableau.
+   - **Roadmap interop** : v1 API publique bots + deals, v2 marketplace SDK, v3 event bus.
+6. **Annexes** : glossaire, liste des edge functions, secrets requis, liens dashboard Supabase.
 
-Card ajoutée dans `AdminDashboardPage.tsx` → `/admin/apresbac` (icône GraduationCap).
+### 2. Diagrammes
+- ER Mermaid (par domaine) → intégrés au DOCX en images (rendus via mermaid-cli).
+- Diagramme architecture système (Mermaid `graph`).
+- Diagramme séquence : parcours "acheter" (chat → négociation → deal → paiement → livraison).
 
-### 4. RLS & sécurité
-Les policies existent déjà (11 tables). Ajouter au besoin la policy admin (via `has_role(auth.uid(),'admin')`) en SELECT pour permettre au back-office de lire toutes les sessions/messages/tool_calls/sources/ocr. Aucune modification schéma.
+### 3. Page front `/docs/architecture`
+Page simple listant les liens de téléchargement (DOCX, PDF) et affichant le sommaire + les diagrammes Mermaid en ligne. Ajout d'une carte sur `AdminDashboardPage`.
 
-### 5. Navigation
-- Ajouter entrée "Après BAC IA" dans le menu app étudiant (visible aux utilisateurs authentifiés).
-- Ajouter card "Après BAC IA — Suivi chats" dans dashboard admin.
+## Méthode d'implémentation
 
-## Détails techniques
-- Frontend : React/TS existant. Composants shadcn. Recharts pour KPIs.
-- Streaming chat : `useChat` AI SDK sur endpoint edge function (comme WAOUH).
-- Sources citées rendues sous chaque bulle assistant (badge cliquable → dialog avec extrait + page).
-- Gemini 2.5 Flash pour chat + Vision pour OCR (via gateway Lovable AI).
-- Types Supabase seront régénérés par la CI après migration éventuelle.
+1. Interroger Supabase pour lister toutes les tables/fonctions réelles (déjà partiellement en contexte) et snapshoter le schéma.
+2. Lister les edge functions déployées (`supabase/functions/*`) pour l'annexe.
+3. Générer les diagrammes Mermaid → PNG via `mmdc`.
+4. Générer le DOCX via `docx` (script Node) selon le skill `docx` (US Letter, Arial, styles headings, tables avec DXA, images).
+5. Convertir en PDF via LibreOffice (`run_libreoffice.py`).
+6. QA visuel page par page (pdftoppm → inspection).
+7. Écrire les fichiers dans `/mnt/documents/` et exposer via `<presentation-artifact>`.
+8. Créer `src/pages/docs/ArchitecturePage.tsx` + route `/docs/architecture` + card admin.
 
 ## Hors périmètre
-- Import/ETL nouveaux PDFs de référence (les 615 programmes suffisent).
-- Résolution manuelle des 1368 anomalies (module séparé, on affiche juste le KPI).
-- Export PDF/CSV côté admin (choisi KPI seul).
-- Modération/masquage messages (non retenu).
+- Pas de modification du code métier existant.
+- Pas de génération d'OpenAPI exécutable (décrit conceptuellement seulement — implémentation ultérieure).
+- Pas de refonte du dossier `documentationIndex` (on ajoute juste une entrée).
 
 ## Validation
-1. `/app/apres-bac` : créer session série D, poser "Quelles filières pour maths+physique ?" → réponse cite ≥1 programme avec page/extrait.
-2. OCR : uploader relevé fictif → matières détectées, confirmer → visibles dans profil.
-3. `/admin/apresbac` : KPIs peuplés (sessions, messages, séries, top filières, taux sans source, anomalies).
-4. Vérifier RLS admin lecture cross-user OK, étudiant standard ne voit que ses propres sessions.
+- DOCX ouvre sans erreur, PDF lisible sur toutes les pages (QA image par image).
+- Route `/docs/architecture` accessible et propose téléchargement.
+- Diagrammes ER cohérents avec le schéma Supabase réel.
