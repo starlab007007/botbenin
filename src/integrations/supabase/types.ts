@@ -2200,8 +2200,12 @@ export type Database = {
           code: string
           created_at: string
           created_by: string | null
+          exhausted_at: string | null
           expires_at: string | null
+          first_used_at: string | null
           id: string
+          last_device_id: string | null
+          last_used_at: string | null
           max_uses: number
           notes: string | null
           updated_at: string
@@ -2212,8 +2216,12 @@ export type Database = {
           code: string
           created_at?: string
           created_by?: string | null
+          exhausted_at?: string | null
           expires_at?: string | null
+          first_used_at?: string | null
           id?: string
+          last_device_id?: string | null
+          last_used_at?: string | null
           max_uses?: number
           notes?: string | null
           updated_at?: string
@@ -2224,8 +2232,12 @@ export type Database = {
           code?: string
           created_at?: string
           created_by?: string | null
+          exhausted_at?: string | null
           expires_at?: string | null
+          first_used_at?: string | null
           id?: string
+          last_device_id?: string | null
+          last_used_at?: string | null
           max_uses?: number
           notes?: string | null
           updated_at?: string
@@ -2238,6 +2250,7 @@ export type Database = {
           answer: string | null
           category: string | null
           code_id: string | null
+          code_use_number: number | null
           code_value: string | null
           consultation_day: string | null
           created_at: string
@@ -2247,7 +2260,10 @@ export type Database = {
           id: string
           intention: string | null
           ip_address: unknown
+          model: string | null
+          provider: string | null
           question: string | null
+          quota_via: string | null
           sign_name: string | null
           sign_ref: string | null
           status: string
@@ -2260,6 +2276,7 @@ export type Database = {
           answer?: string | null
           category?: string | null
           code_id?: string | null
+          code_use_number?: number | null
           code_value?: string | null
           consultation_day?: string | null
           created_at?: string
@@ -2269,7 +2286,10 @@ export type Database = {
           id?: string
           intention?: string | null
           ip_address?: unknown
+          model?: string | null
+          provider?: string | null
           question?: string | null
+          quota_via?: string | null
           sign_name?: string | null
           sign_ref?: string | null
           status?: string
@@ -2282,6 +2302,7 @@ export type Database = {
           answer?: string | null
           category?: string | null
           code_id?: string | null
+          code_use_number?: number | null
           code_value?: string | null
           consultation_day?: string | null
           created_at?: string
@@ -2291,7 +2312,10 @@ export type Database = {
           id?: string
           intention?: string | null
           ip_address?: unknown
+          model?: string | null
+          provider?: string | null
           question?: string | null
+          quota_via?: string | null
           sign_name?: string | null
           sign_ref?: string | null
           status?: string
@@ -2308,27 +2332,40 @@ export type Database = {
             referencedRelation: "fa_access_codes"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fa_consultations_code_id_fkey"
+            columns: ["code_id"]
+            isOneToOne: false
+            referencedRelation: "v_fa_code_status"
+            referencedColumns: ["id"]
+          },
         ]
       }
       fa_settings: {
         Row: {
           code_uses: number
           free_daily_limit: number
+          gemini_model: string
           id: number
+          max_output_words: number
           updated_at: string
           updated_by: string | null
         }
         Insert: {
           code_uses?: number
           free_daily_limit?: number
+          gemini_model?: string
           id?: number
+          max_output_words?: number
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
           code_uses?: number
           free_daily_limit?: number
+          gemini_model?: string
           id?: number
+          max_output_words?: number
           updated_at?: string
           updated_by?: string | null
         }
@@ -11708,6 +11745,84 @@ export type Database = {
         }
         Relationships: []
       }
+      v_fa_admin_stats: {
+        Row: {
+          coded_consultations: number | null
+          failed_consultations: number | null
+          free_consultations: number | null
+          last_consultation_at: string | null
+          month_consultations: number | null
+          output_tokens: number | null
+          prompt_tokens: number | null
+          today_consultations: number | null
+          total_consultations: number | null
+          total_tokens: number | null
+          unique_devices: number | null
+          unique_users: number | null
+          week_consultations: number | null
+        }
+        Relationships: []
+      }
+      v_fa_code_status: {
+        Row: {
+          active: boolean | null
+          code: string | null
+          created_at: string | null
+          created_by: string | null
+          exhausted_at: string | null
+          expires_at: string | null
+          first_used_at: string | null
+          id: string | null
+          last_device_id: string | null
+          last_used_at: string | null
+          max_uses: number | null
+          notes: string | null
+          remaining_uses: number | null
+          status: string | null
+          updated_at: string | null
+          usage_percent: number | null
+          uses_count: number | null
+        }
+        Insert: {
+          active?: boolean | null
+          code?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          exhausted_at?: string | null
+          expires_at?: string | null
+          first_used_at?: string | null
+          id?: string | null
+          last_device_id?: string | null
+          last_used_at?: string | null
+          max_uses?: number | null
+          notes?: string | null
+          remaining_uses?: never
+          status?: never
+          updated_at?: string | null
+          usage_percent?: never
+          uses_count?: number | null
+        }
+        Update: {
+          active?: boolean | null
+          code?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          exhausted_at?: string | null
+          expires_at?: string | null
+          first_used_at?: string | null
+          id?: string | null
+          last_device_id?: string | null
+          last_used_at?: string | null
+          max_uses?: number | null
+          notes?: string | null
+          remaining_uses?: never
+          status?: never
+          updated_at?: string | null
+          usage_percent?: never
+          uses_count?: number | null
+        }
+        Relationships: []
+      }
       v_fa_kpis: {
         Row: {
           codes_active: number | null
@@ -12409,6 +12524,36 @@ export type Database = {
       fa_consume_quota: {
         Args: { p_code: string; p_device_id: string; p_user_id: string }
         Returns: Json
+      }
+      fa_generate_codes: {
+        Args: {
+          p_count?: number
+          p_expires_at?: string
+          p_max_uses?: number
+          p_notes?: string
+        }
+        Returns: {
+          active: boolean
+          code: string
+          created_at: string
+          created_by: string | null
+          exhausted_at: string | null
+          expires_at: string | null
+          first_used_at: string | null
+          id: string
+          last_device_id: string | null
+          last_used_at: string | null
+          max_uses: number
+          notes: string | null
+          updated_at: string
+          uses_count: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "fa_access_codes"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       fix_all_user_issues: {
         Args: never
