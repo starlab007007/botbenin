@@ -72,6 +72,7 @@ const WhatsAppDiffusionPage = lazy(() => import("./pages/WhatsAppDiffusionPage")
 const PricingPage = lazy(() => import("./pages/PricingPage").then(module => ({ default: module.PricingPage })));
 const FeaturesPage = lazy(() => import("./pages/FeaturesPage"));
 const RecettePage = lazy(() => import("./pages/RecettePage"));
+const ArchitecturePage = lazy(() => import("./pages/ArchitecturePage"));
 
 // Payment Pages
 const PaymentHistoryPage = lazy(() => import("./pages/PaymentHistoryPage").then(module => ({ default: module.PaymentHistoryPage })));
