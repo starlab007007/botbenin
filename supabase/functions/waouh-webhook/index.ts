@@ -768,7 +768,7 @@ serve(async (req) => {
           .filter((u: any) => typeof u === "string" && /^https?:\/\//i.test(u));
         const { data: art } = await sb.from("waouh_articles").insert({
           seller_id: user!.id,
-          title: product.title || fallbackTitle,
+          title: resolvedTitle,
           description: product.description,
           category: productCategory,
           brand: product.brand, model: product.model,
@@ -792,7 +792,7 @@ serve(async (req) => {
           const cmp = await Promise.race([
             compareMarketPrice(sb, {
               article_id: art?.id ?? null,
-              query: `${product.title || fallbackTitle} ${product.brand || ""} ${product.model || ""}`.trim(),
+              query: `${resolvedTitle} ${product.brand || ""} ${product.model || ""}`.trim(),
               city: user!.city, category: productCategory,
               brand: product.brand ?? null, model: product.model ?? null,
               askedPrice: inferredPrice,
@@ -806,7 +806,7 @@ serve(async (req) => {
           const max = product.market_price_max || inferredPrice * 1.2;
           marketBlock = `📊 *Prix marché estimé*\n• Bas : ${fmt(min)}\n• Haut : ${fmt(max)}\n⚠️ Comparables limités — estimation indicative.`;
         }
-        reply = `${waouhHeader("✅ Annonce publiée")}\n\n📦 *${product.title || fallbackTitle}*\n💰 *Prix* : ${fmt(inferredPrice)}\n🏙️ *Ville* : ${user!.city}${photoLine}\n\n${marketBlock}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.\n\n${waouhFooter()}`;
+        reply = `${waouhHeader("✅ Annonce publiée")}\n\n📦 *${resolvedTitle}*\n💰 *Prix* : ${fmt(inferredPrice)}\n🏙️ *Ville* : ${user!.city}${photoLine}\n\n${marketBlock}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.\n\n${waouhFooter()}`;
         // Une seule bulle WhatsApp pour la confirmation de publication, sans boutons.
         returnedActions = [];
 
@@ -857,7 +857,7 @@ serve(async (req) => {
               p_to_user_id: null,
               p_template: "radar_buyer_outreach",
               p_payload: {
-                text: `🎯 WAOUH a trouvé pour vous : *${product.title || fallbackTitle}* à ${fmt(inferredPrice)} (${user!.city}). Répondez *OUI* pour être mis en relation avec le vendeur.`,
+                text: `🎯 WAOUH a trouvé pour vous : *${resolvedTitle}* à ${fmt(inferredPrice)} (${user!.city}). Répondez *OUI* pour être mis en relation avec le vendeur.`,
                 article_id: art?.id,
                 radar_signal_id: b.id,
               },
