@@ -897,7 +897,7 @@ serve(async (req) => {
       let partnerMatches: any[] = [];
       if (!(intent as any).__short_circuit) try {
         let pq = sb.from("waouh_unified_catalog")
-          .select("id,titre,description,categorie,prix_min,prix_max,ville,quartier,vendeur_nom,vendeur_phone,vendeur_whatsapp,photos,source,partner_id,business_id")
+          .select("id,titre,description,categorie,prix_min,prix_max,ville,quartier,vendeur_nom,vendeur_phone,vendeur_whatsapp,photos,source,source_ref_id,partner_id,business_id")
           .eq("type", "offer")
           .eq("is_active", true);
         if (criteria.price_max) pq = pq.lte("prix_min", criteria.price_max);
