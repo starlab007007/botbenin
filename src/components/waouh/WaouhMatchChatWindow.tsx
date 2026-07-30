@@ -524,7 +524,17 @@ export function WaouhMatchChatWindow({
     role: match.kind,
   });
 
+  // v13 — libellé de l'interlocuteur (isolation visible : 1 article × 1 contrepartie)
+  const counterpartRef =
+    match.counterpart_user_id || match.buyer_profile_id || null;
+  const counterpartLabel = counterpartRef
+    ? `${match.kind === "buyer" ? "vendeur" : "acheteur"} #${counterpartRef.slice(0, 6)}`
+    : match.kind === "buyer"
+      ? "le vendeur"
+      : "l'acheteur";
+
   const seedText = seedNotif?.text?.trim() || match.seed_text?.trim() || null;
+
   const isNewBuyerSeed =
     seedNotif?.notification_type === "new_buyer" ||
     !!seedText?.includes("Nouvel acheteur intéressé");
