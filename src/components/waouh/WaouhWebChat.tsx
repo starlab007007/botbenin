@@ -491,6 +491,10 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       });
       // Realtime delivers persisted rows; no full reload needed.
 
+      const respIntent: string | null = (data as any)?.intent ?? null;
+      const respArticleId: string | null = (data as any)?.article_id ?? null;
+      const respCounterpart: string | null = (data as any)?.counterpart_user_id ?? null;
+
       if ((data as any)?.reply) {
         const replyAtts = Array.isArray((data as any)?.attachments) ? (data as any).attachments : null;
         setMessages((prev) => {
@@ -504,11 +508,32 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
               text: (data as any).reply,
               created_at: new Date().toISOString(),
               attachments: replyAtts,
-              meta: { intent: (data as any).intent ?? null, transaction_id: (data as any).transaction_id ?? null },
+              meta: {
+                intent: respIntent,
+                transaction_id: (data as any).transaction_id ?? null,
+                article_id: respArticleId,
+                counterpart_user_id: respCounterpart,
+              },
             },
           ];
         });
       }
+
+      // v13 — la négociation ne reste jamais dans le fil principal : on ouvre
+      // (ou on ré-active) la fenêtre dédiée (article × interlocuteur).
+      if (respArticleId && respIntent && DEDICATED_INTENTS.has(respIntent)) {
+        window.dispatchEvent(
+          new CustomEvent("waouh:open-match-chat", {
+            detail: {
+              article_id: respArticleId,
+              counterpart_user_id: respCounterpart,
+              kind: "buyer",
+              seed_text: (data as any)?.reply ?? null,
+            },
+          })
+        );
+      }
+
     } catch (e: any) {
       setMessages((prev) => prev.filter((m) => m.id !== tempInId));
       toast({ title: "Envoi échoué", description: e.message, variant: "destructive" });
