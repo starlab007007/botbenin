@@ -320,14 +320,21 @@ export function WaouhMatchChatWindow({
     const handle = (payload: any) => {
       const m = payload.new;
       if (m?.article_id !== match.article_id && m?.meta?.article_id !== match.article_id) return;
-      // v12 — seller windows are scoped per counterpart (buyer). Drop
-      // realtime events that don't belong to this buyer.
-      if (match.kind === "seller" && match.counterpart_user_id) {
+      // v12/v13 — chaque fenêtre est scoppée par contrepartie. On rejette les
+      // évènements realtime qui n'appartiennent pas à cet interlocuteur.
+      if (match.counterpart_user_id) {
         const cp = match.counterpart_user_id;
-        const metaCp =
-          m?.meta?.counterpart_user_id ?? m?.meta?.buyer_user_id ?? null;
-        if (metaCp !== cp && m?.user_id !== cp) return;
+        if (match.kind === "seller") {
+          const metaCp =
+            m?.meta?.counterpart_user_id ?? m?.meta?.buyer_user_id ?? null;
+          if (metaCp !== cp && m?.user_id !== cp) return;
+        } else {
+          const metaCp =
+            m?.meta?.counterpart_user_id ?? m?.meta?.seller_user_id ?? null;
+          if (metaCp && metaCp !== cp) return;
+        }
       }
+
       // Drop self-ack templates that belong to the OTHER party (the seller
       // must not see the buyer's "✅ Demande envoyée au vendeur").
       const tpl = m?.meta?.template;
