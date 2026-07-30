@@ -42,8 +42,27 @@ type Msg = {
   text: string;
   created_at: string;
   attachments?: Att[] | null;
-  meta?: { transaction_id?: string | null; intent?: string | null } | null;
+  meta?: {
+    transaction_id?: string | null;
+    intent?: string | null;
+    article_id?: string | null;
+    counterpart_user_id?: string | null;
+  } | null;
 };
+
+/** Intents qui doivent basculer la négociation dans une fenêtre dédiée (1 article × 1 interlocuteur). */
+const DEDICATED_INTENTS = new Set([
+  "CONFIRM",
+  "NEGOTIATE",
+  "DECIDE_YES",
+  "DECIDE_NO",
+  "negotiation_open",
+  "match_buyer",
+  "match_seller",
+  "deal_accepted",
+  "deal_refused",
+  "contact_exchange",
+]);
 
 const SESSION_KEY = "waouh_web_session_id";
 const THREAD_CUTOFF_KEY = "waouh_main_thread_started_at";
