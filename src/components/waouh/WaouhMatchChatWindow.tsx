@@ -593,6 +593,11 @@ export function WaouhMatchChatWindow({
             {" · "}
             {match.kind === "buyer" ? "Discutez avec le vendeur" : "Discutez avec l'acheteur"}
           </div>
+          {/* v13 — périmètre explicite : 1 fenêtre = 1 article × 1 interlocuteur */}
+          <div className="text-[10px] opacity-75 truncate font-mono">
+            avec {counterpartLabel} · réf. {(match.article_id || "").slice(0, 8)}
+          </div>
+
         </div>
       </div>
 
