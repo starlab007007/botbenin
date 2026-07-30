@@ -10320,6 +10320,7 @@ export type Database = {
         Row: {
           actor_user_id: string | null
           article_id: string | null
+          correlation_id: string | null
           created_at: string
           deal_id: string | null
           dedup_key: string | null
@@ -10338,6 +10339,7 @@ export type Database = {
         Insert: {
           actor_user_id?: string | null
           article_id?: string | null
+          correlation_id?: string | null
           created_at?: string
           deal_id?: string | null
           dedup_key?: string | null
@@ -10356,6 +10358,7 @@ export type Database = {
         Update: {
           actor_user_id?: string | null
           article_id?: string | null
+          correlation_id?: string | null
           created_at?: string
           deal_id?: string | null
           dedup_key?: string | null

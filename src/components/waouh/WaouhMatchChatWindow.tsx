@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { formatMatchLabel } from "@/app-mobile/utils/chatLabel";
 import "@/app-mobile/theme/chat-bg.css";
 import { engageWaouhChatSyncLock } from "./waouhChatSyncLock";
+import { correlationIdFor, traceUi } from "./waouhCorrelation";
 
 export type MatchChatMeta = {
   key: string;
@@ -154,6 +155,12 @@ export function WaouhMatchChatWindow({
   const closed = useMemo(
     () => !!match.closed || (articleStatus ? CLOSED_STATUSES.has(articleStatus.toLowerCase()) : false),
     [match.closed, articleStatus]
+  );
+
+  // v14 — corrélation bout en bout (notification → fenêtre → messages).
+  const correlationId = useMemo(
+    () => correlationIdFor(match.article_id, match.kind, match.counterpart_user_id ?? null),
+    [match.article_id, match.kind, match.counterpart_user_id]
   );
 
   // Server-side history fetcher (source of truth).
@@ -344,6 +351,19 @@ export function WaouhMatchChatWindow({
         (m.user_id && waouhIds.includes(m.user_id));
       if (isSelfAck && !ownedByViewer) return;
 
+      // Traçabilité bout en bout : message reçu dans cette fenêtre.
+      traceUi({
+        correlation_id: correlationId,
+        stage: "ui_message_received",
+        article_id: match.article_id,
+        role: match.kind,
+        counterpart_user_id: match.counterpart_user_id ?? null,
+        message_id: m?.id ?? null,
+        intent: m?.meta?.intent ?? null,
+        session_id: sessionId,
+        payload: { direction: m?.direction ?? null, template: m?.meta?.template ?? null },
+      });
+
       setMessages((prev) => {
         if (prev.find((x) => x.id === m.id)) return prev;
         const tempIdx = prev.findIndex(
@@ -484,6 +504,7 @@ export function WaouhMatchChatWindow({
             counterpart_user_id: match.counterpart_user_id ?? null,
             role: match.kind,
             product_title: match.title,
+            correlation_id: correlationId,
           },
         },
       });
@@ -492,6 +513,16 @@ export function WaouhMatchChatWindow({
       );
       const { data } = (await Promise.race([invokeP, timeoutP])) as any;
       const realId = (data as any)?.inbound_message_id;
+      traceUi({
+        correlation_id: correlationId,
+        stage: "ui_message_sent",
+        article_id: match.article_id,
+        role: match.kind,
+        counterpart_user_id: match.counterpart_user_id ?? null,
+        message_id: realId ?? null,
+        intent: (data as any)?.intent ?? null,
+        session_id: sessionId,
+      });
       const outboundId = (data as any)?.outbound_message_id;
       setMessages((prev) => {
         const f = prev.filter((m) => m.id !== tempId);

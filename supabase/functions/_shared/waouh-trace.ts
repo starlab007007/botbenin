@@ -14,6 +14,8 @@ export type TraceStage =
 
 export interface TraceEventArgs {
   trace_id?: string | null;
+  /** Corrélation bout en bout : corr_<article8>_<role>_<counterpart8|any> */
+  correlation_id?: string | null;
   article_id?: string | null;
   negotiation_id?: string | null;
   transaction_id?: string | null;
@@ -40,6 +42,7 @@ export async function traceEvent(sb: any, args: TraceEventArgs): Promise<void> {
   try {
     await sb.from("waouh_trace_events").insert({
       trace_id: args.trace_id ?? null,
+      correlation_id: args.correlation_id ?? null,
       article_id: args.article_id ?? null,
       negotiation_id: args.negotiation_id ?? null,
       transaction_id: args.transaction_id ?? null,
