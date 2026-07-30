@@ -168,7 +168,7 @@ export function WaouhMatchChatWindow({
         authUserId: authUserId ?? null,
         role: match.kind,
         notificationId: match.notification_id ?? null,
-        counterpartUserId: match.kind === "seller" ? (match.counterpart_user_id ?? null) : null,
+        counterpartUserId: match.counterpart_user_id ?? null,
         before: opts.before ?? null,
         limit: opts.limit ?? PAGE_INITIAL,
         includeMeta: opts.includeMeta !== false,
