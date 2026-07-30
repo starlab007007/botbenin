@@ -318,11 +318,13 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
       const articleId: string | null = detail?.article_id ?? null;
       if (!articleId) return;
       const role: "buyer" | "seller" = detail.kind === "buyer" ? "buyer" : "seller";
-      // v12: seller side discriminates per counterpart so each buyer
-      // interested in the same article opens its OWN WaouhMatchChatWindow.
+      // v13: les DEUX côtés discriminent par contrepartie — une fenêtre
+      // correspond toujours à 1 article × 1 interlocuteur.
       const counterpartForKey: string | null =
-        role === "seller" ? (detail.counterpart_user_id ?? null) : null;
+        detail.counterpart_user_id ??
+        (role === "buyer" ? (detail.seller_user_id ?? null) : null);
       const key = matchKey(articleId, role, counterpartForKey);
+
       const notificationId: string | null = detail.notification_id ?? null;
 
 
