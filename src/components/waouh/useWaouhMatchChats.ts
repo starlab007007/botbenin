@@ -11,9 +11,10 @@ export type CachedMsg = {
   meta?: any;
 };
 
-// Canonical key. v12: seller side discriminates per counterpart so each
-// buyer interested in the same article opens its OWN WaouhMatchChatWindow.
-// Buyer side keeps `art_<articleId>_buyer` (1 seller per article).
+// Canonical key. v13: BOTH sides discriminate per counterpart so a window is
+// always strictly 1 article × 1 interlocuteur.
+//   seller → art_<articleId>_seller_<buyerId|any>
+//   buyer  → art_<articleId>_buyer_<sellerId|any>
 export function matchKey(
   articleId: string | null | undefined,
   role: "buyer" | "seller",
@@ -22,8 +23,9 @@ export function matchKey(
   if (role === "seller") {
     return `art_${articleId ?? "none"}_seller_${counterpartId ?? "any"}`;
   }
-  return `art_${articleId ?? "none"}_buyer`;
+  return `art_${articleId ?? "none"}_buyer_${counterpartId ?? "any"}`;
 }
+
 
 
 const STORAGE_KEY = (sid: string) => `waouh_open_matches_${sid}`;
