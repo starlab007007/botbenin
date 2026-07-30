@@ -879,7 +879,8 @@ serve(async (req) => {
       let q = sb.from("waouh_articles")
         .select("id,title,price,city,brand,condition,category,seller_id,photos,market_price_min,market_price_max")
         .eq("status", "active");
-      if (criteriaCategory) q = q.eq("category", criteriaCategory);
+      // La catégorie n'est un filtre dur que si c'est le SEUL signal dispo.
+      if (criteriaCategory && kwVariants.length === 0) q = q.eq("category", criteriaCategory);
       if (criteria.price_max) q = q.lte("price", criteria.price_max);
       if (kwVariants.length > 0) {
         const orFilter = kwVariants.map((k) => `title.ilike.%${k}%,brand.ilike.%${k}%,model.ilike.%${k}%,description.ilike.%${k}%`).join(",");
@@ -887,7 +888,7 @@ serve(async (req) => {
       }
       let { data: matches } = (intent as any).__short_circuit
         ? { data: [] as any[] }
-        : await q.order("created_at", { ascending: false }).limit(5);
+        : await q.order("created_at", { ascending: false }).limit(30);
 
       // 🏪 Recherche dans le Catalogue Unifié (partenaires + chat + radar + externes)
       // NB: on retire le filtre `.eq('source','partner')` pour exposer TOUTES les
