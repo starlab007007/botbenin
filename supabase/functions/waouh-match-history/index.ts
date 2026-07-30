@@ -177,6 +177,17 @@ serve(async (req) => {
         return cp === counterpartUserId || m?.user_id === counterpartUserId;
       });
     }
+    // v13 — côté acheteur, on isole aussi par contrepartie (vendeur) quand
+    // l'information est présente. Filtre indulgent : les lignes historiques
+    // sans contrepartie en meta restent visibles (pas de perte d'historique).
+    if (role === "buyer" && counterpartUserId) {
+      rows = rows.filter((m: any) => {
+        const cp =
+          m?.meta?.counterpart_user_id ?? m?.meta?.seller_user_id ?? null;
+        return !cp || cp === counterpartUserId;
+      });
+    }
+
     const messages = rows.slice().reverse(); // ASC for client
     const hasMore = allRows.length === limit;
 
