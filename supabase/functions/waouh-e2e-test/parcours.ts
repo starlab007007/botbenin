@@ -57,23 +57,35 @@ const LABELS: Record<Parcours, string> = {
   C: "Vendeur WA + Acheteur App",
 };
 
-export async function runParcours(sb: any, p: Parcours): Promise<PResult> {
+export interface PState {
+  token?: string; sellerPhone?: string | null; buyerPhone?: string | null;
+  sellerSession?: string | null; buyerSession?: string | null;
+}
+
+export async function runParcours(
+  sb: any,
+  p: Parcours,
+  opts: { phase?: "publish" | "negotiate" | "all"; state?: PState } = {},
+): Promise<PResult> {
+  const phase = opts.phase ?? "all";
+  const st = opts.state ?? {};
   const steps: PStep[] = [];
   const artifacts: Record<string, unknown> = {};
-  const token = `Zorblax${Math.floor(Math.random() * 9000 + 1000)}`;
+  const token = st.token || `Zorblax${Math.floor(Math.random() * 9000 + 1000)}`;
   const title = `Téléphone ${token}`;
   const price = 25000;
 
   const sellerIsWA = p !== "B";
   const buyerIsWA = p !== "C";
 
-  const sellerPhone = sellerIsWA ? randPhone("1") : null;
-  const buyerPhone = buyerIsWA ? randPhone("2") : null;
-  const sellerSession = sellerIsWA ? null : crypto.randomUUID();
-  const buyerSession = buyerIsWA ? null : crypto.randomUUID();
+  const sellerPhone = sellerIsWA ? (st.sellerPhone || randPhone("1")) : null;
+  const buyerPhone = buyerIsWA ? (st.buyerPhone || randPhone("2")) : null;
+  const sellerSession = sellerIsWA ? null : (st.sellerSession || crypto.randomUUID());
+  const buyerSession = buyerIsWA ? null : (st.buyerSession || crypto.randomUUID());
   artifacts.seller = sellerPhone ?? `web:${sellerSession}`;
   artifacts.buyer = buyerPhone ?? `web:${buyerSession}`;
   artifacts.token = token;
+  artifacts.state = { token, sellerPhone, buyerPhone, sellerSession, buyerSession };
 
   const push = (s: PStep) => steps.push(s);
 
@@ -81,8 +93,8 @@ export async function runParcours(sb: any, p: Parcours): Promise<PResult> {
   const sellBody = sellerIsWA
     ? { channel: "whatsapp", phone: sellerPhone, text: `Je vends un ${title} à ${price} FCFA à Cotonou` }
     : { channel: "web", sessionId: sellerSession, text: `Je vends : ${title}\nPrix : ${price} FCFA\nVille : Cotonou` };
-  const sell = await callFn("waouh-channel-in", sellBody);
-  await sleep(800);
+  const sell = phase === "negotiate" ? { json: {} } as any : await callFn("waouh-channel-in", sellBody);
+  if (phase !== "negotiate") await sleep(400);
 
   const { data: article } = await sb
     .from("waouh_articles")
@@ -122,8 +134,8 @@ export async function runParcours(sb: any, p: Parcours): Promise<PResult> {
   const searchBody = buyerIsWA
     ? { channel: "whatsapp", phone: buyerPhone, text: `Je cherche ${token}` }
     : { channel: "web", sessionId: buyerSession, text: `Je cherche ${token}` };
-  const search = await callFn("waouh-channel-in", searchBody);
-  await sleep(800);
+  const search = phase === "negotiate" ? { json: {} } as any : await callFn("waouh-channel-in", searchBody);
+  if (phase !== "negotiate") await sleep(400);
   const reply: string = String(search.json?.reply ?? "");
 
   const { data: buyerUser } = await sb
@@ -157,8 +169,8 @@ export async function runParcours(sb: any, p: Parcours): Promise<PResult> {
   const interestBody = buyerIsWA
     ? { channel: "whatsapp", phone: buyerPhone, text: "intéressé 1" }
     : { channel: "web", sessionId: buyerSession, text: "intéressé 1" };
-  const interest = await callFn("waouh-channel-in", interestBody);
-  await sleep(1200);
+  const interest = phase === "negotiate" ? { json: {} } as any : await callFn("waouh-channel-in", interestBody);
+  if (phase !== "negotiate") await sleep(800);
 
   const { data: neg } = await sb
     .from("waouh_negotiations")
@@ -206,11 +218,16 @@ export async function runParcours(sb: any, p: Parcours): Promise<PResult> {
     return { parcours: p, label: LABELS[p], status: failed ? "failed" : "partial", steps, artifacts };
   }
 
+  if (phase === "publish") {
+    const f = steps.filter((s) => s.status === "fail").length;
+    return { parcours: p, label: LABELS[p], status: f ? "failed" : "ok", steps, artifacts };
+  }
+
   // ── 4. Contre-offre acheteur ──────────────────────────────────────────────
   const buyerOffer = await callFn("waouh-channel-in",
     buyerIsWA ? { channel: "whatsapp", phone: buyerPhone, text: "20000" }
               : { channel: "web", sessionId: buyerSession, text: "20000" });
-  await sleep(1000);
+  await sleep(600);
   const { data: neg2 } = await sb.from("waouh_negotiations")
     .select("state, last_offer_price, last_actor").eq("id", neg.id).maybeSingle();
   push({
@@ -224,7 +241,7 @@ export async function runParcours(sb: any, p: Parcours): Promise<PResult> {
   const sellerOffer = await callFn("waouh-channel-in",
     sellerIsWA ? { channel: "whatsapp", phone: sellerPhone, text: "22000" }
                : { channel: "web", sessionId: sellerSession, text: "22000" });
-  await sleep(1000);
+  await sleep(600);
   const { data: neg3 } = await sb.from("waouh_negotiations")
     .select("state, last_offer_price, last_actor").eq("id", neg.id).maybeSingle();
   push({
@@ -238,7 +255,7 @@ export async function runParcours(sb: any, p: Parcours): Promise<PResult> {
   const accept = await callFn("waouh-channel-in",
     buyerIsWA ? { channel: "whatsapp", phone: buyerPhone, text: "oui" }
               : { channel: "web", sessionId: buyerSession, text: "oui" });
-  await sleep(1200);
+  await sleep(800);
   const { data: neg4 } = await sb.from("waouh_negotiations").select("state").eq("id", neg.id).maybeSingle();
   const { data: deal } = await sb
     .from("waouh_deals")
