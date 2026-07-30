@@ -973,15 +973,22 @@ serve(async (req) => {
       // plus de mots-clés de la requête.
       const strictKws = kws.filter((k) => typeof k === "string" && k.length >= 3);
       if (strictKws.length > 0) {
-        const rank = <T,>(rows: T[], get: (r: T) => { title: any; rest: any[] }) =>
-          rows
+        // ⚠️ Les descriptions scrapées contiennent du texte de navigation
+        // ("› Terrains à Vendre…") : si AU MOINS un résultat matche dans le
+        // TITRE (score >= 3), on écarte les matchs description-seule.
+        const rank = <T,>(rows: T[], get: (r: T) => { title: any; rest: any[] }) => {
+          const scored = rows
             .map((r) => {
               const { title, rest } = get(r);
               return { r, s: scoreRelevance(title, rest, strictKws) };
             })
-            .filter((x) => x.s > 0)
+            .filter((x) => x.s > 0);
+          const hasTitleHit = scored.some((x) => x.s >= 3);
+          return scored
+            .filter((x) => (hasTitleHit ? x.s >= 3 : true))
             .sort((a, b) => b.s - a.s)
             .map((x) => x.r);
+        };
 
         matches = rank(matches || [], (m: any) => ({
           title: m.title,
