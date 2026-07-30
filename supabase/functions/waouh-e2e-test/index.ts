@@ -637,7 +637,8 @@ Deno.serve(async (req) => {
       const list: Parcours[] = (body.parcours || body.scenarios || ["A", "B", "C"])
         .filter((s: any) => ["A", "B", "C"].includes(s));
       const results = [];
-      for (const p of list) results.push(await runParcours(sb, p));
+      const phase = ["publish","negotiate","all"].includes(body.phase) ? body.phase : "all";
+      for (const p of list) results.push(await runParcours(sb, p, { phase, state: body.state }));
       if (body.cleanup !== false) await cleanupParcours(sb, results);
       const summary = {
         parcours: results.length,
