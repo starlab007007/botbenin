@@ -1155,12 +1155,24 @@ serve(async (req) => {
         // On promeut EXACTEMENT radarTop, dans l'ordre affiché.
         const radarPromotedArticles: any[] = [];
         for (const r of radarTop) {
+          let entry: any = {
+            // Placeholder positionnel : même si la promotion échoue, l'index
+            // reste aligné sur le numéro affiché dans la liste.
+            id: null,
+            title: r.product?.title || r.product?.name || "Annonce Radar IA",
+            price: r.price ?? null,
+            seller_id: null,
+            photos: extractProductPhotos(r),
+            source: "radar",
+            radar_signal_id: r.id,
+            unavailable: true,
+          };
           try {
             const art = r._from_external
               ? await promoteExternalListing(sb, r, criteriaCategory)
               : await promoteRadarSeller(sb, r, criteriaCategory);
             if (art?.id) {
-              radarPromotedArticles.push({
+              entry = {
                 id: art.id,
                 title: art.title,
                 price: art.price,
@@ -1170,9 +1182,10 @@ serve(async (req) => {
                 market_price_max: art.market_price_max,
                 source: "radar",
                 radar_signal_id: r.id,
-              });
+              };
             }
           } catch (e) { console.warn("[radar promote sync]", e); }
+          radarPromotedArticles.push(entry);
         }
         if (radarPromotedArticles.length > 0) {
           nextContext = { ...nextContext, last_matches: [...combinedMatches, ...radarPromotedArticles] };
