@@ -625,10 +625,31 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const mode: "auto" | "whatsapp_full" | "negotiation" =
-      body.mode === "whatsapp_full" ? "whatsapp_full" : body.mode === "negotiation" ? "negotiation" : "auto";
+    const mode: "auto" | "whatsapp_full" | "negotiation" | "parcours" =
+      body.mode === "whatsapp_full" ? "whatsapp_full"
+        : body.mode === "negotiation" ? "negotiation"
+        : body.mode === "parcours" ? "parcours"
+        : "auto";
 
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+    if (mode === "parcours") {
+      const list: Parcours[] = (body.parcours || body.scenarios || ["A", "B", "C"])
+        .filter((s: any) => ["A", "B", "C"].includes(s));
+      const results = [];
+      for (const p of list) results.push(await runParcours(sb, p));
+      if (body.cleanup !== false) await cleanupParcours(sb, results);
+      const summary = {
+        parcours: results.length,
+        ok: results.filter((r) => r.status === "ok").length,
+        partial: results.filter((r) => r.status === "partial").length,
+        failed: results.filter((r) => r.status === "failed").length,
+      };
+      return new Response(JSON.stringify({ ok: summary.failed === 0, mode: "parcours", summary, results }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
 
     if (mode === "negotiation") {
       const scenarios: NegScenario[] = (body.scenarios || ["A", "B", "C"]).filter((s: any) => ["A", "B", "C"].includes(s));
