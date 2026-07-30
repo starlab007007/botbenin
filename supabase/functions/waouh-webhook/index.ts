@@ -1140,21 +1140,21 @@ serve(async (req) => {
         reply = `${waouhHeader(`🎯 Top ${totalShown} annonce${totalShown > 1 ? "s" : ""} trouvée${totalShown > 1 ? "s" : ""}`)}\n\n${[partnerList, officialList, radarList].filter(Boolean).join(`\n\n${waouhSep}\n\n`)}\n\n${waouhSep}\n\n💡 Pour discuter avec un vendeur, répondez : ${interestList}.${radarHint}\n\n${waouhFooter()}`;
         // Pas de boutons : tout passe par texte (intéressé 1, intéressé 2, …)
         returnedActions = [];
-        // Promotion radar + outreach: déférés via EdgeRuntime.waitUntil pour ne PAS
-        // ralentir la réponse au chat. La liste affichée (combinedMatches) reflète
-        // les matches officiels + partenaires immédiatement; les promotions radar
-        // arrivent en background et seront visibles au prochain message.
+        // ⚠️ INVARIANT: last_matches DOIT refléter exactement l'ordre affiché
+        // (partnerTop → matchesTop → radarTop), sinon « intéressé N » ouvre la
+        // négociation sur un autre produit que celui listé au numéro N.
         const combinedMatches = [
           ...partnerTop.map((p: any) => ({ id: p.id, title: `🏪 ${p.titre}`, price: Number(p.prix_min || p.prix_max || 0), seller_id: null, partner_id: p.partner_id, business_id: p.business_id, vendeur_phone: p.vendeur_phone, vendeur_whatsapp: p.vendeur_whatsapp, photos: p.photos, source: "partner" })),
-          ...(matches || []).map((m: any) => ({ id: m.id, title: m.title, price: m.price, seller_id: m.seller_id, photos: m.photos, market_price_min: m.market_price_min, market_price_max: m.market_price_max })),
+          ...matchesTop.map((m: any) => ({ id: m.id, title: m.title, price: m.price, seller_id: m.seller_id, photos: m.photos, market_price_min: m.market_price_min, market_price_max: m.market_price_max })),
         ];
         nextContext = { ...nextContext, last_matches: combinedMatches };
 
         // 🛰️ v11 — Promotion Radar IA synchrone + inclusion dans last_matches.
         // Sans ça, l'acheteur App ne peut pas répondre "intéressé N" sur un
         // hit Radar (CONFIRM index hors-liste → "Aucune négociation").
+        // On promeut EXACTEMENT radarTop, dans l'ordre affiché.
         const radarPromotedArticles: any[] = [];
-        for (const r of radarSellers.slice(0, 3)) {
+        for (const r of radarTop) {
           try {
             const art = r._from_external
               ? await promoteExternalListing(sb, r, criteriaCategory)
