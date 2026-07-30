@@ -224,7 +224,11 @@ Deno.serve(async (req) => {
       if (y.distance_km == null) return -1;
       return x.distance_km - y.distance_km;
     });
-    const matches = enriched.slice(0, 10).map(({ _score, ...rest }: any) => rest);
+    // Les descriptions scrapées contiennent du texte de navigation : si un
+    // résultat matche dans le TITRE, on écarte les matchs description-seule.
+    const hasTitleHit = strictKws.length > 0 && enriched.some((a: any) => a._score >= 3);
+    const relevant = hasTitleHit ? enriched.filter((a: any) => a._score >= 3) : enriched;
+    const matches = relevant.slice(0, 10).map(({ _score, ...rest }: any) => rest);
 
     // Dispatch buyer-side (uniquement pour les articles officiels)
     const dispatchAsync = (async () => {
