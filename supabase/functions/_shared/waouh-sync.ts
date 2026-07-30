@@ -41,6 +41,8 @@ export interface PushSyncedEventArgs {
   dedupSuffix?: string;
   // Trace correlation id (propagated end-to-end)
   traceId?: string | null;
+  // Corrélation métier bout en bout : corr_<article8>_<role>_<counterpart8|any>
+  correlationId?: string | null;
 }
 
 export interface PushSyncedEventResult {
@@ -74,7 +76,7 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
     negotiationId = null, transactionId = null, dealId = null,
     template, eventType, attachments = [], imageUrl = null,
     payloadExtra = {}, forcePhoneE164 = null, dedupSuffix = "",
-    traceId: traceIdIn = null,
+    traceId: traceIdIn = null, correlationId = null,
   } = args;
   const traceId = traceIdIn || newTraceId();
 
@@ -96,6 +98,7 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
     deal_id: dealId,
     role,
     trace_id: traceId,
+    correlation_id: correlationId,
     ...payloadExtra,
   };
 
@@ -151,11 +154,13 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
     intent,
     role,
     trace_id: traceId,
+    correlation_id: correlationId,
   };
 
   // Trace: sync stage (per party)
   traceEvent(sb, {
     trace_id: traceId,
+    correlation_id: correlationId,
     article_id: articleId ?? null,
     negotiation_id: negotiationId,
     transaction_id: transactionId,
@@ -186,10 +191,10 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
         p_event_type: eventType ?? intent,
       });
       result.enqueued_whatsapp = true;
-      traceEvent(sb, { trace_id: traceId, article_id: articleId ?? null, negotiation_id: negotiationId, transaction_id: transactionId, deal_id: dealId, actor_user_id: user.id, role, stage: "queue_enqueue", status: "ok", intent, dedup_key: `wa:${dedupBase}`, payload: { channel: "whatsapp", phone } });
+      traceEvent(sb, { trace_id: traceId, correlation_id: correlationId, article_id: articleId ?? null, negotiation_id: negotiationId, transaction_id: transactionId, deal_id: dealId, actor_user_id: user.id, role, stage: "queue_enqueue", status: "ok", intent, dedup_key: `wa:${dedupBase}`, payload: { channel: "whatsapp", phone } });
     } catch (e: any) {
       console.warn("[pushSyncedEvent] enqueue wa", e);
-      traceEvent(sb, { trace_id: traceId, article_id: articleId ?? null, negotiation_id: negotiationId, transaction_id: transactionId, actor_user_id: user.id, role, stage: "queue_enqueue", status: "error", intent, dedup_key: `wa:${dedupBase}`, error: String(e?.message ?? e) });
+      traceEvent(sb, { trace_id: traceId, correlation_id: correlationId, article_id: articleId ?? null, negotiation_id: negotiationId, transaction_id: transactionId, actor_user_id: user.id, role, stage: "queue_enqueue", status: "error", intent, dedup_key: `wa:${dedupBase}`, error: String(e?.message ?? e) });
     }
   }
 
@@ -210,10 +215,10 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
         p_event_type: eventType ?? intent,
       });
       result.enqueued_web_mirror = true;
-      traceEvent(sb, { trace_id: traceId, article_id: articleId ?? null, negotiation_id: negotiationId, transaction_id: transactionId, actor_user_id: user.id, role, stage: "web_mirror", status: "ok", intent, dedup_key: `web:${dedupBase}` });
+      traceEvent(sb, { trace_id: traceId, correlation_id: correlationId, article_id: articleId ?? null, negotiation_id: negotiationId, transaction_id: transactionId, actor_user_id: user.id, role, stage: "web_mirror", status: "ok", intent, dedup_key: `web:${dedupBase}` });
     } catch (e: any) {
       console.warn("[pushSyncedEvent] enqueue web mirror", e);
-      traceEvent(sb, { trace_id: traceId, article_id: articleId ?? null, negotiation_id: negotiationId, transaction_id: transactionId, actor_user_id: user.id, role, stage: "web_mirror", status: "error", intent, dedup_key: `web:${dedupBase}`, error: String(e?.message ?? e) });
+      traceEvent(sb, { trace_id: traceId, correlation_id: correlationId, article_id: articleId ?? null, negotiation_id: negotiationId, transaction_id: transactionId, actor_user_id: user.id, role, stage: "web_mirror", status: "error", intent, dedup_key: `web:${dedupBase}`, error: String(e?.message ?? e) });
     }
   }
 
