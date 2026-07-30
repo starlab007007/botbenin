@@ -718,8 +718,19 @@ serve(async (req) => {
         text
       );
       const productCategory = normalizeCategory(product.category);
-      // Fallback: try to recover a price from the raw text when the AI missed it.
-      let inferredPrice: number | null = typeof product.price === "number" && product.price > 0 ? product.price : null;
+      // 💰 Prix : un montant EXPLICITE (suivi de FCFA/CFA/XOF ou précédé de "à/prix")
+      // prime sur l'extraction IA, qui confond parfois des chiffres collés au
+      // nom du produit ("Zorblax7777") avec le prix réel.
+      const explicitPriceMatch = String(text || "").match(
+        /(?:^|[\s(])(?:à|a|au prix de|prix\s*:?)?\s*(\d{3,}(?:[ .,]\d{3})*)\s*(?:fcfa|cfa|xof|f\b)/i
+      );
+      let explicitPrice: number | null = null;
+      if (explicitPriceMatch) {
+        const n = parseInt(explicitPriceMatch[1].replace(/[ .,]/g, ""), 10);
+        if (!Number.isNaN(n) && n >= 100) explicitPrice = n;
+      }
+      let inferredPrice: number | null = explicitPrice
+        ?? (typeof product.price === "number" && product.price > 0 ? product.price : null);
       if (!inferredPrice) {
         const m = String(text || "").match(/(\d{2,}(?:[ .]\d{3})*)\s*(?:fcfa|cfa|xof|f\b)?/i);
         if (m) {
@@ -727,15 +738,25 @@ serve(async (req) => {
           if (!Number.isNaN(n) && n >= 100) inferredPrice = n;
         }
       }
-      const fallbackTitle = String(text || "")
-        .replace(/^\s*je\s+vends?\s*:?\s*/i, "")
-        .split(/[,\n]/)[0]?.trim().slice(0, 60) || "Annonce";
+      // 🏷️ Titre : on nettoie les segments prix/ville pour éviter des titres
+      // comme « un Téléphone X à 25000 FCFA à Cotonou ».
+      const cleanTitle = (t: string) => String(t || "")
+        .replace(/^\s*(je\s+vends?|vends?|à vendre)\s*:?\s*/i, "")
+        .replace(/^\s*(un|une|des|le|la|les|mon|ma|mes)\s+/i, "")
+        .replace(/\s*(?:à|a|au prix de|prix\s*:?)\s*\d[\d .,]*\s*(?:fcfa|cfa|xof|f\b)[^,\n]*/gi, "")
+        .replace(/\s*(?:à|a)\s+(?:cotonou|porto-novo|parakou|abomey[- ]calavi|bohicon|natitingou|lokossa|ouidah|djougou)\b.*$/i, "")
+        .replace(/\s{2,}/g, " ")
+        .replace(/[,;:\-\s]+$/, "")
+        .trim()
+        .slice(0, 60);
+      const fallbackTitle = cleanTitle(String(text || "").split(/[,\n]/)[0] || "") || "Annonce";
       // Publier dès qu'on a un prix ET un titre exploitable (IA ou fallback).
       // La confidence Gemini est peu fiable pour les produits locaux/de niche
       // (« Mixa », « Kpakpato », marques peu connues) et bloquait à tort.
-      const resolvedTitle = (product.title && String(product.title).trim()) || fallbackTitle;
+      const resolvedTitle = cleanTitle(product.title || "") || fallbackTitle;
       const accepted = !!inferredPrice && !!resolvedTitle;
       if (!accepted) {
+
         reply = !inferredPrice
           ? "🤔 Il me manque le prix. Ex : *Je vends iPhone 12 à 120000 FCFA*."
           : "🤔 Je n'ai pas compris le produit. Précisez son nom. Ex : *Je vends iPhone 12 à 120000 FCFA*.";
