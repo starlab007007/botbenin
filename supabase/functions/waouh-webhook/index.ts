@@ -504,6 +504,9 @@ serve(async (req) => {
 
     let reply = "Désolé, je n'ai pas compris. Tapez 'aide' pour les commandes.";
     let returnedArticleId: string | null = null;
+    // v13 — contrepartie renvoyée au client pour isoler la fenêtre de chat
+    // (1 fenêtre = 1 article × 1 interlocuteur).
+    let returnedCounterpartId: string | null = null;
     let returnedTransactionId: string | null = null;
     let replyAttachments: Array<{ url: string; type: string }> = [];
     let returnedActions: Array<{ id: string; label: string }> = [];
@@ -1327,6 +1330,7 @@ serve(async (req) => {
         const askPrice = Number(pick.price || 0);
         if (alreadyOnArticle) {
           returnedArticleId = pick.id;
+          returnedCounterpartId = pick.seller_id ?? null;
           returnedActions = [];
           reply = `${waouhHeader("✅ Mise en relation déjà ouverte")}\n\n📦 *${pick.title}*\n💰 *Prix* : ${fmt(askPrice)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou écrivez (Ex : *Je propose ${fmt(askPrice)}*) pour négocier.\n\n${waouhFooter()}`;
         } else {
@@ -1439,6 +1443,7 @@ serve(async (req) => {
           } catch (e) { console.warn("[radar-seller-hydrate] mark converted failed", e); }
         }
         returnedArticleId = pick.id;
+        returnedCounterpartId = seller?.id ?? pick.seller_id ?? null;
         returnedTransactionId = null;
         const sellerCanon = seller?.phone_number ? normalizeBeninPhone(seller.phone_number) : null;
         const phonesToPush: string[] = [];
@@ -1584,6 +1589,7 @@ serve(async (req) => {
           });
         }
         returnedArticleId = neg.article_id;
+        returnedCounterpartId = otherId ?? null;
         reply = `💬 ${isBuyer ? "Offre" : "Contre-offre"} de *${fmt(amount)}* transmise. Vous serez notifié de la réponse.`;
       } else {
         reply = `💬 Indiquez votre prix : « *Je propose ${fmt(neg.last_offer_price || 0)}* »`;
@@ -1634,6 +1640,7 @@ serve(async (req) => {
           }
           reply = `${waouhHeader("🎉 Accord conclu")}\n\n📦 *${title}*\n💰 *Prix final* : ${fmt(agreed)}\n\nL'autre partie a été notifiée. Vous pouvez maintenant vous contacter pour organiser la remise.\n\n${waouhFooter()}`;
           returnedArticleId = neg.article_id;
+          returnedCounterpartId = otherId ?? null;
         } else {
           // DECIDE_NO
           await sb.from("waouh_negotiations").update({
@@ -1653,6 +1660,7 @@ serve(async (req) => {
             });
           }
           returnedArticleId = neg.article_id;
+          returnedCounterpartId = otherId ?? null;
           reply = `❌ Négociation terminée. L'autre partie a été notifiée.`;
         }
       }
@@ -1680,7 +1688,7 @@ serve(async (req) => {
       body: JSON.stringify({ limit: 20 }),
     }).catch(() => {});
 
-    return new Response(JSON.stringify({ ok: true, intent: intent.intent, reply, attachments: replyAttachments, article_id: returnedArticleId, transaction_id: returnedTransactionId, actions: returnedActions }), {
+    return new Response(JSON.stringify({ ok: true, intent: intent.intent, reply, attachments: replyAttachments, article_id: returnedArticleId, counterpart_user_id: returnedCounterpartId, transaction_id: returnedTransactionId, actions: returnedActions }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {

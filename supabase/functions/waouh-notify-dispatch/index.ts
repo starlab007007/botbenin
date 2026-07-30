@@ -141,6 +141,19 @@ serve(async (req) => {
       buyerProfile = data;
     }
 
+    // v13 — counterpart_user_id est OBLIGATOIRE pour isoler les fenêtres de chat
+    // (1 fenêtre = 1 article × 1 interlocuteur). Fallback déterministe :
+    //   - notif vers l'acheteur  → contrepartie = vendeur de l'article
+    //   - notif vers le vendeur  → contrepartie = acheteur (profil acheteur)
+    if (!counterpart_user_id) {
+      counterpart_user_id =
+        recipient === "buyer"
+          ? (article.seller_id ?? null)
+          : (buyerProfile?.user_id ?? null);
+    }
+
+
+
     const target = recipient === "seller"
       ? await resolveContact(sb, article, { kind: "seller" })
       : await resolveContact(sb, buyerProfile || {}, { kind: "buyer" });

@@ -11,9 +11,10 @@ export type CachedMsg = {
   meta?: any;
 };
 
-// Canonical key. v12: seller side discriminates per counterpart so each
-// buyer interested in the same article opens its OWN WaouhMatchChatWindow.
-// Buyer side keeps `art_<articleId>_buyer` (1 seller per article).
+// Canonical key. v13: BOTH sides discriminate per counterpart so a window is
+// always strictly 1 article × 1 interlocuteur.
+//   seller → art_<articleId>_seller_<buyerId|any>
+//   buyer  → art_<articleId>_buyer_<sellerId|any>
 export function matchKey(
   articleId: string | null | undefined,
   role: "buyer" | "seller",
@@ -22,8 +23,9 @@ export function matchKey(
   if (role === "seller") {
     return `art_${articleId ?? "none"}_seller_${counterpartId ?? "any"}`;
   }
-  return `art_${articleId ?? "none"}_buyer`;
+  return `art_${articleId ?? "none"}_buyer_${counterpartId ?? "any"}`;
 }
+
 
 
 const STORAGE_KEY = (sid: string) => `waouh_open_matches_${sid}`;
@@ -81,9 +83,12 @@ function mergeSnapshots(a: CachedMsg[], b: CachedMsg[]): CachedMsg[] {
  * to the canonical `art_<articleId>_<role>` key, merging histories.
  */
 function migrateLegacyKeys(sid: string, openTabs: MatchChatMeta[]): MatchChatMeta[] {
-  const MIGRATION_FLAG = `waouh_keys_migrated_v3_${sid}`;
+  const MIGRATION_FLAG = `waouh_keys_migrated_v4_${sid}`;
+  const LEGACY_FLAG_V3 = `waouh_keys_migrated_v3_${sid}`;
   try {
     if (localStorage.getItem(MIGRATION_FLAG) === "1") return openTabs;
+    // v13 : la migration v4 doit rejouer même si v3 a déjà tourné.
+    localStorage.removeItem(LEGACY_FLAG_V3);
   } catch {
     return openTabs;
   }
@@ -97,12 +102,13 @@ function migrateLegacyKeys(sid: string, openTabs: MatchChatMeta[]): MatchChatMet
       const k = localStorage.key(i);
       if (!k || !k.startsWith(prefix)) continue;
       const tail = k.slice(prefix.length);
-      // v12 canonical: art_<id>_buyer | art_<id>_seller_<counterpart|any>
-      if (tail.startsWith("art_") && (tail.endsWith("_buyer") || /_seller_.+$/.test(tail))) continue;
+      // v13 canonical: art_<id>_<buyer|seller>_<counterpart|any>
+      if (tail.startsWith("art_") && /_(buyer|seller)_.+$/.test(tail)) continue;
       let canonical: string | null = null;
-      // v11 legacy: art_<id>_seller (no counterpart) → migrate to _any bucket
-      let m = tail.match(/^art_(.+)_seller$/);
-      if (m) canonical = matchKey(m[1], "seller", null);
+      // v11/v12 legacy: art_<id>_seller | art_<id>_buyer (no counterpart) → _any
+      let m = tail.match(/^art_(.+)_(buyer|seller)$/);
+      if (m) canonical = matchKey(m[1], m[2] as any, null);
+
       // msg_<art>_<role>
       if (!canonical) {
         m = tail.match(/^msg_(.+)_(buyer|seller)$/);
@@ -130,7 +136,7 @@ function migrateLegacyKeys(sid: string, openTabs: MatchChatMeta[]): MatchChatMet
   for (const t of openTabs) {
     if (!t.article_id) continue;
     const role = (t.kind || "buyer") as "buyer" | "seller";
-    const counterpart = role === "seller" ? (t.counterpart_user_id ?? null) : null;
+    const counterpart = t.counterpart_user_id ?? null;
     const ck = matchKey(t.article_id, role, counterpart);
     const existing = canonicalTabs.get(ck);
     const nIds = new Set<string>([
@@ -312,11 +318,13 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
       const articleId: string | null = detail?.article_id ?? null;
       if (!articleId) return;
       const role: "buyer" | "seller" = detail.kind === "buyer" ? "buyer" : "seller";
-      // v12: seller side discriminates per counterpart so each buyer
-      // interested in the same article opens its OWN WaouhMatchChatWindow.
+      // v13: les DEUX côtés discriminent par contrepartie — une fenêtre
+      // correspond toujours à 1 article × 1 interlocuteur.
       const counterpartForKey: string | null =
-        role === "seller" ? (detail.counterpart_user_id ?? null) : null;
+        detail.counterpart_user_id ??
+        (role === "buyer" ? (detail.seller_user_id ?? null) : null);
       const key = matchKey(articleId, role, counterpartForKey);
+
       const notificationId: string | null = detail.notification_id ?? null;
 
 
@@ -348,7 +356,7 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
           buyer_profile_id:
             detail.buyer_profile_id ?? existing?.buyer_profile_id ?? null,
           counterpart_user_id:
-            detail.counterpart_user_id ?? existing?.counterpart_user_id ?? null,
+            counterpartForKey ?? existing?.counterpart_user_id ?? null,
           title: art?.title || detail.title || existing?.title || "Annonce",
           price: art?.price ?? detail.price ?? existing?.price ?? null,
           city: art?.city ?? detail.city ?? existing?.city ?? null,

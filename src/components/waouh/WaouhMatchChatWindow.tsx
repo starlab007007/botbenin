@@ -168,7 +168,7 @@ export function WaouhMatchChatWindow({
         authUserId: authUserId ?? null,
         role: match.kind,
         notificationId: match.notification_id ?? null,
-        counterpartUserId: match.kind === "seller" ? (match.counterpart_user_id ?? null) : null,
+        counterpartUserId: match.counterpart_user_id ?? null,
         before: opts.before ?? null,
         limit: opts.limit ?? PAGE_INITIAL,
         includeMeta: opts.includeMeta !== false,
@@ -320,14 +320,21 @@ export function WaouhMatchChatWindow({
     const handle = (payload: any) => {
       const m = payload.new;
       if (m?.article_id !== match.article_id && m?.meta?.article_id !== match.article_id) return;
-      // v12 — seller windows are scoped per counterpart (buyer). Drop
-      // realtime events that don't belong to this buyer.
-      if (match.kind === "seller" && match.counterpart_user_id) {
+      // v12/v13 — chaque fenêtre est scoppée par contrepartie. On rejette les
+      // évènements realtime qui n'appartiennent pas à cet interlocuteur.
+      if (match.counterpart_user_id) {
         const cp = match.counterpart_user_id;
-        const metaCp =
-          m?.meta?.counterpart_user_id ?? m?.meta?.buyer_user_id ?? null;
-        if (metaCp !== cp && m?.user_id !== cp) return;
+        if (match.kind === "seller") {
+          const metaCp =
+            m?.meta?.counterpart_user_id ?? m?.meta?.buyer_user_id ?? null;
+          if (metaCp !== cp && m?.user_id !== cp) return;
+        } else {
+          const metaCp =
+            m?.meta?.counterpart_user_id ?? m?.meta?.seller_user_id ?? null;
+          if (metaCp && metaCp !== cp) return;
+        }
       }
+
       // Drop self-ack templates that belong to the OTHER party (the seller
       // must not see the buyer's "✅ Demande envoyée au vendeur").
       const tpl = m?.meta?.template;
@@ -524,7 +531,17 @@ export function WaouhMatchChatWindow({
     role: match.kind,
   });
 
+  // v13 — libellé de l'interlocuteur (isolation visible : 1 article × 1 contrepartie)
+  const counterpartRef =
+    match.counterpart_user_id || match.buyer_profile_id || null;
+  const counterpartLabel = counterpartRef
+    ? `${match.kind === "buyer" ? "vendeur" : "acheteur"} #${counterpartRef.slice(0, 6)}`
+    : match.kind === "buyer"
+      ? "le vendeur"
+      : "l'acheteur";
+
   const seedText = seedNotif?.text?.trim() || match.seed_text?.trim() || null;
+
   const isNewBuyerSeed =
     seedNotif?.notification_type === "new_buyer" ||
     !!seedText?.includes("Nouvel acheteur intéressé");
@@ -593,6 +610,11 @@ export function WaouhMatchChatWindow({
             {" · "}
             {match.kind === "buyer" ? "Discutez avec le vendeur" : "Discutez avec l'acheteur"}
           </div>
+          {/* v13 — périmètre explicite : 1 fenêtre = 1 article × 1 interlocuteur */}
+          <div className="text-[10px] opacity-75 truncate font-mono">
+            avec {counterpartLabel} · réf. {(match.article_id || "").slice(0, 8)}
+          </div>
+
         </div>
       </div>
 

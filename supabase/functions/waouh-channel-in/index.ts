@@ -573,7 +573,7 @@ serve(async (req) => {
       web_session_id: sessionId, phone_number: phone,
       attachments: Array.isArray(core.attachments) ? core.attachments : [],
       article_id: outboundArticleId,
-      meta: { intent: core.intent ?? null, transaction_id: core.transaction_id ?? null, article_id: outboundArticleId, actions },
+      meta: { intent: core.intent ?? null, transaction_id: core.transaction_id ?? null, article_id: outboundArticleId, counterpart_user_id: core.counterpart_user_id ?? null, actions },
     }).select("id").maybeSingle();
     const outboundMessageId: string | null = outboundRow?.id ?? null;
     if (convId) {
@@ -590,7 +590,7 @@ serve(async (req) => {
       } catch (e) { console.error("WAHA send failed", e); }
     }
 
-    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, actions, attachments: Array.isArray(core.attachments) ? core.attachments : [], inbound_message_id: inboundMessageId, outbound_message_id: outboundMessageId, conversation_id: convId, user_id: user.id, article_id: outboundArticleId, transaction_id: core.transaction_id ?? null }), {
+    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, actions, attachments: Array.isArray(core.attachments) ? core.attachments : [], inbound_message_id: inboundMessageId, outbound_message_id: outboundMessageId, conversation_id: convId, user_id: user.id, article_id: outboundArticleId, counterpart_user_id: core.counterpart_user_id ?? null, transaction_id: core.transaction_id ?? null }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 

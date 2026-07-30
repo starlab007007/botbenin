@@ -134,11 +134,14 @@ export function WaouhMatchChatList({
             (Array.isArray(n.payload?.photos) && n.payload.photos[0]) ||
             n.payload?.image_url ||
             null;
-          // v12.1: include counterpart in the key for seller-side rows so each
-          // buyer interested in the same article keeps its own list entry.
+          // v13: la contrepartie fait partie de la clé des DEUX côtés — un item
+          // de liste = 1 article × 1 interlocuteur.
           const counterpartId: string | null =
-            n.payload?.counterpart_user_id ?? n.payload?.buyer_user_id ?? null;
-          const ck = matchKey(articleId, role, role === "seller" ? counterpartId : null);
+            n.payload?.counterpart_user_id ??
+            (role === "seller" ? n.payload?.buyer_user_id : n.payload?.seller_user_id) ??
+            null;
+          const ck = matchKey(articleId, role, counterpartId);
+
           const prev = map.get(ck);
           // Most-recent notification wins for display; accumulate notif ids.
           const isNewer = !prev || new Date(n.sent_at) > new Date(prev.last_at);
@@ -186,10 +189,11 @@ export function WaouhMatchChatList({
             const role: "buyer" | "seller" =
               m.meta?.role === "seller" ? "seller" : "buyer";
             const counterpart: string | null =
-              role === "seller"
-                ? (m.meta?.counterpart_user_id ?? m.meta?.buyer_user_id ?? null)
-                : null;
-            const stubKey = matchKey(articleId, role, role === "seller" ? counterpart : null);
+              m.meta?.counterpart_user_id ??
+              (role === "seller" ? m.meta?.buyer_user_id : m.meta?.seller_user_id) ??
+              null;
+            const stubKey = matchKey(articleId, role, counterpart);
+
             if (seenArt.has(stubKey) || Array.from(map.keys()).includes(stubKey)) continue;
             seenArt.set(stubKey, { role, created_at: m.created_at, counterpart });
           }
@@ -354,16 +358,13 @@ export function WaouhMatchChatList({
     try {
       const raw = localStorage.getItem(PENDING_OPEN_KEY);
       const arr = raw ? (JSON.parse(raw) as any[]) : [];
-      const canonical = matchKey(
-        item.article_id,
-        item.role,
-        item.role === "seller" ? item.counterpart_user_id : null
-      );
+      const canonical = matchKey(item.article_id, item.role, item.counterpart_user_id);
       const filtered = arr.filter((d: any) => {
         const dRole = d?.kind === "seller" ? "seller" : "buyer";
-        const dCp = dRole === "seller" ? (d?.counterpart_user_id ?? null) : null;
+        const dCp = d?.counterpart_user_id ?? null;
         return matchKey(d?.article_id, dRole, dCp) !== canonical;
       });
+
       filtered.push(detail);
       localStorage.setItem(PENDING_OPEN_KEY, JSON.stringify(filtered.slice(-10)));
     } catch {}
