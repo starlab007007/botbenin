@@ -100,9 +100,11 @@ function normalizeHay(fields: Array<string | null | undefined>): string {
 function hayHasWord(hay: string, kw: string): boolean {
   const k = stripAccents(String(kw || "").toLowerCase()).replace(/[^a-z0-9]+/g, " ").trim();
   if (k.length < 3) return false;
-  // multi-mots : tous les sous-tokens doivent être présents
+  // multi-mots : tous les sous-tokens doivent être présents comme mots
   const parts = k.split(" ").filter((p) => p.length >= 2);
-  if (parts.length > 1) return parts.every((p) => hayHasWord(hay, p.length >= 3 ? p : `xx${p}`) || hay.includes(` ${p} `));
+  if (parts.length > 1) {
+    return parts.every((p) => new RegExp(`(^| )${escapeRe(p)}(s|x|es)?( |$)`).test(hay));
+  }
   return new RegExp(`(^| )${escapeRe(k)}(s|x|es)?( |$)`).test(hay);
 }
 
