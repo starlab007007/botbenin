@@ -851,7 +851,10 @@ serve(async (req) => {
         "Extrais les critères d'achat en JSON: {keywords (array de mots-clés produit, ex: ['lenovo','ordinateur']), category (smartphone/ordinateur/vetement/vehicule/electromenager/meuble/autre), price_max (number FCFA), condition_min, radius_km}.",
         text
       );
-      const criteriaCategory = normalizeCategory(criteria.category || text);
+      // ⚠️ La catégorie n'est plus devinée depuis le texte brut (source de
+      // faux filtres : "terrain" → meuble). Uniquement la valeur IA, et
+      // seulement si elle est reconnue. Sinon null = pas de filtre.
+      const criteriaCategory = normalizeCategorySafe(criteria.category);
       const rawKws: string[] = Array.isArray(criteria.keywords) ? criteria.keywords.filter((k: any) => typeof k === "string" && k.length > 1) : [];
       // Fallback: si l'IA n'a rien extrait, on tokenise le message brut pour
       // éviter de retourner toute la base. "je cherche Zara" -> ["zara"].
