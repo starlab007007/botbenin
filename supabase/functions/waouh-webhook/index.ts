@@ -718,8 +718,19 @@ serve(async (req) => {
         text
       );
       const productCategory = normalizeCategory(product.category);
-      // Fallback: try to recover a price from the raw text when the AI missed it.
-      let inferredPrice: number | null = typeof product.price === "number" && product.price > 0 ? product.price : null;
+      // 💰 Prix : un montant EXPLICITE (suivi de FCFA/CFA/XOF ou précédé de "à/prix")
+      // prime sur l'extraction IA, qui confond parfois des chiffres collés au
+      // nom du produit ("Zorblax7777") avec le prix réel.
+      const explicitPriceMatch = String(text || "").match(
+        /(?:^|[\s(])(?:à|a|au prix de|prix\s*:?)?\s*(\d{3,}(?:[ .,]\d{3})*)\s*(?:fcfa|cfa|xof|f\b)/i
+      );
+      let explicitPrice: number | null = null;
+      if (explicitPriceMatch) {
+        const n = parseInt(explicitPriceMatch[1].replace(/[ .,]/g, ""), 10);
+        if (!Number.isNaN(n) && n >= 100) explicitPrice = n;
+      }
+      let inferredPrice: number | null = explicitPrice
+        ?? (typeof product.price === "number" && product.price > 0 ? product.price : null);
       if (!inferredPrice) {
         const m = String(text || "").match(/(\d{2,}(?:[ .]\d{3})*)\s*(?:fcfa|cfa|xof|f\b)?/i);
         if (m) {
@@ -727,15 +738,25 @@ serve(async (req) => {
           if (!Number.isNaN(n) && n >= 100) inferredPrice = n;
         }
       }
-      const fallbackTitle = String(text || "")
-        .replace(/^\s*je\s+vends?\s*:?\s*/i, "")
-        .split(/[,\n]/)[0]?.trim().slice(0, 60) || "Annonce";
+      // 🏷️ Titre : on nettoie les segments prix/ville pour éviter des titres
+      // comme « un Téléphone X à 25000 FCFA à Cotonou ».
+      const cleanTitle = (t: string) => String(t || "")
+        .replace(/^\s*(je\s+vends?|vends?|à vendre)\s*:?\s*/i, "")
+        .replace(/^\s*(un|une|des|le|la|les|mon|ma|mes)\s+/i, "")
+        .replace(/\s*(?:à|a|au prix de|prix\s*:?)\s*\d[\d .,]*\s*(?:fcfa|cfa|xof|f\b)[^,\n]*/gi, "")
+        .replace(/\s*(?:à|a)\s+(?:cotonou|porto-novo|parakou|abomey[- ]calavi|bohicon|natitingou|lokossa|ouidah|djougou)\b.*$/i, "")
+        .replace(/\s{2,}/g, " ")
+        .replace(/[,;:\-\s]+$/, "")
+        .trim()
+        .slice(0, 60);
+      const fallbackTitle = cleanTitle(String(text || "").split(/[,\n]/)[0] || "") || "Annonce";
       // Publier dès qu'on a un prix ET un titre exploitable (IA ou fallback).
       // La confidence Gemini est peu fiable pour les produits locaux/de niche
       // (« Mixa », « Kpakpato », marques peu connues) et bloquait à tort.
-      const resolvedTitle = (product.title && String(product.title).trim()) || fallbackTitle;
+      const resolvedTitle = cleanTitle(product.title || "") || fallbackTitle;
       const accepted = !!inferredPrice && !!resolvedTitle;
       if (!accepted) {
+
         reply = !inferredPrice
           ? "🤔 Il me manque le prix. Ex : *Je vends iPhone 12 à 120000 FCFA*."
           : "🤔 Je n'ai pas compris le produit. Précisez son nom. Ex : *Je vends iPhone 12 à 120000 FCFA*.";
@@ -747,7 +768,7 @@ serve(async (req) => {
           .filter((u: any) => typeof u === "string" && /^https?:\/\//i.test(u));
         const { data: art } = await sb.from("waouh_articles").insert({
           seller_id: user!.id,
-          title: product.title || fallbackTitle,
+          title: resolvedTitle,
           description: product.description,
           category: productCategory,
           brand: product.brand, model: product.model,
@@ -771,7 +792,7 @@ serve(async (req) => {
           const cmp = await Promise.race([
             compareMarketPrice(sb, {
               article_id: art?.id ?? null,
-              query: `${product.title || fallbackTitle} ${product.brand || ""} ${product.model || ""}`.trim(),
+              query: `${resolvedTitle} ${product.brand || ""} ${product.model || ""}`.trim(),
               city: user!.city, category: productCategory,
               brand: product.brand ?? null, model: product.model ?? null,
               askedPrice: inferredPrice,
@@ -785,7 +806,7 @@ serve(async (req) => {
           const max = product.market_price_max || inferredPrice * 1.2;
           marketBlock = `📊 *Prix marché estimé*\n• Bas : ${fmt(min)}\n• Haut : ${fmt(max)}\n⚠️ Comparables limités — estimation indicative.`;
         }
-        reply = `${waouhHeader("✅ Annonce publiée")}\n\n📦 *${product.title || fallbackTitle}*\n💰 *Prix* : ${fmt(inferredPrice)}\n🏙️ *Ville* : ${user!.city}${photoLine}\n\n${marketBlock}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.\n\n${waouhFooter()}`;
+        reply = `${waouhHeader("✅ Annonce publiée")}\n\n📦 *${resolvedTitle}*\n💰 *Prix* : ${fmt(inferredPrice)}\n🏙️ *Ville* : ${user!.city}${photoLine}\n\n${marketBlock}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.\n\n${waouhFooter()}`;
         // Une seule bulle WhatsApp pour la confirmation de publication, sans boutons.
         returnedActions = [];
 
@@ -836,7 +857,7 @@ serve(async (req) => {
               p_to_user_id: null,
               p_template: "radar_buyer_outreach",
               p_payload: {
-                text: `🎯 WAOUH a trouvé pour vous : *${product.title || fallbackTitle}* à ${fmt(inferredPrice)} (${user!.city}). Répondez *OUI* pour être mis en relation avec le vendeur.`,
+                text: `🎯 WAOUH a trouvé pour vous : *${resolvedTitle}* à ${fmt(inferredPrice)} (${user!.city}). Répondez *OUI* pour être mis en relation avec le vendeur.`,
                 article_id: art?.id,
                 radar_signal_id: b.id,
               },
@@ -897,7 +918,7 @@ serve(async (req) => {
       let partnerMatches: any[] = [];
       if (!(intent as any).__short_circuit) try {
         let pq = sb.from("waouh_unified_catalog")
-          .select("id,titre,description,categorie,prix_min,prix_max,ville,quartier,vendeur_nom,vendeur_phone,vendeur_whatsapp,photos,source,partner_id,business_id")
+          .select("id,titre,description,categorie,prix_min,prix_max,ville,quartier,vendeur_nom,vendeur_phone,vendeur_whatsapp,photos,source,source_ref_id,partner_id,business_id")
           .eq("type", "offer")
           .eq("is_active", true);
         if (criteria.price_max) pq = pq.lte("prix_min", criteria.price_max);
@@ -1014,6 +1035,48 @@ serve(async (req) => {
           matchesAnyKeyword([r.category, r.raw_text], [criteriaCategory])
         );
       }
+
+      // 🧹 DÉDOUBLONNAGE catalogue unifié ↔ articles.
+      // waouh_unified_catalog contient des MIROIRS des annonces chat/radar
+      // (source='chat'|'radar' + source_ref_id = waouh_articles.id). Sans ce
+      // filtre, une seule annonce s'affiche 2x (dont une à tort en
+      // « ✅ Partenaire vérifié »). Source de vérité = waouh_articles.
+      const articleIdSet = new Set((matches || []).map((m: any) => m.id));
+      partnerMatches = partnerMatches.filter((p: any) => {
+        if (p.source_ref_id && articleIdSet.has(p.source_ref_id)) return false; // doublon exact
+        if (p.source && p.source !== "partner" && p.source_ref_id) return false; // miroir chat/radar
+        return true;
+      });
+      // Dédoublonnage secondaire (titre+prix+ville) au cas où le miroir n'a pas de source_ref_id
+      {
+        const seen = new Set(
+          (matches || []).map((m: any) => `${String(m.title || "").toLowerCase().trim()}|${Number(m.price || 0)}|${String(m.city || "").toLowerCase()}`)
+        );
+        partnerMatches = partnerMatches.filter((p: any) => {
+          const key = `${String(p.titre || "").toLowerCase().trim()}|${Number(p.prix_min || p.prix_max || 0)}|${String(p.ville || "").toLowerCase()}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      }
+      // Radar : écarte les signaux déjà promus/affichés (même titre+prix)
+      {
+        const shown = new Set([
+          ...(matches || []).map((m: any) => `${String(m.title || "").toLowerCase().trim()}|${Number(m.price || 0)}`),
+          ...partnerMatches.map((p: any) => `${String(p.titre || "").toLowerCase().trim()}|${Number(p.prix_min || p.prix_max || 0)}`),
+        ]);
+        radarSellers = radarSellers.filter((r: any) => {
+          const t = String(r.product?.title || r.product?.name || "").toLowerCase().trim();
+          if (!t) return true;
+          const key = `${t}|${Number(r.price || 0)}`;
+          if (shown.has(key)) return false;
+          shown.add(key);
+          return true;
+        });
+      }
+
+
+
 
 
 
