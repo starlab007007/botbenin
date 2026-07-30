@@ -189,10 +189,11 @@ export function WaouhMatchChatList({
             const role: "buyer" | "seller" =
               m.meta?.role === "seller" ? "seller" : "buyer";
             const counterpart: string | null =
-              role === "seller"
-                ? (m.meta?.counterpart_user_id ?? m.meta?.buyer_user_id ?? null)
-                : null;
-            const stubKey = matchKey(articleId, role, role === "seller" ? counterpart : null);
+              m.meta?.counterpart_user_id ??
+              (role === "seller" ? m.meta?.buyer_user_id : m.meta?.seller_user_id) ??
+              null;
+            const stubKey = matchKey(articleId, role, counterpart);
+
             if (seenArt.has(stubKey) || Array.from(map.keys()).includes(stubKey)) continue;
             seenArt.set(stubKey, { role, created_at: m.created_at, counterpart });
           }
