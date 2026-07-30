@@ -967,20 +967,44 @@ serve(async (req) => {
       // Fusionne — radarSellers garde priorité chronologique
       radarSellers = [...radarSellers, ...externalListings].slice(0, 8);
 
-      // 🎯 Post-filter local strict : ne garde QUE les résultats dont un
-      // champ textuel contient réellement un mot-clé complet (>=3 chars).
-      // Empêche PostgREST de renvoyer des lignes "similaires" hors-sujet.
+      // 🎯 Post-filter local strict + tri par pertinence.
+      // Un mot-clé doit apparaître comme MOT ENTIER (pas sous-chaîne) dans un
+      // champ produit. Le tri privilégie ensuite les titres qui contiennent le
+      // plus de mots-clés de la requête.
       const strictKws = kws.filter((k) => typeof k === "string" && k.length >= 3);
       if (strictKws.length > 0) {
-        const filteredMatches = (matches || []).filter((m: any) =>
-          matchesAnyKeyword([m.title, m.brand, m.model, m.description, m.category], strictKws)
-        );
-        matches = filteredMatches;
+        const rank = <T,>(rows: T[], get: (r: T) => { title: any; rest: any[] }) =>
+          rows
+            .map((r) => {
+              const { title, rest } = get(r);
+              return { r, s: scoreRelevance(title, rest, strictKws) };
+            })
+            .filter((x) => x.s > 0)
+            .sort((a, b) => b.s - a.s)
+            .map((x) => x.r);
+
+        matches = rank(matches || [], (m: any) => ({
+          title: m.title,
+          rest: [m.brand, m.model, m.description, m.category],
+        }));
+        partnerMatches = rank(partnerMatches, (p: any) => ({
+          title: p.titre,
+          rest: [p.description, p.categorie, p.sous_categorie, Array.isArray(p.tags) ? p.tags.join(" ") : ""],
+        }));
+        // ⚠️ `city` retiré du haystack radar : une ville ne doit jamais valider
+        // un résultat produit.
+        radarSellers = rank(radarSellers, (r: any) => ({
+          title: r.product?.title || r.product?.name || "",
+          rest: [r.raw_text, r.category],
+        }));
+      } else if (criteriaCategory) {
+        // Pas de mot-clé exploitable : on ne garde que la catégorie reconnue.
+        matches = (matches || []).filter((m: any) => m.category === criteriaCategory);
         partnerMatches = partnerMatches.filter((p: any) =>
-          matchesAnyKeyword([p.titre, p.description, p.categorie, p.sous_categorie, p.vendeur_nom, Array.isArray(p.tags) ? p.tags.join(" ") : ""], strictKws)
+          matchesAnyKeyword([p.categorie, p.sous_categorie], [criteriaCategory])
         );
         radarSellers = radarSellers.filter((r: any) =>
-          matchesAnyKeyword([r.product?.title, r.product?.name, r.raw_text, r.category, r.city], strictKws)
+          matchesAnyKeyword([r.category, r.raw_text], [criteriaCategory])
         );
       }
 
