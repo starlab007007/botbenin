@@ -94,11 +94,13 @@ Deno.serve(async (req) => {
     // Fallback: si l'IA renvoie keywords vide, on tokenise le message brut.
     const aiKws: string[] = Array.isArray(q.keywords) ? q.keywords.filter((k: any) => typeof k === 'string' && k.length > 1) : [];
     const effectiveKws: string[] = aiKws.length > 0 ? aiKws : extractFallbackKeywords(message);
-    console.log('[buy-handler]', { message, ai_keywords: aiKws, effectiveKws, category: q.category, price_max: q.price_max });
+    // Catégorie sûre : jamais devinée depuis le texte brut, jamais "autre".
+    const safeCategory = normalizeCategorySafe(q.category);
+    console.log('[buy-handler]', { message, ai_keywords: aiKws, effectiveKws, category: safeCategory, price_max: q.price_max });
 
     // Garde anti-recherche-ouverte: sans keywords ET sans category ET sans prix
     // -> aucun résultat (évite de retourner toute la base + de spammer les vendeurs).
-    if (effectiveKws.length === 0 && !q.category && !q.price_max) {
+    if (effectiveKws.length === 0 && !safeCategory && !q.price_max) {
       return new Response(JSON.stringify({
         success: true,
         matches: [],
@@ -112,16 +114,17 @@ Deno.serve(async (req) => {
 
     // 1) waouh_articles (annonces chat)
     let query = supabase.from('waouh_articles')
-      .select('id,title,brand,model,price,city,photos,location,seller_id,description')
+      .select('id,title,brand,model,price,city,photos,location,seller_id,description,category')
       .eq('status', 'active');
-    if (q.category) query = query.eq('category', q.category);
+    // La catégorie n'est un filtre dur que si c'est le SEUL signal disponible.
+    if (safeCategory && kwVariants.length === 0) query = query.eq('category', safeCategory);
     if (q.price_min) query = query.gte('price', q.price_min);
     if (q.price_max) query = query.lte('price', q.price_max);
     if (kwVariants.length > 0) {
       const orFilter = kwVariants.map((k) => `title.ilike.%${k}%,brand.ilike.%${k}%,model.ilike.%${k}%,description.ilike.%${k}%`).join(",");
       query = query.or(orFilter);
     }
-    const { data: articles } = await query.limit(20);
+    const { data: articles } = await query.limit(30);
 
     // 2) waouh_unified_catalog (partenaires + imports + radar promus)
     // Souvent négligé jusqu'ici -> beaucoup de produits partenaires étaient invisibles.
