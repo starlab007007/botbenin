@@ -1038,6 +1038,22 @@ serve(async (req) => {
           return true;
         });
       }
+      // Radar : écarte les signaux déjà promus/affichés (même titre+prix)
+      {
+        const shown = new Set([
+          ...(matches || []).map((m: any) => `${String(m.title || "").toLowerCase().trim()}|${Number(m.price || 0)}`),
+          ...partnerMatches.map((p: any) => `${String(p.titre || "").toLowerCase().trim()}|${Number(p.prix_min || p.prix_max || 0)}`),
+        ]);
+        radarSellers = radarSellers.filter((r: any) => {
+          const t = String(r.product?.title || r.product?.name || "").toLowerCase().trim();
+          if (!t) return true;
+          const key = `${t}|${Number(r.price || 0)}`;
+          if (shown.has(key)) return false;
+          shown.add(key);
+          return true;
+        });
+      }
+
 
 
 
