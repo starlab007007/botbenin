@@ -272,8 +272,8 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
     chatWindowCounterpartFilter: {
       file: "src/components/waouh/WaouhMatchChatWindow.tsx",
       mustContain: [
-        "counterpartUserId: match.kind === \"seller\"",
-        "match.kind === \"seller\" && match.counterpart_user_id",
+        "counterpartUserId: match.counterpart_user_id ?? null",
+        "if (match.counterpart_user_id) {",
       ],
     },
     webhookPushToOtherCounterpart: {
