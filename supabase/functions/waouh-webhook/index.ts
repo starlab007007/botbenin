@@ -1015,6 +1015,32 @@ serve(async (req) => {
         );
       }
 
+      // 🧹 DÉDOUBLONNAGE catalogue unifié ↔ articles.
+      // waouh_unified_catalog contient des MIROIRS des annonces chat/radar
+      // (source='chat'|'radar' + source_ref_id = waouh_articles.id). Sans ce
+      // filtre, une seule annonce s'affiche 2x (dont une à tort en
+      // « ✅ Partenaire vérifié »). Source de vérité = waouh_articles.
+      const articleIdSet = new Set((matches || []).map((m: any) => m.id));
+      partnerMatches = partnerMatches.filter((p: any) => {
+        if (p.source_ref_id && articleIdSet.has(p.source_ref_id)) return false; // doublon exact
+        if (p.source && p.source !== "partner" && p.source_ref_id) return false; // miroir chat/radar
+        return true;
+      });
+      // Dédoublonnage secondaire (titre+prix+ville) au cas où le miroir n'a pas de source_ref_id
+      {
+        const seen = new Set(
+          (matches || []).map((m: any) => `${String(m.title || "").toLowerCase().trim()}|${Number(m.price || 0)}|${String(m.city || "").toLowerCase()}`)
+        );
+        partnerMatches = partnerMatches.filter((p: any) => {
+          const key = `${String(p.titre || "").toLowerCase().trim()}|${Number(p.prix_min || p.prix_max || 0)}|${String(p.ville || "").toLowerCase()}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      }
+
+
+
 
 
 
