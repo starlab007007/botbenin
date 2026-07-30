@@ -136,7 +136,7 @@ function migrateLegacyKeys(sid: string, openTabs: MatchChatMeta[]): MatchChatMet
   for (const t of openTabs) {
     if (!t.article_id) continue;
     const role = (t.kind || "buyer") as "buyer" | "seller";
-    const counterpart = role === "seller" ? (t.counterpart_user_id ?? null) : null;
+    const counterpart = t.counterpart_user_id ?? null;
     const ck = matchKey(t.article_id, role, counterpart);
     const existing = canonicalTabs.get(ck);
     const nIds = new Set<string>([
