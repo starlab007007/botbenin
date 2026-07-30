@@ -134,11 +134,14 @@ export function WaouhMatchChatList({
             (Array.isArray(n.payload?.photos) && n.payload.photos[0]) ||
             n.payload?.image_url ||
             null;
-          // v12.1: include counterpart in the key for seller-side rows so each
-          // buyer interested in the same article keeps its own list entry.
+          // v13: la contrepartie fait partie de la clé des DEUX côtés — un item
+          // de liste = 1 article × 1 interlocuteur.
           const counterpartId: string | null =
-            n.payload?.counterpart_user_id ?? n.payload?.buyer_user_id ?? null;
-          const ck = matchKey(articleId, role, role === "seller" ? counterpartId : null);
+            n.payload?.counterpart_user_id ??
+            (role === "seller" ? n.payload?.buyer_user_id : n.payload?.seller_user_id) ??
+            null;
+          const ck = matchKey(articleId, role, counterpartId);
+
           const prev = map.get(ck);
           // Most-recent notification wins for display; accumulate notif ids.
           const isNewer = !prev || new Date(n.sent_at) > new Date(prev.last_at);
