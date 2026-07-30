@@ -902,12 +902,14 @@ serve(async (req) => {
           .eq("is_active", true);
         if (criteria.price_max) pq = pq.lte("prix_min", criteria.price_max);
         if (kwVariants.length > 0) {
+          // ⚠️ vendeur_nom retiré du OR : chercher "zara" ne doit pas remonter
+          // TOUT le catalogue d'un vendeur nommé Zara.
           const orFilter = kwVariants
-            .map((k) => `titre.ilike.%${k}%,description.ilike.%${k}%,categorie.ilike.%${k}%,sous_categorie.ilike.%${k}%,vendeur_nom.ilike.%${k}%,tags.cs.{${k}}`)
+            .map((k) => `titre.ilike.%${k}%,description.ilike.%${k}%,categorie.ilike.%${k}%,sous_categorie.ilike.%${k}%,tags.cs.{${k}}`)
             .join(",");
           pq = pq.or(orFilter);
         }
-        const { data: pm } = await pq.order("priority_rank", { ascending: false }).limit(8);
+        const { data: pm } = await pq.order("priority_rank", { ascending: false }).limit(25);
         partnerMatches = pm || [];
       } catch (e) { console.warn("[unified catalog search]", e); }
 
