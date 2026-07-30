@@ -169,12 +169,19 @@ Deno.serve(async (req) => {
 
     const combined = [...(articles || []), ...normalizedPartners];
 
-    // Filtre local strict : un token complet (>=3 chars) doit apparaître dans
-    // les champs textuels. Empêche PostgREST de renvoyer des lignes hors-sujet.
+    // Filtre local strict : un mot-clé doit apparaître comme MOT ENTIER dans
+    // les champs produit. Empêche PostgREST de renvoyer des lignes hors-sujet.
     const strictKws = effectiveKws.filter((k) => typeof k === 'string' && k.length >= 3);
-    const filtered = combined.filter((a: any) =>
-      matchesAnyKeyword([a.title, a.brand, a.model, a.description, (a as any).categorie], strictKws)
-    );
+    let filtered = combined;
+    if (strictKws.length > 0) {
+      filtered = combined.filter((a: any) =>
+        matchesAnyKeyword([a.title, a.brand, a.model, a.description, (a as any).categorie], strictKws)
+      );
+    } else if (safeCategory) {
+      filtered = combined.filter((a: any) =>
+        matchesAnyKeyword([(a as any).category, (a as any).categorie], [safeCategory])
+      );
+    }
 
     // Dédoublonnage par (title,price) pour éviter doublons entre sources
     const seen = new Set<string>();
@@ -191,15 +198,23 @@ Deno.serve(async (req) => {
     const enriched = deduped.map((a: any) => {
       const pt = parsePoint(a.location);
       const dKm = pt ? distanceKm(buyerLat, buyerLng, pt.lat, pt.lng) : null;
-      return { ...a, lat: pt?.lat ?? null, lng: pt?.lng ?? null, distance_km: dKm };
+      return {
+        ...a,
+        lat: pt?.lat ?? null,
+        lng: pt?.lng ?? null,
+        distance_km: dKm,
+        _score: scoreRelevance(a.title, [a.brand, a.model, a.description, (a as any).categorie, (a as any).category], strictKws),
+      };
     });
+    // Tri : pertinence d'abord, distance ensuite.
     enriched.sort((x: any, y: any) => {
+      if (y._score !== x._score) return y._score - x._score;
       if (x.distance_km == null && y.distance_km == null) return 0;
       if (x.distance_km == null) return 1;
       if (y.distance_km == null) return -1;
       return x.distance_km - y.distance_km;
     });
-    const matches = enriched.slice(0, 10);
+    const matches = enriched.slice(0, 10).map(({ _score, ...rest }: any) => rest);
 
     // Dispatch buyer-side (uniquement pour les articles officiels)
     const dispatchAsync = (async () => {
