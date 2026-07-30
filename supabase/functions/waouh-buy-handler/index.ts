@@ -2,7 +2,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { rehostPhotos, normalizeBeninPhone } from '../_shared/waouhContact.ts';
 import { distanceKm, formatDistance } from '../_shared/waouh-format.ts';
-import { extractFallbackKeywords, expandKeywordVariants, escapeIlikeToken, matchesAnyKeyword } from '../_shared/waouh-keywords.ts';
+import { extractFallbackKeywords, expandKeywordVariants, escapeIlikeToken, matchesAnyKeyword, scoreRelevance, normalizeCategorySafe } from '../_shared/waouh-keywords.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -73,8 +73,18 @@ Deno.serve(async (req) => {
         response_format: { type: 'json_object' },
       }),
     });
-    const aiData = await aiRes.json();
-    const q = JSON.parse(aiData.choices[0].message.content);
+    // Tolérance de panne IA (429/402/timeout) : on retombe sur l'extraction
+    // locale de mots-clés au lieu de casser toute la recherche.
+    let q: any = {};
+    try {
+      const aiData = await aiRes.json();
+      const raw = aiData?.choices?.[0]?.message?.content;
+      if (!raw) console.warn('[buy-handler] AI gateway sans contenu', aiRes.status, JSON.stringify(aiData)?.slice(0, 300));
+      q = raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      console.warn('[buy-handler] AI parse failed, fallback local', e);
+      q = {};
+    }
 
     // Save buyer profile
     const { data: profile } = await supabase.from('waouh_buyer_profiles').insert({
@@ -94,11 +104,13 @@ Deno.serve(async (req) => {
     // Fallback: si l'IA renvoie keywords vide, on tokenise le message brut.
     const aiKws: string[] = Array.isArray(q.keywords) ? q.keywords.filter((k: any) => typeof k === 'string' && k.length > 1) : [];
     const effectiveKws: string[] = aiKws.length > 0 ? aiKws : extractFallbackKeywords(message);
-    console.log('[buy-handler]', { message, ai_keywords: aiKws, effectiveKws, category: q.category, price_max: q.price_max });
+    // Catégorie sûre : jamais devinée depuis le texte brut, jamais "autre".
+    const safeCategory = normalizeCategorySafe(q.category);
+    console.log('[buy-handler]', { message, ai_keywords: aiKws, effectiveKws, category: safeCategory, price_max: q.price_max });
 
     // Garde anti-recherche-ouverte: sans keywords ET sans category ET sans prix
     // -> aucun résultat (évite de retourner toute la base + de spammer les vendeurs).
-    if (effectiveKws.length === 0 && !q.category && !q.price_max) {
+    if (effectiveKws.length === 0 && !safeCategory && !q.price_max) {
       return new Response(JSON.stringify({
         success: true,
         matches: [],
@@ -112,16 +124,17 @@ Deno.serve(async (req) => {
 
     // 1) waouh_articles (annonces chat)
     let query = supabase.from('waouh_articles')
-      .select('id,title,brand,model,price,city,photos,location,seller_id,description')
+      .select('id,title,brand,model,price,city,photos,location,seller_id,description,category')
       .eq('status', 'active');
-    if (q.category) query = query.eq('category', q.category);
+    // La catégorie n'est un filtre dur que si c'est le SEUL signal disponible.
+    if (safeCategory && kwVariants.length === 0) query = query.eq('category', safeCategory);
     if (q.price_min) query = query.gte('price', q.price_min);
     if (q.price_max) query = query.lte('price', q.price_max);
     if (kwVariants.length > 0) {
       const orFilter = kwVariants.map((k) => `title.ilike.%${k}%,brand.ilike.%${k}%,model.ilike.%${k}%,description.ilike.%${k}%`).join(",");
       query = query.or(orFilter);
     }
-    const { data: articles } = await query.limit(20);
+    const { data: articles } = await query.limit(30);
 
     // 2) waouh_unified_catalog (partenaires + imports + radar promus)
     // Souvent négligé jusqu'ici -> beaucoup de produits partenaires étaient invisibles.
@@ -133,12 +146,14 @@ Deno.serve(async (req) => {
         .eq('is_active', true);
       if (q.price_max) pq = pq.lte('prix_min', q.price_max);
       if (kwVariants.length > 0) {
+        // vendeur_nom retiré : chercher "zara" ne doit pas remonter tout le
+        // catalogue d'un vendeur nommé Zara.
         const orFilter = kwVariants
-          .map((k) => `titre.ilike.%${k}%,description.ilike.%${k}%,categorie.ilike.%${k}%,sous_categorie.ilike.%${k}%,vendeur_nom.ilike.%${k}%,tags.cs.{${k}}`)
+          .map((k) => `titre.ilike.%${k}%,description.ilike.%${k}%,categorie.ilike.%${k}%,sous_categorie.ilike.%${k}%,tags.cs.{${k}}`)
           .join(",");
         pq = pq.or(orFilter);
       }
-      const { data: pm } = await pq.order('priority_rank', { ascending: false }).limit(15);
+      const { data: pm } = await pq.order('priority_rank', { ascending: false }).limit(25);
       partnerRows = pm || [];
     } catch (e) { console.warn('[buy-handler unified catalog]', e); }
 
@@ -164,12 +179,19 @@ Deno.serve(async (req) => {
 
     const combined = [...(articles || []), ...normalizedPartners];
 
-    // Filtre local strict : un token complet (>=3 chars) doit apparaître dans
-    // les champs textuels. Empêche PostgREST de renvoyer des lignes hors-sujet.
+    // Filtre local strict : un mot-clé doit apparaître comme MOT ENTIER dans
+    // les champs produit. Empêche PostgREST de renvoyer des lignes hors-sujet.
     const strictKws = effectiveKws.filter((k) => typeof k === 'string' && k.length >= 3);
-    const filtered = combined.filter((a: any) =>
-      matchesAnyKeyword([a.title, a.brand, a.model, a.description, (a as any).categorie], strictKws)
-    );
+    let filtered = combined;
+    if (strictKws.length > 0) {
+      filtered = combined.filter((a: any) =>
+        matchesAnyKeyword([a.title, a.brand, a.model, a.description, (a as any).categorie], strictKws)
+      );
+    } else if (safeCategory) {
+      filtered = combined.filter((a: any) =>
+        matchesAnyKeyword([(a as any).category, (a as any).categorie], [safeCategory])
+      );
+    }
 
     // Dédoublonnage par (title,price) pour éviter doublons entre sources
     const seen = new Set<string>();
@@ -186,15 +208,27 @@ Deno.serve(async (req) => {
     const enriched = deduped.map((a: any) => {
       const pt = parsePoint(a.location);
       const dKm = pt ? distanceKm(buyerLat, buyerLng, pt.lat, pt.lng) : null;
-      return { ...a, lat: pt?.lat ?? null, lng: pt?.lng ?? null, distance_km: dKm };
+      return {
+        ...a,
+        lat: pt?.lat ?? null,
+        lng: pt?.lng ?? null,
+        distance_km: dKm,
+        _score: scoreRelevance(a.title, [a.brand, a.model, a.description, (a as any).categorie, (a as any).category], strictKws),
+      };
     });
+    // Tri : pertinence d'abord, distance ensuite.
     enriched.sort((x: any, y: any) => {
+      if (y._score !== x._score) return y._score - x._score;
       if (x.distance_km == null && y.distance_km == null) return 0;
       if (x.distance_km == null) return 1;
       if (y.distance_km == null) return -1;
       return x.distance_km - y.distance_km;
     });
-    const matches = enriched.slice(0, 10);
+    // Les descriptions scrapées contiennent du texte de navigation : si un
+    // résultat matche dans le TITRE, on écarte les matchs description-seule.
+    const hasTitleHit = strictKws.length > 0 && enriched.some((a: any) => a._score >= 3);
+    const relevant = hasTitleHit ? enriched.filter((a: any) => a._score >= 3) : enriched;
+    const matches = relevant.slice(0, 10).map(({ _score, ...rest }: any) => rest);
 
     // Dispatch buyer-side (uniquement pour les articles officiels)
     const dispatchAsync = (async () => {

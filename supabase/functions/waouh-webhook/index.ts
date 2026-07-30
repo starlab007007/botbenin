@@ -10,7 +10,7 @@ import {
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 import { findRadarOutreachContext, findRadarSellerOutreachContext } from "../_shared/waouh-radar.ts";
-import { extractFallbackKeywords, expandKeywordVariants, escapeIlikeToken, matchesAnyKeyword } from "../_shared/waouh-keywords.ts";
+import { extractFallbackKeywords, expandKeywordVariants, escapeIlikeToken, matchesAnyKeyword, scoreRelevance, normalizeCategorySafe } from "../_shared/waouh-keywords.ts";
 import { compareMarketPrice, shortMarketLine } from "../_shared/waouh-price.ts";
 
 const corsHeaders = {
@@ -851,7 +851,10 @@ serve(async (req) => {
         "Extrais les critères d'achat en JSON: {keywords (array de mots-clés produit, ex: ['lenovo','ordinateur']), category (smartphone/ordinateur/vetement/vehicule/electromenager/meuble/autre), price_max (number FCFA), condition_min, radius_km}.",
         text
       );
-      const criteriaCategory = normalizeCategory(criteria.category || text);
+      // ⚠️ La catégorie n'est plus devinée depuis le texte brut (source de
+      // faux filtres : "terrain" → meuble). Uniquement la valeur IA, et
+      // seulement si elle est reconnue. Sinon null = pas de filtre.
+      const criteriaCategory = normalizeCategorySafe(criteria.category);
       const rawKws: string[] = Array.isArray(criteria.keywords) ? criteria.keywords.filter((k: any) => typeof k === "string" && k.length > 1) : [];
       // Fallback: si l'IA n'a rien extrait, on tokenise le message brut pour
       // éviter de retourner toute la base. "je cherche Zara" -> ["zara"].
@@ -876,7 +879,8 @@ serve(async (req) => {
       let q = sb.from("waouh_articles")
         .select("id,title,price,city,brand,condition,category,seller_id,photos,market_price_min,market_price_max")
         .eq("status", "active");
-      if (criteriaCategory) q = q.eq("category", criteriaCategory);
+      // La catégorie n'est un filtre dur que si c'est le SEUL signal dispo.
+      if (criteriaCategory && kwVariants.length === 0) q = q.eq("category", criteriaCategory);
       if (criteria.price_max) q = q.lte("price", criteria.price_max);
       if (kwVariants.length > 0) {
         const orFilter = kwVariants.map((k) => `title.ilike.%${k}%,brand.ilike.%${k}%,model.ilike.%${k}%,description.ilike.%${k}%`).join(",");
@@ -884,7 +888,7 @@ serve(async (req) => {
       }
       let { data: matches } = (intent as any).__short_circuit
         ? { data: [] as any[] }
-        : await q.order("created_at", { ascending: false }).limit(5);
+        : await q.order("created_at", { ascending: false }).limit(30);
 
       // 🏪 Recherche dans le Catalogue Unifié (partenaires + chat + radar + externes)
       // NB: on retire le filtre `.eq('source','partner')` pour exposer TOUTES les
@@ -898,12 +902,14 @@ serve(async (req) => {
           .eq("is_active", true);
         if (criteria.price_max) pq = pq.lte("prix_min", criteria.price_max);
         if (kwVariants.length > 0) {
+          // ⚠️ vendeur_nom retiré du OR : chercher "zara" ne doit pas remonter
+          // TOUT le catalogue d'un vendeur nommé Zara.
           const orFilter = kwVariants
-            .map((k) => `titre.ilike.%${k}%,description.ilike.%${k}%,categorie.ilike.%${k}%,sous_categorie.ilike.%${k}%,vendeur_nom.ilike.%${k}%,tags.cs.{${k}}`)
+            .map((k) => `titre.ilike.%${k}%,description.ilike.%${k}%,categorie.ilike.%${k}%,sous_categorie.ilike.%${k}%,tags.cs.{${k}}`)
             .join(",");
           pq = pq.or(orFilter);
         }
-        const { data: pm } = await pq.order("priority_rank", { ascending: false }).limit(8);
+        const { data: pm } = await pq.order("priority_rank", { ascending: false }).limit(25);
         partnerMatches = pm || [];
       } catch (e) { console.warn("[unified catalog search]", e); }
 
@@ -961,20 +967,51 @@ serve(async (req) => {
       // Fusionne — radarSellers garde priorité chronologique
       radarSellers = [...radarSellers, ...externalListings].slice(0, 8);
 
-      // 🎯 Post-filter local strict : ne garde QUE les résultats dont un
-      // champ textuel contient réellement un mot-clé complet (>=3 chars).
-      // Empêche PostgREST de renvoyer des lignes "similaires" hors-sujet.
+      // 🎯 Post-filter local strict + tri par pertinence.
+      // Un mot-clé doit apparaître comme MOT ENTIER (pas sous-chaîne) dans un
+      // champ produit. Le tri privilégie ensuite les titres qui contiennent le
+      // plus de mots-clés de la requête.
       const strictKws = kws.filter((k) => typeof k === "string" && k.length >= 3);
       if (strictKws.length > 0) {
-        const filteredMatches = (matches || []).filter((m: any) =>
-          matchesAnyKeyword([m.title, m.brand, m.model, m.description, m.category], strictKws)
-        );
-        matches = filteredMatches;
+        // ⚠️ Les descriptions scrapées contiennent du texte de navigation
+        // ("› Terrains à Vendre…") : si AU MOINS un résultat matche dans le
+        // TITRE (score >= 3), on écarte les matchs description-seule.
+        const rank = <T,>(rows: T[], get: (r: T) => { title: any; rest: any[] }) => {
+          const scored = rows
+            .map((r) => {
+              const { title, rest } = get(r);
+              return { r, s: scoreRelevance(title, rest, strictKws) };
+            })
+            .filter((x) => x.s > 0);
+          const hasTitleHit = scored.some((x) => x.s >= 3);
+          return scored
+            .filter((x) => (hasTitleHit ? x.s >= 3 : true))
+            .sort((a, b) => b.s - a.s)
+            .map((x) => x.r);
+        };
+
+        matches = rank(matches || [], (m: any) => ({
+          title: m.title,
+          rest: [m.brand, m.model, m.description, m.category],
+        }));
+        partnerMatches = rank(partnerMatches, (p: any) => ({
+          title: p.titre,
+          rest: [p.description, p.categorie, p.sous_categorie, Array.isArray(p.tags) ? p.tags.join(" ") : ""],
+        }));
+        // ⚠️ `city` retiré du haystack radar : une ville ne doit jamais valider
+        // un résultat produit.
+        radarSellers = rank(radarSellers, (r: any) => ({
+          title: r.product?.title || r.product?.name || "",
+          rest: [r.raw_text, r.category],
+        }));
+      } else if (criteriaCategory) {
+        // Pas de mot-clé exploitable : on ne garde que la catégorie reconnue.
+        matches = (matches || []).filter((m: any) => m.category === criteriaCategory);
         partnerMatches = partnerMatches.filter((p: any) =>
-          matchesAnyKeyword([p.titre, p.description, p.categorie, p.sous_categorie, p.vendeur_nom, Array.isArray(p.tags) ? p.tags.join(" ") : ""], strictKws)
+          matchesAnyKeyword([p.categorie, p.sous_categorie], [criteriaCategory])
         );
         radarSellers = radarSellers.filter((r: any) =>
-          matchesAnyKeyword([r.product?.title, r.product?.name, r.raw_text, r.category, r.city], strictKws)
+          matchesAnyKeyword([r.category, r.raw_text], [criteriaCategory])
         );
       }
 
@@ -1110,27 +1147,39 @@ serve(async (req) => {
         reply = `${waouhHeader(`🎯 Top ${totalShown} annonce${totalShown > 1 ? "s" : ""} trouvée${totalShown > 1 ? "s" : ""}`)}\n\n${[partnerList, officialList, radarList].filter(Boolean).join(`\n\n${waouhSep}\n\n`)}\n\n${waouhSep}\n\n💡 Pour discuter avec un vendeur, répondez : ${interestList}.${radarHint}\n\n${waouhFooter()}`;
         // Pas de boutons : tout passe par texte (intéressé 1, intéressé 2, …)
         returnedActions = [];
-        // Promotion radar + outreach: déférés via EdgeRuntime.waitUntil pour ne PAS
-        // ralentir la réponse au chat. La liste affichée (combinedMatches) reflète
-        // les matches officiels + partenaires immédiatement; les promotions radar
-        // arrivent en background et seront visibles au prochain message.
+        // ⚠️ INVARIANT: last_matches DOIT refléter exactement l'ordre affiché
+        // (partnerTop → matchesTop → radarTop), sinon « intéressé N » ouvre la
+        // négociation sur un autre produit que celui listé au numéro N.
         const combinedMatches = [
           ...partnerTop.map((p: any) => ({ id: p.id, title: `🏪 ${p.titre}`, price: Number(p.prix_min || p.prix_max || 0), seller_id: null, partner_id: p.partner_id, business_id: p.business_id, vendeur_phone: p.vendeur_phone, vendeur_whatsapp: p.vendeur_whatsapp, photos: p.photos, source: "partner" })),
-          ...(matches || []).map((m: any) => ({ id: m.id, title: m.title, price: m.price, seller_id: m.seller_id, photos: m.photos, market_price_min: m.market_price_min, market_price_max: m.market_price_max })),
+          ...matchesTop.map((m: any) => ({ id: m.id, title: m.title, price: m.price, seller_id: m.seller_id, photos: m.photos, market_price_min: m.market_price_min, market_price_max: m.market_price_max })),
         ];
         nextContext = { ...nextContext, last_matches: combinedMatches };
 
         // 🛰️ v11 — Promotion Radar IA synchrone + inclusion dans last_matches.
         // Sans ça, l'acheteur App ne peut pas répondre "intéressé N" sur un
         // hit Radar (CONFIRM index hors-liste → "Aucune négociation").
+        // On promeut EXACTEMENT radarTop, dans l'ordre affiché.
         const radarPromotedArticles: any[] = [];
-        for (const r of radarSellers.slice(0, 3)) {
+        for (const r of radarTop) {
+          let entry: any = {
+            // Placeholder positionnel : même si la promotion échoue, l'index
+            // reste aligné sur le numéro affiché dans la liste.
+            id: null,
+            title: r.product?.title || r.product?.name || "Annonce Radar IA",
+            price: r.price ?? null,
+            seller_id: null,
+            photos: extractProductPhotos(r),
+            source: "radar",
+            radar_signal_id: r.id,
+            unavailable: true,
+          };
           try {
             const art = r._from_external
               ? await promoteExternalListing(sb, r, criteriaCategory)
               : await promoteRadarSeller(sb, r, criteriaCategory);
             if (art?.id) {
-              radarPromotedArticles.push({
+              entry = {
                 id: art.id,
                 title: art.title,
                 price: art.price,
@@ -1140,9 +1189,10 @@ serve(async (req) => {
                 market_price_max: art.market_price_max,
                 source: "radar",
                 radar_signal_id: r.id,
-              });
+              };
             }
           } catch (e) { console.warn("[radar promote sync]", e); }
+          radarPromotedArticles.push(entry);
         }
         if (radarPromotedArticles.length > 0) {
           nextContext = { ...nextContext, last_matches: [...combinedMatches, ...radarPromotedArticles] };
@@ -1205,6 +1255,10 @@ serve(async (req) => {
       }
       if (!pick) {
         reply = "🤔 Je n'ai plus la liste. Refaites votre recherche : « Je cherche … »";
+      } else if (!pick.id) {
+        // Placeholder positionnel (promotion Radar échouée) : l'index reste
+        // correct mais l'annonce n'est pas encore disponible.
+        reply = `⏳ L'annonce n°${intent.article_index} (${pick.title}) est en cours de vérification. Choisissez un autre numéro ou réessayez dans un instant.`;
       } else {
         const alreadyOnArticle = (nextContext?.current_article_id || conv?.current_article_id) === pick.id;
         const askPrice = Number(pick.price || 0);
