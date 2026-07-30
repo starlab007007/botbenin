@@ -18,8 +18,8 @@
  */
 
 export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
-  version: "v12",
-  lockedAt: "2026-06-10T18:00:00.000Z",
+  version: "v13",
+  lockedAt: "2026-07-30T21:00:00.000Z",
   memoryRef: "mem://features/waouh-chat-sync-flow",
 
   invariants: Object.freeze({
@@ -249,8 +249,9 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
       file: "src/components/waouh/useWaouhMatchChats.ts",
       mustContain: [
         "art_${articleId ?? \"none\"}_seller_${counterpartId ?? \"any\"}",
+        "art_${articleId ?? \"none\"}_buyer_${counterpartId ?? \"any\"}",
         "counterpartForKey",
-        "waouh_keys_migrated_v3_",
+        "waouh_keys_migrated_v4_",
       ],
     },
     notifyDispatchCounterpart: {
@@ -293,8 +294,37 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
     matchChatListCounterpartKey: {
       file: "src/components/waouh/WaouhMatchChatList.tsx",
       mustContain: [
-        "role === \"seller\" ? counterpartId : null",
-        "item.role === \"seller\" ? item.counterpart_user_id : null",
+        "matchKey(articleId, role, counterpartId)",
+        "matchKey(item.article_id, item.role, item.counterpart_user_id)",
+      ],
+    },
+    // 🔒 v13 — Isolation stricte des deux côtés : une négociation ne reste
+    // jamais dans le fil principal WaouhWebChat, elle bascule dans la fenêtre
+    // dédiée (article × interlocuteur), et le moteur renvoie l'interlocuteur.
+    webhookReturnsCounterpart: {
+      file: "supabase/functions/waouh-webhook/index.ts",
+      mustContain: [
+        "returnedCounterpartId",
+        "counterpart_user_id: returnedCounterpartId",
+      ],
+    },
+    channelInForwardsCounterpart: {
+      file: "supabase/functions/waouh-channel-in/index.ts",
+      mustContain: [
+        "counterpart_user_id: core.counterpart_user_id ?? null",
+      ],
+    },
+    webChatRedirectsNegotiation: {
+      file: "src/components/waouh/WaouhWebChat.tsx",
+      mustContain: [
+        "DEDICATED_INTENTS",
+        "waouh:open-match-chat",
+      ],
+    },
+    matchHistoryBuyerCounterpart: {
+      file: "supabase/functions/waouh-match-history/index.ts",
+      mustContain: [
+        "counterpartUserId",
       ],
     },
   }),
