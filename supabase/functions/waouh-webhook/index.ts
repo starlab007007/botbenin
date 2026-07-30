@@ -1248,6 +1248,10 @@ serve(async (req) => {
       }
       if (!pick) {
         reply = "🤔 Je n'ai plus la liste. Refaites votre recherche : « Je cherche … »";
+      } else if (!pick.id) {
+        // Placeholder positionnel (promotion Radar échouée) : l'index reste
+        // correct mais l'annonce n'est pas encore disponible.
+        reply = `⏳ L'annonce n°${intent.article_index} (${pick.title}) est en cours de vérification. Choisissez un autre numéro ou réessayez dans un instant.`;
       } else {
         const alreadyOnArticle = (nextContext?.current_article_id || conv?.current_article_id) === pick.id;
         const askPrice = Number(pick.price || 0);
