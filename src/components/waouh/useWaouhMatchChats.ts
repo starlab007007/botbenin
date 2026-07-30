@@ -356,7 +356,7 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
           buyer_profile_id:
             detail.buyer_profile_id ?? existing?.buyer_profile_id ?? null,
           counterpart_user_id:
-            detail.counterpart_user_id ?? existing?.counterpart_user_id ?? null,
+            counterpartForKey ?? existing?.counterpart_user_id ?? null,
           title: art?.title || detail.title || existing?.title || "Annonce",
           price: art?.price ?? detail.price ?? existing?.price ?? null,
           city: art?.city ?? detail.city ?? existing?.city ?? null,
