@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { MatchChatMeta } from "./WaouhMatchChatWindow";
+import { correlationIdFor, traceUi } from "./waouhCorrelation";
 
 export type CachedMsg = {
   id: string;
@@ -378,6 +379,18 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
         return next;
       });
       setActiveKey(key);
+
+      // Traçabilité bout en bout : ouverture de la fenêtre dédiée.
+      traceUi({
+        correlation_id: detail.correlation_id || correlationIdFor(articleId, role, counterpartForKey),
+        stage: "ui_window_open",
+        article_id: articleId,
+        role,
+        counterpart_user_id: counterpartForKey,
+        notification_id: notificationId,
+        session_id: sessionId,
+        payload: { match_key: key, source: detail.source ?? "event" },
+      });
 
       // Un-archive when reopening
       try {

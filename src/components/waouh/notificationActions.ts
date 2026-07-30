@@ -1,4 +1,5 @@
 import { getMatchKind, type WaouhNotification } from "@/hooks/useWaouhMatchNotifications";
+import { correlationIdFor, traceUi } from "./waouhCorrelation";
 
 export type OpenNotificationOptions = {
   /** Optional: invoked for `deal_payment_request` notifications to display the payment dialog. */
@@ -35,6 +36,18 @@ export function openNotificationTarget(
 
   if (isMatch && n.article_id) {
     options.beforeOpen?.();
+    const counterpartId =
+      (n.payload as any)?.counterpart_user_id ?? (n.payload as any)?.buyer_user_id ?? null;
+    const correlationId = correlationIdFor(n.article_id, matchKind as any, counterpartId);
+    traceUi({
+      correlation_id: correlationId,
+      stage: "ui_notification_click",
+      article_id: n.article_id,
+      role: matchKind as any,
+      counterpart_user_id: counterpartId,
+      notification_id: n.id,
+      intent: n.template ?? null,
+    });
     window.dispatchEvent(
       new CustomEvent("waouh:open-match-chat", {
         detail: {
@@ -42,8 +55,8 @@ export function openNotificationTarget(
           seed_text: (n.payload as any)?.text ?? n.body ?? null,
           article_id: n.article_id,
           buyer_profile_id: (n.payload as any)?.buyer_profile_id ?? null,
-          counterpart_user_id:
-            (n.payload as any)?.counterpart_user_id ?? (n.payload as any)?.buyer_user_id ?? null,
+          counterpart_user_id: counterpartId,
+          correlation_id: correlationId,
           kind: matchKind,
           title: (n.payload as any)?.title,
           price: (n.payload as any)?.price,
