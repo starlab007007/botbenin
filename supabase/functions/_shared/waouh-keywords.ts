@@ -78,17 +78,79 @@ export function escapeIlikeToken(k: string): string {
 
 /**
  * Post-filter local : ne garde une ligne que si au moins un token complet
- * (>=3 chars) apparaît dans les champs textuels fournis. Empêche PostgREST
- * de renvoyer des résultats sans rapport avec la requête réelle.
+ * (>=3 chars) apparaît comme MOT dans les champs textuels fournis (frontière
+ * de mot, tolérance pluriel). Empêche « sac » de matcher « sachet ».
  */
 export function matchesAnyKeyword(
   fields: Array<string | null | undefined>,
   keywords: string[]
 ): boolean {
   if (!keywords || keywords.length === 0) return true;
-  const hay = stripAccents(fields.filter(Boolean).join(" ").toLowerCase());
-  return keywords.some((k) => {
-    const kk = stripAccents(String(k || "").toLowerCase().trim());
-    return kk.length >= 3 && hay.includes(kk);
-  });
+  const hay = normalizeHay(fields);
+  return keywords.some((k) => hayHasWord(hay, k));
 }
+
+function normalizeHay(fields: Array<string | null | undefined>): string {
+  return " " + stripAccents(fields.filter(Boolean).join(" ").toLowerCase())
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim() + " ";
+}
+
+/** true si `kw` apparaît comme mot entier (avec tolérance pluriel s/x/es). */
+function hayHasWord(hay: string, kw: string): boolean {
+  const k = stripAccents(String(kw || "").toLowerCase()).replace(/[^a-z0-9]+/g, " ").trim();
+  if (k.length < 3) return false;
+  // multi-mots : tous les sous-tokens doivent être présents
+  const parts = k.split(" ").filter((p) => p.length >= 2);
+  if (parts.length > 1) return parts.every((p) => hayHasWord(hay, p.length >= 3 ? p : `xx${p}`) || hay.includes(` ${p} `));
+  return new RegExp(`(^| )${escapeRe(k)}(s|x|es)?( |$)`).test(hay);
+}
+
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Score de pertinence d'une ligne pour une requête.
+ * - +3 par token distinct trouvé dans le titre
+ * - +1 par token distinct trouvé dans les autres champs
+ * - +4 bonus si TOUS les tokens sont présents (match exact multi-mots)
+ * Retourne 0 si aucun token ne matche.
+ */
+export function scoreRelevance(
+  title: string | null | undefined,
+  otherFields: Array<string | null | undefined>,
+  keywords: string[]
+): number {
+  const kws = (keywords || []).filter((k) => typeof k === "string" && k.trim().length >= 3);
+  if (kws.length === 0) return 1;
+  const titleHay = normalizeHay([title]);
+  const restHay = normalizeHay(otherFields);
+  let score = 0;
+  let found = 0;
+  for (const k of kws) {
+    const inTitle = hayHasWord(titleHay, k);
+    const inRest = hayHasWord(restHay, k);
+    if (inTitle) { score += 3; found++; }
+    else if (inRest) { score += 1; found++; }
+  }
+  if (found === 0) return 0;
+  if (found === kws.length && kws.length > 1) score += 4;
+  return score;
+}
+
+/**
+ * Catégorie sûre : n'accepte QUE la catégorie renvoyée par l'IA et seulement
+ * si elle correspond exactement à une valeur connue. Retourne null sinon —
+ * la catégorie ne doit jamais devenir un filtre dur deviné depuis le texte.
+ */
+const KNOWN_CATEGORIES = [
+  "smartphone", "ordinateur", "vetement", "vehicule", "electromenager", "meuble",
+];
+
+export function normalizeCategorySafe(value: string | null | undefined): string | null {
+  const v = stripAccents(String(value || "").toLowerCase().trim());
+  if (!v || v === "autre") return null;
+  return KNOWN_CATEGORIES.includes(v) ? v : null;
+}
+
