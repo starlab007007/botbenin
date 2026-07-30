@@ -34,9 +34,8 @@ class _WaouhStockDashboardScreenState extends State<WaouhStockDashboardScreen> {
   static const _danger = Color(0xFFD94C4C);
   static const _info = Color(0xFF317BEA);
 
-  late final WaouhStockRepository _repository = WaouhStockRepository(
-    widget.client,
-  );
+  late final WaouhStockRepository _repository =
+      WaouhStockRepository(widget.client);
   final _search = TextEditingController();
   List<WaouhStockProduct> _products = const [];
   _StockFilter _filter = _StockFilter.all;
@@ -173,9 +172,9 @@ class _WaouhStockDashboardScreenState extends State<WaouhStockDashboardScreen> {
         target: values.target,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Seuils mis à jour.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Seuils mis à jour.')),
+      );
       await _load();
     } catch (error) {
       if (!mounted) return;
@@ -248,20 +247,34 @@ class _WaouhStockDashboardScreenState extends State<WaouhStockDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final visible = _visibleProducts;
-    final totalUnits = _products.fold<int>(
-      0,
-      (sum, item) => sum + item.safeStock,
-    );
+    final totalUnits =
+        _products.fold<int>(0, (sum, item) => sum + item.safeStock);
+    final alertCount =
+        _count(WaouhStockState.low) + _count(WaouhStockState.outOfStock);
 
     return Scaffold(
       backgroundColor: _canvas,
       appBar: AppBar(
         backgroundColor: _deepGreen,
         foregroundColor: Colors.white,
-        title: const Text('Gestion Stock'),
+        elevation: 0,
+        titleSpacing: 0,
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Stock WAOUH IA',
+              style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+            ),
+            Text(
+              'Pilotage intelligent des stocks',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w400),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
-            tooltip: 'Importer ou connecter des données',
+            tooltip: 'Sources de données',
             onPressed: _openSources,
             icon: const Icon(Icons.hub_outlined),
           ),
@@ -269,13 +282,8 @@ class _WaouhStockDashboardScreenState extends State<WaouhStockDashboardScreen> {
             tooltip: 'Alertes stock',
             onPressed: _loading ? null : _showAlerts,
             icon: Badge(
-              isLabelVisible:
-                  _count(WaouhStockState.low) +
-                      _count(WaouhStockState.outOfStock) >
-                  0,
-              label: Text(
-                '${_count(WaouhStockState.low) + _count(WaouhStockState.outOfStock)}',
-              ),
+              isLabelVisible: alertCount > 0,
+              label: Text('$alertCount'),
               child: const Icon(Icons.notifications_active_outlined),
             ),
           ),
@@ -289,97 +297,134 @@ class _WaouhStockDashboardScreenState extends State<WaouhStockDashboardScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-          ? _FailureState(error: _error!, onRetry: _load)
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
-                children: [
-                  _HeaderSummary(
-                    totalProducts: _products.length,
-                    totalUnits: totalUnits,
-                    low: _count(WaouhStockState.low),
-                    out: _count(WaouhStockState.outOfStock),
-                  ),
-                  const SizedBox(height: 16),
-                  _AiBanner(onTap: _openChat),
-                  const SizedBox(height: 10),
-                  _SourcesBanner(onTap: _openSources),
-                  const SizedBox(height: 22),
-                  const _SectionTitle(
-                    title: 'Produits',
-                    subtitle: 'Ajustez et suivez vos niveaux en temps réel.',
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _search,
-                    decoration: InputDecoration(
-                      hintText: 'Rechercher un produit ou une catégorie',
-                      prefixIcon: const Icon(Icons.search_rounded),
-                      suffixIcon: _search.text.isEmpty
-                          ? null
-                          : IconButton(
-                              tooltip: 'Effacer',
-                              onPressed: _search.clear,
-                              icon: const Icon(Icons.close_rounded),
+              ? _FailureState(error: _error!, onRetry: _load)
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 120),
+                    children: [
+                      _HeaderSummary(
+                        totalProducts: _products.length,
+                        totalUnits: totalUnits,
+                        low: _count(WaouhStockState.low),
+                        out: _count(WaouhStockState.outOfStock),
+                      ),
+                      const SizedBox(height: 14),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final horizontal = constraints.maxWidth >= 620;
+                          final ai = _AiBanner(onTap: _openChat);
+                          final sources = _SourcesBanner(onTap: _openSources);
+                          if (horizontal) {
+                            return Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(child: ai),
+                                const SizedBox(width: 12),
+                                Expanded(child: sources),
+                              ],
+                            );
+                          }
+                          return Column(
+                            children: [
+                              ai,
+                              const SizedBox(height: 10),
+                              sources,
+                            ],
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 22),
+                      const _SectionTitle(
+                        title: 'Catalogue de stock',
+                        subtitle:
+                            'Recherchez, filtrez et agissez sans quitter la carte.',
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(22),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x12075E54),
+                              blurRadius: 18,
+                              offset: Offset(0, 8),
                             ),
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(18),
-                        borderSide: const BorderSide(color: _line),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(18),
-                        borderSide: const BorderSide(color: _line),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  _FilterBar(
-                    selected: _filter,
-                    products: _products,
-                    onChanged: (value) => setState(() => _filter = value),
-                  ),
-                  const SizedBox(height: 14),
-                  if (visible.isEmpty)
-                    _EmptyProducts(
-                      filtered: _products.isNotEmpty,
-                      onAdd: _openPartnerProducts,
-                    )
-                  else
-                    ...visible.map(
-                      (product) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _ProductCard(
-                          product: product,
-                          onEntry: () =>
-                              _registerMovement(product, isEntry: true),
-                          onExit: () =>
-                              _registerMovement(product, isEntry: false),
-                          onView: () => _showHistory(product),
-                          onMenu: (action) {
-                            switch (action) {
-                              case _ProductMenuAction.thresholds:
-                                _updateThresholds(product);
-                                break;
-                              case _ProductMenuAction.history:
-                                _showHistory(product);
-                                break;
-                              case _ProductMenuAction.reorder:
-                                _requestReorder(product);
-                                break;
-                            }
-                          },
+                          ],
+                        ),
+                        child: TextField(
+                          controller: _search,
+                          decoration: InputDecoration(
+                            hintText: 'Produit, catégorie ou description',
+                            prefixIcon: const Icon(Icons.search_rounded),
+                            suffixIcon: _search.text.isEmpty
+                                ? null
+                                : IconButton(
+                                    tooltip: 'Effacer',
+                                    onPressed: _search.clear,
+                                    icon: const Icon(Icons.close_rounded),
+                                  ),
+                            filled: true,
+                            fillColor: Colors.white,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(22),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(22),
+                              borderSide: const BorderSide(color: _line),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                ],
-              ),
-            ),
+                      const SizedBox(height: 10),
+                      _FilterBar(
+                        selected: _filter,
+                        products: _products,
+                        onChanged: (value) => setState(() => _filter = value),
+                      ),
+                      const SizedBox(height: 14),
+                      if (visible.isEmpty)
+                        _EmptyProducts(
+                          filtered: _products.isNotEmpty,
+                          onAdd: _openPartnerProducts,
+                        )
+                      else
+                        ...visible.map(
+                          (product) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _ProductCard(
+                              product: product,
+                              onEntry: () =>
+                                  _registerMovement(product, isEntry: true),
+                              onExit: () =>
+                                  _registerMovement(product, isEntry: false),
+                              onView: () => _showHistory(product),
+                              onMenu: (action) {
+                                switch (action) {
+                                  case _ProductMenuAction.thresholds:
+                                    _updateThresholds(product);
+                                    break;
+                                  case _ProductMenuAction.history:
+                                    _showHistory(product);
+                                    break;
+                                  case _ProductMenuAction.reorder:
+                                    _requestReorder(product);
+                                    break;
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openPartnerProducts,
+        backgroundColor: _deepGreen,
+        foregroundColor: Colors.white,
         icon: const Icon(Icons.add_rounded),
         label: const Text('Ajouter un produit'),
       ),
@@ -411,69 +456,100 @@ class _HeaderSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Vue d’ensemble',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w900,
-            color: _WaouhStockDashboardScreenState._ink,
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF064E45), Color(0xFF087466), Color(0xFF0A8B78)],
+        ),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x33075E54),
+            blurRadius: 24,
+            offset: Offset(0, 12),
           ),
-        ),
-        const SizedBox(height: 4),
-        const Text(
-          'Les informations critiques sont visibles en un coup d’œil.',
-          style: TextStyle(color: _WaouhStockDashboardScreenState._muted),
-        ),
-        const SizedBox(height: 14),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final columns = constraints.maxWidth >= 760
-                ? 4
-                : constraints.maxWidth >= 420
-                ? 2
-                : 2;
-            final ratio = constraints.maxWidth < 360 ? 1.12 : 1.35;
-            return GridView.count(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              crossAxisCount: columns,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-              childAspectRatio: ratio,
-              children: [
-                _MetricCard(
-                  label: 'Produits suivis',
-                  value: '$totalProducts',
-                  icon: Icons.inventory_2_outlined,
-                  color: _WaouhStockDashboardScreenState._green,
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              CircleAvatar(
+                radius: 23,
+                backgroundColor: Colors.white24,
+                child: Icon(Icons.inventory_2_outlined, color: Colors.white),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Vue intelligente du stock',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'Les niveaux critiques et les actions prioritaires en un coup d’œil.',
+                      style: TextStyle(color: Colors.white70, height: 1.3),
+                    ),
+                  ],
                 ),
-                _MetricCard(
-                  label: 'Unités suivies',
-                  value: NumberFormat.decimalPattern(
-                    'fr_FR',
-                  ).format(totalUnits),
-                  icon: Icons.widgets_outlined,
-                  color: _WaouhStockDashboardScreenState._info,
-                ),
-                _MetricCard(
-                  label: 'Niveaux faibles',
-                  value: '$low',
-                  icon: Icons.warning_amber_rounded,
-                  color: _WaouhStockDashboardScreenState._warning,
-                ),
-                _MetricCard(
-                  label: 'Ruptures',
-                  value: '$out',
-                  icon: Icons.remove_shopping_cart_outlined,
-                  color: _WaouhStockDashboardScreenState._danger,
-                ),
-              ],
-            );
-          },
-        ),
-      ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth >= 760 ? 4 : 2;
+              final ratio = constraints.maxWidth < 360 ? 1.18 : 1.45;
+              return GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: columns,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                childAspectRatio: ratio,
+                children: [
+                  _MetricCard(
+                    label: 'Produits',
+                    value: '$totalProducts',
+                    icon: Icons.inventory_2_outlined,
+                    color: Colors.white,
+                  ),
+                  _MetricCard(
+                    label: 'Unités',
+                    value:
+                        NumberFormat.decimalPattern('fr_FR').format(totalUnits),
+                    icon: Icons.widgets_outlined,
+                    color: const Color(0xFFBCEFE6),
+                  ),
+                  _MetricCard(
+                    label: 'Stock faible',
+                    value: '$low',
+                    icon: Icons.warning_amber_rounded,
+                    color: const Color(0xFFFFD166),
+                  ),
+                  _MetricCard(
+                    label: 'Ruptures',
+                    value: '$out',
+                    icon: Icons.remove_shopping_cart_outlined,
+                    color: const Color(0xFFFF9B9B),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 }
@@ -494,39 +570,47 @@ class _MetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Colors.white.withOpacity(.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _WaouhStockDashboardScreenState._line),
+        border: Border.all(color: Colors.white24),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: color.withOpacity(.10),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color),
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(.14),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const Spacer(),
+              const Icon(Icons.trending_up_rounded,
+                  color: Colors.white54, size: 17),
+            ],
           ),
           Text(
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 23,
+              fontWeight: FontWeight.w900,
+            ),
           ),
           Text(
             label,
-            maxLines: 2,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: _WaouhStockDashboardScreenState._muted,
-              height: 1.15,
-            ),
+            style: const TextStyle(color: Colors.white70, fontSize: 11),
           ),
         ],
       ),
@@ -536,7 +620,6 @@ class _MetricCard extends StatelessWidget {
 
 class _AiBanner extends StatelessWidget {
   const _AiBanner({required this.onTap});
-
   final VoidCallback onTap;
 
   @override
@@ -545,44 +628,48 @@ class _AiBanner extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(24),
         child: Ink(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(17),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF075E54), Color(0xFF0A8B78)],
-            ),
-            borderRadius: BorderRadius.circular(22),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: const Color(0xFFBFE3DB)),
+            boxShadow: const [
+              BoxShadow(
+                  color: Color(0x14075E54),
+                  blurRadius: 18,
+                  offset: Offset(0, 8)),
+            ],
           ),
           child: const Row(
             children: [
               CircleAvatar(
-                radius: 24,
-                backgroundColor: Colors.white24,
-                child: Icon(Icons.auto_awesome_rounded, color: Colors.white),
+                radius: 25,
+                backgroundColor: Color(0xFFE0F6F1),
+                foregroundColor: _WaouhStockDashboardScreenState._green,
+                child: Icon(Icons.auto_awesome_rounded),
               ),
               SizedBox(width: 13),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text('Analyser avec Stock IA',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w900)),
+                    SizedBox(height: 4),
                     Text(
-                      'Analyse IA du stock',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    SizedBox(height: 3),
-                    Text(
-                      'Ruptures, seuils, mouvements et recommandations.',
-                      style: TextStyle(color: Colors.white70, height: 1.25),
-                    ),
+                        'Synthèse, ruptures, réapprovisionnement et mouvements.',
+                        style: TextStyle(
+                            color: _WaouhStockDashboardScreenState._muted,
+                            fontSize: 12,
+                            height: 1.25)),
                   ],
                 ),
               ),
-              Icon(Icons.arrow_forward_rounded, color: Colors.white),
+              Icon(Icons.arrow_forward_rounded,
+                  color: _WaouhStockDashboardScreenState._green),
             ],
           ),
         ),
@@ -593,54 +680,55 @@ class _AiBanner extends StatelessWidget {
 
 class _SourcesBanner extends StatelessWidget {
   const _SourcesBanner({required this.onTap});
-
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.all(15),
+        borderRadius: BorderRadius.circular(24),
+        child: Ink(
+          padding: const EdgeInsets.all(17),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
             border: Border.all(color: _WaouhStockDashboardScreenState._line),
+            boxShadow: const [
+              BoxShadow(
+                  color: Color(0x10075E54),
+                  blurRadius: 18,
+                  offset: Offset(0, 8)),
+            ],
           ),
           child: const Row(
             children: [
               CircleAvatar(
+                radius: 25,
                 backgroundColor: Color(0xFFEAF5F2),
                 foregroundColor: _WaouhStockDashboardScreenState._green,
                 child: Icon(Icons.hub_outlined),
               ),
-              SizedBox(width: 12),
+              SizedBox(width: 13),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Importer ou connecter des données',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    SizedBox(height: 3),
-                    Text(
-                      'CSV, Excel, Google Sheets, PostgreSQL et Supabase',
-                      style: TextStyle(
-                        color: _WaouhStockDashboardScreenState._muted,
-                        fontSize: 12,
-                      ),
-                    ),
+                    Text('Connecter des données',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w900)),
+                    SizedBox(height: 4),
+                    Text('CSV, Excel, Sheets, PostgreSQL et Supabase.',
+                        style: TextStyle(
+                            color: _WaouhStockDashboardScreenState._muted,
+                            fontSize: 12,
+                            height: 1.25)),
                   ],
                 ),
               ),
-              Icon(Icons.arrow_forward_rounded),
+              Icon(Icons.arrow_forward_rounded,
+                  color: _WaouhStockDashboardScreenState._green),
             ],
           ),
         ),
@@ -701,7 +789,7 @@ class _FilterBar extends StatelessWidget {
       (_StockFilter.outOfStock, 'Rupture ${count(WaouhStockState.outOfStock)}'),
       (
         _StockFilter.untracked,
-        'À renseigner ${count(WaouhStockState.untracked)}',
+        'À renseigner ${count(WaouhStockState.untracked)}'
       ),
     ];
     return SingleChildScrollView(
@@ -740,11 +828,11 @@ class _ProductCard extends StatelessWidget {
   final ValueChanged<_ProductMenuAction> onMenu;
 
   Color get _stateColor => switch (product.state) {
-    WaouhStockState.healthy => _WaouhStockDashboardScreenState._green,
-    WaouhStockState.low => _WaouhStockDashboardScreenState._warning,
-    WaouhStockState.outOfStock => _WaouhStockDashboardScreenState._danger,
-    WaouhStockState.untracked => _WaouhStockDashboardScreenState._info,
-  };
+        WaouhStockState.healthy => _WaouhStockDashboardScreenState._green,
+        WaouhStockState.low => _WaouhStockDashboardScreenState._warning,
+        WaouhStockState.outOfStock => _WaouhStockDashboardScreenState._danger,
+        WaouhStockState.untracked => _WaouhStockDashboardScreenState._info,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -782,9 +870,7 @@ class _ProductCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         _StateBadge(
-                          label: product.state.label,
-                          color: _stateColor,
-                        ),
+                            label: product.state.label, color: _stateColor),
                       ],
                     ),
                     const SizedBox(height: 5),
@@ -822,16 +908,13 @@ class _ProductCard extends StatelessWidget {
             child: Row(
               children: [
                 _StockValue(
-                  label: 'Actuel',
-                  value: product.stock?.toString() ?? '—',
-                ),
+                    label: 'Actuel', value: product.stock?.toString() ?? '—'),
                 _divider(),
                 _StockValue(label: 'Seuil', value: '${product.minimum}'),
                 _divider(),
                 _StockValue(
-                  label: 'Objectif',
-                  value: product.target?.toString() ?? '—',
-                ),
+                    label: 'Objectif',
+                    value: product.target?.toString() ?? '—'),
               ],
             ),
           ),
@@ -920,10 +1003,10 @@ class _ProductCard extends StatelessWidget {
   }
 
   Widget _divider() => Container(
-    width: 1,
-    height: 32,
-    color: _WaouhStockDashboardScreenState._line,
-  );
+        width: 1,
+        height: 32,
+        color: _WaouhStockDashboardScreenState._line,
+      );
 }
 
 class _ProductImage extends StatelessWidget {
@@ -1051,7 +1134,11 @@ class _ActionButton extends StatelessWidget {
     return OutlinedButton.icon(
       onPressed: onPressed,
       icon: Icon(icon, size: 18),
-      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      label: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
       style: OutlinedButton.styleFrom(
         foregroundColor: color,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
@@ -1094,9 +1181,8 @@ class _EmptyProducts extends StatelessWidget {
                 ? 'Modifiez votre recherche ou vos filtres.'
                 : 'Ajoutez d’abord un produit à votre activité partenaire.',
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: _WaouhStockDashboardScreenState._muted,
-            ),
+            style:
+                const TextStyle(color: _WaouhStockDashboardScreenState._muted),
           ),
           if (!filtered) ...[
             const SizedBox(height: 14),
@@ -1126,11 +1212,8 @@ class _FailureState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.cloud_off_rounded,
-              size: 52,
-              color: Colors.redAccent,
-            ),
+            const Icon(Icons.cloud_off_rounded,
+                size: 52, color: Colors.redAccent),
             const SizedBox(height: 12),
             const Text(
               'Stock indisponible',
@@ -1198,8 +1281,7 @@ class _MovementSheetState extends State<_MovementSheet> {
     if (quantity == null || quantity <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Saisissez une quantité supérieure à zéro.'),
-        ),
+            content: Text('Saisissez une quantité supérieure à zéro.')),
       );
       return;
     }
@@ -1208,8 +1290,7 @@ class _MovementSheetState extends State<_MovementSheet> {
         quantity > widget.product.safeStock) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('La quantité dépasse le stock disponible.'),
-        ),
+            content: Text('La quantité dépasse le stock disponible.')),
       );
       return;
     }
@@ -1250,9 +1331,8 @@ class _MovementSheetState extends State<_MovementSheet> {
           const SizedBox(height: 4),
           Text(
             '${widget.product.name} · stock actuel : ${widget.product.stock?.toString() ?? 'non renseigné'}',
-            style: const TextStyle(
-              color: _WaouhStockDashboardScreenState._muted,
-            ),
+            style:
+                const TextStyle(color: _WaouhStockDashboardScreenState._muted),
           ),
           const SizedBox(height: 18),
           TextField(
@@ -1283,8 +1363,7 @@ class _MovementSheetState extends State<_MovementSheet> {
             child: FilledButton.icon(
               onPressed: _submit,
               icon: Icon(
-                widget.isEntry ? Icons.add_rounded : Icons.remove_rounded,
-              ),
+                  widget.isEntry ? Icons.add_rounded : Icons.remove_rounded),
               label: Text(
                 widget.actionLabel ??
                     (widget.isEntry
@@ -1316,12 +1395,10 @@ class _ThresholdSheet extends StatefulWidget {
 }
 
 class _ThresholdSheetState extends State<_ThresholdSheet> {
-  late final _minimum = TextEditingController(
-    text: '${widget.product.minimum}',
-  );
-  late final _target = TextEditingController(
-    text: widget.product.target?.toString() ?? '',
-  );
+  late final _minimum =
+      TextEditingController(text: '${widget.product.minimum}');
+  late final _target =
+      TextEditingController(text: widget.product.target?.toString() ?? '');
 
   @override
   void dispose() {
@@ -1332,9 +1409,8 @@ class _ThresholdSheetState extends State<_ThresholdSheet> {
 
   void _submit() {
     final minimum = int.tryParse(_minimum.text.trim());
-    final target = _target.text.trim().isEmpty
-        ? null
-        : int.tryParse(_target.text.trim());
+    final target =
+        _target.text.trim().isEmpty ? null : int.tryParse(_target.text.trim());
     if (minimum == null || minimum < 0 || (target != null && target < 0)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Vérifiez les valeurs saisies.')),
@@ -1414,10 +1490,8 @@ class _HistorySheet extends StatefulWidget {
 class _HistorySheetState extends State<_HistorySheet> {
   late Future<List<WaouhStockMovement>> _future = _load();
 
-  Future<List<WaouhStockMovement>> _load() => widget.repository.fetchMovements(
-    productId: widget.product.id,
-    limit: 100,
-  );
+  Future<List<WaouhStockMovement>> _load() => widget.repository
+      .fetchMovements(productId: widget.product.id, limit: 100);
 
   @override
   Widget build(BuildContext context) {
@@ -1435,9 +1509,7 @@ class _HistorySheetState extends State<_HistorySheet> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w900,
-                    ),
+                        fontSize: 19, fontWeight: FontWeight.w900),
                   ),
                 ),
                 IconButton(
@@ -1461,8 +1533,7 @@ class _HistorySheetState extends State<_HistorySheet> {
                 final values = snapshot.data ?? const [];
                 if (values.isEmpty) {
                   return const Center(
-                    child: Text('Aucun mouvement enregistré.'),
-                  );
+                      child: Text('Aucun mouvement enregistré.'));
                 }
                 return ListView.separated(
                   itemCount: values.length,

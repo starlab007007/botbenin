@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'waouh_stock_models.dart';
 import 'waouh_stock_repository.dart';
 import 'waouh_stock_source_models.dart';
+import '../../../shared/waouh_analytics/waouh_analytics_report.dart';
 
 class WaouhStockChatScreen extends StatefulWidget {
   const WaouhStockChatScreen({
@@ -28,15 +29,13 @@ class _WaouhStockChatScreenState extends State<WaouhStockChatScreen> {
   static const _green = Color(0xFF076B5D);
   static const _deepGreen = Color(0xFF075E54);
   static const _canvas = Color(0xFFF3F8F6);
-  static const _line = Color(0xFFDDE9E5);
 
   static const _allKey = '__all__';
   static const _importsKey = '__imports__';
   static const _catalogKey = '__catalog__';
 
-  late final WaouhStockRepository _repository = WaouhStockRepository(
-    widget.client,
-  );
+  late final WaouhStockRepository _repository =
+      WaouhStockRepository(widget.client);
   final _input = TextEditingController();
   final _scroll = ScrollController();
   final List<_StockChatMessage> _messages = [];
@@ -47,6 +46,7 @@ class _WaouhStockChatScreenState extends State<WaouhStockChatScreen> {
   String? _fallbackSourceName;
   bool _loadingSources = true;
   bool _sending = false;
+  bool _showQuickQuestions = true;
 
   static const _quickQuestions = [
     'Synthèse générale du stock',
@@ -77,7 +77,7 @@ class _WaouhStockChatScreenState extends State<WaouhStockChatScreen> {
     }
     if (_analysisScope == 'imports') return 'Toutes les importations';
     if (_analysisScope == 'catalog') return 'Catalogue Waouh';
-    return 'Catalogue + importations';
+    return 'Catalogue Waouh + toutes les importations';
   }
 
   @override
@@ -91,8 +91,7 @@ class _WaouhStockChatScreenState extends State<WaouhStockChatScreen> {
       final sources = await _repository.fetchDataSources();
       if (!mounted) return;
       final requestedId = widget.initialDatasourceId?.trim();
-      final hasRequested =
-          requestedId != null &&
+      final hasRequested = requestedId != null &&
           requestedId.isNotEmpty &&
           sources.any((source) => source.id == requestedId);
 
@@ -175,8 +174,7 @@ class _WaouhStockChatScreenState extends State<WaouhStockChatScreen> {
       setState(
         () => _messages.add(
           _StockChatMessage.error(
-            'Impossible d’analyser « $_contextLabel » : '
-            '${_cleanError(error)}',
+            'Impossible d’analyser « $_contextLabel » : ${_cleanError(error)}',
           ),
         ),
       );
@@ -212,16 +210,17 @@ class _WaouhStockChatScreenState extends State<WaouhStockChatScreen> {
       appBar: AppBar(
         backgroundColor: _deepGreen,
         foregroundColor: Colors.white,
+        elevation: 0,
         titleSpacing: 0,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Waouh Stock IA',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              'Stock WAOUH IA',
+              style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
             ),
             Text(
-              'Analyse : $_contextLabel',
+              'Analyse guidée · $_contextLabel',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w400),
@@ -245,16 +244,16 @@ class _WaouhStockChatScreenState extends State<WaouhStockChatScreen> {
         top: false,
         child: Column(
           children: [
-            _ScopeSelector(
+            _CompactTopPanel(
               loading: _loadingSources,
               selectedKey: _selectedKey,
               sources: _sources,
               enabled: !_sending,
-              onChanged: _changeContext,
-            ),
-            _QuickQuestions(
+              showQuickQuestions: _showQuickQuestions,
               values: _quickQuestions,
-              enabled: !_sending && !_loadingSources,
+              onChanged: _changeContext,
+              onToggleQuestions: () =>
+                  setState(() => _showQuickQuestions = !_showQuickQuestions),
               onSelected: _send,
             ),
             Expanded(
@@ -262,7 +261,7 @@ class _WaouhStockChatScreenState extends State<WaouhStockChatScreen> {
                   ? const Center(child: CircularProgressIndicator())
                   : ListView.builder(
                       controller: _scroll,
-                      padding: const EdgeInsets.fromLTRB(12, 14, 12, 24),
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 18),
                       itemCount: _messages.length + (_sending ? 1 : 0),
                       itemBuilder: (context, index) {
                         if (_sending && index == _messages.length) {
@@ -287,81 +286,252 @@ class _WaouhStockChatScreenState extends State<WaouhStockChatScreen> {
   }
 }
 
-class _ScopeSelector extends StatelessWidget {
-  const _ScopeSelector({
+class _CompactTopPanel extends StatelessWidget {
+  const _CompactTopPanel({
     required this.loading,
     required this.selectedKey,
     required this.sources,
     required this.enabled,
+    required this.showQuickQuestions,
+    required this.values,
     required this.onChanged,
+    required this.onToggleQuestions,
+    required this.onSelected,
   });
 
   final bool loading;
   final String selectedKey;
   final List<WaouhStockDataSource> sources;
   final bool enabled;
+  final bool showQuickQuestions;
+  final List<String> values;
   final ValueChanged<String> onChanged;
+  final VoidCallback onToggleQuestions;
+  final ValueChanged<String> onSelected;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-      child: DropdownButtonFormField<String>(
-        value: selectedKey,
-        isExpanded: true,
-        decoration: InputDecoration(
-          labelText: 'Données analysées',
-          prefixIcon: const Icon(Icons.data_object_rounded),
-          filled: true,
-          fillColor: const Color(0xFFF3F8F6),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Color(0xFFDDE9E5)),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0F7F5),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFD5E8E3)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE4F2EE),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Icon(
+                    Icons.data_object_rounded,
+                    color: Color(0xFF076B5D),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Contexte d’analyse',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF076B5D),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: selectedKey,
+                          isExpanded: true,
+                          borderRadius: BorderRadius.circular(18),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF13221E),
+                          ),
+                          items: [
+                            const DropdownMenuItem(
+                              value: _WaouhStockChatScreenState._allKey,
+                              child: Text(
+                                'Catalogue Waouh + toutes les importations',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const DropdownMenuItem(
+                              value: _WaouhStockChatScreenState._importsKey,
+                              child: Text('Toutes les importations uniquement'),
+                            ),
+                            const DropdownMenuItem(
+                              value: _WaouhStockChatScreenState._catalogKey,
+                              child: Text('Catalogue Waouh uniquement'),
+                            ),
+                            ...sources.map(
+                              (source) => DropdownMenuItem(
+                                value: source.id,
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.insert_drive_file_outlined,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        '${source.name} · ${source.rowCount} lignes',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                          onChanged: !enabled || loading
+                              ? null
+                              : (value) {
+                                  if (value != null) {
+                                    onChanged(value);
+                                  }
+                                },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Color(0xFFDDE9E5)),
-          ),
-        ),
-        items: [
-          const DropdownMenuItem(
-            value: _WaouhStockChatScreenState._allKey,
-            child: Text('Catalogue Waouh + toutes les importations'),
-          ),
-          const DropdownMenuItem(
-            value: _WaouhStockChatScreenState._importsKey,
-            child: Text('Toutes les importations uniquement'),
-          ),
-          const DropdownMenuItem(
-            value: _WaouhStockChatScreenState._catalogKey,
-            child: Text('Catalogue Waouh uniquement'),
-          ),
-          ...sources.map(
-            (source) => DropdownMenuItem(
-              value: source.id,
-              child: Row(
-                children: [
-                  const Icon(Icons.insert_drive_file_outlined, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      '${source.name} · ${source.rowCount} lignes',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FBFA),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0xFFE2ECE9)),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 16,
+                      color: Color(0xFF076B5D),
+                    ),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Questions prêtes',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      onPressed: onToggleQuestions,
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF66736F),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      icon: Icon(
+                        showQuickQuestions
+                            ? Icons.expand_less_rounded
+                            : Icons.expand_more_rounded,
+                        size: 18,
+                      ),
+                      label: Text(showQuickQuestions ? 'Réduire' : 'Afficher'),
+                    ),
+                  ],
+                ),
+                AnimatedCrossFade(
+                  duration: const Duration(milliseconds: 220),
+                  crossFadeState: showQuickQuestions
+                      ? CrossFadeState.showFirst
+                      : CrossFadeState.showSecond,
+                  firstChild: Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: SizedBox(
+                      height: 44,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemBuilder: (context, index) => _QuickChip(
+                          label: values[index],
+                          index: index,
+                          enabled: enabled && !loading,
+                          onTap: () => onSelected(values[index]),
+                        ),
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemCount: values.length,
+                      ),
                     ),
                   ),
-                ],
-              ),
+                  secondChild: const SizedBox.shrink(),
+                ),
+              ],
             ),
           ),
         ],
-        onChanged: !enabled || loading
-            ? null
-            : (value) {
-                if (value != null) onChanged(value);
-              },
       ),
+    );
+  }
+}
+
+class _QuickChip extends StatelessWidget {
+  const _QuickChip({
+    required this.label,
+    required this.index,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final String label;
+  final int index;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  IconData _iconFor(int index) => switch (index) {
+        0 => Icons.dashboard_customize_outlined,
+        1 => Icons.remove_shopping_cart_outlined,
+        2 => Icons.warning_amber_rounded,
+        3 => Icons.local_shipping_outlined,
+        4 => Icons.swap_vert_rounded,
+        _ => Icons.category_outlined,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    return ActionChip(
+      onPressed: enabled ? onTap : null,
+      backgroundColor: const Color(0xFFFFFFFF),
+      disabledColor: const Color(0xFFF2F5F4),
+      side: const BorderSide(color: Color(0xFFD5E8E3)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      avatar: Icon(_iconFor(index), size: 16, color: const Color(0xFF076B5D)),
+      label: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF076B5D),
+        ),
+      ),
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
     );
   }
 }
@@ -375,8 +545,11 @@ class _StockChatMessage {
     this.isError = false,
   });
 
-  factory _StockChatMessage.user(String text) =>
-      _StockChatMessage._(isUser: true, text: text, createdAt: DateTime.now());
+  factory _StockChatMessage.user(String text) => _StockChatMessage._(
+        isUser: true,
+        text: text,
+        createdAt: DateTime.now(),
+      );
 
   factory _StockChatMessage.assistant(WaouhStockChatResult result) =>
       _StockChatMessage._(
@@ -387,48 +560,17 @@ class _StockChatMessage {
       );
 
   factory _StockChatMessage.error(String text) => _StockChatMessage._(
-    isUser: false,
-    text: text,
-    createdAt: DateTime.now(),
-    isError: true,
-  );
+        isUser: false,
+        text: text,
+        createdAt: DateTime.now(),
+        isError: true,
+      );
 
   final bool isUser;
   final String text;
   final DateTime createdAt;
   final WaouhStockChatResult? result;
   final bool isError;
-}
-
-class _QuickQuestions extends StatelessWidget {
-  const _QuickQuestions({
-    required this.values,
-    required this.enabled,
-    required this.onSelected,
-  });
-
-  final List<String> values;
-  final bool enabled;
-  final ValueChanged<String> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 58,
-      color: Colors.white,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        scrollDirection: Axis.horizontal,
-        itemCount: values.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, index) => ActionChip(
-          avatar: const Icon(Icons.auto_awesome_rounded, size: 16),
-          label: Text(values[index]),
-          onPressed: enabled ? () => onSelected(values[index]) : null,
-        ),
-      ),
-    );
-  }
 }
 
 class _MessageBubble extends StatelessWidget {
@@ -449,104 +591,187 @@ class _MessageBubble extends StatelessWidget {
       child: Container(
         constraints: BoxConstraints(
           maxWidth:
-              MediaQuery.sizeOf(context).width * (message.isUser ? .82 : .94),
+              MediaQuery.sizeOf(context).width * (message.isUser ? .84 : .96),
         ),
         margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(14),
+        padding: EdgeInsets.fromLTRB(14, 14, 14, result == null ? 12 : 14),
         decoration: BoxDecoration(
           color: message.isUser
               ? _green
               : message.isError
-              ? const Color(0xFFFFECEC)
-              : Colors.white,
+                  ? const Color(0xFFFFECEC)
+                  : Colors.white,
           borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(18),
-            topRight: const Radius.circular(18),
-            bottomLeft: Radius.circular(message.isUser ? 18 : 4),
-            bottomRight: Radius.circular(message.isUser ? 4 : 18),
+            topLeft: const Radius.circular(22),
+            topRight: const Radius.circular(22),
+            bottomLeft: Radius.circular(message.isUser ? 22 : 8),
+            bottomRight: Radius.circular(message.isUser ? 8 : 22),
           ),
           border: message.isUser ? null : Border.all(color: _line),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x12075E54),
+              blurRadius: 14,
+              offset: Offset(0, 6),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (!message.isUser && !message.isError)
-              const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.auto_awesome_rounded, size: 17, color: _green),
-                  SizedBox(width: 6),
-                  Text(
-                    'Waouh Stock IA',
-                    style: TextStyle(
-                      color: _green,
-                      fontWeight: FontWeight.w800,
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F8F5),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFD5E8E3)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.auto_awesome_rounded, size: 16, color: _green),
+                    SizedBox(width: 6),
+                    Text(
+                      'Waouh Stock IA',
+                      style: TextStyle(
+                        color: _green,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            if (!message.isUser && !message.isError) const SizedBox(height: 9),
+            if (!message.isUser && !message.isError) const SizedBox(height: 10),
             Text(
               message.text,
               style: TextStyle(
                 color: message.isUser ? Colors.white : const Color(0xFF13221E),
-                height: 1.42,
+                height: 1.45,
+                fontSize: 14,
                 fontWeight: FontWeight.w500,
               ),
             ),
-            if (result != null && result.kpis.isNotEmpty) ...[
-              const SizedBox(height: 13),
-              _KpiWrap(values: result.kpis),
-            ],
-            if (result != null && result.tableRows.isNotEmpty) ...[
-              const SizedBox(height: 13),
-              _ResultTable(result: result),
-            ],
-            if (result != null && result.insights.isNotEmpty) ...[
-              const SizedBox(height: 13),
-              const Text(
-                'Points d’attention',
-                style: TextStyle(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 6),
-              ...result.insights.map(
-                (item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 5),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Padding(
-                        padding: EdgeInsets.only(top: 2),
-                        child: Icon(
-                          Icons.check_circle_outline_rounded,
-                          size: 17,
-                          color: _green,
-                        ),
-                      ),
-                      const SizedBox(width: 7),
-                      Expanded(child: Text(item)),
-                    ],
+            if (result != null) ...[
+              if (result.executiveSummary.isNotEmpty &&
+                  result.executiveSummary != result.summary) ...[
+                const SizedBox(height: 12),
+                _PayloadSection(
+                  title: 'Synthèse exécutive',
+                  icon: Icons.summarize_rounded,
+                  child: Text(
+                    result.executiveSummary,
+                    style: const TextStyle(
+                        height: 1.42, fontWeight: FontWeight.w600),
                   ),
                 ),
+              ],
+              if (result.charts.isNotEmpty || result.chartSpec.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _PayloadSection(
+                  title: 'Graphiques et tendances',
+                  icon: Icons.auto_graph_rounded,
+                  child: WaouhAnalyticsChartsGrid(
+                    charts: result.charts.isNotEmpty
+                        ? result.charts
+                        : <Map<String, dynamic>>[result.chartSpec],
+                    accent: _green,
+                  ),
+                ),
+              ],
+              if (result.kpis.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _PayloadSection(
+                  title: 'Indicateurs clés',
+                  icon: Icons.grid_view_rounded,
+                  child: _KpiWrap(values: result.kpis),
+                ),
+              ],
+              if (result.statistics.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _PayloadSection(
+                  title: 'Analyse statistique',
+                  icon: Icons.functions_rounded,
+                  child: _StatisticsGrid(values: result.statistics),
+                ),
+              ],
+              if (result.tableRows.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _PayloadSection(
+                  title: 'Données analysées',
+                  icon: Icons.table_chart_outlined,
+                  child: _ResultTable(result: result),
+                ),
+              ],
+              if (result.insights.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _PayloadSection(
+                  title: 'Points d’attention',
+                  icon: Icons.tips_and_updates_outlined,
+                  child: _BulletList(
+                      values: result.insights,
+                      icon: Icons.check_circle_outline_rounded),
+                ),
+              ],
+              if (result.recommendations.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _PayloadSection(
+                  title: 'Recommandations prioritaires',
+                  icon: Icons.task_alt_rounded,
+                  child: _BulletList(
+                      values: result.recommendations,
+                      icon: Icons.arrow_circle_right_outlined),
+                ),
+              ],
+              if (result.suggestions.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _PayloadSection(
+                  title: 'Approfondir',
+                  icon: Icons.bolt_rounded,
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: result.suggestions
+                        .take(4)
+                        .map(
+                          (item) => ActionChip(
+                            label: Text(item, maxLines: 1),
+                            onPressed: () => onSuggestion(item),
+                            side: const BorderSide(color: Color(0xFFD5E8E3)),
+                            backgroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              WaouhReportActions(
+                data: WaouhAnalyticsReportData(
+                  title: 'Rapport Stock WAOUH IA',
+                  subtitle: result.summary,
+                  executiveSummary: result.executiveSummary,
+                  narrative: result.answer,
+                  kpis: result.kpis,
+                  statistics: result.statistics,
+                  recommendations: result.recommendations,
+                  insights: result.insights,
+                  charts: result.charts.isNotEmpty
+                      ? result.charts
+                      : result.chartSpec.isNotEmpty
+                          ? <Map<String, dynamic>>[result.chartSpec]
+                          : const <Map<String, dynamic>>[],
+                  columns: result.columns,
+                  rows: result.tableRows,
+                ),
+                accent: _green,
               ),
             ],
-            if (result != null && result.suggestions.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 7,
-                runSpacing: 7,
-                children: result.suggestions
-                    .take(4)
-                    .map(
-                      (item) => ActionChip(
-                        label: Text(item, maxLines: 1),
-                        onPressed: () => onSuggestion(item),
-                      ),
-                    )
-                    .toList(),
-              ),
-            ],
-            const SizedBox(height: 7),
+            const SizedBox(height: 8),
             Align(
               alignment: Alignment.bottomRight,
               child: Text(
@@ -564,46 +789,224 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
+class _PayloadSection extends StatelessWidget {
+  const _PayloadSection({
+    required this.title,
+    required this.icon,
+    required this.child,
+  });
+
+  final String title;
+  final IconData icon;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FBFA),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFDDE9E5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 16, color: const Color(0xFF076B5D)),
+              const SizedBox(width: 6),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF13221E),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _StatisticsGrid extends StatelessWidget {
+  const _StatisticsGrid({required this.values});
+
+  final Map<String, dynamic> values;
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = <MapEntry<String, dynamic>>[];
+    void append(String prefix, dynamic value, int depth) {
+      if (entries.length >= 24) return;
+      if (value is Map && depth < 3) {
+        for (final child in value.entries) {
+          append(
+            prefix.isEmpty ? '${child.key}' : '$prefix · ${child.key}',
+            child.value,
+            depth + 1,
+          );
+        }
+      } else {
+        entries.add(MapEntry(prefix, value));
+      }
+    }
+
+    for (final entry in values.entries) {
+      append(entry.key, entry.value, 0);
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 520 ? 3 : 2;
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: entries.take(12).length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            childAspectRatio: 1.7,
+          ),
+          itemBuilder: (context, index) {
+            final entry = entries[index];
+            return Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFD5E8E3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    _formatStatistic(entry.value),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF075E54),
+                      fontWeight: FontWeight.w900,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _humanize('${entry.key}'),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFF66736F),
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _BulletList extends StatelessWidget {
+  const _BulletList({required this.values, required this.icon});
+
+  final List<String> values;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: values.take(10).map((item) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 7),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Icon(icon, size: 17, color: const Color(0xFF076B5D)),
+              ),
+              const SizedBox(width: 7),
+              Expanded(child: Text(item, style: const TextStyle(height: 1.35))),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+String _formatStatistic(dynamic value) {
+  if (value is num) return _formatNumber(value);
+  if (value is bool) return value ? 'Oui' : 'Non';
+  return '$value';
+}
+
 class _KpiWrap extends StatelessWidget {
   const _KpiWrap({required this.values});
-
   final Map<String, num> values;
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: values.entries
-          .map(
-            (entry) => Container(
-              constraints: const BoxConstraints(minWidth: 90),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0F8F5),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _formatNumber(entry.value),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 16,
-                    ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 520 ? 3 : 2;
+        return GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: columns,
+          crossAxisSpacing: 8,
+          mainAxisSpacing: 8,
+          childAspectRatio: 1.75,
+          children: values.entries
+              .map(
+                (entry) => Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: const Color(0xFFD5E8E3)),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    _humanize(entry.key),
-                    style: const TextStyle(fontSize: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        _formatNumber(entry.value),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 16,
+                          color: Color(0xFF075E54),
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        _humanize(entry.key),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Color(0xFF66736F),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-          )
-          .toList(),
+                ),
+              )
+              .toList(),
+        );
+      },
     );
   }
 }
@@ -621,6 +1024,7 @@ class _ResultTable extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
+        color: Colors.white,
         border: Border.all(color: const Color(0xFFDDE9E5)),
         borderRadius: BorderRadius.circular(13),
       ),
@@ -708,7 +1112,6 @@ class _Composer extends StatelessWidget {
     required this.sending,
     required this.onSend,
   });
-
   final TextEditingController controller;
   final bool sending;
   final VoidCallback onSend;
@@ -716,10 +1119,22 @@ class _Composer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+      padding: EdgeInsets.fromLTRB(
+        12,
+        10,
+        12,
+        10 + MediaQuery.paddingOf(context).bottom,
+      ),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(top: BorderSide(color: Color(0xFFDDE9E5))),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x10000000),
+            blurRadius: 12,
+            offset: Offset(0, -3),
+          ),
+        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -731,21 +1146,53 @@ class _Composer extends StatelessWidget {
               maxLines: 4,
               textInputAction: TextInputAction.newline,
               decoration: InputDecoration(
-                hintText: 'Posez une question sur votre stock…',
+                hintText: 'Question sur le stock…',
+                prefixIcon: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Color(0xFF076B5D),
+                ),
                 filled: true,
                 fillColor: const Color(0xFFF3F8F6),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(24),
                   borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: const BorderSide(color: Color(0xFFD5E8E3)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF076B5D),
+                    width: 1.4,
+                  ),
                 ),
               ),
             ),
           ),
           const SizedBox(width: 8),
-          IconButton.filled(
-            tooltip: 'Envoyer',
-            onPressed: sending ? null : onSend,
-            icon: const Icon(Icons.send_rounded),
+          SizedBox(
+            width: 50,
+            height: 50,
+            child: IconButton.filled(
+              tooltip: 'Envoyer',
+              onPressed: sending ? null : onSend,
+              style: IconButton.styleFrom(
+                backgroundColor: const Color(0xFF075E54),
+                foregroundColor: Colors.white,
+              ),
+              icon: sending
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.arrow_upward_rounded),
+            ),
           ),
         ],
       ),

@@ -27,9 +27,8 @@ class _WaouhStockSourcesScreenState extends State<WaouhStockSourcesScreen> {
   static const muted = Color(0xFF66736F);
   static const danger = Color(0xFFD94C4C);
 
-  late final WaouhStockRepository _repository = WaouhStockRepository(
-    widget.client,
-  );
+  late final WaouhStockRepository _repository =
+      WaouhStockRepository(widget.client);
 
   List<WaouhStockDataSource> _sources = const [];
   bool _loading = true;
@@ -210,9 +209,9 @@ class _WaouhStockSourcesScreenState extends State<WaouhStockSourcesScreen> {
       setState(() => _working = true);
       await _repository.deleteDataSource(source.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Source supprimée.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Source supprimée.')),
+      );
       await _load();
     } catch (error) {
       if (mounted) _showError(error);
@@ -228,8 +227,14 @@ class _WaouhStockSourcesScreenState extends State<WaouhStockSourcesScreen> {
     final openChat = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        icon: const Icon(Icons.auto_awesome_rounded, color: green, size: 36),
-        title: Text(synced ? 'Source synchronisée' : 'Importation réussie'),
+        icon: const Icon(
+          Icons.auto_awesome_rounded,
+          color: green,
+          size: 36,
+        ),
+        title: Text(
+          synced ? 'Source synchronisée' : 'Importation réussie',
+        ),
         content: Text(
           '${result.sourceName}\n\n'
           '${result.rowCount} lignes intégrées : '
@@ -257,7 +262,10 @@ class _WaouhStockSourcesScreenState extends State<WaouhStockSourcesScreen> {
     );
   }
 
-  Future<void> _openChat({String? datasourceId, String? datasourceName}) {
+  Future<void> _openChat({
+    String? datasourceId,
+    String? datasourceName,
+  }) {
     return Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => WaouhStockChatScreen(
@@ -290,22 +298,20 @@ class _WaouhStockSourcesScreenState extends State<WaouhStockSourcesScreen> {
       appBar: AppBar(
         backgroundColor: deepGreen,
         foregroundColor: Colors.white,
+        elevation: 0,
+        titleSpacing: 0,
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Sources de stock',
-              style: TextStyle(fontWeight: FontWeight.w800),
-            ),
-            Text(
-              'Importer, connecter et synchroniser',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w400),
-            ),
+            Text('Sources Stock IA',
+                style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
+            Text('Importer, connecter et analyser',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w400)),
           ],
         ),
         actions: [
           IconButton(
-            tooltip: 'Chat IA sur les importations',
+            tooltip: 'Ouvrir Stock IA',
             onPressed: _working ? null : () => _openChat(),
             icon: const Icon(Icons.auto_awesome_rounded),
           ),
@@ -322,47 +328,55 @@ class _WaouhStockSourcesScreenState extends State<WaouhStockSourcesScreen> {
             onRefresh: _load,
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 40),
               children: [
-                const _IntroCard(),
+                _IntroCard(onOpenChat: _working ? null : () => _openChat()),
                 const SizedBox(height: 16),
+                const Text('Choisissez une source',
+                    style:
+                        TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 4),
+                const Text('Chaque carte ouvre directement le parcours adapté.',
+                    style: TextStyle(color: muted)),
+                const SizedBox(height: 12),
                 LayoutBuilder(
                   builder: (_, constraints) {
+                    final columns = constraints.maxWidth >= 820 ? 4 : 2;
+                    final ratio = constraints.maxWidth < 360 ? .88 : 1.05;
                     return GridView.count(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      crossAxisCount: constraints.maxWidth >= 720 ? 4 : 2,
+                      crossAxisCount: columns,
                       crossAxisSpacing: 10,
                       mainAxisSpacing: 10,
-                      childAspectRatio:
-                          constraints.maxWidth < 370 ? 0.95 : 1.12,
+                      childAspectRatio: ratio,
                       children: [
                         _SourceActionCard(
-                          icon: Icons.upload_file_rounded,
-                          title: 'CSV / Excel',
-                          subtitle: 'Fichier .csv ou .xlsx',
-                          onTap: _working ? null : _pickFile,
-                        ),
+                            icon: Icons.upload_file_rounded,
+                            title: 'CSV / Excel',
+                            subtitle: 'Importer un fichier local',
+                            badge: 'Fichier',
+                            onTap: _working ? null : _pickFile),
                         _SourceActionCard(
-                          icon: Icons.table_chart_outlined,
-                          title: 'Google Sheets',
-                          subtitle: 'Lien partagé ou publié',
-                          onTap: _working ? null : _googleSheet,
-                        ),
+                            icon: Icons.table_chart_outlined,
+                            title: 'Google Sheets',
+                            subtitle: 'Connecter un tableau partagé',
+                            badge: 'Cloud',
+                            onTap: _working ? null : _googleSheet),
                         _SourceActionCard(
-                          icon: Icons.storage_rounded,
-                          title: 'PostgreSQL',
-                          subtitle: 'Table distante en lecture',
-                          onTap: _working ? null : () => _database(),
-                        ),
+                            icon: Icons.storage_rounded,
+                            title: 'PostgreSQL',
+                            subtitle: 'Lire une table distante',
+                            badge: 'Base',
+                            onTap: _working ? null : () => _database()),
                         _SourceActionCard(
-                          icon: Icons.cloud_outlined,
-                          title: 'Supabase',
-                          subtitle: 'Table via API REST',
-                          onTap: _working
-                              ? null
-                              : () => _database(supabaseOnly: true),
-                        ),
+                            icon: Icons.cloud_outlined,
+                            title: 'Supabase',
+                            subtitle: 'Analyser une table via API',
+                            badge: 'API',
+                            onTap: _working
+                                ? null
+                                : () => _database(supabaseOnly: true)),
                       ],
                     );
                   },
@@ -371,29 +385,26 @@ class _WaouhStockSourcesScreenState extends State<WaouhStockSourcesScreen> {
                 Row(
                   children: [
                     const Expanded(
-                      child: Text(
-                        'Sources connectées',
-                        style: TextStyle(
-                          fontSize: 21,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      '${_sources.length}',
-                      style: const TextStyle(
-                        color: green,
-                        fontWeight: FontWeight.w900,
-                      ),
+                        child: Text('Sources connectées',
+                            style: TextStyle(
+                                fontSize: 21, fontWeight: FontWeight.w900))),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                          color: const Color(0xFFE1F4EF),
+                          borderRadius: BorderRadius.circular(999)),
+                      child: Text('${_sources.length}',
+                          style: const TextStyle(
+                              color: green, fontWeight: FontWeight.w900)),
                     ),
                   ],
                 ),
                 const SizedBox(height: 10),
                 if (_loading)
                   const Padding(
-                    padding: EdgeInsets.all(28),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
+                      padding: EdgeInsets.all(28),
+                      child: Center(child: CircularProgressIndicator()))
                 else if (_error != null)
                   _ErrorCard(error: _error!, onRetry: _load)
                 else if (_sources.isEmpty)
@@ -406,9 +417,8 @@ class _WaouhStockSourcesScreenState extends State<WaouhStockSourcesScreen> {
                         source: source,
                         onAnalyze: !_working && source.isReady
                             ? () => _openChat(
-                                  datasourceId: source.id,
-                                  datasourceName: source.name,
-                                )
+                                datasourceId: source.id,
+                                datasourceName: source.name)
                             : null,
                         onSync: source.canSync && !_working
                             ? () => _sync(source)
@@ -428,14 +438,11 @@ class _WaouhStockSourcesScreenState extends State<WaouhStockSourcesScreen> {
                   child: Card(
                     child: Padding(
                       padding: EdgeInsets.all(18),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          CircularProgressIndicator(),
-                          SizedBox(width: 14),
-                          Text('Traitement des données…'),
-                        ],
-                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        CircularProgressIndicator(),
+                        SizedBox(width: 14),
+                        Text('Traitement des données…')
+                      ]),
                     ),
                   ),
                 ),
@@ -448,7 +455,8 @@ class _WaouhStockSourcesScreenState extends State<WaouhStockSourcesScreen> {
 }
 
 class _IntroCard extends StatelessWidget {
-  const _IntroCard();
+  const _IntroCard({required this.onOpenChat});
+  final VoidCallback? onOpenChat;
 
   @override
   Widget build(BuildContext context) {
@@ -456,42 +464,103 @@ class _IntroCard extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF075E54), Color(0xFF0A8B78)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF064E45), Color(0xFF087466), Color(0xFF0A8B78)],
         ),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: const [
+          BoxShadow(
+              color: Color(0x30075E54), blurRadius: 22, offset: Offset(0, 10))
+        ],
       ),
-      child: const Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 25,
-            backgroundColor: Colors.white24,
-            child: Icon(Icons.hub_outlined, color: Colors.white),
+          const Row(
+            children: [
+              CircleAvatar(
+                  radius: 25,
+                  backgroundColor: Colors.white24,
+                  child: Icon(Icons.hub_outlined, color: Colors.white)),
+              SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Un seul moteur Stock IA',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 19,
+                              fontWeight: FontWeight.w900)),
+                      SizedBox(height: 4),
+                      Text(
+                          'Connectez vos sources, préparez les données puis interrogez-les dans le même chat.',
+                          style:
+                              TextStyle(color: Colors.white70, height: 1.35)),
+                    ]),
+              ),
+            ],
           ),
-          SizedBox(width: 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Un seul moteur d’analyse',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 19,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Le catalogue, les fichiers, Google Sheets et les bases '
-                  'connectées sont analysés ensemble dans Waouh Stock IA.',
-                  style: TextStyle(color: Colors.white70, height: 1.35),
-                ),
-              ],
+          const SizedBox(height: 16),
+          const Row(
+            children: [
+              Expanded(child: _JourneyStep(number: '1', label: 'Connecter')),
+              SizedBox(width: 8),
+              Expanded(child: _JourneyStep(number: '2', label: 'Synchroniser')),
+              SizedBox(width: 8),
+              Expanded(child: _JourneyStep(number: '3', label: 'Analyser')),
+            ],
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: onOpenChat,
+              style: FilledButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: _WaouhStockSourcesScreenState.deepGreen,
+                  padding: const EdgeInsets.symmetric(vertical: 13)),
+              icon: const Icon(Icons.auto_awesome_rounded),
+              label: const Text('Ouvrir le chat Stock IA'),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _JourneyStep extends StatelessWidget {
+  const _JourneyStep({required this.number, required this.label});
+  final String number;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+      decoration: BoxDecoration(
+          color: Colors.white.withOpacity(.12),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white24)),
+      child: Column(children: [
+        CircleAvatar(
+            radius: 12,
+            backgroundColor: Colors.white,
+            foregroundColor: _WaouhStockSourcesScreenState.deepGreen,
+            child: Text(number,
+                style: const TextStyle(
+                    fontSize: 11, fontWeight: FontWeight.w900))),
+        const SizedBox(height: 5),
+        Text(label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w800)),
+      ]),
     );
   }
 }
@@ -501,62 +570,84 @@ class _SourceActionCard extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
+    required this.badge,
     required this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
+  final String badge;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
+        borderRadius: BorderRadius.circular(22),
+        child: Ink(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
             border: Border.all(color: _WaouhStockSourcesScreenState.line),
+            boxShadow: const [
+              BoxShadow(
+                  color: Color(0x10075E54),
+                  blurRadius: 14,
+                  offset: Offset(0, 6))
+            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              CircleAvatar(
-                backgroundColor:
-                    _WaouhStockSourcesScreenState.green.withOpacity(.10),
-                foregroundColor: _WaouhStockSourcesScreenState.green,
-                child: Icon(icon),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Row(
                 children: [
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    subtitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _WaouhStockSourcesScreenState.muted,
-                      fontSize: 11,
-                    ),
-                  ),
+                  CircleAvatar(
+                      backgroundColor: const Color(0xFFE5F5F1),
+                      foregroundColor: _WaouhStockSourcesScreenState.green,
+                      child: Icon(icon)),
+                  const Spacer(),
+                  Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                          color: const Color(0xFFF1F6F4),
+                          borderRadius: BorderRadius.circular(999)),
+                      child: Text(badge,
+                          style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              color: _WaouhStockSourcesScreenState.green))),
                 ],
               ),
+              const Spacer(),
+              Text(title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w900, fontSize: 15)),
+              const SizedBox(height: 4),
+              Text(subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: _WaouhStockSourcesScreenState.muted,
+                      fontSize: 11,
+                      height: 1.25)),
+              const SizedBox(height: 8),
+              const Row(children: [
+                Text('Configurer',
+                    style: TextStyle(
+                        color: _WaouhStockSourcesScreenState.green,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800)),
+                Spacer(),
+                Icon(Icons.arrow_forward_rounded,
+                    size: 17, color: _WaouhStockSourcesScreenState.green)
+              ]),
             ],
           ),
         ),
@@ -847,12 +938,17 @@ class _MappingSheetState extends State<_MappingSheet> {
     }
     Navigator.pop(
       context,
-      _MappingResult(sourceName: _name.text.trim(), mapping: _mapping),
+      _MappingResult(
+        sourceName: _name.text.trim(),
+        mapping: _mapping,
+      ),
     );
   }
 
   void _message(String value) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(value)),
+    );
   }
 
   @override
@@ -1060,7 +1156,9 @@ class _GoogleSheetFormState extends State<_GoogleSheetForm> {
   }
 
   void _message(String value) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(value)),
+    );
   }
 
   @override
@@ -1218,7 +1316,9 @@ class _DatabaseFormState extends State<_DatabaseForm> {
   }
 
   void _message(String value) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(value)),
+    );
   }
 
   @override

@@ -2,11 +2,11 @@ enum WaouhStockState { untracked, outOfStock, low, healthy }
 
 extension WaouhStockStateLabel on WaouhStockState {
   String get label => switch (this) {
-    WaouhStockState.untracked => 'À renseigner',
-    WaouhStockState.outOfStock => 'Rupture',
-    WaouhStockState.low => 'Stock faible',
-    WaouhStockState.healthy => 'En stock',
-  };
+        WaouhStockState.untracked => 'À renseigner',
+        WaouhStockState.outOfStock => 'Rupture',
+        WaouhStockState.low => 'Stock faible',
+        WaouhStockState.healthy => 'En stock',
+      };
 }
 
 class WaouhStockProduct {
@@ -54,9 +54,8 @@ class WaouhStockProduct {
 
   String get stockLabel {
     if (stock == null) return 'Stock non renseigné';
-    final suffix = unit == null || unit!.trim().isEmpty
-        ? ''
-        : ' ${unit!.trim()}';
+    final suffix =
+        unit == null || unit!.trim().isEmpty ? '' : ' ${unit!.trim()}';
     return '$stock$suffix disponible${stock == 1 ? '' : 's'}';
   }
 
@@ -110,8 +109,7 @@ class WaouhStockMovement {
       quantity: _asNullableInt(json['quantity']) ?? 0,
       balanceAfter: _asNullableInt(json['balance_after']) ?? 0,
       type: '${json['movement_type'] ?? 'adjustment'}',
-      createdAt:
-          DateTime.tryParse('${json['created_at'] ?? ''}') ??
+      createdAt: DateTime.tryParse('${json['created_at'] ?? ''}') ??
           DateTime.fromMillisecondsSinceEpoch(0),
       note: _nullableText(json['note']),
     );
@@ -128,6 +126,10 @@ class WaouhStockChatResult {
     required this.insights,
     required this.suggestions,
     required this.chartSpec,
+    this.executiveSummary = '',
+    this.statistics = const <String, dynamic>{},
+    this.recommendations = const <String>[],
+    this.charts = const <Map<String, dynamic>>[],
   });
 
   final String answer;
@@ -138,6 +140,10 @@ class WaouhStockChatResult {
   final List<String> insights;
   final List<String> suggestions;
   final Map<String, dynamic> chartSpec;
+  final String executiveSummary;
+  final Map<String, dynamic> statistics;
+  final List<String> recommendations;
+  final List<Map<String, dynamic>> charts;
 
   factory WaouhStockChatResult.fromJson(Map<String, dynamic> json) {
     final rawKpis = json['kpis'];
@@ -146,15 +152,23 @@ class WaouhStockChatResult {
       answer: '${json['answer'] ?? ''}'.trim(),
       summary: '${json['summary'] ?? ''}'.trim(),
       kpis: rawKpis is Map
-          ? rawKpis.map((key, value) => MapEntry('$key', _asNum(value) ?? 0))
+          ? rawKpis.map(
+              (key, value) => MapEntry('$key', _asNum(value) ?? 0),
+            )
           : const {},
       columns: _stringList(json['columns']),
       tableRows: _mapList(json['table_rows']),
       insights: _stringList(json['insights']),
       suggestions: _stringList(json['suggestions']),
-      chartSpec: rawChart is Map
-          ? Map<String, dynamic>.from(rawChart)
-          : const {},
+      chartSpec:
+          rawChart is Map ? Map<String, dynamic>.from(rawChart) : const {},
+      executiveSummary:
+          '${json['executive_summary'] ?? json['summary'] ?? ''}'.trim(),
+      statistics: json['statistics'] is Map
+          ? Map<String, dynamic>.from(json['statistics'] as Map)
+          : const <String, dynamic>{},
+      recommendations: _stringList(json['recommendations']),
+      charts: _mapList(json['charts']),
     );
   }
 }

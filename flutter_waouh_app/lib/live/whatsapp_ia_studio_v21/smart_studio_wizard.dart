@@ -6,6 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'studio_compat_service.dart';
+import 'studio_catalog_manager.dart';
+import 'studio_catalog_media_picker.dart';
+import 'studio_country_codes.dart';
+import 'studio_error_mapper.dart';
 import 'smart_agent_catalog.dart';
 import 'smart_document_picker.dart';
 import 'smart_studio_service.dart';
@@ -54,7 +58,8 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
 
   // Nouvelle ligne.
   final _lineName = TextEditingController();
-  final _linePhone = TextEditingController(text: '229');
+  final _linePhone = TextEditingController();
+  StudioCountryDialCode _lineCountry = StudioCountryCodes.benin;
   List<StudioSession> _sessions = <StudioSession>[];
   StudioSession? _lineSession;
   _LineConnectionMethod _connectionMethod = _LineConnectionMethod.qr;
@@ -63,6 +68,8 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
   String? _pairCode;
   bool _lineConnected = false;
   Timer? _statusTimer;
+  bool _statusCheckInFlight = false;
+  int _statusPollAttempts = 0;
 
   // Nouvel agent.
   final _activityName = TextEditingController();
@@ -88,13 +95,23 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
 
   List<SmartPartnerProduct> _partnerProducts = <SmartPartnerProduct>[];
   Set<String> _selectedPartnerIds = <String>{};
+  Set<String> _selectedDataTypes = <String>{
+    'product',
+    'training',
+    'presentation',
+    'partner',
+    'documents',
+    'website',
+    'knowledge',
+  };
+  String _catalogInputKind = 'product';
   List<SmartStudioProduct> _manualProducts = <SmartStudioProduct>[];
   List<SmartPickedDocument> _pickedDocuments = <SmartPickedDocument>[];
-  List<SmartUploadedDocument> _uploadedDocuments = <SmartUploadedDocument>[];
 
   StudioAgent? _agent;
   StudioSession? _selectedSession;
   final List<StudioChatMessage> _messages = <StudioChatMessage>[];
+  List<StudioCatalogMedia> _testAttachments = <StudioCatalogMedia>[];
 
   List<StudioSession> get _connectedSessions {
     return _sessions.where((item) => item.isConnected).toList();
@@ -168,12 +185,49 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
   }
 
   String _friendlyError(Object error) {
-    final value = '$error'
-        .replaceFirst('Bad state: ', '')
-        .replaceFirst('StateError: ', '')
-        .replaceFirst('Exception: ', '');
-    return value;
+    return StudioErrorMapper.message(error);
   }
+
+  String? _linePhoneValue({bool required = false}) {
+    final error = StudioCountryCodes.validate(
+      _lineCountry,
+      _linePhone.text,
+      required: required,
+    );
+
+    if (error != null) {
+      setState(() => _error = error);
+      return null;
+    }
+
+    if (_linePhone.text.trim().isEmpty) return null;
+    return StudioCountryCodes.e164(
+      _lineCountry,
+      _linePhone.text,
+    );
+  }
+
+  void _previousLineStep() {
+    if (_lineStep <= 0) {
+      Navigator.of(context).pop();
+      return;
+    }
+    setState(() {
+      _error = null;
+      _lineStep -= 1;
+    });
+  }
+
+  List<String> get _stepTitles => _mode == _StudioMode.line
+      ? const ['Informations', 'Connexion', 'Terminé']
+      : const [
+          'Type',
+          'Secteur',
+          'Identité',
+          'Données',
+          'Test',
+          'Activation',
+        ];
 
   void _scheduleRecommendation() {
     if (_mode != _StudioMode.agent || _agentStep > 1) return;
@@ -218,9 +272,22 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
   }
 
   Future<void> _loadPartnerProducts() async {
-    final products = await _smart.loadPartnerProducts();
-    if (!mounted) return;
-    setState(() => _partnerProducts = products);
+    try {
+      final products = await _smart.loadPartnerProducts();
+      if (!mounted) return;
+      setState(() {
+        _partnerProducts = products;
+        if (_selectedPartnerIds.isEmpty) {
+          _selectedPartnerIds = products.map((item) => item.id).toSet();
+        }
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error =
+            'Chargement des produits Partenaire impossible : ${_friendlyError(error)}';
+      });
+    }
   }
 
   Future<void> _createLine() async {
@@ -232,26 +299,32 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
       return;
     }
 
+    final phoneNumber = _linePhoneValue(required: false);
+    if (_linePhone.text.trim().isNotEmpty && phoneNumber == null) {
+      return;
+    }
+
     final sessionName =
         WhatsAppIaStudioV20Service.normalizeSessionName(rawName);
 
     await _run(() async {
-      await _base.createSession(
+      final resolvedSessionName = await _base.createSession(
         sessionName: sessionName,
-        phoneNumber: _linePhone.text,
+        phoneNumber: phoneNumber,
       );
 
       final sessions = await _base.loadSessions();
       _sessions = sessions;
       _lineSession = _firstWhereOrNull(
             sessions,
-            (item) => item.sessionName == sessionName,
+            (item) => item.sessionName == resolvedSessionName,
           ) ??
           StudioSession(
             id: '',
-            sessionName: sessionName,
+            sessionName: resolvedSessionName,
             status: 'disconnected',
-            phoneNumber: _linePhone.text,
+            displayName: rawName,
+            phoneNumber: phoneNumber,
           );
 
       setState(() => _lineStep = 1);
@@ -273,29 +346,58 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
         );
         _pairCode = null;
       } else {
+        final phoneNumber = _linePhoneValue(required: true);
+        if (phoneNumber == null) return;
         _pairCode = await _smart.requestPairCode(
           sessionName: session.sessionName,
-          phoneNumber: _linePhone.text,
+          phoneNumber: phoneNumber,
         );
         _qrCode = null;
       }
 
       _startStatusPolling();
-      if (mounted) setState(() {});
+
+      if (mounted) {
+        setState(() {
+          _error = null;
+        });
+      }
     });
   }
 
   void _startStatusPolling() {
     _statusTimer?.cancel();
+    _statusPollAttempts = 0;
+
+    unawaited(
+      _refreshLineStatus(
+        showError: false,
+      ),
+    );
+
     _statusTimer = Timer.periodic(
-      const Duration(seconds: 4),
-      (_) => _refreshLineStatus(),
+      const Duration(seconds: 3),
+      (_) {
+        unawaited(
+          _refreshLineStatus(
+            showError: false,
+          ),
+        );
+      },
     );
   }
 
-  Future<void> _refreshLineStatus() async {
+  Future<void> _refreshLineStatus({
+    bool showError = true,
+  }) async {
     final session = _lineSession;
-    if (session == null) return;
+
+    if (session == null || _statusCheckInFlight || _lineConnected) {
+      return;
+    }
+
+    _statusCheckInFlight = true;
+    _statusPollAttempts += 1;
 
     try {
       final remote = await _smart.checkSessionStatus(
@@ -303,28 +405,88 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
       );
 
       var connected = remote.connected;
+      var resolvedStatus = remote.status.trim().toLowerCase();
+
       if (!connected) {
-        final sessions = await _base.loadSessions();
-        _sessions = sessions;
-        final refreshed = _firstWhereOrNull(
-          sessions,
-          (item) => item.sessionName == session.sessionName,
-        );
-        connected = refreshed?.isConnected ?? false;
-        if (refreshed != null) {
-          _lineSession = refreshed;
+        try {
+          final audit = await _base.auditSession(
+            session.sessionName,
+            repair: false,
+          );
+
+          final auditedStatus =
+              '${audit['remote_status'] ?? ''}'.trim().toLowerCase();
+
+          if (auditedStatus.isNotEmpty) {
+            resolvedStatus = auditedStatus;
+          }
+
+          connected = audit['connected'] == true ||
+              const <String>{
+                'connected',
+                'working',
+                'ready',
+                'online',
+                'authenticated',
+              }.contains(resolvedStatus);
+        } catch (_) {
+          // Le statut simple reste la source de repli.
+        }
+      }
+
+      if (connected || _statusPollAttempts % 3 == 0) {
+        try {
+          final sessions = await _base.loadSessions();
+          _sessions = sessions;
+
+          final refreshed = _firstWhereOrNull(
+            sessions,
+            (item) => item.sessionName == session.sessionName,
+          );
+
+          if (refreshed != null) {
+            _lineSession = refreshed;
+            connected = connected || refreshed.isConnected;
+            resolvedStatus = refreshed.status;
+          }
+        } catch (_) {
+          // La vérification WAHA directe reste prioritaire.
         }
       }
 
       if (!mounted) return;
-      setState(() => _lineConnected = connected);
 
       if (connected) {
         _statusTimer?.cancel();
-        setState(() => _lineStep = 2);
+
+        setState(() {
+          _lineConnected = true;
+          _lineStep = 2;
+          _error = null;
+        });
+
+        return;
       }
-    } catch (_) {
-      // Le contrôle manuel reste disponible.
+
+      if (showError) {
+        setState(() {
+          _error = resolvedStatus == 'pairing'
+              ? 'WhatsApp attend encore la validation du code. '
+                  'Terminez la liaison sur le téléphone puis appuyez '
+                  'à nouveau sur « Vérifier la connexion ».'
+              : 'La ligne n’est pas encore connectée. '
+                  'Vérifiez WhatsApp > Appareils connectés, '
+                  'puis réessayez.';
+        });
+      }
+    } catch (error) {
+      if (!mounted || !showError) return;
+
+      setState(() {
+        _error = _friendlyError(error);
+      });
+    } finally {
+      _statusCheckInFlight = false;
     }
   }
 
@@ -354,15 +516,34 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
 
   Future<void> _parseCatalog() async {
     await _run(() async {
-      final products = await _smart.parseCatalogText(
-        _catalogText.text,
+      final imported = await _smart.parseCatalogImport(
+        kind: _catalogInputKind,
+        text: _catalogText.text,
       );
+
+      final values = imported
+          .map((item) => SmartStudioProduct(
+                name: item.name,
+                description: item.description,
+                priceFcfa: item.priceFcfa,
+                kind: item.kind,
+                catalogTitle: item.catalogTitle,
+                category: item.category,
+                duration: item.duration,
+                audience: item.audience,
+                startDate: item.startDate,
+                endDate: item.endDate,
+                format: item.format,
+                level: item.level,
+                unit: item.unit,
+              ))
+          .toList();
 
       if (!mounted) return;
       setState(() {
         _manualProducts = <SmartStudioProduct>[
           ..._manualProducts,
-          ...products,
+          ...values,
         ];
       });
     });
@@ -372,68 +553,222 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
     final name = TextEditingController();
     final price = TextEditingController();
     final description = TextEditingController();
+    final duration = TextEditingController();
+    final audience = TextEditingController();
+    String kind = _catalogInputKind;
+    String category = '';
+    String format = '';
+    String level = '';
+    DateTime? startDate;
+    DateTime? endDate;
+
+    String dateLabel(DateTime? value) {
+      if (value == null) return 'Choisir';
+      final day = value.day.toString().padLeft(2, '0');
+      final month = value.month.toString().padLeft(2, '0');
+      return '$day/$month/${value.year}';
+    }
 
     final product = await showDialog<SmartStudioProduct>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Ajouter un produit ou service'),
-          content: SingleChildScrollView(
-            child: Column(
-              children: [
-                TextField(
-                  controller: name,
-                  autofocus: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Nom',
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: price,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Prix en FCFA',
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: description,
-                  minLines: 2,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Description',
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Annuler'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final value = name.text.trim();
-                if (value.isEmpty) return;
-                Navigator.pop(
-                  context,
-                  SmartStudioProduct(
-                    name: value,
-                    priceFcfa: int.tryParse(
-                      price.text.replaceAll(
-                        RegExp(r'[^\d]'),
-                        '',
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Ajouter une donnée au catalogue'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: kind,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Classification',
+                      ),
+                      items: _catalogKindsForSelection()
+                          .map((item) => DropdownMenuItem<String>(
+                                value: item,
+                                child: Text(_dataTypeLabel(item)),
+                              ))
+                          .toList(),
+                      onChanged: (value) {
+                        if (value != null) setDialogState(() => kind = value);
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: name,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        labelText: kind == 'product'
+                            ? 'Nom du produit ou service'
+                            : kind == 'training'
+                                ? 'Titre de la formation'
+                                : 'Titre de la présentation',
                       ),
                     ),
-                    description: description.text.trim(),
-                  ),
-                );
-              },
-              child: const Text('Ajouter'),
-            ),
-          ],
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      value: category.isEmpty ? null : category,
+                      isExpanded: true,
+                      decoration: const InputDecoration(labelText: 'Catégorie'),
+                      items: _wizardCategories(kind)
+                          .map((item) => DropdownMenuItem<String>(
+                                value: item,
+                                child: Text(item),
+                              ))
+                          .toList(),
+                      onChanged: (value) =>
+                          setDialogState(() => category = value ?? ''),
+                    ),
+                    if (kind == 'product') ...[
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: price,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly
+                        ],
+                        decoration: const InputDecoration(
+                          labelText: 'Prix en FCFA',
+                        ),
+                      ),
+                    ],
+                    if (kind == 'training') ...[
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<String>(
+                        value: format.isEmpty ? null : format,
+                        decoration: const InputDecoration(labelText: 'Format'),
+                        items: const [
+                          DropdownMenuItem(
+                              value: 'Présentiel', child: Text('Présentiel')),
+                          DropdownMenuItem(
+                              value: 'En ligne', child: Text('En ligne')),
+                          DropdownMenuItem(
+                              value: 'Hybride', child: Text('Hybride')),
+                        ],
+                        onChanged: (value) =>
+                            setDialogState(() => format = value ?? ''),
+                      ),
+                      const SizedBox(height: 10),
+                      DropdownButtonFormField<String>(
+                        value: level.isEmpty ? null : level,
+                        decoration: const InputDecoration(labelText: 'Niveau'),
+                        items: const [
+                          DropdownMenuItem(
+                              value: 'Débutant', child: Text('Débutant')),
+                          DropdownMenuItem(
+                              value: 'Intermédiaire',
+                              child: Text('Intermédiaire')),
+                          DropdownMenuItem(
+                              value: 'Avancé', child: Text('Avancé')),
+                          DropdownMenuItem(
+                              value: 'Tous niveaux',
+                              child: Text('Tous niveaux')),
+                        ],
+                        onChanged: (value) =>
+                            setDialogState(() => level = value ?? ''),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: duration,
+                        decoration: const InputDecoration(labelText: 'Durée'),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: audience,
+                        decoration:
+                            const InputDecoration(labelText: 'Public cible'),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: startDate ?? DateTime.now(),
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime(DateTime.now().year + 10),
+                                  helpText: 'Date de début',
+                                );
+                                if (picked != null) {
+                                  setDialogState(() => startDate = picked);
+                                }
+                              },
+                              icon: const Icon(Icons.calendar_month_outlined),
+                              label: Text(dateLabel(startDate)),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate:
+                                      endDate ?? startDate ?? DateTime.now(),
+                                  firstDate: startDate ?? DateTime(2020),
+                                  lastDate: DateTime(DateTime.now().year + 10),
+                                  helpText: 'Date de fin',
+                                );
+                                if (picked != null) {
+                                  setDialogState(() => endDate = picked);
+                                }
+                              },
+                              icon: const Icon(Icons.event_available_outlined),
+                              label: Text(dateLabel(endDate)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: description,
+                      minLines: 2,
+                      maxLines: 5,
+                      decoration: const InputDecoration(
+                        labelText: 'Description',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('Annuler'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final value = name.text.trim();
+                    if (value.isEmpty) return;
+                    Navigator.pop(
+                      dialogContext,
+                      SmartStudioProduct(
+                        name: value,
+                        kind: kind,
+                        category: category,
+                        priceFcfa:
+                            kind == 'product' ? int.tryParse(price.text) : null,
+                        description: description.text.trim(),
+                        duration: duration.text.trim(),
+                        audience: audience.text.trim(),
+                        format: format,
+                        level: level,
+                        startDate: startDate,
+                        endDate: endDate,
+                      ),
+                    );
+                  },
+                  child: const Text('Ajouter'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -441,26 +776,126 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
     name.dispose();
     price.dispose();
     description.dispose();
+    duration.dispose();
+    audience.dispose();
 
     if (product != null && mounted) {
       setState(() => _manualProducts.add(product));
     }
   }
 
-  bool _needsWebsite() {
-    return _sourceKind == SmartAgentSourceKind.website ||
-        _sourceKind == SmartAgentSourceKind.smart;
+  Set<String> _defaultDataTypesForSource(SmartAgentSourceKind source) {
+    switch (source) {
+      case SmartAgentSourceKind.website:
+        return <String>{'website', 'knowledge'};
+      case SmartAgentSourceKind.documents:
+        return <String>{'documents', 'knowledge'};
+      case SmartAgentSourceKind.knowledge:
+        return <String>{'knowledge'};
+      case SmartAgentSourceKind.catalog:
+        return <String>{'product', 'training', 'presentation', 'partner'};
+      case SmartAgentSourceKind.smart:
+        return <String>{
+          'product',
+          'training',
+          'presentation',
+          'partner',
+          'documents',
+          'website',
+          'knowledge',
+        };
+    }
   }
 
-  bool _needsCatalog() {
-    return _sourceKind == SmartAgentSourceKind.catalog ||
-        _sourceKind == SmartAgentSourceKind.smart;
+  List<String> _selectedCatalogKinds() {
+    return <String>[
+      if (_selectedDataTypes.contains('product')) 'product',
+      if (_selectedDataTypes.contains('training')) 'training',
+      if (_selectedDataTypes.contains('presentation')) 'presentation',
+    ];
   }
 
-  bool _needsDocuments() {
-    return _sourceKind == SmartAgentSourceKind.documents ||
-        _sourceKind == SmartAgentSourceKind.smart;
+  List<String> _catalogKindsForSelection() {
+    final values = _selectedCatalogKinds();
+    return values.isEmpty ? <String>['product'] : values;
   }
+
+  List<String> _wizardCategories(String kind) {
+    switch (kind) {
+      case 'training':
+        return const <String>[
+          'Intelligence artificielle',
+          'Informatique et numérique',
+          'Gestion et entrepreneuriat',
+          'Santé',
+          'Langues',
+          'Technique et métier',
+        ];
+      case 'presentation':
+        return const <String>[
+          'Présentation institutionnelle',
+          'Portfolio / Réalisations',
+          'Offre de services',
+          'Projet',
+          'Événement',
+        ];
+      default:
+        return const <String>[
+          'Produit physique',
+          'Service',
+          'Alimentation',
+          'Mode et beauté',
+          'Électronique',
+          'Santé et bien-être',
+        ];
+    }
+  }
+
+  String _dataTypeLabel(String value) {
+    switch (value) {
+      case 'product':
+        return 'Produits et services';
+      case 'training':
+        return 'Formations';
+      case 'presentation':
+        return 'Présentations';
+      case 'partner':
+        return 'Produits Partenaire';
+      case 'documents':
+        return 'Documents';
+      case 'website':
+        return 'Site web';
+      default:
+        return 'Connaissances / FAQ';
+    }
+  }
+
+  IconData _dataTypeIcon(String value) {
+    switch (value) {
+      case 'product':
+        return Icons.inventory_2_outlined;
+      case 'training':
+        return Icons.school_outlined;
+      case 'presentation':
+        return Icons.slideshow_outlined;
+      case 'partner':
+        return Icons.storefront_outlined;
+      case 'documents':
+        return Icons.description_outlined;
+      case 'website':
+        return Icons.language_rounded;
+      default:
+        return Icons.psychology_alt_outlined;
+    }
+  }
+
+  bool _needsWebsite() => _selectedDataTypes.contains('website');
+
+  bool _needsCatalog() =>
+      _selectedCatalogKinds().isNotEmpty ||
+      _selectedDataTypes.contains('partner');
+
+  bool _needsDocuments() => _selectedDataTypes.contains('documents');
 
   Future<void> _createAgentDraft() async {
     if (_activityName.text.trim().isEmpty) {
@@ -470,7 +905,7 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
       return;
     }
 
-    if (_sourceKind == SmartAgentSourceKind.website &&
+    if (_selectedDataTypes.contains('website') &&
         _websiteUrl.text.trim().isEmpty) {
       setState(() {
         _error = 'Saisissez l’adresse du site à analyser.';
@@ -478,23 +913,17 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
       return;
     }
 
-    if (_sourceKind == SmartAgentSourceKind.documents &&
+    if (_selectedDataTypes.contains('documents') &&
         _pickedDocuments.isEmpty &&
-        _knowledgeUrl.text.trim().isEmpty &&
-        _knowledge.text.trim().isEmpty) {
+        !_selectedDataTypes.contains('knowledge')) {
       setState(() {
-        _error = 'Ajoutez au moins un document, un lien ou du contenu.';
+        _error =
+            'Ajoutez au moins un document ou désactivez la source Documents.';
       });
       return;
     }
 
     await _run(() async {
-      _uploadedDocuments = <SmartUploadedDocument>[];
-      for (final document in _pickedDocuments) {
-        final uploaded = await _smart.uploadDocument(document);
-        _uploadedDocuments.add(uploaded);
-      }
-
       _agent = await _smart.createSmartAgent(
         SmartAgentCreationInput(
           name: _activityName.text,
@@ -504,14 +933,25 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
           template: _template,
           capabilities: _capabilities,
           emojis: _emojis,
-          manualProducts: _manualProducts,
-          partnerProductIds: _selectedPartnerIds,
-          documents: _uploadedDocuments,
-          knowledge: _knowledge.text,
-          knowledgeUrl: _knowledgeUrl.text,
-          websiteUrl: _websiteUrl.text,
+          manualProducts: _manualProducts
+              .where((item) => _selectedDataTypes.contains(item.kind))
+              .toList(),
+          partnerProductIds: _selectedDataTypes.contains('partner')
+              ? _selectedPartnerIds
+              : <String>{},
+          documents: _selectedDataTypes.contains('documents')
+              ? _pickedDocuments
+              : <SmartPickedDocument>[],
+          knowledge:
+              _selectedDataTypes.contains('knowledge') ? _knowledge.text : '',
+          knowledgeUrl: _selectedDataTypes.contains('knowledge')
+              ? _knowledgeUrl.text
+              : '',
+          websiteUrl:
+              _selectedDataTypes.contains('website') ? _websiteUrl.text : '',
           crawlWebsite: _crawlWebsite,
           activityDescription: _activityDescription.text,
+          selectedDataTypes: _selectedDataTypes,
         ),
       );
 
@@ -520,9 +960,40 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
     });
   }
 
+  Future<void> _pickTestAttachment() async {
+    if (_busy || !StudioCatalogMediaPicker.available) return;
+    final picked = await StudioCatalogMediaPicker.pickImportFile();
+    if (picked == null || !mounted) return;
+    final mime = picked.contentType;
+    final type = mime.startsWith('image/')
+        ? 'image'
+        : mime.startsWith('video/')
+            ? 'video'
+            : mime.startsWith('audio/')
+                ? 'audio'
+                : 'document';
+    setState(() {
+      _testAttachments = <StudioCatalogMedia>[
+        StudioCatalogMedia(
+          type: type,
+          filename: picked.name,
+          mimeType: mime,
+          dataBase64: base64Encode(picked.bytes),
+          caption: picked.name,
+        ),
+      ];
+    });
+  }
+
   Future<void> _sendTest() async {
     final agent = _agent;
-    final message = _testInput.text.trim();
+    final typedMessage = _testInput.text.trim();
+    final attachments = List<StudioCatalogMedia>.from(_testAttachments);
+    final message = typedMessage.isNotEmpty
+        ? typedMessage
+        : attachments.isNotEmpty
+            ? 'Analyse ce média et réponds de façon professionnelle.'
+            : '';
 
     if (agent == null || message.isEmpty || _busy) return;
 
@@ -532,17 +1003,20 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
       _messages.add(
         StudioChatMessage(
           role: 'user',
-          content: message,
+          content: typedMessage.isEmpty ? 'Média joint' : typedMessage,
+          attachments: attachments,
         ),
       );
       _testInput.clear();
+      _testAttachments = <StudioCatalogMedia>[];
     });
 
     await _run(() async {
-      final reply = await _base.testAgent(
+      final reply = await _base.testAgentRich(
         agentId: agent.id,
         message: message,
         history: history,
+        attachments: attachments,
       );
 
       if (!mounted) return;
@@ -550,7 +1024,8 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
         _messages.add(
           StudioChatMessage(
             role: 'assistant',
-            content: reply,
+            content: reply.text,
+            attachments: reply.attachments,
           ),
         );
       });
@@ -566,6 +1041,7 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
     await _run(() async {
       if (activate) {
         final session = _selectedSession;
+
         if (session == null || !session.isConnected) {
           throw StateError(
             'Sélectionnez une ligne WhatsApp connectée.',
@@ -576,11 +1052,47 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
           agentId: agent.id,
           sessionName: session.sessionName,
         );
+
+        Map<String, dynamic> health = await _base.transportHealth(
+          session.sessionName,
+        );
+
+        if (health['transport_ready'] != true) {
+          await Future<void>.delayed(
+            const Duration(seconds: 2),
+          );
+
+          health = await _base.transportHealth(
+            session.sessionName,
+          );
+        }
+
+        if (health['transport_ready'] != true) {
+          final status = '${health['remote_status'] ?? 'inconnu'}';
+          final agents = '${health['active_agent_count'] ?? 0}';
+
+          throw StateError(
+            'AGENT_TRANSPORT_NOT_READY: statut WAHA $status, '
+            '$agents agent actif. Vérifiez la ligne puis réessayez.',
+          );
+        }
       } else {
         await _base.saveAsDraft(agent.id);
       }
 
       if (!mounted) return;
+
+      if (activate) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Agent activé. Envoyez maintenant un message depuis un autre numéro WhatsApp.',
+            ),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+
       Navigator.of(context).pop(true);
     });
   }
@@ -593,6 +1105,10 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
   }
 
   void _previousAgentStep() {
+    if (_agentStep <= 0) {
+      Navigator.of(context).pop();
+      return;
+    }
     setState(() {
       _error = null;
       _agentStep = (_agentStep - 1).clamp(0, 5).toInt();
@@ -617,10 +1133,14 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
                   : 'Nouvel agent intelligent',
               subtitle: _mode == _StudioMode.line
                   ? 'WAHA · QR ou code de connexion'
-                  : 'No-code · Templates dynamiques · Gemini Flash',
+                  : 'No-code · Templates dynamiques · Moteur IA',
               currentStep: _mode == _StudioMode.line ? _lineStep : _agentStep,
               totalSteps: _mode == _StudioMode.line ? 3 : 6,
               onClose: () => Navigator.pop(context),
+            ),
+            _CurrentStepGuide(
+              currentStep: _mode == _StudioMode.line ? _lineStep : _agentStep,
+              titles: _stepTitles,
             ),
             if (_error != null)
               Container(
@@ -679,6 +1199,7 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
         TextField(
           controller: _lineName,
           autofocus: true,
+          enabled: _lineSession == null,
           decoration: _decoration(
             label: 'Nom de la ligne',
             hint: 'Ex. boutique-cotonou',
@@ -686,14 +1207,18 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
           ),
         ),
         const SizedBox(height: 10),
-        TextField(
+        StudioInternationalPhoneField(
+          country: _lineCountry,
           controller: _linePhone,
-          keyboardType: TextInputType.phone,
-          decoration: _decoration(
-            label: 'Numéro WhatsApp international',
-            hint: '22997000000',
-            icon: Icons.phone_outlined,
-          ),
+          onCountryChanged: (value) {
+            setState(() {
+              _lineCountry = value;
+              _error = null;
+            });
+          },
+          label: 'Numéro WhatsApp',
+          helperText: 'Choisissez le pays puis saisissez le numéro national. '
+              'Le numéro est requis uniquement pour la connexion par code.',
         ),
         const SizedBox(height: 12),
         const _SmartInfo(
@@ -703,11 +1228,17 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
               'Le numéro sert uniquement à demander un code lorsque cette méthode est choisie.',
         ),
         const SizedBox(height: 18),
-        _MainButton(
-          label: 'Créer et connecter',
-          icon: Icons.arrow_forward_rounded,
+        _LineNavigationButtons(
+          onBack: _previousLineStep,
+          backLabel: 'Précédent',
+          nextLabel: _lineSession == null ? 'Créer et continuer' : 'Continuer',
+          nextIcon: Icons.arrow_forward_rounded,
           busy: _busy,
-          onPressed: _createLine,
+          onNext: _lineSession == null
+              ? _createLine
+              : () {
+                  setState(() => _lineStep = 1);
+                },
         ),
       ],
     );
@@ -765,7 +1296,10 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
         else
           _PairCodePanel(
             code: _pairCode,
-            phone: _linePhone.text,
+            phone: StudioCountryCodes.e164(
+              _lineCountry,
+              _linePhone.text,
+            ),
           ),
         const SizedBox(height: 14),
         _MainButton(
@@ -780,9 +1314,21 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
         ),
         const SizedBox(height: 8),
         OutlinedButton.icon(
-          onPressed: _busy ? null : _refreshLineStatus,
+          onPressed: _busy
+              ? null
+              : () {
+                  _refreshLineStatus(
+                    showError: true,
+                  );
+                },
           icon: const Icon(Icons.refresh_rounded),
           label: const Text('Vérifier la connexion'),
+        ),
+        const SizedBox(height: 10),
+        OutlinedButton.icon(
+          onPressed: _busy ? null : _previousLineStep,
+          icon: const Icon(Icons.arrow_back_rounded),
+          label: const Text('Précédent'),
         ),
         const SizedBox(height: 10),
         const _SmartInfo(
@@ -807,11 +1353,13 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
               'WAHA est prêt. Vous pouvez maintenant créer ou connecter un agent IA.',
         ),
         const SizedBox(height: 18),
-        _MainButton(
-          label: 'Terminer',
-          icon: Icons.done_rounded,
+        _LineNavigationButtons(
+          onBack: _previousLineStep,
+          backLabel: 'Précédent',
+          nextLabel: 'Terminer',
+          nextIcon: Icons.done_rounded,
           busy: false,
-          onPressed: _finishLine,
+          onNext: _finishLine,
         ),
       ],
     );
@@ -853,6 +1401,9 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
             onTap: () {
               setState(() {
                 _sourceKind = source.kind;
+                _selectedDataTypes = _defaultDataTypesForSource(source.kind);
+                final kinds = _selectedCatalogKinds();
+                if (kinds.isNotEmpty) _catalogInputKind = kinds.first;
                 _recommendSector();
               });
             },
@@ -1123,6 +1674,52 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
         ),
         const SizedBox(height: 12),
         _TemplatePrompts(template: _template),
+        const SizedBox(height: 14),
+        const _SectionTitle(
+          icon: Icons.account_tree_outlined,
+          title: 'Types de données de l’agent',
+        ),
+        const SizedBox(height: 7),
+        const Text(
+          'Sélectionnez précisément les familles que cet agent doit utiliser.',
+          style: TextStyle(color: _muted, fontSize: 11.5),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 7,
+          runSpacing: 7,
+          children: [
+            for (final type in const <String>[
+              'product',
+              'training',
+              'presentation',
+              'partner',
+              'documents',
+              'website',
+              'knowledge',
+            ])
+              FilterChip(
+                selected: _selectedDataTypes.contains(type),
+                selectedColor: _mint,
+                avatar: Icon(_dataTypeIcon(type), size: 17, color: _primary),
+                label: Text(_dataTypeLabel(type)),
+                onSelected: (selected) {
+                  setState(() {
+                    if (selected) {
+                      _selectedDataTypes.add(type);
+                    } else if (_selectedDataTypes.length > 1) {
+                      _selectedDataTypes.remove(type);
+                    }
+                    final kinds = _selectedCatalogKinds();
+                    if (kinds.isNotEmpty &&
+                        !kinds.contains(_catalogInputKind)) {
+                      _catalogInputKind = kinds.first;
+                    }
+                  });
+                },
+              ),
+          ],
+        ),
         if (_needsWebsite()) ...[
           const SizedBox(height: 14),
           const _SectionTitle(
@@ -1203,7 +1800,8 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
             icon: Icons.inventory_2_outlined,
             title: 'Catalogue intelligent',
           ),
-          if (_partnerProducts.isNotEmpty) ...[
+          if (_selectedDataTypes.contains('partner') &&
+              _partnerProducts.isNotEmpty) ...[
             const SizedBox(height: 7),
             Text(
               '${_partnerProducts.length} produit(s) détecté(s) dans Partenaire',
@@ -1213,8 +1811,33 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
               ),
             ),
             const SizedBox(height: 7),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${_selectedPartnerIds.length} sélectionné(s)',
+                    style: const TextStyle(
+                      color: _muted,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => setState(() {
+                    _selectedPartnerIds =
+                        _partnerProducts.map((item) => item.id).toSet();
+                  }),
+                  child: const Text('Tout'),
+                ),
+                TextButton(
+                  onPressed: () => setState(_selectedPartnerIds.clear),
+                  child: const Text('Aucun'),
+                ),
+              ],
+            ),
             Container(
-              constraints: const BoxConstraints(maxHeight: 210),
+              constraints: const BoxConstraints(maxHeight: 240),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
@@ -1230,6 +1853,28 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
                     dense: true,
                     value: selected,
                     activeColor: _primary,
+                    secondary: Container(
+                      width: 42,
+                      height: 42,
+                      clipBehavior: Clip.antiAlias,
+                      decoration: BoxDecoration(
+                        color: _mint,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: product.photoUrl?.isNotEmpty == true
+                          ? Image.network(
+                              product.photoUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Icons.inventory_2_outlined,
+                                color: _primary,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.inventory_2_outlined,
+                              color: _primary,
+                            ),
+                    ),
                     title: Text(
                       product.name,
                       maxLines: 1,
@@ -1263,82 +1908,133 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
               ),
             ),
           ],
-          const SizedBox(height: 10),
-          TextField(
-            controller: _catalogText,
-            minLines: 3,
-            maxLines: 7,
-            decoration: _decoration(
-              label: 'Catalogue brut à analyser',
-              hint: 'Collez une liste : nom, prix, description, disponibilité…',
-              icon: Icons.auto_fix_high_rounded,
-            ),
-          ),
-          const SizedBox(height: 7),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _busy ? null : _parseCatalog,
-                  icon: const Icon(Icons.auto_awesome_rounded),
-                  label: const Text('Analyser automatiquement'),
-                ),
-              ),
-              const SizedBox(width: 7),
-              IconButton.outlined(
-                tooltip: 'Ajouter manuellement',
-                onPressed: _busy ? null : _addManualProduct,
-                icon: const Icon(Icons.add_rounded),
-              ),
-            ],
-          ),
-          if (_manualProducts.isNotEmpty) ...[
+          if (_selectedDataTypes.contains('partner') &&
+              _partnerProducts.isEmpty) ...[
             const SizedBox(height: 8),
-            for (var index = 0; index < _manualProducts.length; index++)
-              _ProductRow(
-                product: _manualProducts[index],
-                onDelete: () {
-                  setState(() {
-                    _manualProducts.removeAt(index);
-                  });
-                },
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF6DE),
+                borderRadius: BorderRadius.circular(14),
               ),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Aucun produit Partenaire détecté pour ce compte. Vérifiez votre profil Partenaire et ses entreprises.',
+                      style: TextStyle(fontSize: 11.5),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Actualiser',
+                    onPressed: _busy ? null : _loadPartnerProducts,
+                    icon: const Icon(Icons.refresh_rounded),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (_selectedCatalogKinds().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              value: _catalogInputKind,
+              isExpanded: true,
+              decoration: _decoration(
+                label: 'Classification des données à importer',
+                hint:
+                    'Sélectionnez les familles de données que cet agent peut utiliser',
+                icon: Icons.category_outlined,
+              ),
+              items: _catalogKindsForSelection()
+                  .map((item) => DropdownMenuItem<String>(
+                        value: item,
+                        child: Text(_dataTypeLabel(item)),
+                      ))
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) setState(() => _catalogInputKind = value);
+              },
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _catalogText,
+              minLines: 3,
+              maxLines: 7,
+              decoration: _decoration(
+                label: 'Catalogue brut à analyser',
+                hint:
+                    'Collez une liste : nom, prix, description, disponibilité…',
+                icon: Icons.auto_fix_high_rounded,
+              ),
+            ),
+            const SizedBox(height: 7),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _busy ? null : _parseCatalog,
+                    icon: const Icon(Icons.auto_awesome_rounded),
+                    label: const Text('Analyser automatiquement'),
+                  ),
+                ),
+                const SizedBox(width: 7),
+                IconButton.outlined(
+                  tooltip: 'Ajouter manuellement',
+                  onPressed: _busy ? null : _addManualProduct,
+                  icon: const Icon(Icons.add_rounded),
+                ),
+              ],
+            ),
+            if (_manualProducts.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              for (var index = 0; index < _manualProducts.length; index++)
+                _ProductRow(
+                  product: _manualProducts[index],
+                  onDelete: () {
+                    setState(() {
+                      _manualProducts.removeAt(index);
+                    });
+                  },
+                ),
+            ],
           ],
         ],
-        const SizedBox(height: 14),
-        const _SectionTitle(
-          icon: Icons.menu_book_outlined,
-          title: 'Connaissances complémentaires',
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _knowledge,
-          minLines: 4,
-          maxLines: 10,
-          decoration: _decoration(
-            label: 'Informations utiles',
-            hint:
-                'Horaires, adresse, tarifs, règles, services, questions fréquentes…',
-            icon: Icons.notes_rounded,
+        if (_selectedDataTypes.contains('knowledge')) ...[
+          const SizedBox(height: 14),
+          const _SectionTitle(
+            icon: Icons.menu_book_outlined,
+            title: 'Connaissances complémentaires',
           ),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _knowledgeUrl,
-          keyboardType: TextInputType.url,
-          decoration: _decoration(
-            label: 'Lien public complémentaire',
-            hint: 'https://...',
-            icon: Icons.link_rounded,
+          const SizedBox(height: 8),
+          TextField(
+            controller: _knowledge,
+            minLines: 4,
+            maxLines: 10,
+            decoration: _decoration(
+              label: 'Informations utiles',
+              hint:
+                  'Horaires, adresse, tarifs, règles, services, questions fréquentes…',
+              icon: Icons.notes_rounded,
+            ),
           ),
-        ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _knowledgeUrl,
+            keyboardType: TextInputType.url,
+            decoration: _decoration(
+              label: 'Lien public complémentaire',
+              hint: 'https://...',
+              icon: Icons.link_rounded,
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
         Row(
           children: [
             Expanded(
               child: OutlinedButton(
                 onPressed: _busy ? null : _previousAgentStep,
-                child: const Text('Retour'),
+                child: const Text('Précédent'),
               ),
             ),
             const SizedBox(width: 8),
@@ -1369,7 +2065,7 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
             icon: Icons.science_outlined,
             title: 'Tester ${agent?.personaName ?? 'l’agent'}',
             message:
-                'Posez des questions réelles. Gemini Flash utilise les données chargées.',
+                'Posez des questions réelles. Le moteur IA utilise les données chargées.',
           ),
         ),
         Expanded(
@@ -1397,18 +2093,53 @@ class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
                   ),
           ),
         ),
+        if (_testAttachments.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+            child: Row(
+              children: [
+                const Icon(Icons.attach_file_rounded,
+                    size: 18, color: _primary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _testAttachments.first.filename,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Retirer',
+                  onPressed: _busy
+                      ? null
+                      : () => setState(
+                          () => _testAttachments = <StudioCatalogMedia>[]),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
           child: Row(
             children: [
+              IconButton.outlined(
+                tooltip: 'Joindre une photo, vidéo, audio ou un PDF',
+                onPressed: _busy ? null : _pickTestAttachment,
+                icon: const Icon(Icons.add_photo_alternate_outlined),
+              ),
+              const SizedBox(width: 8),
               Expanded(
                 child: TextField(
                   controller: _testInput,
                   enabled: !_busy,
+                  minLines: 1,
+                  maxLines: 4,
                   onSubmitted: (_) => _sendTest(),
                   decoration: _decoration(
                     label: 'Message de test',
-                    hint: 'Ex. Quels services proposez-vous ?',
+                    hint: 'Écrivez un message ou joignez un média…',
                     icon: Icons.chat_bubble_outline_rounded,
                   ),
                 ),
@@ -1777,6 +2508,177 @@ class _MainButton extends StatelessWidget {
           fontWeight: FontWeight.w900,
         ),
       ),
+    );
+  }
+}
+
+class _CurrentStepGuide extends StatelessWidget {
+  const _CurrentStepGuide({
+    required this.currentStep,
+    required this.titles,
+  });
+
+  final int currentStep;
+  final List<String> titles;
+
+  @override
+  Widget build(BuildContext context) {
+    final safeStep = currentStep.clamp(0, titles.length - 1).toInt();
+    final next = safeStep + 1 < titles.length ? titles[safeStep + 1] : null;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 9, 16, 9),
+      color: const Color(0xFFEAF6F3),
+      child: Row(
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(
+              color: Color(0xFF0B7F72),
+              shape: BoxShape.circle,
+            ),
+            child: Text(
+              '${safeStep + 1}',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Étape ${safeStep + 1} sur ${titles.length} · ${titles[safeStep]}',
+                  style: const TextStyle(
+                    color: Color(0xFF17211F),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                if (next != null)
+                  Text(
+                    'Ensuite : $next',
+                    style: const TextStyle(
+                      color: Color(0xFF667874),
+                      fontSize: 10.5,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LineNavigationButtons extends StatelessWidget {
+  const _LineNavigationButtons({
+    required this.onBack,
+    required this.onNext,
+    required this.backLabel,
+    required this.nextLabel,
+    required this.nextIcon,
+    required this.busy,
+  });
+
+  final VoidCallback onBack;
+  final VoidCallback onNext;
+  final String backLabel;
+  final String nextLabel;
+  final IconData nextIcon;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stackButtons = constraints.maxWidth < 330;
+
+        final backButton = SizedBox(
+          height: 53,
+          child: OutlinedButton.icon(
+            onPressed: busy ? null : onBack,
+            icon: const Icon(Icons.arrow_back_rounded, size: 20),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                backLabel,
+                maxLines: 1,
+                softWrap: false,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(53),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(17),
+              ),
+            ),
+          ),
+        );
+
+        final nextButton = SizedBox(
+          height: 53,
+          child: FilledButton.icon(
+            onPressed: busy ? null : onNext,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(53),
+              backgroundColor: const Color(0xFF0B7F72),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(17),
+              ),
+            ),
+            icon: busy
+                ? const SizedBox.square(
+                    dimension: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : Icon(nextIcon, size: 21),
+            label: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                busy ? 'Connexion en cours…' : nextLabel,
+                maxLines: 1,
+                softWrap: false,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ),
+          ),
+        );
+
+        if (stackButtons) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              nextButton,
+              const SizedBox(height: 8),
+              backButton,
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(flex: 4, child: backButton),
+            const SizedBox(width: 8),
+            Expanded(flex: 7, child: nextButton),
+          ],
+        );
+      },
     );
   }
 }
@@ -2258,9 +3160,13 @@ class _ProductRow extends StatelessWidget {
     return ListTile(
       dense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 5),
-      leading: const Icon(
-        Icons.inventory_2_outlined,
-        color: Color(0xFF0B7F72),
+      leading: Icon(
+        product.kind == 'training'
+            ? Icons.school_outlined
+            : product.kind == 'presentation'
+                ? Icons.slideshow_outlined
+                : Icons.inventory_2_outlined,
+        color: const Color(0xFF0B7F72),
       ),
       title: Text(
         product.name,
@@ -2268,10 +3174,17 @@ class _ProductRow extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: Text(
-        product.priceFcfa == null
-            ? (product.description ?? 'Prix sur demande')
-            : '${product.priceFcfa} FCFA',
-        maxLines: 1,
+        [
+          product.kind == 'training'
+              ? 'Formation'
+              : product.kind == 'presentation'
+                  ? 'Présentation'
+                  : 'Produit / service',
+          if (product.category?.isNotEmpty == true) product.category!,
+          if (product.priceFcfa != null) '${product.priceFcfa} FCFA',
+          if (product.duration?.isNotEmpty == true) product.duration!,
+        ].join(' · '),
+        maxLines: 2,
         overflow: TextOverflow.ellipsis,
       ),
       trailing: IconButton(
@@ -2534,37 +3447,7 @@ class _ChatBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: message.isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.sizeOf(context).width * 0.77,
-        ),
-        padding: const EdgeInsets.symmetric(
-          horizontal: 13,
-          vertical: 10,
-        ),
-        decoration: BoxDecoration(
-          color: message.isUser
-              ? const Color(0xFF0B7F72)
-              : const Color(0xFFF0F5F3),
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(17),
-            topRight: const Radius.circular(17),
-            bottomLeft: Radius.circular(message.isUser ? 17 : 5),
-            bottomRight: Radius.circular(message.isUser ? 5 : 17),
-          ),
-        ),
-        child: Text(
-          message.content,
-          style: TextStyle(
-            color: message.isUser ? Colors.white : const Color(0xFF17211F),
-            fontSize: 13.5,
-            height: 1.35,
-          ),
-        ),
-      ),
-    );
+    return StudioPremiumChatBubble(message: message);
   }
 }
 
@@ -2576,7 +3459,7 @@ class _TypingMessage extends StatelessWidget {
     return const Align(
       alignment: Alignment.centerLeft,
       child: Text(
-        'Gemini Flash analyse les données…',
+        'Le moteur IA analyse les données…',
         style: TextStyle(
           color: Color(0xFF667874),
           fontSize: 12,

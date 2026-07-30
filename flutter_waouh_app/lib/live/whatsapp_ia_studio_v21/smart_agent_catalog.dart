@@ -78,14 +78,16 @@ class SmartAgentCatalog {
     SmartAgentSourceDefinition(
       kind: SmartAgentSourceKind.smart,
       label: 'Agent intelligent complet',
-      description: 'Combine site, documents, catalogue et connaissances.',
+      description:
+          'Combine site, documents, produits, formations, présentations et connaissances.',
       icon: Icons.auto_awesome_rounded,
       backendType: 'commerce',
     ),
     SmartAgentSourceDefinition(
       kind: SmartAgentSourceKind.catalog,
       label: 'Catalogue / Données',
-      description: 'Produits, services, prix, disponibilités et commandes.',
+      description:
+          'Produits, services, formations, présentations, prix et disponibilités.',
       icon: Icons.inventory_2_outlined,
       backendType: 'commerce',
     ),
