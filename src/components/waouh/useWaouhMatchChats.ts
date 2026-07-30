@@ -83,9 +83,12 @@ function mergeSnapshots(a: CachedMsg[], b: CachedMsg[]): CachedMsg[] {
  * to the canonical `art_<articleId>_<role>` key, merging histories.
  */
 function migrateLegacyKeys(sid: string, openTabs: MatchChatMeta[]): MatchChatMeta[] {
-  const MIGRATION_FLAG = `waouh_keys_migrated_v3_${sid}`;
+  const MIGRATION_FLAG = `waouh_keys_migrated_v4_${sid}`;
+  const LEGACY_FLAG_V3 = `waouh_keys_migrated_v3_${sid}`;
   try {
     if (localStorage.getItem(MIGRATION_FLAG) === "1") return openTabs;
+    // v13 : la migration v4 doit rejouer même si v3 a déjà tourné.
+    localStorage.removeItem(LEGACY_FLAG_V3);
   } catch {
     return openTabs;
   }
@@ -99,12 +102,13 @@ function migrateLegacyKeys(sid: string, openTabs: MatchChatMeta[]): MatchChatMet
       const k = localStorage.key(i);
       if (!k || !k.startsWith(prefix)) continue;
       const tail = k.slice(prefix.length);
-      // v12 canonical: art_<id>_buyer | art_<id>_seller_<counterpart|any>
-      if (tail.startsWith("art_") && (tail.endsWith("_buyer") || /_seller_.+$/.test(tail))) continue;
+      // v13 canonical: art_<id>_<buyer|seller>_<counterpart|any>
+      if (tail.startsWith("art_") && /_(buyer|seller)_.+$/.test(tail)) continue;
       let canonical: string | null = null;
-      // v11 legacy: art_<id>_seller (no counterpart) → migrate to _any bucket
-      let m = tail.match(/^art_(.+)_seller$/);
-      if (m) canonical = matchKey(m[1], "seller", null);
+      // v11/v12 legacy: art_<id>_seller | art_<id>_buyer (no counterpart) → _any
+      let m = tail.match(/^art_(.+)_(buyer|seller)$/);
+      if (m) canonical = matchKey(m[1], m[2] as any, null);
+
       // msg_<art>_<role>
       if (!canonical) {
         m = tail.match(/^msg_(.+)_(buyer|seller)$/);
