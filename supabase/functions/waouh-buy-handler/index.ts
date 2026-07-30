@@ -73,8 +73,18 @@ Deno.serve(async (req) => {
         response_format: { type: 'json_object' },
       }),
     });
-    const aiData = await aiRes.json();
-    const q = JSON.parse(aiData.choices[0].message.content);
+    // Tolérance de panne IA (429/402/timeout) : on retombe sur l'extraction
+    // locale de mots-clés au lieu de casser toute la recherche.
+    let q: any = {};
+    try {
+      const aiData = await aiRes.json();
+      const raw = aiData?.choices?.[0]?.message?.content;
+      if (!raw) console.warn('[buy-handler] AI gateway sans contenu', aiRes.status, JSON.stringify(aiData)?.slice(0, 300));
+      q = raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      console.warn('[buy-handler] AI parse failed, fallback local', e);
+      q = {};
+    }
 
     // Save buyer profile
     const { data: profile } = await supabase.from('waouh_buyer_profiles').insert({
