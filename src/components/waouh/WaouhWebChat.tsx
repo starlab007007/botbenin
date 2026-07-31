@@ -743,7 +743,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                       a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="text-emerald-600 dark:text-emerald-400 underline underline-offset-2">{children}</a>,
                     }}
                   >
-                    {stripLegacy(m.text)}
+                    {m.meta?.results?.length ? compactResultsText(stripLegacy(m.text)) : stripLegacy(m.text)}
                   </ReactMarkdown>
                 )}
 
