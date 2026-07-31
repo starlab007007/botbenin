@@ -747,8 +747,17 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                   </ReactMarkdown>
                 )}
 
+                {/* 🖼️ Fiches produit : 1 article = 1 fiche + SES photos (zoom dédié) */}
+                {Array.isArray(m.meta?.results) && m.meta!.results!.length > 0 && (
+                  <WaouhProductResults
+                    results={m.meta!.results!}
+                    onAction={(txt) => sendCore(txt, [])}
+                  />
+                )}
+
                 {/* Catalogue produits renvoyés par WAOUH */}
                 {Array.isArray((m as any).meta?.products) && (m as any).meta.products.length > 0 && (
+
                   <div className="grid grid-cols-2 gap-2 mt-2 not-prose">
                     {((m as any).meta.products as any[]).slice(0, 6).map((p, i) => {
                       const photo = Array.isArray(p.photos) ? p.photos[0] : (p.photo || p.image || null);
