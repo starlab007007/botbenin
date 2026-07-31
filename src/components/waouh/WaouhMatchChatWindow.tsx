@@ -6,6 +6,8 @@ import { Send, ShoppingBag, Target, CheckCircle2, Lock, Loader2 } from "lucide-r
 import { supabase } from "@/integrations/supabase/client";
 import { ChatImage } from "@/app-mobile/components/ChatImage";
 import { WaouhProductResults } from "@/components/waouh/WaouhProductCard";
+import { WaouhArticleSummary } from "@/components/waouh/WaouhArticleSummary";
+
 
 import { cn } from "@/lib/utils";
 import { formatMatchLabel } from "@/app-mobile/utils/chatLabel";
@@ -651,7 +653,19 @@ export function WaouhMatchChatWindow({
         </div>
       </div>
 
+      {/* Résumé automatique de CETTE négociation (1 article × 1 interlocuteur) */}
+      <div className="px-2 pt-2">
+        <WaouhArticleSummary
+          messages={messages.map((m) => ({ direction: m.direction, text: m.text, created_at: m.created_at }))}
+          title={match.title}
+          price={match.price}
+          role={match.kind}
+          closed={closed}
+        />
+      </div>
+
       {/* Messages area — same WAOUH doodle background */}
+
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2 waouh-chat-bg">
         {/* Seed notification bubble — always pinned at top */}
         <div className="mx-auto max-w-[92%] rounded-2xl border border-amber-300/70 bg-amber-50/95 dark:bg-amber-900/30 dark:border-amber-700/60 px-3 py-2.5 shadow-sm">

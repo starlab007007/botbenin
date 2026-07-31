@@ -1,8 +1,24 @@
-import React, { useState } from "react";
-import { ChevronLeft, ChevronRight, ImageOff, MapPin, Navigation, BadgeCheck, Radar, ShoppingBag } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ImageOff,
+  MapPin,
+  Navigation,
+  BadgeCheck,
+  Radar,
+  ShoppingBag,
+  Maximize2,
+  MessageCircleQuestion,
+  X,
+  Send,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ChatImageLightbox } from "@/app-mobile/components/ChatImageLightbox";
+import { isImageReady, preloadImage, prefetchNeighbours } from "@/components/waouh/waouhImageCache";
 import { cn } from "@/lib/utils";
+
 
 /**
  * Fiche produit d'un résultat de recherche WAOUH.
@@ -53,9 +69,36 @@ export function WaouhProductCard({
   const photos = (result.photos || []).filter(Boolean);
   const [cur, setCur] = useState(0);
   const [zoom, setZoom] = useState<number | null>(null);
+  const [ready, setReady] = useState<boolean>(() => isImageReady(photos[0]));
+  const [asking, setAsking] = useState(false);
+  const [question, setQuestion] = useState("");
   const gallery = photos.map((url) => ({ url, caption: result.title }));
 
+  // Cache + préchargement des voisins → carrousel fluide même avec plusieurs résultats
+  useEffect(() => {
+    const url = photos[cur];
+    if (!url) return;
+    if (isImageReady(url)) {
+      setReady(true);
+    } else {
+      setReady(false);
+      let alive = true;
+      preloadImage(url).then((ok) => { if (alive && ok) setReady(true); });
+      return () => { alive = false; };
+    }
+    prefetchNeighbours(photos, cur);
+  }, [cur, photos.join("|")]);
+
   const go = (dir: 1 | -1) => setCur((c) => (photos.length ? (c + dir + photos.length) % photos.length : 0));
+
+  const counterpartWord = result.source === "partner" || result.source === "waouh" ? "vendeur" : "vendeur";
+  const submitQuestion = () => {
+    const q = question.trim();
+    if (!q || !onAction) return;
+    onAction(`question ${result.index} : ${q}`);
+    setQuestion("");
+    setAsking(false);
+  };
 
   return (
     <div className="not-prose rounded-xl border border-border bg-card overflow-hidden shadow-sm">
@@ -69,13 +112,28 @@ export function WaouhProductCard({
               className="block w-full h-full"
               aria-label={`Agrandir la photo de ${result.title}`}
             >
+              {!ready && (
+                <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-muted to-muted-foreground/10" />
+              )}
               <img
                 src={photos[cur]}
                 alt={result.title}
                 loading="lazy"
                 decoding="async"
-                className="w-full h-full object-cover"
+                onLoad={() => setReady(true)}
+                className={cn(
+                  "w-full h-full object-cover transition-opacity duration-200",
+                  ready ? "opacity-100" : "opacity-0"
+                )}
               />
+            </button>
+            <button
+              type="button"
+              onClick={() => setZoom(cur)}
+              aria-label="Voir en plein écran"
+              className="absolute right-1 top-1 rounded-full bg-background/80 p-1 shadow"
+            >
+              <Maximize2 className="h-3.5 w-3.5" />
             </button>
             {photos.length > 1 && (
               <>
@@ -140,10 +198,54 @@ export function WaouhProductCard({
           <p className="text-[11px] leading-snug text-muted-foreground line-clamp-3">{result.market_line}</p>
         )}
 
-        {result.action && onAction && (
-          <Button size="sm" className="w-full h-8 text-xs mt-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => onAction(result.action!)}>
-            Je suis intéressé
-          </Button>
+        {/* Actions dédiées à CET article — chacune reste rattachée à sa fenêtre */}
+        {onAction && (
+          <div className="mt-1 space-y-1.5">
+            {result.action && (
+              <Button
+                size="sm"
+                className="w-full h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => onAction(result.action!)}
+              >
+                Je suis intéressé
+              </Button>
+            )}
+            <div className="grid grid-cols-2 gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-[11px]"
+                onClick={() => setAsking((a) => !a)}
+              >
+                <MessageCircleQuestion className="h-3.5 w-3.5 mr-1" />
+                Question au {counterpartWord}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 text-[11px] text-muted-foreground hover:text-destructive"
+                onClick={() => onAction(`annuler ${result.index}`)}
+              >
+                <X className="h-3.5 w-3.5 mr-1" />
+                Annuler
+              </Button>
+            </div>
+            {asking && (
+              <div className="flex items-center gap-1.5">
+                <Input
+                  autoFocus
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submitQuestion(); } }}
+                  placeholder={`Votre question sur « ${result.title.slice(0, 22)}… »`}
+                  className="h-8 text-xs"
+                />
+                <Button size="sm" className="h-8 px-2" onClick={submitQuestion} aria-label="Envoyer la question">
+                  <Send className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -153,6 +255,7 @@ export function WaouhProductCard({
     </div>
   );
 }
+
 
 export function WaouhProductResults({
   results,
