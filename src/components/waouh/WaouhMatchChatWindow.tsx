@@ -5,6 +5,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Send, ShoppingBag, Target, CheckCircle2, Lock, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ChatImage } from "@/app-mobile/components/ChatImage";
+import { WaouhProductResults } from "@/components/waouh/WaouhProductCard";
+
 import { cn } from "@/lib/utils";
 import { formatMatchLabel } from "@/app-mobile/utils/chatLabel";
 import "@/app-mobile/theme/chat-bg.css";
@@ -699,11 +701,17 @@ export function WaouhMatchChatWindow({
                 : "mr-auto bg-card border rounded-bl-sm"
             )}
           >
-            {Array.isArray(m.attachments) &&
+            {/* Fiches produit (article + ses photos) si le moteur en a renvoyé */}
+            {Array.isArray(m.meta?.results) && m.meta.results.length > 0 ? (
+              <WaouhProductResults results={m.meta.results} compact />
+            ) : (
+              Array.isArray(m.attachments) &&
               m.attachments.map((a: any, i: number) => (
                 <ChatImage key={i} src={a.url} alt="" className="rounded-lg mb-1 max-h-60" />
-              ))}
+              ))
+            )}
             <div className="whitespace-pre-wrap">{m.text}</div>
+
           </div>
         ))}
 

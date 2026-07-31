@@ -7,7 +7,7 @@ import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identit
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-api-key",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-api-key, x-waouh-session",
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
 };
 
@@ -567,6 +567,8 @@ serve(async (req) => {
     log("core reply", { ok: coreRes.ok, intent: core.intent, hasReply: !!core.reply });
     const reply: string = core.reply ?? "Désolé, une erreur est survenue. Réessayez.";
     const actions: WaouhAction[] = Array.isArray(core.actions) ? core.actions : [];
+    // 🖼️ Fiches produit structurées (1 fiche = 1 article + ses photos)
+    const results: any[] = Array.isArray(core.results) ? core.results : [];
 
     // Persist outgoing
     const outboundArticleId: string | null = core.article_id ?? inboundArticleId ?? null;
@@ -576,9 +578,10 @@ serve(async (req) => {
       web_session_id: sessionId, phone_number: phone,
       attachments: Array.isArray(core.attachments) ? core.attachments : [],
       article_id: outboundArticleId,
-      meta: { intent: core.intent ?? null, transaction_id: core.transaction_id ?? null, article_id: outboundArticleId, counterpart_user_id: core.counterpart_user_id ?? null, correlation_id: correlationId, actions },
+      meta: { intent: core.intent ?? null, transaction_id: core.transaction_id ?? null, article_id: outboundArticleId, counterpart_user_id: core.counterpart_user_id ?? null, correlation_id: correlationId, actions, results },
     }).select("id").maybeSingle();
     const outboundMessageId: string | null = outboundRow?.id ?? null;
+
     if (convId) {
       await sb.from("waouh_conversations")
         .update({ last_message: reply, last_intent: core.intent ?? null, updated_at: new Date().toISOString() })
@@ -593,7 +596,7 @@ serve(async (req) => {
       } catch (e) { console.error("WAHA send failed", e); }
     }
 
-    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, actions, attachments: Array.isArray(core.attachments) ? core.attachments : [], inbound_message_id: inboundMessageId, outbound_message_id: outboundMessageId, conversation_id: convId, user_id: user.id, article_id: outboundArticleId, counterpart_user_id: core.counterpart_user_id ?? null, transaction_id: core.transaction_id ?? null, correlation_id: correlationId }), {
+    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, actions, results, attachments: Array.isArray(core.attachments) ? core.attachments : [], inbound_message_id: inboundMessageId, outbound_message_id: outboundMessageId, conversation_id: convId, user_id: user.id, article_id: outboundArticleId, counterpart_user_id: core.counterpart_user_id ?? null, transaction_id: core.transaction_id ?? null, correlation_id: correlationId }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 

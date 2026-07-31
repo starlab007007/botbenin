@@ -6,7 +6,7 @@ import { chatCompletion } from "../_shared/agent-ai.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-waouh-session",
 };
 
 const GATEWAY = "https://ai.gateway.lovable.dev/v1";

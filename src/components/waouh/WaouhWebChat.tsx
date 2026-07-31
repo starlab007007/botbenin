@@ -16,6 +16,8 @@ import { WaouhPaymentDialog } from "./WaouhPaymentDialog";
 import { WaouhQuickActions, type QuickAction } from "./WaouhQuickActions";
 import { WaouhSellWizard } from "./WaouhSellWizard";
 import { ChatImage } from "@/app-mobile/components/ChatImage";
+import { WaouhProductResults, compactResultsText, type WaouhResultCard } from "@/components/waouh/WaouhProductCard";
+
 import { NativeSellSheet } from "./NativeSellSheet";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -47,7 +49,9 @@ type Msg = {
     intent?: string | null;
     article_id?: string | null;
     counterpart_user_id?: string | null;
+    results?: WaouhResultCard[] | null;
   } | null;
+
 };
 
 /** Intents qui doivent basculer la négociation dans une fenêtre dédiée (1 article × 1 interlocuteur). */
@@ -497,6 +501,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
 
       if ((data as any)?.reply) {
         const replyAtts = Array.isArray((data as any)?.attachments) ? (data as any).attachments : null;
+        const replyResults: WaouhResultCard[] = Array.isArray((data as any)?.results) ? (data as any).results : [];
         setMessages((prev) => {
           const hasFresh = prev.some((m) => m.direction === "out" && m.created_at && new Date(m.created_at).getTime() > Date.now() - 15000);
           if (hasFresh) return prev;
@@ -513,7 +518,9 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                 transaction_id: (data as any).transaction_id ?? null,
                 article_id: respArticleId,
                 counterpart_user_id: respCounterpart,
+                results: replyResults,
               },
+
             },
           ];
         });
@@ -699,7 +706,10 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                   m.direction === "in" ? "chat-bubble-out" : "chat-bubble-in waouh-bot-bubble"
                 )}
               >
-                {Array.isArray(m.attachments) && m.attachments.length > 0 && (
+                {/* Photos à plat : masquées quand des fiches produit structurées existent
+                    (chaque photo est alors rattachée à SON article). */}
+                {Array.isArray(m.attachments) && m.attachments.length > 0 && !(m.meta?.results?.length) && (
+
                   <div className={cn("grid gap-2 mb-2 not-prose", m.attachments.length === 1 ? "grid-cols-1" : m.attachments.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
                     {m.attachments.map((a, i) => (
                       <ChatImage
@@ -733,12 +743,21 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                       a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="text-emerald-600 dark:text-emerald-400 underline underline-offset-2">{children}</a>,
                     }}
                   >
-                    {stripLegacy(m.text)}
+                    {m.meta?.results?.length ? compactResultsText(stripLegacy(m.text)) : stripLegacy(m.text)}
                   </ReactMarkdown>
+                )}
+
+                {/* 🖼️ Fiches produit : 1 article = 1 fiche + SES photos (zoom dédié) */}
+                {Array.isArray(m.meta?.results) && m.meta!.results!.length > 0 && (
+                  <WaouhProductResults
+                    results={m.meta!.results!}
+                    onAction={(txt) => sendCore(txt, [])}
+                  />
                 )}
 
                 {/* Catalogue produits renvoyés par WAOUH */}
                 {Array.isArray((m as any).meta?.products) && (m as any).meta.products.length > 0 && (
+
                   <div className="grid grid-cols-2 gap-2 mt-2 not-prose">
                     {((m as any).meta.products as any[]).slice(0, 6).map((p, i) => {
                       const photo = Array.isArray(p.photos) ? p.photos[0] : (p.photo || p.image || null);

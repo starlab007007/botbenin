@@ -15,7 +15,7 @@ import { compareMarketPrice, shortMarketLine } from "../_shared/waouh-price.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-waouh-session",
 };
 
 const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
@@ -509,7 +509,12 @@ serve(async (req) => {
     let returnedCounterpartId: string | null = null;
     let returnedTransactionId: string | null = null;
     let replyAttachments: Array<{ url: string; type: string }> = [];
+    // 🖼️ v14 — Fiches produit structurées (1 fiche = 1 article + SES photos).
+    // Consommées par les surfaces riches (web / mobile) ; WhatsApp continue
+    // d'utiliser `reply` (texte) + `attachments` (images).
+    let replyResults: Array<Record<string, any>> = [];
     let returnedActions: Array<{ id: string; label: string }> = [];
+
     let nextContext: any = radarHydratedContext ?? (conv?.context ?? {});
 
     const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
@@ -1115,8 +1120,11 @@ serve(async (req) => {
           const loc = [p.ville, p.quartier].filter(Boolean).join(" · ") || "?";
           return `*${idx}. ${p.titre}*\n💰 *${priceTxt}*\n🏙️ ${loc}${photoLine}\n✅ Partenaire vérifié`;
         }).join(`\n\n${waouhSep}\n\n`);
+        // Extras calculés dans la boucle officielle et réutilisés par les fiches
+        const officialExtras: Record<number, { market_line: string; dist_km: number | null }> = {};
         // Liste officielle (chat) — avec analyse marché IA + distance live
         const officialList = (await Promise.all(matchesTop.map(async (m: any, i: number) => {
+
           const idx = partnerTop.length + i + 1;
           const photos: string[] = Array.isArray(m.photos) ? m.photos.filter((u: any) => typeof u === "string") : [];
           const photoLine = photos.length > 0 ? `\n📸 ${photos.length} photo${photos.length > 1 ? "s" : ""}` : "";
@@ -1142,14 +1150,20 @@ serve(async (req) => {
           }
           // Distance live vendeur ↔ acheteur via RPC PostGIS
           let distLine = "";
+          let distKmOfficial: number | null = null;
           if (m.seller_id) {
             try {
               const { data: d } = await sb.rpc("waouh_point_distance_km", { p_user: m.seller_id, p_lat: lat, p_lng: lng });
-              if (typeof d === "number") distLine = `\n${fmtDistance(Math.round(d * 10) / 10)}`;
+              if (typeof d === "number") {
+                distKmOfficial = Math.round(d * 10) / 10;
+                distLine = `\n${fmtDistance(distKmOfficial)}`;
+              }
             } catch {}
           }
+          officialExtras[idx] = { market_line: marketLine.replace(/^\n/, "").trim(), dist_km: distKmOfficial };
           return `*${idx}. ${m.title}*\n💰 *${fmt(m.price)}*\n🏙️ ${m.city ?? "?"} · ${m.condition}${distLine}${photoLine}${marketLine}`;
         }))).join(`\n\n${waouhSep}\n\n`);
+
         const radarList = radarTop.map((r: any, i: number) => {
           const idx = partnerTop.length + matchesTop.length + i + 1;
           const title = r.product?.title || r.product?.name || (r.raw_text || "").slice(0, 60) || "Annonce externe";
@@ -1205,6 +1219,68 @@ serve(async (req) => {
             }));
           }),
         ].slice(0, 12);
+        // 🖼️ Fiches produit structurées — 1 fiche = 1 article + SES photos.
+        // ⚠️ INVARIANT: même ordre que la liste texte et que last_matches
+        // (partnerTop → matchesTop → radarTop) pour que « intéressé N » vise
+        // exactement la fiche n°N.
+        replyResults = [
+          ...partnerTop.map((p: any, i: number) => ({
+            index: i + 1,
+            id: p.id,
+            title: p.titre,
+            price: Number(p.prix_min || p.prix_max || 0) || null,
+            price_min: p.prix_min ? Number(p.prix_min) : null,
+            price_max: p.prix_max ? Number(p.prix_max) : null,
+            city: p.ville ?? null,
+            quartier: p.quartier ?? null,
+            distance_km: null,
+            source: "partner",
+            badge: "✅ Partenaire vérifié",
+            market_line: null,
+            photos: (Array.isArray(p.photos) ? p.photos.filter(isPublicImageUrl) : []).slice(0, 6),
+            action: `intéressé ${i + 1}`,
+          })),
+          ...matchesTop.map((m: any, i: number) => {
+            const idx = partnerTop.length + i + 1;
+            return {
+              index: idx,
+              id: m.id,
+              title: m.title,
+              price: Number(m.price || 0) || null,
+              price_min: null,
+              price_max: null,
+              city: m.city ?? null,
+              quartier: null,
+              condition: m.condition ?? null,
+              distance_km: officialExtras[idx]?.dist_km ?? null,
+              source: "waouh",
+              badge: "🛒 Annonce WAOUH",
+              market_line: officialExtras[idx]?.market_line || null,
+              photos: (Array.isArray(m.photos) ? m.photos.filter(isPublicImageUrl) : []).slice(0, 6),
+              action: `intéressé ${idx}`,
+            };
+          }),
+          ...radarTop.map((r: any, i: number) => {
+            const idx = partnerTop.length + matchesTop.length + i + 1;
+            return {
+              index: idx,
+              id: r.id,
+              title: r.product?.title || r.product?.name || (r.raw_text || "").slice(0, 60) || "Annonce externe",
+              price: r.price ? Number(r.price) : null,
+              price_min: null,
+              price_max: null,
+              city: r.city ?? null,
+              quartier: null,
+              distance_km: null,
+              source: "radar",
+              badge: "📡 Radar IA",
+              market_line: null,
+              photos: extractProductPhotos(r).filter(isPublicImageUrl).slice(0, 6),
+              action: `intéressé ${idx}`,
+            };
+          }),
+        ];
+
         const radarHint = radarTop.length > 0
           ? `\n\n🛰️ *${radarTop.length} annonce${radarTop.length > 1 ? "s" : ""}* détectée${radarTop.length > 1 ? "s" : ""} via Radar IA. Nous contactons automatiquement ces vendeurs sur WhatsApp pour vous.`
           : "";
@@ -1543,6 +1619,23 @@ serve(async (req) => {
           }
         }
         replyAttachments = firstPhoto ? [{ url: firstPhoto, type: "image/jpeg", caption: pick.title }] : [];
+        // Fiche unique de l'article choisi — continuité visuelle du parcours
+        replyResults = [{
+          index: 1,
+          id: pick.id,
+          title: pick.title,
+          price: Number(askPrice || pick.price || 0) || null,
+          city: pick.city ?? null,
+          distance_km: distKm ?? null,
+          source: "waouh",
+          badge: "🤝 Mise en relation en cours",
+          market_line: null,
+          photos: Array.isArray(pick.photos)
+            ? pick.photos.filter((u: any) => typeof u === "string" && /^https?:\/\//.test(u)).slice(0, 6)
+            : (firstPhoto ? [firstPhoto] : []),
+          action: null,
+        }];
+
         returnedActions = [];
         const distLineBuyer = distKm != null ? `\n${fmtDistance(distKm)}` : "";
         reply = `${waouhHeader("✅ Demande envoyée au vendeur")}\n\n📦 *${pick.title}*\n💰 *Prix du vendeur* : ${fmt(askPrice)}${distLineBuyer}\n${firstPhoto ? "📸 *Photo transmise au vendeur*\n" : ""}\n*Que souhaitez-vous faire ?*\n1️⃣ Répondez *OUI* pour accepter ce prix (${fmt(askPrice)}).\n2️⃣ Ou proposez votre prix : *Je propose ${fmt(Math.round(askPrice * 0.9))}*.\n\nLe vendeur attend votre décision.\n\n${waouhFooter()}`;
@@ -1688,7 +1781,7 @@ serve(async (req) => {
       body: JSON.stringify({ limit: 20 }),
     }).catch(() => {});
 
-    return new Response(JSON.stringify({ ok: true, intent: intent.intent, reply, attachments: replyAttachments, article_id: returnedArticleId, counterpart_user_id: returnedCounterpartId, transaction_id: returnedTransactionId, actions: returnedActions }), {
+    return new Response(JSON.stringify({ ok: true, intent: intent.intent, reply, attachments: replyAttachments, results: replyResults, article_id: returnedArticleId, counterpart_user_id: returnedCounterpartId, transaction_id: returnedTransactionId, actions: returnedActions }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {

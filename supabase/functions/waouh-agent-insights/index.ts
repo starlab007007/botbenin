@@ -6,7 +6,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-waouh-session",
+  ,
 };
 
 const STOP = new Set("le la les de des du et un une à en pour par avec sur ou est c'est je tu il elle nous vous ils elles bonjour bonsoir merci ok oui non ça sa ce cette ces mes ton ta si mais que qui quoi comment quand où combien wa waouh whatsapp".split(/\s+/));
