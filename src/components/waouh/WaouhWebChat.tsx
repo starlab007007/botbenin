@@ -706,7 +706,10 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                   m.direction === "in" ? "chat-bubble-out" : "chat-bubble-in waouh-bot-bubble"
                 )}
               >
-                {Array.isArray(m.attachments) && m.attachments.length > 0 && (
+                {/* Photos à plat : masquées quand des fiches produit structurées existent
+                    (chaque photo est alors rattachée à SON article). */}
+                {Array.isArray(m.attachments) && m.attachments.length > 0 && !(m.meta?.results?.length) && (
+
                   <div className={cn("grid gap-2 mb-2 not-prose", m.attachments.length === 1 ? "grid-cols-1" : m.attachments.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
                     {m.attachments.map((a, i) => (
                       <ChatImage
