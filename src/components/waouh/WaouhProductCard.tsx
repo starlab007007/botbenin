@@ -174,3 +174,17 @@ export function WaouhProductResults({
 }
 
 export default WaouhProductCard;
+
+/**
+ * INVARIANT v14 — l'ordre des fiches doit refléter exactement `last_matches` :
+ * la fiche en position i porte index i+1 et l'action « intéressé i+1 ».
+ * Utilisé par les tests de verrouillage du flux de chat.
+ */
+export function validateResultsInvariant(results: WaouhResultCard[], lastMatches?: Array<{ id: string }>): boolean {
+  return results.every((r, i) => {
+    if (r.index !== i + 1) return false;
+    if (r.action && r.action !== `intéressé ${i + 1}`) return false;
+    if (lastMatches && lastMatches[i] && lastMatches[i].id !== r.id) return false;
+    return true;
+  });
+}
