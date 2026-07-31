@@ -567,6 +567,8 @@ serve(async (req) => {
     log("core reply", { ok: coreRes.ok, intent: core.intent, hasReply: !!core.reply });
     const reply: string = core.reply ?? "Désolé, une erreur est survenue. Réessayez.";
     const actions: WaouhAction[] = Array.isArray(core.actions) ? core.actions : [];
+    // 🖼️ Fiches produit structurées (1 fiche = 1 article + ses photos)
+    const results: any[] = Array.isArray(core.results) ? core.results : [];
 
     // Persist outgoing
     const outboundArticleId: string | null = core.article_id ?? inboundArticleId ?? null;
@@ -576,9 +578,10 @@ serve(async (req) => {
       web_session_id: sessionId, phone_number: phone,
       attachments: Array.isArray(core.attachments) ? core.attachments : [],
       article_id: outboundArticleId,
-      meta: { intent: core.intent ?? null, transaction_id: core.transaction_id ?? null, article_id: outboundArticleId, counterpart_user_id: core.counterpart_user_id ?? null, correlation_id: correlationId, actions },
+      meta: { intent: core.intent ?? null, transaction_id: core.transaction_id ?? null, article_id: outboundArticleId, counterpart_user_id: core.counterpart_user_id ?? null, correlation_id: correlationId, actions, results },
     }).select("id").maybeSingle();
     const outboundMessageId: string | null = outboundRow?.id ?? null;
+
     if (convId) {
       await sb.from("waouh_conversations")
         .update({ last_message: reply, last_intent: core.intent ?? null, updated_at: new Date().toISOString() })
