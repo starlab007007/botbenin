@@ -141,7 +141,7 @@ export function WaouhProductCard({
         )}
 
         {result.action && onAction && (
-          <Button size="sm" className="w-full h-8 text-xs mt-1" onClick={() => onAction(result.action!)}>
+          <Button size="sm" className="w-full h-8 text-xs mt-1 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => onAction(result.action!)}>
             Je suis intéressé
           </Button>
         )}
