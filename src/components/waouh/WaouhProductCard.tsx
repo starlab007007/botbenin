@@ -188,3 +188,15 @@ export function validateResultsInvariant(results: WaouhResultCard[], lastMatches
     return true;
   });
 }
+
+/**
+ * Quand des fiches produit structurées existent, le texte listant à nouveau
+ * chaque annonce fait doublon : on ne garde que l'entête et le pied de réponse.
+ */
+export function compactResultsText(text: string): string {
+  if (!text) return text;
+  const blocks = text.split(/\n?━{3,}\n?/).map((b) => b.trim()).filter(Boolean);
+  const kept = blocks.filter((b) => !/^\*?\d+[.)]/.test(b));
+  if (!kept.length) return "";
+  return kept.join("\n\n");
+}
