@@ -699,11 +699,17 @@ export function WaouhMatchChatWindow({
                 : "mr-auto bg-card border rounded-bl-sm"
             )}
           >
-            {Array.isArray(m.attachments) &&
+            {/* Fiches produit (article + ses photos) si le moteur en a renvoyé */}
+            {Array.isArray(m.meta?.results) && m.meta.results.length > 0 ? (
+              <WaouhProductResults results={m.meta.results} compact />
+            ) : (
+              Array.isArray(m.attachments) &&
               m.attachments.map((a: any, i: number) => (
                 <ChatImage key={i} src={a.url} alt="" className="rounded-lg mb-1 max-h-60" />
-              ))}
+              ))
+            )}
             <div className="whitespace-pre-wrap">{m.text}</div>
+
           </div>
         ))}
 
