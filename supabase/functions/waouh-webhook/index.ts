@@ -1120,8 +1120,11 @@ serve(async (req) => {
           const loc = [p.ville, p.quartier].filter(Boolean).join(" · ") || "?";
           return `*${idx}. ${p.titre}*\n💰 *${priceTxt}*\n🏙️ ${loc}${photoLine}\n✅ Partenaire vérifié`;
         }).join(`\n\n${waouhSep}\n\n`);
+        // Extras calculés dans la boucle officielle et réutilisés par les fiches
+        const officialExtras: Record<number, { market_line: string; dist_km: number | null }> = {};
         // Liste officielle (chat) — avec analyse marché IA + distance live
         const officialList = (await Promise.all(matchesTop.map(async (m: any, i: number) => {
+
           const idx = partnerTop.length + i + 1;
           const photos: string[] = Array.isArray(m.photos) ? m.photos.filter((u: any) => typeof u === "string") : [];
           const photoLine = photos.length > 0 ? `\n📸 ${photos.length} photo${photos.length > 1 ? "s" : ""}` : "";
