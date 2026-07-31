@@ -1150,14 +1150,20 @@ serve(async (req) => {
           }
           // Distance live vendeur ↔ acheteur via RPC PostGIS
           let distLine = "";
+          let distKmOfficial: number | null = null;
           if (m.seller_id) {
             try {
               const { data: d } = await sb.rpc("waouh_point_distance_km", { p_user: m.seller_id, p_lat: lat, p_lng: lng });
-              if (typeof d === "number") distLine = `\n${fmtDistance(Math.round(d * 10) / 10)}`;
+              if (typeof d === "number") {
+                distKmOfficial = Math.round(d * 10) / 10;
+                distLine = `\n${fmtDistance(distKmOfficial)}`;
+              }
             } catch {}
           }
+          officialExtras[idx] = { market_line: marketLine.replace(/^\n/, "").trim(), dist_km: distKmOfficial };
           return `*${idx}. ${m.title}*\n💰 *${fmt(m.price)}*\n🏙️ ${m.city ?? "?"} · ${m.condition}${distLine}${photoLine}${marketLine}`;
         }))).join(`\n\n${waouhSep}\n\n`);
+
         const radarList = radarTop.map((r: any, i: number) => {
           const idx = partnerTop.length + matchesTop.length + i + 1;
           const title = r.product?.title || r.product?.name || (r.raw_text || "").slice(0, 60) || "Annonce externe";
