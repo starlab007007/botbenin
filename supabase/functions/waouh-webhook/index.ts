@@ -509,7 +509,12 @@ serve(async (req) => {
     let returnedCounterpartId: string | null = null;
     let returnedTransactionId: string | null = null;
     let replyAttachments: Array<{ url: string; type: string }> = [];
+    // 🖼️ v14 — Fiches produit structurées (1 fiche = 1 article + SES photos).
+    // Consommées par les surfaces riches (web / mobile) ; WhatsApp continue
+    // d'utiliser `reply` (texte) + `attachments` (images).
+    let replyResults: Array<Record<string, any>> = [];
     let returnedActions: Array<{ id: string; label: string }> = [];
+
     let nextContext: any = radarHydratedContext ?? (conv?.context ?? {});
 
     const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
