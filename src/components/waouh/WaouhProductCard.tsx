@@ -1,8 +1,24 @@
-import React, { useState } from "react";
-import { ChevronLeft, ChevronRight, ImageOff, MapPin, Navigation, BadgeCheck, Radar, ShoppingBag } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ImageOff,
+  MapPin,
+  Navigation,
+  BadgeCheck,
+  Radar,
+  ShoppingBag,
+  Maximize2,
+  MessageCircleQuestion,
+  X,
+  Send,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ChatImageLightbox } from "@/app-mobile/components/ChatImageLightbox";
+import { isImageReady, preloadImage, prefetchNeighbours } from "@/components/waouh/waouhImageCache";
 import { cn } from "@/lib/utils";
+
 
 /**
  * Fiche produit d'un résultat de recherche WAOUH.
