@@ -5,6 +5,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Send, ShoppingBag, Target, CheckCircle2, Lock, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ChatImage } from "@/app-mobile/components/ChatImage";
+import { WaouhProductResults } from "@/components/waouh/WaouhProductCard";
+
 import { cn } from "@/lib/utils";
 import { formatMatchLabel } from "@/app-mobile/utils/chatLabel";
 import "@/app-mobile/theme/chat-bg.css";
