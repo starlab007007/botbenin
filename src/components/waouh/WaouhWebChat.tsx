@@ -47,7 +47,9 @@ type Msg = {
     intent?: string | null;
     article_id?: string | null;
     counterpart_user_id?: string | null;
+    results?: WaouhResultCard[] | null;
   } | null;
+
 };
 
 /** Intents qui doivent basculer la négociation dans une fenêtre dédiée (1 article × 1 interlocuteur). */
