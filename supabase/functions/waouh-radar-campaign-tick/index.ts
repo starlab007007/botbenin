@@ -1,7 +1,7 @@
 // Cron tick — picks active campaigns whose next_run_at <= now() and enqueues sends.
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-waouh-session",
 };
 import { createClient } from "npm:@supabase/supabase-js@2";
 

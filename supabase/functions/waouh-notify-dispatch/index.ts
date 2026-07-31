@@ -26,7 +26,7 @@ import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-waouh-session",
 };
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;

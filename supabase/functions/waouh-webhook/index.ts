@@ -15,7 +15,7 @@ import { compareMarketPrice, shortMarketLine } from "../_shared/waouh-price.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-waouh-session",
 };
 
 const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";

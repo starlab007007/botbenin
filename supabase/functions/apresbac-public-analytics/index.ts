@@ -36,7 +36,7 @@ function corsHeaders(origin: string | null) {
   const allowed = origin && ALLOWED_ORIGINS.has(origin) ? origin : "https://bot.bj";
   return {
     "Access-Control-Allow-Origin": allowed,
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-request-id",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-request-id, x-waouh-session",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Max-Age": "86400",
     "Vary": "Origin",

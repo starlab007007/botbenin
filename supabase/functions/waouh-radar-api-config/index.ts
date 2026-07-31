@@ -1,7 +1,7 @@
 // Admin endpoint for radar: API configs (SerpAPI/Apify) + contact sync + bulk notify.
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-waouh-session",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 import { createClient } from "npm:@supabase/supabase-js@2";

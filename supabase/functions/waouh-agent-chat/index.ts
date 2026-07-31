@@ -6,7 +6,7 @@ import { runAgentTurn } from "../_shared/agent-ai.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-waouh-session",
 };
 
 serve(async (req) => {
