@@ -501,6 +501,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
 
       if ((data as any)?.reply) {
         const replyAtts = Array.isArray((data as any)?.attachments) ? (data as any).attachments : null;
+        const replyResults: WaouhResultCard[] = Array.isArray((data as any)?.results) ? (data as any).results : [];
         setMessages((prev) => {
           const hasFresh = prev.some((m) => m.direction === "out" && m.created_at && new Date(m.created_at).getTime() > Date.now() - 15000);
           if (hasFresh) return prev;
@@ -517,7 +518,9 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                 transaction_id: (data as any).transaction_id ?? null,
                 article_id: respArticleId,
                 counterpart_user_id: respCounterpart,
+                results: replyResults,
               },
+
             },
           ];
         });
