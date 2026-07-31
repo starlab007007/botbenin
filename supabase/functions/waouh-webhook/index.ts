@@ -1619,6 +1619,23 @@ serve(async (req) => {
           }
         }
         replyAttachments = firstPhoto ? [{ url: firstPhoto, type: "image/jpeg", caption: pick.title }] : [];
+        // Fiche unique de l'article choisi — continuité visuelle du parcours
+        replyResults = [{
+          index: 1,
+          id: pick.id,
+          title: pick.title,
+          price: Number(askPrice || pick.price || 0) || null,
+          city: pick.city ?? null,
+          distance_km: distKm ?? null,
+          source: "waouh",
+          badge: "🤝 Mise en relation en cours",
+          market_line: null,
+          photos: Array.isArray(pick.photos)
+            ? pick.photos.filter((u: any) => typeof u === "string" && /^https?:\/\//.test(u)).slice(0, 6)
+            : (firstPhoto ? [firstPhoto] : []),
+          action: null,
+        }];
+
         returnedActions = [];
         const distLineBuyer = distKm != null ? `\n${fmtDistance(distKm)}` : "";
         reply = `${waouhHeader("✅ Demande envoyée au vendeur")}\n\n📦 *${pick.title}*\n💰 *Prix du vendeur* : ${fmt(askPrice)}${distLineBuyer}\n${firstPhoto ? "📸 *Photo transmise au vendeur*\n" : ""}\n*Que souhaitez-vous faire ?*\n1️⃣ Répondez *OUI* pour accepter ce prix (${fmt(askPrice)}).\n2️⃣ Ou proposez votre prix : *Je propose ${fmt(Math.round(askPrice * 0.9))}*.\n\nLe vendeur attend votre décision.\n\n${waouhFooter()}`;
