@@ -16,7 +16,7 @@ import { WaouhPaymentDialog } from "./WaouhPaymentDialog";
 import { WaouhQuickActions, type QuickAction } from "./WaouhQuickActions";
 import { WaouhSellWizard } from "./WaouhSellWizard";
 import { ChatImage } from "@/app-mobile/components/ChatImage";
-import { WaouhProductResults, type WaouhResultCard } from "@/components/waouh/WaouhProductCard";
+import { WaouhProductResults, compactResultsText, type WaouhResultCard } from "@/components/waouh/WaouhProductCard";
 
 import { NativeSellSheet } from "./NativeSellSheet";
 import { useAuth } from "@/contexts/AuthContext";
