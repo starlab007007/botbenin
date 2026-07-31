@@ -1219,6 +1219,68 @@ serve(async (req) => {
             }));
           }),
         ].slice(0, 12);
+        // 🖼️ Fiches produit structurées — 1 fiche = 1 article + SES photos.
+        // ⚠️ INVARIANT: même ordre que la liste texte et que last_matches
+        // (partnerTop → matchesTop → radarTop) pour que « intéressé N » vise
+        // exactement la fiche n°N.
+        replyResults = [
+          ...partnerTop.map((p: any, i: number) => ({
+            index: i + 1,
+            id: p.id,
+            title: p.titre,
+            price: Number(p.prix_min || p.prix_max || 0) || null,
+            price_min: p.prix_min ? Number(p.prix_min) : null,
+            price_max: p.prix_max ? Number(p.prix_max) : null,
+            city: p.ville ?? null,
+            quartier: p.quartier ?? null,
+            distance_km: null,
+            source: "partner",
+            badge: "✅ Partenaire vérifié",
+            market_line: null,
+            photos: (Array.isArray(p.photos) ? p.photos.filter(isPublicImageUrl) : []).slice(0, 6),
+            action: `intéressé ${i + 1}`,
+          })),
+          ...matchesTop.map((m: any, i: number) => {
+            const idx = partnerTop.length + i + 1;
+            return {
+              index: idx,
+              id: m.id,
+              title: m.title,
+              price: Number(m.price || 0) || null,
+              price_min: null,
+              price_max: null,
+              city: m.city ?? null,
+              quartier: null,
+              condition: m.condition ?? null,
+              distance_km: officialExtras[idx]?.dist_km ?? null,
+              source: "waouh",
+              badge: "🛒 Annonce WAOUH",
+              market_line: officialExtras[idx]?.market_line || null,
+              photos: (Array.isArray(m.photos) ? m.photos.filter(isPublicImageUrl) : []).slice(0, 6),
+              action: `intéressé ${idx}`,
+            };
+          }),
+          ...radarTop.map((r: any, i: number) => {
+            const idx = partnerTop.length + matchesTop.length + i + 1;
+            return {
+              index: idx,
+              id: r.id,
+              title: r.product?.title || r.product?.name || (r.raw_text || "").slice(0, 60) || "Annonce externe",
+              price: r.price ? Number(r.price) : null,
+              price_min: null,
+              price_max: null,
+              city: r.city ?? null,
+              quartier: null,
+              distance_km: null,
+              source: "radar",
+              badge: "📡 Radar IA",
+              market_line: null,
+              photos: extractProductPhotos(r).filter(isPublicImageUrl).slice(0, 6),
+              action: `intéressé ${idx}`,
+            };
+          }),
+        ];
+
         const radarHint = radarTop.length > 0
           ? `\n\n🛰️ *${radarTop.length} annonce${radarTop.length > 1 ? "s" : ""}* détectée${radarTop.length > 1 ? "s" : ""} via Radar IA. Nous contactons automatiquement ces vendeurs sur WhatsApp pour vous.`
           : "";
