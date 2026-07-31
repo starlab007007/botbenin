@@ -1,39 +1,51 @@
-# Audit — isolation des fenêtres de chat WAOUH
+# Résultats de recherche WAOUH : une fiche produit par article, avec ses photos
 
-## Ce qui est déjà correct (vérifié dans le code)
+## Constat (diagnostic)
 
-- `useWaouhMatchChats.matchKey()` : côté vendeur la clé est `art_<article>_seller_<acheteur>`, côté acheteur `art_<article>_buyer`. Une fenêtre par (article, acheteur) côté vendeur existe donc déjà.
-- `waouh-match-history` : filtre strict par propriété du message (session/`user_id`) + par article, et, pour le rôle vendeur, par `counterpartUserId` (`meta.counterpart_user_id || meta.buyer_user_id || user_id`).
-- `WaouhMatchChatWindow` : le realtime rejette les inserts d'un autre article et, côté vendeur, ceux d'un autre acheteur. Les accusés « self-ack » de l'autre partie sont filtrés.
-- Les notifications ouvrent bien une fenêtre : `notificationActions.openNotificationTarget`, `WaouhNotificationsBell`, `NotificationsScreen` et `WaouhMatchChatList` émettent tous `waouh:open-match-chat` avec `article_id` + `counterpart_user_id`.
+Aujourd'hui, quand le moteur trouve 5 annonces :
 
-## Les trous réels identifiés
+- La réponse est un **bloc de texte unique** listant `1. Titre / prix / ville / 📸 2 photos`.
+- Les photos sont renvoyées à part, dans un **tableau `attachments` à plat** (jusqu'à 12 images toutes annonces confondues), affiché en grille au-dessus du texte dans `WaouhWebChat`.
+- Résultat : impossible de savoir visuellement quelle photo appartient à quelle annonce (le seul lien est un préfixe `*3.*` dans la légende), et l'article n'a pas de fiche cliquable.
+- Le zoom plein écran existe déjà (`ChatImage` + `ChatImageLightbox`) mais la galerie porte sur **tout le message**, pas sur l'article.
 
-1. **Le chat principal reste le lieu de la négociation acheteur.** `WaouhWebChat.tsx` ne contient aucun `dispatchEvent("waouh:open-match-chat")` ni traitement de `article_id`. Quand l'acheteur clique « intéressé 2 », la réponse du vendeur, les contre-offres et les accusés reviennent dans le fil principal — plusieurs articles se mélangent visuellement dans la même fenêtre. C'est la cause principale du ressenti « ça mélange les produits ».
-2. **Clé acheteur non scoppée par contrepartie.** `art_<id>_buyer` suppose un seul vendeur par article ; pour les articles issus du catalogue partenaire / radar (même `article_id` mirroré), deux interlocuteurs peuvent retomber dans la même fenêtre.
-3. **Bucket `_any` côté vendeur.** Si une notification arrive sans `counterpart_user_id` (anciens enregistrements, certains chemins WhatsApp), la fenêtre créée est `art_<id>_seller_any` : tous les acheteurs sans identifiant s'y agrègent.
-4. **Aucun repère visuel d'isolation.** L'en-tête de la fenêtre n'affiche pas l'interlocuteur ni l'identifiant d'article, donc rien ne rassure l'utilisateur sur le périmètre de la conversation.
+## Objectif
 
-# Plan de correction
+Chaque article trouvé s'affiche comme une **fiche autonome** : titre, prix, ville/distance, source (partenaire vérifié / Radar IA / WAOUH), analyse marché, **son propre carrousel de photos**, zoom plein écran limité aux photos de cet article, et un bouton d'action direct.
 
-## Étape 1 — Ouvrir automatiquement une fenêtre dédiée dès l'intérêt acheteur
-Dans `WaouhWebChat.tsx`, à la réception d'une réponse dont `meta.intent` vaut intérêt/négociation/match et qui porte un `article_id`, émettre `waouh:open-match-chat` (article, titre, prix, ville, photo, `counterpart_user_id` = vendeur, `kind: "buyer"`) et laisser dans le fil principal une carte « Discussion ouverte → » cliquable au lieu du fil de négociation. Le chat principal redevient recherche + orientation ; toute négociation vit dans sa fenêtre.
+## Ce qui sera construit
 
-## Étape 2 — Scoper la clé acheteur par contrepartie
-Passer `matchKey` à `art_<article>_buyer_<vendeur|any>` avec migration des clés `art_<id>_buyer` existantes vers le bucket `_any` (même mécanique que la migration v3 déjà en place), pour ne perdre aucun historique.
+### 1. Moteur (`waouh-webhook`) — sortie structurée
+- Construire, pour l'intention recherche, un tableau `results[]` aligné **exactement** sur l'ordre déjà utilisé par `last_matches` (partenaires → annonces WAOUH → Radar IA), donc `intéressé N` reste cohérent.
+- Chaque entrée : `index`, `id`, `title`, `price` (ou fourchette), `city`/`quartier`, `distance_km`, `source`, `badge`, `market_line` (analyse prix déjà calculée), `photos[]` (toutes les URLs publiques, jusqu'à 6), `action` (`intéressé N`).
+- Le texte de la réponse reste inchangé pour WhatsApp (canal texte) ; sur canal web les photos ne sont plus dupliquées en `attachments` quand `results` est présent.
+- Étendre la même sortie aux réponses de suivi (mise en relation, article courant, promotion Radar) : fiche unique de l'article concerné → parcours visuellement continu jusqu'à la conclusion.
 
-## Étape 3 — Garantir `counterpart_user_id` de bout en bout
-- `waouh-buyer-interest`, `waouh-webhook` et `waouh-negotiation-router` : toujours écrire `meta.counterpart_user_id` (vendeur pour un message reçu par l'acheteur, acheteur pour un message reçu par le vendeur).
-- `waouh-notify-dispatch` : refuser d'émettre une notification de match sans `counterpart_user_id` résolu (fallback = `seller_id` de l'article ou `buyer_user_id`).
-- `waouh-match-history` : appliquer le filtre par contrepartie aussi au rôle acheteur.
+### 2. Nouveau composant `WaouhProductCard`
+- Carrousel horizontal des photos de l'article (swipe mobile, flèches desktop), compteur `1/4`.
+- Clic → `ChatImageLightbox` avec galerie **restreinte aux photos de cet article** (zoom pinch/molette, pan, prev/next déjà supportés).
+- Placeholder propre quand l'annonce n'a pas de photo.
+- Ligne prix mise en avant, badges ville/distance/source, ligne analyse marché repliée si longue.
+- Bouton « Je suis intéressé » qui envoie `intéressé N` dans le fil.
 
-## Étape 4 — Rendre l'isolation visible
-En-tête de `WaouhMatchChatWindow` : photo + titre article, prix, et une ligne « avec <interlocuteur> · réf. <8 premiers car. de l'article> », plus un badge d'état (ouvert / négociation / conclu). La liste `WaouhMatchChatList` affiche un item distinct par (article, interlocuteur) avec le même libellé.
+### 3. Intégration dans les surfaces de chat
+- `WaouhWebChat` : rendu de `meta.results` sous le texte ; persistance de `results` dans `meta` du message (colonne existante) pour que l'historique et le mode hors-ligne réaffichent les fiches.
+- `WaouhMatchChatWindow` : fiche de l'article de la fenêtre en tête de conversation (rappel visuel du produit négocié).
+- `WaouhChatScreen` mobile : même composant, largeur pleine, carrousel tactile.
 
-## Étape 5 — Vérification de bout en bout
-Étendre `waouh-e2e-test` (parcours A/B/C) avec un scénario « 1 article, 2 acheteurs, + 1 second article » et des assertions : aucun message d'un article n'apparaît dans l'historique d'un autre, aucun message d'un acheteur dans la fenêtre d'un autre, et une notification par couple (article, acheteur). Ajouter ces invariants au verrou de synchronisation (`waouhChatSyncLock`) en v13.
+### 4. Réponses plus « smart » tout au long du parcours
+- Suggestions contextuelles sous les fiches : `Affiner`, `Moins cher`, `Plus proche`, en plus de `intéressé N`.
+- Message vide amélioré (aucun résultat) : reformulation proposée par le moteur au lieu du bloc générique.
 
 ## Détails techniques
-- Fichiers front : `src/components/waouh/WaouhWebChat.tsx`, `useWaouhMatchChats.ts`, `WaouhMatchChatWindow.tsx`, `WaouhMatchChatList.tsx`, `notificationActions.ts`.
-- Fonctions edge : `waouh-match-history`, `waouh-notify-dispatch`, `waouh-buyer-interest`, `waouh-webhook`, `waouh-negotiation-router`, `waouh-e2e-test`.
-- Aucune migration SQL nécessaire : tout passe par `waouh_messages.meta` et les clés locales, avec migration des clés côté client.
+
+- Le `correlation_id` existant est propagé dans chaque fiche pour garder la traçabilité notification → fenêtre → message.
+- `results` est ajouté en plus des champs actuels (`reply`, `attachments`, `actions`, `article_id`, …) : aucune régression pour WhatsApp ni pour `waouh-channel-in`.
+- Chargement d'image : `loading="lazy"`, `decoding="async"`, ratio fixe pour éviter le décalage de mise en page.
+- Les 87 tests d'invariants `waouhChatSyncLock` sont réexécutés ; un test supplémentaire vérifie que `results[i].id === last_matches[i].id`.
+
+## Validation
+
+- Recherche réelle (« je cherche un sac Zara ») : 5 fiches, chacune avec ses propres photos, zoom OK.
+- `intéressé 3` ouvre bien la fenêtre dédiée de la 3e fiche.
+- Vérification web + mobile, avec et sans photos, et rechargement de l'historique.
