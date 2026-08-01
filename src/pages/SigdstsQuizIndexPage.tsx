@@ -46,8 +46,8 @@ const SigdstsQuizIndexPage: React.FC = () => {
   return (
     <>
       <Helmet>
-        <title>Quiz SIGDSTS — 135 QCM par modules | Bot.bj</title>
-        <meta name="description" content="Formez-vous au SIGDSTS avec 135 QCM répartis sur 9 modules métier. Quiz progressif basé sur le Guide officiel v11.0. Sans inscription." />
+        <title>{`Quiz SIGDSTS — ${TOTAL_QUESTIONS} QCM par modules | Bot.bj`}</title>
+        <meta name="description" content={`Formez-vous au SIGDSTS avec ${TOTAL_QUESTIONS} QCM répartis sur ${QUIZ_MODULES.length} modules métier. Quiz progressif basé sur le Guide officiel v11.0. Sans inscription.`} />
         <link rel="canonical" href="https://bot.bj/sigdsts/quiz" />
       </Helmet>
 

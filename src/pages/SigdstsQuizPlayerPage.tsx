@@ -23,8 +23,14 @@ type AnswerLog = { questionId: string; selectedIndex: number; correct: boolean }
 
 const SigdstsQuizPlayerPage: React.FC = () => {
   const { moduleId } = useParams<{ moduleId: string }>();
-  const navigate = useNavigate();
   const module = moduleId ? getQuizModule(moduleId) : undefined;
+  // Garde placée AVANT tout hook conditionnel : évite toute violation de l'ordre des hooks
+  if (!module) return <Navigate to="/sigdsts/quiz" replace />;
+  return <QuizRunner key={module.id} module={module} />;
+};
+
+const QuizRunner: React.FC<{ module: NonNullable<ReturnType<typeof getQuizModule>> }> = ({ module }) => {
+  const navigate = useNavigate();
 
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
@@ -35,8 +41,6 @@ const SigdstsQuizPlayerPage: React.FC = () => {
   const lockedQuestionRef = useRef<string | null>(null);
   const answersRef = useRef<AnswerLog[]>([]);
   answersRef.current = answers;
-
-  if (!module) return <Navigate to="/sigdsts/quiz" replace />;
 
   const total = module.questions.length;
   const question = module.questions[currentIdx];

@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import { SupportChatbot } from '@/components/support/SupportChatbot';
 import { TicketForm } from '@/components/support/TicketForm';
 import { useAuth } from '@/contexts/AuthContext';
+import { QUIZ_MODULES, TOTAL_QUESTIONS } from '@/data/sigdsts-quiz';
 
 const SupportTechniquePage: React.FC = () => {
   const { user } = useAuth();
@@ -100,8 +101,8 @@ const SupportTechniquePage: React.FC = () => {
             icon={GraduationCap}
             color="from-emerald-500 to-teal-600"
             title="Quiz de formation"
-            description="200 QCM par modules pour valider vos connaissances"
-            badge="10 modules · Attestation PDF"
+            description={`${TOTAL_QUESTIONS} QCM par modules pour valider vos connaissances`}
+            badge={`${QUIZ_MODULES.length} modules · Attestation PDF`}
             href="/sigdsts/quiz"
             cta="Commencer un quiz"
           />
