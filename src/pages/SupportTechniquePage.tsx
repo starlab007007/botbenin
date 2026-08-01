@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import { SupportChatbot } from '@/components/support/SupportChatbot';
 import { TicketForm } from '@/components/support/TicketForm';
 import { useAuth } from '@/contexts/AuthContext';
+import { QUIZ_MODULES, TOTAL_QUESTIONS } from '@/data/sigdsts-quiz';
 
 const SupportTechniquePage: React.FC = () => {
   const { user } = useAuth();
