@@ -12,6 +12,8 @@ interface Props {
 export const QuestionTimer: React.FC<Props> = ({ seconds, paused, resetKey, onExpire, className }) => {
   const [remaining, setRemaining] = useState(seconds);
   const expired = useRef(false);
+  const onExpireRef = useRef(onExpire);
+  onExpireRef.current = onExpire;
 
   useEffect(() => {
     setRemaining(seconds);
@@ -21,20 +23,17 @@ export const QuestionTimer: React.FC<Props> = ({ seconds, paused, resetKey, onEx
   useEffect(() => {
     if (paused) return;
     const id = window.setInterval(() => {
-      setRemaining((current) => {
-        if (current <= 1) {
-          window.clearInterval(id);
-          if (!expired.current) {
-            expired.current = true;
-            onExpire();
-          }
-          return 0;
-        }
-        return current - 1;
-      });
+      setRemaining((current) => (current <= 0 ? 0 : current - 1));
     }, 1000);
     return () => window.clearInterval(id);
-  }, [paused, resetKey, seconds, onExpire]);
+  }, [paused, resetKey, seconds]);
+
+  // L'expiration est déclenchée hors du updater de state (effet de bord sûr)
+  useEffect(() => {
+    if (paused || remaining > 0 || expired.current) return;
+    expired.current = true;
+    onExpireRef.current();
+  }, [remaining, paused]);
 
   const ratio = Math.max(0, remaining) / seconds;
   const colorClass =
