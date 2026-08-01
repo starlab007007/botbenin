@@ -7080,6 +7080,104 @@ export type Database = {
         }
         Relationships: []
       }
+      waouh_chat_threads: {
+        Row: {
+          active_key: string | null
+          article_id: string | null
+          buyer_user_id: string | null
+          closed_at: string | null
+          created_at: string
+          cycle_id: string
+          deal_id: string | null
+          id: string
+          last_message_at: string | null
+          metadata: Json
+          negotiation_id: string | null
+          owner_user_id: string | null
+          search_request_id: string | null
+          seller_user_id: string | null
+          source: string | null
+          status: string
+          thread_key: string
+          thread_type: string
+          transaction_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          active_key?: string | null
+          article_id?: string | null
+          buyer_user_id?: string | null
+          closed_at?: string | null
+          created_at?: string
+          cycle_id?: string
+          deal_id?: string | null
+          id?: string
+          last_message_at?: string | null
+          metadata?: Json
+          negotiation_id?: string | null
+          owner_user_id?: string | null
+          search_request_id?: string | null
+          seller_user_id?: string | null
+          source?: string | null
+          status?: string
+          thread_key: string
+          thread_type?: string
+          transaction_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active_key?: string | null
+          article_id?: string | null
+          buyer_user_id?: string | null
+          closed_at?: string | null
+          created_at?: string
+          cycle_id?: string
+          deal_id?: string | null
+          id?: string
+          last_message_at?: string | null
+          metadata?: Json
+          negotiation_id?: string | null
+          owner_user_id?: string | null
+          search_request_id?: string | null
+          seller_user_id?: string | null
+          source?: string | null
+          status?: string
+          thread_key?: string
+          thread_type?: string
+          transaction_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waouh_chat_threads_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_chat_threads_buyer_user_id_fkey"
+            columns: ["buyer_user_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_chat_threads_owner_user_id_fkey"
+            columns: ["owner_user_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_chat_threads_seller_user_id_fkey"
+            columns: ["seller_user_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       waouh_commission_settings: {
         Row: {
           bonus_volume: Json | null
@@ -7227,6 +7325,7 @@ export type Database = {
           pickup_address: string | null
           seller_user_id: string
           status: string
+          thread_id: string | null
           updated_at: string
         }
         Insert: {
@@ -7253,6 +7352,7 @@ export type Database = {
           pickup_address?: string | null
           seller_user_id: string
           status?: string
+          thread_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -7279,9 +7379,18 @@ export type Database = {
           pickup_address?: string | null
           seller_user_id?: string
           status?: string
+          thread_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "waouh_deals_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_chat_threads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       waouh_diffusion_approvals: {
         Row: {
@@ -7488,6 +7597,7 @@ export type Database = {
           payload: Json | null
           seller_user_id: string | null
           source: string | null
+          thread_id: string | null
         }
         Insert: {
           article_id: string
@@ -7498,6 +7608,7 @@ export type Database = {
           payload?: Json | null
           seller_user_id?: string | null
           source?: string | null
+          thread_id?: string | null
         }
         Update: {
           article_id?: string
@@ -7508,8 +7619,17 @@ export type Database = {
           payload?: Json | null
           seller_user_id?: string | null
           source?: string | null
+          thread_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "waouh_interests_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_chat_threads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       waouh_lid_phone_map: {
         Row: {
@@ -7601,6 +7721,7 @@ export type Database = {
           meta: Json | null
           phone_number: string | null
           text: string
+          thread_id: string | null
           user_id: string | null
           web_session_id: string | null
         }
@@ -7615,6 +7736,7 @@ export type Database = {
           meta?: Json | null
           phone_number?: string | null
           text: string
+          thread_id?: string | null
           user_id?: string | null
           web_session_id?: string | null
         }
@@ -7629,6 +7751,7 @@ export type Database = {
           meta?: Json | null
           phone_number?: string | null
           text?: string
+          thread_id?: string | null
           user_id?: string | null
           web_session_id?: string | null
         }
@@ -7638,6 +7761,13 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "waouh_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_chat_threads"
             referencedColumns: ["id"]
           },
           {
@@ -7663,6 +7793,7 @@ export type Database = {
           meta: Json
           seller_user_id: string | null
           state: string
+          thread_id: string | null
           transaction_id: string | null
           updated_at: string
         }
@@ -7679,6 +7810,7 @@ export type Database = {
           meta?: Json
           seller_user_id?: string | null
           state?: string
+          thread_id?: string | null
           transaction_id?: string | null
           updated_at?: string
         }
@@ -7695,6 +7827,7 @@ export type Database = {
           meta?: Json
           seller_user_id?: string | null
           state?: string
+          thread_id?: string | null
           transaction_id?: string | null
           updated_at?: string
         }
@@ -7727,6 +7860,13 @@ export type Database = {
             referencedRelation: "waouh_users"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "waouh_negotiations_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_chat_threads"
+            referencedColumns: ["id"]
+          },
         ]
       }
       waouh_notifications: {
@@ -7744,6 +7884,7 @@ export type Database = {
           photos: string[] | null
           read_at: string | null
           sent_at: string
+          thread_id: string | null
           user_id: string
           web_session_id: string | null
         }
@@ -7761,6 +7902,7 @@ export type Database = {
           photos?: string[] | null
           read_at?: string | null
           sent_at?: string
+          thread_id?: string | null
           user_id: string
           web_session_id?: string | null
         }
@@ -7778,6 +7920,7 @@ export type Database = {
           photos?: string[] | null
           read_at?: string | null
           sent_at?: string
+          thread_id?: string | null
           user_id?: string
           web_session_id?: string | null
         }
@@ -7787,6 +7930,13 @@ export type Database = {
             columns: ["article_id"]
             isOneToOne: false
             referencedRelation: "waouh_articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_notifications_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_chat_threads"
             referencedColumns: ["id"]
           },
           {
@@ -10398,6 +10548,7 @@ export type Database = {
           seller_id: string
           status: string
           status_history: Json | null
+          thread_id: string | null
         }
         Insert: {
           amount: number
@@ -10420,6 +10571,7 @@ export type Database = {
           seller_id: string
           status?: string
           status_history?: Json | null
+          thread_id?: string | null
         }
         Update: {
           amount?: number
@@ -10442,6 +10594,7 @@ export type Database = {
           seller_id?: string
           status?: string
           status_history?: Json | null
+          thread_id?: string | null
         }
         Relationships: [
           {
@@ -10463,6 +10616,13 @@ export type Database = {
             columns: ["seller_id"]
             isOneToOne: false
             referencedRelation: "waouh_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_transactions_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_chat_threads"
             referencedColumns: ["id"]
           },
         ]
