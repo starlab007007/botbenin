@@ -100,8 +100,8 @@ const SupportTechniquePage: React.FC = () => {
             icon={GraduationCap}
             color="from-emerald-500 to-teal-600"
             title="Quiz de formation"
-            description="200 QCM par modules pour valider vos connaissances"
-            badge="10 modules · Attestation PDF"
+            description={`${TOTAL_QUESTIONS} QCM par modules pour valider vos connaissances`}
+            badge={`${QUIZ_MODULES.length} modules · Attestation PDF`}
             href="/sigdsts/quiz"
             cta="Commencer un quiz"
           />
