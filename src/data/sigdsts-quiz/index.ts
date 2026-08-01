@@ -8,13 +8,14 @@ import { module06Questions } from './module-06-tri-validation';
 import { module07Questions } from './module-07-destruction';
 import { module08Questions } from './module-08-stock-transfert';
 import { module09Questions } from './module-09-distribution';
+import { module10Questions } from './module-10-administration';
 
 export * from './types';
 
 const firstFifteen = (questions: QuizModule['questions']) => questions.slice(0, 15);
 
 /**
- * Modules de quiz SIGDSTS — 9 modules × 15 questions = 135 QCM
+ * Modules de quiz SIGDSTS — 10 modules × 15 questions = 150 QCM
  * Source unique : Guide SIGDSTS Complet v11.0 (Mars 2026)
  */
 export const QUIZ_MODULES: QuizModule[] = [
