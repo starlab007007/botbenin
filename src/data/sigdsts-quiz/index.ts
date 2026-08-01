@@ -136,6 +136,19 @@ export const QUIZ_MODULES: QuizModule[] = [
     estimatedMinutes: 12,
     questions: firstFifteen(module09Questions),
   },
+  {
+    id: 'administration',
+    order: 10,
+    title: 'Administration & Sécurité',
+    shortTitle: 'Administration',
+    description: "Référentiels, profils utilisateurs, rôles RBAC, sécurité et rapports de pilotage.",
+    guideSection: '§1.6-§1.8 / §13',
+    guidePages: '5-7, 53-68',
+    icon: 'Settings',
+    gradient: 'from-indigo-500 to-violet-600',
+    estimatedMinutes: 12,
+    questions: firstFifteen(module10Questions),
+  },
 ];
 
 export const getQuizModule = (id: string): QuizModule | undefined =>
