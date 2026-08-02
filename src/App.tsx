@@ -235,10 +235,11 @@ const AppContent = () => {
                     
                     {/* SEO Pages */}
                     <Route path="/features" element={<FeaturesPage />} />
-                    <Route path="/recette" element={<RecettePage />} />
-                    <Route path="/app/recette" element={<RecettePage />} />
-                    <Route path="/docs/architecture" element={<ArchitecturePage />} />
-                    <Route path="/app/docs/architecture" element={<ArchitecturePage />} />
+                    <Route path="/recette" element={<FlutterParityGate><RecettePage /></FlutterParityGate>} />
+                    <Route path="/app/recette" element={<FlutterParityGate><RecettePage /></FlutterParityGate>} />
+                    <Route path="/docs/architecture" element={<FlutterParityGate><ArchitecturePage /></FlutterParityGate>} />
+                    <Route path="/app/docs/architecture" element={<FlutterParityGate><ArchitecturePage /></FlutterParityGate>} />
+
                     <Route path="/pricing" element={<PricingPage />} />
                     <Route path="/payment-history" element={<PaymentHistoryPage />} />
                     <Route path="/faq" element={<FAQPage />} />
