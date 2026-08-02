@@ -375,7 +375,10 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
         <OfflineBanner />
 
         <div className="waouh-erp-body">
-          <main className="waouh-erp-workspace">{children}</main>
+          <main className="waouh-erp-workspace">
+            {isHome ? (activeBrick ? <ErpBrickCanvas brick={activeBrick} /> : <CenterCanvas />) : children}
+          </main>
+
 
           <aside className="waouh-erp-copilot" aria-label="Copilote contextuel WaouhApp">
             <div className="waouh-erp-copilot__hero">
