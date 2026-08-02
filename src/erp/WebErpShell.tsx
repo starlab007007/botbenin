@@ -14,7 +14,9 @@ import {
   Megaphone,
   MessageSquareText,
   Package,
+  QrCode,
   Search,
+
   ShieldCheck,
   ShoppingCart,
   Sparkles,
@@ -79,6 +81,13 @@ const navigation: NavigationItem[] = [
     brick: 'stock',
     accent: 'stock',
   },
+  {
+    label: 'Présence QR',
+    to: '/app/agents/attendance/new',
+    icon: QrCode,
+    brick: 'presence',
+  },
+
   {
     label: 'Boutiques & magasins',
     to: '/app/partner/businesses',

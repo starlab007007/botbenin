@@ -10,6 +10,7 @@ export type BrickId =
   | 'bots'
   | 'bi'
   | 'stock'
+  | 'presence'
   | 'store'
   | 'sales'
   | 'whatsapp'
@@ -20,12 +21,14 @@ const BRICKS: Record<BrickId, ReturnType<typeof lazy>> = {
   bots: lazy(() => import('@/app-mobile/screens/bots/KnowledgeBasesListScreen')),
   bi: lazy(() => import('@/app-mobile/screens/agents/BiAgentWizard')),
   stock: lazy(() => import('@/app-mobile/screens/agents/StockAgentWizard')),
+  presence: lazy(() => import('@/app-mobile/screens/agents/AttendanceAgentWizard')),
   store: lazy(() => import('@/app-mobile/screens/partner/PartnerBusinessesScreen')),
   sales: lazy(() => import('@/app-mobile/screens/partner/PartnerSalesScreen')),
   whatsapp: lazy(() => import('@/app-mobile/screens/WhatsAppScreen')),
   diffusion: lazy(() => import('@/app-mobile/screens/DiffusionScreen')),
   partner: lazy(() => import('@/app-mobile/screens/partner/PartnerHomeScreen')),
 };
+
 
 /**
  * Renders an ERP brick inside the central canvas — no page navigation,

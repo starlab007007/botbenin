@@ -149,6 +149,8 @@ import { IACreatorAdminPage } from "./pages/admin/IACreatorAdminPage";
 const SystemLogsPage = lazy(() => import("./pages/admin/SystemLogsPage"));
 const AdminKnowledgeBasesPage = lazy(() => import("./pages/modules/AdminKnowledgeBasesPage").then(module => ({ default: module.AdminKnowledgeBasesPage })));
 import { AdminRoute } from "./components/auth/AdminRoute";
+import { FlutterParityGate } from "./routes/FlutterParityGate";
+
 import { PartnerRoute, AuthRoute } from "./components/auth/PartnerRoute";
 const ShortLinkRedirectPage = lazy(() => import("./pages/ShortLinkRedirectPage").then(module => ({ default: module.ShortLinkRedirectPage })));
 const WidgetPage = lazy(() => import("./pages/WidgetPage").then(module => ({ default: module.WidgetPage })));
@@ -214,27 +216,30 @@ const AppContent = () => {
                   <Route element={<MainLayout />}>
                     {/* Route d'accueil */}
                     <Route path="/" element={<Navigate to="/app/chat" replace />} />
-                    <Route path="/legacy" element={<Index />} />
-                    <Route path="/home" element={<HomePage />} />
-                    <Route path="/chat" element={<KpakpatoPage />} />
-                    <Route path="/dashboard" element={<DashboardPage />} />
+                    {/* Modules web historiques — hors périmètre Flutter : réservés aux administrateurs */}
+                    <Route path="/legacy" element={<FlutterParityGate><Index /></FlutterParityGate>} />
+                    <Route path="/home" element={<FlutterParityGate><HomePage /></FlutterParityGate>} />
+                    <Route path="/chat" element={<FlutterParityGate><KpakpatoPage /></FlutterParityGate>} />
+                    <Route path="/dashboard" element={<FlutterParityGate><DashboardPage /></FlutterParityGate>} />
                     
                     {/* Gestion des bots */}
-                    <Route path="/bots" element={<BotManagementPage />} />
+                    <Route path="/bots" element={<FlutterParityGate><BotManagementPage /></FlutterParityGate>} />
                     
                     {/* Campagnes de partage */}
-                    <Route path="/social-campaigns" element={<SocialSharingCampaignsPage />} />
+                    <Route path="/social-campaigns" element={<FlutterParityGate><SocialSharingCampaignsPage /></FlutterParityGate>} />
                     
                     {/* WhatsApp Connect */}
-                    <Route path="/whatsapp-connect" element={<WhatsAppConnectPage />} />
-                    <Route path="/whatsapp-diffusion" element={<WhatsAppDiffusionPage />} />
+                    <Route path="/whatsapp-connect" element={<FlutterParityGate><WhatsAppConnectPage /></FlutterParityGate>} />
+                    <Route path="/whatsapp-diffusion" element={<FlutterParityGate><WhatsAppDiffusionPage /></FlutterParityGate>} />
+
                     
                     {/* SEO Pages */}
                     <Route path="/features" element={<FeaturesPage />} />
-                    <Route path="/recette" element={<RecettePage />} />
-                    <Route path="/app/recette" element={<RecettePage />} />
-                    <Route path="/docs/architecture" element={<ArchitecturePage />} />
-                    <Route path="/app/docs/architecture" element={<ArchitecturePage />} />
+                    <Route path="/recette" element={<FlutterParityGate><RecettePage /></FlutterParityGate>} />
+                    <Route path="/app/recette" element={<FlutterParityGate><RecettePage /></FlutterParityGate>} />
+                    <Route path="/docs/architecture" element={<FlutterParityGate><ArchitecturePage /></FlutterParityGate>} />
+                    <Route path="/app/docs/architecture" element={<FlutterParityGate><ArchitecturePage /></FlutterParityGate>} />
+
                     <Route path="/pricing" element={<PricingPage />} />
                     <Route path="/payment-history" element={<PaymentHistoryPage />} />
                     <Route path="/faq" element={<FAQPage />} />
@@ -244,30 +249,29 @@ const AppContent = () => {
                     <Route path="/use-case/ecommerce" element={<UseCaseEcommercePage />} />
                     <Route path="/use-case/support" element={<UseCaseSupportPage />} />
                     
-                    {/* Modules IA */}
-                    <Route path="/modules/business" element={<BusinessModule />} />
-                    <Route path="/knowledge-bases" element={<KnowledgeBasesPage />} />
-                    <Route path="/modules/visual-creator" element={<VisualCreatorModule />} />
-                    <Route path="/visual-gallery" element={<VisualGalleryPage />} />
+                    {/* Modules IA (hors périmètre Flutter) */}
+                    <Route path="/modules/business" element={<FlutterParityGate><BusinessModule /></FlutterParityGate>} />
+                    <Route path="/knowledge-bases" element={<FlutterParityGate><KnowledgeBasesPage /></FlutterParityGate>} />
+                    <Route path="/modules/visual-creator" element={<FlutterParityGate><VisualCreatorModule /></FlutterParityGate>} />
+                    <Route path="/visual-gallery" element={<FlutterParityGate><VisualGalleryPage /></FlutterParityGate>} />
                     
-                    {/* Marketing */}
-                    <Route path="/marketing-gallery" element={<MarketingGallery />} />
-                    <Route path="/video-production" element={<VideoProductionPage />} />
-                    <Route path="/video-production/calendar" element={<VideoProductionCalendar />} />
-                    <Route path="/video-production/generate" element={<VideoGenerationPage />} />
-          <Route path="/video-library" element={<VideoLibraryPage />} />
-          <Route path="/promotional-text/:videoId" element={<PromotionalTextGeneratorPage />} />
-          <Route path="/video-assets" element={<VideoAssetsPage />} />
+                    {/* Marketing (hors périmètre Flutter) */}
+                    <Route path="/marketing-gallery" element={<FlutterParityGate><MarketingGallery /></FlutterParityGate>} />
+                    <Route path="/video-production" element={<FlutterParityGate><VideoProductionPage /></FlutterParityGate>} />
+                    <Route path="/video-production/calendar" element={<FlutterParityGate><VideoProductionCalendar /></FlutterParityGate>} />
+                    <Route path="/video-production/generate" element={<FlutterParityGate><VideoGenerationPage /></FlutterParityGate>} />
+                    <Route path="/video-library" element={<FlutterParityGate><VideoLibraryPage /></FlutterParityGate>} />
+                    <Route path="/promotional-text/:videoId" element={<FlutterParityGate><PromotionalTextGeneratorPage /></FlutterParityGate>} />
+                    <Route path="/video-assets" element={<FlutterParityGate><VideoAssetsPage /></FlutterParityGate>} />
                     
-                    {/* Support et compte */}
-                    <Route path="/support" element={<SupportPage />} />
-                    <Route path="/account" element={<AccountPage />} />
-                    
-                    {/* Administration */}
+                    {/* Support et compte (hors périmètre Flutter) */}
+                    <Route path="/support" element={<FlutterParityGate><SupportPage /></FlutterParityGate>} />
+                    <Route path="/account" element={<FlutterParityGate><AccountPage /></FlutterParityGate>} />
                     
                     {/* Tests système */}
-                    <Route path="/system-test" element={<SystemTestPage />} />
-                    <Route path="/platform-test" element={<PlatformTestPage />} />
+                    <Route path="/system-test" element={<FlutterParityGate><SystemTestPage /></FlutterParityGate>} />
+                    <Route path="/platform-test" element={<FlutterParityGate><PlatformTestPage /></FlutterParityGate>} />
+
                     
                     {/* Admin dashboard - Protected */}
                     <Route path="/admin" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
@@ -282,14 +286,15 @@ const AppContent = () => {
           <Route path="/admin/bots-control" element={<AdminRoute><AdminBotsControlPage /></AdminRoute>} />
           <Route path="/admin/apresbac" element={<AdminRoute><AdminApresBacPage /></AdminRoute>} />
           <Route path="/admin/fa" element={<AdminRoute><AdminFaPage /></AdminRoute>} />
-          <Route path="/app/apres-bac" element={<AuthRoute><ApresBacPage /></AuthRoute>} />
+          <Route path="/app/apres-bac" element={<FlutterParityGate><ApresBacPage /></FlutterParityGate>} />
           <Route path="/apres-bac" element={<Navigate to="/app/apres-bac" replace />} />
                     
-                     {/* CRM & Prospects */}
-                     <Route path="/prospects" element={<ProspectsLayout />} />
-                     <Route path="/ia-prospect-precall" element={<IAProspectPreCallPage />} />
-                     <Route path="/prospect-preparation" element={<ProspectPreparationPage />} />
-                     <Route path="/evaluation-results" element={<EvaluationResultsPage />} />
+                     {/* CRM & Prospects (hors périmètre Flutter) */}
+                     <Route path="/prospects" element={<FlutterParityGate><ProspectsLayout /></FlutterParityGate>} />
+                     <Route path="/ia-prospect-precall" element={<FlutterParityGate><IAProspectPreCallPage /></FlutterParityGate>} />
+                     <Route path="/prospect-preparation" element={<FlutterParityGate><ProspectPreparationPage /></FlutterParityGate>} />
+                     <Route path="/evaluation-results" element={<FlutterParityGate><EvaluationResultsPage /></FlutterParityGate>} />
+
                      <Route path="/admin/waouh" element={<AdminRoute><WaouhPage /></AdminRoute>} />
                      <Route path="/waouh" element={<Navigate to="/admin/waouh" replace />} />
                      <Route path="/admin/waouh/demo" element={<AdminRoute><WaouhDemoPage /></AdminRoute>} />
@@ -381,8 +386,12 @@ const AppContent = () => {
                   <Route path="/sigdsts/admin/quiz" element={<AdminRoute><AdminQuizAttemptsPage /></AdminRoute>} />
                   <Route path="/sigdsts/admin/knowledge" element={<AdminRoute><SupportKnowledgePage /></AdminRoute>} />
 
+                  {/* Parité Flutter : toute route /app inconnue retombe sur le Chat */}
+                  <Route path="/app/*" element={<Navigate to="/app/chat" replace />} />
+
                   {/* Route 404 */}
                   <Route path="*" element={<NotFound />} />
+
                 </Routes>
               </Suspense>
   );
