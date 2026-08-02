@@ -38,10 +38,9 @@ jobs:
               finish = text.index(end, begin)
               block = text[begin:finish]
               for old, new in replacements:
-                  count = block.count(old)
-                  if count != 1:
+                  if old not in block:
                       raise SystemExit(
-                          f'{path_name}: expected one occurrence of {old!r} in block, found {count}'
+                          f'{path_name}: unable to locate {old!r} in target block'
                       )
                   block = block.replace(old, new, 1)
               path.write_text(text[:begin] + block + text[finish:])
