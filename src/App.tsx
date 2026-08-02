@@ -286,14 +286,15 @@ const AppContent = () => {
           <Route path="/admin/bots-control" element={<AdminRoute><AdminBotsControlPage /></AdminRoute>} />
           <Route path="/admin/apresbac" element={<AdminRoute><AdminApresBacPage /></AdminRoute>} />
           <Route path="/admin/fa" element={<AdminRoute><AdminFaPage /></AdminRoute>} />
-          <Route path="/app/apres-bac" element={<AuthRoute><ApresBacPage /></AuthRoute>} />
+          <Route path="/app/apres-bac" element={<FlutterParityGate><ApresBacPage /></FlutterParityGate>} />
           <Route path="/apres-bac" element={<Navigate to="/app/apres-bac" replace />} />
                     
-                     {/* CRM & Prospects */}
-                     <Route path="/prospects" element={<ProspectsLayout />} />
-                     <Route path="/ia-prospect-precall" element={<IAProspectPreCallPage />} />
-                     <Route path="/prospect-preparation" element={<ProspectPreparationPage />} />
-                     <Route path="/evaluation-results" element={<EvaluationResultsPage />} />
+                     {/* CRM & Prospects (hors périmètre Flutter) */}
+                     <Route path="/prospects" element={<FlutterParityGate><ProspectsLayout /></FlutterParityGate>} />
+                     <Route path="/ia-prospect-precall" element={<FlutterParityGate><IAProspectPreCallPage /></FlutterParityGate>} />
+                     <Route path="/prospect-preparation" element={<FlutterParityGate><ProspectPreparationPage /></FlutterParityGate>} />
+                     <Route path="/evaluation-results" element={<FlutterParityGate><EvaluationResultsPage /></FlutterParityGate>} />
+
                      <Route path="/admin/waouh" element={<AdminRoute><WaouhPage /></AdminRoute>} />
                      <Route path="/waouh" element={<Navigate to="/admin/waouh" replace />} />
                      <Route path="/admin/waouh/demo" element={<AdminRoute><WaouhDemoPage /></AdminRoute>} />
