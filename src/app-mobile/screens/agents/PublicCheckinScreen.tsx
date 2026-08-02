@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { presenceRepository } from "@/lib/waouh/presenceRepository";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,13 +18,12 @@ const ACTIONS = [
 export default function PublicCheckinScreen() {
   const { token } = useParams();
   const [searchParams] = useSearchParams();
-  const code = (searchParams.get("c") || token || "").trim().toLowerCase();
+  const payload = decodeURIComponent((searchParams.get("t") || searchParams.get("c") || token || "").trim());
 
-  const [site, setSite] = useState<any>(null);
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [selectedEmp, setSelectedEmp] = useState("");
-  const [last4, setLast4] = useState("");
-  const [pos, setPos] = useState<{ lat: number; lng: number } | null>(null);
+  const [preview, setPreview] = useState<any>(null);
+  const [employeeCode, setEmployeeCode] = useState("");
+  const [pin, setPin] = useState("");
+  const [pos, setPos] = useState<{ lat: number; lng: number; acc: number } | null>(null);
   const [gpsStatus, setGpsStatus] = useState("Position non encore autorisée");
   const [action, setAction] = useState("");
   const [loading, setLoading] = useState(false);
@@ -35,69 +34,38 @@ export default function PublicCheckinScreen() {
   const loadSite = useCallback(async () => {
     setLoadingSite(true);
     setLoadError(null);
-    setSite(null);
-    setEmployees([]);
-
-    if (!/^[a-f0-9]{6,64}$/i.test(code)) {
+    setPreview(null);
+    if (!payload) {
       setLoadError("Le lien de pointage est incomplet ou incorrect.");
       setLoadingSite(false);
       return;
     }
-
     try {
-      const exact = code.length > 12;
-      let query = supabase
-        .from("waouh_attendance_sites_public")
-        .select("id, name, address, radius_m, active, qr_token")
-        .eq("active", true)
-        .limit(2);
-
-      query = exact
-        ? query.eq("qr_token", code)
-        : query.like("qr_token", `${code}%`);
-
-      const { data: sites, error: siteError } = await query;
-      if (siteError) throw siteError;
-      if (!sites?.length) throw new Error("QR invalide, expiré ou site désactivé.");
-      if (sites.length > 1) throw new Error("Lien court ambigu. Demandez un nouveau QR au responsable.");
-
-      const resolvedSite = sites[0];
-      setSite(resolvedSite);
-
-      const { data: emps, error: employeesError } = await supabase
-        .from("waouh_attendance_employees_public")
-        .select("id, full_name")
-        .eq("site_id", resolvedSite.id)
-        .eq("active", true)
-        .order("full_name");
-
-      if (employeesError) throw employeesError;
-      setEmployees(emps || []);
-
-      if (!emps?.length) {
-        setLoadError("Aucun employé actif n'est renseigné pour ce site.");
-      }
+      const data = await presenceRepository.previewQr(payload);
+      setPreview(data);
     } catch (error: any) {
-      setLoadError(error?.message || "Impossible de charger la page de pointage.");
+      setLoadError(error?.message || "QR invalide, expiré ou site désactivé.");
     } finally {
       setLoadingSite(false);
     }
-  }, [code]);
+  }, [payload]);
 
-  useEffect(() => {
-    void loadSite();
-  }, [loadSite]);
+  useEffect(() => { void loadSite(); }, [loadSite]);
+
+  const site = preview?.site || preview;
+  const requireCode = !!(site?.require_employee_code ?? preview?.require_employee_code);
+  const requirePin = !!(site?.require_pin ?? preview?.require_pin);
+  const radius = site?.radius_meters ?? preview?.radius_meters;
 
   const requestPosition = () => {
     if (!navigator.geolocation) {
       setGpsStatus("La géolocalisation n'est pas disponible sur ce téléphone.");
       return;
     }
-
     setGpsStatus("Recherche de votre position précise…");
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setPos({ lat: position.coords.latitude, lng: position.coords.longitude });
+        setPos({ lat: position.coords.latitude, lng: position.coords.longitude, acc: position.coords.accuracy });
         setGpsStatus(`Position autorisée · précision ${Math.round(position.coords.accuracy)} m`);
       },
       (error) => {
@@ -114,25 +82,23 @@ export default function PublicCheckinScreen() {
   };
 
   const submit = async () => {
-    if (!site || !selectedEmp || !action) return toast.error("Sélectionnez votre nom et une action");
+    if (!action) return toast.error("Sélectionnez une action");
     if (!pos) return toast.error("Activez votre position GPS");
-    if (last4.length !== 4) return toast.error("Saisissez les 4 derniers chiffres de votre téléphone");
+    if (requireCode && !employeeCode.trim()) return toast.error("Code employé requis");
+    if (requirePin && pin.length !== 4) return toast.error("PIN à 4 chiffres requis");
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("waouh-attendance-checkin", {
-        body: {
-          qr_token: site.qr_token,
-          employee_id: selectedEmp,
-          last4,
-          action,
-          lat: pos.lat,
-          lng: pos.lng,
-        },
+      const data = await presenceRepository.record({
+        qrPayload: payload,
+        action,
+        latitude: pos.lat,
+        longitude: pos.lng,
+        accuracyMeters: pos.acc,
+        employeeCode: employeeCode || null,
+        pin: pin || null,
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      setDone(data.message || "Pointage enregistré");
+      setDone(data?.message || "Pointage enregistré");
     } catch (error: any) {
       toast.error(error?.message || "Le pointage n'a pas pu être enregistré");
     } finally {
@@ -150,7 +116,7 @@ export default function PublicCheckinScreen() {
     );
   }
 
-  if (loadError || !site) {
+  if (loadError || !preview) {
     return (
       <div className="min-h-[100dvh] flex items-center justify-center p-5 bg-muted/30">
         <Card className="w-full max-w-md">
@@ -175,16 +141,7 @@ export default function PublicCheckinScreen() {
         <CheckCircle2 className="h-20 w-20 text-green-600 mb-4" />
         <h1 className="text-2xl font-bold">{done}</h1>
         <p className="text-muted-foreground mt-2">Votre pointage a été enregistré avec succès.</p>
-        <Button
-          variant="outline"
-          className="mt-5"
-          onClick={() => {
-            setDone(null);
-            setSelectedEmp("");
-            setLast4("");
-            setAction("");
-          }}
-        >
+        <Button variant="outline" className="mt-5" onClick={() => { setDone(null); setAction(""); setPin(""); }}>
           Nouveau pointage
         </Button>
       </div>
@@ -198,53 +155,38 @@ export default function PublicCheckinScreen() {
           <div className="h-14 w-14 rounded-2xl bg-primary/10 grid place-items-center mx-auto mb-2">
             <MapPin className="h-8 w-8 text-primary" />
           </div>
-          <h1 className="text-xl font-bold">{site.name}</h1>
+          <h1 className="text-xl font-bold">{site?.name || "Pointage"}</h1>
           <p className="text-xs text-muted-foreground mt-1">
-            {[site.address, `Pointage dans un rayon de ${site.radius_m} m`].filter(Boolean).join(" · ")}
+            {[site?.address, radius ? `Pointage dans un rayon de ${radius} m` : null].filter(Boolean).join(" · ")}
           </p>
         </div>
 
-        <Card>
-          <CardContent className="p-4 space-y-2">
-            <Label>Votre nom</Label>
-            <select
-              className="w-full border rounded-xl p-3 bg-background"
-              value={selectedEmp}
-              onChange={(event) => setSelectedEmp(event.target.value)}
-            >
-              <option value="">— Sélectionner votre nom —</option>
-              {employees.map((employee) => (
-                <option key={employee.id} value={employee.id}>{employee.full_name}</option>
-              ))}
-            </select>
-          </CardContent>
-        </Card>
+        {requireCode && (
+          <Card>
+            <CardContent className="p-4 space-y-2">
+              <Label>Code employé</Label>
+              <Input value={employeeCode} onChange={(e) => setEmployeeCode(e.target.value)} placeholder="Ex: EMP-014" />
+            </CardContent>
+          </Card>
+        )}
 
-        <Card>
-          <CardContent className="p-4 space-y-2">
-            <Label>4 derniers chiffres de votre téléphone</Label>
-            <Input
-              type="tel"
-              maxLength={4}
-              inputMode="numeric"
-              value={last4}
-              onChange={(event) => setLast4(event.target.value.replace(/\D/g, "").slice(0, 4))}
-              placeholder="Exemple : 1234"
-            />
-          </CardContent>
-        </Card>
+        {requirePin && (
+          <Card>
+            <CardContent className="p-4 space-y-2">
+              <Label>PIN à 4 chiffres</Label>
+              <Input type="tel" maxLength={4} inputMode="numeric" value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="****" />
+            </CardContent>
+          </Card>
+        )}
 
         <div className="grid grid-cols-2 gap-2">
           {ACTIONS.map((item) => {
             const Icon = item.icon;
             return (
-              <Button
-                key={item.id}
-                type="button"
-                variant={action === item.id ? "default" : "outline"}
+              <Button key={item.id} type="button" variant={action === item.id ? "default" : "outline"}
                 onClick={() => setAction(item.id)}
-                className={`h-16 flex-col ${action === item.id ? `${item.color} text-white hover:opacity-90` : ""}`}
-              >
+                className={`h-16 flex-col ${action === item.id ? `${item.color} text-white hover:opacity-90` : ""}`}>
                 <Icon className="h-5 w-5 mb-1" /> {item.label}
               </Button>
             );
@@ -258,9 +200,7 @@ export default function PublicCheckinScreen() {
               <div className="text-sm font-semibold">Position GPS</div>
               <div className="text-xs text-muted-foreground">{gpsStatus}</div>
             </div>
-            <Button size="sm" variant="outline" onClick={requestPosition}>
-              {pos ? "Actualiser" : "Activer"}
-            </Button>
+            <Button size="sm" variant="outline" onClick={requestPosition}>{pos ? "Actualiser" : "Activer"}</Button>
           </CardContent>
         </Card>
 
