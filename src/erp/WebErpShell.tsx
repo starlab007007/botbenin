@@ -212,12 +212,21 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
   const { user } = useMobileAuth();
   const { profile } = useMobileProfile();
   const [collapsed, setCollapsed] = useState(false);
+  const [activeBrick, setActiveBrick] = useState<BrickId | null>(null);
 
-  const context = useMemo(() => routeContext(location.pathname), [location.pathname]);
-  const actions = useMemo(
-    () => contextualActions(location.pathname),
-    [location.pathname],
-  );
+  const isHome = location.pathname === HOME_PATH;
+
+  // Leaving the command center (profile, notifications, deep links) resets the canvas.
+  useEffect(() => {
+    if (!isHome && activeBrick) setActiveBrick(null);
+  }, [isHome, activeBrick]);
+
+  const contextPath = activeBrick
+    ? navigation.find((item) => item.brick === activeBrick)?.to ?? location.pathname
+    : location.pathname;
+
+  const context = useMemo(() => routeContext(contextPath), [contextPath]);
+  const actions = useMemo(() => contextualActions(contextPath), [contextPath]);
 
   const displayName = profile?.full_name || user?.user_metadata?.full_name || 'Mon espace';
   const initials = displayName
@@ -227,7 +236,15 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
     .map((part: string) => part.charAt(0).toUpperCase())
     .join('') || 'W';
 
-  const openWaouh = () => navigate('/app/chat/waouh');
+  const openWaouh = () => {
+    setActiveBrick(null);
+    if (!isHome) navigate(HOME_PATH);
+  };
+
+  const selectItem = (item: NavigationItem) => {
+    if (!isHome) navigate(HOME_PATH);
+    setActiveBrick(item.brick ?? null);
+  };
 
   return (
     <div className={cn('waouh-erp-shell', collapsed && 'waouh-erp-shell--collapsed')}>
@@ -255,15 +272,17 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
         <nav className="waouh-erp-nav">
           {navigation.map((item) => {
             const Icon = item.icon;
-            const active = item.exact
-              ? location.pathname === item.to || location.pathname.startsWith(`${item.to}/`)
+            const active = isHome
+              ? (item.brick ?? null) === activeBrick
               : location.pathname.startsWith(item.to);
-            const badge = item.to === '/app/chat' && unreadChat > 0 ? unreadChat : 0;
+            const badge = !item.brick && unreadChat > 0 ? unreadChat : 0;
 
             return (
-              <NavLink
+              <button
                 key={item.to}
-                to={item.to}
+                type="button"
+                onClick={() => selectItem(item)}
+                aria-current={active ? 'page' : undefined}
                 className={cn(
                   'waouh-erp-nav__item',
                   active && 'is-active',
@@ -276,10 +295,11 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
                 {badge > 0 && (
                   <span className="waouh-erp-nav__badge">{badge > 99 ? '99+' : badge}</span>
                 )}
-              </NavLink>
+              </button>
             );
           })}
         </nav>
+
 
         <div className="waouh-erp-sidebar__footer">
           <div className="waouh-erp-system-card">
