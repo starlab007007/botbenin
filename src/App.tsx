@@ -149,6 +149,8 @@ import { IACreatorAdminPage } from "./pages/admin/IACreatorAdminPage";
 const SystemLogsPage = lazy(() => import("./pages/admin/SystemLogsPage"));
 const AdminKnowledgeBasesPage = lazy(() => import("./pages/modules/AdminKnowledgeBasesPage").then(module => ({ default: module.AdminKnowledgeBasesPage })));
 import { AdminRoute } from "./components/auth/AdminRoute";
+import { FlutterParityGate } from "./routes/FlutterParityGate";
+
 import { PartnerRoute, AuthRoute } from "./components/auth/PartnerRoute";
 const ShortLinkRedirectPage = lazy(() => import("./pages/ShortLinkRedirectPage").then(module => ({ default: module.ShortLinkRedirectPage })));
 const WidgetPage = lazy(() => import("./pages/WidgetPage").then(module => ({ default: module.WidgetPage })));
