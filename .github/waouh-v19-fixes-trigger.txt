@@ -1,1 +1,2 @@
 Trigger the validated WAOUH V19 corrections workflow.
+Retry after deterministic source patch correction.
