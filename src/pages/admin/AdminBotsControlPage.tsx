@@ -395,7 +395,7 @@ function StockAgentsTab({ adminId }: { adminId: string }) {
   );
 }
 
-// ---------------- Attendance Sites ----------------
+// ---------------- Présence QR (waouh_presence_sites — parité Flutter) ----------------
 function AttendanceAgentsTab({ adminId }: { adminId: string }) {
   const [rows, setRows] = useState<any[]>([]);
   const [owners, setOwners] = useState<OwnerMap>({});
@@ -404,9 +404,9 @@ function AttendanceAgentsTab({ adminId }: { adminId: string }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("waouh_attendance_sites")
-      .select("id,name,address,radius_m,employer_msisdn,active,user_id,qr_token,created_at")
+    const { data } = await (supabase as any)
+      .from("waouh_presence_sites")
+      .select("id,name,address,radius_meters,responsible_whatsapp,active,user_id,created_at")
       .order("created_at", { ascending: false })
       .limit(200);
     setRows(data ?? []);
@@ -416,26 +416,27 @@ function AttendanceAgentsTab({ adminId }: { adminId: string }) {
   useEffect(() => { load(); }, [load]);
 
   const toggle = async (r: any) => {
-    const { error } = await supabase.from("waouh_attendance_sites").update({ active: !r.active }).eq("id", r.id);
+    const { error } = await (supabase as any).from("waouh_presence_sites").update({ active: !r.active }).eq("id", r.id);
     if (error) { toast({ title: "Erreur", description: error.message, variant: "destructive" }); return; }
-    await logAdminAction(adminId, r.active ? "deactivate" : "activate", "waouh_attendance_sites", r.id);
+    await logAdminAction(adminId, r.active ? "deactivate" : "activate", "waouh_presence_sites", r.id);
     toast({ title: r.active ? "Site désactivé" : "Site activé" });
     load();
   };
 
   const regenerateQr = async (r: any) => {
-    const token = crypto.randomUUID().replace(/-/g, "");
-    const { error } = await supabase.from("waouh_attendance_sites").update({ qr_token: token }).eq("id", r.id);
+    const { error } = await supabase.functions.invoke("waouh-presence-qr-create", {
+      body: { site_id: r.id, validity_minutes: 60 * 24 * 30, use_limit: 500, replace_active: true },
+    });
     if (error) { toast({ title: "Erreur", description: error.message, variant: "destructive" }); return; }
-    await logAdminAction(adminId, "regenerate_qr", "waouh_attendance_sites", r.id);
+    await logAdminAction(adminId, "regenerate_qr", "waouh_presence_sites", r.id);
     toast({ title: "QR régénéré" });
     load();
   };
 
   const remove = async (r: any) => {
-    const { error } = await supabase.from("waouh_attendance_sites").delete().eq("id", r.id);
+    const { error } = await (supabase as any).from("waouh_presence_sites").delete().eq("id", r.id);
     if (error) { toast({ title: "Erreur", description: error.message, variant: "destructive" }); return; }
-    await logAdminAction(adminId, "delete", "waouh_attendance_sites", r.id, { name: r.name });
+    await logAdminAction(adminId, "delete", "waouh_presence_sites", r.id, { name: r.name });
     toast({ title: "Site supprimé" });
     load();
   };
