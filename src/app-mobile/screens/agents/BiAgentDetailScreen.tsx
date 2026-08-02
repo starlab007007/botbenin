@@ -91,7 +91,7 @@ export default function BiAgentDetailScreen() {
         <Button variant="ghost" size="icon" onClick={() => navigate("/app/bots")} className="text-white hover:bg-white/15"><ArrowLeft /></Button>
         <div className="flex-1 min-w-0">
           <div className="font-semibold truncate flex items-center gap-2"><BarChart3 className="h-4 w-4" /> {ds?.name || "…"}</div>
-          <div className="text-xs text-white/70">{ds?.row_count || 0} lignes · {ds?.schema?.length || 0} colonnes</div>
+          <div className="text-xs text-white/70">{ds?.row_count || 0} lignes · {ds?.column_count || 0} colonnes</div>
         </div>
       </header>
       <main className="p-3 max-w-md mx-auto space-y-3 pb-32">
