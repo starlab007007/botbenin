@@ -1,0 +1,388 @@
+import { type ReactNode, useMemo, useState } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import {
+  BarChart3,
+  Bell,
+  Bot,
+  ChevronLeft,
+  ChevronRight,
+  CircleDot,
+  Command,
+  Handshake,
+  Lightbulb,
+  Megaphone,
+  MessageSquareText,
+  Package,
+  Search,
+  ShieldCheck,
+  ShoppingCart,
+  Sparkles,
+  Store,
+  UserRound,
+  UsersRound,
+} from 'lucide-react';
+
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { OfflineBanner } from '@/components/OfflineBanner';
+import { useMobileAuth } from '@/app-mobile/hooks/useMobileAuth';
+import { useMobileProfile } from '@/app-mobile/hooks/useMobileProfile';
+
+import './erp-theme.css';
+
+type WebErpShellProps = {
+  children: ReactNode;
+  unreadChat?: number;
+};
+
+type NavigationItem = {
+  label: string;
+  to: string;
+  icon: typeof MessageSquareText;
+  exact?: boolean;
+  accent?: 'chat' | 'ai' | 'stock' | 'bi' | 'store';
+};
+
+const navigation: NavigationItem[] = [
+  {
+    label: 'Chat Command Center',
+    to: '/app/chat',
+    icon: MessageSquareText,
+    exact: true,
+    accent: 'chat',
+  },
+  {
+    label: 'Bots & Agents IA',
+    to: '/app/bots',
+    icon: Bot,
+    accent: 'ai',
+  },
+  {
+    label: 'BI IA',
+    to: '/app/agents/bi/new',
+    icon: BarChart3,
+    accent: 'bi',
+  },
+  {
+    label: 'Stock IA',
+    to: '/app/agents/stock/new',
+    icon: Package,
+    accent: 'stock',
+  },
+  {
+    label: 'Boutiques & magasins',
+    to: '/app/partner/businesses',
+    icon: Store,
+    accent: 'store',
+  },
+  {
+    label: 'Ventes',
+    to: '/app/partner/sales',
+    icon: ShoppingCart,
+  },
+  {
+    label: 'WhatsApp IA',
+    to: '/app/whatsapp',
+    icon: UsersRound,
+  },
+  {
+    label: 'Diffusion',
+    to: '/app/diffusion',
+    icon: Megaphone,
+  },
+  {
+    label: 'Partenaires',
+    to: '/app/partner',
+    icon: Handshake,
+  },
+];
+
+const routeContext = (pathname: string) => {
+  if (pathname.startsWith('/app/chat')) {
+    return {
+      eyebrow: 'Centre opérationnel',
+      title: 'Chat Command Center',
+      description: 'Discussions, Statuts et Radar dans un espace de travail unifié.',
+      prompt: 'Interroger WAOUH sur mes conversations et mes opportunités',
+    };
+  }
+  if (pathname.startsWith('/app/bots') || pathname.startsWith('/app/agents')) {
+    return {
+      eyebrow: 'Intelligence artificielle',
+      title: 'Bots & Agents IA',
+      description: 'Créez et pilotez les agents spécialisés de votre activité.',
+      prompt: 'Ouvrir WAOUH pour configurer mon prochain agent IA',
+    };
+  }
+  if (pathname.startsWith('/app/partner/businesses')) {
+    return {
+      eyebrow: 'Réseau commercial',
+      title: 'Boutiques & magasins',
+      description: 'Pilotez vos points de vente depuis le même système.',
+      prompt: 'Demander à WAOUH une synthèse de mes boutiques',
+    };
+  }
+  if (pathname.startsWith('/app/partner/sales')) {
+    return {
+      eyebrow: 'Performance',
+      title: 'Ventes',
+      description: 'Suivez les opérations et les opportunités commerciales.',
+      prompt: 'Demander à WAOUH une analyse de mes ventes',
+    };
+  }
+  if (pathname.startsWith('/app/whatsapp')) {
+    return {
+      eyebrow: 'Conversationnel',
+      title: 'WhatsApp IA',
+      description: 'Automatisez les échanges et le suivi des demandes.',
+      prompt: 'Ouvrir le copilote conversationnel WAOUH',
+    };
+  }
+  if (pathname.startsWith('/app/diffusion')) {
+    return {
+      eyebrow: 'Communication',
+      title: 'Diffusion intelligente',
+      description: 'Préparez et suivez vos campagnes depuis WaouhApp.',
+      prompt: 'Demander à WAOUH de préparer une campagne',
+    };
+  }
+  return {
+    eyebrow: 'WaouhApp AI ERP',
+    title: 'Pilotage intelligent',
+    description: 'Un système unique pour gérer, analyser et décider.',
+    prompt: 'Ouvrir le Chat Command Center',
+  };
+};
+
+const contextualActions = (pathname: string) => {
+  if (pathname.startsWith('/app/chat')) {
+    return [
+      'Analyser les discussions prioritaires',
+      'Rechercher une opportunité à proximité',
+      'Préparer une vente ou une négociation',
+    ];
+  }
+  if (pathname.includes('/stock')) {
+    return [
+      'Identifier les produits critiques',
+      'Préparer un réapprovisionnement',
+      'Analyser la rotation du stock',
+    ];
+  }
+  if (pathname.includes('/bi/')) {
+    return [
+      'Expliquer les principaux indicateurs',
+      'Comparer deux périodes',
+      'Préparer un rapport de performance',
+    ];
+  }
+  if (pathname.startsWith('/app/partner')) {
+    return [
+      'Comparer les boutiques',
+      'Analyser les ventes récentes',
+      'Identifier les actions prioritaires',
+    ];
+  }
+  return [
+    'Résumer la situation actuelle',
+    'Identifier les priorités',
+    'Préparer une action avec WAOUH',
+  ];
+};
+
+export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { user } = useMobileAuth();
+  const { profile } = useMobileProfile();
+  const [collapsed, setCollapsed] = useState(false);
+
+  const context = useMemo(() => routeContext(location.pathname), [location.pathname]);
+  const actions = useMemo(
+    () => contextualActions(location.pathname),
+    [location.pathname],
+  );
+
+  const displayName = profile?.full_name || user?.user_metadata?.full_name || 'Mon espace';
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part: string) => part.charAt(0).toUpperCase())
+    .join('') || 'W';
+
+  const openWaouh = () => navigate('/app/chat/waouh');
+
+  return (
+    <div className={cn('waouh-erp-shell', collapsed && 'waouh-erp-shell--collapsed')}>
+      <aside className="waouh-erp-sidebar" aria-label="Navigation WaouhApp AI ERP">
+        <div className="waouh-erp-brand">
+          <div className="waouh-erp-brand__mark" aria-hidden="true">W</div>
+          {!collapsed && (
+            <div className="waouh-erp-brand__copy">
+              <strong>WaouhApp</strong>
+              <span>AI ERP</span>
+            </div>
+          )}
+          <button
+            type="button"
+            className="waouh-erp-collapse"
+            onClick={() => setCollapsed((value) => !value)}
+            aria-label={collapsed ? 'Déployer la navigation' : 'Réduire la navigation'}
+          >
+            {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          </button>
+        </div>
+
+        {!collapsed && <div className="waouh-erp-nav-label">ESPACE DE TRAVAIL</div>}
+
+        <nav className="waouh-erp-nav">
+          {navigation.map((item) => {
+            const Icon = item.icon;
+            const active = item.exact
+              ? location.pathname === item.to || location.pathname.startsWith(`${item.to}/`)
+              : location.pathname.startsWith(item.to);
+            const badge = item.to === '/app/chat' && unreadChat > 0 ? unreadChat : 0;
+
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={cn(
+                  'waouh-erp-nav__item',
+                  active && 'is-active',
+                  item.accent && `is-${item.accent}`,
+                )}
+                title={collapsed ? item.label : undefined}
+              >
+                <span className="waouh-erp-nav__icon"><Icon size={19} /></span>
+                {!collapsed && <span className="waouh-erp-nav__text">{item.label}</span>}
+                {badge > 0 && (
+                  <span className="waouh-erp-nav__badge">{badge > 99 ? '99+' : badge}</span>
+                )}
+              </NavLink>
+            );
+          })}
+        </nav>
+
+        <div className="waouh-erp-sidebar__footer">
+          <div className="waouh-erp-system-card">
+            <div className="waouh-erp-system-card__icon"><ShieldCheck size={18} /></div>
+            {!collapsed && (
+              <div>
+                <strong>Moteur WaouhApp</strong>
+                <span>Même socle fonctionnel que l’application mobile</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </aside>
+
+      <section className="waouh-erp-main">
+        <header className="waouh-erp-topbar">
+          <div className="waouh-erp-page-title">
+            <span>{context.eyebrow}</span>
+            <div>
+              <h1>{context.title}</h1>
+              <p>{context.description}</p>
+            </div>
+          </div>
+
+          <div className="waouh-erp-topbar__actions">
+            <button
+              type="button"
+              className="waouh-erp-search-trigger"
+              onClick={() => navigate('/app/chat')}
+            >
+              <Search size={17} />
+              <span>Rechercher dans WaouhApp</span>
+              <kbd><Command size={12} /> K</kbd>
+            </button>
+
+            <Button
+              type="button"
+              className="waouh-erp-primary-action"
+              onClick={openWaouh}
+            >
+              <Sparkles size={17} />
+              Discuter avec WAOUH
+            </Button>
+
+            <button
+              type="button"
+              className="waouh-erp-icon-button"
+              onClick={() => navigate('/app/notifications')}
+              aria-label="Notifications"
+            >
+              <Bell size={19} />
+              {unreadChat > 0 && <span>{unreadChat > 99 ? '99+' : unreadChat}</span>}
+            </button>
+
+            <button
+              type="button"
+              className="waouh-erp-profile"
+              onClick={() => navigate('/app/profile')}
+            >
+              <Avatar className="h-9 w-9">
+                <AvatarImage src={profile?.avatar_url || undefined} />
+                <AvatarFallback>{initials}</AvatarFallback>
+              </Avatar>
+              <span>
+                <strong>{displayName}</strong>
+                <small><CircleDot size={10} /> WAOUH actif</small>
+              </span>
+            </button>
+          </div>
+        </header>
+
+        <OfflineBanner />
+
+        <div className="waouh-erp-body">
+          <main className="waouh-erp-workspace">{children}</main>
+
+          <aside className="waouh-erp-copilot" aria-label="Copilote contextuel WaouhApp">
+            <div className="waouh-erp-copilot__hero">
+              <div className="waouh-erp-copilot__icon"><Sparkles size={20} /></div>
+              <span>Copilote contextuel</span>
+              <h2>WAOUH comprend votre espace de travail</h2>
+              <p>
+                Utilisez le moteur conversationnel existant pour analyser, rechercher,
+                vendre, acheter ou négocier.
+              </p>
+              <Button type="button" onClick={openWaouh} className="w-full">
+                <MessageSquareText size={17} />
+                {context.prompt}
+              </Button>
+            </div>
+
+            <section className="waouh-erp-copilot__section">
+              <div className="waouh-erp-copilot__section-title">
+                <Lightbulb size={16} />
+                Suggestions dans ce contexte
+              </div>
+              <div className="waouh-erp-copilot__suggestions">
+                {actions.map((action) => (
+                  <button key={action} type="button" onClick={openWaouh}>
+                    <span>{action}</span>
+                    <ChevronRight size={15} />
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="waouh-erp-copilot__section waouh-erp-copilot__status">
+              <div>
+                <strong>Architecture AI-native</strong>
+                <span>Chat, Bots, BI, Stock et Boutiques réunis dans le même shell Web.</span>
+              </div>
+              <UserRound size={20} />
+            </section>
+          </aside>
+        </div>
+      </section>
+    </div>
+  );
+};
+
+export default WebErpShell;
