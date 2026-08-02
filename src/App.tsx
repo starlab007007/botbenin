@@ -386,8 +386,12 @@ const AppContent = () => {
                   <Route path="/sigdsts/admin/quiz" element={<AdminRoute><AdminQuizAttemptsPage /></AdminRoute>} />
                   <Route path="/sigdsts/admin/knowledge" element={<AdminRoute><SupportKnowledgePage /></AdminRoute>} />
 
+                  {/* Parité Flutter : toute route /app inconnue retombe sur le Chat */}
+                  <Route path="/app/*" element={<Navigate to="/app/chat" replace />} />
+
                   {/* Route 404 */}
                   <Route path="*" element={<NotFound />} />
+
                 </Routes>
               </Suspense>
   );
