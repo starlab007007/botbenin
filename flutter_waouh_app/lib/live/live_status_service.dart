@@ -35,10 +35,11 @@ class LiveStatusService {
     required String? authorName,
     required String? authorAvatarUrl,
     required List<XFile> photos,
+    required String idempotencyKey,
   }) async {
     if (title.trim().isEmpty) throw StateError('Le titre est obligatoire.');
     final urls = <String>[];
-    for (final photo in photos.take(2)) {
+    for (final photo in photos.take(4)) {
       final uploaded = await media.uploadImage(
         file: photo,
         bucket: 'waouh-statuses',
@@ -60,10 +61,14 @@ class LiveStatusService {
       'author_avatar_url': authorAvatarUrl,
       'waouh_code': null,
       'source': 'flutter_native',
+      'idempotency_key': idempotencyKey,
     });
     final data = response.data;
-    if (data is Map && data['error'] != null) {
-      throw StateError(liveText(data['error'], 'Publication impossible'));
+    if (data is! Map || data['ok'] != true) {
+      throw StateError(liveText(
+        data is Map ? data['error'] : null,
+        'Publication impossible',
+      ));
     }
   }
 }

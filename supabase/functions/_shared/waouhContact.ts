@@ -127,20 +127,43 @@ export async function rehostMedia(
 ): Promise<string | null> {
   try {
     if (!sourceUrl) return null;
+    let resolvedSource = String(sourceUrl).trim().replaceAll("\\/", "/").replaceAll("&amp;", "&");
+    const supabaseOrigin = Deno.env.get("SUPABASE_URL") || "";
+    if (resolvedSource.startsWith("//")) resolvedSource = `https:${resolvedSource}`;
+    if (resolvedSource.startsWith("/storage/v1/") && supabaseOrigin) {
+      resolvedSource = `${supabaseOrigin.replace(/\/$/, "")}${resolvedSource}`;
+    } else if (resolvedSource.startsWith("storage/v1/") && supabaseOrigin) {
+      resolvedSource = `${supabaseOrigin.replace(/\/$/, "")}/${resolvedSource}`;
+    } else if (/^(?:waouh-media|waouh-uploads)\//i.test(resolvedSource) && supabaseOrigin) {
+      resolvedSource = `${supabaseOrigin.replace(/\/$/, "")}/storage/v1/object/public/${resolvedSource}`;
+    }
+    resolvedSource = resolvedSource.replace(
+      /\/storage\/v1\/object\/sign\/(waouh-media|waouh-uploads)\//i,
+      "/storage/v1/object/public/$1/",
+    );
+    if (/\/storage\/v1\/object\/public\/waouh-(?:media|uploads)\//i.test(resolvedSource)) {
+      resolvedSource = resolvedSource.split("?")[0];
+    }
     // Already hosted in our bucket
-    if (sourceUrl.includes("/waouh-media/")) return sourceUrl;
-    const headers: Record<string, string> = {};
-    if (opts.wahaApiKey && opts.wahaBaseUrl && sourceUrl.startsWith(opts.wahaBaseUrl.replace(/\/$/, ""))) {
+    if (resolvedSource.includes("/storage/v1/object/public/waouh-media/")) return resolvedSource;
+    const headers: Record<string, string> = {
+      "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+      "User-Agent": "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124 Mobile Safari/537.36",
+    };
+    if (opts.wahaApiKey && opts.wahaBaseUrl && resolvedSource.startsWith(opts.wahaBaseUrl.replace(/\/$/, ""))) {
       headers["X-Api-Key"] = opts.wahaApiKey;
     }
-    const res = await fetch(sourceUrl, { headers });
+    const res = await fetch(resolvedSource, { headers, redirect: "follow" });
     if (!res.ok) return null;
+    const receivedType = res.headers.get("content-type") || mime;
+    if (/text\/html|application\/json/i.test(receivedType)) return null;
     const buf = new Uint8Array(await res.arrayBuffer());
     if (buf.byteLength === 0) return null;
-    const ext = mediaExt(mime);
+    const uploadType = /^image\//i.test(receivedType) ? receivedType.split(";")[0] : mime;
+    const ext = mediaExt(uploadType);
     const path = `inbound/${new Date().toISOString().slice(0, 10)}/${crypto.randomUUID()}.${ext}`;
     const { error } = await sb.storage.from("waouh-media").upload(path, buf, {
-      contentType: mime || "image/jpeg",
+      contentType: uploadType || "image/jpeg",
       upsert: false,
     });
     if (error) return null;

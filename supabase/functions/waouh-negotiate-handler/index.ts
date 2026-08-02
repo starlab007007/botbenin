@@ -1,9 +1,9 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { geminiJson } from '../_shared/gemini.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')!;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -18,21 +18,12 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'article not found' }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // AI suggest counter
-    const aiRes = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: 'Tu négocies des prix au Bénin. Réponds JSON: { fair_price, counter_offer, advice (court, en français) }.' },
-          { role: 'user', content: `Article: ${article.title} ${article.brand || ''} ${article.model || ''}, prix demandé: ${article.price} FCFA. Acheteur propose: ${offered_price} FCFA. Marché ${article.market_price_min || '?'}-${article.market_price_max || '?'}. Message: ${message || ''}` },
-        ],
-        response_format: { type: 'json_object' },
-      }),
-    });
-    const aiData = await aiRes.json();
-    const negotiation = JSON.parse(aiData.choices[0].message.content);
+    const deterministicCounter = Math.round((Number(article.price || 0) + Number(offered_price || 0)) / 2);
+    const negotiation: any = await geminiJson(
+      'Tu négocies des prix au Bénin. Réponds JSON: { fair_price, counter_offer, advice (court, en français) }.',
+      `Article: ${article.title} ${article.brand || ''} ${article.model || ''}, prix demandé: ${article.price} FCFA. Acheteur propose: ${offered_price} FCFA. Marché ${article.market_price_min || '?'}-${article.market_price_max || '?'}. Message: ${message || ''}`,
+      { fair_price: deterministicCounter, counter_offer: deterministicCounter, advice: 'Proposition calculée entre le prix affiché et votre offre.' },
+    );
 
     return new Response(JSON.stringify({
       success: true,

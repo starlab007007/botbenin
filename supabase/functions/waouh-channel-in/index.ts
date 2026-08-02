@@ -2,7 +2,9 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { lidToPhoneInline } from "../_shared/waouh-format.ts";
-import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
+import { resolveSiblingUserIds } from "../_shared/waouh-identity.ts";
+import { bindThreadState, resolveProductThread, resolveSearchThreadForActor } from "../_shared/waouh-thread.ts";
+import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 
 
 const corsHeaders = {
@@ -225,11 +227,27 @@ serve(async (req) => {
     let phone: string | null = raw.phone ?? null;
     let sessionId: string | null = raw.sessionId ?? null;
     let attachments: Array<{ url: string; type: string }> = Array.isArray(raw.attachments) ? raw.attachments : [];
-    const lat = raw.lat ?? 6.36;
-    const lng = raw.lng ?? 2.42;
+    const lat = typeof raw.lat === "number" && Number.isFinite(raw.lat) ? raw.lat : null;
+    const lng = typeof raw.lng === "number" && Number.isFinite(raw.lng) ? raw.lng : null;
+    const hasLocation = lat != null && lng != null;
     const city = raw.city ?? "Cotonou";
-    const authUserId: string | null = raw.authUserId ?? null;
+    let authUserId: string | null = raw.authUserId ?? null;
     const clientMeta: Record<string, any> = (raw.meta && typeof raw.meta === "object") ? raw.meta : {};
+
+    if (channel === "web" && authUserId) {
+      const bearer = (req.headers.get("authorization") || "")
+        .replace(/^Bearer\s+/i, "")
+        .trim();
+      if (bearer && bearer !== SERVICE) {
+        const { data: authenticated } = await sb.auth.getUser(bearer);
+        if (authenticated.user?.id !== authUserId) {
+          return new Response(JSON.stringify({ ok: false, error: "auth identity mismatch" }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+    }
 
     const wahaSession = raw.session || WAHA_SESSION;
     let fromChatId: string | null = null;
@@ -340,14 +358,16 @@ serve(async (req) => {
         const { data: created, error } = await sb.from("waouh_users").insert({
           web_session_id: sessionId, channel: "web", city,
           auth_user_id: authUserId,
-          location: `SRID=4326;POINT(${lng} ${lat})` as any,
+          location: hasLocation ? `SRID=4326;POINT(${lng} ${lat})` as any : null,
         }).select().single();
         if (error) log("user insert error", error);
         user = created;
-      } else if (authUserId && !user.auth_user_id) {
-        await sb.from("waouh_users").update({ auth_user_id: authUserId, city }).eq("id", user.id);
-      } else if (city && city !== user.city) {
-        await sb.from("waouh_users").update({ city }).eq("id", user.id);
+      } else {
+        const patch: Record<string, any> = {};
+        if (authUserId && !user.auth_user_id) patch.auth_user_id = authUserId;
+        if (city && city !== user.city) patch.city = city;
+        if (hasLocation) patch.location = `SRID=4326;POINT(${lng} ${lat})` as any;
+        if (Object.keys(patch).length) await sb.from("waouh_users").update(patch).eq("id", user.id);
       }
     } else {
       const { data: existing } = await sb.from("waouh_users").select("*").eq("phone_number", phone).maybeSingle();
@@ -355,12 +375,108 @@ serve(async (req) => {
       if (!user) {
         const { data: created } = await sb.from("waouh_users").insert({
           phone_number: phone, channel: "whatsapp", city,
-          location: `SRID=4326;POINT(${lng} ${lat})` as any,
+          location: hasLocation ? `SRID=4326;POINT(${lng} ${lat})` as any : null,
         }).select().single();
         user = created;
+      } else if (hasLocation) {
+        await sb.from("waouh_users").update({ location: `SRID=4326;POINT(${lng} ${lat})` as any, city }).eq("id", user.id);
       }
     }
     log("user", { id: user?.id });
+
+    // Chat Meet : une relation active est déterminée par le produit, l'acheteur
+    // et le vendeur. La conversation générale reste disponible, mais tous les
+    // messages commerciaux portent désormais un thread_id autoritaire.
+    const requestedThreadType = clientMeta?.thread_type === "search" ? "search" : "product_meet";
+    const requestedSearchThreadId = requestedThreadType === "search"
+      ? String(clientMeta?.thread_id || "").trim() || null
+      : null;
+    const searchMeet = requestedSearchThreadId
+      ? await resolveSearchThreadForActor({
+          sb,
+          actorUser: user,
+          preferredThreadId: requestedSearchThreadId,
+        })
+      : null;
+    let inboundArticleId: string | null = requestedThreadType === "search"
+      ? null
+      : clientMeta?.article_id ?? null;
+    const radarSource = String(clientMeta?.radar_source || "").toLowerCase();
+    if (inboundArticleId && ["catalog", "partner"].includes(radarSource)) {
+      const promoted = await promoteCatalogToArticle(sb, inboundArticleId, {});
+      if (!promoted.article_id) {
+        return new Response(JSON.stringify({
+          ok: false,
+          code: "radar_promotion_failed",
+          error: "Ce résultat partenaire ne peut pas encore ouvrir une discussion produit.",
+        }), { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      inboundArticleId = promoted.article_id;
+      clientMeta.article_id = promoted.article_id;
+      clientMeta.source_id = clientMeta.source_id || clientMeta.radar_item_id || null;
+      clientMeta.source = "partner";
+    }
+    const requestedRole: "buyer" | "seller" = clientMeta?.role === "seller" ? "seller" : "buyer";
+    const meet = inboundArticleId
+      ? await resolveProductThread({
+          sb,
+          articleId: inboundArticleId,
+          actorUser: user,
+          role: requestedRole,
+          counterpartUserId: clientMeta?.counterpart_user_id ?? null,
+          buyerUserId: clientMeta?.buyer_user_id ?? null,
+          sellerUserId: clientMeta?.seller_user_id ?? null,
+          preferredThreadId: clientMeta?.thread_id ?? null,
+          source: clientMeta?.source ?? channel,
+          create: true,
+        })
+      : null;
+    const threadId: string | null = meet?.id ?? searchMeet?.id ?? null;
+    const requestedIdempotencyKey = String(clientMeta?.idempotency_key || "").trim();
+    const idempotencyKey = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      .test(requestedIdempotencyKey)
+      ? requestedIdempotencyKey
+      : crypto.randomUUID();
+    const routedAction = String(clientMeta?.action || clientMeta?.intent || "message").trim() || "message";
+    const threadMeta: Record<string, any> = threadId
+      ? searchMeet
+        ? {
+            thread_id: threadId,
+            thread_key: searchMeet.thread_key,
+            thread_type: "search",
+            search_request_id: searchMeet.search_request_id,
+          }
+        : {
+            thread_id: threadId,
+            thread_key: meet?.thread_key ?? clientMeta?.thread_key ?? clientMeta?.match_key ?? null,
+            thread_type: "product_meet",
+            buyer_user_id: meet?.buyer_user_id ?? clientMeta?.buyer_user_id ?? null,
+            seller_user_id: meet?.seller_user_id ?? clientMeta?.seller_user_id ?? null,
+            counterpart_user_id: requestedRole === "seller"
+              ? (meet?.buyer_user_id ?? clientMeta?.counterpart_user_id ?? null)
+              : (meet?.seller_user_id ?? clientMeta?.counterpart_user_id ?? null),
+            counterpart_name: clientMeta?.counterpart_name ?? null,
+          }
+      : {};
+
+    if (requestedIdempotencyKey && idempotencyKey === requestedIdempotencyKey) {
+      const { data: replay } = await sb.from("waouh_messages")
+        .select("id,thread_id,article_id")
+        .eq("meta->>idempotency_key", idempotencyKey)
+        .maybeSingle();
+      if (replay?.id) {
+        return new Response(JSON.stringify({
+          ok: true,
+          duplicate: true,
+          inbound_message_id: replay.id,
+          thread_id: replay.thread_id,
+          article_id: replay.article_id,
+          idempotency_key: idempotencyKey,
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     // Upsert conversation so the operator-side app can subscribe by conversation_id.
     // We key on user_id + channel (one open conversation per user/channel).
@@ -386,15 +502,39 @@ serve(async (req) => {
     }
 
     // Persist incoming
-    const inboundArticleId: string | null = clientMeta?.article_id ?? null;
-    const { data: inboundRow } = await sb.from("waouh_messages").insert({
+    const { data: inboundRow, error: inboundError } = await sb.from("waouh_messages").insert({
       conversation_id: convId,
+      thread_id: threadId,
       user_id: user.id, channel, direction: "in", text: text || "(image)",
       web_session_id: sessionId, phone_number: phone,
       attachments,
       article_id: inboundArticleId,
-      meta: { ...clientMeta, to_phone: toPhone || WAOUH_BUSINESS_PHONE, session: wahaSession },
+      meta: {
+        ...clientMeta,
+        ...threadMeta,
+        idempotency_key: idempotencyKey,
+        action: routedAction,
+        to_phone: toPhone || WAOUH_BUSINESS_PHONE,
+        session: wahaSession,
+      },
     }).select("id").maybeSingle();
+    if (inboundError) {
+      if ((inboundError as any).code === "23505" || /duplicate/i.test((inboundError as any).message || "")) {
+        const { data: replay } = await sb.from("waouh_messages")
+          .select("id,thread_id,article_id")
+          .eq("meta->>idempotency_key", idempotencyKey)
+          .maybeSingle();
+        return new Response(JSON.stringify({
+          ok: true,
+          duplicate: true,
+          inbound_message_id: replay?.id ?? null,
+          thread_id: replay?.thread_id ?? threadId,
+          article_id: replay?.article_id ?? inboundArticleId,
+          idempotency_key: idempotencyKey,
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      throw inboundError;
+    }
     const inboundMessageId: string | null = inboundRow?.id ?? null;
 
     // === Real "interested buyer" signal ===
@@ -409,14 +549,11 @@ serve(async (req) => {
           .select("id, seller_id")
           .eq("id", articleIdFromMeta)
           .maybeSingle();
-        const buyerKey = clientMeta?.buyer_profile_id || user.id;
-        const isSeller =
-          art?.seller_id && (
-            (authUserId && art.seller_id === authUserId) ||
-            (user?.auth_user_id && art.seller_id === user.auth_user_id)
-          );
+        const buyerKey = clientMeta?.buyer_profile_id || meet?.buyer_user_id || user.id;
+        const isSeller = requestedRole === "seller" ||
+          (!!art?.seller_id && meet?.seller_user_id === art.seller_id && meet?.seller_user_id === user.id);
         if (art?.seller_id && !isSeller) {
-          const dedupeId = `new_buyer:${articleIdFromMeta}:${buyerKey}`;
+          const dedupeId = `new_buyer:${articleIdFromMeta}:${buyerKey}:${threadId ?? "legacy"}`;
           const { error: dupErr } = await sb
             .from("waouh_processed_events")
             .insert({ event_id: dedupeId, source: "new_buyer" });
@@ -428,7 +565,11 @@ serve(async (req) => {
                 kind: "new_buyer",
                 article_id: articleIdFromMeta,
                 buyer_profile_id: clientMeta?.buyer_profile_id ?? null,
-                counterpart_user_id: user.id,
+                counterpart_user_id: meet?.buyer_user_id ?? user.id,
+                buyer_user_id: meet?.buyer_user_id ?? user.id,
+                seller_user_id: meet?.seller_user_id ?? art.seller_id,
+                thread_id: threadId,
+                counterpart_name: user.display_name || user.phone_number || "Acheteur",
                 recipient: "seller",
               }),
             }).catch(() => {});
@@ -437,6 +578,126 @@ serve(async (req) => {
       } catch (e) {
         console.warn("[waouh-channel-in] new_buyer dispatch failed", e);
       }
+    }
+
+
+    // Parcours commercial post-accord : paiement, préparation, livraison et
+    // conclusion utilisent le même contrat pour App, Web et WhatsApp.
+    const commercePayload = String(clientMeta?.button_payload || text || "").trim();
+    const normalizedCommerceText = commercePayload.toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const inferredCommerceAction =
+      /\b(j.?ai|bien)?\s*recu\b|confirmer\s+la\s+reception/.test(normalizedCommerceText)
+        ? "confirmer-reception"
+        : /\b(payer|paiement|payement|momo|mobile money|je paie|je paye)\b/.test(normalizedCommerceText)
+          ? "payer-mobile"
+          : null;
+    const commerceAction = String(clientMeta?.commerce_action || inferredCommerceAction || commercePayload.split(":")[0] || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/_/g, "-");
+    const commerceActions = new Set([
+      "payer-mobile",
+      "paiement-effectue",
+      "paiement-livraison",
+      "confirmer-disponibilite",
+      "preparer",
+      "suivre-livraison",
+      "confirmer-reception",
+      "signaler-probleme",
+      "annuler",
+      "mtn",
+      "moov",
+      "sbin",
+    ]);
+    if (commerceActions.has(commerceAction)) {
+      const workflowRes = await fetch(`${SUPABASE_URL}/functions/v1/waouh-commerce-workflow`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: user.id,
+          phone,
+          text,
+          action: commerceAction,
+          button_payload: commercePayload,
+          commerce_reference: clientMeta?.commerce_reference || null,
+          article_id: clientMeta?.article_id || null,
+          thread_id: threadId,
+          deal_id: clientMeta?.deal_id || null,
+          transaction_id: clientMeta?.transaction_id || null,
+        }),
+      });
+      const workflow = await workflowRes.json().catch(() => ({}));
+      const workflowReply = String(workflow?.reply || workflow?.error || "Action WAOUH impossible.");
+      const workflowActions: WaouhAction[] = Array.isArray(workflow?.actions) ? workflow.actions : [];
+      const workflowAttachments = Array.isArray(workflow?.attachments) ? workflow.attachments : [];
+      const workflowProducts = Array.isArray(workflow?.products) ? workflow.products : [];
+      await sb.from("waouh_messages").insert({
+        conversation_id: convId,
+        thread_id: workflow?.thread_id || threadId,
+        user_id: user.id,
+        channel,
+        direction: "out",
+        text: workflowReply,
+        web_session_id: sessionId,
+        phone_number: phone,
+        attachments: workflowAttachments,
+        article_id: workflow?.article_id || inboundArticleId || null,
+        meta: {
+          intent: workflow?.intent || "commerce_error",
+          workflow_state: workflow?.workflow_state || null,
+          role: workflow?.role || clientMeta?.role || null,
+          article_id: workflow?.article_id || inboundArticleId || null,
+          thread_id: workflow?.thread_id || threadId,
+          buyer_user_id: meet?.buyer_user_id ?? clientMeta?.buyer_user_id ?? null,
+          seller_user_id: meet?.seller_user_id ?? clientMeta?.seller_user_id ?? null,
+          counterpart_user_id: threadMeta.counterpart_user_id ?? null,
+          deal_id: workflow?.deal_id || null,
+          transaction_id: workflow?.transaction_id || null,
+          actions: workflowActions,
+          products: workflowProducts,
+        },
+      });
+      if (convId) {
+        await sb.from("waouh_conversations")
+          .update({
+            last_message: workflowReply,
+            last_intent: workflow?.intent || "commerce_error",
+            current_article_id: workflow?.article_id || inboundArticleId || null,
+            current_transaction_id: workflow?.transaction_id || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", convId);
+      }
+      if (channel === "whatsapp" && phone && WAHA_BASE_URL) {
+        const firstImage = workflowAttachments.find((item: any) => item?.url)?.url || null;
+        await sendWahaReply(
+          WAHA_BASE_URL,
+          wahaSession,
+          replyChatIds,
+          workflowReply,
+          workflowActions,
+          firstImage,
+        );
+      }
+      return new Response(JSON.stringify({
+        ok: workflowRes.ok && workflow?.ok !== false,
+        reply: workflowReply,
+        intent: workflow?.intent || "commerce_error",
+        workflow_state: workflow?.workflow_state || null,
+        role: workflow?.role || null,
+        actions: workflowActions,
+        products: workflowProducts,
+        attachments: workflowAttachments,
+        article_id: workflow?.article_id || null,
+        deal_id: workflow?.deal_id || null,
+        transaction_id: workflow?.transaction_id || null,
+        thread_id: workflow?.thread_id || threadId,
+        inbound_message_id: inboundMessageId,
+        conversation_id: convId,
+        user_id: user.id,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
 
@@ -451,36 +712,35 @@ serve(async (req) => {
     const metaRole: "buyer" | "seller" | null =
       clientMeta?.role === "seller" || clientMeta?.role === "buyer" ? clientMeta.role : null;
 
-    let openNeg: { id: string; buyer_user_id: string | null; seller_user_id: string | null } | null = null;
+    let openNeg: { id: string; thread_id: string | null; buyer_user_id: string | null; seller_user_id: string | null } | null = null;
 
     // 🔑 Multi-identités : une même personne peut avoir plusieurs lignes
     // waouh_users (App + WA, LID + phone, doublons). On élargit la recherche
     // à tous les siblings pour ne plus rater la négociation côté contre-offre.
     const siblingIds = await resolveSiblingUserIds(sb, user);
 
-    if (metaArticleId) {
+    const negotiationAction = String(text || "").trim().match(/^(?:accepter|accept|refuser|refuse|contre-proposition|counter):([0-9a-f-]{36})$/i);
+    const requestedNegotiationId: string | null = clientMeta?.negotiation_id ?? meet?.negotiation_id ?? negotiationAction?.[1] ?? null;
+    if (requestedNegotiationId) {
       const { data } = await sb
         .from("waouh_negotiations")
-        .select("id, buyer_user_id, seller_user_id")
-        .eq("article_id", metaArticleId)
+        .select("id, thread_id, buyer_user_id, seller_user_id")
+        .eq("id", requestedNegotiationId)
+        .in("state", ["proposed", "countered"])
+        .maybeSingle();
+      openNeg = data as any;
+    }
+    if (!openNeg && threadId) {
+      const { data } = await sb
+        .from("waouh_negotiations")
+        .select("id, thread_id, buyer_user_id, seller_user_id")
+        .eq("thread_id", threadId)
         .in("state", ["proposed", "countered"])
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       openNeg = data as any;
     }
-    if (!openNeg) {
-      const { data } = await sb
-        .from("waouh_negotiations")
-        .select("id, buyer_user_id, seller_user_id")
-        .or(siblingOrFilter(siblingIds))
-        .in("state", ["proposed", "countered"])
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      openNeg = data as any;
-    }
-
     // Choisit l'id sibling qui correspond effectivement à un côté de la négo,
     // pour que negotiation-router calcule correctement isBuyer/isSeller.
     let negUserId: string = user.id;
@@ -497,13 +757,23 @@ serve(async (req) => {
     }
 
     const lowerText = (text || "").toLowerCase();
-    const shouldStayInCore = /(?:int[ée]ress[ée]|interesse)\s*(?:n[°o]?\s*)?(?:x|\d+)|\b(?:je\s+)?(?:cherche|vends)\b/i.test(lowerText);
+    // Les cartes Flutter envoient `interesse:1`. Le séparateur `:` doit être
+    // reconnu comme une sélection de produit et ne jamais être détourné vers
+    // une négociation déjà ouverte dans un autre Meet.
+    const shouldStayInCore = /(?:int[ée]ress[ée]|interesse)\s*(?:[:#-]\s*)?(?:n[°o]?\s*)?(?:x|\d+)|\b(?:je\s+)?(?:cherche|vends)\b/i.test(lowerText);
 
     if (openNeg && !shouldStayInCore) {
       const negRes = await fetch(`${SUPABASE_URL}/functions/v1/waouh-negotiation-router`, {
         method: "POST",
         headers: { Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, text, user_id: negUserId }),
+        body: JSON.stringify({
+          phone,
+          text,
+          user_id: negUserId,
+          thread_id: threadId ?? openNeg.thread_id,
+          negotiation_id: openNeg.id,
+          article_id: metaArticleId,
+        }),
       });
       const negData = await negRes.json().catch(() => ({}));
       const negReply = negData?.reply || "OK";
@@ -511,15 +781,32 @@ serve(async (req) => {
       const negIntent = negData?.intent || "negotiation";
       const negActions: WaouhAction[] = Array.isArray(negData?.actions) ? negData.actions : [];
       const negAttachments = Array.isArray(negData?.attachments) ? negData.attachments : [];
+      const negProducts = Array.isArray(negData?.products) ? negData.products : [];
       const suppressDirectReply = negData?.suppress_direct_reply === true;
       if (!suppressDirectReply) {
         await sb.from("waouh_messages").insert({
           conversation_id: convId,
+          thread_id: negData?.thread_id ?? threadId ?? openNeg.thread_id,
           user_id: user.id, channel, direction: "out", text: negReply,
           web_session_id: sessionId, phone_number: phone,
           attachments: negAttachments,
           article_id: clientMeta?.article_id ?? null,
-          meta: { intent: negIntent, transaction_id: negTxId, article_id: clientMeta?.article_id ?? null, actions: negActions },
+          meta: {
+            intent: negIntent,
+            workflow_state: negData?.workflow_state ?? null,
+            role: negData?.role ?? clientMeta?.role ?? null,
+            transaction_id: negTxId,
+            deal_id: negData?.deal_id ?? null,
+            article_id: negData?.article_id ?? clientMeta?.article_id ?? null,
+            thread_id: negData?.thread_id ?? threadId ?? openNeg.thread_id,
+            buyer_user_id: openNeg.buyer_user_id,
+            seller_user_id: openNeg.seller_user_id,
+            counterpart_user_id: requestedRole === "seller"
+              ? openNeg.buyer_user_id
+              : openNeg.seller_user_id,
+            actions: negActions,
+            products: negProducts,
+          },
         });
         if (convId) {
           await sb.from("waouh_conversations")
@@ -533,7 +820,13 @@ serve(async (req) => {
           await sendWahaReply(WAHA_BASE_URL, wahaSession, replyChatIds, negReply, negActions, firstImage);
         } catch (e) { console.error("WAHA send failed", e); }
       }
-      return new Response(JSON.stringify({ ok: true, reply: negReply, intent: negIntent, transaction_id: negTxId, attachments: negAttachments, inbound_message_id: inboundMessageId, conversation_id: convId, user_id: user.id }), {
+      await bindThreadState(sb, threadId ?? openNeg.thread_id, {
+        negotiation_id: openNeg.id,
+        deal_id: negData?.deal_id ?? null,
+        transaction_id: negTxId,
+        status: negData?.workflow_state ?? "negotiating",
+      });
+      return new Response(JSON.stringify({ ok: true, reply: negReply, intent: negIntent, workflow_state: negData?.workflow_state ?? null, role: negData?.role ?? null, thread_id: negData?.thread_id ?? threadId ?? openNeg.thread_id, transaction_id: negTxId, deal_id: negData?.deal_id ?? null, products: negProducts, actions: negActions, attachments: negAttachments, inbound_message_id: inboundMessageId, conversation_id: convId, user_id: user.id }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
 
@@ -548,22 +841,58 @@ serve(async (req) => {
         web_session_id: sessionId,
         text, lat, lng, city, channel, attachments,
         user_id: user.id, auth_user_id: user.auth_user_id ?? authUserId,
+        meta: clientMeta,
       }),
     });
     const core = await coreRes.json().catch(() => ({}));
     log("core reply", { ok: coreRes.ok, intent: core.intent, hasReply: !!core.reply });
-    const reply: string = core.reply ?? "Désolé, une erreur est survenue. Réessayez.";
+    if (!coreRes.ok || core?.ok === false || core?.error) {
+      const coreError = String(core?.error || core?.message || `HTTP ${coreRes.status}`);
+      console.error("[waouh-channel-in] core rejected", {
+        status: coreRes.status,
+        error: coreError,
+        action: routedAction,
+        thread_id: threadId,
+        article_id: inboundArticleId,
+      });
+      return new Response(JSON.stringify({
+        ok: false,
+        error: coreError,
+        code: "waouh_core_rejected",
+        thread_id: threadId,
+        article_id: inboundArticleId,
+        idempotency_key: idempotencyKey,
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const reply: string = core.reply ?? "Votre demande a été prise en compte.";
     const actions: WaouhAction[] = Array.isArray(core.actions) ? core.actions : [];
 
     // Persist outgoing
     const outboundArticleId: string | null = core.article_id ?? inboundArticleId ?? null;
     const { data: outboundRow } = await sb.from("waouh_messages").insert({
       conversation_id: convId,
+      thread_id: core.thread_id ?? threadId,
       user_id: user.id, channel, direction: "out", text: reply,
       web_session_id: sessionId, phone_number: phone,
       attachments: Array.isArray(core.attachments) ? core.attachments : [],
       article_id: outboundArticleId,
-      meta: { intent: core.intent ?? null, transaction_id: core.transaction_id ?? null, article_id: outboundArticleId, actions },
+      meta: {
+        intent: core.intent ?? null,
+        workflow_state: core.workflow_state ?? null,
+        role: core.role ?? clientMeta?.role ?? null,
+        transaction_id: core.transaction_id ?? null,
+        deal_id: core.deal_id ?? null,
+        article_id: outboundArticleId,
+        thread_id: core.thread_id ?? threadId,
+        buyer_user_id: meet?.buyer_user_id ?? clientMeta?.buyer_user_id ?? null,
+        seller_user_id: meet?.seller_user_id ?? clientMeta?.seller_user_id ?? null,
+        counterpart_user_id: threadMeta.counterpart_user_id ?? null,
+        actions,
+        products: Array.isArray(core.products) ? core.products : [],
+      },
     }).select("id").maybeSingle();
     const outboundMessageId: string | null = outboundRow?.id ?? null;
     if (convId) {
@@ -580,7 +909,7 @@ serve(async (req) => {
       } catch (e) { console.error("WAHA send failed", e); }
     }
 
-    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, actions, attachments: Array.isArray(core.attachments) ? core.attachments : [], inbound_message_id: inboundMessageId, outbound_message_id: outboundMessageId, conversation_id: convId, user_id: user.id, article_id: outboundArticleId, transaction_id: core.transaction_id ?? null }), {
+    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, workflow_state: core.workflow_state ?? null, role: core.role ?? null, thread_id: core.thread_id ?? threadId, search_thread_id: core.search_thread_id ?? (searchMeet?.id ?? null), actions, products: Array.isArray(core.products) ? core.products : [], attachments: Array.isArray(core.attachments) ? core.attachments : [], inbound_message_id: inboundMessageId, outbound_message_id: outboundMessageId, conversation_id: convId, user_id: user.id, article_id: outboundArticleId, deal_id: core.deal_id ?? null, transaction_id: core.transaction_id ?? null, action: routedAction, idempotency_key: idempotencyKey }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 

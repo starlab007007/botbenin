@@ -47,7 +47,8 @@ serve(async (req) => {
 
     // Messages: DESC + limit, then reverse to ASC for the client
     let msgQuery = sb.from("waouh_messages")
-      .select("id, conversation_id, user_id, web_session_id, phone_number, channel, direction, text, meta, attachments, created_at")
+      .select("id, conversation_id, thread_id, user_id, web_session_id, phone_number, channel, direction, text, meta, attachments, created_at")
+      .is("thread_id", null)
       .order("created_at", { ascending: false })
       .limit(limit);
     if (before) msgQuery = msgQuery.lt("created_at", before);

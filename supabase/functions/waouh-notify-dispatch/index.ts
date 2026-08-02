@@ -23,6 +23,7 @@ import {
 } from "../_shared/waouh-format.ts";
 import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
+import { resolveProductThread } from "../_shared/waouh-thread.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -107,7 +108,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    let { kind, article_id, catalog_id, buyer_profile_id, recipient, extra_text, counterpart_user_id } = body || {};
+    let { kind, article_id, catalog_id, buyer_profile_id, recipient, extra_text, counterpart_user_id, counterpart_name, buyer_user_id, seller_user_id, thread_id } = body || {};
     if (!kind || !recipient || (!article_id && !catalog_id)) {
       return new Response(JSON.stringify({ error: "kind, recipient and article_id|catalog_id are required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -139,6 +140,50 @@ serve(async (req) => {
     if (buyer_profile_id) {
       const { data } = await sb.from("waouh_buyer_profiles").select("*").eq("id", buyer_profile_id).maybeSingle();
       buyerProfile = data;
+    }
+
+    buyer_user_id = buyer_user_id || buyerProfile?.user_id || counterpart_user_id || null;
+    seller_user_id = seller_user_id || article.seller_id || null;
+    if (thread_id) {
+      const { data: suppliedThread } = await sb.from("waouh_chat_threads")
+        .select("id,article_id,buyer_user_id,seller_user_id")
+        .eq("id", thread_id)
+        .eq("thread_type", "product_meet")
+        .maybeSingle();
+      if (!suppliedThread?.id || suppliedThread.article_id !== article_id) {
+        return new Response(JSON.stringify({ error: "article/thread mismatch" }), {
+          status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if ((buyer_user_id && suppliedThread.buyer_user_id !== buyer_user_id) ||
+          (seller_user_id && suppliedThread.seller_user_id !== seller_user_id)) {
+        return new Response(JSON.stringify({ error: "participants/thread mismatch" }), {
+          status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      buyer_user_id = suppliedThread.buyer_user_id;
+      seller_user_id = suppliedThread.seller_user_id;
+    }
+    if (!thread_id && buyer_user_id && seller_user_id) {
+      const { data: buyerUser } = await sb.from("waouh_users")
+        .select("id,auth_user_id,phone_number,web_session_id")
+        .eq("id", buyer_user_id)
+        .maybeSingle();
+      if (buyerUser) {
+        const meet = await resolveProductThread({
+          sb,
+          articleId: article_id,
+          actorUser: buyerUser,
+          role: "buyer",
+          counterpartUserId: seller_user_id,
+          buyerUserId: buyer_user_id,
+          sellerUserId: seller_user_id,
+          source: body?.source || kind,
+        });
+        thread_id = meet?.id ?? null;
+        buyer_user_id = meet?.buyer_user_id ?? buyer_user_id;
+        seller_user_id = meet?.seller_user_id ?? seller_user_id;
+      }
     }
 
     const target = recipient === "seller"
@@ -203,7 +248,9 @@ serve(async (req) => {
         // v12 — include counterpart_user_id so multiple interested buyers on
         // the same article each trigger their own notification + WA message.
         const cpSuffix = counterpart_user_id ? `:cp_${counterpart_user_id}` : (buyer_profile_id ? `:${buyer_profile_id}` : "");
-        const dedupeKey = `notify:${kind}:${article_id}:${target.whatsapp}:${recipient}:${dayBucket}${cpSuffix}`;
+        const dedupeKey = body.idempotency_key
+          ? `notify:idempotency:${body.idempotency_key}`
+          : `notify:${kind}:${article_id}:${target.whatsapp}:${recipient}:${dayBucket}${cpSuffix}`;
         const { error: enqErr } = await sb.rpc("waouh_enqueue_outbound_v2", {
           p_to_phone: target.whatsapp,
           p_to_user_id: notifTargetUserId,
@@ -215,8 +262,11 @@ serve(async (req) => {
             recipient,
             photos,
             buyer_profile_id: buyer_profile_id ?? null,
-            counterpart_user_id: counterpart_user_id ?? null,
-            buyer_user_id: counterpart_user_id ?? null,
+            counterpart_user_id: recipient === "seller" ? buyer_user_id : seller_user_id,
+            buyer_user_id,
+            seller_user_id,
+            thread_id,
+            counterpart_name: counterpart_name ?? buyerProfile?.name ?? buyerProfile?.display_name ?? null,
           },
           p_web_session_id: null,
           p_image_url: photos?.[0] ?? null,
@@ -271,7 +321,20 @@ serve(async (req) => {
               attachments: photos.slice(0, 4).map((url) => ({ url, type: "image/jpeg" })),
               imageUrl: photos[0] ?? null,
               dedupSuffix: `notify:${recipient}${counterpart_user_id ? `:cp_${counterpart_user_id}` : (buyer_profile_id ? `:${buyer_profile_id}` : "")}`,
-              payloadExtra: { article_id, recipient, buyer_profile_id: buyer_profile_id ?? null, counterpart_user_id: counterpart_user_id ?? null, buyer_user_id: counterpart_user_id ?? null },
+              payloadExtra: {
+                article_id,
+                recipient,
+                buyer_profile_id: buyer_profile_id ?? null,
+                counterpart_user_id: recipient === "seller" ? buyer_user_id : seller_user_id,
+                buyer_user_id,
+                seller_user_id,
+                thread_id,
+                counterpart_name: counterpart_name ?? buyerProfile?.name ?? buyerProfile?.display_name ?? null,
+              },
+              threadId: thread_id,
+              buyerUserId: buyer_user_id,
+              sellerUserId: seller_user_id,
+              counterpartUserId: recipient === "seller" ? buyer_user_id : seller_user_id,
 
             });
           }
@@ -299,9 +362,12 @@ serve(async (req) => {
       // interested in the same article both trigger a "Nouvel acheteur" card.
       const dayBucket = new Date().toISOString().slice(0, 10);
       const cpSuffix = counterpart_user_id ? `:cp_${counterpart_user_id}` : (buyer_profile_id ? `:${buyer_profile_id}` : "");
-      const dedupeKey = `${kind}:${article_id}:${notifTargetUserId}:${recipient}:${dayBucket}${cpSuffix}`;
+      const dedupeKey = body.idempotency_key
+        ? `idempotency:${body.idempotency_key}`
+        : `${kind}:${article_id}:${notifTargetUserId}:${recipient}:${dayBucket}${cpSuffix}`;
 
       const { error: notifErr } = await sb.from("waouh_notifications").insert({
+        thread_id,
         user_id: notifTargetUserId,
         article_id,
         notification_type: kind,
@@ -312,8 +378,11 @@ serve(async (req) => {
           text,
           recipient,
           buyer_profile_id: buyer_profile_id ?? null,
-          counterpart_user_id: counterpart_user_id ?? null,
-          buyer_user_id: counterpart_user_id ?? null,
+          counterpart_user_id: recipient === "seller" ? buyer_user_id : seller_user_id,
+          buyer_user_id,
+          seller_user_id,
+          thread_id,
+          counterpart_name: counterpart_name ?? buyerProfile?.name ?? buyerProfile?.display_name ?? null,
           article_id,
           photos,
           contact: { channel: target.channel, whatsapp: target.whatsapp, partner_id: target.partnerId },
@@ -339,6 +408,7 @@ serve(async (req) => {
       channel: channelUsed,
       whatsapp: target.whatsapp,
       waouh_user_id: target.waouhUserId,
+      thread_id,
       partner_id: target.partnerId,
       photos_count: photos.length,
       wa_result: waResult,

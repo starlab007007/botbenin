@@ -1,0 +1,6 @@
+DO $$
+BEGIN
+  BEGIN ALTER PUBLICATION supabase_realtime DROP TABLE public.waouh_trace_events; EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN ALTER PUBLICATION supabase_realtime DROP TABLE public.access_logs; EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN ALTER PUBLICATION supabase_realtime DROP TABLE public.waouh_outbound_queue; EXCEPTION WHEN OTHERS THEN NULL; END;
+END $$;;

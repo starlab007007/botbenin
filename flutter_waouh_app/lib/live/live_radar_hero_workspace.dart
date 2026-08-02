@@ -137,10 +137,19 @@ class _LiveRadarHeroWorkspaceState extends State<LiveRadarHeroWorkspace>
     };
     final controller = context.read<LiveWaouhController>();
     controller.setComposerSeed(intent, meta: {
-      'source': 'flutter_radar',
+      'source': item.source == 'catalog'
+          ? 'partner'
+          : item.source == 'status'
+              ? 'status'
+              : 'radar',
+      'origin_surface': 'flutter_radar',
       'auto_send': true,
+      'action': 'interested',
       'radar_item_id': item.id,
-      'article_id': item.articleId,
+      'source_id': item.sourceId,
+      'radar_source': item.source,
+      if (item.type != LiveRadarItemType.buy) 'article_id': item.articleId,
+      if (item.source == 'status') 'status_id': item.sourceId,
       'title': item.title,
       'distance': item.distanceLabel,
       'radar_intent': action.name,

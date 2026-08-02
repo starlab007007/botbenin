@@ -6,10 +6,10 @@ const corsHeaders = {
 };
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getRadarApiKey, incrementRadarUsage } from "../_shared/radar-api-config.ts";
+import { geminiJson } from "../_shared/gemini.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 let APIFY_TOKEN = "";
 let APIFY_CFG_ID: string | undefined;
 
@@ -30,20 +30,11 @@ async function runActor(actor: string, input: any) {
 }
 
 async function aiExtract(text: string): Promise<any> {
-  const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash-lite",
-      messages: [
-        { role: "system", content: "Analyse un post Facebook (vente/achat au Bénin) et retourne JSON {intent: SELL|BUY|UNKNOWN, title, price (number FCFA, null si absent), category, city, contact_phone (229XXXXXXXX si visible), contact_handle (nom auteur), confidence (0-1)}." },
-        { role: "user", content: text.slice(0, 2000) },
-      ],
-      response_format: { type: "json_object" },
-    }),
-  });
-  const d = await r.json();
-  try { return JSON.parse(d.choices?.[0]?.message?.content ?? "{}"); } catch { return {}; }
+  return geminiJson(
+    "Analyse un post Facebook (vente/achat au Bénin) et retourne JSON {intent: SELL|BUY|UNKNOWN, title, price (number FCFA, null si absent), category, city, contact_phone (229XXXXXXXX si visible), contact_handle (nom auteur), confidence (0-1)}.",
+    text.slice(0, 2000),
+    { confidence: 0 },
+  );
 }
 
 Deno.serve(async (req) => {

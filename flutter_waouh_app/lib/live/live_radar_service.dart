@@ -26,9 +26,11 @@ class LiveRadarScanSnapshot {
 }
 
 class LiveRadarService {
-  const LiveRadarService(this.client);
+  LiveRadarService(this.client);
 
   final SupabaseClient client;
+  final Map<String, LiveRadarScanSnapshot> _cache = {};
+  final Map<String, Future<LiveRadarScanSnapshot>> _inFlight = {};
 
   Future<List<LiveRadarItem>> scan({
     required double latitude,
@@ -40,6 +42,28 @@ class LiveRadarService {
           .items;
 
   Future<LiveRadarScanSnapshot> scanSnapshot({
+    required double latitude,
+    required double longitude,
+    required LiveRadarFilters filters,
+  }) {
+    final key = '${latitude.toStringAsFixed(3)}:${longitude.toStringAsFixed(3)}:${filters.toJson()}';
+    final cached = _cache[key];
+    if (cached != null &&
+        DateTime.now().difference(cached.scannedAt) <
+            const Duration(seconds: 20)) {
+      return Future.value(cached);
+    }
+    return _inFlight.putIfAbsent(key, () => _scanFresh(
+          latitude: latitude,
+          longitude: longitude,
+          filters: filters,
+        ).then((value) {
+          _cache[key] = value;
+          return value;
+        }).whenComplete(() => _inFlight.remove(key)));
+  }
+
+  Future<LiveRadarScanSnapshot> _scanFresh({
     required double latitude,
     required double longitude,
     required LiveRadarFilters filters,
@@ -60,7 +84,7 @@ class LiveRadarService {
         'category': filters.category,
         'photo_only': filters.photoOnly,
         'verified_only': filters.verifiedOnly,
-      }).timeout(const Duration(seconds: 12));
+      }).timeout(const Duration(seconds: 5));
       final raw = response.data;
       if (raw is Map && raw['ok'] == true) {
         final items = (raw['items'] is List ? raw['items'] as List : const [])
@@ -158,7 +182,7 @@ class LiveRadarService {
           .lte('lng', bounds.maxLng)
           .order('last_seen_at', ascending: false)
           .limit(120)
-          .timeout(const Duration(seconds: 8));
+          .timeout(const Duration(seconds: 4));
       return (response as List)
           .map((raw) => Map<String, dynamic>.from(raw as Map))
           .toList();
@@ -182,7 +206,7 @@ class LiveRadarService {
           .lte('lng', bounds.maxLng)
           .order('created_at', ascending: false)
           .limit(60)
-          .timeout(const Duration(seconds: 8));
+          .timeout(const Duration(seconds: 4));
       return (response as List)
           .map((raw) => Map<String, dynamic>.from(raw as Map))
           .toList();
@@ -222,6 +246,12 @@ class LiveRadarService {
       title: '${row['title'] ?? 'Opportunité WAOUH'}',
       description: row['description']?.toString(),
       photoUrl: row['photo_url']?.toString(),
+      photoUrls: liveAttachments([
+        row['photos'],
+        row['images'],
+        row['media_urls'],
+        row['photo_url'],
+      ]).map((item) => item.url).toList(),
       priceMin: _numOrNull(row['price_min']),
       priceMax: _numOrNull(row['price_max']),
       currency: row['currency']?.toString() ?? 'FCFA',
@@ -288,6 +318,7 @@ class LiveRadarService {
           : '(sans titre)',
       description: row['description']?.toString(),
       photoUrl: photo,
+      photoUrls: photos,
       priceMin: priceMin,
       priceMax: priceMax,
       currency: row['devise']?.toString() ?? 'FCFA',
@@ -348,6 +379,10 @@ class LiveRadarService {
               : 'Statut'),
       description: row['caption']?.toString(),
       photoUrl: photo,
+      photoUrls: liveAttachments([
+        row['media_urls'],
+        row['media_url'],
+      ]).map((item) => item.url).toList(),
       priceMin: price,
       priceMax: price,
       currency: 'FCFA',

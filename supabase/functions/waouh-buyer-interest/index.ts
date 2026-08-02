@@ -8,6 +8,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
+import { bindThreadState, resolveProductThread } from "../_shared/waouh-thread.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -47,18 +48,30 @@ Deno.serve(async (req) => {
         authUserId = data?.user?.id ?? null;
       } catch { /* anonymous */ }
     }
+    if (!authUserId) {
+      return new Response(JSON.stringify({ error: "auth required" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Resolve buyer waouh_users id
     let buyerUserId: string | null = null;
     if (authUserId) {
-      const { data } = await sb.from("waouh_users").select("id").eq("auth_user_id", authUserId).maybeSingle();
+      const { data } = await sb.from("waouh_users")
+        .select("id,auth_user_id,phone_number,web_session_id")
+        .eq("auth_user_id", authUserId).maybeSingle();
       buyerUserId = data?.id ?? null;
+    }
+    if (!buyerUserId) {
+      return new Response(JSON.stringify({ error: "buyer identity not linked" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Load article + seller
     const { data: article } = await sb
       .from("waouh_articles")
-      .select("id, seller_id, title, price")
+      .select("id,seller_id,title,description,category,condition,price,currency,photos,city,market_price_min,market_price_max,status")
       .eq("id", article_id)
       .maybeSingle();
     if (!article) {
@@ -73,13 +86,36 @@ Deno.serve(async (req) => {
       });
     }
 
+    const { data: buyerActor } = await sb.from("waouh_users")
+      .select("id,auth_user_id,phone_number,web_session_id")
+      .eq("id", buyerUserId)
+      .single();
+    const thread = await resolveProductThread({
+      sb,
+      articleId: article_id,
+      actorUser: buyerActor,
+      role: "buyer",
+      counterpartUserId: article.seller_id,
+      buyerUserId,
+      sellerUserId: article.seller_id,
+      source,
+    });
+    if (!thread?.id) {
+      return new Response(JSON.stringify({ error: "thread creation failed" }), {
+        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const threadId = thread.id;
+
     // Insert interest (dedupe on (article, buyer))
-    const { error: insErr } = await sb.from("waouh_interests").insert({
+    const { error: insErr } = await sb.from("waouh_interests").upsert({
+      thread_id: threadId,
       article_id,
       buyer_user_id: buyerUserId,
       seller_user_id: article.seller_id ?? null,
       source,
-    });
+      payload: { thread_id: threadId, source },
+    }, { onConflict: "article_id,buyer_user_id,thread_id", ignoreDuplicates: true });
     const isDuplicate =
       insErr && ((insErr as any).code === "23505" || /duplicate/i.test((insErr as any).message || ""));
     if (insErr && !isDuplicate) {
@@ -89,20 +125,20 @@ Deno.serve(async (req) => {
     // 🤝 Ensure an OPEN negotiation exists so the buyer can immediately reply
     // OUI / NON / "je propose X" via waouh-negotiation-router. Without this
     // the router answers "Aucune négociation en cours".
+    let negotiationId: string | null = null;
     if (buyerUserId && article.seller_id) {
       try {
         const { data: openNeg } = await sb
           .from("waouh_negotiations")
           .select("id, state")
-          .eq("article_id", article_id)
-          .eq("buyer_user_id", buyerUserId)
-          .eq("seller_user_id", article.seller_id)
+          .eq("thread_id", threadId)
           .in("state", ["proposed", "countered"])
           .order("updated_at", { ascending: false })
           .limit(1)
           .maybeSingle();
         if (!openNeg) {
-          await sb.from("waouh_negotiations").insert({
+          const { data: createdNeg, error: createdNegError } = await sb.from("waouh_negotiations").insert({
+            thread_id: threadId,
             article_id,
             buyer_user_id: buyerUserId,
             seller_user_id: article.seller_id,
@@ -110,12 +146,20 @@ Deno.serve(async (req) => {
             last_offer_price: (article as any).price ?? null,
             last_actor: "buyer",
             meta: { opened_via: "buyer_interest", source },
-          });
+          }).select("id").single();
+          if (createdNegError) throw createdNegError;
+          negotiationId = createdNeg?.id ?? null;
+        } else {
+          negotiationId = openNeg.id;
         }
       } catch (e) {
         console.warn("[waouh-buyer-interest] open negotiation failed", e);
       }
     }
+    await bindThreadState(sb, threadId, {
+      status: "negotiating",
+      negotiation_id: negotiationId,
+    });
 
 
     // Always dispatch the seller notification. The dispatcher has its own
@@ -132,6 +176,9 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           kind: "new_buyer",
           article_id,
+          thread_id: threadId,
+          buyer_user_id: buyerUserId,
+          seller_user_id: article.seller_id,
           counterpart_user_id: buyerUserId,
           recipient: "seller",
         }),
@@ -151,16 +198,61 @@ Deno.serve(async (req) => {
           .maybeSingle();
         if (buyerUser) {
           const title = (article as any)?.title || "votre annonce";
+          const photos = Array.isArray((article as any)?.photos)
+            ? (article as any).photos.filter((url: unknown) => typeof url === "string" && /^https?:\/\//i.test(url as string))
+            : [];
+          const actions = [
+            { id: "accepter", label: "✅ Accepter le prix" },
+            { id: "contre-proposition", label: "💬 Proposer un prix" },
+            { id: "refuser", label: "❌ Refuser" },
+          ];
           await pushSyncedEvent({
             sb,
             user: buyerUser,
             role: "buyer",
             articleId: article_id,
+            negotiationId,
+            threadId,
+            buyerUserId,
+            sellerUserId: article.seller_id,
+            counterpartUserId: article.seller_id,
             text: `✅ Demande envoyée au vendeur\n\n📦 ${title}\n\nLe vendeur sera notifié et reviendra vers vous très vite via WAOUH.`,
             intent: "buyer_interest",
             eventType: "buyer_interest",
             template: "buyer_interest_ack",
             dedupSuffix: "actor",
+            attachments: photos.slice(0, 6).map((url: string, index: number) => ({
+              url,
+              type: "image/jpeg",
+              caption: `${title} — photo ${index + 1}/${photos.length}`,
+            })),
+            imageUrl: photos[0] ?? null,
+            payloadExtra: {
+              source,
+              actions,
+              products: [{
+                id: article_id,
+                article_id,
+                title,
+                description: (article as any)?.description,
+                category: (article as any)?.category,
+                condition: (article as any)?.condition,
+                price: Number((article as any)?.price || 0),
+                currency: (article as any)?.currency || "XOF",
+                photos,
+                city: (article as any)?.city,
+                market_price_min: (article as any)?.market_price_min,
+                market_price_max: (article as any)?.market_price_max,
+                availability: (article as any)?.status === "sold" ? "Vendu" : "Disponible",
+                workflow_state: "negotiating",
+                role: "buyer",
+                thread_id: threadId,
+                buyer_user_id: buyerUserId,
+                seller_user_id: (article as any)?.seller_id,
+                negotiation_id: negotiationId,
+                actions,
+              }],
+            },
           });
         }
       } catch (e) {
@@ -173,6 +265,8 @@ Deno.serve(async (req) => {
       ok: true,
       duplicate: !!isDuplicate,
       seller_notified: dispatched,
+      thread_id: threadId,
+      article_id,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error("[waouh-buyer-interest] error", e);

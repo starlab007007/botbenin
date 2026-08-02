@@ -36,6 +36,7 @@ class _LiveSellSheetState extends State<LiveSellSheet> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final city = await context.read<LiveWaouhController>().city;
       if (mounted && city.trim().isNotEmpty) setState(() => _city = city.trim());
+      if (mounted) await _detectLocation(silent: true);
     });
   }
 
@@ -98,7 +99,7 @@ class _LiveSellSheetState extends State<LiveSellSheet> {
     if (quarter != null && mounted) setState(() => _quarter = quarter);
   }
 
-  Future<void> _detectLocation() async {
+  Future<void> _detectLocation({bool silent = false}) async {
     if (_gpsBusy) return;
     setState(() => _gpsBusy = true);
     final controller = context.read<LiveWaouhController>();
@@ -106,30 +107,39 @@ class _LiveSellSheetState extends State<LiveSellSheet> {
       await controller.useDeviceLocation();
       final position = controller.position;
       if (!position.available) {
-        _notice(position.errorMessage ?? 'Position GPS indisponible.');
+        if (!silent) {
+          _notice(position.errorMessage ?? 'Position GPS indisponible.');
+        }
         return;
       }
       final response = await legacy.supabase.functions.invoke(
-        'waouh-partner-ai',
+        'waouh-geocode',
         body: {
-          'action': 'reverse_geocode',
-          'payload': {'lat': position.latitude, 'lng': position.longitude},
+          'lat': position.latitude,
+          'lng': position.longitude,
         },
       );
       final root = response.data;
-      final place = root is Map && root['data'] is Map
-          ? Map<String, dynamic>.from(root['data'] as Map)
+      final place = root is Map
+          ? (root['data'] is Map
+              ? Map<String, dynamic>.from(root['data'] as Map)
+              : Map<String, dynamic>.from(root))
           : const <String, dynamic>{};
       if (!mounted) return;
       setState(() {
-        final city = (place['ville'] ?? '').toString().trim();
-        final quarter = (place['quartier'] ?? '').toString().trim();
+        final city = (place['ville'] ?? place['city'] ?? '').toString().trim();
+        final quarter =
+            (place['quartier'] ?? place['district'] ?? '').toString().trim();
         if (city.isNotEmpty) _city = city;
         if (quarter.isNotEmpty) _quarter = quarter;
       });
-      _notice(_city.isEmpty ? 'GPS enregistré. Choisissez votre ville.' : 'Position trouvée : $_city${_quarter.isEmpty ? '' : ' · $_quarter'}');
+      if (!silent) {
+        _notice(_city.isEmpty
+            ? 'GPS enregistré. Choisissez votre ville.'
+            : 'Position trouvée : $_city${_quarter.isEmpty ? '' : ' · $_quarter'}');
+      }
     } catch (error) {
-      _notice('GPS indisponible : $error');
+      if (!silent) _notice('GPS indisponible : $error');
     } finally {
       if (mounted) setState(() => _gpsBusy = false);
     }
@@ -138,6 +148,9 @@ class _LiveSellSheetState extends State<LiveSellSheet> {
   Future<void> _publish() async {
     if (!_ready) return;
     final controller = context.read<LiveWaouhController>();
+    if (!controller.position.available) {
+      await controller.useDeviceLocation();
+    }
     final price = int.tryParse(_digits) ?? 0;
     final text = StringBuffer('Je vends : ${_item.text.trim()}')
       ..write('\nPrix : $price FCFA');

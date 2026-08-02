@@ -41,6 +41,7 @@ Deno.serve(async (req) => {
       author_name = null,
       author_avatar_url = null,
       waouh_code = null,
+      idempotency_key = null,
     } = body || {};
 
     if (!type || !["sell", "buy", "announce"].includes(type)) {
@@ -72,6 +73,24 @@ Deno.serve(async (req) => {
     }
     const authUser = userData.user;
     const authUserId = authUser.id;
+    const operationKey = typeof idempotency_key === "string"
+      ? idempotency_key.trim()
+      : "";
+    if (operationKey) {
+      const { data: existingStatus } = await sb.from("waouh_statuses")
+        .select("*")
+        .eq("idempotency_key", operationKey)
+        .maybeSingle();
+      if (existingStatus?.id) {
+        return new Response(JSON.stringify({
+          ok: true,
+          duplicate: true,
+          status: existingStatus,
+          article: null,
+          article_id: existingStatus.article_id ?? null,
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+    }
 
     // Resolve / create waouh_users row by auth_user_id
     let waouhUserId: string | null = null;
@@ -164,10 +183,26 @@ Deno.serve(async (req) => {
         media_kind,
         article_id: articleId,
         waouh_code,
+        idempotency_key: operationKey || null,
       })
       .select()
       .single();
-    if (sErr) throw sErr;
+    if (sErr) {
+      if ((sErr as any).code === "23505" && operationKey) {
+        const { data: replay } = await sb.from("waouh_statuses")
+          .select("*")
+          .eq("idempotency_key", operationKey)
+          .maybeSingle();
+        return new Response(JSON.stringify({
+          ok: true,
+          duplicate: true,
+          status: replay,
+          article: null,
+          article_id: replay?.article_id ?? null,
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      throw sErr;
+    }
 
     // Fan-out to existing matching buyers (fire & forget)
     if (articleId) {

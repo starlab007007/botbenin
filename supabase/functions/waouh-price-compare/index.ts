@@ -3,10 +3,10 @@
 // web scraping ciblé (Jumia, Coinafrique, Jiji, Afrikrea) via Firecrawl.
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { geminiJson } from '../_shared/gemini.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')!;
 const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
 
 const FX_TO_FCFA: Record<string, number> = {
@@ -153,21 +153,11 @@ async function fetchWeb(query: string, city: string | null): Promise<Sample[]> {
   }));
 
   try {
-    const aiRes = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash-lite',
-        messages: [
-          { role: 'system', content: `Tu extrais des prix d'annonces e-commerce. Réponds en JSON: {"items":[{"i":0,"price":50000,"currency":"XOF","relevant":true}]}. currency parmi XOF/EUR/USD/NGN/GHS/MAD/GBP. relevant=true seulement si l'annonce correspond clairement à la recherche "${query}". Si pas de prix visible, ignore l'item.` },
-          { role: 'user', content: JSON.stringify(compact) },
-        ],
-        response_format: { type: 'json_object' },
-      }),
-    });
-    if (!aiRes.ok) return [];
-    const j = await aiRes.json();
-    const parsed = JSON.parse(j.choices?.[0]?.message?.content ?? '{}');
+    const parsed = await geminiJson(
+      `Tu extrais des prix d'annonces e-commerce. Réponds en JSON: {"items":[{"i":0,"price":50000,"currency":"XOF","relevant":true}]}. currency parmi XOF/EUR/USD/NGN/GHS/MAD/GBP. relevant=true seulement si l'annonce correspond clairement à la recherche "${query}". Si pas de prix visible, ignore l'item.`,
+      JSON.stringify(compact),
+      { items: [] as any[] },
+    );
     const items = (parsed.items || []) as any[];
     const samples: Sample[] = [];
     for (const it of items) {
@@ -199,21 +189,11 @@ async function aiVerdict(opts: {
 }) {
   const topSamples = opts.samples.slice(0, 8).map((s) => `- ${s.source} · ${fmt(s.price)}${s.title ? ' · ' + s.title.slice(0, 50) : ''}`).join('\n');
   try {
-    const r = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: 'Tu es analyste marché béninois. Verdict honnête en 2 phrases courtes (FR). JSON: {"verdict":"juste|élevé|aubaine|inconnu","verdict_pct":number|null,"advice":"string ≤120 car"}. Si confidence=low, sois prudent.' },
-          { role: 'user', content: `Recherche: ${opts.query}\nVille: ${opts.city || '?'}\nPrix demandé: ${opts.askedPrice ?? '?'} FCFA\nStats: ${JSON.stringify(opts.stats)}\nConfidence: ${opts.confidence}\nComparables:\n${topSamples}` },
-        ],
-        response_format: { type: 'json_object' },
-      }),
-    });
-    if (!r.ok) return { verdict: 'inconnu', verdict_pct: null, advice: 'Analyse limitée.' };
-    const j = await r.json();
-    return JSON.parse(j.choices?.[0]?.message?.content ?? '{}');
+    return await geminiJson(
+      'Tu es analyste marché béninois. Verdict honnête en 2 phrases courtes (FR). JSON: {"verdict":"juste|élevé|aubaine|inconnu","verdict_pct":number|null,"advice":"string ≤120 car"}. Si confidence=low, sois prudent.',
+      `Recherche: ${opts.query}\nVille: ${opts.city || '?'}\nPrix demandé: ${opts.askedPrice ?? '?'} FCFA\nStats: ${JSON.stringify(opts.stats)}\nConfidence: ${opts.confidence}\nComparables:\n${topSamples}`,
+      { verdict: 'inconnu', verdict_pct: null, advice: 'Analyse limitée.' },
+    );
   } catch {
     return { verdict: 'inconnu', verdict_pct: null, advice: '' };
   }
@@ -252,13 +232,21 @@ function buildReply(opts: {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
-    const { article_id, query, offered_price } = await req.json();
+    const {
+      article_id,
+      query,
+      offered_price,
+      city: requestedCity,
+      category: requestedCategory,
+    } = await req.json();
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
     let article: any = null;
     let title = query || 'produit';
-    let city: string | null = null;
-    let category: string | null = null;
+    let city: string | null = requestedCity ? String(requestedCity) : null;
+    let category: string | null = requestedCategory
+      ? String(requestedCategory)
+      : null;
     let searchQuery = query || '';
 
     if (article_id) {
@@ -275,7 +263,7 @@ Deno.serve(async (req) => {
     const askedPrice = Number(offered_price) || Number(article?.price) || null;
 
     // Cache 6h
-    const cacheKey = `price_v2:${searchQuery}:${city || ''}`.slice(0, 200);
+    const cacheKey = `price_v3:${searchQuery}:${city || ''}:${askedPrice || ''}`.slice(0, 200);
     const { data: cached } = await sb.from('waouh_cache').select('value, expires_at').eq('cache_key', cacheKey).maybeSingle();
     if (cached && new Date(cached.expires_at) > new Date()) {
       const v = cached.value as any;
@@ -302,14 +290,40 @@ Deno.serve(async (req) => {
       counts: { internal: internal.length, radar: radar.length, web: web.length },
     });
 
+    const marketMin = stats.p25 ?? stats.min;
+    const marketMax = stats.p75 ?? stats.max;
+    const marketSummary = stats.n > 0
+      ? `${fmt(marketMin)} – ${fmt(marketMax)}${stats.median ? ` · médiane ${fmt(stats.median)}` : ''} · n=${stats.n} · confiance ${confidence}`
+      : `Aucun comparable fiable trouvé pour ${city || 'cette zone'}.`;
+    const comparativeAnalysis = askedPrice && stats.median
+      ? (() => {
+          const pct = Math.round(((askedPrice - stats.median) / stats.median) * 100);
+          const position = pct <= -15
+            ? 'aubaine'
+            : pct >= 15
+              ? 'prix élevé'
+              : 'prix cohérent';
+          return `${position} · ${pct > 0 ? '+' : ''}${pct}% par rapport à la médiane · confiance ${confidence}`;
+        })()
+      : `Comparaison prudente : ${stats.n} comparable${stats.n > 1 ? 's' : ''}, confiance ${confidence}.`;
+    const recommendation = String(verdict?.advice || '').trim() ||
+      (confidence === 'low'
+        ? 'Demandez l’état exact, la garantie et des photos complémentaires avant de décider.'
+        : 'Comparez l’état, les accessoires, la garantie et la distance avant de confirmer.');
+
     const payload = {
       success: true,
       stats,
       confidence,
-      min: stats.p25 ?? stats.min,
-      max: stats.p75 ?? stats.max,
+      min: marketMin,
+      max: marketMax,
       average: stats.average,
       median: stats.median,
+      verdict: verdict?.verdict ?? 'inconnu',
+      verdict_pct: verdict?.verdict_pct ?? null,
+      market_summary: marketSummary,
+      comparative_analysis: comparativeAnalysis,
+      recommendation,
       sources: samples.slice(0, 10).map((s) => ({ source: s.source, price: s.price, url: s.url, title: s.title })),
       counts: { internal: internal.length, radar: radar.length, web: web.length },
       reply,

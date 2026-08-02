@@ -1,0 +1,187 @@
+  <no message available>
+ WAOUH
+ WAOUH...
+ du catalogue WAOUH.
+ jour WAOUH
+ message
+ messages
+ messages trait
+ nouveaux messages
+ par WAOUH AI.
+ produit
+ produit(s)
+ produit(s) ajout
+ produit(s) d
+ produit(s) synchronis
+ un produit WAOUH.
+. Envoyez maintenant un message depuis un autre num
+/app/chat
+/app/chat/
+/app/chat/:id
+/app/chat/match/
+/app/chat/match/:key
+/app/chat/waouh
+A message on the 
+Acheter
+Activez seulement les produits utiles 
+Actualiser le Radar
+Ajouter un produit
+Ajoutez les produits visibles dans votre catalogue WAOUH.
+Ajoutez un produit avec une 
+Analyser cette source avec Waouh Stock IA
+Annonce WAOUH
+Archiver
+Archives (
+Assistant
+Assistant IA
+Assistant de recherche et de vente
+Assistant et WhatsApp IA
+Associez obligatoirement la colonne Nom du produit.
+Aucun produit
+Aucun produit Partenaire d
+Aucun produit d
+Aucun produit disponible.
+Aucun produit lisible dans cette image.
+Aucun produit ne correspond.
+Aucun produit ou statut ne correspond 
+Aucun produit partenaire
+Aucun produit suivi.
+AuthApiException(message: 
+AuthException(message: 
+AuthRetryableFetchException(message: 
+AuthSessionMissingException(message: 
+AuthUnknownException(message: 
+AuthWeakPasswordException(message: 
+Autre produit
+BI WAOUH AI
+BI WAOUH IA
+Bienvenue dans WaouhApp
+Catalogue Waouh
+Catalogue Waouh + toutes les importations
+Catalogue Waouh uniquement
+Chargement des produits Partenaire impossible : 
+Combine site, documents, produits, formations, pr
+Commencez la discussion sur ce produit.
+Connectez-vous pour continuer apres 10 messages invites.
+Conversation produit
+Discussion
+Discussion WAOUH
+Discussion ouverte avec 
+Discussion produit
+Discussions
+Discussions r
+Envoi WAOUH impossible
+Envoyez un message.
+Ex. Quels produits attirent le plus de demandes ?
+Filtres Radar
+Hashing is unsupported for messages with more than 2^53 bits.
+IA WAOUH
+Internal error: unexpected format for ready message: '
+LaunchAssistant
+Le message sera contr
+Le nom du produit est requis.
+Le service Waouh Stock IA a retourn
+LiveRadarItemType.
+Match produit
+Message sur ce produit...
+Modifier le produit
+Negocier
+Nom du produit
+Nom du produit ou service
+Nouveau
+Nouveau PIN
+Nouveau chat
+Nouveau lien public g
+Nouveau message
+Nouveau nom
+Nouveau pointage
+Nouveau statut
+Nouveaut
+Nouvelle conversation WAOUH commenc
+Photographiez un catalogue ou une fiche produit.
+Photos du produit (3 max)
+PostgrestException(message: 
+Quel produit me convient ?
+Quels produits sont disponibles ?
+Radar
+Radar WAOUH
+Radar local temporaire
+Rapport Stock WAOUH IA
+Renseignez le message 
+Services ou produits
+Statut
+Statut : 
+Statuts
+Statuts actifs 
+Stock WAOUH IA
+StorageException(message: 
+Successful parse results do not have a message.
+Supprimer ce produit ?
+This happens when a plugin sends messages to the framework side before the framework has had an opportunity to register a listener. See the ChannelBuffers API documentation for details on how to configure the channel to expect more messages, or to expect messages to get discarded:
+Un message.
+Uniquement les produits appartenant 
+Unrecognized message 
+Unrecognized message sent to dev.flutter/channel-buffers (method name too long)
+Utilisez Vendre pour publier une annonce, ou 
+Vendre
+Vendre un produit ou service
+Voir et ajouter les produits
+Voir le produit
+Votre position WAOUH
+WAOUH
+WAOUH 
+WAOUH AI
+WAOUH AI 
+WAOUH BI
+WAOUH IA
+WAOUH actif
+WAOUH assistant
+WAOUH prepare la reponse...
+Waouh Stock IA
+Waouh Stock IA peut maintenant analyser cette importation.
+WaouhApp
+WaouhPresenceAction.
+WaouhStockSourceType.
+WaouhStockState.
+_MapRadarAction.
+application/vnd.groove-identity-message
+application/vnd.groove-tool-message
+chargements/WAOUH.
+during a platform message callback
+during a platform message response callback
+e au prochain message.
+es avec le module Partenaire. Modifiez le produit 
+ez votre catalogue produit avant de le relier 
+failed to decode message
+file:///Users/macbook/Downloads/WAOUH_BOTS_ROUTE_ONLY_20260726_200613/.dart_tool/flutter_build/dart_plugin_registrant.dart
+gociation avec WAOUH.
+id produit
+id,campaign_id,status,quota_requested,quota_approved,audience_snapshot,audience_filters,message_template,media_url,reason,created_at
+id,phone_number,channel,last_message,updated_at,user_id
+id,template,payload,created_at,image_url,message_id,transaction_id
+last_message
+last_message_at
+last_message_text
+lectionnez les produits 
+message
+message/rfc822
+message_template
+messages
+messages_
+package:flutter/src/services/message_codec.dart
+parer le message
+permessage-deflate
+pondre dans WAOUH
+ponse Radar invalide.
+ponse Waouh Stock IA invalide.
+produit
+se concise : message principal, force, vigilance et orientation imm
+sinscriptions et aucun message ne part avant approbation.
+tail produit
+technical_message
+total_messages
+type produit
+user_message
+votre produit
+waouh_messages
+while processing the key message handler

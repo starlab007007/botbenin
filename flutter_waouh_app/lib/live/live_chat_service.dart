@@ -79,7 +79,8 @@ class LiveChatService {
     if (byId.isEmpty) {
       final ownRows = await client
           .from('waouh_messages')
-          .select('id,conversation_id,user_id,article_id,direction,text,created_at,web_session_id,attachments,meta')
+          .select('id,conversation_id,thread_id,user_id,article_id,direction,text,created_at,web_session_id,attachments,meta')
+          .isFilter('thread_id', null)
           .eq('web_session_id', sid)
           .order('created_at', ascending: true)
           .limit(limit);
@@ -91,7 +92,8 @@ class LiveChatService {
       if (ids.isNotEmpty) {
         final siblingRows = await client
             .from('waouh_messages')
-            .select('id,conversation_id,user_id,article_id,direction,text,created_at,web_session_id,attachments,meta')
+            .select('id,conversation_id,thread_id,user_id,article_id,direction,text,created_at,web_session_id,attachments,meta')
+            .isFilter('thread_id', null)
             .inFilter('user_id', ids)
             .order('created_at', ascending: true)
             .limit(limit);
@@ -110,7 +112,7 @@ class LiveChatService {
     return values;
   }
 
-  Future<void> sendMainMessage({
+  Future<Map<String, dynamic>> sendMainMessage({
     required String text,
     required List<LiveAttachment> attachments,
     required String? authUserId,
@@ -136,6 +138,10 @@ class LiveChatService {
     if (data is Map && data['ok'] == false) {
       throw StateError(liveText(data['error'], 'Envoi WAOUH impossible'));
     }
+    if (data is! Map) {
+      throw StateError('Réponse WAOUH invalide');
+    }
+    return Map<String, dynamic>.from(data);
   }
 
   Future<List<LiveConversation>> loadConversations({

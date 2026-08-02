@@ -1,10 +1,11 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { rehostPhotos, normalizeBeninPhone } from '../_shared/waouhContact.ts';
+import { geminiJson } from '../_shared/gemini.ts';
+import { parseSmartSale } from '../_shared/waouh-smart-sale.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')!;
 const WAHA_BASE_URL = Deno.env.get('WAHA_BASE_URL') || '';
 const WAHA_API_KEY = Deno.env.get('WAHA_API_KEY') || '';
 
@@ -49,25 +50,23 @@ Deno.serve(async (req) => {
     // used in WhatsApp messages and in-app cards.
     const stablePhotos = await rehostPhotos(supabase, photos, { wahaBaseUrl: WAHA_BASE_URL, wahaApiKey: WAHA_API_KEY });
 
-    // AI extraction
-    const aiRes = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: 'Tu extrais des annonces de vente. Réponds UNIQUEMENT en JSON avec: title, category (smartphone|ordinateur|vetement|vehicule|electromenager|meuble|autre), brand, model, condition (neuf|tres_bon|bon|moyen|use), price (number FCFA), description.' },
-          { role: 'user', content: message },
-        ],
-        response_format: { type: 'json_object' },
-      }),
-    });
-    if (!aiRes.ok) {
-      const t = await aiRes.text();
-      return new Response(JSON.stringify({ error: 'AI failed', detail: t }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    const deterministic = parseSmartSale(message, body?.sale || {});
+    const enriched: any = await geminiJson(
+      'Extrais une annonce en JSON: title, category, brand, model, condition, price, description. Ne modifie jamais un prix explicite.',
+      message,
+      {},
+    );
+    const extracted: any = {
+      ...enriched,
+      title: deterministic.title || enriched.title,
+      price: deterministic.price || enriched.price,
+      category: deterministic.category !== 'autre' ? deterministic.category : enriched.category,
+      condition: deterministic.condition || enriched.condition,
+      description: deterministic.detail || enriched.description,
+    };
+    if (!extracted.title || !Number(extracted.price)) {
+      return new Response(JSON.stringify({ error: 'product title and positive price required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
-    const aiData = await aiRes.json();
-    const extracted = JSON.parse(aiData.choices[0].message.content);
 
     // Insert article with channel-aware contact identity
     const { data: article, error: artErr } = await supabase.from('waouh_articles').insert({
@@ -81,7 +80,7 @@ Deno.serve(async (req) => {
       currency: 'XOF',
       photos: stablePhotos,
       location: location ? `SRID=4326;POINT(${location.lng} ${location.lat})` : null,
-      city: location?.city,
+      city: deterministic.city || location?.city,
       status: 'active',
       expires_at: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
       source_channel,

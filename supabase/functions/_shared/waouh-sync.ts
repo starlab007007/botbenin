@@ -30,6 +30,10 @@ export interface PushSyncedEventArgs {
   negotiationId?: string | null;
   transactionId?: string | null;
   dealId?: string | null;
+  threadId?: string | null;
+  buyerUserId?: string | null;
+  sellerUserId?: string | null;
+  counterpartUserId?: string | null;
   template?: string;         // template name for outbound queue (default: intent)
   eventType?: string | null;
   attachments?: Array<{ url: string; type: string; caption?: string }>;
@@ -72,6 +76,8 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
   const {
     sb, user, role, articleId, text, intent,
     negotiationId = null, transactionId = null, dealId = null,
+    threadId = null, buyerUserId = null, sellerUserId = null,
+    counterpartUserId = null,
     template, eventType, attachments = [], imageUrl = null,
     payloadExtra = {}, forcePhoneE164 = null, dedupSuffix = "",
     traceId: traceIdIn = null,
@@ -94,6 +100,10 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
     negotiation_id: negotiationId,
     transaction_id: transactionId,
     deal_id: dealId,
+    thread_id: threadId,
+    buyer_user_id: buyerUserId,
+    seller_user_id: sellerUserId,
+    counterpart_user_id: counterpartUserId,
     role,
     trace_id: traceId,
     ...payloadExtra,
@@ -108,6 +118,7 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
     : (user.auth_user_id ? "app" : (user.phone_number ? "whatsapp" : "system"));
   try {
     const { data: msg } = await sb.from("waouh_messages").insert({
+      thread_id: threadId,
       user_id: user.id,
       channel: msgChannel,
       direction: "out",
@@ -146,6 +157,10 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
     negotiation_id: negotiationId,
     transaction_id: transactionId,
     deal_id: dealId,
+    thread_id: threadId,
+    buyer_user_id: buyerUserId,
+    seller_user_id: sellerUserId,
+    counterpart_user_id: counterpartUserId,
     message_id: result.message_id,
     attachments,
     intent,

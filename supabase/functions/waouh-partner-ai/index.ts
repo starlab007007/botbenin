@@ -3,29 +3,14 @@
 // parse_voice_business, reverse_geocode, geocode_address, clean_catalog_entry
 
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
-
-const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-const GATEWAY = 'https://ai.gateway.lovable.dev/v1/chat/completions';
-const MODEL = 'google/gemini-3-flash-preview';
+import { geminiJson } from '../_shared/gemini.ts';
 
 async function aiTool(system: string, user: string, tool: any) {
-  const resp = await fetch(GATEWAY, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
-      tools: [{ type: 'function', function: tool }],
-      tool_choice: { type: 'function', function: { name: tool.name } },
-    }),
-  });
-  if (!resp.ok) {
-    const t = await resp.text();
-    throw new Error(`AI gateway ${resp.status}: ${t.slice(0, 200)}`);
-  }
-  const data = await resp.json();
-  const args = data.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
-  return JSON.parse(args || '{}');
+  return geminiJson(
+    `${system}\nRéponds uniquement en JSON conforme à ce schéma: ${JSON.stringify(tool.parameters || {})}`,
+    user,
+    {},
+  );
 }
 
 const tools = {
@@ -149,7 +134,6 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
   try {
-    if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY missing');
     const { action, payload } = await req.json();
     let result: any;
 

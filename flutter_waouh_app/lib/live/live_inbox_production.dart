@@ -14,6 +14,7 @@ import 'live_radar_models.dart';
 import 'live_radar_service.dart';
 import 'live_radar_map_screen.dart';
 import 'live_status_screen.dart';
+import 'live_widgets.dart';
 
 class LiveInboxProductionScreen extends StatefulWidget {
   const LiveInboxProductionScreen({super.key});
@@ -68,8 +69,8 @@ class _LiveInboxProductionScreenState extends State<LiveInboxProductionScreen> {
         .where((id) => id.isNotEmpty)
         .toList();
     await context.read<LiveWaouhController>().session.markStatusesSeen(
-      activeIds,
-    );
+          activeIds,
+        );
     if (mounted) setState(() => _seenStatusIds.addAll(activeIds));
   }
 
@@ -102,9 +103,8 @@ class _LiveInboxProductionScreenState extends State<LiveInboxProductionScreen> {
         final statuses = (snapshot.data ?? const <LiveStatus>[])
             .where((item) => item.active)
             .toList();
-        final newStatuses = statuses
-            .where((item) => !_seenStatusIds.contains(item.id))
-            .length;
+        final newStatuses =
+            statuses.where((item) => !_seenStatusIds.contains(item.id)).length;
         return Scaffold(
           backgroundColor: const Color(0xFFF8FBF9),
           appBar: _InboxAppBar(
@@ -133,13 +133,13 @@ class _LiveInboxProductionScreenState extends State<LiveInboxProductionScreen> {
                   1 => const _ProductionStatusFeed(),
                   2 => const LiveRadarMapScreen(),
                   _ => _ProductionDiscussionFeed(
-                    archives: _archives,
-                    matches: _matches,
-                    onToggleArchives: () =>
-                        setState(() => _archives = !_archives),
-                    onNewChat: _newChat,
-                    onOpenWaouh: _openWaouhWith,
-                  ),
+                      archives: _archives,
+                      matches: _matches,
+                      onToggleArchives: () =>
+                          setState(() => _archives = !_archives),
+                      onNewChat: _newChat,
+                      onOpenWaouh: _openWaouhWith,
+                    ),
                 },
               ),
             ],
@@ -174,78 +174,78 @@ class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) => AppBar(
-    toolbarHeight: 78,
-    automaticallyImplyLeading: false,
-    leadingWidth: 64,
-    leading: Center(
-      child: _ProfileAvatar(
-        name: displayName,
-        imageUrl: imageUrl,
-        onTap: onProfile,
-      ),
-    ),
-    titleSpacing: 0,
-    title: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          displayName,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontSize: 21,
-            fontWeight: FontWeight.w900,
-            letterSpacing: -.3,
+        toolbarHeight: 78,
+        automaticallyImplyLeading: false,
+        leadingWidth: 64,
+        leading: Center(
+          child: _ProfileAvatar(
+            name: displayName,
+            imageUrl: imageUrl,
+            onTap: onProfile,
           ),
         ),
-        const SizedBox(height: 2),
-        Row(
+        titleSpacing: 0,
+        title: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const _OnlineDot(),
-            const SizedBox(width: 6),
             Text(
-              onlineLabel,
+              displayName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                color: Color(0xFFC9F6E3),
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
+                fontSize: 21,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -.3,
               ),
+            ),
+            const SizedBox(height: 2),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const _OnlineDot(),
+                const SizedBox(width: 6),
+                Text(
+                  onlineLabel,
+                  style: const TextStyle(
+                    color: Color(0xFFC9F6E3),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
-      ],
-    ),
-    actions: [
-      StreamBuilder<List<LiveNotification>>(
-        stream: notificationCountStream,
-        builder: (_, snapshot) => _HeaderIcon(
-          icon: Icons.notifications_none_rounded,
-          count: (snapshot.data ?? const <LiveNotification>[])
-              .where((item) => !item.read)
-              .length,
-          tooltip: 'Notifications',
-          onTap: onNotifications,
+        actions: [
+          StreamBuilder<List<LiveNotification>>(
+            stream: notificationCountStream,
+            builder: (_, snapshot) => _HeaderIcon(
+              icon: Icons.notifications_none_rounded,
+              count: (snapshot.data ?? const <LiveNotification>[])
+                  .where((item) => !item.read)
+                  .length,
+              tooltip: 'Notifications',
+              onTap: onNotifications,
+            ),
+          ),
+          IconButton(
+            onPressed: onNewChat,
+            tooltip: 'Nouveau chat',
+            icon: const Icon(Icons.add_rounded, size: 29),
+          ),
+          const SizedBox(width: 4),
+        ],
+        flexibleSpace: const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF004F46), Color(0xFF08756A), Color(0xFF013E36)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
         ),
-      ),
-      IconButton(
-        onPressed: onNewChat,
-        tooltip: 'Nouveau chat',
-        icon: const Icon(Icons.add_rounded, size: 29),
-      ),
-      const SizedBox(width: 4),
-    ],
-    flexibleSpace: const DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF004F46), Color(0xFF08756A), Color(0xFF013E36)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-    ),
-  );
+      );
 }
 
 class _SearchBar extends StatelessWidget {
@@ -324,56 +324,56 @@ class _InboxTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
-    child: Container(
-      height: 54,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xFF87A198)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _InboxTabButton(
-              selected: value == 0,
-              label: 'Discussions',
-              icon: Icons.forum_outlined,
-              onTap: () => onChanged(0),
-            ),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+        child: Container(
+          height: 54,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: const Color(0xFF87A198)),
           ),
-          const VerticalDivider(
-            width: 1,
-            thickness: 1,
-            color: Color(0xFF87A198),
+          child: Row(
+            children: [
+              Expanded(
+                child: _InboxTabButton(
+                  selected: value == 0,
+                  label: 'Discussions',
+                  icon: Icons.forum_outlined,
+                  onTap: () => onChanged(0),
+                ),
+              ),
+              const VerticalDivider(
+                width: 1,
+                thickness: 1,
+                color: Color(0xFF87A198),
+              ),
+              Expanded(
+                child: _InboxTabButton(
+                  selected: value == 1,
+                  label: 'Statuts',
+                  icon: Icons.auto_awesome_outlined,
+                  badge: statusCount,
+                  onTap: () => onChanged(1),
+                ),
+              ),
+              const VerticalDivider(
+                width: 1,
+                thickness: 1,
+                color: Color(0xFF87A198),
+              ),
+              Expanded(
+                child: _InboxTabButton(
+                  selected: value == 2,
+                  label: 'Radar',
+                  icon: Icons.radar_rounded,
+                  onTap: () => onChanged(2),
+                ),
+              ),
+            ],
           ),
-          Expanded(
-            child: _InboxTabButton(
-              selected: value == 1,
-              label: 'Statuts',
-              icon: Icons.auto_awesome_outlined,
-              badge: statusCount,
-              onTap: () => onChanged(1),
-            ),
-          ),
-          const VerticalDivider(
-            width: 1,
-            thickness: 1,
-            color: Color(0xFF87A198),
-          ),
-          Expanded(
-            child: _InboxTabButton(
-              selected: value == 2,
-              label: 'Radar',
-              icon: Icons.radar_rounded,
-              onTap: () => onChanged(2),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 }
 
 class _InboxTabButton extends StatelessWidget {
@@ -392,48 +392,48 @@ class _InboxTabButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-    color: selected ? const Color(0xFFD7F1E9) : Colors.white,
-    child: InkWell(
-      onTap: onTap,
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                selected ? Icons.check_rounded : icon,
-                size: 18,
-                color: selected
-                    ? const Color(0xFF08756A)
-                    : const Color(0xFF263530),
-              ),
-              const SizedBox(width: 5),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w800,
+        color: selected ? const Color(0xFFD7F1E9) : Colors.white,
+        child: InkWell(
+          onTap: onTap,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    selected ? Icons.check_rounded : icon,
+                    size: 18,
                     color: selected
-                        ? const Color(0xFF075E54)
+                        ? const Color(0xFF08756A)
                         : const Color(0xFF263530),
                   ),
-                ),
+                  const SizedBox(width: 5),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                        color: selected
+                            ? const Color(0xFF075E54)
+                            : const Color(0xFF263530),
+                      ),
+                    ),
+                  ),
+                  if (badge > 0) ...[
+                    const SizedBox(width: 4),
+                    _CountBubble(value: badge, small: true),
+                  ],
+                ],
               ),
-              if (badge > 0) ...[
-                const SizedBox(width: 4),
-                _CountBubble(value: badge, small: true),
-              ],
-            ],
+            ),
           ),
         ),
-      ),
-    ),
-  );
+      );
 }
 
 class _ProductionDiscussionFeed extends StatelessWidget {
@@ -458,7 +458,8 @@ class _ProductionDiscussionFeed extends StatelessWidget {
       stream: controller.matches(archived: false),
       builder: (_, currentMatchesSnapshot) => StreamBuilder<List<LiveMatch>>(
         stream: controller.matches(archived: true),
-        builder: (_, archivedMatchesSnapshot) => StreamBuilder<List<LiveConversation>>(
+        builder: (_, archivedMatchesSnapshot) =>
+            StreamBuilder<List<LiveConversation>>(
           stream: controller.conversations(archived: false),
           builder: (_, currentConversationsSnapshot) {
             final currentMatches =
@@ -477,15 +478,14 @@ class _ProductionDiscussionFeed extends StatelessWidget {
                       ),
                     )
                     .toList();
-            final currentConversations =
-                (currentConversationsSnapshot.data ??
-                        const <LiveConversation>[])
-                    .where(
-                      (item) => matches(
-                        '${item.phoneNumber ?? ''} ${item.lastMessage ?? ''}',
-                      ),
-                    )
-                    .toList();
+            final currentConversations = (currentConversationsSnapshot.data ??
+                    const <LiveConversation>[])
+                .where(
+                  (item) => matches(
+                    '${item.phoneNumber ?? ''} ${item.lastMessage ?? ''}',
+                  ),
+                )
+                .toList();
             final items = archives ? archivedMatches : currentMatches;
             final unread = currentMatches.fold<int>(
               0,
@@ -582,100 +582,101 @@ class _WaouhAssistantCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      color: const Color(0xFFEFFFF7),
-      borderRadius: BorderRadius.circular(22),
-      border: Border.all(color: const Color(0xFFCBEBDD)),
-    ),
-    child: Column(
-      children: [
-        Row(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEFFFF7),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFFCBEBDD)),
+        ),
+        child: Column(
           children: [
-            const BrandMark(size: 48, semanticLabel: 'WAOUH IA'),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'WAOUH',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      _OnlineDot(),
-                      SizedBox(width: 6),
-                      Text(
-                        'En ligne',
+            Row(
+              children: [
+                const BrandMark(size: 48, semanticLabel: 'WAOUH IA'),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'WAOUH',
                         style: TextStyle(
-                          color: Color(0xFF08756A),
-                          fontWeight: FontWeight.w900,
+                            fontSize: 20, fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          _OnlineDot(),
+                          SizedBox(width: 6),
+                          Text(
+                            'En ligne',
+                            style: TextStyle(
+                              color: Color(0xFF08756A),
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Assistant IA',
+                        maxLines: 2,
+                        style: TextStyle(
+                          color: Color(0xFF667A73),
                           fontSize: 12.5,
+                          height: 1.25,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Assistant IA',
-                    maxLines: 2,
-                    style: TextStyle(
-                      color: Color(0xFF667A73),
-                      fontSize: 12.5,
-                      height: 1.25,
-                      fontWeight: FontWeight.w600,
-                    ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton.icon(
+                  onPressed: onDiscuss,
+                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 17),
+                  label: const Text('Discuter'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF08756A),
+                    minimumSize: const Size(0, 42),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const SizedBox(width: 8),
-            FilledButton.icon(
-              onPressed: onDiscuss,
-              icon: const Icon(Icons.chat_bubble_outline_rounded, size: 17),
-              label: const Text('Discuter'),
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF08756A),
-                minimumSize: const Size(0, 42),
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _AssistantQuickAction(
-                label: 'Vendre',
-                icon: Icons.sell_outlined,
-                onTap: onSell,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _AssistantQuickAction(
-                label: 'Acheter',
-                icon: Icons.search_rounded,
-                onTap: onBuy,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _AssistantQuickAction(
-                label: 'Négocier',
-                icon: Icons.handshake_outlined,
-                onTap: onNegotiate,
-              ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _AssistantQuickAction(
+                    label: 'Vendre',
+                    icon: Icons.sell_outlined,
+                    onTap: onSell,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _AssistantQuickAction(
+                    label: 'Acheter',
+                    icon: Icons.search_rounded,
+                    onTap: onBuy,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _AssistantQuickAction(
+                    label: 'Négocier',
+                    icon: Icons.handshake_outlined,
+                    onTap: onNegotiate,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
-      ],
-    ),
-  );
+      );
 }
 
 class _AssistantQuickAction extends StatelessWidget {
@@ -690,18 +691,19 @@ class _AssistantQuickAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => OutlinedButton.icon(
-    onPressed: onTap,
-    icon: Icon(icon, size: 16),
-    label: FittedBox(fit: BoxFit.scaleDown, child: Text(label)),
-    style: OutlinedButton.styleFrom(
-      foregroundColor: const Color(0xFF075E54),
-      side: const BorderSide(color: Color(0xFFBFE3D5)),
-      backgroundColor: Colors.white,
-      minimumSize: const Size(0, 42),
-      padding: const EdgeInsets.symmetric(horizontal: 7),
-      textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
-    ),
-  );
+        onPressed: onTap,
+        icon: Icon(icon, size: 16),
+        label: FittedBox(fit: BoxFit.scaleDown, child: Text(label)),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFF075E54),
+          side: const BorderSide(color: Color(0xFFBFE3D5)),
+          backgroundColor: Colors.white,
+          minimumSize: const Size(0, 42),
+          padding: const EdgeInsets.symmetric(horizontal: 7),
+          textStyle:
+              const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
+        ),
+      );
 }
 
 class _MatchTile extends StatelessWidget {
@@ -767,9 +769,8 @@ class _MatchTile extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontWeight: FontWeight.w900,
-                              color: unread > 0
-                                  ? const Color(0xFF10211B)
-                                  : null,
+                              color:
+                                  unread > 0 ? const Color(0xFF10211B) : null,
                             ),
                           ),
                         ),
@@ -830,31 +831,31 @@ class _ConversationTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
-    margin: const EdgeInsets.only(bottom: 9),
-    child: ListTile(
-      onTap: () => context.go('/app/chat/${conversation.id}'),
-      leading: const CircleAvatar(
-        backgroundColor: Color(0xFFE7F6F0),
-        child: Icon(
-          Icons.chat_bubble_outline_rounded,
-          color: Color(0xFF08756A),
+        margin: const EdgeInsets.only(bottom: 9),
+        child: ListTile(
+          onTap: () => context.go('/app/chat/${conversation.id}'),
+          leading: const CircleAvatar(
+            backgroundColor: Color(0xFFE7F6F0),
+            child: Icon(
+              Icons.chat_bubble_outline_rounded,
+              color: Color(0xFF08756A),
+            ),
+          ),
+          title: Text(
+            conversation.phoneNumber ?? 'Discussion WAOUH',
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          subtitle: Text(
+            conversation.lastMessage ?? 'Ouvrir la conversation',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: Text(
+            _compactTime(conversation.updatedAt),
+            style: const TextStyle(fontSize: 11, color: Color(0xFF667A73)),
+          ),
         ),
-      ),
-      title: Text(
-        conversation.phoneNumber ?? 'Discussion WAOUH',
-        style: const TextStyle(fontWeight: FontWeight.w800),
-      ),
-      subtitle: Text(
-        conversation.lastMessage ?? 'Ouvrir la conversation',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      trailing: Text(
-        _compactTime(conversation.updatedAt),
-        style: const TextStyle(fontSize: 11, color: Color(0xFF667A73)),
-      ),
-    ),
-  );
+      );
 }
 
 class _DiscussionEmpty extends StatelessWidget {
@@ -864,40 +865,41 @@ class _DiscussionEmpty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(top: 20),
-    padding: const EdgeInsets.all(26),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      border: Border.all(color: const Color(0xFFDCE8E3)),
-      borderRadius: BorderRadius.circular(22),
-    ),
-    child: Column(
-      children: [
-        const Icon(Icons.forum_outlined, size: 48, color: Color(0xFF8AA19A)),
-        const SizedBox(height: 12),
-        Text(
-          archived ? 'Aucune archive' : 'Aucune conversation',
-          style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+        margin: const EdgeInsets.only(top: 20),
+        padding: const EdgeInsets.all(26),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: const Color(0xFFDCE8E3)),
+          borderRadius: BorderRadius.circular(22),
         ),
-        const SizedBox(height: 6),
-        Text(
-          archived
-              ? 'Les discussions archivées apparaîtront ici.'
-              : 'Démarrez une recherche, une vente ou une négociation avec WAOUH.',
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: Color(0xFF667A73), height: 1.35),
+        child: Column(
+          children: [
+            const Icon(Icons.forum_outlined,
+                size: 48, color: Color(0xFF8AA19A)),
+            const SizedBox(height: 12),
+            Text(
+              archived ? 'Aucune archive' : 'Aucune conversation',
+              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              archived
+                  ? 'Les discussions archivées apparaîtront ici.'
+                  : 'Démarrez une recherche, une vente ou une négociation avec WAOUH.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF667A73), height: 1.35),
+            ),
+            if (!archived) ...[
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: onNewChat,
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('Nouvelle discussion'),
+              ),
+            ],
+          ],
         ),
-        if (!archived) ...[
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: onNewChat,
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Nouvelle discussion'),
-          ),
-        ],
-      ],
-    ),
-  );
+      );
 }
 
 class _ProductionStatusFeed extends StatefulWidget {
@@ -1017,24 +1019,24 @@ class _StatusFilter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FilterChip(
-    selected: selected,
-    onSelected: (_) => onTap(),
-    label: Text(label),
-    avatar: Icon(
-      icon,
-      size: 16,
-      color: selected ? Colors.white : const Color(0xFF667A73),
-    ),
-    selectedColor: const Color(0xFF08756A),
-    backgroundColor: Colors.white,
-    side: BorderSide(
-      color: selected ? const Color(0xFF08756A) : const Color(0xFFD8E5E0),
-    ),
-    labelStyle: TextStyle(
-      color: selected ? Colors.white : const Color(0xFF40514B),
-      fontWeight: FontWeight.w800,
-    ),
-  );
+        selected: selected,
+        onSelected: (_) => onTap(),
+        label: Text(label),
+        avatar: Icon(
+          icon,
+          size: 16,
+          color: selected ? Colors.white : const Color(0xFF667A73),
+        ),
+        selectedColor: const Color(0xFF08756A),
+        backgroundColor: Colors.white,
+        side: BorderSide(
+          color: selected ? const Color(0xFF08756A) : const Color(0xFFD8E5E0),
+        ),
+        labelStyle: TextStyle(
+          color: selected ? Colors.white : const Color(0xFF40514B),
+          fontWeight: FontWeight.w800,
+        ),
+      );
 }
 
 class _StatusEmpty extends StatelessWidget {
@@ -1043,60 +1045,60 @@ class _StatusEmpty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 26),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(28),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: const Color(0xFFE1EAE6)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 76,
-              height: 76,
-              decoration: const BoxDecoration(
-                color: Color(0xFFFFF4D9),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.auto_awesome_rounded,
-                color: Color(0xFFE59016),
-                size: 34,
-              ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 26),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(28),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: const Color(0xFFE1EAE6)),
             ),
-            const SizedBox(height: 18),
-            const Text(
-              'Aucun statut actif',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Publiez une vente urgente, une recherche ou une promotion visible pendant 24 heures.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFF667A73), height: 1.4),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: onPublish,
-                icon: const Icon(Icons.add_a_photo_outlined),
-                label: const Text('Publier un statut'),
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(52),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 76,
+                  height: 76,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFFF4D9),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome_rounded,
+                    color: Color(0xFFE59016),
+                    size: 34,
+                  ),
                 ),
-              ),
+                const SizedBox(height: 18),
+                const Text(
+                  'Aucun statut actif',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Publiez une vente urgente, une recherche ou une promotion visible pendant 24 heures.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Color(0xFF667A73), height: 1.4),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: onPublish,
+                    icon: const Icon(Icons.add_a_photo_outlined),
+                    label: const Text('Publier un statut'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
-    ),
-  );
+      );
 }
 
 class _ProductionStatusCard extends StatelessWidget {
@@ -1138,8 +1140,8 @@ class _ProductionStatusCard extends StatelessWidget {
                     fallback: status.type == 'sell'
                         ? Icons.sell_outlined
                         : status.type == 'buy'
-                        ? Icons.search_rounded
-                        : Icons.campaign_outlined,
+                            ? Icons.search_rounded
+                            : Icons.campaign_outlined,
                   ),
                 ),
               ),
@@ -1411,6 +1413,8 @@ class _ProductionRadarFeedState extends State<_ProductionRadarFeed>
         'Je souhaite négocier « ${item.title} » à ${item.distanceLabel}.',
       _RadarAction.buy =>
         'Je veux acheter « ${item.title} » à ${item.distanceLabel}.',
+      _RadarAction.propose =>
+        'Je vends un article correspondant à « ${item.title} » à ${item.distanceLabel}.',
     };
     final controller = context.read<LiveWaouhController>();
     controller.setComposerSeed(
@@ -1419,9 +1423,12 @@ class _ProductionRadarFeedState extends State<_ProductionRadarFeed>
         'source': 'flutter_radar',
         'auto_send': true,
         'radar_item_id': item.id,
+        'radar_source': item.source,
         'article_id': item.articleId,
         'title': item.title,
         'distance': item.distanceLabel,
+        if (item.priceMin != null) 'price': item.priceMin,
+        if (item.currency != null) 'devise': item.currency,
         'radar_intent': action.name,
         'role': item.type == LiveRadarItemType.buy ? 'seller' : 'buyer',
       },
@@ -1437,85 +1444,85 @@ class _ProductionRadarFeedState extends State<_ProductionRadarFeed>
 
   @override
   Widget build(BuildContext context) => Column(
-    children: [
-      _RadarToolbar(
-        urgent: _filters.urgent,
-        filterCount: _filters.activeCount,
-        loading: _loading,
-        radarMode: _radarMode,
-        paused: _paused,
-        location: _location,
-        approximate: _approximate,
-        radiusKm: _filters.maxRadiusKm,
-        results: _items.length,
-        secondsRemaining: _secondsRemaining,
-        onUrgent: _toggleUrgent,
-        onFilters: _filtersSheet,
-        onRefresh: () => _scan(refreshLocation: true),
-        onToggleMode: () => setState(() => _radarMode = !_radarMode),
-      ),
-      if (_paused)
-        _RadarPausedBanner(
-          reason: _pauseReason ?? 'Le scan est suspendu.',
-          onResume: () => _scan(refreshLocation: true),
-        ),
-      Expanded(
-        child: RefreshIndicator(
-          onRefresh: () => _scan(refreshLocation: true),
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 26),
-            children: [
-              if (_loading && _items.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(top: 80),
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else ...[
-                if (_radarMode) ...[
-                  _RadarScope(
-                    items: _items,
-                    maxRadiusKm: _filters.maxRadiusKm,
-                    active: !_paused && !_loading,
-                    onTap: _openResult,
-                  ),
-                  const SizedBox(height: 14),
-                ],
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Résultats à proximité',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      '${_items.length}',
-                      style: const TextStyle(
-                        color: Color(0xFF08756A),
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                if (_items.isEmpty)
-                  _RadarEmpty(
-                    onFilters: _filtersSheet,
-                    onRefresh: () => _scan(refreshLocation: true),
-                  )
-                else
-                  _RadarResultGrid(items: _items, onTap: _openResult),
-              ],
-            ],
+        children: [
+          _RadarToolbar(
+            urgent: _filters.urgent,
+            filterCount: _filters.activeCount,
+            loading: _loading,
+            radarMode: _radarMode,
+            paused: _paused,
+            location: _location,
+            approximate: _approximate,
+            radiusKm: _filters.maxRadiusKm,
+            results: _items.length,
+            secondsRemaining: _secondsRemaining,
+            onUrgent: _toggleUrgent,
+            onFilters: _filtersSheet,
+            onRefresh: () => _scan(refreshLocation: true),
+            onToggleMode: () => setState(() => _radarMode = !_radarMode),
           ),
-        ),
-      ),
-    ],
-  );
+          if (_paused)
+            _RadarPausedBanner(
+              reason: _pauseReason ?? 'Le scan est suspendu.',
+              onResume: () => _scan(refreshLocation: true),
+            ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () => _scan(refreshLocation: true),
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 26),
+                children: [
+                  if (_loading && _items.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 80),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else ...[
+                    if (_radarMode) ...[
+                      _RadarScope(
+                        items: _items,
+                        maxRadiusKm: _filters.maxRadiusKm,
+                        active: !_paused && !_loading,
+                        onTap: _openResult,
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Résultats à proximité',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          '${_items.length}',
+                          style: const TextStyle(
+                            color: Color(0xFF08756A),
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    if (_items.isEmpty)
+                      _RadarEmpty(
+                        onFilters: _filtersSheet,
+                        onRefresh: () => _scan(refreshLocation: true),
+                      )
+                    else
+                      _RadarResultGrid(items: _items, onTap: _openResult),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
 }
 
 class _RadarToolbar extends StatelessWidget {
@@ -1554,9 +1561,8 @@ class _RadarToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = paused ? 'Pause' : (loading ? 'Scan...' : 'Live');
-    final countdown = !paused && secondsRemaining > 0
-        ? '${secondsRemaining}s'
-        : 'Auto';
+    final countdown =
+        !paused && secondsRemaining > 0 ? '${secondsRemaining}s' : 'Auto';
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
       padding: const EdgeInsets.all(16),
@@ -1728,41 +1734,41 @@ class _RadarHeroMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Expanded(
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.12),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(.08)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Color(0xFFBDEEDC),
-              fontSize: 10.5,
-              fontWeight: FontWeight.w800,
-            ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(.12),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(.08)),
           ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFFBDEEDC),
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 }
 
 class _RadarPausedBanner extends StatelessWidget {
@@ -1772,56 +1778,56 @@ class _RadarPausedBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-    decoration: BoxDecoration(
-      color: const Color(0xFFEAF9F2),
-      border: Border.all(color: const Color(0xFFC8EAD9)),
-      borderRadius: BorderRadius.circular(16),
-    ),
-    child: Row(
-      children: [
-        const Icon(
-          Icons.pause_circle_outline_rounded,
-          color: Color(0xFF08756A),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEAF9F2),
+          border: Border.all(color: const Color(0xFFC8EAD9)),
+          borderRadius: BorderRadius.circular(16),
         ),
-        const SizedBox(width: 9),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Radar en pause',
-                style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF075E54),
-                ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.pause_circle_outline_rounded,
+              color: Color(0xFF08756A),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Radar en pause',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF075E54),
+                    ),
+                  ),
+                  Text(
+                    reason,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: Color(0xFF667A73),
+                    ),
+                  ),
+                ],
               ),
-              Text(
-                reason,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  color: Color(0xFF667A73),
-                ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.icon(
+              onPressed: onResume,
+              icon: const Icon(Icons.play_arrow_rounded, size: 17),
+              label: const Text('Relancer'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 38),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-        const SizedBox(width: 8),
-        FilledButton.icon(
-          onPressed: onResume,
-          icon: const Icon(Icons.play_arrow_rounded, size: 17),
-          label: const Text('Relancer'),
-          style: FilledButton.styleFrom(
-            minimumSize: const Size(0, 38),
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-          ),
-        ),
-      ],
-    ),
-  );
+      );
 }
 
 class _RadarScope extends StatefulWidget {
@@ -1855,75 +1861,75 @@ class _RadarScopeState extends State<_RadarScope>
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
-    builder: (_, constraints) {
-      final side = math.min(constraints.maxWidth, 330.0);
-      final center = side / 2;
-      final radius = center - 13;
-      return Center(
-        child: SizedBox(
-          width: side,
-          height: side,
-          child: Stack(
-            children: [
-              CustomPaint(
-                size: Size.square(side),
-                painter: _RadarPainter(
-                  animation: _animation,
-                  maxRadiusKm: widget.maxRadiusKm,
-                  active: widget.active,
-                ),
-              ),
-              ...widget.items.take(24).map((item) {
-                final ratio = math.sqrt(
-                  (item.distanceKm / widget.maxRadiusKm).clamp(0.0, 1.0),
-                );
-                final pointRadius = math.max(27.0, radius * ratio);
-                final angle = (item.bearing - 90) * math.pi / 180;
-                final x = center + pointRadius * math.cos(angle);
-                final y = center + pointRadius * math.sin(angle);
-                return Positioned(
-                  left: x - 20,
-                  top: y - 20,
-                  child: _RadarNode(
-                    item: item,
-                    onTap: () => widget.onTap(item),
+        builder: (_, constraints) {
+          final side = math.min(constraints.maxWidth, 330.0);
+          final center = side / 2;
+          final radius = center - 13;
+          return Center(
+            child: SizedBox(
+              width: side,
+              height: side,
+              child: Stack(
+                children: [
+                  CustomPaint(
+                    size: Size.square(side),
+                    painter: _RadarPainter(
+                      animation: _animation,
+                      maxRadiusKm: widget.maxRadiusKm,
+                      active: widget.active,
+                    ),
                   ),
-                );
-              }),
-              Positioned(
-                bottom: 14,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(99),
-                      border: Border.all(color: const Color(0xFFD8E5DF)),
-                    ),
-                    child: Text(
-                      widget.active
-                          ? 'Analyse autour de vous'
-                          : 'Résultats enregistrés',
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF075E54),
+                  ...widget.items.take(24).map((item) {
+                    final ratio = math.sqrt(
+                      (item.distanceKm / widget.maxRadiusKm).clamp(0.0, 1.0),
+                    );
+                    final pointRadius = math.max(27.0, radius * ratio);
+                    final angle = (item.bearing - 90) * math.pi / 180;
+                    final x = center + pointRadius * math.cos(angle);
+                    final y = center + pointRadius * math.sin(angle);
+                    return Positioned(
+                      left: x - 20,
+                      top: y - 20,
+                      child: _RadarNode(
+                        item: item,
+                        onTap: () => widget.onTap(item),
+                      ),
+                    );
+                  }),
+                  Positioned(
+                    bottom: 14,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(99),
+                          border: Border.all(color: const Color(0xFFD8E5DF)),
+                        ),
+                        child: Text(
+                          widget.active
+                              ? 'Analyse autour de vous'
+                              : 'Résultats enregistrés',
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF075E54),
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       );
-    },
-  );
 }
 
 class _RadarPainter extends CustomPainter {
@@ -2036,30 +2042,30 @@ class _RadarNode extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => InkResponse(
-    onTap: onTap,
-    radius: 28,
-    child: Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: Color(item.ring.colorValue), width: 2.5),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x33000000),
-            blurRadius: 6,
-            offset: Offset(0, 2),
+        onTap: onTap,
+        radius: 28,
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Color(item.ring.colorValue), width: 2.5),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x33000000),
+                blurRadius: 6,
+                offset: Offset(0, 2),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: ClipOval(
-        child: _RemoteImage(
-          url: item.photoUrl,
-          fallback: Icons.shopping_bag_outlined,
+          child: ClipOval(
+            child: _RemoteImage(
+              url: item.photoUrl,
+              fallback: Icons.shopping_bag_outlined,
+            ),
+          ),
         ),
-      ),
-    ),
-  );
+      );
 }
 
 class _RadarResultGrid extends StatelessWidget {
@@ -2069,18 +2075,18 @@ class _RadarResultGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => GridView.builder(
-    shrinkWrap: true,
-    physics: const NeverScrollableScrollPhysics(),
-    itemCount: math.min(items.length, 24),
-    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-      crossAxisCount: 2,
-      childAspectRatio: .79,
-      crossAxisSpacing: 10,
-      mainAxisSpacing: 10,
-    ),
-    itemBuilder: (_, index) =>
-        _RadarResultCard(item: items[index], onTap: () => onTap(items[index])),
-  );
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: math.min(items.length, 24),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: .79,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+        ),
+        itemBuilder: (_, index) => _RadarResultCard(
+            item: items[index], onTap: () => onTap(items[index])),
+      );
 }
 
 class _RadarResultCard extends StatelessWidget {
@@ -2090,137 +2096,138 @@ class _RadarResultCard extends StatelessWidget {
   final VoidCallback onTap;
 
   Color get _accent => switch (item.type) {
-    LiveRadarItemType.sell => const Color(0xFF0A9E73),
-    LiveRadarItemType.buy => const Color(0xFF2F6BFF),
-    LiveRadarItemType.status => const Color(0xFFFF8A00),
-  };
+        LiveRadarItemType.sell => const Color(0xFF0A9E73),
+        LiveRadarItemType.buy => const Color(0xFF2F6BFF),
+        LiveRadarItemType.status => const Color(0xFFFF8A00),
+      };
 
   @override
   Widget build(BuildContext context) => InkWell(
-    onTap: onTap,
-    borderRadius: BorderRadius.circular(22),
-    child: Ink(
-      decoration: BoxDecoration(
-        color: Colors.white,
+        onTap: onTap,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: const Color(0xFFDDE9E4)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x12000000),
-            blurRadius: 18,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  _RemoteImage(
-                    url: item.photoUrl,
-                    fallback: item.type == LiveRadarItemType.status
-                        ? Icons.auto_awesome_rounded
-                        : Icons.shopping_bag_outlined,
-                  ),
-                  const DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Colors.transparent, Color(0xB0000000)],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 8,
-                    top: 8,
-                    child: _SignalPill(
-                      label: item.distanceLabel,
-                      color: Color(item.ring.colorValue),
-                    ),
-                  ),
-                  Positioned(
-                    right: 8,
-                    top: 8,
-                    child: _SignalPill(label: item.typeLabel, color: _accent),
-                  ),
-                  Positioned(
-                    left: 9,
-                    right: 9,
-                    bottom: 8,
-                    child: Text(
-                      item.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 13.5,
-                        height: 1.05,
-                      ),
-                    ),
-                  ),
-                ],
+        child: Ink(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: const Color(0xFFDDE9E4)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x12000000),
+                blurRadius: 18,
+                offset: Offset(0, 10),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 9, 10, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.priceLabel.isEmpty
-                        ? (item.city ?? 'À proximité')
-                        : item.priceLabel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w900,
-                      color: _accent,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      const Icon(
-                        Icons.location_on_outlined,
-                        size: 13,
-                        color: Color(0xFF667A73),
+                      _RemoteImage(
+                        url: item.photoUrl,
+                        fallback: item.type == LiveRadarItemType.status
+                            ? Icons.auto_awesome_rounded
+                            : Icons.shopping_bag_outlined,
                       ),
-                      const SizedBox(width: 3),
-                      Expanded(
-                        child: Text(
-                          item.city ?? 'Autour de vous',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 10.8,
-                            color: Color(0xFF667A73),
-                            fontWeight: FontWeight.w700,
+                      const DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.transparent, Color(0xB0000000)],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
                           ),
                         ),
                       ),
-                      const Icon(
-                        Icons.chevron_right_rounded,
-                        size: 16,
-                        color: Color(0xFF91A49D),
+                      Positioned(
+                        left: 8,
+                        top: 8,
+                        child: _SignalPill(
+                          label: item.distanceLabel,
+                          color: Color(item.ring.colorValue),
+                        ),
+                      ),
+                      Positioned(
+                        right: 8,
+                        top: 8,
+                        child:
+                            _SignalPill(label: item.typeLabel, color: _accent),
+                      ),
+                      Positioned(
+                        left: 9,
+                        right: 9,
+                        bottom: 8,
+                        child: Text(
+                          item.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 13.5,
+                            height: 1.05,
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 9, 10, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.priceLabel.isEmpty
+                            ? (item.city ?? 'À proximité')
+                            : item.priceLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w900,
+                          color: _accent,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.location_on_outlined,
+                            size: 13,
+                            color: Color(0xFF667A73),
+                          ),
+                          const SizedBox(width: 3),
+                          Expanded(
+                            child: Text(
+                              item.city ?? 'Autour de vous',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 10.8,
+                                color: Color(0xFF667A73),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            size: 16,
+                            color: Color(0xFF91A49D),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
-    ),
-  );
+      );
 }
 
 class _SignalPill extends StatelessWidget {
@@ -2230,21 +2237,21 @@ class _SignalPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-    decoration: BoxDecoration(
-      color: color.withOpacity(.92),
-      borderRadius: BorderRadius.circular(99),
-      border: Border.all(color: Colors.white.withOpacity(.25)),
-    ),
-    child: Text(
-      label,
-      style: const TextStyle(
-        color: Colors.white,
-        fontSize: 9.5,
-        fontWeight: FontWeight.w900,
-      ),
-    ),
-  );
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: color.withOpacity(.92),
+          borderRadius: BorderRadius.circular(99),
+          border: Border.all(color: Colors.white.withOpacity(.25)),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 9.5,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      );
 }
 
 class _RadarEmpty extends StatelessWidget {
@@ -2254,80 +2261,85 @@ class _RadarEmpty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(top: 18),
-    padding: const EdgeInsets.all(28),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(22),
-      border: Border.all(color: const Color(0xFFE0EAE6)),
-    ),
-    child: Column(
-      children: [
-        const Icon(Icons.radar_rounded, size: 52, color: Color(0xFF8BA39B)),
-        const SizedBox(height: 14),
-        const Text(
-          'Aucune opportunité trouvée',
-          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+        margin: const EdgeInsets.only(top: 18),
+        padding: const EdgeInsets.all(28),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFFE0EAE6)),
         ),
-        const SizedBox(height: 7),
-        const Text(
-          'Élargissez vos filtres ou actualisez votre position pour lancer un nouveau scan.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Color(0xFF667A73), height: 1.35),
-        ),
-        const SizedBox(height: 18),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          alignment: WrapAlignment.center,
+        child: Column(
           children: [
-            OutlinedButton.icon(
-              onPressed: onFilters,
-              icon: const Icon(Icons.tune_rounded),
-              label: const Text('Filtres'),
+            const Icon(Icons.radar_rounded, size: 52, color: Color(0xFF8BA39B)),
+            const SizedBox(height: 14),
+            const Text(
+              'Aucune opportunité trouvée',
+              style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
             ),
-            FilledButton.icon(
-              onPressed: onRefresh,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Actualiser'),
+            const SizedBox(height: 7),
+            const Text(
+              'Élargissez vos filtres ou actualisez votre position pour lancer un nouveau scan.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Color(0xFF667A73), height: 1.35),
+            ),
+            const SizedBox(height: 18),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              alignment: WrapAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: onFilters,
+                  icon: const Icon(Icons.tune_rounded),
+                  label: const Text('Filtres'),
+                ),
+                FilledButton.icon(
+                  onPressed: onRefresh,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Actualiser'),
+                ),
+              ],
             ),
           ],
         ),
-      ],
-    ),
-  );
+      );
 }
 
-enum _RadarAction { interest, negotiate, buy }
+enum _RadarAction { interest, negotiate, buy, propose }
 
 class _RadarResultSheet extends StatelessWidget {
   const _RadarResultSheet({required this.item});
   final LiveRadarItem item;
 
-  Color get _accent => switch (item.type) {
-    LiveRadarItemType.sell => const Color(0xFF0A9E73),
-    LiveRadarItemType.buy => const Color(0xFF2F6BFF),
-    LiveRadarItemType.status => const Color(0xFFFF8A00),
-  };
+  void _select(BuildContext context, String payload) {
+    final action = payload.toLowerCase();
+    Navigator.pop(
+      context,
+      action.startsWith('negocier')
+          ? _RadarAction.negotiate
+          : action.startsWith('proposer') || action.startsWith('contacter')
+              ? _RadarAction.propose
+          : action.startsWith('acheter')
+              ? _RadarAction.buy
+              : _RadarAction.interest,
+    );
+  }
 
   @override
   Widget build(BuildContext context) => SafeArea(
-    top: false,
-    child: Container(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * .88,
-      ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                margin: const EdgeInsets.only(top: 10, bottom: 10),
+        top: false,
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * .88,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 22),
+            child: Column(children: [
+              Container(
                 width: 44,
                 height: 4,
                 decoration: BoxDecoration(
@@ -2335,170 +2347,219 @@ class _RadarResultSheet extends StatelessWidget {
                   borderRadius: BorderRadius.circular(99),
                 ),
               ),
-            ),
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(18),
+              const SizedBox(height: 12),
+              LiveSmartProductPreview(
+                product: item.toSmartProductMap(),
+                onPayload: (payload) => _select(context, payload),
               ),
-              child: SizedBox(
-                height: 235,
-                width: double.infinity,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    _RemoteImage(
-                      url: item.photoUrl,
-                      fallback: Icons.shopping_bag_outlined,
+            ]),
+          ),
+        ),
+      );
+}
+
+class _LegacyRadarResultSheet extends StatelessWidget {
+  const _LegacyRadarResultSheet({required this.item});
+  final LiveRadarItem item;
+
+  Color get _accent => switch (item.type) {
+        LiveRadarItemType.sell => const Color(0xFF0A9E73),
+        LiveRadarItemType.buy => const Color(0xFF2F6BFF),
+        LiveRadarItemType.status => const Color(0xFFFF8A00),
+      };
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+        top: false,
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * .88,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 10, bottom: 10),
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFC9D8D2),
+                      borderRadius: BorderRadius.circular(99),
                     ),
-                    const DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Colors.transparent, Color(0xD0061411)],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
+                  ),
+                ),
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(18),
+                  ),
+                  child: SizedBox(
+                    height: 235,
+                    width: double.infinity,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        _RemoteImage(
+                          url: item.photoUrl,
+                          fallback: Icons.shopping_bag_outlined,
                         ),
-                      ),
-                    ),
-                    Positioned(
-                      left: 16,
-                      top: 14,
-                      child: _SignalPill(
-                        label: item.distanceLabel,
-                        color: Color(item.ring.colorValue),
-                      ),
-                    ),
-                    Positioned(
-                      right: 16,
-                      top: 14,
-                      child: _SignalPill(label: item.typeLabel, color: _accent),
-                    ),
-                    Positioned(
-                      left: 18,
-                      right: 18,
-                      bottom: 18,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.w900,
-                              height: 1.06,
+                        const DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Colors.transparent, Color(0xD0061411)],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
                             ),
                           ),
-                          if (item.priceLabel.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 7),
-                              child: Text(
-                                item.priceLabel,
+                        ),
+                        Positioned(
+                          left: 16,
+                          top: 14,
+                          child: _SignalPill(
+                            label: item.distanceLabel,
+                            color: Color(item.ring.colorValue),
+                          ),
+                        ),
+                        Positioned(
+                          right: 16,
+                          top: 14,
+                          child: _SignalPill(
+                              label: item.typeLabel, color: _accent),
+                        ),
+                        Positioned(
+                          left: 18,
+                          right: 18,
+                          bottom: 18,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                  color: Color(0xFF38F2A1),
-                                  fontSize: 18,
+                                  color: Colors.white,
+                                  fontSize: 24,
                                   fontWeight: FontWeight.w900,
+                                  height: 1.06,
                                 ),
                               ),
+                              if (item.priceLabel.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 7),
+                                  child: Text(
+                                    item.priceLabel,
+                                    style: const TextStyle(
+                                      color: Color(0xFF38F2A1),
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 16, 18, 22),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if ((item.description ?? '').trim().isNotEmpty)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF6FAF8),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: const Color(0xFFE0EAE6)),
+                          ),
+                          child: Text(
+                            item.description!,
+                            maxLines: 5,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Color(0xFF465A53),
+                              height: 1.38,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 14),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 8,
+                        children: [
+                          _SheetMeta(
+                            icon: Icons.location_on_outlined,
+                            text:
+                                '${item.city ?? 'À proximité'} · ${item.distanceLabel}',
+                          ),
+                          _SheetMeta(
+                            icon: Icons.schedule_outlined,
+                            text:
+                                'Mis à jour il y a ${liveRadarFreshness(item.freshnessMs)}',
+                          ),
+                          if (item.sellerName != null &&
+                              item.sellerName!.isNotEmpty)
+                            _SheetMeta(
+                              icon: Icons.person_outline_rounded,
+                              text: item.sellerName!,
                             ),
                         ],
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 22),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if ((item.description ?? '').trim().isNotEmpty)
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF6FAF8),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: const Color(0xFFE0EAE6)),
-                      ),
-                      child: Text(
-                        item.description!,
-                        maxLines: 5,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xFF465A53),
-                          height: 1.38,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 8,
-                    children: [
-                      _SheetMeta(
-                        icon: Icons.location_on_outlined,
-                        text:
-                            '${item.city ?? 'À proximité'} · ${item.distanceLabel}',
-                      ),
-                      _SheetMeta(
-                        icon: Icons.schedule_outlined,
-                        text:
-                            'Mis à jour il y a ${liveRadarFreshness(item.freshnessMs)}',
-                      ),
-                      if (item.sellerName != null &&
-                          item.sellerName!.isNotEmpty)
-                        _SheetMeta(
-                          icon: Icons.person_outline_rounded,
-                          text: item.sellerName!,
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () =>
-                              Navigator.pop(context, _RadarAction.interest),
-                          icon: const Icon(
-                            Icons.chat_bubble_outline_rounded,
-                            size: 17,
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () =>
+                                  Navigator.pop(context, _RadarAction.interest),
+                              icon: const Icon(
+                                Icons.chat_bubble_outline_rounded,
+                                size: 17,
+                              ),
+                              label: const Text('Intéressé'),
+                            ),
                           ),
-                          label: const Text('Intéressé'),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () =>
-                              Navigator.pop(context, _RadarAction.negotiate),
-                          icon: const Icon(Icons.handshake_outlined, size: 17),
-                          label: const Text('Négocier'),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: () =>
-                              Navigator.pop(context, _RadarAction.buy),
-                          icon: const Icon(Icons.flash_on_rounded, size: 17),
-                          label: const Text('Acheter'),
-                        ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => Navigator.pop(
+                                  context, _RadarAction.negotiate),
+                              icon: const Icon(Icons.handshake_outlined,
+                                  size: 17),
+                              label: const Text('Négocier'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: () =>
+                                  Navigator.pop(context, _RadarAction.buy),
+                              icon:
+                                  const Icon(Icons.flash_on_rounded, size: 17),
+                              label: const Text('Acheter'),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
-    ),
-  );
+      );
 }
 
 class _SheetMeta extends StatelessWidget {
@@ -2509,20 +2570,20 @@ class _SheetMeta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Icon(icon, size: 14, color: const Color(0xFF667A73)),
-      const SizedBox(width: 4),
-      ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 210),
-        child: Text(
-          text,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 11.5, color: Color(0xFF667A73)),
-        ),
-      ),
-    ],
-  );
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: const Color(0xFF667A73)),
+          const SizedBox(width: 4),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 210),
+            child: Text(
+              text,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11.5, color: Color(0xFF667A73)),
+            ),
+          ),
+        ],
+      );
 }
 
 class _RadarFiltersSheet extends StatefulWidget {
@@ -2559,137 +2620,140 @@ class _RadarFiltersSheetState extends State<_RadarFiltersSheet> {
 
   @override
   Widget build(BuildContext context) => SafeArea(
-    top: false,
-    child: Container(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.sizeOf(context).height * .85,
-      ),
-      padding: EdgeInsets.fromLTRB(
-        18,
-        10,
-        18,
-        18 + MediaQuery.viewInsetsOf(context).bottom,
-      ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 42,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFC9D8D2),
-                  borderRadius: BorderRadius.circular(99),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Filtres du Radar',
-              style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 16),
-            const Text('Type', style: TextStyle(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: LiveRadarItemType.values
-                  .map(
-                    (type) => FilterChip(
-                      label: Text(type.label),
-                      selected: _value.types.contains(type),
-                      onSelected: (_) => _toggleType(type),
-                    ),
-                  )
-                  .toList(),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _category,
-              decoration: const InputDecoration(
-                labelText: 'Catégorie',
-                hintText: 'Ex. Électronique',
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
+        top: false,
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * .85,
+          ),
+          padding: EdgeInsets.fromLTRB(
+            18,
+            10,
+            18,
+            18 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: _priceMin,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Prix min'),
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFC9D8D2),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextField(
-                    controller: _priceMax,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Prix max'),
+                const SizedBox(height: 16),
+                const Text(
+                  'Filtres du Radar',
+                  style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 16),
+                const Text('Type',
+                    style: TextStyle(fontWeight: FontWeight.w900)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: LiveRadarItemType.values
+                      .map(
+                        (type) => FilterChip(
+                          label: Text(type.label),
+                          selected: _value.types.contains(type),
+                          onSelected: (_) => _toggleType(type),
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _category,
+                  decoration: const InputDecoration(
+                    labelText: 'Catégorie',
+                    hintText: 'Ex. Électronique',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _priceMin,
+                        keyboardType: TextInputType.number,
+                        decoration:
+                            const InputDecoration(labelText: 'Prix min'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: _priceMax,
+                        keyboardType: TextInputType.number,
+                        decoration:
+                            const InputDecoration(labelText: 'Prix max'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _value.photoOnly,
+                  onChanged: (value) => setState(
+                      () => _value = _value.copyWith(photoOnly: value)),
+                  title: const Text('Avec photo uniquement'),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _value.verifiedOnly,
+                  onChanged: (value) => setState(
+                      () => _value = _value.copyWith(verifiedOnly: value)),
+                  title: const Text('Vendeurs vérifiés uniquement'),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () {
+                      final min = num.tryParse(
+                        _priceMin.text
+                            .trim()
+                            .replaceAll(' ', '')
+                            .replaceAll(',', '.'),
+                      );
+                      final max = num.tryParse(
+                        _priceMax.text
+                            .trim()
+                            .replaceAll(' ', '')
+                            .replaceAll(',', '.'),
+                      );
+                      final category = _category.text.trim();
+                      Navigator.pop(
+                        context,
+                        _value.copyWith(
+                          category: category,
+                          clearCategory: category.isEmpty,
+                          priceMin: min,
+                          clearPriceMin: min == null,
+                          priceMax: max,
+                          clearPriceMax: max == null,
+                        ),
+                      );
+                    },
+                    child: const Text('Appliquer les filtres'),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: _value.photoOnly,
-              onChanged: (value) =>
-                  setState(() => _value = _value.copyWith(photoOnly: value)),
-              title: const Text('Avec photo uniquement'),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: _value.verifiedOnly,
-              onChanged: (value) =>
-                  setState(() => _value = _value.copyWith(verifiedOnly: value)),
-              title: const Text('Vendeurs vérifiés uniquement'),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: () {
-                  final min = num.tryParse(
-                    _priceMin.text
-                        .trim()
-                        .replaceAll(' ', '')
-                        .replaceAll(',', '.'),
-                  );
-                  final max = num.tryParse(
-                    _priceMax.text
-                        .trim()
-                        .replaceAll(' ', '')
-                        .replaceAll(',', '.'),
-                  );
-                  final category = _category.text.trim();
-                  Navigator.pop(
-                    context,
-                    _value.copyWith(
-                      category: category,
-                      clearCategory: category.isEmpty,
-                      priceMin: min,
-                      clearPriceMin: min == null,
-                      priceMax: max,
-                      clearPriceMax: max == null,
-                    ),
-                  );
-                },
-                child: const Text('Appliquer les filtres'),
-              ),
-            ),
-          ],
+          ),
         ),
-      ),
-    ),
-  );
+      );
 }
 
 class _ProfileAvatar extends StatelessWidget {
@@ -2749,17 +2813,17 @@ class _HeaderIcon extends StatelessWidget {
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) => Stack(
-    clipBehavior: Clip.none,
-    children: [
-      IconButton(onPressed: onTap, tooltip: tooltip, icon: Icon(icon)),
-      if (count > 0)
-        Positioned(
-          top: 5,
-          right: 5,
-          child: _CountBubble(value: count, small: true),
-        ),
-    ],
-  );
+        clipBehavior: Clip.none,
+        children: [
+          IconButton(onPressed: onTap, tooltip: tooltip, icon: Icon(icon)),
+          if (count > 0)
+            Positioned(
+              top: 5,
+              right: 5,
+              child: _CountBubble(value: count, small: true),
+            ),
+        ],
+      );
 }
 
 class _CountBubble extends StatelessWidget {
@@ -2768,38 +2832,38 @@ class _CountBubble extends StatelessWidget {
   final bool small;
   @override
   Widget build(BuildContext context) => Container(
-    constraints: BoxConstraints(
-      minWidth: small ? 18 : 22,
-      minHeight: small ? 18 : 22,
-    ),
-    padding: EdgeInsets.symmetric(horizontal: small ? 4 : 6),
-    alignment: Alignment.center,
-    decoration: const BoxDecoration(
-      color: Color(0xFFE44B53),
-      shape: BoxShape.circle,
-    ),
-    child: Text(
-      value > 99 ? '99+' : '$value',
-      style: TextStyle(
-        color: Colors.white,
-        fontWeight: FontWeight.w900,
-        fontSize: small ? 10 : 11,
-      ),
-    ),
-  );
+        constraints: BoxConstraints(
+          minWidth: small ? 18 : 22,
+          minHeight: small ? 18 : 22,
+        ),
+        padding: EdgeInsets.symmetric(horizontal: small ? 4 : 6),
+        alignment: Alignment.center,
+        decoration: const BoxDecoration(
+          color: Color(0xFFE44B53),
+          shape: BoxShape.circle,
+        ),
+        child: Text(
+          value > 99 ? '99+' : '$value',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w900,
+            fontSize: small ? 10 : 11,
+          ),
+        ),
+      );
 }
 
 class _OnlineDot extends StatelessWidget {
   const _OnlineDot();
   @override
   Widget build(BuildContext context) => Container(
-    width: 9,
-    height: 9,
-    decoration: const BoxDecoration(
-      color: Color(0xFF22D98C),
-      shape: BoxShape.circle,
-    ),
-  );
+        width: 9,
+        height: 9,
+        decoration: const BoxDecoration(
+          color: Color(0xFF22D98C),
+          shape: BoxShape.circle,
+        ),
+      );
 }
 
 class _RemoteImage extends StatelessWidget {
@@ -2847,15 +2911,16 @@ class _DistancePill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-    decoration: BoxDecoration(
-      color: color.withOpacity(.14),
-      borderRadius: BorderRadius.circular(999),
-      border: Border.all(color: color.withOpacity(.45)),
-    ),
-    child: Text(
-      label,
-      style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w900),
-    ),
-  );
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withOpacity(.14),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: color.withOpacity(.45)),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+              color: color, fontSize: 12, fontWeight: FontWeight.w900),
+        ),
+      );
 }

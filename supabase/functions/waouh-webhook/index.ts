@@ -10,14 +10,14 @@ import {
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 import { findRadarOutreachContext, findRadarSellerOutreachContext } from "../_shared/waouh-radar.ts";
+import { geminiJson, geminiText } from "../_shared/gemini.ts";
+import { isCompleteSmartSale, parseSmartSale } from "../_shared/waouh-smart-sale.ts";
+import { bindThreadState, resolveProductThread, resolveSearchThread } from "../_shared/waouh-thread.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 
 function normalizeCategory(value: string | null | undefined) {
   const v = String(value || "").toLowerCase();
@@ -242,20 +242,9 @@ async function promoteExternalListing(sb: any, ext: any, fallbackCategory = "aut
 
 
 
-async function ai(system: string, user: string, json = true) {
-  const res = await fetch(AI_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [{ role: "system", content: system }, { role: "user", content: user }],
-      ...(json ? { response_format: { type: "json_object" } } : {}),
-    }),
-  });
-  const data = await res.json();
-  const txt = data?.choices?.[0]?.message?.content ?? "";
-  if (json) { try { return JSON.parse(txt); } catch { return {}; } }
-  return txt;
+async function ai(system: string, user: string, json = true): Promise<any> {
+  if (json) return geminiJson(system, user, {});
+  try { return await geminiText({ system, user }); } catch { return ""; }
 }
 
 serve(async (req) => {
@@ -280,11 +269,13 @@ serve(async (req) => {
     const phone = body.phone_number || body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.from;
     const webSessionId = body.web_session_id || null;
     const text = body.text || body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.text?.body || "";
-    const lat = body.lat ?? 6.36;
-    const lng = body.lng ?? 2.42;
+    const lat = typeof body.lat === "number" && Number.isFinite(body.lat) ? body.lat : null;
+    const lng = typeof body.lng === "number" && Number.isFinite(body.lng) ? body.lng : null;
+    const hasCurrentLocation = lat != null && lng != null;
     const city = body.city ?? "Cotonou";
     const channel = body.channel ?? (webSessionId ? "web" : "whatsapp");
     const attachments = Array.isArray(body.attachments) ? body.attachments : [];
+    const clientMeta = body.meta && typeof body.meta === "object" ? body.meta : {};
     const passedUserId = body.user_id || null;
 
     if ((!phone && !webSessionId) || (!text && attachments.length === 0)) {
@@ -310,9 +301,17 @@ serve(async (req) => {
         phone_number: phone && !phone.startsWith("web:") ? phone : null,
         web_session_id: webSessionId,
         channel, city,
-        location: `SRID=4326;POINT(${lng} ${lat})` as any,
+        location: hasCurrentLocation ? `SRID=4326;POINT(${lng} ${lat})` as any : null,
       }).select().single();
       user = created;
+    }
+    if (user && hasCurrentLocation) {
+      await sb.from("waouh_users").update({
+        location: hasCurrentLocation ? `SRID=4326;POINT(${lng} ${lat})` as any : null,
+        ...(city ? { city } : {}),
+      }).eq("id", user.id);
+      user.location = `SRID=4326;POINT(${lng} ${lat})`;
+      if (city) user.city = city;
     }
 
     // Pré-détection règles déterministes (avant AI)
@@ -364,6 +363,64 @@ serve(async (req) => {
     // "OUI" déclenche CONFIRM index 1 et que la négo soit créée comme en B.
     let radarHydratedContext: any = (conv?.context as any) ?? {};
     let radarBuyerContext: { signal_id: string | null; hydrated_at: string } | null = null;
+
+    // Un clic Radar sélectionne l'article exact. Il ne doit jamais relancer
+    // une recherche libre susceptible de faire choisir un autre produit.
+    const clientArticleId = clientMeta?.article_id || null;
+    const clientRadarIntent = String(clientMeta?.radar_intent || "").toLowerCase();
+    const clientAction = String(clientMeta?.action || clientMeta?.intent || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    const clientSelectsArticle = Boolean(
+      clientArticleId && (
+        (clientRadarIntent && !clientRadarIntent.includes("propose")) ||
+        clientAction === "interested" ||
+        clientAction === "interesse"
+      ),
+    );
+    if (clientSelectsArticle) {
+      let directPick: any = null;
+      const { data: article } = await sb.from("waouh_articles")
+        .select("id,title,description,price,city,condition,category,seller_id,photos,market_price_min,market_price_max")
+        .eq("id", clientArticleId).maybeSingle();
+      if (article) {
+        directPick = { ...article, source: "chat" };
+      } else {
+        const { data: catalog } = await sb.from("waouh_unified_catalog")
+          .select("id,titre,description,categorie,prix_min,prix_max,ville,quartier,photos,vendeur_nom,vendeur_phone,vendeur_whatsapp")
+          .eq("id", clientArticleId).maybeSingle();
+        if (catalog) {
+          directPick = {
+            ...catalog,
+            id: catalog.id,
+            title: catalog.titre,
+            price: Number(catalog.prix_min || catalog.prix_max || 0),
+            city: catalog.ville,
+            category: catalog.categorie,
+            source: "partner",
+          };
+        }
+      }
+      if (directPick) {
+        radarHydratedContext = {
+          ...radarHydratedContext,
+          last_matches: [directPick],
+          current_article_id: null,
+          radar_direct_selection: {
+            item_id: clientMeta?.radar_item_id || null,
+            article_id: clientArticleId,
+            intent: clientRadarIntent,
+            selected_at: new Date().toISOString(),
+          },
+        };
+        if (conv) {
+          (conv as any).context = radarHydratedContext;
+          (conv as any).current_article_id = null;
+          (conv as any).last_intent = "BUY";
+        }
+      }
+    }
     if (
       channel === "whatsapp" &&
       phone &&
@@ -470,8 +527,10 @@ serve(async (req) => {
     const noKw  = /^(non|refuse|refus[ée]|pas\s+d['']accord|nope)\s*[.!]?$/i.test(lower.trim());
 
     let intent: any = {};
-    // CONFIRM_RECEIVED et PAY sont désactivés : pas de paiement dans le nouveau parcours.
-    if (numMatch && interestedKw) intent = { intent: "CONFIRM", article_index: parseInt(numMatch[1], 10) };
+    if (clientSelectsArticle) intent = { intent: "CONFIRM", article_index: 1 };
+    else if (receivedKw) intent = { intent: "CONFIRM_RECEIVED" };
+    else if (payKw) intent = { intent: "PAY", operator: operatorKw };
+    else if (numMatch && interestedKw) intent = { intent: "CONFIRM", article_index: parseInt(numMatch[1], 10) };
     else if (INTEREST_RE.test(lower)) intent = { intent: "CONFIRM", article_index: 1 };
     else if (sellKw) intent = { intent: "SELL" };
     else if (buyKw) intent = { intent: "BUY" };
@@ -497,8 +556,11 @@ serve(async (req) => {
     let reply = "Désolé, je n'ai pas compris. Tapez 'aide' pour les commandes.";
     let returnedArticleId: string | null = null;
     let returnedTransactionId: string | null = null;
+    let returnedThreadId: string | null = clientMeta?.thread_id ?? null;
+    let returnedSearchThreadId: string | null = null;
     let replyAttachments: Array<{ url: string; type: string }> = [];
     let returnedActions: Array<{ id: string; label: string }> = [];
+    let returnedProducts: any[] = [];
     let nextContext: any = radarHydratedContext ?? (conv?.context ?? {});
 
     const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
@@ -530,6 +592,66 @@ serve(async (req) => {
         return typeof r?.note === "string" ? r.note.trim() : "";
       } catch { return ""; }
     };
+    const marketIntelligence = async (opts: {
+      articleId?: string | null;
+      title: string;
+      price: number;
+      city?: string | null;
+      category?: string | null;
+    }): Promise<any | null> => {
+      if (!opts.title || !Number.isFinite(opts.price) || opts.price <= 0) {
+        return null;
+      }
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12_000);
+      try {
+        const response = await fetch(
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/waouh-price-compare`,
+          {
+            method: "POST",
+            signal: controller.signal,
+            headers: {
+              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              article_id: opts.articleId || null,
+              query: opts.title,
+              offered_price: opts.price,
+              city: opts.city || null,
+              category: opts.category || null,
+            }),
+          },
+        );
+        if (!response.ok) return null;
+        const data = await response.json().catch(() => null);
+        return data?.success === true ? data : null;
+      } catch {
+        return null;
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
+
+    const buyerDecisionActions = (suggestedPrice: number) => [
+      { id: "oui", label: "✅ Accepter ce prix" },
+      {
+        id: `proposer:${Math.max(1, Math.round(suggestedPrice))}`,
+        label: "💬 Proposer un prix",
+      },
+      { id: "non", label: "❌ Refuser" },
+    ];
+
+    const offerDecisionActions = (negotiationId?: string | null) => [
+      { id: negotiationId ? `accepter:${negotiationId}` : "accepter", label: "✅ Accepter" },
+      {
+        id: negotiationId
+          ? `contre-proposition:${negotiationId}`
+          : "contre-proposition",
+        label: "💬 Contre-proposer",
+      },
+      { id: negotiationId ? `refuser:${negotiationId}` : "refuser", label: "❌ Refuser" },
+    ];
 
     // Helper : envoie une notification système ET un message direct dans le chat de l'autre partie.
     // Accepte soit to_user_id (chemin chat classique), soit to_phone (partner/radar sans compte existant).
@@ -539,7 +661,7 @@ serve(async (req) => {
       to_phone?: string | null;
       to_web_session_id?: string | null;
       mirror_web_sessions?: Array<{ user_id: string; web_session_id: string }>;
-      source?: "chat" | "partner" | "radar";
+      source?: "chat" | "partner" | "radar" | "status";
       template: string;
       payload: any;
       image_url?: string | null;
@@ -591,6 +713,7 @@ serve(async (req) => {
       if (target.id) {
         try {
           const { data: msg } = await sb.from("waouh_messages").insert({
+            thread_id: (opts.directMeta as any)?.thread_id ?? opts.payload?.thread_id ?? null,
             user_id: target.id,
             channel: webSession ? "web" : "system",
             direction: "out",
@@ -598,7 +721,18 @@ serve(async (req) => {
             web_session_id: webSession,
             article_id: articleIdCol,
             attachments: opts.directAtts ?? [],
-            meta: { ...(opts.directMeta ?? {}), counterpart_user_id: counterpartForMeta, buyer_user_id: counterpartForMeta, transaction_id: opts.transaction_id ?? opts.directMeta?.transaction_id ?? null, source: opts.source ?? "chat" },
+            meta: {
+              ...(opts.directMeta ?? {}),
+              thread_id: (opts.directMeta as any)?.thread_id ?? opts.payload?.thread_id ?? null,
+              counterpart_user_id: counterpartForMeta,
+              buyer_user_id: opts.payload?.buyer_user_id ?? (opts.directMeta as any)?.buyer_user_id ?? counterpartForMeta,
+              seller_user_id: opts.payload?.seller_user_id ?? (opts.directMeta as any)?.seller_user_id ?? null,
+              transaction_id: opts.transaction_id ?? opts.directMeta?.transaction_id ?? null,
+              source: opts.source ?? "chat",
+              actions: Array.isArray(opts.payload?.actions)
+                ? opts.payload.actions.slice(0, 3)
+                : [],
+            },
           }).select("id").maybeSingle();
           insertedMsgId = msg?.id ?? null;
         } catch (e) { console.warn("[pushToOther] msg", e); }
@@ -676,13 +810,27 @@ serve(async (req) => {
           let mirrorMsgId: string | null = null;
           try {
             const { data: msg } = await sb.from("waouh_messages").insert({
+              thread_id: (opts.directMeta as any)?.thread_id ?? opts.payload?.thread_id ?? null,
               user_id: extra.user_id,
               channel: "web",
               direction: "out",
               text: opts.directText,
               web_session_id: extra.web_session_id,
               attachments: opts.directAtts ?? [],
-              meta: { ...(opts.directMeta ?? {}), counterpart_user_id: counterpartForMeta, buyer_user_id: counterpartForMeta, transaction_id: opts.transaction_id ?? null, source: opts.source ?? "chat", mirror: "partner_web" },
+              article_id: articleIdCol,
+              meta: {
+                ...(opts.directMeta ?? {}),
+                thread_id: (opts.directMeta as any)?.thread_id ?? opts.payload?.thread_id ?? null,
+                counterpart_user_id: counterpartForMeta,
+                buyer_user_id: opts.payload?.buyer_user_id ?? (opts.directMeta as any)?.buyer_user_id ?? counterpartForMeta,
+                seller_user_id: opts.payload?.seller_user_id ?? (opts.directMeta as any)?.seller_user_id ?? null,
+                transaction_id: opts.transaction_id ?? null,
+                source: opts.source ?? "chat",
+                mirror: "partner_web",
+                actions: Array.isArray(opts.payload?.actions)
+                  ? opts.payload.actions.slice(0, 3)
+                  : [],
+              },
             }).select("id").maybeSingle();
             mirrorMsgId = msg?.id ?? null;
           } catch (e) { console.warn("[pushToOther] mirror msg", e); }
@@ -705,13 +853,18 @@ serve(async (req) => {
 
 
     if (intent.intent === "SELL") {
+      const deterministicSale = parseSmartSale(text, clientMeta?.sale);
       const product = await ai(
         `Tu es WAOUH. Extrais d'un message vendeur la fiche produit en JSON: {title, category (smartphone/ordinateur/vetement/vehicule/electromenager/meuble/autre), brand, model, condition (new/like_new/good/fair/poor), price (number, FCFA), description, market_price_min, market_price_max, confidence (0-1)}.`,
         text
       );
-      const productCategory = normalizeCategory(product.category);
-      // Fallback: try to recover a price from the raw text when the AI missed it.
-      let inferredPrice: number | null = typeof product.price === "number" && product.price > 0 ? product.price : null;
+      const productCategory = deterministicSale.category !== "autre"
+        ? deterministicSale.category
+        : normalizeCategory(product.category);
+      // Les champs explicites du formulaire sont la source de vérité. Gemini ne
+      // sert qu'à enrichir les champs absents et ne peut jamais invalider une fiche.
+      let inferredPrice: number | null = deterministicSale.price
+        ?? (typeof product.price === "number" && product.price > 0 ? product.price : null);
       if (!inferredPrice) {
         const m = String(text || "").match(/(\d{2,}(?:[ .]\d{3})*)\s*(?:fcfa|cfa|xof|f\b)?/i);
         if (m) {
@@ -719,42 +872,86 @@ serve(async (req) => {
           if (!Number.isNaN(n) && n >= 100) inferredPrice = n;
         }
       }
-      const fallbackTitle = String(text || "")
+      const fallbackTitle = deterministicSale.title || String(text || "")
         .replace(/^\s*je\s+vends?\s*:?\s*/i, "")
         .split(/[,\n]/)[0]?.trim().slice(0, 60) || "Annonce";
-      const accepted = (product.confidence ?? 0) >= 0.3 && !!inferredPrice;
+      const accepted = isCompleteSmartSale({ ...deterministicSale, title: deterministicSale.title || String(product.title || fallbackTitle), price: inferredPrice });
       if (!accepted) {
-        reply = "🤔 Je n'ai pas tous les détails. Pouvez-vous préciser le produit, l'état et le prix ?";
+        reply = "🤔 Indiquez simplement le produit et un prix supérieur à 0 FCFA. L’état, la ville, le quartier et les photos peuvent être ajoutés ensuite.";
       } else {
         const photoUrls = attachments
           .filter((a: any) => /^image\//i.test(String(a?.type || "image/jpeg")))
           .map((a: any) => a?.url)
           .filter((u: any) => typeof u === "string" && /^https?:\/\//i.test(u));
+        const articleTitle = deterministicSale.title || product.title || fallbackTitle;
+        const articleCity = deterministicSale.city || city || user!.city || "Cotonou";
+        const articleQuarter = deterministicSale.quarter;
+        const saleLat = typeof clientMeta?.sale?.lat === "number" ? clientMeta.sale.lat : lat;
+        const saleLng = typeof clientMeta?.sale?.lng === "number" ? clientMeta.sale.lng : lng;
+        const hasSaleLocation = saleLat != null && saleLng != null;
+        const descriptionParts = [
+          deterministicSale.detail || product.description,
+          articleQuarter ? `Quartier : ${articleQuarter}` : "",
+        ].filter(Boolean);
         const { data: art } = await sb.from("waouh_articles").insert({
           seller_id: user!.id,
-          title: product.title || fallbackTitle,
-          description: product.description,
+          title: articleTitle,
+          description: descriptionParts.join("\n") || null,
           category: productCategory,
-          brand: product.brand, model: product.model,
-          condition: product.condition || "good",
+          brand: deterministicSale.brand || product.brand || null,
+          model: deterministicSale.model || product.model || null,
+          condition: deterministicSale.condition || product.condition || "good",
           price: inferredPrice, currency: "XOF",
-          city: user!.city,
-          location: `SRID=4326;POINT(${lng} ${lat})` as any,
+          city: articleCity,
+          location: hasSaleLocation ? `SRID=4326;POINT(${saleLng} ${saleLat})` as any : null,
           photos: photoUrls,
-          market_price_min: product.market_price_min,
-          market_price_max: product.market_price_max,
+          market_price_min: null,
+          market_price_max: null,
           origin: channel === "whatsapp" ? "whatsapp" : "chat",
           source_channel: channel === "whatsapp" ? "whatsapp" : "waouh_app",
           contact_whatsapp: user?.phone_number ?? null,
         }).select().single();
         returnedArticleId = art?.id ?? null;
         replyAttachments = photoUrls.map((url: string) => ({ url, type: "image/jpeg" }));
-        const photoLine = photoUrls.length > 0 ? `\n📸 ${photoUrls.length} photo${photoUrls.length > 1 ? "s" : ""} jointe${photoUrls.length > 1 ? "s" : ""}` : "";
-        const min = product.market_price_min || inferredPrice * 0.8;
-        const max = product.market_price_max || inferredPrice * 1.2;
-        const aiNote = await marketNote(product.title || fallbackTitle, inferredPrice, min, max, user!.city || "");
-        const noteLine = aiNote ? `\n\n🧠 *Analyse WAOUH* : ${aiNote}` : "";
-        reply = `${waouhHeader("✅ Annonce publiée")}\n\n📦 *${product.title || fallbackTitle}*\n💰 *Prix* : ${fmt(inferredPrice)}\n🏙️ *Ville* : ${user!.city}${photoLine}\n\n📊 *Prix marché estimé*\n• Bas : ${fmt(min)}\n• Haut : ${fmt(max)}${noteLine}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.\n\n${waouhFooter()}`;
+        const intelligence = await marketIntelligence({
+          articleId: art?.id || null,
+          title: articleTitle,
+          price: inferredPrice!,
+          city: articleCity,
+          category: productCategory,
+        });
+        const min = Number(intelligence?.min || 0) || null;
+        const max = Number(intelligence?.max || 0) || null;
+        if (art?.id && min && max) {
+          await sb.from("waouh_articles").update({ market_price_min: min, market_price_max: max }).eq("id", art.id);
+        }
+        const photoLine = `📸 ${photoUrls.length} photo${photoUrls.length > 1 ? "s" : ""}`;
+        const locationLine = [articleCity, articleQuarter].filter(Boolean).join(" · ");
+        const gpsLine = hasSaleLocation ? "\n📏 Position GPS de l’annonce enregistrée" : "";
+        const marketLine = intelligence?.market_summary || "Comparables réels insuffisants pour une fourchette fiable";
+        const comparativeLine = intelligence?.comparative_analysis || "Analyse prudente : vérifiez l’état et les accessoires avant de comparer";
+        const recommendationLine = intelligence?.recommendation || "Ajoutez l’état exact et plusieurs photos pour améliorer la confiance des acheteurs";
+        const detailLine = descriptionParts.length ? `\n📝 ${descriptionParts.join(" · ")}` : "";
+        returnedProducts = [{
+          id: art?.id || null,
+          title: articleTitle,
+          price: inferredPrice,
+          city: locationLine,
+          category: productCategory,
+          condition: deterministicSale.condition || product.condition || "good",
+          availability: "Disponible",
+          details: descriptionParts.join(" · ") || null,
+          photos: photoUrls,
+          market_price_min: min,
+          market_price_max: max,
+          market_comparison: marketLine,
+          comparative_analysis: comparativeLine,
+          recommendation: recommendationLine,
+          verified: false,
+          source: "WAOUH",
+          location_recorded: hasSaleLocation,
+        }];
+        reply = `✅ *Annonce publiée et analysée*\n\n*1. ${articleTitle}*\n💰 *${fmt(inferredPrice!)}*\n🏙️ ${locationLine}${gpsLine}\n🏷️ ${productCategory}\n${photoLine}\n🟢 Disponible${detailLine}\n📊 ${marketLine}\n⚖️ ${comparativeLine}\n💡 ${recommendationLine}\n✅ Annonce WAOUH enregistrée\n\n🔔 Les acheteurs compatibles seront notifiés automatiquement.`;
         // Une seule bulle WhatsApp pour la confirmation de publication, sans boutons.
         returnedActions = [];
 
@@ -805,7 +1002,7 @@ serve(async (req) => {
               p_to_user_id: null,
               p_template: "radar_buyer_outreach",
               p_payload: {
-                text: `🎯 WAOUH a trouvé pour vous : *${product.title || fallbackTitle}* à ${fmt(inferredPrice)} (${user!.city}). Répondez *OUI* pour être mis en relation avec le vendeur.`,
+                text: `🎯 WAOUH a trouvé pour vous : *${articleTitle}* à ${fmt(inferredPrice!)} (${articleCity}). Répondez *OUI* pour être mis en relation avec le vendeur.`,
                 article_id: art?.id,
                 radar_signal_id: b.id,
               },
@@ -820,6 +1017,42 @@ serve(async (req) => {
         "Extrais les critères d'achat en JSON: {keywords (array de mots-clés produit, ex: ['lenovo','ordinateur']), category (smartphone/ordinateur/vetement/vehicule/electromenager/meuble/autre), price_max (number FCFA), condition_min, radius_km}.",
         text
       );
+      const searchRequestId = clientMeta?.search_request_id || crypto.randomUUID();
+      const searchThread = await resolveSearchThread({
+        sb,
+        ownerUserId: user!.id,
+        searchRequestId,
+        source: channel === "whatsapp" ? "whatsapp" : "chat",
+        metadata: { query_text: text },
+      });
+      returnedSearchThreadId = searchThread.id;
+      nextContext = {
+        ...nextContext,
+        current_search_request_id: searchRequestId,
+        current_search_thread_id: searchThread.id,
+      };
+      await sb.from("waouh_notifications").insert({
+        thread_id: searchThread.id,
+        user_id: user!.id,
+        web_session_id: webSessionId,
+        article_id: null,
+        notification_type: "search_thread",
+        photos: [],
+        dedupe_key: `search_thread:${searchRequestId}:${user!.id}`,
+        payload: {
+          thread_id: searchThread.id,
+          thread_type: "search",
+          search_request_id: searchRequestId,
+          recipient: "buyer",
+          role: "buyer",
+          title: `Recherche · ${text}`,
+          text: "Historique de recherche WAOUH",
+          source: channel === "whatsapp" ? "whatsapp" : "chat",
+        },
+        channel: "waouh_app",
+        delivery_status: "delivered",
+        delivered_at: new Date().toISOString(),
+      });
 
       // --- FIX 1 : résolution de la catégorie ---
       // Si l'IA retourne "autre" (catégorie générique) ou une valeur vide, on tente
@@ -951,7 +1184,7 @@ serve(async (req) => {
         user_id: user!.id, query_text: text,
         category: criteriaCategory, keywords: kws,
         price_max: criteria.price_max, radius_km: criteria.radius_km ?? 30,
-        location: `SRID=4326;POINT(${lng} ${lat})` as any,
+        location: hasCurrentLocation ? `SRID=4326;POINT(${lng} ${lat})` as any : null,
         origin: channel === "whatsapp" ? "whatsapp" : "chat",
       });
 
@@ -966,44 +1199,96 @@ serve(async (req) => {
         const matchesTop = (matches || []).slice(0, remainingAfterPartners);
         const radarTop = radarSellers.slice(0, Math.max(0, 5 - partnerTop.length - matchesTop.length));
         // 🏪 Liste partenaires — SANS nom ni contact (échangés seulement après accord)
-        const partnerList = partnerTop.map((p: any, i: number) => {
+        const partnerList = (await Promise.all(partnerTop.map(async (p: any, i: number) => {
           const idx = i + 1;
           const photos: string[] = Array.isArray(p.photos) ? p.photos.filter((u: any) => typeof u === "string") : [];
           const photoLine = photos.length > 0 ? `\n📸 ${photos.length} photo${photos.length > 1 ? "s" : ""}` : "";
           const priceTxt = p.prix_min && p.prix_max && p.prix_min !== p.prix_max
             ? `${fmt(Number(p.prix_min))} – ${fmt(Number(p.prix_max))}`
             : fmt(Number(p.prix_min || p.prix_max || 0));
+          const offeredPrice = Number(p.prix_min || p.prix_max || 0);
           const loc = [p.ville, p.quartier].filter(Boolean).join(" · ") || "?";
-          return `*${idx}. ${p.titre}*\n💰 *${priceTxt}*\n🏙️ ${loc}${photoLine}\n✅ Partenaire vérifié`;
-        }).join(`\n\n${waouhSep}\n\n`);
+          const intelligence = await marketIntelligence({
+            title: p.titre || "Produit",
+            price: offeredPrice,
+            city: p.ville || null,
+            category: p.categorie || null,
+          });
+          p._waouh_intelligence = intelligence;
+          const marketLine = intelligence?.market_summary
+            ? `\n📊 ${intelligence.market_summary}`
+            : "\n📊 Comparables réels en cours de consolidation";
+          const comparisonLine = intelligence?.comparative_analysis
+            ? `\n⚖️ ${intelligence.comparative_analysis}`
+            : "";
+          const recommendationLine = intelligence?.recommendation
+            ? `\n💡 ${intelligence.recommendation}`
+            : "";
+          return `*${idx}. ${p.titre}*\n💰 *${priceTxt}*\n🏙️ ${loc}${photoLine}\n✅ Partenaire vérifié${marketLine}${comparisonLine}${recommendationLine}`;
+        }))).join(`\n\n${waouhSep}\n\n`);
         // Liste officielle (chat) — avec analyse marché IA + distance live
         const officialList = (await Promise.all(matchesTop.map(async (m: any, i: number) => {
           const idx = partnerTop.length + i + 1;
           const photos: string[] = Array.isArray(m.photos) ? m.photos.filter((u: any) => typeof u === "string") : [];
           const photoLine = photos.length > 0 ? `\n📸 ${photos.length} photo${photos.length > 1 ? "s" : ""}` : "";
-          const min = m.market_price_min || m.price * 0.8;
-          const max = m.market_price_max || m.price * 1.2;
-          const note = await marketNote(m.title || "", Number(m.price || 0), min, max, m.city || "");
-          const noteLine = note ? `\n🧠 ${note}` : "";
+          const min = m.market_price_min || null;
+          const max = m.market_price_max || null;
+          const intelligence = await marketIntelligence({
+            articleId: m.id,
+            title: m.title || "Produit",
+            price: Number(m.price || 0),
+            city: m.city || null,
+            category: m.category || null,
+          });
+          m._waouh_intelligence = intelligence;
+          const marketText = intelligence?.market_summary ||
+            (min && max
+              ? `${fmt(min)} – ${fmt(max)}`
+              : "Comparables réels en cours de consolidation");
+          const comparison = intelligence?.comparative_analysis ||
+            (min && max
+              ? await marketNote(m.title || "", Number(m.price || 0), min, max, m.city || "")
+              : "");
+          const recommendation = intelligence?.recommendation || "";
           // Distance live vendeur ↔ acheteur via RPC PostGIS
           let distLine = "";
-          if (m.seller_id) {
+          if (m.id && hasCurrentLocation) {
             try {
-              const { data: d } = await sb.rpc("waouh_point_distance_km", { p_user: m.seller_id, p_lat: lat, p_lng: lng });
+              const { data: d } = await sb.rpc("waouh_article_distance_km", { p_article: m.id, p_lat: lat, p_lng: lng });
               if (typeof d === "number") distLine = `\n${fmtDistance(Math.round(d * 10) / 10)}`;
+              if (typeof d === "number") m._waouh_distance_km = Math.round(d * 10) / 10;
             } catch {}
           }
-          return `*${idx}. ${m.title}*\n💰 *${fmt(m.price)}*\n🏙️ ${m.city ?? "?"} · ${m.condition}${distLine}${photoLine}\n📊 Marché : ${fmt(min)} – ${fmt(max)}${noteLine}`;
+          const locationAndCondition = [m.city, m.condition].filter(Boolean).join(" · ") || "?";
+          return `*${idx}. ${m.title}*\n💰 *${fmt(m.price)}*\n🏙️ ${locationAndCondition}${distLine}${photoLine}\n📊 ${marketText}${comparison ? `\n⚖️ ${comparison}` : ""}${recommendation ? `\n💡 ${recommendation}` : ""}`;
         }))).join(`\n\n${waouhSep}\n\n`);
-        const radarList = radarTop.map((r: any, i: number) => {
+        const radarList = (await Promise.all(radarTop.map(async (r: any, i: number) => {
           const idx = partnerTop.length + matchesTop.length + i + 1;
           const title = r.product?.title || r.product?.name || (r.raw_text || "").slice(0, 60) || "Annonce externe";
           const price = r.price ? fmt(Number(r.price)) : "Prix à négocier";
           const city = r.city || "?";
           const photos = extractProductPhotos(r);
           const photoLine = photos.length > 0 ? `\n📸 ${photos.length} photo${photos.length > 1 ? "s" : ""}` : "";
-          return `*${idx}. ${title}*\n💰 *${price}*\n🏙️ ${city}${photoLine}\n📡 Source : Radar IA`;
-        }).join(`\n\n${waouhSep}\n\n`);
+          const intelligence = r.price
+            ? await marketIntelligence({
+                title,
+                price: Number(r.price),
+                city: r.city || null,
+                category: r.category || null,
+              })
+            : null;
+          r._waouh_intelligence = intelligence;
+          const marketLine = intelligence?.market_summary
+            ? `\n📊 ${intelligence.market_summary}`
+            : "";
+          const comparisonLine = intelligence?.comparative_analysis
+            ? `\n⚖️ ${intelligence.comparative_analysis}`
+            : "";
+          const recommendationLine = intelligence?.recommendation
+            ? `\n💡 ${intelligence.recommendation}`
+            : "";
+          return `*${idx}. ${title}*\n💰 *${price}*\n🏙️ ${city}${photoLine}\n📡 Source : Radar IA${marketLine}${comparisonLine}${recommendationLine}`;
+        }))).join(`\n\n${waouhSep}\n\n`);
         // Envoyer TOUTES les photos publiques (jusqu'à 4 par produit, plafond 12) avec caption.
         // Toute URL http(s) est acceptée (Supabase Storage public, CDN partenaire, source externe rehébergée).
         // Le rehosting des photos WAHA est censé être fait en amont (rehostPhotos).
@@ -1030,6 +1315,66 @@ serve(async (req) => {
             caption: `${r.product?.title || r.product?.name || "Annonce Radar IA"}${k > 0 ? ` — photo ${k + 1}` : ""}`,
           }))),
         ].slice(0, 12);
+        returnedProducts = [
+          ...partnerTop.map((p: any, i: number) => ({
+            id: p.id,
+            article_id: p.id,
+            title: p.titre || "Produit partenaire",
+            description: p.description,
+            price: Number(p.prix_min || p.prix_max || 0),
+            city: [p.ville, p.quartier].filter(Boolean).join(" · "),
+            category: p.categorie,
+            photos: Array.isArray(p.photos) ? p.photos : [],
+            verified: true,
+            source: "Partenaire WAOUH",
+            market_price_min: p._waouh_intelligence?.min,
+            market_price_max: p._waouh_intelligence?.max,
+            market_price_median: p._waouh_intelligence?.median,
+            market_comparison: p._waouh_intelligence?.market_summary,
+            comparative_analysis: p._waouh_intelligence?.comparative_analysis,
+            recommendation: p._waouh_intelligence?.recommendation,
+            actions: [{ id: `interesse:${i + 1}`, label: "✅ Je suis intéressé" }],
+          })),
+          ...matchesTop.map((m: any, i: number) => ({
+            id: m.id,
+            article_id: m.id,
+            title: m.title,
+            description: m.description,
+            price: Number(m.price || 0),
+            city: m.city,
+            category: m.category,
+            condition: m.condition,
+            photos: Array.isArray(m.photos) ? m.photos : [],
+            source: "Annonce WAOUH",
+            distance_km: m._waouh_distance_km,
+            market_price_min: m._waouh_intelligence?.min ?? m.market_price_min,
+            market_price_max: m._waouh_intelligence?.max ?? m.market_price_max,
+            market_price_median: m._waouh_intelligence?.median,
+            market_comparison: m._waouh_intelligence?.market_summary,
+            comparative_analysis: m._waouh_intelligence?.comparative_analysis,
+            recommendation: m._waouh_intelligence?.recommendation,
+            actions: [{ id: `interesse:${partnerTop.length + i + 1}`, label: "✅ Je suis intéressé" }],
+          })),
+          ...radarTop.map((r: any, i: number) => ({
+            id: r.promoted_article_id || r.id,
+            article_id: r.promoted_article_id || null,
+            title: r.product?.title || r.product?.name || (r.raw_text || "").slice(0, 60) || "Annonce Radar",
+            description: r.raw_text,
+            price: Number(r.price || 0),
+            city: r.city,
+            category: r.category,
+            photos: extractProductPhotos(r),
+            source: "Radar IA",
+            radar_signal_id: r.id,
+            market_price_min: r._waouh_intelligence?.min,
+            market_price_max: r._waouh_intelligence?.max,
+            market_price_median: r._waouh_intelligence?.median,
+            market_comparison: r._waouh_intelligence?.market_summary,
+            comparative_analysis: r._waouh_intelligence?.comparative_analysis,
+            recommendation: r._waouh_intelligence?.recommendation,
+            actions: [{ id: `interesse:${partnerTop.length + matchesTop.length + i + 1}`, label: "✅ Je suis intéressé" }],
+          })),
+        ];
         const radarHint = radarTop.length > 0
           ? `\n\n🛰️ *${radarTop.length} annonce${radarTop.length > 1 ? "s" : ""}* détectée${radarTop.length > 1 ? "s" : ""} via Radar IA. Nous contactons automatiquement ces vendeurs sur WhatsApp pour vous.`
           : "";
@@ -1074,6 +1419,103 @@ serve(async (req) => {
         }
         if (radarPromotedArticles.length > 0) {
           nextContext = { ...nextContext, last_matches: [...combinedMatches, ...radarPromotedArticles] };
+        }
+
+        // Chaque produit réel trouvé obtient immédiatement sa propre fenêtre
+        // Chat Meet côté acheteur. Une recherche répétée réutilise le même
+        // thread actif, mais crée une nouvelle notification qui ouvre ce thread.
+        const threadByArticle = new Map<string, any>();
+        const threadCandidates = [...matchesTop, ...radarPromotedArticles];
+        for (const candidate of threadCandidates) {
+          if (!candidate?.id || !candidate?.seller_id) continue;
+          try {
+            const meet = await resolveProductThread({
+              sb,
+              articleId: candidate.id,
+              actorUser: user,
+              role: "buyer",
+              counterpartUserId: candidate.seller_id,
+              buyerUserId: user!.id,
+              sellerUserId: candidate.seller_id,
+              source: candidate.source === "radar" ? "radar" : "search",
+            });
+            if (!meet?.id) continue;
+            threadByArticle.set(candidate.id, meet);
+            const candidatePhotos = Array.isArray(candidate.photos)
+              ? candidate.photos.filter(Boolean)
+              : [];
+            await sb.from("waouh_notifications").insert({
+              thread_id: meet.id,
+              user_id: user!.id,
+              web_session_id: webSessionId,
+              article_id: candidate.id,
+              notification_type: candidate.source === "radar" ? "radar_match" : "match_buyer",
+              photos: candidatePhotos,
+              dedupe_key: `search_match:${searchRequestId}:${candidate.id}:${user!.id}`,
+              payload: {
+                thread_id: meet.id,
+                search_thread_id: searchThread.id,
+                search_request_id: searchRequestId,
+                recipient: "buyer",
+                role: "buyer",
+                article_id: candidate.id,
+                buyer_user_id: meet.buyer_user_id,
+                seller_user_id: meet.seller_user_id,
+                counterpart_user_id: meet.seller_user_id,
+                title: candidate.title || "Annonce WAOUH",
+                price: candidate.price,
+                city: candidate.city,
+                photos: candidatePhotos,
+                source: candidate.source === "radar" ? "radar" : "search",
+                text: `Discussion produit ouverte pour ${candidate.title || "cette annonce"}.`,
+              },
+              channel: "waouh_app",
+              delivery_status: "delivered",
+              delivered_at: new Date().toISOString(),
+            });
+          } catch (e: any) {
+            if (e?.code !== "23505" && !/duplicate/i.test(e?.message || "")) {
+              console.warn("[search-chat-meet]", candidate?.id, e);
+            }
+          }
+        }
+        if (threadByArticle.size > 0) {
+          returnedProducts = returnedProducts.map((product: any) => {
+            let meet = threadByArticle.get(product.article_id || product.id);
+            if (!meet && product.radar_signal_id) {
+              const promoted = radarPromotedArticles.find(
+                (item: any) => item.radar_signal_id === product.radar_signal_id,
+              );
+              if (promoted) {
+                meet = threadByArticle.get(promoted.id);
+                product = { ...product, id: promoted.id, article_id: promoted.id };
+              }
+            }
+            return meet ? {
+              ...product,
+              thread_id: meet.id,
+              search_thread_id: searchThread.id,
+              search_request_id: searchRequestId,
+              buyer_user_id: meet.buyer_user_id,
+              seller_user_id: meet.seller_user_id,
+              actions: [
+                { id: `ouvrir-meet:${meet.id}`, label: "💬 Ouvrir la discussion" },
+                ...(Array.isArray(product.actions) ? product.actions : []),
+              ],
+            } : product;
+          });
+          nextContext = {
+            ...nextContext,
+            last_matches: (nextContext.last_matches || []).map((item: any) => {
+              const meet = threadByArticle.get(item.id);
+              return meet ? {
+                ...item,
+                thread_id: meet.id,
+                buyer_user_id: meet.buyer_user_id,
+                seller_user_id: meet.seller_user_id,
+              } : item;
+            }),
+          };
         }
 
         const radarAsync = (async () => {
@@ -1134,16 +1576,33 @@ serve(async (req) => {
       if (!pick) {
         reply = "🤔 Je n'ai plus la liste. Refaites votre recherche : « Je cherche … »";
       } else {
-        const alreadyOnArticle = (nextContext?.current_article_id || conv?.current_article_id) === pick.id;
+        // Le fait qu'un article soit le premier résultat courant ne signifie
+        // jamais qu'une relation commerciale est déjà ouverte. Chaque clic
+        // « intéressé » doit passer par le thread produit+acheteur+vendeur.
+        const alreadyOnArticle = false;
         const askPrice = Number(pick.price || 0);
         if (alreadyOnArticle) {
+          const existingMeet = pick.seller_id
+            ? await resolveProductThread({
+                sb,
+                articleId: pick.id,
+                actorUser: user,
+                role: "buyer",
+                counterpartUserId: pick.seller_id,
+                buyerUserId: user!.id,
+                sellerUserId: pick.seller_id,
+                source: "chat",
+              })
+            : null;
+          returnedThreadId = existingMeet?.id ?? returnedThreadId;
           returnedArticleId = pick.id;
-          returnedActions = [];
+          returnedActions = buyerDecisionActions(Math.round(askPrice * 0.9));
           reply = `${waouhHeader("✅ Mise en relation déjà ouverte")}\n\n📦 *${pick.title}*\n💰 *Prix* : ${fmt(askPrice)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou écrivez (Ex : *Je propose ${fmt(askPrice)}*) pour négocier.\n\n${waouhFooter()}`;
         } else {
-        const pickSource: "chat" | "partner" | "radar" =
-          pick.source === "partner" ? "partner" :
-          pick.source === "radar" || pick.radar ? "radar" : "chat";
+        const pickSource: "chat" | "partner" | "radar" | "status" =
+          clientMeta?.status_id || pick.source === "status" ? "status" :
+          clientMeta?.source === "partner" || pick.source === "partner" ? "partner" :
+          clientMeta?.source === "radar" || pick.source === "radar" || pick.radar ? "radar" : "chat";
         const vendorContacts = await resolveVendorContacts(sb, pick);
         if (!pick.seller_id) {
           if (vendorContacts.phone) {
@@ -1194,16 +1653,33 @@ serve(async (req) => {
           reply = "🤔 Vous êtes le vendeur de cet article. Vous ne pouvez pas vous y intéresser vous-même. Attendez qu'un acheteur se manifeste.";
           returnedActions = [];
         } else {
+        const interestThread = await resolveProductThread({
+          sb,
+          articleId: pick.id,
+          actorUser: user,
+          role: "buyer",
+          counterpartUserId: pick.seller_id,
+          buyerUserId: user!.id,
+          sellerUserId: pick.seller_id,
+          source: pickSource,
+        });
+        if (!interestThread?.id) {
+          throw new Error("Impossible de créer la discussion isolée pour cet article");
+        }
+        const interestThreadId = interestThread.id;
+        returnedThreadId = interestThreadId;
         const { data: artPhoto } = pick.seller_id
-          ? await sb.from("waouh_articles").select("photos").eq("id", pick.id).maybeSingle()
+          ? await sb.from("waouh_articles")
+              .select("id,title,description,category,condition,price,currency,photos,city,market_price_min,market_price_max,status")
+              .eq("id", pick.id).maybeSingle()
           : { data: null };
         const fallbackPhoto = Array.isArray(pick.photos) && pick.photos.length > 0 ? pick.photos[0] : null;
         const firstPhoto = Array.isArray(artPhoto?.photos) && artPhoto!.photos.length > 0 ? artPhoto!.photos[0] : fallbackPhoto;
         // Distance live acheteur ↔ vendeur (RPC PostGIS)
         let distKm: number | null = null;
-        if (pick.seller_id) {
+        if (pick.id && hasCurrentLocation) {
           try {
-            const { data: d } = await sb.rpc("waouh_point_distance_km", { p_user: pick.seller_id, p_lat: lat, p_lng: lng });
+            const { data: d } = await sb.rpc("waouh_article_distance_km", { p_article: pick.id, p_lat: lat, p_lng: lng });
             if (typeof d === "number") distKm = Math.round(d * 10) / 10;
           } catch {}
         }
@@ -1224,18 +1700,32 @@ serve(async (req) => {
           } catch {}
         }
         // Négociation seule, AUCUNE transaction n'est créée (plus de paiement)
-        const { data: neg } = await sb.from("waouh_negotiations").insert({
-          article_id: pick.id, buyer_user_id: user!.id, seller_user_id: pick.seller_id,
-          state: "proposed", last_offer_price: askPrice, last_actor: "system",
-          meta: { source: pickSource, stage: "awaiting_buyer_decision", rounds: 0, radar_signal_id: radarBuyerContext?.signal_id ?? pickRadarSignalId ?? null },
-        }).select().single();
+        let { data: neg, error: negLookupError } = await sb
+          .from("waouh_negotiations")
+          .select("*")
+          .eq("thread_id", interestThreadId)
+          .in("state", ["proposed", "countered", "accepted"])
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (negLookupError) throw negLookupError;
+        if (!neg?.id) {
+          const createdNegotiation = await sb.from("waouh_negotiations").insert({
+            thread_id: interestThreadId,
+            article_id: pick.id, buyer_user_id: user!.id, seller_user_id: pick.seller_id,
+            state: "proposed", last_offer_price: askPrice, last_actor: "system",
+            meta: { source: pickSource, stage: "awaiting_buyer_decision", rounds: 0, radar_signal_id: radarBuyerContext?.signal_id ?? pickRadarSignalId ?? null },
+          }).select().single();
+          if (createdNegotiation.error) throw createdNegotiation.error;
+          neg = createdNegotiation.data;
+        }
         // 🛰️ v10 — Si la négo provient d'un outreach Radar IA, marquer le
         // signal comme converti pour éviter de re-contacter l'acheteur sur
         // la même annonce et alimenter les métriques admin.
         if (radarBuyerContext?.signal_id && neg?.id) {
           try {
             await sb.from("waouh_radar_signals")
-              .update({ status: "converted", converted_negotiation_id: neg.id, updated_at: new Date().toISOString() })
+              .update({ status: "converted", converted_negotiation_id: neg.id, thread_id: interestThreadId, updated_at: new Date().toISOString() })
               .eq("id", radarBuyerContext.signal_id);
           } catch (e) { console.warn("[radar-buyer-hydrate] mark converted failed", e); }
         }
@@ -1244,7 +1734,7 @@ serve(async (req) => {
         if (pickRadarSignalId && neg?.id && pickRadarSignalId !== radarBuyerContext?.signal_id) {
           try {
             await sb.from("waouh_radar_signals")
-              .update({ status: "converted", converted_negotiation_id: neg.id, updated_at: new Date().toISOString() })
+              .update({ status: "converted", converted_negotiation_id: neg.id, thread_id: interestThreadId, updated_at: new Date().toISOString() })
               .eq("id", pickRadarSignalId);
             console.log("[radar-seller-hydrate] mark converted", { signal_id: pickRadarSignalId, neg_id: neg.id });
           } catch (e) { console.warn("[radar-seller-hydrate] mark converted failed", e); }
@@ -1270,13 +1760,59 @@ serve(async (req) => {
               template: "match_seller",
               payload: {
                 article_id: pick.id, title: pick.title, price: askPrice,
-                buyer_user_id: user!.id, neg_id: neg?.id, photo: firstPhoto,
+                thread_id: interestThreadId,
+                buyer_user_id: user!.id, seller_user_id: pick.seller_id,
+                counterpart_user_id: user!.id,
+                counterpart_name: user!.display_name || user!.phone_number || "Acheteur",
+                neg_id: neg?.id, photo: firstPhoto,
                 actions: [],
+                products: [{
+                  id: pick.id, article_id: pick.id,
+                  title: artPhoto?.title || pick.title,
+                  description: artPhoto?.description || pick.description || null,
+                  category: artPhoto?.category || pick.category || pick.categorie || null,
+                  condition: artPhoto?.condition || pick.condition || null,
+                  price: Number(artPhoto?.price || askPrice || 0),
+                  currency: artPhoto?.currency || pick.currency || "XOF",
+                  photos: Array.isArray(artPhoto?.photos) ? artPhoto.photos : (pick.photos || []),
+                  city: artPhoto?.city || pick.city || pick.ville || null,
+                  distance_km: distKm,
+                  market_price_min: artPhoto?.market_price_min ?? pick.market_price_min ?? null,
+                  market_price_max: artPhoto?.market_price_max ?? pick.market_price_max ?? null,
+                  workflow_state: "negotiating", role: "seller",
+                  thread_id: interestThreadId,
+                  buyer_user_id: user!.id, seller_user_id: pick.seller_id,
+                  negotiation_id: neg?.id ?? null, source: pickSource,
+                }],
               },
               image_url: firstPhoto,
               directText: sellerText,
               directAtts: firstPhoto ? [{ url: firstPhoto, type: "image/jpeg", caption: pick.title }] : [],
-              directMeta: { intent: "match_seller", article_id: pick.id, negotiation_id: neg?.id, source: pickSource },
+              directMeta: {
+                intent: "match_seller", article_id: pick.id,
+                thread_id: interestThreadId, buyer_user_id: user!.id,
+                seller_user_id: pick.seller_id, negotiation_id: neg?.id,
+                source: pickSource, status_id: clientMeta?.status_id ?? null,
+                radar_signal_id: radarBuyerContext?.signal_id ?? pickRadarSignalId ?? null,
+                products: [{
+                  id: pick.id, article_id: pick.id,
+                  title: artPhoto?.title || pick.title,
+                  description: artPhoto?.description || pick.description || null,
+                  category: artPhoto?.category || pick.category || pick.categorie || null,
+                  condition: artPhoto?.condition || pick.condition || null,
+                  price: Number(artPhoto?.price || askPrice || 0),
+                  currency: artPhoto?.currency || pick.currency || "XOF",
+                  photos: Array.isArray(artPhoto?.photos) ? artPhoto.photos : (pick.photos || []),
+                  city: artPhoto?.city || pick.city || pick.ville || null,
+                  distance_km: distKm,
+                  market_price_min: artPhoto?.market_price_min ?? pick.market_price_min ?? null,
+                  market_price_max: artPhoto?.market_price_max ?? pick.market_price_max ?? null,
+                  workflow_state: "negotiating", role: "seller",
+                  thread_id: interestThreadId,
+                  buyer_user_id: user!.id, seller_user_id: pick.seller_id,
+                  negotiation_id: neg?.id ?? null, source: pickSource,
+                }],
+              },
               transaction_id: null,
               dedupe_key: `match:${neg?.id ?? pick.id}:${seller?.id ?? "anon"}:${pickSource}`,
               event_type: "seller_new_interest",
@@ -1289,7 +1825,9 @@ serve(async (req) => {
                   p_template: "match_seller",
                   p_payload: {
                     article_id: pick.id, title: pick.title, price: askPrice,
-                    buyer_user_id: user!.id, neg_id: neg?.id, photo: firstPhoto,
+                    thread_id: interestThreadId,
+                    buyer_user_id: user!.id, seller_user_id: pick.seller_id,
+                    counterpart_user_id: user!.id, neg_id: neg?.id, photo: firstPhoto,
                     actions: [], text: sellerText,
                   },
                   p_channel: "whatsapp",
@@ -1321,6 +1859,7 @@ serve(async (req) => {
             : (firstPhoto ? [firstPhoto] : []);
           const dayBucket = new Date().toISOString().slice(0, 10);
           await sb.from("waouh_notifications").insert({
+            thread_id: interestThreadId,
             user_id: seller?.id ?? null,
             web_session_id: sellerWebSession,
             article_id: pick.id,
@@ -1334,8 +1873,11 @@ serve(async (req) => {
               price: askPrice,
               city: pick.city ?? null,
               photos: photosArr,
+              thread_id: interestThreadId,
               buyer_user_id: user!.id,
+              seller_user_id: pick.seller_id,
               counterpart_user_id: user!.id,
+              counterpart_name: user!.display_name || user!.phone_number || "Acheteur",
               negotiation_id: neg?.id ?? null,
               contact: { channel: "whatsapp", whatsapp: vendorPhoneForPush },
             },
@@ -1349,9 +1891,96 @@ serve(async (req) => {
           }
         }
         replyAttachments = firstPhoto ? [{ url: firstPhoto, type: "image/jpeg", caption: pick.title }] : [];
-        returnedActions = [];
+        await bindThreadState(sb, interestThreadId, {
+          status: "negotiating",
+          negotiation_id: neg?.id ?? null,
+        });
+        returnedActions = buyerDecisionActions(Math.round(askPrice * 0.9));
+        const interestPhotos = Array.isArray(artPhoto?.photos)
+          ? artPhoto.photos.filter((url: unknown) => typeof url === "string" && /^https?:\/\//i.test(url as string))
+          : (Array.isArray(pick.photos) ? pick.photos.filter((url: unknown) => typeof url === "string") : []);
+        const interestProduct = {
+          id: pick.id,
+          article_id: pick.id,
+          title: artPhoto?.title || pick.title || "Article WAOUH",
+          description: artPhoto?.description || pick.description || null,
+          category: artPhoto?.category || pick.category || pick.categorie || null,
+          condition: artPhoto?.condition || pick.condition || null,
+          price: Number(artPhoto?.price || askPrice || 0),
+          currency: artPhoto?.currency || pick.currency || "XOF",
+          photos: interestPhotos,
+          city: artPhoto?.city || pick.city || pick.ville || null,
+          distance_km: distKm,
+          market_price_min: artPhoto?.market_price_min ?? pick.market_price_min ?? null,
+          market_price_max: artPhoto?.market_price_max ?? pick.market_price_max ?? null,
+          availability: artPhoto?.status === "sold" ? "Vendu" : "Disponible",
+          workflow_state: "negotiating",
+          role: "buyer",
+          thread_id: interestThreadId,
+          buyer_user_id: user!.id,
+          seller_user_id: pick.seller_id,
+          negotiation_id: neg?.id ?? null,
+          source: pickSource,
+          status_id: clientMeta?.status_id ?? null,
+          radar_signal_id: radarBuyerContext?.signal_id ?? pickRadarSignalId ?? null,
+          actions: returnedActions,
+        };
+        returnedProducts = [interestProduct];
+        try {
+          await sb.from("waouh_interests").upsert({
+            thread_id: interestThreadId,
+            article_id: pick.id,
+            buyer_user_id: user!.id,
+            seller_user_id: pick.seller_id,
+            source: pickSource,
+            payload: {
+              thread_id: interestThreadId,
+              negotiation_id: neg?.id ?? null,
+              status_id: clientMeta?.status_id ?? null,
+              radar_signal_id: radarBuyerContext?.signal_id ?? pickRadarSignalId ?? null,
+            },
+          }, { onConflict: "article_id,buyer_user_id,thread_id", ignoreDuplicates: true });
+        } catch (e) { console.warn("[interest] trace insert failed", e); }
         const distLineBuyer = distKm != null ? `\n${fmtDistance(distKm)}` : "";
         reply = `${waouhHeader("✅ Demande envoyée au vendeur")}\n\n📦 *${pick.title}*\n💰 *Prix du vendeur* : ${fmt(askPrice)}${distLineBuyer}\n${firstPhoto ? "📸 *Photo transmise au vendeur*\n" : ""}\n*Que souhaitez-vous faire ?*\n1️⃣ Répondez *OUI* pour accepter ce prix (${fmt(askPrice)}).\n2️⃣ Ou proposez votre prix : *Je propose ${fmt(Math.round(askPrice * 0.9))}*.\n\nLe vendeur attend votre décision.\n\n${waouhFooter()}`;
+        try {
+          const buyerPhotos = Array.isArray(pick.photos)
+            ? (pick.photos as any[]).filter(Boolean)
+            : (firstPhoto ? [firstPhoto] : []);
+          await sb.from("waouh_notifications").insert({
+            thread_id: interestThreadId,
+            user_id: user!.id,
+            web_session_id: webSessionId,
+            article_id: pick.id,
+            notification_type: "match_buyer",
+            photos: buyerPhotos,
+            dedupe_key: `buyer_interest:${neg?.id ?? interestThreadId}:${user!.id}`,
+            payload: {
+              text: reply,
+              recipient: "buyer",
+              role: "buyer",
+              title: pick.title,
+              price: askPrice,
+              city: pick.city ?? null,
+              photos: buyerPhotos,
+              thread_id: interestThreadId,
+              buyer_user_id: user!.id,
+              seller_user_id: pick.seller_id,
+              counterpart_user_id: pick.seller_id,
+              counterpart_name: seller?.display_name || seller?.phone_number || "Vendeur",
+              negotiation_id: neg?.id ?? null,
+              source: pickSource,
+              actions: returnedActions,
+            },
+            channel: "waouh_app",
+            delivery_status: "delivered",
+            delivered_at: new Date().toISOString(),
+          });
+        } catch (e: any) {
+          if (e?.code !== "23505" && !/duplicate/i.test(e?.message || "")) {
+            throw e;
+          }
+        }
         } // end if (!promotionFailed)
         } // end if (!seller is buyer sibling)
         }
@@ -1364,16 +1993,39 @@ serve(async (req) => {
       // waouh_users que celui stocké sur la négo (cas vendeur App répondant
       // depuis son WhatsApp).
       const negSiblingIds = await resolveSiblingUserIds(sb, user as any);
-      const { data: neg } = await sb.from("waouh_negotiations")
-        .select("*")
-        .or(siblingOrFilter(negSiblingIds))
-        .in("state", ["proposed", "countered"])
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!neg) {
+      let neg: any = null;
+      let negAmbiguous = false;
+      if (clientMeta?.negotiation_id) {
+        const { data } = await sb.from("waouh_negotiations").select("*")
+          .eq("id", clientMeta.negotiation_id)
+          .or(siblingOrFilter(negSiblingIds))
+          .in("state", ["proposed", "countered"])
+          .maybeSingle();
+        neg = data;
+      } else if (clientMeta?.thread_id) {
+        const { data } = await sb.from("waouh_negotiations").select("*")
+          .eq("thread_id", clientMeta.thread_id)
+          .or(siblingOrFilter(negSiblingIds))
+          .in("state", ["proposed", "countered"])
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        neg = data;
+      } else {
+        const { data } = await sb.from("waouh_negotiations").select("*")
+          .or(siblingOrFilter(negSiblingIds))
+          .in("state", ["proposed", "countered"])
+          .order("updated_at", { ascending: false })
+          .limit(2);
+        negAmbiguous = (data || []).length > 1;
+        neg = (data || []).length === 1 ? data![0] : null;
+      }
+      if (negAmbiguous) {
+        reply = "Plusieurs négociations sont actives. Ouvrez le Chat Meet du produit concerné.";
+      } else if (!neg) {
         reply = "🤔 Aucune négociation en cours. Recherchez d'abord un produit puis dites *intéressé 1*.";
       } else if (amount) {
+        returnedThreadId = neg.thread_id ?? returnedThreadId;
         const isBuyer = negSiblingIds.includes(neg.buyer_user_id);
         const otherId = isBuyer ? neg.seller_user_id : neg.buyer_user_id;
         await sb.from("waouh_negotiations").update({
@@ -1386,9 +2038,20 @@ serve(async (req) => {
           await pushToOther({
             to_user_id: otherId,
             template: "negotiation_open",
-            payload: { neg_id: neg.id, article_id: neg.article_id, offer: amount, price: amount, actions: [], target_role: isBuyer ? "seller" : "buyer", from_user_id: user!.id },
+            payload: {
+              neg_id: neg.id,
+              article_id: neg.article_id,
+              thread_id: neg.thread_id ?? returnedThreadId,
+              buyer_user_id: neg.buyer_user_id,
+              seller_user_id: neg.seller_user_id,
+              offer: amount,
+              price: amount,
+              actions: offerDecisionActions(neg.id),
+              target_role: isBuyer ? "seller" : "buyer",
+              from_user_id: user!.id,
+            },
             directText: counterText,
-            directMeta: { intent: "negotiation_open", negotiation_id: neg.id, article_id: neg.article_id },
+            directMeta: { intent: "negotiation_open", negotiation_id: neg.id, article_id: neg.article_id, thread_id: neg.thread_id ?? returnedThreadId, buyer_user_id: neg.buyer_user_id, seller_user_id: neg.seller_user_id },
             transaction_id: null,
             dedupe_key: `neg:${neg.id}:offer:${amount}:${otherId}`,
             event_type: "negotiation_counter",
@@ -1397,21 +2060,45 @@ serve(async (req) => {
         returnedArticleId = neg.article_id;
         reply = `💬 ${isBuyer ? "Offre" : "Contre-offre"} de *${fmt(amount)}* transmise. Vous serez notifié de la réponse.`;
       } else {
+        returnedThreadId = neg.thread_id ?? returnedThreadId;
         reply = `💬 Indiquez votre prix : « *Je propose ${fmt(neg.last_offer_price || 0)}* »`;
       }
     } else if (intent.intent === "DECIDE_YES" || intent.intent === "DECIDE_NO") {
       // Réponse OUI/NON à une négociation en cours (acheteur OU vendeur)
       const decSiblingIds = await resolveSiblingUserIds(sb, user as any);
-      const { data: neg } = await sb.from("waouh_negotiations")
-        .select("*")
-        .or(siblingOrFilter(decSiblingIds))
-        .in("state", ["proposed", "countered"])
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!neg) {
+      let neg: any = null;
+      let negAmbiguous = false;
+      if (clientMeta?.negotiation_id) {
+        const { data } = await sb.from("waouh_negotiations").select("*")
+          .eq("id", clientMeta.negotiation_id)
+          .or(siblingOrFilter(decSiblingIds))
+          .in("state", ["proposed", "countered"])
+          .maybeSingle();
+        neg = data;
+      } else if (clientMeta?.thread_id) {
+        const { data } = await sb.from("waouh_negotiations").select("*")
+          .eq("thread_id", clientMeta.thread_id)
+          .or(siblingOrFilter(decSiblingIds))
+          .in("state", ["proposed", "countered"])
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        neg = data;
+      } else {
+        const { data } = await sb.from("waouh_negotiations").select("*")
+          .or(siblingOrFilter(decSiblingIds))
+          .in("state", ["proposed", "countered"])
+          .order("updated_at", { ascending: false })
+          .limit(2);
+        negAmbiguous = (data || []).length > 1;
+        neg = (data || []).length === 1 ? data![0] : null;
+      }
+      if (negAmbiguous) {
+        reply = "Plusieurs négociations sont actives. Ouvrez le Chat Meet du produit concerné.";
+      } else if (!neg) {
         reply = "🤔 Aucune négociation en cours. Recherchez d'abord un produit puis dites *intéressé 1*.";
       } else {
+        returnedThreadId = neg.thread_id ?? returnedThreadId;
         const isBuyer = decSiblingIds.includes(neg.buyer_user_id);
         const myRole: "buyer" | "seller" = isBuyer ? "buyer" : "seller";
         const otherId = isBuyer ? neg.seller_user_id : neg.buyer_user_id;
@@ -1424,6 +2111,10 @@ serve(async (req) => {
             state: "accepted", last_offer_price: agreed, last_actor: myRole, closed_at: new Date().toISOString(),
             meta: { ...(neg.meta || {}), agreed_price: agreed, accepted_by: myRole },
           }).eq("id", neg.id);
+          await bindThreadState(sb, neg.thread_id ?? returnedThreadId, {
+            status: "accepted",
+            negotiation_id: neg.id,
+          });
           const { data: art } = await sb.from("waouh_articles").select("title,photos").eq("id", neg.article_id).maybeSingle();
           const title = art?.title || "Article";
           const photo = Array.isArray(art?.photos) && art!.photos.length ? art!.photos[0] : null;
@@ -1434,10 +2125,10 @@ serve(async (req) => {
             await pushToOther({
               to_user_id: otherId,
               template: "deal_accepted",
-              payload: { neg_id: neg.id, article_id: neg.article_id, price: agreed, actions: [] },
+              payload: { neg_id: neg.id, article_id: neg.article_id, thread_id: neg.thread_id ?? returnedThreadId, buyer_user_id: neg.buyer_user_id, seller_user_id: neg.seller_user_id, price: agreed, actions: [] },
               directText: otherText,
               directAtts: photo ? [{ url: photo, type: "image/jpeg", caption: title }] : [],
-              directMeta: { intent: "deal_accepted", negotiation_id: neg.id, article_id: neg.article_id },
+              directMeta: { intent: "deal_accepted", negotiation_id: neg.id, article_id: neg.article_id, thread_id: neg.thread_id ?? returnedThreadId, buyer_user_id: neg.buyer_user_id, seller_user_id: neg.seller_user_id },
               transaction_id: null,
               dedupe_key: `deal_accepted:${neg.id}:${otherId}`,
               event_type: "deal_accepted",
@@ -1450,14 +2141,18 @@ serve(async (req) => {
           await sb.from("waouh_negotiations").update({
             state: "refused", last_actor: myRole, closed_at: new Date().toISOString(),
           }).eq("id", neg.id);
+          await bindThreadState(sb, neg.thread_id ?? returnedThreadId, {
+            status: "cancelled",
+            negotiation_id: neg.id,
+          });
           if (otherId) {
             const otherText = `${waouhHeader("❌ Négociation terminée")}\n\n${isBuyer ? "L'acheteur n'a pas accepté la dernière offre." : "Le vendeur n'a pas accepté votre offre."}\nVous pouvez relancer une recherche à tout moment.\n\n${waouhFooter()}`;
             await pushToOther({
               to_user_id: otherId,
               template: "deal_refused",
-              payload: { neg_id: neg.id, article_id: neg.article_id, actions: [] },
+              payload: { neg_id: neg.id, article_id: neg.article_id, thread_id: neg.thread_id ?? returnedThreadId, buyer_user_id: neg.buyer_user_id, seller_user_id: neg.seller_user_id, actions: [] },
               directText: otherText,
-              directMeta: { intent: "deal_refused", negotiation_id: neg.id, article_id: neg.article_id },
+              directMeta: { intent: "deal_refused", negotiation_id: neg.id, article_id: neg.article_id, thread_id: neg.thread_id ?? returnedThreadId, buyer_user_id: neg.buyer_user_id, seller_user_id: neg.seller_user_id },
               transaction_id: null,
               dedupe_key: `deal_refused:${neg.id}:${otherId}`,
               event_type: "deal_refused",
@@ -1491,7 +2186,7 @@ serve(async (req) => {
       body: JSON.stringify({ limit: 20 }),
     }).catch(() => {});
 
-    return new Response(JSON.stringify({ ok: true, intent: intent.intent, reply, attachments: replyAttachments, article_id: returnedArticleId, transaction_id: returnedTransactionId, actions: returnedActions }), {
+    return new Response(JSON.stringify({ ok: true, intent: intent.intent, reply, attachments: replyAttachments, products: returnedProducts, article_id: returnedArticleId, thread_id: returnedThreadId, search_thread_id: returnedSearchThreadId, transaction_id: returnedTransactionId, actions: returnedActions }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {

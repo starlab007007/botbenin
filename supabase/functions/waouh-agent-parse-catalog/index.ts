@@ -24,7 +24,7 @@ serve(async (req) => {
     const userClient = createClient(url, anon, { global: { headers: { Authorization: auth } } });
     const { data } = await userClient.auth.getUser();
     if (!data.user) return json({ ok: false, code: "UNAUTHORIZED", error: "Session expirée" }, 401);
-    if (!Deno.env.get("LOVABLE_API_KEY")) return json({ ok: false, code: "AI_KEY_MISSING", error: "Service IA non configuré" }, 503);
+    if (!Deno.env.get("GEMINI_API_KEY")) return json({ ok: false, code: "AI_KEY_MISSING", error: "Service IA Gemini non configuré" }, 503);
 
     const body = await req.json().catch(() => ({}));
     const mode = String(body.mode || "");
@@ -71,7 +71,7 @@ serve(async (req) => {
     return json({ ok: true, products, transcript });
   } catch (error) {
     const text = error instanceof Error ? error.message : String(error);
-    const code = text.includes("LOVABLE_API_KEY") ? "AI_KEY_MISSING" : "AI_PROVIDER_ERROR";
+    const code = text.includes("GEMINI_API_KEY") ? "AI_KEY_MISSING" : "AI_PROVIDER_ERROR";
     console.error("waouh-agent-parse-catalog", error);
     return json({ ok: false, code, error: text }, 400);
   }

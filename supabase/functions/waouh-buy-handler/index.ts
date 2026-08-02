@@ -2,10 +2,10 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { rehostPhotos, normalizeBeninPhone } from '../_shared/waouhContact.ts';
 import { distanceKm, formatDistance } from '../_shared/waouh-format.ts';
+import { geminiJson } from '../_shared/gemini.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY')!;
 const WAHA_BASE_URL = Deno.env.get('WAHA_BASE_URL') || '';
 const WAHA_API_KEY = Deno.env.get('WAHA_API_KEY') || '';
 
@@ -59,21 +59,12 @@ Deno.serve(async (req) => {
     // Rehost reference photos (async-friendly but kept inline because matches reference them).
     const stableRefs = await rehostPhotos(supabase, reference_photos, { wahaBaseUrl: WAHA_BASE_URL, wahaApiKey: WAHA_API_KEY });
 
-    // AI parse query
-    const aiRes = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: 'Tu extrais une recherche d\'achat. JSON: keywords (array), category, price_min, price_max, radius_km (default 30).' },
-          { role: 'user', content: message },
-        ],
-        response_format: { type: 'json_object' },
-      }),
-    });
-    const aiData = await aiRes.json();
-    const q = JSON.parse(aiData.choices[0].message.content);
+    const fallbackKeywords = String(message).toLowerCase().match(/[\p{L}\d-]{3,}/gu)?.slice(0, 5) || [];
+    const q: any = await geminiJson(
+      'Extrais une recherche d\'achat. JSON: keywords (array), category, price_min, price_max, radius_km (default 30).',
+      message,
+      { keywords: fallbackKeywords, category: null, price_min: null, price_max: null, radius_km: 30 },
+    );
 
     // Save buyer profile
     const { data: profile } = await supabase.from('waouh_buyer_profiles').insert({
@@ -110,16 +101,26 @@ Deno.serve(async (req) => {
     // and article.location (PostGIS POINT). Sort closest first.
     const buyerLat = typeof location?.lat === 'number' ? location.lat : null;
     const buyerLng = typeof location?.lng === 'number' ? location.lng : null;
-    const enriched = filtered.map((a: any) => {
+    const enriched = await Promise.all(filtered.map(async (a: any) => {
       const pt = parsePoint(a.location);
-      const dKm = pt ? distanceKm(buyerLat, buyerLng, pt.lat, pt.lng) : null;
+      let dKm = pt ? distanceKm(buyerLat, buyerLng, pt.lat, pt.lng) : null;
+      if (buyerLat != null && buyerLng != null) {
+        try {
+          const { data } = await supabase.rpc('waouh_article_distance_km', {
+            p_article: a.id,
+            p_lat: buyerLat,
+            p_lng: buyerLng,
+          });
+          if (typeof data === 'number') dKm = Math.round(data * 10) / 10;
+        } catch (_) {}
+      }
       return {
         ...a,
         lat: pt?.lat ?? null,
         lng: pt?.lng ?? null,
         distance_km: dKm,
       };
-    });
+    }));
     enriched.sort((x: any, y: any) => {
       if (x.distance_km == null && y.distance_km == null) return 0;
       if (x.distance_km == null) return 1;

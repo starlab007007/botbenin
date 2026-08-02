@@ -1,6 +1,7 @@
 // WAOUH — Module unique de composition (source de vérité)
 // Centralise les textes (carte paiement, instructions) et sets d'actions
 // pour éviter la duplication et les fragments legacy.
+import { geminiJson } from "./gemini.ts";
 
 export const fmtFCFA = (n: number | null | undefined) => {
   if (n == null) return "prix à discuter";
@@ -183,23 +184,13 @@ export async function marketAnalysisAI(opts: { title: string; price: number; min
   const key = `${(opts.title || "").toLowerCase()}|${opts.price}|${opts.min}|${opts.max}|${(opts.city || "").toLowerCase()}`;
   const cached = _marketCache.get(key);
   if (cached && Date.now() - cached.at < 10 * 60 * 1000) return cached.text;
-  const apiKey = opts.apiKey || (typeof Deno !== "undefined" ? (Deno as any).env.get("LOVABLE_API_KEY") : "");
-  if (!apiKey) return "";
   try {
-    const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: 'Tu es analyste marché Bénin (Cotonou et environs). Donne UNE seule phrase factuelle (≤25 mots), neutre et chiffrée, qui qualifie le prix proposé par rapport à la fourchette marché et à la ville. Pas de bla-bla. JSON: {"note": string}.' },
-          { role: "user", content: `Produit: ${opts.title}\nPrix proposé: ${opts.price} FCFA\nFourchette marché: ${opts.min} – ${opts.max} FCFA\nVille: ${opts.city || "Cotonou"}` },
-        ],
-        response_format: { type: "json_object" },
-      }),
-    });
-    const d = await r.json();
-    const note = (() => { try { return JSON.parse(d?.choices?.[0]?.message?.content ?? "{}")?.note || ""; } catch { return ""; } })();
+    const d = await geminiJson(
+      'Tu es analyste marché Bénin. Donne UNE phrase factuelle (≤25 mots), neutre et chiffrée. JSON: {"note": string}.',
+      `Produit: ${opts.title}\nPrix proposé: ${opts.price} FCFA\nFourchette marché: ${opts.min} – ${opts.max} FCFA\nVille: ${opts.city || "Cotonou"}`,
+      { note: "" },
+    );
+    const note = d.note || "";
     const text = typeof note === "string" ? note.trim() : "";
     _marketCache.set(key, { at: Date.now(), text });
     return text;
@@ -513,7 +504,6 @@ export async function lidToPhoneInline(
     return digits;
   } catch (_) { return null; }
 }
-
 
 
 

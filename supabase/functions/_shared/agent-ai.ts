@@ -1,10 +1,4 @@
-const gateway = "https://ai.gateway.lovable.dev/v1";
-
-export function aiKey() {
-  const key = Deno.env.get("LOVABLE_API_KEY")?.trim();
-  if (!key) throw new Error("LOVABLE_API_KEY manquant");
-  return key;
-}
+import { geminiEmbedding, geminiText } from "./gemini.ts";
 
 export async function chatCompletion(options: {
   system?: string;
@@ -12,46 +6,19 @@ export async function chatCompletion(options: {
   temperature?: number;
   jsonMode?: boolean;
 }) {
-  const response = await fetch(`${gateway}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${aiKey()}`,
-    },
-    body: JSON.stringify({
-      model: "google/gemini-3-flash-preview",
-      temperature: options.temperature ?? 0.5,
-      ...(options.jsonMode ? { response_format: { type: "json_object" } } : {}),
-      messages: [
-        ...(options.system ? [{ role: "system", content: options.system }] : []),
-        ...options.messages,
-      ],
-    }),
+  const conversation = options.messages
+    .map((message) => `${String(message.role || "user").toUpperCase()}: ${typeof message.content === "string" ? message.content : JSON.stringify(message.content)}`)
+    .join("\n\n");
+  return geminiText({
+    system: options.system,
+    user: conversation,
+    temperature: options.temperature ?? 0.5,
+    json: options.jsonMode,
   });
-  if (!response.ok) {
-    throw new Error(`AI chat ${response.status}: ${(await response.text()).slice(0, 300)}`);
-  }
-  const data = await response.json();
-  return String(data?.choices?.[0]?.message?.content || "").trim();
 }
 
 export async function embedText(text: string) {
-  const response = await fetch(`${gateway}/embeddings`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${aiKey()}`,
-    },
-    body: JSON.stringify({
-      model: "openai/text-embedding-3-small",
-      input: text.slice(0, 6000),
-      dimensions: 768,
-    }),
-  });
-  if (!response.ok) throw new Error(`Embed ${response.status}: ${(await response.text()).slice(0, 300)}`);
-  const data = await response.json();
-  if (!Array.isArray(data?.data?.[0]?.embedding)) throw new Error("Embedding invalide");
-  return data.data[0].embedding as number[];
+  return geminiEmbedding(text);
 }
 
 export function chunkText(text: string, size = 800, overlap = 100) {

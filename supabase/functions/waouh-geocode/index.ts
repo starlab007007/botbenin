@@ -48,6 +48,17 @@ function normalizeCity(rawCity: string | null | undefined): { city: string; dist
   return { city: cleaned || "Cotonou", district: null };
 }
 
+function nearestKnownCity(lat: number, lng: number) {
+  let nearest = BENIN_CITIES[0];
+  let best = Number.POSITIVE_INFINITY;
+  for (const city of BENIN_CITIES) {
+    if (city.lat == null || city.lng == null) continue;
+    const score = (city.lat - lat) ** 2 + (city.lng - lng) ** 2;
+    if (score < best) { best = score; nearest = city; }
+  }
+  return nearest;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -57,7 +68,7 @@ serve(async (req) => {
 
     let url = "";
     if (typeof lat === "number" && typeof lng === "number") {
-      url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=fr&zoom=14`;
+      url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=fr&zoom=18&addressdetails=1`;
     } else if (typeof query === "string" && query.trim()) {
       // Bias towards Benin to avoid false matches in other countries.
       url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(query + ", Bénin")}&accept-language=fr&limit=1&countrycodes=bj`;
@@ -67,10 +78,19 @@ serve(async (req) => {
       });
     }
 
-    const res = await fetch(url, {
-      headers: { "User-Agent": "WAOUH/1.0 (bot.bj)", "Accept": "application/json" },
-    });
-    const data: any = await res.json();
+    let data: any = null;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 6500);
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: { "User-Agent": "WAOUH/1.0 (contact@bot.bj)", "Accept": "application/json" },
+      });
+      clearTimeout(timeout);
+      if (res.ok) data = await res.json();
+    } catch (error) {
+      console.warn("[waouh-geocode] nominatim fallback", String(error));
+    }
 
     let rawCity = "Cotonou", country = "Bénin", display_name = "", outLat = lat, outLng = lng;
     let rawDistrict: string | null = null;
@@ -89,6 +109,13 @@ serve(async (req) => {
       display_name = data.display_name || "";
     }
 
+    if (!data && typeof lat === "number" && typeof lng === "number") {
+      const nearest = nearestKnownCity(lat, lng);
+      rawCity = nearest.ville;
+      outLat = lat;
+      outLng = lng;
+    }
+
     // Normalize against curated Benin list
     const norm = normalizeCity(rawCity);
     const district = rawDistrict
@@ -96,8 +123,11 @@ serve(async (req) => {
       : norm.district;
 
     return new Response(JSON.stringify({
+      ok: true,
       city: norm.city,
+      ville: norm.city,
       district,
+      quartier: district,
       country,
       display_name,
       lat: outLat ?? norm.lat,
@@ -107,8 +137,8 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
-    return new Response(JSON.stringify({ error: e.message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return new Response(JSON.stringify({ ok: false, error: e.message }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

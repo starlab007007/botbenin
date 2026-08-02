@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
@@ -13,6 +14,18 @@ import 'live_notification_service.dart';
 import 'live_offline_store.dart';
 import 'live_session.dart';
 import 'live_status_service.dart';
+
+final Random _waouhSecureRandom = Random.secure();
+
+String _waouhUuidV4() {
+  final bytes = List<int>.generate(16, (_) => _waouhSecureRandom.nextInt(256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  final hex = bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+  return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+      '${hex.substring(12, 16)}-${hex.substring(16, 20)}-'
+      '${hex.substring(20)}';
+}
 
 class LiveWaouhController extends ChangeNotifier {
   LiveWaouhController(this.auth)
@@ -38,8 +51,10 @@ class LiveWaouhController extends ChangeNotifier {
   late final LiveConnectivity connectivity;
 
   LiveLocation _position = const LiveLocation();
+  DateTime? _positionAt;
   String? _composerSeed;
   Map<String, dynamic> _composerMeta = const {};
+  String? _pendingMeetKey;
   String? error;
   bool busy = false;
   bool syncing = false;
@@ -47,6 +62,7 @@ class LiveWaouhController extends ChangeNotifier {
 
   LiveLocation get position => _position;
   bool get isOnline => connectivity.online;
+  String newIdempotencyKey() => _waouhUuidV4();
 
   Future<void> initialize() async {
     await session.initialize();
@@ -56,6 +72,7 @@ class LiveWaouhController extends ChangeNotifier {
     pendingActions = await offline.pendingCount();
     if (isOnline && pendingActions > 0) await syncPending();
     notifyListeners();
+    unawaited(useDeviceLocation());
   }
 
   Future<void> setCity(String city) async {
@@ -67,6 +84,7 @@ class LiveWaouhController extends ChangeNotifier {
 
   Future<void> useDeviceLocation() async {
     _position = await location.requestCurrent();
+    if (_position.available) _positionAt = DateTime.now();
     notifyListeners();
   }
 
@@ -105,24 +123,32 @@ class LiveWaouhController extends ChangeNotifier {
     return value;
   }
 
+  String? takePendingMeetKey() {
+    final value = _pendingMeetKey;
+    _pendingMeetKey = null;
+    return value;
+  }
+
   Stream<List<LiveMessage>> mainMessages() => _poll(
         _loadMainMessages,
-        const Duration(seconds: 4),
+        const Duration(seconds: 1),
       );
 
-  Stream<List<LiveConversation>> conversations({bool archived = false}) => _poll(
+  Stream<List<LiveConversation>> conversations({bool archived = false}) =>
+      _poll(
         () => _loadConversations(archived),
-        const Duration(seconds: 5),
+        const Duration(seconds: 3),
       );
 
-  Stream<List<LiveMessage>> conversationMessages(String conversationId) => _poll(
+  Stream<List<LiveMessage>> conversationMessages(String conversationId) =>
+      _poll(
         () => _loadConversationMessages(conversationId),
-        const Duration(seconds: 4),
+        const Duration(seconds: 1),
       );
 
   Stream<List<LiveMatch>> matches({bool archived = false}) => _poll(
         () => notifications.loadMatches(auth.user?.id, archived: archived),
-        const Duration(seconds: 5),
+        const Duration(seconds: 2),
       );
 
   Stream<List<LiveStatus>> statuses({String? type}) => _poll(
@@ -139,13 +165,25 @@ class LiveWaouhController extends ChangeNotifier {
     required String text,
     List<LiveAttachment> attachments = const [],
     Map<String, dynamic> meta = const {},
-  }) => _guard(() async {
+  }) =>
+      _guard(() async {
         final value = text.trim();
         if (value.isEmpty && attachments.isEmpty) return;
         final count = await session.guestMessageCount;
         if (!auth.signedIn && count >= 10) {
-          throw StateError('Connectez-vous pour continuer apres 10 messages invites.');
+          throw StateError(
+              'Connectez-vous pour continuer apres 10 messages invites.');
         }
+        final locationRelevant = meta['intent'] == 'sell' ||
+            meta['intent'] == 'buy' ||
+            RegExp(
+              r'\b(cherche|recherche|acheter|achète|vends|vendre)\b',
+              caseSensitive: false,
+            ).hasMatch(value);
+        final staleLocation = _positionAt == null ||
+            DateTime.now().difference(_positionAt!) >
+                const Duration(minutes: 2);
+        if (locationRelevant && staleLocation) await useDeviceLocation();
         final payload = await _mainPayload(value, attachments, meta);
         if (!isOnline) {
           await _queueMain(payload);
@@ -165,15 +203,27 @@ class LiveWaouhController extends ChangeNotifier {
     required LiveMatch match,
     required String text,
     List<LiveAttachment> attachments = const [],
-  }) => sendMain(
+    Map<String, dynamic> meta = const {},
+  }) =>
+      sendMain(
         text: text,
         attachments: attachments,
         meta: {
-          'article_id': match.articleId,
+          if (!match.isSearch) 'article_id': match.articleId,
+          'thread_type': match.threadType,
+          if (match.searchRequestId != null)
+            'search_request_id': match.searchRequestId,
           'buyer_profile_id': match.buyerProfileId,
           'counterpart_user_id': match.counterpartUserId,
+          'thread_id': match.threadId,
+          'buyer_user_id': match.buyerUserId,
+          'seller_user_id': match.sellerUserId,
+          'negotiation_id': match.negotiationId,
+          'deal_id': match.dealId,
+          'transaction_id': match.transactionId,
           'role': match.role,
           'match_key': match.key,
+          ...meta,
         },
       );
 
@@ -181,7 +231,8 @@ class LiveWaouhController extends ChangeNotifier {
         final value = text.trim();
         if (value.isEmpty) return;
         if (!isOnline) {
-          await offline.enqueue('send_conversation', {'conversation_id': id, 'text': value});
+          await offline.enqueue(
+              'send_conversation', {'conversation_id': id, 'text': value});
           await _refreshPendingCount();
           return;
         }
@@ -193,14 +244,16 @@ class LiveWaouhController extends ChangeNotifier {
           );
         } catch (exception) {
           if (!_isOfflineFailure(exception)) rethrow;
-          await offline.enqueue('send_conversation', {'conversation_id': id, 'text': value});
+          await offline.enqueue(
+              'send_conversation', {'conversation_id': id, 'text': value});
           await _refreshPendingCount();
         }
       });
 
   Future<void> archiveConversation(String id) => _guard(() async {
         if (!isOnline) {
-          await offline.enqueue('archive_conversation', {'conversation_id': id});
+          await offline
+              .enqueue('archive_conversation', {'conversation_id': id});
           await _refreshPendingCount();
           return;
         }
@@ -208,7 +261,8 @@ class LiveWaouhController extends ChangeNotifier {
           await chat.archiveConversation(id);
         } catch (exception) {
           if (!_isOfflineFailure(exception)) rethrow;
-          await offline.enqueue('archive_conversation', {'conversation_id': id});
+          await offline
+              .enqueue('archive_conversation', {'conversation_id': id});
           await _refreshPendingCount();
         }
       });
@@ -223,11 +277,16 @@ class LiveWaouhController extends ChangeNotifier {
     required num? price,
     required String locationText,
     required List<XFile> photos,
-  }) => _guard(() async {
+  }) =>
+      _guard(() async {
         final user = auth.user;
-        if (user == null) throw StateError('Connectez-vous pour publier un statut.');
+        if (user == null) {
+          throw StateError('Connectez-vous pour publier un statut.');
+        }
+        final idempotencyKey = _waouhUuidV4();
         if (!isOnline) {
-          final paths = await media.persistFiles(photos, folder: 'statuses/${user.id}');
+          final paths =
+              await media.persistFiles(photos, folder: 'statuses/${user.id}');
           await offline.enqueue('publish_status', {
             'type': type,
             'title': title,
@@ -238,8 +297,10 @@ class LiveWaouhController extends ChangeNotifier {
             'lng': _position.longitude,
             'user_id': user.id,
             'author_name': auth.profile?.fullName ?? user.email,
-            'author_avatar_url': auth.profile?.avatarUrl ?? user.userMetadata?['avatar_url']?.toString(),
+            'author_avatar_url': auth.profile?.avatarUrl ??
+                user.userMetadata?['avatar_url']?.toString(),
             'photo_paths': paths,
+            'idempotency_key': idempotencyKey,
           });
           await _refreshPendingCount();
           return;
@@ -255,12 +316,15 @@ class LiveWaouhController extends ChangeNotifier {
             longitude: _position.longitude,
             userId: user.id,
             authorName: auth.profile?.fullName ?? user.email,
-            authorAvatarUrl: auth.profile?.avatarUrl ?? user.userMetadata?['avatar_url']?.toString(),
+            authorAvatarUrl: auth.profile?.avatarUrl ??
+                user.userMetadata?['avatar_url']?.toString(),
             photos: photos,
+            idempotencyKey: idempotencyKey,
           );
         } catch (exception) {
           if (!_isOfflineFailure(exception)) rethrow;
-          final paths = await media.persistFiles(photos, folder: 'statuses/${user.id}');
+          final paths =
+              await media.persistFiles(photos, folder: 'statuses/${user.id}');
           await offline.enqueue('publish_status', {
             'type': type,
             'title': title,
@@ -271,8 +335,10 @@ class LiveWaouhController extends ChangeNotifier {
             'lng': _position.longitude,
             'user_id': user.id,
             'author_name': auth.profile?.fullName ?? user.email,
-            'author_avatar_url': auth.profile?.avatarUrl ?? user.userMetadata?['avatar_url']?.toString(),
+            'author_avatar_url': auth.profile?.avatarUrl ??
+                user.userMetadata?['avatar_url']?.toString(),
             'photo_paths': paths,
+            'idempotency_key': idempotencyKey,
           });
           await _refreshPendingCount();
         }
@@ -286,10 +352,16 @@ class LiveWaouhController extends ChangeNotifier {
             : 'Je reponds a votre annonce « ${status.title} ». ';
     setComposerSeed(text, meta: {
       'source': 'flutter_status_reply',
+      'auto_send': status.type == 'sell' &&
+          status.articleId != null &&
+          status.articleId!.isNotEmpty,
+      if (status.type == 'sell') 'action': 'interested',
       'status_id': status.id,
       'status_type': status.type,
-      if (status.articleId != null && status.articleId!.isNotEmpty) 'article_id': status.articleId,
-      if (status.articleId != null && status.articleId!.isNotEmpty) 'role': 'buyer',
+      if (status.articleId != null && status.articleId!.isNotEmpty)
+        'article_id': status.articleId,
+      if (status.articleId != null && status.articleId!.isNotEmpty)
+        'role': 'buyer',
     });
   }
 
@@ -344,6 +416,7 @@ class LiveWaouhController extends ChangeNotifier {
       'id': item.id,
       'notification_type': item.type ?? 'match',
       'payload': item.payload,
+      'thread_id': item.threadId,
       'article_id': item.articleId,
       'sent_at': item.createdAt.toIso8601String(),
       'opened': item.read,
@@ -358,14 +431,17 @@ class LiveWaouhController extends ChangeNotifier {
       await offline.cacheMessages(scope, remote);
       return _mergeMessages(remote, await _pendingMainMessages());
     } catch (_) {
-      return _mergeMessages(await offline.messages(scope), await _pendingMainMessages());
+      return _mergeMessages(
+          await offline.messages(scope), await _pendingMainMessages());
     }
   }
 
   Future<List<LiveConversation>> _loadConversations(bool archived) async {
-    final scope = '${await session.sessionId}_${archived ? 'archived' : 'active'}';
+    final scope =
+        '${await session.sessionId}_${archived ? 'archived' : 'active'}';
     try {
-      final remote = await chat.loadConversations(authUserId: auth.user?.id, archived: archived);
+      final remote = await chat.loadConversations(
+          authUserId: auth.user?.id, archived: archived);
       await offline.cacheConversations(scope, remote);
       return remote;
     } catch (_) {
@@ -410,13 +486,18 @@ class LiveWaouhController extends ChangeNotifier {
     String text,
     List<LiveAttachment> attachments,
     Map<String, dynamic> meta,
-  ) async => {
+  ) async =>
+      {
         'text': text,
         'attachments': attachments.map((item) => item.toJson()).toList(),
         'city': await city,
         'lat': _position.latitude,
         'lng': _position.longitude,
-        'meta': meta,
+        'meta': {
+          'idempotency_key': meta['idempotency_key'] ?? _waouhUuidV4(),
+          'action': meta['action'] ?? meta['intent'] ?? 'message',
+          ...meta,
+        },
       };
 
   Future<void> _sendMainPayload(Map<String, dynamic> payload) async {
@@ -433,7 +514,7 @@ class LiveWaouhController extends ChangeNotifier {
         folder: 'web/$sid',
       ));
     }
-    await chat.sendMainMessage(
+    final response = await chat.sendMainMessage(
       text: liveText(payload['text']),
       attachments: resolved,
       authUserId: auth.user?.id,
@@ -442,6 +523,12 @@ class LiveWaouhController extends ChangeNotifier {
       longitude: (payload['lng'] as num?)?.toDouble(),
       meta: liveMap(payload['meta']),
     );
+    final meta = liveMap(payload['meta']);
+    final action = liveText(meta['action']).toLowerCase();
+    final threadId = liveText(response['thread_id']);
+    if (action == 'interested' && threadId.isNotEmpty) {
+      _pendingMeetKey = 'meet_$threadId';
+    }
   }
 
   Future<void> _queueMain(Map<String, dynamic> payload) async {
@@ -454,7 +541,8 @@ class LiveWaouhController extends ChangeNotifier {
     return actions.where((item) => item.type == 'send_main').map((item) {
       final attachments = (item.payload['attachments'] as List? ?? const [])
           .whereType<Map>()
-          .map((value) => LiveAttachment.fromJson(Map<String, dynamic>.from(value)))
+          .map((value) =>
+              LiveAttachment.fromJson(Map<String, dynamic>.from(value)))
           .toList();
       return LiveMessage(
         id: 'pending_${item.id}',
@@ -467,7 +555,8 @@ class LiveWaouhController extends ChangeNotifier {
     }).toList();
   }
 
-  List<LiveMessage> _mergeMessages(List<LiveMessage> source, List<LiveMessage> pending) {
+  List<LiveMessage> _mergeMessages(
+      List<LiveMessage> source, List<LiveMessage> pending) {
     final values = <String, LiveMessage>{
       for (final item in source) item.id: item,
       for (final item in pending) item.id: item,
@@ -494,7 +583,9 @@ class LiveWaouhController extends ChangeNotifier {
       case 'mark_all_notifications_read':
         await notifications.markAllRead(auth.user?.id);
       case 'publish_status':
-        final paths = (payload['photo_paths'] as List? ?? const []).map((item) => XFile('$item')).toList();
+        final paths = (payload['photo_paths'] as List? ?? const [])
+            .map((item) => XFile('$item'))
+            .toList();
         await status.publish(
           type: liveText(payload['type']),
           title: liveText(payload['title']),
@@ -507,6 +598,10 @@ class LiveWaouhController extends ChangeNotifier {
           authorName: payload['author_name']?.toString(),
           authorAvatarUrl: payload['author_avatar_url']?.toString(),
           photos: paths,
+          idempotencyKey: liveText(
+            payload['idempotency_key'],
+            _waouhUuidV4(),
+          ),
         );
       default:
         throw StateError('Action locale inconnue : ${action.type}');
@@ -534,7 +629,8 @@ class LiveWaouhController extends ChangeNotifier {
 
   String _humanizeError(Object error) {
     final value = error.toString();
-    if (_isOfflineFailure(error)) return 'Connexion indisponible. Vos actions restent en attente.';
+    if (_isOfflineFailure(error))
+      return 'Connexion indisponible. Vos actions restent en attente.';
     return value;
   }
 

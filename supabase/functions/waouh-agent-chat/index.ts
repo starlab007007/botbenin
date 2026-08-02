@@ -35,7 +35,7 @@ serve(async (req) => {
     const admin = createClient(url, service);
     const { data: agent } = await admin.from("waouh_ai_agents").select("id,user_id").eq("id", agentId).maybeSingle();
     if (!agent || agent.user_id !== authData.user.id) return json({ ok: false, code: "AGENT_NOT_FOUND", error: "Agent introuvable" }, 404);
-    if (!Deno.env.get("LOVABLE_API_KEY")) return json({ ok: false, code: "AI_KEY_MISSING", error: "Service IA non configuré" }, 503);
+    if (!Deno.env.get("GEMINI_API_KEY")) return json({ ok: false, code: "AI_KEY_MISSING", error: "Service IA Gemini non configuré" }, 503);
 
     const history = Array.isArray(body.history)
       ? body.history.slice(-8).map((item: any) => ({ role: String(item?.role || "user"), content: String(item?.content || "") }))
@@ -49,7 +49,7 @@ serve(async (req) => {
     return json({ ok: true, ...result });
   } catch (error) {
     const text = error instanceof Error ? error.message : String(error);
-    const code = text.includes("LOVABLE_API_KEY") ? "AI_KEY_MISSING" : "AI_PROVIDER_ERROR";
+    const code = text.includes("GEMINI_API_KEY") ? "AI_KEY_MISSING" : "AI_PROVIDER_ERROR";
     console.error("waouh-agent-chat", error);
     return json({ ok: false, code, error: text }, 400);
   }

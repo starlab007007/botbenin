@@ -5,10 +5,21 @@ import 'live_models.dart';
 import 'live_session.dart';
 
 class LiveNotificationService {
-  const LiveNotificationService(this.chat, this.session);
+  LiveNotificationService(this.chat, this.session);
 
   final LiveChatService chat;
   final LiveSessionStore session;
+  List<LiveMatch> _cachedMatches = const <LiveMatch>[];
+  DateTime? _cachedMatchesAt;
+  String? _cachedMatchesScope;
+  final Map<String, Future<List<LiveMatch>>> _matchesInFlight = {};
+
+  LiveMatch? cachedMatch(String key) {
+    for (final item in _cachedMatches) {
+      if (item.key == key) return item;
+    }
+    return null;
+  }
 
   Future<List<LiveNotification>> load(String? authUserId) async {
     final scope = await _notificationScope(authUserId);
@@ -40,6 +51,7 @@ class LiveNotificationService {
             type: template,
             articleId: payload['article_id']?.toString(),
             conversationId: payload['conversation_id']?.toString(),
+            threadId: payload['thread_id']?.toString(),
             payload: payload,
           );
           if (item.id.isNotEmpty) byId[item.id] = item;
@@ -54,7 +66,7 @@ class LiveNotificationService {
     if (scope.unifiedOrClause.isNotEmpty) {
       final rows = await chat.client
           .from('waouh_notifications')
-          .select('id,notification_type,payload,photos,sent_at,article_id,opened,web_session_id,user_id')
+          .select('id,thread_id,notification_type,payload,photos,sent_at,article_id,opened,web_session_id,user_id')
           .or(scope.unifiedOrClause)
           .order('sent_at', ascending: false)
           .limit(150);
@@ -73,6 +85,7 @@ class LiveNotificationService {
           type: template,
           articleId: (row['article_id'] ?? payload['article_id'])?.toString(),
           conversationId: payload['conversation_id']?.toString(),
+          threadId: (row['thread_id'] ?? payload['thread_id'])?.toString(),
           payload: payload,
         );
         if (item.id.isNotEmpty) byId[item.id] = item;
@@ -101,34 +114,94 @@ class LiveNotificationService {
         .or(scope.unifiedOrClause);
   }
 
-  Future<List<LiveMatch>> loadMatches(String? authUserId, {bool archived = false}) async {
+  Future<List<LiveMatch>> loadMatches(String? authUserId,
+      {bool archived = false, bool force = false}) async {
     final scope = await _matchScope(authUserId);
+    final cacheKey = '${scope.storageKey}:${authUserId ?? ''}';
+    final cacheFresh = !force &&
+        _cachedMatchesScope == cacheKey &&
+        _cachedMatchesAt != null &&
+        DateTime.now().difference(_cachedMatchesAt!) <
+            const Duration(milliseconds: 900);
+    List<LiveMatch> all;
+    if (cacheFresh) {
+      all = _cachedMatches;
+    } else {
+      final inFlight = _matchesInFlight.putIfAbsent(cacheKey, () => _fetchMatches(scope).then((values) {
+        _cachedMatches = values;
+        _cachedMatchesAt = DateTime.now();
+        _cachedMatchesScope = cacheKey;
+        return values;
+      }).whenComplete(() => _matchesInFlight.remove(cacheKey)));
+      all = await inFlight;
+    }
+    final archivedKeys = await _archivedKeys(scope.storageKey);
+    return all
+        .where((item) => archived
+            ? archivedKeys.contains(item.key)
+            : !archivedKeys.contains(item.key))
+        .toList(growable: false);
+  }
+
+  Future<List<LiveMatch>> _fetchMatches(_ViewerScope scope) async {
     final rows = await chat.client
         .from('waouh_notifications')
-        .select('id,notification_type,payload,photos,sent_at,article_id,opened,user_id,web_session_id')
+        .select('id,thread_id,notification_type,payload,photos,sent_at,article_id,opened,user_id,web_session_id')
         .or(scope.unifiedOrClause)
         .order('sent_at', ascending: false)
         .limit(300);
 
-    const matchTypes = {'match', 'match_buyer', 'match_seller', 'new_buyer', 'radar_match'};
+    const matchTypes = {
+      'match',
+      'match_buyer',
+      'match_seller',
+      'new_buyer',
+      'radar_match',
+      'negotiation_open',
+      'deal_created',
+      'deal_accepted',
+      'deal_seller',
+      'deal_buyer',
+      'deal_assigned',
+      'deal_eta_updated',
+      'deal_picked_up',
+      'deal_delivered',
+      'deal_payment_request',
+      'deal_paid',
+      'deal_cancelled',
+      'payment_link',
+      'contact_exchange',
+      'search_thread',
+    };
     final merged = <String, LiveMatch>{};
     for (final raw in rows as List) {
       final row = Map<String, dynamic>.from(raw as Map);
       final payload = liveMap(row['payload']);
       final type = liveText(row['notification_type']).toLowerCase();
       final articleId = liveText(row['article_id'] ?? payload['article_id']);
-      if (!matchTypes.contains(type) || articleId.isEmpty) continue;
-      row['article_id'] = articleId;
+      final threadId = liveText(row['thread_id'] ?? payload['thread_id']);
+      if (threadId.isNotEmpty && payload['thread_id'] == null) {
+        row['payload'] = <String, dynamic>{...payload, 'thread_id': threadId};
+      }
+      final isSearch = payload['thread_type'] == 'search' &&
+          liveText(payload['search_request_id']).isNotEmpty;
+      if ((!isSearch && articleId.isEmpty) ||
+          (!matchTypes.contains(type) && threadId.isEmpty)) {
+        continue;
+      }
+      row['article_id'] = isSearch
+          ? liveText(payload['search_request_id'])
+          : articleId;
       final item = LiveMatch.fromNotification(row);
       merged[item.key] = merged[item.key]?.merge(item) ?? item;
     }
 
-    await _addMessageFallback(merged, scope);
+    // Les notifications V18 portent déjà l'identité complète du Meet. Le
+    // fallback historique exige deux requêtes supplémentaires et n'est utile
+    // que sur une ancienne base ne possédant encore aucune notification Meet.
+    if (merged.isEmpty) await _addMessageFallback(merged, scope);
 
-    final archivedKeys = await _archivedKeys(scope.storageKey);
-    final values = merged.values
-        .where((item) => archived ? archivedKeys.contains(item.key) : !archivedKeys.contains(item.key))
-        .toList();
+    final values = merged.values.toList();
     values.sort((a, b) => b.lastAt.compareTo(a.lastAt));
     return values;
   }
@@ -141,7 +214,7 @@ class LiveNotificationService {
       final since = DateTime.now().subtract(const Duration(days: 30)).toUtc().toIso8601String();
       final rows = await chat.client
           .from('waouh_messages')
-          .select('article_id,created_at,meta,user_id,web_session_id')
+          .select('thread_id,article_id,created_at,meta,user_id,web_session_id')
           .or('article_id.not.is.null,meta->>article_id.not.is.null')
           .or(scope.unifiedOrClause)
           .gte('created_at', since)
@@ -155,13 +228,32 @@ class LiveNotificationService {
         final articleId = liveText(row['article_id'] ?? meta['article_id']);
         if (articleId.isEmpty) continue;
         final role = meta['role'] == 'seller' ? 'seller' : 'buyer';
-        final counterpart = (meta['counterpart_user_id'] ?? meta['buyer_user_id'])?.toString();
-        final key = liveMatchKey(articleId, role, role == 'seller' ? counterpart : null);
+        final threadId = (row['thread_id'] ?? meta['thread_id'])?.toString();
+        final buyerUserId = meta['buyer_user_id']?.toString();
+        final sellerUserId = meta['seller_user_id']?.toString();
+        final counterpart = role == 'seller'
+            ? (buyerUserId ?? meta['counterpart_user_id'])?.toString()
+            : (sellerUserId ?? meta['counterpart_user_id'])?.toString();
+        // Une ligne ancienne sans thread ni contrepartie n'est pas assez
+        // précise pour fabriquer une fenêtre sans risque de mélange.
+        if ((threadId == null || threadId.isEmpty) &&
+            (counterpart == null || counterpart.isEmpty)) {
+          continue;
+        }
+        final key = liveMatchKey(articleId, role, counterpart, threadId);
         if (merged.containsKey(key) || stubs.containsKey(key)) continue;
         stubs[key] = {
           'articleId': articleId,
           'role': role,
           'counterpart': counterpart,
+          'threadId': threadId,
+          'buyerUserId': buyerUserId,
+          'sellerUserId': sellerUserId,
+          'source': meta['source'],
+          'counterpartLabel': meta['counterpart_name'],
+          'negotiationId': meta['negotiation_id'] ?? meta['neg_id'],
+          'dealId': meta['deal_id'],
+          'transactionId': meta['transaction_id'],
           'createdAt': row['created_at'],
           'buyerProfileId': meta['buyer_profile_id'],
         };
@@ -189,6 +281,14 @@ class LiveNotificationService {
           lastAt: liveDate(stub['createdAt']),
           buyerProfileId: stub['buyerProfileId']?.toString(),
           counterpartUserId: stub['counterpart']?.toString(),
+          threadId: stub['threadId']?.toString(),
+          buyerUserId: stub['buyerUserId']?.toString(),
+          sellerUserId: stub['sellerUserId']?.toString(),
+          source: stub['source']?.toString(),
+          counterpartLabel: stub['counterpartLabel']?.toString(),
+          negotiationId: stub['negotiationId']?.toString(),
+          dealId: stub['dealId']?.toString(),
+          transactionId: stub['transactionId']?.toString(),
           price: article['price'] is num ? article['price'] as num : num.tryParse('${article['price'] ?? ''}'),
           city: article['city']?.toString(),
           photo: photos.isEmpty ? null : photos.first,
@@ -201,16 +301,14 @@ class LiveNotificationService {
   }
 
   Future<void> setMatchArchived(LiveMatch item, bool archived) async {
-    // React persists match archives per device session, including for logged-in
-    // users. The same key keeps React and Flutter archive behaviour aligned.
-    final sid = await session.sessionId;
-    final values = await _archivedKeys(sid);
+    final scope = await _matchScope(chat.client.auth.currentUser?.id);
+    final values = await _archivedKeys(scope.storageKey);
     if (archived) {
       values.add(item.key);
     } else {
       values.remove(item.key);
     }
-    await _saveArchivedKeys(sid, values);
+    await _saveArchivedKeys(scope.storageKey, values);
   }
 
   Future<_ViewerScope> _notificationScope(String? authUserId) async {
@@ -227,7 +325,7 @@ class LiveNotificationService {
           .toList();
       final clause = ids.isEmpty ? '' : 'user_id.in.(${ids.join(',')})';
       final queue = ids.isEmpty ? '' : 'to_user_id.in.(${ids.join(',')})';
-      return _ViewerScope(unifiedOrClause: clause, queueOrClause: queue, storageKey: sid);
+      return _ViewerScope(unifiedOrClause: clause, queueOrClause: queue, storageKey: 'auth_$authUserId');
     }
 
     final ids = await chat.waouhUserIds(null);
@@ -243,6 +341,16 @@ class LiveNotificationService {
   Future<_ViewerScope> _matchScope(String? authUserId) async {
     final sid = await session.sessionId;
     final ids = await chat.waouhUserIds(authUserId);
+    if (authUserId != null && authUserId.isNotEmpty) {
+      final clause = ids.isEmpty
+          ? 'user_id.eq.00000000-0000-0000-0000-000000000000'
+          : 'user_id.in.(${ids.join(',')})';
+      return _ViewerScope(
+        unifiedOrClause: clause,
+        queueOrClause: '',
+        storageKey: 'auth_$authUserId',
+      );
+    }
     final clauses = <String>['web_session_id.eq.$sid'];
     if (ids.isNotEmpty) clauses.add('user_id.in.(${ids.join(',')})');
     return _ViewerScope(unifiedOrClause: clauses.join(','), queueOrClause: '', storageKey: sid);

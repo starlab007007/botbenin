@@ -1,1 +1,0 @@
-UPDATE public.waouh_users SET phone_number = '22997000001' WHERE web_session_id = 'test-seller-lenovo-001';

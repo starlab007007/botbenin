@@ -85,7 +85,7 @@ serve(async (req) => {
       top_products: [...productCounts.entries()].filter(([, count]) => count > 0).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([name, count]) => ({ name, count })),
     };
     if (mode !== "query" || !question) return json(overview);
-    if (!Deno.env.get("LOVABLE_API_KEY")) return json({ ok: false, error: "Service IA non configuré" }, 503);
+    if (!Deno.env.get("GEMINI_API_KEY")) return json({ ok: false, error: "Service IA Gemini non configuré" }, 503);
     const answer = await chatCompletion({
       system: "Tu es un analyste business. Réponds en français en 2 à 5 lignes. Base-toi strictement sur les chiffres et extraits fournis.",
       messages: [{ role: "user", content: JSON.stringify({ question, overview, agent: { name: agent.name, sector: agent.sector }, samples: rows.slice(0, 20).map((row: any) => ({ contact: row.wa_contact_phone, messages: (row.messages || []).slice(-3) })) }) }],

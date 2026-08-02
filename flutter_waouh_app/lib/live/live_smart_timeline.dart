@@ -44,7 +44,9 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
     if (newest.id == _lastMessageId) return;
     _lastMessageId = newest.id;
     if (_followTail || newest.outgoing) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom(true));
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _scrollToBottom(true),
+      );
     } else {
       setState(() => _unseen += 1);
     }
@@ -64,11 +66,19 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
     if (!_scrollController.hasClients) return;
     final target = _scrollController.position.maxScrollExtent;
     if (animated) {
-      await _scrollController.animateTo(target, duration: const Duration(milliseconds: 320), curve: Curves.easeOutCubic);
+      await _scrollController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+      );
     } else {
       _scrollController.jumpTo(target);
     }
-    if (mounted) setState(() { _followTail = true; _unseen = 0; });
+    if (mounted)
+      setState(() {
+        _followTail = true;
+        _unseen = 0;
+      });
   }
 
   @override
@@ -80,45 +90,111 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.messages.isEmpty) {
-      return Center(child: Padding(padding: const EdgeInsets.all(30), child: Text(widget.emptyMessage, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, color: Color(0xFF60746E)))));
-    }
-    return Stack(children: [
-      ListView.builder(
-        controller: _scrollController,
-        padding: widget.padding,
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        itemCount: widget.messages.length + (widget.showAssistantHint ? 1 : 0),
-        itemBuilder: (_, index) {
-          if (index == widget.messages.length) return const _AssistantHint();
-          return LiveMessageBubble(message: widget.messages[index], onPayload: widget.onPayload);
-        },
-      ),
-      if (_unseen > 0)
-        Positioned(
-          right: 16,
-          bottom: 16,
-          child: FilledButton.icon(
-            onPressed: () => _scrollToBottom(true),
-            icon: const Icon(Icons.arrow_downward_rounded, size: 18),
-            label: Text(_unseen == 1 ? 'Nouveau message' : '$_unseen nouveaux messages'),
-            style: FilledButton.styleFrom(minimumSize: const Size(0, 44), padding: const EdgeInsets.symmetric(horizontal: 14)),
+    if (widget.messages.isEmpty && !widget.showAssistantHint) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(30),
+          child: Text(
+            widget.emptyMessage,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 16, color: Color(0xFF60746E)),
           ),
         ),
-    ]);
+      );
+    }
+    return Stack(
+      children: [
+        ListView.builder(
+          controller: _scrollController,
+          padding: widget.padding,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          itemCount:
+              widget.messages.length + (widget.showAssistantHint ? 1 : 0),
+          itemBuilder: (_, index) {
+            if (index == widget.messages.length)
+              return _AssistantHint(
+                searching: _isSearchRequest(widget.messages),
+              );
+            return LiveMessageBubble(
+              message: widget.messages[index],
+              onPayload: widget.onPayload,
+            );
+          },
+        ),
+        if (_unseen > 0)
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: FilledButton.icon(
+              onPressed: () => _scrollToBottom(true),
+              icon: const Icon(Icons.arrow_downward_rounded, size: 18),
+              label: Text(
+                _unseen == 1 ? 'Nouveau message' : '$_unseen nouveaux messages',
+              ),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 44),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
 
 class _AssistantHint extends StatelessWidget {
-  const _AssistantHint();
+  const _AssistantHint({required this.searching});
+  final bool searching;
 
   @override
-  Widget build(BuildContext context) => const Padding(
-    padding: EdgeInsets.only(top: 4, bottom: 12),
-    child: Row(children: [
-      Icon(Icons.auto_awesome_outlined, size: 15, color: Color(0xFF60746E)),
-      SizedBox(width: 6),
-      Text('WAOUH prepare la reponse...', style: TextStyle(color: Color(0xFF60746E), fontSize: 12.5, fontWeight: FontWeight.w600)),
-    ]),
-  );
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 4, bottom: 12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFEFFFF7),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFCBEBDD)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFF08756A),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Flexible(
+                child: Text(
+                  searching
+                      ? 'WAOUH recherche et organise les résultats…'
+                      : 'WAOUH analyse votre message…',
+                  style: const TextStyle(
+                    color: Color(0xFF075E54),
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+bool _isSearchRequest(List<LiveMessage> messages) {
+  for (final message in messages.reversed) {
+    if (!message.outgoing) continue;
+    final value = message.text.toLowerCase();
+    return value.contains('cherche') ||
+        value.contains('trouve') ||
+        value.contains('acheter') ||
+        value.contains('où') ||
+        value.contains('ou ');
+  }
+  return false;
 }

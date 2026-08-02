@@ -12,6 +12,7 @@ import '../main.dart' as legacy;
 import 'live_controller.dart';
 import 'live_radar_models.dart';
 import 'live_radar_service.dart';
+import 'live_widgets.dart';
 
 const _radarFiltersStorageKey = 'waouh_radar_filters_v1';
 const _radarPauseStorageKey = 'waouh_radar_pause_reason_v1';
@@ -189,20 +190,30 @@ class _LiveRadarFeedState extends State<LiveRadarFeed> with WidgetsBindingObserv
       _RadarIntent.interest => 'Je suis intéressé par « ${item.title} » à $distance. ',
       _RadarIntent.negotiate => 'Je souhaite négocier « ${item.title} » à $distance. ',
       _RadarIntent.buy => 'Je veux acheter « ${item.title} » à $distance. ',
+      _RadarIntent.propose => 'Je vends un article correspondant à « ${item.title} » à $distance. ',
     };
     final intentLabel = switch (intent) {
       _RadarIntent.interest => 'Intéressé',
       _RadarIntent.negotiate => 'Négocier',
       _RadarIntent.buy => 'Acheter',
+      _RadarIntent.propose => 'Proposer',
     };
     final controller = context.read<LiveWaouhController>();
     controller.setComposerSeed(text, meta: {
-      'source': 'flutter_radar',
+      'source': item.source == 'catalog'
+          ? 'partner'
+          : item.source == 'status'
+              ? 'status'
+              : 'radar',
+      'origin_surface': 'flutter_radar',
       'auto_send': true,
+      if (intent != _RadarIntent.propose) 'action': 'interested',
       'radar_item_id': item.id,
+      'source_id': item.sourceId,
       'radar_source': item.source,
       'radar_intent': intent.name,
-      'article_id': item.articleId,
+      if (item.type != LiveRadarItemType.buy) 'article_id': item.articleId,
+      if (item.source == 'status') 'status_id': item.sourceId,
       'title': item.title,
       'distance': distance,
       if (item.priceMin != null) 'price': item.priceMin,
@@ -642,11 +653,25 @@ class _MiniCount extends StatelessWidget {
   Widget build(BuildContext context) => Container(width: 15, height: 15, alignment: Alignment.center, decoration: const BoxDecoration(color: legacy.WaouhColors.red, shape: BoxShape.circle), child: Text('$value', style: const TextStyle(color: Colors.white, fontSize: 8.5, fontWeight: FontWeight.w900)));
 }
 
-enum _RadarIntent { interest, negotiate, buy }
+enum _RadarIntent { interest, negotiate, buy, propose }
 
 class _RadarItemSheet extends StatelessWidget {
   const _RadarItemSheet({required this.item});
   final LiveRadarItem item;
+
+  void _select(BuildContext context, String payload) {
+    final action = payload.toLowerCase();
+    Navigator.pop(
+      context,
+      action.startsWith('negocier')
+          ? _RadarIntent.negotiate
+          : action.startsWith('proposer') || action.startsWith('contacter')
+              ? _RadarIntent.propose
+          : action.startsWith('acheter')
+              ? _RadarIntent.buy
+              : _RadarIntent.interest,
+    );
+  }
 
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -656,39 +681,12 @@ class _RadarItemSheet extends StatelessWidget {
           decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(26))),
           child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Center(child: Container(margin: const EdgeInsets.only(top: 10), width: 42, height: 4, decoration: BoxDecoration(color: const Color(0xFFC9D8D2), borderRadius: BorderRadius.circular(99)))),
-            if (item.photoUrl != null && item.photoUrl!.isNotEmpty)
-              Stack(children: [
-                SizedBox(height: 220, width: double.infinity, child: _RadarImage(url: item.photoUrl)),
-                Positioned(left: 14, top: 14, child: _DistancePill(label: item.distanceLabel, color: Color(item.ring.colorValue))),
-                Positioned(right: 14, top: 14, child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.black.withOpacity(.65), borderRadius: BorderRadius.circular(999)), child: Text(item.typeLabel, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800)))),
-              ]),
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 22),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(item.title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, height: 1.16)),
-                if (item.priceLabel.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(item.priceLabel, style: const TextStyle(color: legacy.WaouhColors.jade, fontSize: 18, fontWeight: FontWeight.w900)),
-                ],
-                if ((item.description ?? '').trim().isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Text(item.description!, maxLines: 4, overflow: TextOverflow.ellipsis, style: const TextStyle(color: legacy.WaouhColors.muted, height: 1.35)),
-                ],
-                const SizedBox(height: 14),
-                Wrap(spacing: 14, runSpacing: 8, children: [
-                  _Meta(icon: Icons.location_on_outlined, label: '${item.city ?? '—'}${item.district == null ? '' : ' · ${item.district}'}'),
-                  _Meta(icon: Icons.schedule_outlined, label: 'Mis à jour il y a ${liveRadarFreshness(item.freshnessMs)}'),
-                  if (item.sellerName != null && item.sellerName!.isNotEmpty) _Meta(icon: Icons.person_outline_rounded, label: item.sellerName!),
-                ]),
-                const SizedBox(height: 18),
-                Row(children: [
-                  Expanded(child: OutlinedButton.icon(onPressed: () => Navigator.pop(context, _RadarIntent.interest), icon: const Icon(Icons.chat_bubble_outline_rounded, size: 17), label: const Text('Intéressé'))),
-                  const SizedBox(width: 8),
-                  Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(context, _RadarIntent.negotiate), child: const Text('Négocier'))),
-                  const SizedBox(width: 8),
-                  Expanded(child: FilledButton(onPressed: () => Navigator.pop(context, _RadarIntent.buy), child: const Text('Acheter'))),
-                ]),
-              ]),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 22),
+              child: LiveSmartProductPreview(
+                product: item.toSmartProductMap(),
+                onPayload: (payload) => _select(context, payload),
+              ),
             ),
           ])),
         ),

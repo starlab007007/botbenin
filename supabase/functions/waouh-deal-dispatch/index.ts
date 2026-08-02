@@ -12,6 +12,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
+import { rehostPhotos } from "../_shared/waouhContact.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -22,6 +23,11 @@ const WAOUH_OPS_WHATSAPP = Deno.env.get("WAOUH_OPS_WHATSAPP") || "";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
+
+const cleanDisplayTitle = (value: unknown) =>
+  String(value || "votre article")
+    .replace(/\[(?:E2E|TEST|TRACE)-[A-Za-z0-9_-]+\]\s*/gi, "")
+    .trim() || "votre article";
 
 function wahaHeaders() {
   return {
@@ -106,6 +112,7 @@ async function insertInAppNotif(
   text: string,
   photos: string[],
   payload: any,
+  threadId: string | null,
 ) {
   // Résout web_session_id pour permettre l'affichage in-app sans auth
   let webSession: string | null = null;
@@ -120,13 +127,14 @@ async function insertInAppNotif(
 
   const dedupeKey = `${kind}:${payload?.deal_id || articleId || userId}:${userId}`;
   const { error } = await sb.from("waouh_notifications").insert({
+    thread_id: threadId,
     user_id: userId,
     article_id: articleId,
     notification_type: kind,
     photos,
     web_session_id: webSession,
     dedupe_key: dedupeKey,
-    payload: { ...payload, text },
+    payload: { ...payload, thread_id: threadId, text },
     channel: "waouh_app",
     delivery_status: "delivered",
     delivered_at: new Date().toISOString(),
@@ -172,11 +180,22 @@ Deno.serve(async (req) => {
       if (typeof data === "number") distanceKm = Math.round(data * 10) / 10;
     } catch {}
 
-    const title = article?.title || "votre article";
+    const title = cleanDisplayTitle(article?.title);
     const amount = Number(deal.amount || 0);
-    const photos: string[] = Array.isArray((article as any)?.photos)
-      ? (article as any).photos.filter((u: any) => typeof u === "string" && /^https?:\/\//i.test(u))
+    const rawPhotos: string[] = Array.isArray((article as any)?.photos)
+      ? (article as any).photos.filter((u: any) => typeof u === "string" && u.trim())
       : [];
+    const photos = await rehostPhotos(sb, rawPhotos, {
+      wahaBaseUrl: WAHA_BASE_URL,
+      wahaApiKey: WAHA_API_KEY,
+    });
+    if (photos.length > 0 && JSON.stringify(photos) !== JSON.stringify(rawPhotos)) {
+      try {
+        await sb.from("waouh_articles").update({ photos }).eq("id", deal.article_id);
+      } catch (e) {
+        console.warn("[waouh-deal-dispatch] stable photo update failed", e);
+      }
+    }
     const firstPhoto = photos[0] || null;
 
     const sellerText = buildSellerText(title, amount);
@@ -204,16 +223,20 @@ Deno.serve(async (req) => {
           template: "deal_seller",
           eventType: "deal_dispatch",
           dealId: deal_id,
+          threadId: deal.thread_id ?? null,
+          buyerUserId: deal.buyer_user_id,
+          sellerUserId: deal.seller_user_id,
+          counterpartUserId: deal.buyer_user_id,
           attachments,
           imageUrl: firstPhoto,
           dedupSuffix: "seller",
-          payloadExtra: { deal_id, article_id: deal.article_id, role: "seller" },
+          payloadExtra: { deal_id, article_id: deal.article_id, thread_id: deal.thread_id ?? null, buyer_user_id: deal.buyer_user_id, seller_user_id: deal.seller_user_id, counterpart_user_id: deal.buyer_user_id, role: "seller" },
         });
       } catch (e) { results.seller_sync = { ok: false, error: String(e) }; }
     }
     await insertInAppNotif(sb, deal.seller_user_id, deal.article_id, "deal_seller", sellerText, photos, {
-      deal_id, article_id: deal.article_id, role: "seller",
-    });
+      deal_id, article_id: deal.article_id, thread_id: deal.thread_id ?? null, buyer_user_id: deal.buyer_user_id, seller_user_id: deal.seller_user_id, counterpart_user_id: deal.buyer_user_id, role: "seller",
+    }, deal.thread_id ?? null);
 
     // 2) Acheteur — sync chat + WhatsApp (résolution multi-sources)
     if (buyer?.id) {
@@ -228,16 +251,20 @@ Deno.serve(async (req) => {
           template: "deal_buyer",
           eventType: "deal_dispatch",
           dealId: deal_id,
+          threadId: deal.thread_id ?? null,
+          buyerUserId: deal.buyer_user_id,
+          sellerUserId: deal.seller_user_id,
+          counterpartUserId: deal.seller_user_id,
           attachments,
           imageUrl: firstPhoto,
           dedupSuffix: "buyer",
-          payloadExtra: { deal_id, article_id: deal.article_id, role: "buyer" },
+          payloadExtra: { deal_id, article_id: deal.article_id, thread_id: deal.thread_id ?? null, buyer_user_id: deal.buyer_user_id, seller_user_id: deal.seller_user_id, counterpart_user_id: deal.seller_user_id, role: "buyer" },
         });
       } catch (e) { results.buyer_sync = { ok: false, error: String(e) }; }
     }
     await insertInAppNotif(sb, deal.buyer_user_id, deal.article_id, "deal_buyer", buyerText, photos, {
-      deal_id, article_id: deal.article_id, role: "buyer",
-    });
+      deal_id, article_id: deal.article_id, thread_id: deal.thread_id ?? null, buyer_user_id: deal.buyer_user_id, seller_user_id: deal.seller_user_id, counterpart_user_id: deal.seller_user_id, role: "buyer",
+    }, deal.thread_id ?? null);
 
     // 3) Équipe ops WAOUH — WhatsApp uniquement (le numéro vient d'un secret)
     if (WAOUH_OPS_WHATSAPP) {
@@ -249,6 +276,7 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({
       success: true,
       deal_id,
+      thread_id: deal.thread_id ?? null,
       distance_km: distanceKm,
       results,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });

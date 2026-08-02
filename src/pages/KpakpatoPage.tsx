@@ -1,1 +1,0 @@
-export { KpakpatoPage } from './KpakpatoPageComplete';

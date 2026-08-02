@@ -188,6 +188,7 @@ class LiveRadarItem {
     required this.score,
     this.description,
     this.photoUrl,
+    this.photoUrls = const [],
     this.priceMin,
     this.priceMax,
     this.currency,
@@ -206,6 +207,7 @@ class LiveRadarItem {
   final String title;
   final String? description;
   final String? photoUrl;
+  final List<String> photoUrls;
   final num? priceMin;
   final num? priceMax;
   final String? currency;
@@ -238,6 +240,72 @@ class LiveRadarItem {
       return '${liveRadarMoney(priceMin!)}–${liveRadarMoney(priceMax!)} $unit';
     }
     return '${liveRadarMoney(priceMin ?? priceMax!)} $unit';
+  }
+
+  Map<String, dynamic> toSmartProductMap() {
+    dynamic first(Iterable<String> keys) {
+      for (final key in keys) {
+        final value = raw[key];
+        if (value != null && value.toString().trim().isNotEmpty) return value;
+      }
+      return null;
+    }
+
+    final photos = <String>{
+      ...photoUrls.where((url) => url.trim().isNotEmpty),
+      if (photoUrl != null && photoUrl!.trim().isNotEmpty) photoUrl!,
+    }.toList(growable: false);
+    final marketMin = first(const ['market_price_min', 'prix_marche_min']);
+    final marketMax = first(const ['market_price_max', 'prix_marche_max']);
+    final marketMedian =
+        first(const ['market_price_median', 'median_price', 'prix_median']);
+    return <String, dynamic>{
+      'id': articleId ?? sourceId,
+      'article_id': articleId,
+      'source_id': sourceId,
+      'radar_item_id': id,
+      'radar_source': source,
+      if (source == 'status') 'status_id': sourceId,
+      'title': title,
+      'description': description,
+      'photos': photos,
+      'price': priceMin ?? priceMax,
+      'currency': currency ?? 'FCFA',
+      'city': city,
+      'district': district,
+      'distance_km': distanceKm,
+      'category': first(const ['category', 'categorie']),
+      'condition': first(const ['condition', 'etat']),
+      'availability': first(const ['availability', 'disponibilite', 'status']) ??
+          'Disponible',
+      'verified': first(const ['verified', 'is_verified']) == true,
+      'seller_name': sellerName,
+      'source': source == 'status'
+          ? 'status'
+          : source == 'catalog'
+              ? 'partner'
+              : 'radar',
+      'market_price_min': marketMin,
+      'market_price_max': marketMax,
+      'market_price_median': marketMedian,
+      'market_comparison': first(const ['market_comparison', 'marche_reel']),
+      'comparative_analysis':
+          first(const ['comparative_analysis', 'market_analysis', 'deal_label']),
+      'recommendation': first(const ['recommendation', 'recommandation', 'ai_note']),
+      'details': first(const ['details']) ?? description,
+      'role': type == LiveRadarItemType.buy ? 'seller' : 'buyer',
+      'workflow_state': 'radar_result',
+      'actions': type == LiveRadarItemType.buy
+          ? <Map<String, String>>[
+              {'id': 'proposer:${articleId ?? sourceId}', 'label': '📦 Proposer mon article'},
+              {'id': 'contacter:${articleId ?? sourceId}', 'label': '💬 Contacter'},
+            ]
+          : <Map<String, String>>[
+              {'id': 'interesse:${articleId ?? sourceId}', 'label': '✅ Je suis intéressé'},
+              {'id': 'negocier:${articleId ?? sourceId}', 'label': '🤝 Négocier'},
+              {'id': 'acheter:${articleId ?? sourceId}', 'label': '🛒 Acheter'},
+            ],
+    };
   }
 }
 

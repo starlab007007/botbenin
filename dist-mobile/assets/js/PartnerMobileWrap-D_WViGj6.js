@@ -1,1 +1,0 @@
-import{j as e}from"./vendor-DJQPjVVa.js";import{M as l}from"./MobileScreenHeader-C07LBwir.js";const x=({title:r,subtitle:s,back:a=!0,action:o,children:i})=>e.jsxs("div",{className:"min-h-[100dvh] bg-background flex flex-col",children:[e.jsx(l,{title:r,subtitle:s,back:a,action:o}),e.jsx("div",{className:"flex-1 partner-mobile-wrap",children:i})]});export{x as P};

@@ -1,0 +1,1 @@
+DELETE FROM net._http_response WHERE created < now() - interval '2 days'; DELETE FROM cron.job_run_details WHERE end_time < now() - interval '3 days'; TRUNCATE public.waouh_trace_events; DELETE FROM public.access_logs WHERE timestamp < now() - interval '7 days';;

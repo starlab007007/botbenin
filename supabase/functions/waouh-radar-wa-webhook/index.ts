@@ -1,26 +1,17 @@
 // WAHA inbound webhook — capture messages from opt-in WhatsApp groups for radar analysis
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { geminiJson } from "../_shared/gemini.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 
 async function aiExtract(text: string): Promise<any> {
-  const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash-lite",
-      messages: [
-        { role: "system", content: "Analyse un message WhatsApp (groupe vente Bénin) et retourne JSON {intent: SELL|BUY|NEGOTIATE|UNKNOWN, title, price (FCFA), category, city, confidence (0-1)}. Sinon confidence=0." },
-        { role: "user", content: text.slice(0, 1500) },
-      ],
-      response_format: { type: "json_object" },
-    }),
-  });
-  const d = await r.json();
-  try { return JSON.parse(d.choices?.[0]?.message?.content ?? "{}"); } catch { return {}; }
+  return geminiJson(
+    "Analyse un message WhatsApp (groupe vente Bénin) et retourne JSON {intent: SELL|BUY|NEGOTIATE|UNKNOWN, title, price (FCFA), category, city, confidence (0-1)}. Sinon confidence=0.",
+    text.slice(0, 1500),
+    { confidence: 0 },
+  );
 }
 
 Deno.serve(async (req) => {

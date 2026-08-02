@@ -6,10 +6,10 @@ const corsHeaders = {
 };
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getRadarApiKey, incrementRadarUsage } from "../_shared/radar-api-config.ts";
+import { geminiJson } from "../_shared/gemini.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 let SERPAPI_KEY = "";
 let SERPAPI_CFG_ID: string | undefined;
 
@@ -24,20 +24,11 @@ async function searchSerp(q: string) {
 }
 
 async function aiExtract(text: string): Promise<any> {
-  const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash-lite",
-      messages: [
-        { role: "system", content: "Extrait depuis un snippet d'annonce BJ et retourne JSON {title, price (number FCFA, null si absent), category, condition (new/like_new/good/fair), city, seller_phone (229XXXXXXXX si visible), confidence (0-1)}. Si pas une annonce de vente, confidence=0." },
-        { role: "user", content: text.slice(0, 1500) },
-      ],
-      response_format: { type: "json_object" },
-    }),
-  });
-  const d = await r.json();
-  try { return JSON.parse(d.choices?.[0]?.message?.content ?? "{}"); } catch { return {}; }
+  return geminiJson(
+    "Extrait depuis un snippet d'annonce BJ et retourne JSON {title, price (number FCFA, null si absent), category, condition (new/like_new/good/fair), city, seller_phone (229XXXXXXXX si visible), confidence (0-1)}. Si pas une annonce de vente, confidence=0.",
+    text.slice(0, 1500),
+    { confidence: 0 },
+  );
 }
 
 Deno.serve(async (req) => {

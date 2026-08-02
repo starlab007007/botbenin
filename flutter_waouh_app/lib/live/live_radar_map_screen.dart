@@ -13,6 +13,7 @@ import 'brand_mark.dart';
 import 'live_controller.dart';
 import 'live_radar_models.dart';
 import 'live_radar_service.dart';
+import 'live_widgets.dart';
 
 /// Carte Radar native : GPS réel, rayons 1/5/20/100 km et résultats Supabase.
 class LiveRadarMapScreen extends StatefulWidget {
@@ -248,18 +249,35 @@ class _LiveRadarMapScreenState extends State<LiveRadarMapScreen>
       _MapRadarAction.negotiate =>
         'Je souhaite négocier « ${item.title} » à ${item.distanceLabel}. ',
       _MapRadarAction.contact =>
-        'Bonjour, je souhaite en savoir plus sur « ${item.title} ». ',
+        item.type == LiveRadarItemType.buy
+            ? 'Je vends un article correspondant à « ${item.title} ». '
+            : 'Bonjour, je souhaite en savoir plus sur « ${item.title} ». ',
     };
 
     final controller = context.read<LiveWaouhController>();
     controller.setComposerSeed(seed, meta: {
-      'source': 'flutter_radar_map',
+      'source': item.source == 'catalog'
+          ? 'partner'
+          : item.source == 'status'
+              ? 'status'
+              : 'radar',
+      'origin_surface': 'flutter_radar_map',
+      'auto_send': true,
+      if (action == _MapRadarAction.interest) 'action': 'interested',
       'radar_item_id': item.id,
+      'source_id': item.sourceId,
       'radar_source': item.source,
-      'radar_intent': action.name,
-      'article_id': item.articleId,
+      'radar_intent': item.type == LiveRadarItemType.buy &&
+              action == _MapRadarAction.contact
+          ? 'propose'
+          : action.name,
+      if (item.type != LiveRadarItemType.buy) 'article_id': item.articleId,
+      if (item.source == 'status') 'status_id': item.sourceId,
       'title': item.title,
       'distance': item.distanceLabel,
+      if (item.priceMin != null) 'price': item.priceMin,
+      if (item.currency != null) 'devise': item.currency,
+      'role': item.type == LiveRadarItemType.buy ? 'seller' : 'buyer',
     });
 
     if (!context.read<legacy.AuthController>().signedIn) {
@@ -1006,6 +1024,18 @@ class _MapRadarItemSheet extends StatelessWidget {
   const _MapRadarItemSheet({required this.item});
   final LiveRadarItem item;
 
+  void _select(BuildContext context, String payload) {
+    final action = payload.toLowerCase();
+    Navigator.pop(
+      context,
+      action.startsWith('negocier')
+          ? _MapRadarAction.negotiate
+          : action.startsWith('interesse') || action.startsWith('acheter')
+              ? _MapRadarAction.interest
+              : _MapRadarAction.contact,
+    );
+  }
+
   @override
   Widget build(BuildContext context) => SafeArea(
         top: false,
@@ -1019,93 +1049,24 @@ class _MapRadarItemSheet extends StatelessWidget {
           ),
           child: SingleChildScrollView(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 10, 18, 22),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 42,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFC9D8D2),
-                        borderRadius: BorderRadius.circular(99),
-                      ),
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 22),
+              child: Column(children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFC9D8D2),
+                      borderRadius: BorderRadius.circular(99),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  if (item.photoUrl != null &&
-                      item.photoUrl!.trim().isNotEmpty) ...[
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(18),
-                      child: SizedBox(
-                        width: double.infinity,
-                        height: 196,
-                        child: Image.network(
-                          item.photoUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              _FallbackPhoto(type: item.type),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  Row(
-                    children: [
-                      _DistanceBadge(
-                        label: item.distanceLabel,
-                        color: Color(item.ring.colorValue),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        item.typeLabel,
-                        style: const TextStyle(
-                          color: Color(0xFF667A73),
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    item.title,
-                    style: const TextStyle(
-                      fontSize: 23,
-                      fontWeight: FontWeight.w900,
-                      height: 1.15,
-                    ),
-                  ),
-                  if (item.priceLabel.isNotEmpty) ...[
-                    const SizedBox(height: 7),
-                    Text(
-                      item.priceLabel,
-                      style: const TextStyle(
-                        color: Color(0xFF08756A),
-                        fontWeight: FontWeight.w900,
-                        fontSize: 19,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 9),
-                  Text(
-                    '${item.city ?? 'Localisation non précisée'} · ${item.distanceLabel} · mis à jour il y a ${liveRadarFreshness(item.freshnessMs)}',
-                    style: const TextStyle(color: Color(0xFF667A73)),
-                  ),
-                  if ((item.description ?? '').trim().isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      item.description!,
-                      style: const TextStyle(
-                        color: Color(0xFF667A73),
-                        height: 1.35,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 22),
-                  const _MapRadarActions(),
-                ],
-              ),
+                ),
+                const SizedBox(height: 12),
+                LiveSmartProductPreview(
+                  product: item.toSmartProductMap(),
+                  onPayload: (payload) => _select(context, payload),
+                ),
+              ]),
             ),
           ),
         ),
