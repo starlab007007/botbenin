@@ -9619,6 +9619,7 @@ export type Database = {
           signal_id: string | null
           target_buyer_profile_id: string | null
           target_user_id: string | null
+          thread_id: string | null
         }
         Insert: {
           created_at?: string
@@ -9630,6 +9631,7 @@ export type Database = {
           signal_id?: string | null
           target_buyer_profile_id?: string | null
           target_user_id?: string | null
+          thread_id?: string | null
         }
         Update: {
           created_at?: string
@@ -9641,6 +9643,7 @@ export type Database = {
           signal_id?: string | null
           target_buyer_profile_id?: string | null
           target_user_id?: string | null
+          thread_id?: string | null
         }
         Relationships: [
           {
@@ -9655,6 +9658,13 @@ export type Database = {
             columns: ["target_buyer_profile_id"]
             isOneToOne: false
             referencedRelation: "waouh_buyer_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_radar_matches_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_chat_threads"
             referencedColumns: ["id"]
           },
         ]
@@ -9747,6 +9757,7 @@ export type Database = {
           source_id: string | null
           source_type: string | null
           status: string
+          thread_id: string | null
           waouh_user_id: string | null
         }
         Insert: {
@@ -9771,6 +9782,7 @@ export type Database = {
           source_id?: string | null
           source_type?: string | null
           status?: string
+          thread_id?: string | null
           waouh_user_id?: string | null
         }
         Update: {
@@ -9795,6 +9807,7 @@ export type Database = {
           source_id?: string | null
           source_type?: string | null
           status?: string
+          thread_id?: string | null
           waouh_user_id?: string | null
         }
         Relationships: [
@@ -9824,6 +9837,13 @@ export type Database = {
             columns: ["source_id"]
             isOneToOne: false
             referencedRelation: "waouh_radar_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waouh_radar_signals_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "waouh_chat_threads"
             referencedColumns: ["id"]
           },
           {
@@ -9971,6 +9991,7 @@ export type Database = {
           created_at: string
           expires_at: string
           id: string
+          idempotency_key: string | null
           lat: number | null
           lng: number | null
           location: string | null
@@ -9993,6 +10014,7 @@ export type Database = {
           created_at?: string
           expires_at?: string
           id?: string
+          idempotency_key?: string | null
           lat?: number | null
           lng?: number | null
           location?: string | null
@@ -10015,6 +10037,7 @@ export type Database = {
           created_at?: string
           expires_at?: string
           id?: string
+          idempotency_key?: string | null
           lat?: number | null
           lng?: number | null
           location?: string | null
