@@ -111,6 +111,7 @@ const AppMobile = () => (
                       <Route path="agents/new" element={<AgentTypePicker />} />
                       <Route path="agents/bi/new" element={<BiAgentWizard />} />
                       <Route path="agents/bi/:id" element={<BiAgentDetail />} />
+                      <Route path="agents/stock" element={<StockAgentDashboard />} />
                       <Route path="agents/stock/new" element={<StockAgentWizard />} />
                       <Route path="agents/stock/:id" element={<StockAgentDashboard />} />
                       <Route path="agents/attendance/new" element={<AttendanceAgentWizard />} />
