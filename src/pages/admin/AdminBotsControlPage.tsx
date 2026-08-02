@@ -465,8 +465,8 @@ function AttendanceAgentsTab({ adminId }: { adminId: string }) {
                 <TableCell className="font-medium">{r.name}</TableCell>
                 <TableCell className="text-xs max-w-[200px] truncate">{r.address ?? "—"}</TableCell>
                 <TableCell><OwnerCell userId={r.user_id} owners={owners} /></TableCell>
-                <TableCell className="text-xs">{r.radius_m ?? 50} m</TableCell>
-                <TableCell className="text-xs">{r.employer_msisdn ?? "—"}</TableCell>
+                <TableCell className="text-xs">{r.radius_meters ?? 50} m</TableCell>
+                <TableCell className="text-xs">{r.responsible_whatsapp ?? "—"}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <Switch checked={!!r.active} onCheckedChange={() => toggle(r)} />
