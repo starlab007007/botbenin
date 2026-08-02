@@ -17,15 +17,40 @@ serve(async (req) => {
     const { data: { user } } = await userClient.auth.getUser();
     if (!user) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { ...cors, "Content-Type": "application/json" } });
 
-    const { agent_id, question } = await req.json();
-    if (!agent_id) throw new Error("agent_id requis");
+    const { agent_id, question } = await req.json().catch(() => ({}));
 
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const { data: items } = await admin.from("waouh_stock_items").select("*").eq("agent_id", agent_id).eq("user_id", user.id);
-    const list = items || [];
-    const totalValue = list.reduce((s, i) => s + Number(i.quantity) * Number(i.unit_price_fcfa), 0);
-    const critical = list.filter((i) => Number(i.quantity) <= 0);
-    const low = list.filter((i) => Number(i.quantity) > 0 && Number(i.quantity) <= Number(i.threshold_low));
+
+    // Parité Flutter : par défaut, le stock repose sur les produits partenaires.
+    let list: any[] = [];
+    if (agent_id) {
+      const { data: items } = await admin.from("waouh_stock_items").select("*").eq("agent_id", agent_id).eq("user_id", user.id);
+      list = (items || []).map((i: any) => ({
+        name: i.name,
+        quantity: Number(i.quantity) || 0,
+        minimum: Number(i.threshold_low) || 0,
+        price: Number(i.unit_price_fcfa) || 0,
+      }));
+    } else {
+      const { data: partners } = await admin.from("waouh_partners").select("id").eq("user_id", user.id);
+      const partnerIds = (partners || []).map((p: any) => p.id);
+      if (partnerIds.length) {
+        const { data: products } = await admin
+          .from("waouh_partner_products")
+          .select("nom,stock_estime,stock_minimum,stock_target,prix_min,unite")
+          .in("partner_id", partnerIds);
+        list = (products || []).map((p: any) => ({
+          name: p.nom,
+          quantity: Number(p.stock_estime) || 0,
+          minimum: Number(p.stock_minimum) || 0,
+          price: Number(p.prix_min) || 0,
+        }));
+      }
+    }
+
+    const totalValue = list.reduce((s, i) => s + i.quantity * i.price, 0);
+    const critical = list.filter((i) => i.quantity <= 0);
+    const low = list.filter((i) => i.quantity > 0 && i.minimum > 0 && i.quantity <= i.minimum);
 
     const key = Deno.env.get("LOVABLE_API_KEY");
     let insight = "";
@@ -54,6 +79,7 @@ serve(async (req) => {
       critical_items: critical.slice(0, 20),
       low_items: low.slice(0, 20),
       insight,
+      analysis: insight,
     }), { headers: { ...cors, "Content-Type": "application/json" } });
   } catch (e: any) {
     return new Response(JSON.stringify({ error: e.message }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
