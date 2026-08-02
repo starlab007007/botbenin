@@ -32,22 +32,25 @@ List<LiveMessage> _isolatedMessages(
 }
 
 extension LiveWaouhControllerMatches on LiveWaouhController {
-  Future<LiveMatch?> resolveMatch(String key) async {
+  Future<LiveMatch?> resolveMatch(
+    String key, {
+    LiveMatch? seed,
+  }) async {
     final cached = notifications.cachedMatch(key);
     if (cached != null) return cached;
+
     final active = await notifications.loadMatches(
       auth.user?.id,
       force: true,
     );
-    for (final item in active) {
-      if (item.key == key) return item;
-    }
-    final archived =
-        await notifications.loadMatches(auth.user?.id, archived: true);
-    for (final item in archived) {
-      if (item.key == key) return item;
-    }
-    return null;
+    final activeMatch = _findMatch(active, key, seed);
+    if (activeMatch != null) return activeMatch;
+
+    final archived = await notifications.loadMatches(
+      auth.user?.id,
+      archived: true,
+    );
+    return _findMatch(archived, key, seed);
   }
 
   Stream<List<LiveMessage>> matchMessages(LiveMatch match) {
@@ -92,8 +95,8 @@ extension LiveWaouhControllerMatches on LiveWaouhController {
               schema: 'public',
               table: 'waouh_messages',
               callback: (payload) {
-                final currentThread =
-                    payload.newRecord['thread_id'] ?? payload.oldRecord['thread_id'];
+                final currentThread = payload.newRecord['thread_id'] ??
+                    payload.oldRecord['thread_id'];
                 if ('$currentThread' == threadId) unawaited(refresh());
               },
             )
@@ -111,4 +114,38 @@ extension LiveWaouhControllerMatches on LiveWaouhController {
     );
     return controller.stream;
   }
+}
+
+LiveMatch? _findMatch(
+  List<LiveMatch> values,
+  String key,
+  LiveMatch? seed,
+) {
+  for (final item in values) {
+    if (item.key == key) return item;
+  }
+  if (seed == null) return null;
+
+  final seedArticle = seed.articleId.trim();
+  final seedCounterpart = seed.counterpartUserId?.trim() ?? '';
+  final seedSearch = seed.searchRequestId?.trim() ?? '';
+  final seedThread = seed.threadId?.trim() ?? '';
+
+  for (final item in values) {
+    final sameThread =
+        seedThread.isNotEmpty && item.threadId?.trim() == seedThread;
+    final sameSearch =
+        seedSearch.isNotEmpty && item.searchRequestId?.trim() == seedSearch;
+    final articleIsUsable =
+        seedArticle.isNotEmpty && !seedArticle.startsWith('pending_');
+    final sameArticle = articleIsUsable &&
+        item.articleId == seedArticle &&
+        item.role == seed.role;
+    final sameCounterpart = seedCounterpart.isEmpty ||
+        item.counterpartUserId?.trim() == seedCounterpart;
+    if (sameThread || sameSearch || (sameArticle && sameCounterpart)) {
+      return item;
+    }
+  }
+  return null;
 }
