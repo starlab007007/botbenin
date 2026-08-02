@@ -24,23 +24,24 @@ class LiveHeader extends StatelessWidget implements PreferredSizeWidget {
   final Widget? leading;
 
   @override
-  Size get preferredSize => const Size.fromHeight(92);
+  Size get preferredSize => const Size.fromHeight(68);
 
   @override
   Widget build(BuildContext context) => AppBar(
-        toolbarHeight: 92,
+        toolbarHeight: 68,
         automaticallyImplyLeading: false,
         leading: leading ??
             (back
                 ? IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded),
+                    icon: const Icon(Icons.arrow_back_rounded, size: 22),
+                    visualDensity: VisualDensity.compact,
                     onPressed: () => context.canPop()
                         ? context.pop()
                         : context.go('/app/chat'))
                 : null),
         title: Row(children: [
-          const BrandMark(size: 34),
-          const SizedBox(width: 10),
+          const BrandMark(size: 29),
+          const SizedBox(width: 8),
           Expanded(
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -48,12 +49,12 @@ class LiveHeader extends StatelessWidget implements PreferredSizeWidget {
                   children: [
                 Text(title,
                     style: const TextStyle(
-                        fontSize: 22, fontWeight: FontWeight.w900)),
+                        fontSize: 19, fontWeight: FontWeight.w900)),
                 if (subtitle != null)
                   Text(subtitle!,
                       style: const TextStyle(
                           color: Color(0xFFC9F6E3),
-                          fontSize: 13,
+                          fontSize: 11.5,
                           fontWeight: FontWeight.w700)),
               ])),
         ]),
@@ -284,8 +285,9 @@ Map<String, dynamic> liveCommercePayloadMeta(String payload) {
   final value = payload.trim();
   final queryAt = value.indexOf('?');
   final command = queryAt < 0 ? value : value.substring(0, queryAt);
-  final query = queryAt < 0 ? const <String, String>{} :
-      Uri.splitQueryString(value.substring(queryAt + 1));
+  final query = queryAt < 0
+      ? const <String, String>{}
+      : Uri.splitQueryString(value.substring(queryAt + 1));
   final separator = command.indexOf(':');
   final action = (separator < 0 ? command : command.substring(0, separator))
       .trim()
@@ -723,7 +725,8 @@ List<_SmartMessageAction> _premiumExplicitActions(dynamic value) {
       .whereType<Map>()
       .map((raw) {
         final payload = (raw['id'] ?? raw['payload'] ?? '').toString().trim();
-        final label = (raw['label'] ?? raw['title'] ?? payload).toString().trim();
+        final label =
+            (raw['label'] ?? raw['title'] ?? payload).toString().trim();
         return _SmartMessageAction(payload: payload, label: label);
       })
       .where((action) => action.payload.isNotEmpty && action.label.isNotEmpty)
@@ -767,7 +770,8 @@ _SmartMessageAction _premiumScopedAction({
   }
   if (params['article_id'] == null) {
     final source = (_premiumString(row['source']) ?? '').toLowerCase();
-    final articleId = source.contains('radar') ? null : _premiumString(row['id']);
+    final articleId =
+        source.contains('radar') ? null : _premiumString(row['id']);
     if (articleId != null) params['article_id'] = articleId;
   }
   if (params.isEmpty) return action;
@@ -811,12 +815,10 @@ List<_SmartMessageAction> _premiumWorkflowActions({
             row['stage'] ??
             message.meta['workflow_state'] ??
             message.meta['intent'],
-      )
-          ?.toLowerCase() ??
+      )?.toLowerCase() ??
       '';
-  final role = _premiumString(row['role'] ?? message.meta['role'])
-          ?.toLowerCase() ??
-      '';
+  final role =
+      _premiumString(row['role'] ?? message.meta['role'])?.toLowerCase() ?? '';
   final negotiationId = _premiumString(
     row['negotiation_id'] ?? message.meta['negotiation_id'],
   );
@@ -854,8 +856,7 @@ List<_SmartMessageAction> _premiumWorkflowActions({
       return <_SmartMessageAction>[
         _SmartMessageAction(
             payload: payload('preparer'), label: '📦 Article prêt'),
-        _SmartMessageAction(
-            payload: payload('annuler'), label: '❌ Annuler'),
+        _SmartMessageAction(payload: payload('annuler'), label: '❌ Annuler'),
       ];
     }
     return <_SmartMessageAction>[
@@ -880,10 +881,8 @@ List<_SmartMessageAction> _premiumWorkflowActions({
       _SmartMessageAction(
           payload: payload('payer-mobile'), label: '💳 Mobile Money'),
       _SmartMessageAction(
-          payload: payload('paiement-livraison'),
-          label: '💵 À la livraison'),
-      _SmartMessageAction(
-          payload: payload('annuler'), label: '❌ Annuler'),
+          payload: payload('paiement-livraison'), label: '💵 À la livraison'),
+      _SmartMessageAction(payload: payload('annuler'), label: '❌ Annuler'),
     ];
   }
   if (workflow.contains('negotiation') ||
@@ -892,8 +891,7 @@ List<_SmartMessageAction> _premiumWorkflowActions({
     return <_SmartMessageAction>[
       _SmartMessageAction(payload: payload('accepter'), label: '✅ Accepter'),
       _SmartMessageAction(
-          payload: payload('contre-proposition'),
-          label: '💬 Contre-proposer'),
+          payload: payload('contre-proposition'), label: '💬 Contre-proposer'),
       _SmartMessageAction(payload: payload('refuser'), label: '❌ Refuser'),
     ];
   }
@@ -1457,9 +1455,8 @@ class _PremiumProductCard extends StatelessWidget {
                     final primary = entry.key == 0;
                     final tone = _smartActionTone(action.payload);
                     return SizedBox(
-                      width: product.actions.length == 1
-                          ? double.infinity
-                          : null,
+                      width:
+                          product.actions.length == 1 ? double.infinity : null,
                       child: primary
                           ? FilledButton(
                               onPressed: onPayload == null

@@ -202,13 +202,10 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
         command.startsWith('contre-proposition:') ||
         command.startsWith('counter:')) {
       final suggested = command.startsWith('proposer:')
-          ? command
-              .substring('proposer:'.length)
-              .replaceAll(RegExp(r'\D'), '')
+          ? command.substring('proposer:'.length).replaceAll(RegExp(r'\D'), '')
           : '';
-      _composer.text = suggested.isEmpty
-          ? 'Je propose  FCFA'
-          : 'Je propose $suggested FCFA';
+      _composer.text =
+          suggested.isEmpty ? 'Je propose  FCFA' : 'Je propose $suggested FCFA';
       _composer.selection = TextSelection.collapsed(
         offset:
             suggested.isEmpty ? 'Je propose '.length : _composer.text.length,
@@ -362,8 +359,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
               ),
               LiveAttachmentStrip(
                 items: _attachments,
-                onRemove: (item) =>
-                    setState(() => _attachments.remove(item)),
+                onRemove: (item) => setState(() => _attachments.remove(item)),
               ),
               _composerBar(),
             ])

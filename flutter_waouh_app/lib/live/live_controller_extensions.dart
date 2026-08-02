@@ -17,8 +17,8 @@ List<LiveMessage> _isolatedMessages(
   for (final item in values) {
     if (item.threadId != threadId) continue;
     final idempotency = '${item.meta['idempotency_key'] ?? ''}'.trim();
-    final event = '${item.meta['event_id'] ?? item.meta['dedupe_key'] ?? ''}'
-        .trim();
+    final event =
+        '${item.meta['event_id'] ?? item.meta['dedupe_key'] ?? ''}'.trim();
     final identity = idempotency.isNotEmpty
         ? 'idem:$idempotency'
         : event.isNotEmpty

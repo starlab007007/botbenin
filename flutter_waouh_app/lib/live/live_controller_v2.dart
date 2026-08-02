@@ -1,4 +1,3 @@
-import '../main.dart' as legacy;
 import 'live_controller.dart';
 import 'live_models.dart';
 
@@ -121,10 +120,7 @@ class LiveWaouhControllerV2 extends LiveWaouhController {
                 .replaceAll(',', '.'),
           );
     final photos = liveAttachments(
-      meta['photos'] ??
-          meta['images'] ??
-          meta['photo'] ??
-          meta['image_url'],
+      meta['photos'] ?? meta['images'] ?? meta['photo'] ?? meta['image_url'],
     ).map((item) => item.url).toList(growable: false);
 
     return LiveMatch(
