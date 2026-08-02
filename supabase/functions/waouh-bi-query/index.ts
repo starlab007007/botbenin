@@ -94,19 +94,44 @@ serve(async (req) => {
     const { data: { user } } = await userClient.auth.getUser();
     if (!user) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { ...cors, "Content-Type": "application/json" } });
 
-    const { datasource_id, question } = await req.json();
-    if (!datasource_id || !question) throw new Error("datasource_id & question requis");
+    const { datasource_id, source_id, question } = await req.json();
+    if ((!datasource_id && !source_id) || !question) throw new Error("source_id & question requis");
 
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const { data: ds, error } = await admin.from("waouh_bi_datasources").select("*").eq("id", datasource_id).eq("user_id", user.id).single();
-    if (error || !ds) throw new Error("Source introuvable");
 
-    const spec = await askAi(question, ds.schema || [], ds.sample_rows || []);
-    const result = computeResult(ds.sample_rows || [], spec);
+    let schema: any[] = [];
+    let rows: any[] = [];
 
-    await admin.from("waouh_bi_queries").insert({
-      datasource_id, user_id: user.id, question, spec, result, summary: spec.summary || null,
-    });
+    if (source_id) {
+      // Parité Flutter : waouh_bi_sources + waouh_bi_source_rows
+      const { data: src, error } = await admin.from("waouh_bi_sources").select("*").eq("id", source_id).eq("user_id", user.id).single();
+      if (error || !src) throw new Error("Source introuvable");
+      const cols = Array.isArray(src.columns) ? src.columns : [];
+      schema = cols.map((c: any) => (typeof c === "string" ? { name: c } : c));
+      const { data: rowData } = await admin
+        .from("waouh_bi_source_rows")
+        .select("row_data")
+        .eq("source_id", source_id)
+        .eq("user_id", user.id)
+        .order("row_number")
+        .limit(2000);
+      rows = (rowData || []).map((r: any) => r.row_data || {});
+      if (!schema.length && rows.length) schema = Object.keys(rows[0]).map((name) => ({ name }));
+    } else {
+      const { data: ds, error } = await admin.from("waouh_bi_datasources").select("*").eq("id", datasource_id).eq("user_id", user.id).single();
+      if (error || !ds) throw new Error("Source introuvable");
+      schema = ds.schema || [];
+      rows = ds.sample_rows || [];
+    }
+
+    const spec = await askAi(question, schema, rows);
+    const result = computeResult(rows, spec);
+
+    if (datasource_id) {
+      await admin.from("waouh_bi_queries").insert({
+        datasource_id, user_id: user.id, question, spec, result, summary: spec.summary || null,
+      });
+    }
 
     return new Response(JSON.stringify({ ok: true, spec, result }), { headers: { ...cors, "Content-Type": "application/json" } });
   } catch (e: any) {
