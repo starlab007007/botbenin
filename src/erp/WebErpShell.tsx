@@ -1,5 +1,6 @@
-import { type ReactNode, useMemo, useState } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+
 import {
   BarChart3,
   Bell,
@@ -29,6 +30,9 @@ import { OfflineBanner } from '@/components/OfflineBanner';
 import { useMobileAuth } from '@/app-mobile/hooks/useMobileAuth';
 import { useMobileProfile } from '@/app-mobile/hooks/useMobileProfile';
 
+import { CenterCanvas } from './CenterCanvas';
+import { ErpBrickCanvas, type BrickId } from './ErpBrickCanvas';
+
 import './erp-theme.css';
 
 type WebErpShellProps = {
@@ -40,63 +44,74 @@ type NavigationItem = {
   label: string;
   to: string;
   icon: typeof MessageSquareText;
-  exact?: boolean;
+  /** When set, the item swaps the central canvas instead of navigating. */
+  brick?: BrickId;
   accent?: 'chat' | 'ai' | 'stock' | 'bi' | 'store';
 };
+
+const HOME_PATH = '/app/chat';
 
 const navigation: NavigationItem[] = [
   {
     label: 'Chat Command Center',
-    to: '/app/chat',
+    to: HOME_PATH,
     icon: MessageSquareText,
-    exact: true,
     accent: 'chat',
   },
   {
     label: 'Bots & Agents IA',
     to: '/app/bots',
     icon: Bot,
+    brick: 'bots',
     accent: 'ai',
   },
   {
     label: 'BI IA',
     to: '/app/agents/bi/new',
     icon: BarChart3,
+    brick: 'bi',
     accent: 'bi',
   },
   {
     label: 'Stock IA',
     to: '/app/agents/stock/new',
     icon: Package,
+    brick: 'stock',
     accent: 'stock',
   },
   {
     label: 'Boutiques & magasins',
     to: '/app/partner/businesses',
     icon: Store,
+    brick: 'store',
     accent: 'store',
   },
   {
     label: 'Ventes',
     to: '/app/partner/sales',
     icon: ShoppingCart,
+    brick: 'sales',
   },
   {
     label: 'WhatsApp IA',
     to: '/app/whatsapp',
     icon: UsersRound,
+    brick: 'whatsapp',
   },
   {
     label: 'Diffusion',
     to: '/app/diffusion',
     icon: Megaphone,
+    brick: 'diffusion',
   },
   {
     label: 'Partenaires',
     to: '/app/partner',
     icon: Handshake,
+    brick: 'partner',
   },
 ];
+
 
 const routeContext = (pathname: string) => {
   if (pathname.startsWith('/app/chat')) {
@@ -107,7 +122,24 @@ const routeContext = (pathname: string) => {
       prompt: 'Interroger WAOUH sur mes conversations et mes opportunités',
     };
   }
+  if (pathname.startsWith('/app/agents/stock')) {
+    return {
+      eyebrow: 'Opérations',
+      title: 'Stock IA',
+      description: 'Niveaux, alertes de réapprovisionnement et analyses assistées par IA.',
+      prompt: 'Demander à WAOUH une analyse de mon stock',
+    };
+  }
+  if (pathname.startsWith('/app/agents/bi')) {
+    return {
+      eyebrow: 'Décision',
+      title: 'BI IA',
+      description: 'Tableaux de bord, graphiques et lecture intelligente de vos données.',
+      prompt: 'Demander à WAOUH une lecture de mes indicateurs',
+    };
+  }
   if (pathname.startsWith('/app/bots') || pathname.startsWith('/app/agents')) {
+
     return {
       eyebrow: 'Intelligence artificielle',
       title: 'Bots & Agents IA',
@@ -197,12 +229,21 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
   const { user } = useMobileAuth();
   const { profile } = useMobileProfile();
   const [collapsed, setCollapsed] = useState(false);
+  const [activeBrick, setActiveBrick] = useState<BrickId | null>(null);
 
-  const context = useMemo(() => routeContext(location.pathname), [location.pathname]);
-  const actions = useMemo(
-    () => contextualActions(location.pathname),
-    [location.pathname],
-  );
+  const isHome = location.pathname === HOME_PATH;
+
+  // Leaving the command center (profile, notifications, deep links) resets the canvas.
+  useEffect(() => {
+    if (!isHome && activeBrick) setActiveBrick(null);
+  }, [isHome, activeBrick]);
+
+  const contextPath = activeBrick
+    ? navigation.find((item) => item.brick === activeBrick)?.to ?? location.pathname
+    : location.pathname;
+
+  const context = useMemo(() => routeContext(contextPath), [contextPath]);
+  const actions = useMemo(() => contextualActions(contextPath), [contextPath]);
 
   const displayName = profile?.full_name || user?.user_metadata?.full_name || 'Mon espace';
   const initials = displayName
@@ -212,7 +253,15 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
     .map((part: string) => part.charAt(0).toUpperCase())
     .join('') || 'W';
 
-  const openWaouh = () => navigate('/app/chat/waouh');
+  const openWaouh = () => {
+    setActiveBrick(null);
+    if (!isHome) navigate(HOME_PATH);
+  };
+
+  const selectItem = (item: NavigationItem) => {
+    if (!isHome) navigate(HOME_PATH);
+    setActiveBrick(item.brick ?? null);
+  };
 
   return (
     <div className={cn('waouh-erp-shell', collapsed && 'waouh-erp-shell--collapsed')}>
@@ -240,15 +289,17 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
         <nav className="waouh-erp-nav">
           {navigation.map((item) => {
             const Icon = item.icon;
-            const active = item.exact
-              ? location.pathname === item.to || location.pathname.startsWith(`${item.to}/`)
+            const active = isHome
+              ? (item.brick ?? null) === activeBrick
               : location.pathname.startsWith(item.to);
-            const badge = item.to === '/app/chat' && unreadChat > 0 ? unreadChat : 0;
+            const badge = !item.brick && unreadChat > 0 ? unreadChat : 0;
 
             return (
-              <NavLink
+              <button
                 key={item.to}
-                to={item.to}
+                type="button"
+                onClick={() => selectItem(item)}
+                aria-current={active ? 'page' : undefined}
                 className={cn(
                   'waouh-erp-nav__item',
                   active && 'is-active',
@@ -261,10 +312,11 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
                 {badge > 0 && (
                   <span className="waouh-erp-nav__badge">{badge > 99 ? '99+' : badge}</span>
                 )}
-              </NavLink>
+              </button>
             );
           })}
         </nav>
+
 
         <div className="waouh-erp-sidebar__footer">
           <div className="waouh-erp-system-card">
@@ -293,8 +345,9 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
             <button
               type="button"
               className="waouh-erp-search-trigger"
-              onClick={() => navigate('/app/chat')}
+              onClick={openWaouh}
             >
+
               <Search size={17} />
               <span>Rechercher dans WaouhApp</span>
               <kbd><Command size={12} /> K</kbd>
@@ -339,7 +392,10 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
         <OfflineBanner />
 
         <div className="waouh-erp-body">
-          <main className="waouh-erp-workspace">{children}</main>
+          <main className="waouh-erp-workspace">
+            {isHome ? (activeBrick ? <ErpBrickCanvas brick={activeBrick} /> : <CenterCanvas />) : children}
+          </main>
+
 
           <aside className="waouh-erp-copilot" aria-label="Copilote contextuel WaouhApp">
             <div className="waouh-erp-copilot__hero">

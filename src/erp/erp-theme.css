@@ -647,3 +647,12 @@
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Mono-page command center: rail entries are state switchers, not links. */
+button.waouh-erp-nav__item {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+}
