@@ -80,6 +80,13 @@ const navigation: NavigationItem[] = [
     accent: 'stock',
   },
   {
+    label: 'Présence QR',
+    to: '/app/agents/attendance/new',
+    icon: QrCode,
+    brick: 'presence',
+  },
+
+  {
     label: 'Boutiques & magasins',
     to: '/app/partner/businesses',
     icon: Store,
