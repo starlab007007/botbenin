@@ -1,96 +1,94 @@
-# WaouhApp AI ERP — UI web (www.bot.bj) avec le Chat en cœur du système
+# WaouhApp AI ERP — Cockpit conversationnel web (www.bot.bj)
 
-## Constat
+## Audit de l'existant
 
-- `www.bot.bj/` redirige aujourd'hui vers `/app/chat`, c'est-à-dire la **coquille mobile** (`MobileShell`) affichée telle quelle sur desktop : colonne étroite, onglets Discussions / Statuts / Radar pensés pour un téléphone (capture jointe).
-- Le moteur de chat web complet existe déjà : `WaouhWebChat`, `WaouhMatchChatWindow`, `WaouhMatchChatList`, `WaouhChatTabs`, `WaouhRadarTab`, `WaouhProductCard`, `WaouhArticleSummary`, `useWaouhMatchChats` (isolation v13), notifications et corrélation bout en bout.
-- Les briques IA (Stock, BI, Présence, Agents, WhatsApp/WAHA, Diffusion, Deals) existent mais vivent surtout côté mobile ou dans des pages dispersées.
+Capture de `/` (redirigé vers `/app/chat`, rendu desktop) :
 
-Il manque donc une **surface web native** qui mette le Chat au centre et fasse graviter les briques ERP autour, au lieu d'un téléphone étiré.
+- Le shell ERP existe déjà : rail gauche « Espace de travail » (Chat Command Center, Bots & Agents IA, BI IA, Stock IA, Boutiques, Ventes, WhatsApp IA, Diffusion, Partenaires), en-tête avec recherche ⌘K et bouton « Discuter avec WAOUH ».
+- **Problème n°1 — le vide** : ~75 % de la hauteur utile est blanche. Le chat, censé être le cœur, se réduit à un bouton « Nouveau chat WAOUH ».
+- **Problème n°2 — la démo à la place du produit** : deux mockups de téléphone occupent le centre. Sur un ERP, la vitrine marketing prend la place de l'outil.
+- **Problème n°3 — aucun contexte** : pas de fil, pas de liste de conversations isolées, pas de panneau article/négociation, pas de KPI vivants. Rien ne relie visuellement le chat aux briques ERP du rail.
+- **Problème n°4 — thème clair générique** : ne se distingue d'aucun SaaS ; les chiffres FCFA n'ont aucune présence typographique.
 
-## Proposition : le Chat comme poste de pilotage
+## Benchmark retenu
 
-Un espace de travail web `/` (workspace WaouhApp AI ERP) construit autour d'un cockpit de conversation en 3 colonnes, avec les modules ERP en satellites — le chat n'est pas un module de plus, c'est l'interface principale du système.
+| Référence | Ce qu'on prend |
+| --- | --- |
+| Linear | densité maîtrisée, palette sombre, raccourcis clavier partout |
+| Raycast / palette de commandes | une seule entrée `/` pour piloter tout le système |
+| Bloomberg Terminal | chiffres en mono, bandeaux de télémétrie discrets en périphérie |
+| Superhuman | conversation plein écran, zéro chrome inutile |
+| ChatGPT Canvas | résultats riches rendus dans le fil, pas dans une autre page |
+
+## Direction choisie
+
+**Un cockpit conversationnel sombre, plein écran, où le fil de chat est le système d'exploitation de l'ERP.**
+
+Verrouillé par vos choix :
+- Palette : `#0B1210` fond, `#131E1A` surface, `#1F5E4B` primaire, `#3DDC97` accent
+- Typographie : **JetBrains Mono** pour titres, libellés système et montants FCFA ; **Work Sans** pour le corps
+- Structure : chat immersif pleine largeur, modules ERP en tiroirs contextuels (pas de colonnes permanentes)
+
+### Anatomie de l'écran
 
 ```text
-┌──────┬─────────────────────┬──────────────────────────┬───────────────┐
-│ RAIL │  CONVERSATIONS      │      CANVAS DE CHAT      │  CONTEXTE IA  │
-│      │                     │                          │               │
-│ Chat │ [Discussions]       │  WAOUH · Assistant IA    │ Fiche article │
-│ Stock│ [Statuts] [Radar]   │  ─────────────────────   │ + photos      │
-│ BI   │                     │  bulles + fiches produit │ Résumé négo   │
-│ Bou- │ ▸ Sac Zara · Kofi   │  carrousels, actions     │ Prochaine     │
-│ tique│ ▸ Terrain · Ayo     │                          │ étape         │
-│ RH   │ ▸ iPhone · Vendeur  │  [Vendre][Acheter]       │ Paiement /    │
-│ Canal│                     │  [Négocier]  composer    │ livraison     │
-└──────┴─────────────────────┴──────────────────────────┴───────────────┘
+┌───────────────────────────────────────────────────────────────┐
+│ ◈ WAOUH COCKPIT   Cotonou · en ligne      CA jour 1 250 000 F │  barre HUD 56px
+├───────────────────────────────────────────────────────────────┤
+│                                                               │
+│   ⌁ fil de conversation pleine largeur, centré à 820px        │
+│                                                               │
+│   ┌─ fiche article ───────────────────────────────┐           │
+│   │ [photos carrousel]  Sac Zara · 6 500 F        │           │
+│   │ Cotonou · Kofi   [Intéressé][Question][Annuler]│          │
+│   └────────────────────────────────────────────────┘          │
+│                                                               │
+│   ┌─ carte ERP rendue dans le fil ───────────────┐            │
+│   │ STOCK · 142 unités  ▓▓▓▓▓▓░░ 72%             │            │
+│   └───────────────────────────────────────────────┘           │
+│                                                               │
+├───────────────────────────────────────────────────────────────┤
+│  /  Cherchez, vendez, négociez, ou tapez une commande…    [→] │  composer
+│     ◦ Vendre  ◦ Acheter  ◦ Négocier  ◦ Stock  ◦ Ventes  ◦ Radar│
+└───────────────────────────────────────────────────────────────┘
+   ⌘K → palette conversations (Discussions · Statuts · Radar)
 ```
 
-### Colonne 1 — Rail modules (72 px)
-Icônes verticales avec pastille de couleur par brique : Chat (actif par défaut), Stock IA, BI IA, Boutique IA, Présence IA, Canaux WhatsApp, Deals, Admin. Badges de compteurs (messages non lus, ruptures de stock, deals à traiter). Le rail reste visible dans tous les modules : on ne quitte jamais le chat des yeux.
+### Les 6 innovations
 
-### Colonne 2 — Conversations (320 px)
-Reprend fidèlement la logique de la capture, en version desktop :
-- Barre de recherche « Rechercher une discussion… »
-- Onglets segmentés **Discussions · Statuts · Radar** (`WaouhChatTabs` existant)
-- Carte WAOUH en tête : logo, « En ligne », Assistant IA, bouton **Discuter**, et les 3 actions rapides **Vendre / Acheter / Négocier**
-- Liste des fenêtres dédiées (1 article × 1 interlocuteur, isolation v13 conservée) avec vignette produit, nom de l'interlocuteur, dernier message, heure, badge non-lu
-- Section Archives
+1. **Composer-commande unifié** — une seule barre. Texte libre = conversation marchande. `/` = commandes ERP (`/stock`, `/ventes`, `/diffusion`, `/radar`, `/presence`) avec autocomplétion. Plus besoin de choisir un module avant de parler.
 
-### Colonne 3 — Canvas de chat (flexible, cœur de l'écran)
-- En-tête contextuel : article concerné + interlocuteur + statut de la négociation (badge : en cours / prix proposé / achat confirmé / vente conclue)
-- Fil de messages avec les fiches produit riches existantes (carrousel photo lazy-load, plein écran zoomable, actions « Je suis intéressé / Poser une question / Annuler »)
-- Composer large avec actions rapides Vendre / Acheter / Négocier, joindre photo, dictée vocale (Kpakpato)
-- Suggestions IA contextuelles au-dessus du composer
+2. **Cartes ERP rendues dans le fil** — demander « mon stock » ne quitte pas le chat : une carte stock (jauges, ruptures, valeur FCFA en mono) s'insère comme un message, avec ses boutons d'action. Idem BI (mini-graphes), ventes, présence. Le fil devient l'historique de pilotage de l'entreprise.
 
-### Colonne 4 — Contexte IA (360 px, repliable)
-- Fiche de l'article en discussion (photos, prix, ville, vendeur)
-- Résumé automatique de la négociation (`WaouhArticleSummary`) : points clés, prochaine étape, décision
-- Analyse « Prix Réel WAOUH » (fourchette marché)
-- Actions de bouclage : paiement, livreur, clôture du deal
-- Traçabilité `correlation_id` visible pour l'admin
+3. **Palette de conversations ⌘K** — la liste des fenêtres isolées (1 article × 1 interlocuteur, v13) ne mange plus une colonne permanente : elle s'ouvre en palette, avec les onglets **Discussions / Statuts / Radar** en filtres et la recherche déjà présente dans l'en-tête. Navigation clavier de bout en bout.
 
-### Accueil quand aucune conversation n'est ouverte
-À la place du « Aucune conversation » vide de la capture : un **hero de chat plein écran** — logo WAOUH, une seule grande barre de saisie « Que cherchez-vous aujourd'hui ? », 6 suggestions cliquables (Chercher un produit, Vendre un article, Négocier un prix, Voir mon stock, Analyser mes ventes, Scanner le Radar) et une bande de KPI vivants sous la barre. Le chat est ainsi le premier geste possible sur bot.bj.
+4. **Tiroir contexte à la demande** — sur une négociation active, un tiroir droit (380 px, glissant, `Esc` pour fermer) affiche la fiche article, le résumé automatique de la négociation, l'analyse « Prix Réel WAOUH » et les actions de bouclage (paiement, livreur, clôture). Il n'existe que quand il sert.
 
-## Les briques ERP autour du chat
+5. **Bandeau de télémétrie vivant** — dans la barre HUD : statut marché Cotonou (point pulsé), CA du jour, deals ouverts, ruptures. Chiffres en JetBrains Mono. C'est ce qui transforme un chat en salle de contrôle.
 
-Chaque module ouvre dans la colonne 3 (le canvas), en gardant la liste de conversations à gauche — donc on peut consulter son stock tout en gardant la négociation à portée de clic. Chaque brique conserve le même contrat visuel :
+6. **État d'accueil actif** — plus de page vide ni de mockup. À l'ouverture : signature WAOUH, une phrase, la barre de commande focalisée, 6 intentions cliquables et 4 tuiles KPI compactes. Le premier geste possible sur bot.bj est de parler.
 
-| Brique | Contenu | Copilote |
-| --- | --- | --- |
-| Stock IA | produits, ruptures, valeur FCFA | `waouh-stock-analyze` |
-| BI IA | graphiques auto, sources Sheets/CSV | `waouh-bi-query` |
-| Boutique IA | catalogue, prix, ventes, deals | agent commerce |
-| Présence IA | pointages QR + géofence | agent RH |
-| Canaux | sessions WAHA, diffusion ciblée | assistant canal |
+### Micro-interactions
+Messages en fondu-montée 120 ms ; pulsation lente sur l'indicateur en ligne ; tiroirs sans rebond ; focus permanent sur le composer (au chargement, après envoi, après changement de conversation) ; `Enter` envoyer, `Tab` autocompléter, `Esc` fermer.
 
-Le copilote de chaque brique s'affiche **dans le même canvas de chat** : une seule grammaire conversationnelle pour tout l'ERP.
-
-## Direction visuelle
-
-Fidèle à la capture, transposée en desktop :
-- Vert profond WAOUH en accent (`#1F5E4B`-like) sur fond clair, cartes blanches très arrondies (rx 20-24), bordures fines vert pâle
-- Onglets segmentés pilule, boutons d'action arrondis avec icône à gauche
-- Une teinte par brique ERP pour le rail et les en-têtes de module
-- Tokens sémantiques dans `index.css` (`--erp-surface`, `--erp-rail`, une teinte par module) — aucune couleur en dur dans les composants
-- Densité desktop : plus d'informations visibles, mais mêmes composants qu'en mobile
-- Responsive : sous `lg`, on retombe sur la pile mobile actuelle (rien de cassé sur téléphone)
+### Responsive
+Sous `lg`, on retombe sur la pile mobile actuelle (`MobileShell`) : rien de cassé sur téléphone. Le tiroir contexte devient une feuille en bas d'écran.
 
 ## Volet technique
 
-- Nouveau layout `WorkspaceShell` (rail + liste + canvas + panneau contexte) sous `src/components/workspace/`
-- `/` sur desktop rend le workspace web ; le comportement mobile actuel (`MobileShell`) est conservé via un point de bascule `useIsDesktop`, sans toucher aux routes `/app/*`
-- Réutilisation directe des composants chat existants (`WaouhWebChat`, `WaouhMatchChatList`, `WaouhMatchChatWindow`, `WaouhChatTabs`, `WaouhRadarTab`, `WaouhProductCard`, `WaouhArticleSummary`) — **aucune logique de chat, d'isolation v13 ou de corrélation n'est réécrite**
-- Les modules ERP réutilisent les edge functions existantes ; extraction en hooks partagés des écrans mobiles BI/Stock/Présence pour les rendre montables côté web
-- Chargement paresseux par module, colonne contexte montée à la demande
-- SEO sur la page d'accueil web : `title`/`description` propres, H1 unique, JSON-LD `SoftwareApplication`
+- Thème sombre ERP en tokens sémantiques dans `index.css` (`--erp-bg`, `--erp-surface`, `--erp-primary`, `--erp-accent`, une teinte par brique) — aucune couleur en dur dans les composants. Polices via `index.html`, mappées dans `tailwind.config.ts`.
+- Nouveaux composants sous `src/components/erp/` : `CockpitShell`, `CockpitHud`, `CommandComposer`, `ConversationPalette` (⌘K, sur `cmdk` déjà présent via shadcn), `ContextDrawer`, `ErpResultCard`.
+- **Aucune logique métier réécrite** : réutilisation directe de `WaouhWebChat`, `useWaouhMatchChats` (isolation v13), `WaouhMatchChatWindow`, `WaouhChatTabs`, `WaouhRadarTab`, `WaouhProductCard`, `WaouhArticleSummary`, `WaouhNotificationsBell`, `waouhCorrelation`.
+- Les commandes `/` mappent sur les edge functions existantes (`waouh-stock-analyze`, `waouh-bi-query`, agents, diffusion) ; leurs réponses sont rendues en `ErpResultCard` dans le fil.
+- Chargement paresseux par brique ; tiroir contexte monté à la demande.
+- SEO : `title`/`description` propres, H1 unique, JSON-LD `SoftwareApplication`.
 
 ## Ordre de livraison
 
-1. `WorkspaceShell` (rail + colonnes) et bascule desktop/mobile sur `/`
-2. Colonne conversations desktop (recherche, onglets, carte WAOUH, actions rapides, liste isolée)
-3. Canvas de chat + hero d'accueil conversationnel
-4. Panneau contexte IA (fiche article, résumé, prix réel, bouclage)
-5. Branchement des briques ERP dans le canvas, avec leur copilote
-6. Passe responsive, tests bout en bout, vérification console/réseau
+1. Tokens du thème sombre + polices + `CockpitShell` (HUD, fil, composer) sur `/`
+2. État d'accueil actif (intentions + KPI) et branchement du fil `WaouhWebChat`
+3. `CommandComposer` avec routage texte / `/commandes` + autocomplétion
+4. `ConversationPalette` ⌘K (Discussions / Statuts / Radar, conversations isolées)
+5. `ContextDrawer` (fiche article, résumé négo, prix réel, bouclage)
+6. `ErpResultCard` pour Stock, BI, Ventes, Présence, Diffusion dans le fil
+7. Passe responsive, accessibilité clavier, tests bout en bout, vérification console/réseau
