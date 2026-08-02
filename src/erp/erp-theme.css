@@ -656,7 +656,3 @@ button.waouh-erp-nav__item {
   cursor: pointer;
   background: transparent;
 }
-
-.waouh-erp-workspace > * {
-  min-height: 0;
-}
