@@ -1,5 +1,6 @@
-import { type ReactNode, useMemo, useState } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+
 import {
   BarChart3,
   Bell,
