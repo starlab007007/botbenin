@@ -170,13 +170,13 @@ class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback onNewChat;
 
   @override
-  Size get preferredSize => const Size.fromHeight(58);
+  Size get preferredSize => const Size.fromHeight(78);
 
   @override
   Widget build(BuildContext context) => AppBar(
-        toolbarHeight: 58,
+        toolbarHeight: 78,
         automaticallyImplyLeading: false,
-        leadingWidth: 52,
+        leadingWidth: 64,
         leading: Center(
           child: _ProfileAvatar(
             name: displayName,
@@ -194,22 +194,22 @@ class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                fontSize: 18.5,
+                fontSize: 21,
                 fontWeight: FontWeight.w900,
-                letterSpacing: -.25,
+                letterSpacing: -.3,
               ),
             ),
-            const SizedBox(height: 1),
+            const SizedBox(height: 2),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const _OnlineDot(),
-                const SizedBox(width: 5),
+                const SizedBox(width: 6),
                 Text(
                   onlineLabel,
                   style: const TextStyle(
                     color: Color(0xFFC9F6E3),
-                    fontSize: 11.5,
+                    fontSize: 12.5,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -232,10 +232,9 @@ class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
           IconButton(
             onPressed: onNewChat,
             tooltip: 'Nouveau chat',
-            visualDensity: VisualDensity.compact,
-            icon: const Icon(Icons.add_rounded, size: 25),
+            icon: const Icon(Icons.add_rounded, size: 29),
           ),
-          const SizedBox(width: 2),
+          const SizedBox(width: 4),
         ],
         flexibleSpace: const DecoratedBox(
           decoration: BoxDecoration(
@@ -268,29 +267,23 @@ class _SearchBar extends StatelessWidget {
     };
     return Container(
       color: const Color(0xFF08756A),
-      padding: const EdgeInsets.fromLTRB(14, 3, 14, 8),
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 14),
       child: TextField(
         controller: controller,
         onChanged: (_) => onChanged(),
-        style: const TextStyle(color: Colors.white, fontSize: 14.5),
+        style: const TextStyle(color: Colors.white, fontSize: 16),
         decoration: InputDecoration(
-          isDense: true,
           hintText: hint,
-          hintStyle: const TextStyle(color: Color(0xFFBEE1D8), fontSize: 14.5),
+          hintStyle: const TextStyle(color: Color(0xFFBEE1D8), fontSize: 16),
           prefixIcon: const Icon(
             Icons.search_rounded,
-            size: 21,
             color: Color(0xFFD6F0E8),
           ),
-          prefixIconConstraints:
-              const BoxConstraints(minWidth: 42, minHeight: 42),
           suffixIcon: controller.text.isEmpty
               ? null
               : IconButton(
-                  visualDensity: VisualDensity.compact,
                   icon: const Icon(
                     Icons.close_rounded,
-                    size: 20,
                     color: Color(0xFFD6F0E8),
                   ),
                   onPressed: () {
@@ -300,18 +293,18 @@ class _SearchBar extends StatelessWidget {
                 ),
           filled: true,
           fillColor: const Color(0xFF2A887D),
-          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+          contentPadding: const EdgeInsets.symmetric(vertical: 15),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(15),
+            borderRadius: BorderRadius.circular(18),
             borderSide: BorderSide.none,
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(15),
+            borderRadius: BorderRadius.circular(18),
             borderSide: BorderSide.none,
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(15),
-            borderSide: const BorderSide(color: Color(0xFFBFF7E4), width: 1.2),
+            borderRadius: BorderRadius.circular(18),
+            borderSide: const BorderSide(color: Color(0xFFBFF7E4), width: 1.4),
           ),
         ),
       ),
@@ -331,13 +324,13 @@ class _InboxTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(14, 9, 14, 7),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
         child: Container(
-          height: 46,
+          height: 54,
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(28),
             border: Border.all(color: const Color(0xFF87A198)),
           ),
           child: Row(
@@ -404,26 +397,26 @@ class _InboxTabButton extends StatelessWidget {
           onTap: onTap,
           child: Center(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 6),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     selected ? Icons.check_rounded : icon,
-                    size: 17,
+                    size: 18,
                     color: selected
                         ? const Color(0xFF08756A)
                         : const Color(0xFF263530),
                   ),
-                  const SizedBox(width: 3),
+                  const SizedBox(width: 5),
                   Flexible(
                     child: Text(
                       label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 13.5,
+                        fontSize: 14.5,
                         fontWeight: FontWeight.w800,
                         color: selected
                             ? const Color(0xFF075E54)
@@ -2326,9 +2319,9 @@ class _RadarResultSheet extends StatelessWidget {
           ? _RadarAction.negotiate
           : action.startsWith('proposer') || action.startsWith('contacter')
               ? _RadarAction.propose
-              : action.startsWith('acheter')
-                  ? _RadarAction.buy
-                  : _RadarAction.interest,
+          : action.startsWith('acheter')
+              ? _RadarAction.buy
+              : _RadarAction.interest,
     );
   }
 
@@ -2785,7 +2778,7 @@ class _ProfileAvatar extends StatelessWidget {
         .toUpperCase();
     return InkResponse(
       onTap: onTap,
-      radius: 19,
+      radius: 28,
       child: CircleAvatar(
         radius: 23,
         backgroundColor: const Color(0xFF0CA4B5),
@@ -2797,8 +2790,8 @@ class _ProfileAvatar extends StatelessWidget {
                 initials.isEmpty ? 'W' : initials,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w500,
                 ),
               )
             : null,
@@ -2822,17 +2815,11 @@ class _HeaderIcon extends StatelessWidget {
   Widget build(BuildContext context) => Stack(
         clipBehavior: Clip.none,
         children: [
-          IconButton(
-            onPressed: onTap,
-            tooltip: tooltip,
-            iconSize: 23,
-            visualDensity: VisualDensity.compact,
-            icon: Icon(icon),
-          ),
+          IconButton(onPressed: onTap, tooltip: tooltip, icon: Icon(icon)),
           if (count > 0)
             Positioned(
-              top: 2,
-              right: 2,
+              top: 5,
+              right: 5,
               child: _CountBubble(value: count, small: true),
             ),
         ],
@@ -2870,8 +2857,8 @@ class _OnlineDot extends StatelessWidget {
   const _OnlineDot();
   @override
   Widget build(BuildContext context) => Container(
-        width: 8,
-        height: 8,
+        width: 9,
+        height: 9,
         decoration: const BoxDecoration(
           color: Color(0xFF22D98C),
           shape: BoxShape.circle,
