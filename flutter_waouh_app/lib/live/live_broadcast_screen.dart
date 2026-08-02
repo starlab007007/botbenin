@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../main.dart' as legacy;
 import 'live_diffusion_data.dart';
 import 'live_diffusion_models.dart';
+import 'live_guest_action_gate.dart';
 import 'live_theme.dart';
 
 class LiveBroadcastScreen extends StatefulWidget {
@@ -54,7 +55,13 @@ class _LiveBroadcastScreenState extends State<LiveBroadcastScreen> {
             child: _DiffusionTabs(value: _tab, onChanged: (value) => setState(() => _tab = value)),
           ),
         ),
-        body: FutureBuilder<List<LiveAiDiffusionRequest>>(
+        body: Column(
+          children: [
+            _DiffusionSmartCards(
+              value: _tab,
+              onChanged: (value) => setState(() => _tab = value),
+            ),
+            Expanded(child: FutureBuilder<List<LiveAiDiffusionRequest>>(
           future: _requestsFuture,
           builder: (_, snapshot) {
             final requests = snapshot.data ?? const <LiveAiDiffusionRequest>[];
@@ -72,6 +79,114 @@ class _LiveBroadcastScreenState extends State<LiveBroadcastScreen> {
               1 => _RequestsTab(data: _data, requests: requests, onChanged: _refresh),
               _ => _TrackingTab(requests: requests),
             };
+          },
+        )),
+          ],
+        ),
+      );
+}
+
+class _DiffusionSmartCards extends StatelessWidget {
+  const _DiffusionSmartCards({required this.value, required this.onChanged});
+
+  final int value;
+  final ValueChanged<int> onChanged;
+
+  static const items = [
+    (
+      'Créer une diffusion',
+      'Ciblage, audience et message assistés',
+      Icons.auto_awesome_rounded,
+      Color(0xFF08756A),
+    ),
+    (
+      'Demandes',
+      'Validation et état de chaque campagne',
+      Icons.pending_actions_rounded,
+      Color(0xFFE59016),
+    ),
+    (
+      'Suivi intelligent',
+      'Progression et performance en temps réel',
+      Icons.analytics_outlined,
+      Color(0xFF2563EB),
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        height: 116,
+        child: ListView.separated(
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+          scrollDirection: Axis.horizontal,
+          itemCount: items.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 10),
+          itemBuilder: (_, index) {
+            final item = items[index];
+            final selected = index == value;
+            return SizedBox(
+              width: 210,
+              child: Material(
+                color: selected ? item.$4.withValues(alpha: .10) : Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => onChanged(index),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: selected ? item.$4 : const Color(0xFFDCE7E3),
+                        width: selected ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: item.$4.withValues(alpha: .12),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(item.$3, color: item.$4, size: 21),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.$1,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                item.$2,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Color(0xFF667A73),
+                                  fontSize: 10.5,
+                                  height: 1.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
           },
         ),
       );
@@ -218,6 +333,11 @@ class _CreateAiDiffusionState extends State<_CreateAiDiffusion> {
   }
 
   Future<void> _submit() async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/diffusion',
+      actionLabel: 'soumettre cette diffusion',
+    )) return;
     final preview = _preview;
     if (preview == null || preview.total <= 0) {
       _notice('Prévisualisez une audience non vide avant de soumettre.');

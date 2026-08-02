@@ -21,7 +21,8 @@ String _waouhUuidV4() {
   final bytes = List<int>.generate(16, (_) => _waouhSecureRandom.nextInt(256));
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  final hex = bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+  final hex =
+      bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
   return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
       '${hex.substring(12, 16)}-${hex.substring(16, 20)}-'
       '${hex.substring(20)}';
@@ -55,6 +56,7 @@ class LiveWaouhController extends ChangeNotifier {
   String? _composerSeed;
   Map<String, dynamic> _composerMeta = const {};
   String? _pendingMeetKey;
+  LiveMatch? _pendingMeet;
   String? error;
   bool busy = false;
   bool syncing = false;
@@ -120,6 +122,12 @@ class LiveWaouhController extends ChangeNotifier {
   Map<String, dynamic> takeComposerMeta() {
     final value = Map<String, dynamic>.from(_composerMeta);
     _composerMeta = const {};
+    return value;
+  }
+
+  LiveMatch? takePendingMeet() {
+    final value = _pendingMeet;
+    _pendingMeet = null;
     return value;
   }
 
@@ -527,8 +535,110 @@ class LiveWaouhController extends ChangeNotifier {
     final action = liveText(meta['action']).toLowerCase();
     final threadId = liveText(response['thread_id']);
     if (action == 'interested' && threadId.isNotEmpty) {
+      final match = _pendingInterestedMatch(
+        response: response,
+        requestPayload: payload,
+      );
       _pendingMeetKey = 'meet_$threadId';
+      _pendingMeet = match;
+      if (match != null) notifications.rememberMatch(match);
     }
+  }
+
+  LiveMatch? _pendingInterestedMatch({
+    required Map<String, dynamic> response,
+    required Map<String, dynamic> requestPayload,
+  }) {
+    final threadId = liveText(response['thread_id']);
+    if (threadId.isEmpty) return null;
+
+    final requestMeta = liveMap(requestPayload['meta']);
+    final rawProducts = response['products'];
+    final firstProduct = rawProducts is List && rawProducts.isNotEmpty
+        ? liveMap(rawProducts.first)
+        : const <String, dynamic>{};
+
+    final responseAttachments = liveAttachments(response['attachments']);
+    final productAttachments = liveAttachments(
+      firstProduct['photos'] ??
+          firstProduct['images'] ??
+          firstProduct['attachments'] ??
+          firstProduct['image_url'],
+    );
+    final photoUrls = <String>{
+      ...productAttachments.map((item) => item.url),
+      ...responseAttachments.map((item) => item.url),
+    }.where((url) => url.trim().isNotEmpty).toList();
+
+    final articleId = liveText(
+      response['article_id'] ??
+          firstProduct['article_id'] ??
+          firstProduct['id'] ??
+          requestMeta['article_id'],
+    );
+    final rawTitle = liveText(
+      firstProduct['title'] ??
+          firstProduct['name'] ??
+          firstProduct['nom'] ??
+          requestMeta['title'],
+      'Discussion produit',
+    );
+    final priceValue = firstProduct['price'] ??
+        firstProduct['prix'] ??
+        response['price'] ??
+        requestMeta['price'];
+    final price = priceValue is num
+        ? priceValue
+        : num.tryParse(
+            '$priceValue'
+                .replaceAll(RegExp(r'[^0-9.,-]'), '')
+                .replaceAll(',', '.'),
+          );
+    final cityValue = liveText(
+      firstProduct['city'] ??
+          firstProduct['ville'] ??
+          response['city'] ??
+          requestPayload['city'],
+    );
+
+    return LiveMatch(
+      key: 'meet_$threadId',
+      articleId: articleId,
+      role: 'buyer',
+      title: liveVisibleText(rawTitle),
+      lastAt: DateTime.now(),
+      threadId: threadId,
+      threadType: 'product_meet',
+      buyerUserId: liveText(
+        response['buyer_user_id'] ??
+            firstProduct['buyer_user_id'] ??
+            requestMeta['buyer_user_id'],
+      ),
+      sellerUserId: liveText(
+        response['seller_user_id'] ??
+            firstProduct['seller_user_id'] ??
+            requestMeta['seller_user_id'],
+      ),
+      counterpartUserId: liveText(
+        response['seller_user_id'] ??
+            firstProduct['seller_user_id'] ??
+            requestMeta['seller_user_id'],
+      ),
+      source: liveText(requestMeta['source'], 'flutter_chat'),
+      counterpartLabel: liveText(
+        firstProduct['seller_name'] ??
+            firstProduct['business_name'] ??
+            requestMeta['seller_name'],
+      ),
+      dealId: response['deal_id']?.toString(),
+      transactionId: response['transaction_id']?.toString(),
+      seedText: liveText(response['reply']),
+      price: price,
+      city: cityValue.isEmpty ? null : cityValue,
+      photo: photoUrls.isEmpty ? null : photoUrls.first,
+      photoUrls: photoUrls,
+      unreadCount: 0,
+    );
   }
 
   Future<void> _queueMain(Map<String, dynamic> payload) async {

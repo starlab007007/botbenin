@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
 import 'live_controller.dart';
+import 'live_guest_action_gate.dart';
 import 'live_models.dart';
 import 'live_sell_sheet.dart';
 import 'live_smart_timeline.dart';
@@ -51,6 +52,11 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
   }
 
   Future<void> _attach(ImageSource source) async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/chat/waouh',
+      actionLabel: 'joindre une photo',
+    )) return;
     final file =
         await ImagePicker().pickImage(source: source, imageQuality: 82);
     if (file == null || !mounted) return;
@@ -63,8 +69,18 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
     }
   }
 
-  Future<void> _openSellForm() => Navigator.of(context).push(MaterialPageRoute(
-      fullscreenDialog: true, builder: (_) => const LiveSellSheet()));
+  Future<void> _openSellForm() async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/chat/waouh',
+      actionLabel: 'publier une vente',
+    )) return;
+    if (!mounted) return;
+    await Navigator.of(context).push(MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => const LiveSellSheet(),
+    ));
+  }
 
   Future<void> _newChat() async {
     await context.read<LiveWaouhController>().startNewChat();
@@ -124,16 +140,33 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
       composerFocus.requestFocus();
       return;
     }
-    _send(payload);
+    await _send(payload);
   }
 
-  void _send([String? payload]) {
+  Future<void> _send([String? payload]) async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/chat/waouh',
+      actionLabel: 'envoyer un message ou lancer une recherche',
+    )) return;
     final controller = context.read<LiveWaouhController>();
     final text = payload == null
         ? composer.text.trim()
         : liveCommercePayloadText(payload);
     final files = List<LiveAttachment>.from(attachments);
     final meta = Map<String, dynamic>.from(pendingMeta)..remove('auto_send');
+    final searchRequest = meta['intent'] == 'buy' ||
+        meta['action'] == 'buy' ||
+        RegExp(
+          r'\b(cherche|recherche|acheter|achète)\b',
+          caseSensitive: false,
+        ).hasMatch(text);
+    if (searchRequest) {
+      // Contrat client : le rendu accepte au maximum dix résultats.
+      // Les services plus récents peuvent exploiter ces deux alias.
+      meta.putIfAbsent('result_limit', () => 10);
+      meta.putIfAbsent('max_results', () => 10);
+    }
     if (payload != null && payload.trim().isNotEmpty) {
       meta.addAll(liveCommercePayloadMeta(payload));
     }
@@ -164,11 +197,15 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
       final controller = context.read<LiveWaouhController>();
       await controller.sendMain(
           text: local.text, attachments: local.attachments, meta: meta);
-      _replaceDelivery(local.id,
-          controller.isOnline ? 'sent' : 'queued');
-      final matchKey = controller.takePendingMeetKey();
+      _replaceDelivery(local.id, controller.isOnline ? 'sent' : 'queued');
+      final pendingMatch = controller.takePendingMeet();
+      final pendingMatchKey = controller.takePendingMeetKey();
+      final matchKey = pendingMatch?.key ?? pendingMatchKey;
       if (matchKey != null && mounted) {
-        context.go('/app/chat/match/${Uri.encodeComponent(matchKey)}');
+        context.go(
+          '/app/chat/match/${Uri.encodeComponent(matchKey)}',
+          extra: pendingMatch,
+        );
       }
     } catch (_) {
       _replaceDelivery(local.id, 'failed');
@@ -379,7 +416,12 @@ class _LiveConversationScreenState extends State<LiveConversationScreen> {
     super.dispose();
   }
 
-  void _send() {
+  Future<void> _send() async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/chat/${widget.conversationId}',
+      actionLabel: 'envoyer ce message',
+    )) return;
     final text = composer.text.trim();
     if (text.isEmpty) return;
     final local = LiveMessage(
@@ -411,7 +453,7 @@ class _LiveConversationScreenState extends State<LiveConversationScreen> {
       return;
     }
     composer.text = payload;
-    _send();
+    unawaited(_send());
   }
 
   Future<void> _deliver(LiveMessage local) async {

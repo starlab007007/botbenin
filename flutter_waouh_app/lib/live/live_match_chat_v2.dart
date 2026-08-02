@@ -27,6 +27,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
   final _optimistic = <LiveMessage>[];
   LiveMatch? _match;
   Stream<List<LiveMessage>>? _messageStream;
+  Object? _resolveError;
 
   @override
   void initState() {
@@ -36,19 +37,26 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
       _messageStream =
           context.read<LiveWaouhController>().matchMessages(_match!);
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final controller = context.read<LiveWaouhController>();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _resolve());
+  }
+
+  Future<void> _resolve() async {
+    final controller = context.read<LiveWaouhController>();
+    try {
       final found = _match ?? await controller.resolveMatch(widget.matchKey);
-      if (found != null) {
-        await controller.markMatchRead(found);
+      if (found == null) {
+        throw StateError('Discussion introuvable');
       }
-      if (mounted) {
-        setState(() {
-          _match = found;
-          if (found != null) _messageStream = controller.matchMessages(found);
-        });
-      }
-    });
+      unawaited(controller.markMatchRead(found));
+      if (!mounted) return;
+      setState(() {
+        _resolveError = null;
+        _match = found;
+        _messageStream = controller.matchMessages(found);
+      });
+    } catch (error) {
+      if (mounted) setState(() => _resolveError = error);
+    }
   }
 
   @override
@@ -189,8 +197,67 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
   Widget build(BuildContext context) {
     final controller = context.watch<LiveWaouhController>();
     final match = _match;
-    if (match == null)
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (match == null) {
+      return Scaffold(
+        appBar: const LiveHeader(
+          title: 'Discussion produit',
+          subtitle: 'Ouverture de la conversation…',
+          back: true,
+        ),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE7F6F0),
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                    child: const Center(
+                      child: CircularProgressIndicator(strokeWidth: 3),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    _resolveError == null
+                        ? 'Préparation du chat…'
+                        : 'La discussion met plus de temps que prévu.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  const Text(
+                    'WAOUH récupère le fil exact sans créer de doublon.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Color(0xFF667A73),
+                      height: 1.35,
+                    ),
+                  ),
+                  if (_resolveError != null) ...[
+                    const SizedBox(height: 14),
+                    FilledButton.icon(
+                      onPressed: _resolve,
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Réessayer'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return Scaffold(
       appBar: LiveHeader(
         title: match.title,

@@ -94,19 +94,12 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
       initialLocation: '/app/chat',
       refreshListenable: auth,
       redirect: (_, state) {
-        const guarded = [
-          '/app/notifications',
-          '/app/bots',
-          '/app/whatsapp',
-          '/app/diffusion',
-          '/app/partner',
-          '/app/profile',
-        ];
         final path = state.uri.path;
-        if (!auth.signedIn && guarded.any(path.startsWith))
-          return '/app/auth?next=${Uri.encodeComponent(path)}';
-        if (auth.signedIn && path.startsWith('/app/auth'))
-          return state.uri.queryParameters['next'] ?? '/app/chat';
+        // Toutes les pages sont consultables en mode découverte. Les actions
+        // métier demandent l'authentification au moment précis de leur usage.
+        if (auth.signedIn && path.startsWith('/app/auth')) {
+          return state.uri.queryParameters['next'] ?? '/app/ia';
+        }
         return null;
       },
       routes: [

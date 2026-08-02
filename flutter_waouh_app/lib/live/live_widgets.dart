@@ -1093,13 +1093,15 @@ List<_PremiumProduct> _premiumProducts(LiveMessage message) {
         role: _premiumString(row['role'] ?? message.meta['role']),
       );
     }).toList();
-    if (structured.isNotEmpty) return structured;
+    if (structured.isNotEmpty) {
+      return structured.take(10).toList(growable: false);
+    }
   }
   final matches = RegExp(
     r'^\s*(?:\*{0,2})?(?:article\s*)?(\d+)\s*(?:[.)]|[-–—:])\s+(.+?)(?:\*{0,2})?\s*$',
     caseSensitive: false,
     multiLine: true,
-  ).allMatches(message.text).toList();
+  ).allMatches(message.text).take(10).toList(growable: false);
   final products = <_PremiumProduct>[];
   final usedAttachmentUrls = <String>{};
   var fallbackAttachmentIndex = 0;

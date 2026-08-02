@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import 'live_controller.dart';
+import 'live_guest_action_gate.dart';
 import 'live_models.dart';
 import 'live_theme.dart';
 import 'live_visuals.dart';
@@ -251,6 +252,11 @@ class _LiveStatusComposerScreenState extends State<LiveStatusComposerScreen> {
   }
 
   Future<void> _publish() async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/chat',
+      actionLabel: 'publier ce statut',
+    )) return;
     if (title.text.trim().isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Titre obligatoire.'))); return; }
     setState(() => publishing = true);
     try {

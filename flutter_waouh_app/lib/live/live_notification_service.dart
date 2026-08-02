@@ -21,6 +21,18 @@ class LiveNotificationService {
     return null;
   }
 
+  /// Rend immédiatement disponible un Meet créé par l'action « Intéressé ».
+  /// Le prochain chargement distant le fusionnera avec la notification serveur.
+  void rememberMatch(LiveMatch match) {
+    final byKey = <String, LiveMatch>{
+      for (final item in _cachedMatches) item.key: item,
+      match.key: match,
+    };
+    _cachedMatches = byKey.values.toList()
+      ..sort((a, b) => b.lastAt.compareTo(a.lastAt));
+    _cachedMatchesAt = DateTime.now();
+  }
+
   Future<List<LiveNotification>> load(String? authUserId) async {
     final scope = await _notificationScope(authUserId);
     final byId = <String, LiveNotification>{};
@@ -32,7 +44,8 @@ class LiveNotificationService {
       try {
         final queued = await chat.client
             .from('waouh_outbound_queue')
-            .select('id,template,payload,created_at,image_url,message_id,transaction_id')
+            .select(
+                'id,template,payload,created_at,image_url,message_id,transaction_id')
             .or(scope.queueOrClause)
             .order('created_at', ascending: false)
             .limit(100);
@@ -66,7 +79,8 @@ class LiveNotificationService {
     if (scope.unifiedOrClause.isNotEmpty) {
       final rows = await chat.client
           .from('waouh_notifications')
-          .select('id,thread_id,notification_type,payload,photos,sent_at,article_id,opened,web_session_id,user_id')
+          .select(
+              'id,thread_id,notification_type,payload,photos,sent_at,article_id,opened,web_session_id,user_id')
           .or(scope.unifiedOrClause)
           .order('sent_at', ascending: false)
           .limit(150);
@@ -74,7 +88,8 @@ class LiveNotificationService {
         final row = Map<String, dynamic>.from(raw as Map);
         final payload = <String, dynamic>{...liveMap(row['payload'])};
         final photos = liveStringList(row['photos']);
-        if (photos.isNotEmpty && payload['photos'] == null) payload['photos'] = photos;
+        if (photos.isNotEmpty && payload['photos'] == null)
+          payload['photos'] = photos;
         final template = liveText(row['notification_type']);
         final item = LiveNotification(
           id: liveText(row['id']),
@@ -101,7 +116,9 @@ class LiveNotificationService {
     // Queue entries are historical/read-only. Updating the unified table is a
     // safe best-effort operation; a missing row simply has no effect.
     try {
-      await chat.client.from('waouh_notifications').update({'opened': true}).eq('id', id);
+      await chat.client
+          .from('waouh_notifications')
+          .update({'opened': true}).eq('id', id);
     } catch (_) {}
   }
 
@@ -110,8 +127,7 @@ class LiveNotificationService {
     if (scope.unifiedOrClause.isEmpty) return;
     await chat.client
         .from('waouh_notifications')
-        .update({'opened': true})
-        .or(scope.unifiedOrClause);
+        .update({'opened': true}).or(scope.unifiedOrClause);
   }
 
   Future<List<LiveMatch>> loadMatches(String? authUserId,
@@ -127,12 +143,14 @@ class LiveNotificationService {
     if (cacheFresh) {
       all = _cachedMatches;
     } else {
-      final inFlight = _matchesInFlight.putIfAbsent(cacheKey, () => _fetchMatches(scope).then((values) {
-        _cachedMatches = values;
-        _cachedMatchesAt = DateTime.now();
-        _cachedMatchesScope = cacheKey;
-        return values;
-      }).whenComplete(() => _matchesInFlight.remove(cacheKey)));
+      final inFlight = _matchesInFlight.putIfAbsent(
+          cacheKey,
+          () => _fetchMatches(scope).then((values) {
+                _cachedMatches = values;
+                _cachedMatchesAt = DateTime.now();
+                _cachedMatchesScope = cacheKey;
+                return values;
+              }).whenComplete(() => _matchesInFlight.remove(cacheKey)));
       all = await inFlight;
     }
     final archivedKeys = await _archivedKeys(scope.storageKey);
@@ -146,7 +164,8 @@ class LiveNotificationService {
   Future<List<LiveMatch>> _fetchMatches(_ViewerScope scope) async {
     final rows = await chat.client
         .from('waouh_notifications')
-        .select('id,thread_id,notification_type,payload,photos,sent_at,article_id,opened,user_id,web_session_id')
+        .select(
+            'id,thread_id,notification_type,payload,photos,sent_at,article_id,opened,user_id,web_session_id')
         .or(scope.unifiedOrClause)
         .order('sent_at', ascending: false)
         .limit(300);
@@ -189,9 +208,8 @@ class LiveNotificationService {
           (!matchTypes.contains(type) && threadId.isEmpty)) {
         continue;
       }
-      row['article_id'] = isSearch
-          ? liveText(payload['search_request_id'])
-          : articleId;
+      row['article_id'] =
+          isSearch ? liveText(payload['search_request_id']) : articleId;
       final item = LiveMatch.fromNotification(row);
       merged[item.key] = merged[item.key]?.merge(item) ?? item;
     }
@@ -211,7 +229,10 @@ class LiveNotificationService {
     _ViewerScope scope,
   ) async {
     try {
-      final since = DateTime.now().subtract(const Duration(days: 30)).toUtc().toIso8601String();
+      final since = DateTime.now()
+          .subtract(const Duration(days: 30))
+          .toUtc()
+          .toIso8601String();
       final rows = await chat.client
           .from('waouh_messages')
           .select('thread_id,article_id,created_at,meta,user_id,web_session_id')
@@ -260,7 +281,10 @@ class LiveNotificationService {
       }
       if (stubs.isEmpty) return;
 
-      final articleIds = stubs.values.map((item) => item['articleId'].toString()).toSet().toList();
+      final articleIds = stubs.values
+          .map((item) => item['articleId'].toString())
+          .toSet()
+          .toList();
       final articleRows = await chat.client
           .from('waouh_articles')
           .select('id,title,price,city,photos')
@@ -271,7 +295,8 @@ class LiveNotificationService {
       };
       for (final entry in stubs.entries) {
         final stub = entry.value;
-        final article = articles[liveText(stub['articleId'])] ?? const <String, dynamic>{};
+        final article =
+            articles[liveText(stub['articleId'])] ?? const <String, dynamic>{};
         final photos = liveStringList(article['photos']);
         merged[entry.key] = LiveMatch(
           key: entry.key,
@@ -289,7 +314,9 @@ class LiveNotificationService {
           negotiationId: stub['negotiationId']?.toString(),
           dealId: stub['dealId']?.toString(),
           transactionId: stub['transactionId']?.toString(),
-          price: article['price'] is num ? article['price'] as num : num.tryParse('${article['price'] ?? ''}'),
+          price: article['price'] is num
+              ? article['price'] as num
+              : num.tryParse('${article['price'] ?? ''}'),
           city: article['city']?.toString(),
           photo: photos.isEmpty ? null : photos.first,
         );
@@ -325,7 +352,10 @@ class LiveNotificationService {
           .toList();
       final clause = ids.isEmpty ? '' : 'user_id.in.(${ids.join(',')})';
       final queue = ids.isEmpty ? '' : 'to_user_id.in.(${ids.join(',')})';
-      return _ViewerScope(unifiedOrClause: clause, queueOrClause: queue, storageKey: 'auth_$authUserId');
+      return _ViewerScope(
+          unifiedOrClause: clause,
+          queueOrClause: queue,
+          storageKey: 'auth_$authUserId');
     }
 
     final ids = await chat.waouhUserIds(null);
@@ -335,7 +365,10 @@ class LiveNotificationService {
       unified.add('user_id.in.(${ids.join(',')})');
       queue.add('to_user_id.in.(${ids.join(',')})');
     }
-    return _ViewerScope(unifiedOrClause: unified.join(','), queueOrClause: queue.join(','), storageKey: sid);
+    return _ViewerScope(
+        unifiedOrClause: unified.join(','),
+        queueOrClause: queue.join(','),
+        storageKey: sid);
   }
 
   Future<_ViewerScope> _matchScope(String? authUserId) async {
@@ -353,7 +386,8 @@ class LiveNotificationService {
     }
     final clauses = <String>['web_session_id.eq.$sid'];
     if (ids.isNotEmpty) clauses.add('user_id.in.(${ids.join(',')})');
-    return _ViewerScope(unifiedOrClause: clauses.join(','), queueOrClause: '', storageKey: sid);
+    return _ViewerScope(
+        unifiedOrClause: clauses.join(','), queueOrClause: '', storageKey: sid);
   }
 
   Future<Set<String>> _archivedKeys(String key) async {
@@ -368,43 +402,54 @@ class LiveNotificationService {
 }
 
 class _ViewerScope {
-  const _ViewerScope({required this.unifiedOrClause, required this.queueOrClause, required this.storageKey});
+  const _ViewerScope(
+      {required this.unifiedOrClause,
+      required this.queueOrClause,
+      required this.storageKey});
   final String unifiedOrClause;
   final String queueOrClause;
   final String storageKey;
 }
 
 String _notificationTitle(String template) => switch (template) {
-  'match_seller' => '📩 Nouvel acheteur intéressé !',
-  'match_buyer' => '🎯 Annonce trouvée pour vous',
-  'negotiation_open' => '🤝 Nouvelle offre reçue',
-  'contact_exchange' => '🎉 Accord conclu — livraison en cours d’organisation',
-  'deal_created' => '🛵 Accord conclu — livraison en préparation',
-  'deal_seller' => '🛵 Vente conclue — un livreur va vous contacter',
-  'deal_buyer' => '🛵 Achat confirmé — livraison en préparation',
-  'deal_ops' => '📦 Nouveau deal à orchestrer',
-  'deal_assigned' => '🛵 Livreur assigné — ETA en cours',
-  'deal_eta_updated' => '⏱️ ETA mise à jour',
-  'deal_picked_up' => '📦 Colis collecté',
-  'deal_delivered' => '📬 Colis livré',
-  'deal_payment_request' => '💵 Confirmez le paiement',
-  'deal_paid' => '✅ Paiement confirmé',
-  'deal_cancelled' => '⚠️ Livraison annulée',
-  'sale_published' => '✅ Annonce publiée',
-  'new_buyer' => '🛒 Nouvel acheteur intéressé',
-  'match' || 'radar_match' => '🎯 Annonce trouvée pour vous',
-  _ => 'WAOUH',
-};
+      'match_seller' => '📩 Nouvel acheteur intéressé !',
+      'match_buyer' => '🎯 Annonce trouvée pour vous',
+      'negotiation_open' => '🤝 Nouvelle offre reçue',
+      'contact_exchange' =>
+        '🎉 Accord conclu — livraison en cours d’organisation',
+      'deal_created' => '🛵 Accord conclu — livraison en préparation',
+      'deal_seller' => '🛵 Vente conclue — un livreur va vous contacter',
+      'deal_buyer' => '🛵 Achat confirmé — livraison en préparation',
+      'deal_ops' => '📦 Nouveau deal à orchestrer',
+      'deal_assigned' => '🛵 Livreur assigné — ETA en cours',
+      'deal_eta_updated' => '⏱️ ETA mise à jour',
+      'deal_picked_up' => '📦 Colis collecté',
+      'deal_delivered' => '📬 Colis livré',
+      'deal_payment_request' => '💵 Confirmez le paiement',
+      'deal_paid' => '✅ Paiement confirmé',
+      'deal_cancelled' => '⚠️ Livraison annulée',
+      'sale_published' => '✅ Annonce publiée',
+      'new_buyer' => '🛒 Nouvel acheteur intéressé',
+      'match' || 'radar_match' => '🎯 Annonce trouvée pour vous',
+      _ => 'WAOUH',
+    };
 
 String _notificationBody(String template, Map<String, dynamic> payload) {
   String amount(dynamic value) {
     final parsed = value is num ? value : num.tryParse('${value ?? ''}');
     return parsed == null ? '' : '${parsed.toStringAsFixed(0)} FCFA';
   }
+
   return switch (template) {
-    'match_seller' || 'new_buyer' => 'Un acheteur cherche : ${liveText(payload['title'], 'votre produit')}${payload['price'] == null ? '' : ' — ${amount(payload['price'])}'}',
-    'match_buyer' || 'match' || 'radar_match' => '${liveText(payload['title'], 'Annonce')} — ${amount(payload['price'])}${payload['city'] == null ? '' : ' (${payload['city']})'}',
-    'negotiation_open' => 'Offre : ${amount(payload['offer'] ?? payload['price'])}',
+    'match_seller' ||
+    'new_buyer' =>
+      'Un acheteur cherche : ${liveText(payload['title'], 'votre produit')}${payload['price'] == null ? '' : ' — ${amount(payload['price'])}'}',
+    'match_buyer' ||
+    'match' ||
+    'radar_match' =>
+      '${liveText(payload['title'], 'Annonce')} — ${amount(payload['price'])}${payload['city'] == null ? '' : ' (${payload['city']})'}',
+    'negotiation_open' =>
+      'Offre : ${amount(payload['offer'] ?? payload['price'])}',
     'payment_link' => 'Montant : ${amount(payload['amount'])}',
     _ => liveText(payload['text'] ?? payload['message'], 'Mise à jour WAOUH'),
   };

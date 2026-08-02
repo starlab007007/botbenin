@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../main.dart' as legacy;
 import 'brand_mark.dart';
 import 'live_controller.dart';
+import 'live_guest_action_gate.dart';
 import 'live_controller_match_actions.dart';
 import 'live_models.dart';
 import 'live_radar_models.dart';
@@ -170,13 +171,13 @@ class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback onNewChat;
 
   @override
-  Size get preferredSize => const Size.fromHeight(78);
+  Size get preferredSize => const Size.fromHeight(64);
 
   @override
   Widget build(BuildContext context) => AppBar(
-        toolbarHeight: 78,
+        toolbarHeight: 64,
         automaticallyImplyLeading: false,
-        leadingWidth: 64,
+        leadingWidth: 54,
         leading: Center(
           child: _ProfileAvatar(
             name: displayName,
@@ -194,9 +195,9 @@ class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                fontSize: 21,
+                fontSize: 18.5,
                 fontWeight: FontWeight.w900,
-                letterSpacing: -.3,
+                letterSpacing: -.2,
               ),
             ),
             const SizedBox(height: 2),
@@ -209,7 +210,7 @@ class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
                   onlineLabel,
                   style: const TextStyle(
                     color: Color(0xFFC9F6E3),
-                    fontSize: 12.5,
+                    fontSize: 11.5,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -232,7 +233,7 @@ class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
           IconButton(
             onPressed: onNewChat,
             tooltip: 'Nouveau chat',
-            icon: const Icon(Icons.add_rounded, size: 29),
+            icon: const Icon(Icons.add_rounded, size: 26),
           ),
           const SizedBox(width: 4),
         ],
@@ -267,14 +268,14 @@ class _SearchBar extends StatelessWidget {
     };
     return Container(
       color: const Color(0xFF08756A),
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 14),
+      padding: const EdgeInsets.fromLTRB(14, 3, 14, 8),
       child: TextField(
         controller: controller,
         onChanged: (_) => onChanged(),
-        style: const TextStyle(color: Colors.white, fontSize: 16),
+        style: const TextStyle(color: Colors.white, fontSize: 15),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(color: Color(0xFFBEE1D8), fontSize: 16),
+          hintStyle: const TextStyle(color: Color(0xFFBEE1D8), fontSize: 15),
           prefixIcon: const Icon(
             Icons.search_rounded,
             color: Color(0xFFD6F0E8),
@@ -293,17 +294,17 @@ class _SearchBar extends StatelessWidget {
                 ),
           filled: true,
           fillColor: const Color(0xFF2A887D),
-          contentPadding: const EdgeInsets.symmetric(vertical: 15),
+          contentPadding: const EdgeInsets.symmetric(vertical: 11),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none,
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none,
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(16),
             borderSide: const BorderSide(color: Color(0xFFBFF7E4), width: 1.4),
           ),
         ),
@@ -720,14 +721,12 @@ class _MatchTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 9),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () async {
-          await controller.markMatchRead(match);
-          if (context.mounted) {
-            context.go(
-              '/app/chat/match/${Uri.encodeComponent(match.key)}',
-              extra: match,
-            );
-          }
+        onTap: () {
+          unawaited(controller.markMatchRead(match));
+          context.go(
+            '/app/chat/match/${Uri.encodeComponent(match.key)}',
+            extra: match,
+          );
         },
         child: Padding(
           padding: const EdgeInsets.fromLTRB(11, 10, 8, 10),
@@ -913,6 +912,12 @@ class _ProductionStatusFeedState extends State<_ProductionStatusFeed> {
   String? _filter;
 
   Future<void> _openComposer() async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/chat',
+      actionLabel: 'publier un statut',
+    )) return;
+    if (!mounted) return;
     await Navigator.of(
       context,
     ).push(MaterialPageRoute(builder: (_) => const LiveStatusComposerScreen()));
@@ -1406,6 +1411,11 @@ class _ProductionRadarFeedState extends State<_ProductionRadarFeed>
       builder: (_) => _RadarResultSheet(item: item),
     );
     if (action == null) return;
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/chat',
+      actionLabel: 'agir sur ce résultat Radar',
+    )) return;
     final intent = switch (action) {
       _RadarAction.interest =>
         'Je suis intéressé par « ${item.title} » à ${item.distanceLabel}.',
@@ -2319,9 +2329,9 @@ class _RadarResultSheet extends StatelessWidget {
           ? _RadarAction.negotiate
           : action.startsWith('proposer') || action.startsWith('contacter')
               ? _RadarAction.propose
-          : action.startsWith('acheter')
-              ? _RadarAction.buy
-              : _RadarAction.interest,
+              : action.startsWith('acheter')
+                  ? _RadarAction.buy
+                  : _RadarAction.interest,
     );
   }
 
@@ -2778,9 +2788,9 @@ class _ProfileAvatar extends StatelessWidget {
         .toUpperCase();
     return InkResponse(
       onTap: onTap,
-      radius: 28,
+      radius: 24,
       child: CircleAvatar(
-        radius: 23,
+        radius: 20,
         backgroundColor: const Color(0xFF0CA4B5),
         backgroundImage: imageUrl == null || imageUrl!.isEmpty
             ? null
@@ -2790,8 +2800,8 @@ class _ProfileAvatar extends StatelessWidget {
                 initials.isEmpty ? 'W' : initials,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w500,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
                 ),
               )
             : null,
