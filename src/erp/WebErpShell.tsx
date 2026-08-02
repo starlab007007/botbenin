@@ -122,7 +122,24 @@ const routeContext = (pathname: string) => {
       prompt: 'Interroger WAOUH sur mes conversations et mes opportunités',
     };
   }
+  if (pathname.startsWith('/app/agents/stock')) {
+    return {
+      eyebrow: 'Opérations',
+      title: 'Stock IA',
+      description: 'Niveaux, alertes de réapprovisionnement et analyses assistées par IA.',
+      prompt: 'Demander à WAOUH une analyse de mon stock',
+    };
+  }
+  if (pathname.startsWith('/app/agents/bi')) {
+    return {
+      eyebrow: 'Décision',
+      title: 'BI IA',
+      description: 'Tableaux de bord, graphiques et lecture intelligente de vos données.',
+      prompt: 'Demander à WAOUH une lecture de mes indicateurs',
+    };
+  }
   if (pathname.startsWith('/app/bots') || pathname.startsWith('/app/agents')) {
+
     return {
       eyebrow: 'Intelligence artificielle',
       title: 'Bots & Agents IA',
