@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { presenceRepository } from "@/lib/waouh/presenceRepository";
 import { useMobileAuth } from "../../hooks/useMobileAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,16 +25,23 @@ export default function AttendanceAgentWizard() {
     if (!user) return toast.error("Connexion requise");
     if (!name.trim()) return toast.error("Nom du site requis");
     if (lat == null || lng == null) return toast.error("Position GPS requise (adresse ou géolocalisation)");
-    if (!employer.trim()) return toast.error("WhatsApp employeur requis");
     setLoading(true);
     try {
-      const { data, error } = await supabase.from("waouh_attendance_sites").insert({
-        user_id: user.id, name, address: address || null, lat, lng,
-        radius_m: Number(radius) || 50, employer_msisdn: employer.replace(/[^\d]/g, ""),
-      }).select().single();
-      if (error) throw error;
+      const site = await presenceRepository.saveSite({
+        name,
+        address: address || null,
+        latitude: lat,
+        longitude: lng,
+        radiusMeters: Number(radius) || 50,
+        maxAccuracyMeters: 100,
+        requireGeolocation: true,
+        requireEmployeeCode: false,
+        requirePin: false,
+        responsibleWhatsapp: employer.replace(/[^\d]/g, "") || null,
+        active: true,
+      });
       toast.success("Site créé");
-      navigate(`/app/agents/attendance/${data.id}`);
+      navigate(`/app/agents/attendance/${site.id}`);
     } catch (e: any) { toast.error(e.message); }
     finally { setLoading(false); }
   };
@@ -63,14 +70,19 @@ export default function AttendanceAgentWizard() {
           <p className="text-xs text-muted-foreground">Sélectionnez une suggestion ou utilisez votre position actuelle.</p>
         </div>
 
-        <div className="space-y-2"><Label>Rayon autorisé (m)</Label><Input type="number" value={radius} onChange={e => setRadius(e.target.value)} /></div>
+        <div className="space-y-2">
+          <Label>Rayon autorisé (mètres)</Label>
+          <Input type="number" value={radius} onChange={e => setRadius(e.target.value)} />
+        </div>
 
         <div className="space-y-2">
-          <Label>WhatsApp employeur *</Label>
+          <Label>WhatsApp du responsable (facultatif)</Label>
           <SmartPhoneInput value={employer} onChange={setEmployer} />
         </div>
 
-        <Button className="w-full h-12" onClick={create} disabled={loading}>{loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Créer le site</Button>
+        <Button className="w-full h-12" onClick={create} disabled={loading}>
+          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Créer le site
+        </Button>
       </main>
     </div>
   );

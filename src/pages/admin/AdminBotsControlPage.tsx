@@ -329,7 +329,7 @@ function BiAgentsTab({ adminId }: { adminId: string }) {
   );
 }
 
-// ---------------- Stock Agents ----------------
+// ---------------- Stock (produits partenaires — parité Flutter) ----------------
 function StockAgentsTab({ adminId }: { adminId: string }) {
   const [rows, setRows] = useState<any[]>([]);
   const [owners, setOwners] = useState<OwnerMap>({});
@@ -338,22 +338,23 @@ function StockAgentsTab({ adminId }: { adminId: string }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("waouh_stock_agents")
-      .select("id,name,business_name,currency,alert_msisdn,user_id,created_at")
-      .order("created_at", { ascending: false })
+    const { data } = await (supabase as any)
+      .from("waouh_partner_products")
+      .select("id,nom,categorie,unite,stock_estime,stock_minimum,partner_id,updated_at,waouh_partners(nom,user_id)")
+      .order("updated_at", { ascending: false })
       .limit(200);
-    setRows(data ?? []);
-    setOwners(await fetchOwners((data ?? []).map((r: any) => r.user_id)));
+    const list = data ?? [];
+    setRows(list);
+    setOwners(await fetchOwners(list.map((r: any) => r.waouh_partners?.user_id).filter(Boolean)));
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
 
   const remove = async (r: any) => {
-    const { error } = await supabase.from("waouh_stock_agents").delete().eq("id", r.id);
+    const { error } = await (supabase as any).from("waouh_partner_products").delete().eq("id", r.id);
     if (error) { toast({ title: "Erreur", description: error.message, variant: "destructive" }); return; }
-    await logAdminAction(adminId, "delete", "waouh_stock_agents", r.id, { name: r.name });
-    toast({ title: "Agent stock supprimé" });
+    await logAdminAction(adminId, "delete", "waouh_partner_products", r.id, { name: r.nom });
+    toast({ title: "Produit supprimé" });
     load();
   };
 
@@ -364,27 +365,27 @@ function StockAgentsTab({ adminId }: { adminId: string }) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Nom</TableHead>
-              <TableHead>Business</TableHead>
+              <TableHead>Produit</TableHead>
+              <TableHead>Commerce</TableHead>
               <TableHead>Propriétaire</TableHead>
-              <TableHead>Devise</TableHead>
-              <TableHead>Alerte</TableHead>
-              <TableHead>Créé</TableHead>
+              <TableHead>Stock</TableHead>
+              <TableHead>Seuil</TableHead>
+              <TableHead>Maj</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading && <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">Chargement…</TableCell></TableRow>}
-            {!loading && rows.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">Aucun agent stock</TableCell></TableRow>}
+            {!loading && rows.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">Aucun produit en stock</TableCell></TableRow>}
             {rows.map(r => (
               <TableRow key={r.id}>
-                <TableCell className="font-medium">{r.name}</TableCell>
-                <TableCell>{r.business_name ?? "—"}</TableCell>
-                <TableCell><OwnerCell userId={r.user_id} owners={owners} /></TableCell>
-                <TableCell>{r.currency ?? "FCFA"}</TableCell>
-                <TableCell className="text-xs">{r.alert_msisdn ?? "—"}</TableCell>
-                <TableCell className="text-xs text-muted-foreground">{fmtDate(r.created_at)}</TableCell>
-                <TableCell className="text-right"><DeleteButton onConfirm={() => remove(r)} label={r.name} /></TableCell>
+                <TableCell className="font-medium">{r.nom}</TableCell>
+                <TableCell>{r.waouh_partners?.nom ?? "—"}</TableCell>
+                <TableCell><OwnerCell userId={r.waouh_partners?.user_id} owners={owners} /></TableCell>
+                <TableCell>{r.stock_estime ?? 0}{r.unite ? ` ${r.unite}` : ""}</TableCell>
+                <TableCell className="text-xs">{r.stock_minimum ?? 0}</TableCell>
+                <TableCell className="text-xs text-muted-foreground">{fmtDate(r.updated_at)}</TableCell>
+                <TableCell className="text-right"><DeleteButton onConfirm={() => remove(r)} label={r.nom} /></TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -394,7 +395,7 @@ function StockAgentsTab({ adminId }: { adminId: string }) {
   );
 }
 
-// ---------------- Attendance Sites ----------------
+// ---------------- Présence QR (waouh_presence_sites — parité Flutter) ----------------
 function AttendanceAgentsTab({ adminId }: { adminId: string }) {
   const [rows, setRows] = useState<any[]>([]);
   const [owners, setOwners] = useState<OwnerMap>({});
@@ -403,9 +404,9 @@ function AttendanceAgentsTab({ adminId }: { adminId: string }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("waouh_attendance_sites")
-      .select("id,name,address,radius_m,employer_msisdn,active,user_id,qr_token,created_at")
+    const { data } = await (supabase as any)
+      .from("waouh_presence_sites")
+      .select("id,name,address,radius_meters,responsible_whatsapp,active,user_id,created_at")
       .order("created_at", { ascending: false })
       .limit(200);
     setRows(data ?? []);
@@ -415,26 +416,27 @@ function AttendanceAgentsTab({ adminId }: { adminId: string }) {
   useEffect(() => { load(); }, [load]);
 
   const toggle = async (r: any) => {
-    const { error } = await supabase.from("waouh_attendance_sites").update({ active: !r.active }).eq("id", r.id);
+    const { error } = await (supabase as any).from("waouh_presence_sites").update({ active: !r.active }).eq("id", r.id);
     if (error) { toast({ title: "Erreur", description: error.message, variant: "destructive" }); return; }
-    await logAdminAction(adminId, r.active ? "deactivate" : "activate", "waouh_attendance_sites", r.id);
+    await logAdminAction(adminId, r.active ? "deactivate" : "activate", "waouh_presence_sites", r.id);
     toast({ title: r.active ? "Site désactivé" : "Site activé" });
     load();
   };
 
   const regenerateQr = async (r: any) => {
-    const token = crypto.randomUUID().replace(/-/g, "");
-    const { error } = await supabase.from("waouh_attendance_sites").update({ qr_token: token }).eq("id", r.id);
+    const { error } = await supabase.functions.invoke("waouh-presence-qr-create", {
+      body: { site_id: r.id, validity_minutes: 60 * 24 * 30, use_limit: 500, replace_active: true },
+    });
     if (error) { toast({ title: "Erreur", description: error.message, variant: "destructive" }); return; }
-    await logAdminAction(adminId, "regenerate_qr", "waouh_attendance_sites", r.id);
+    await logAdminAction(adminId, "regenerate_qr", "waouh_presence_sites", r.id);
     toast({ title: "QR régénéré" });
     load();
   };
 
   const remove = async (r: any) => {
-    const { error } = await supabase.from("waouh_attendance_sites").delete().eq("id", r.id);
+    const { error } = await (supabase as any).from("waouh_presence_sites").delete().eq("id", r.id);
     if (error) { toast({ title: "Erreur", description: error.message, variant: "destructive" }); return; }
-    await logAdminAction(adminId, "delete", "waouh_attendance_sites", r.id, { name: r.name });
+    await logAdminAction(adminId, "delete", "waouh_presence_sites", r.id, { name: r.name });
     toast({ title: "Site supprimé" });
     load();
   };
@@ -463,8 +465,8 @@ function AttendanceAgentsTab({ adminId }: { adminId: string }) {
                 <TableCell className="font-medium">{r.name}</TableCell>
                 <TableCell className="text-xs max-w-[200px] truncate">{r.address ?? "—"}</TableCell>
                 <TableCell><OwnerCell userId={r.user_id} owners={owners} /></TableCell>
-                <TableCell className="text-xs">{r.radius_m ?? 50} m</TableCell>
-                <TableCell className="text-xs">{r.employer_msisdn ?? "—"}</TableCell>
+                <TableCell className="text-xs">{r.radius_meters ?? 50} m</TableCell>
+                <TableCell className="text-xs">{r.responsible_whatsapp ?? "—"}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <Switch checked={!!r.active} onCheckedChange={() => toggle(r)} />

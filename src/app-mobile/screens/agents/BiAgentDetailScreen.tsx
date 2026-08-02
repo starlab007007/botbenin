@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { biRepository } from "@/lib/waouh/biRepository";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,20 +20,21 @@ export default function BiAgentDetailScreen() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase.from("waouh_bi_datasources").select("*").eq("id", id).maybeSingle();
-      setDs(data);
-      const { data: q } = await supabase.from("waouh_bi_queries").select("*").eq("datasource_id", id).order("created_at", { ascending: false }).limit(10);
-      setHistory(q || []);
+      if (!id) return;
+      try {
+        const source = await biRepository.fetchSource(id);
+        setDs(source);
+      } catch {
+        setDs(null);
+      }
     })();
   }, [id]);
 
   const ask = async () => {
-    if (!question.trim()) return;
+    if (!question.trim() || !id) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("waouh-bi-query", { body: { datasource_id: id, question } });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      const data: any = await biRepository.ask(id, question);
       setHistory((h) => [{ question, spec: data.spec, result: data.result, summary: data.spec?.summary, created_at: new Date().toISOString() }, ...h]);
       setQuestion("");
     } catch (e: any) {
@@ -90,7 +91,7 @@ export default function BiAgentDetailScreen() {
         <Button variant="ghost" size="icon" onClick={() => navigate("/app/bots")} className="text-white hover:bg-white/15"><ArrowLeft /></Button>
         <div className="flex-1 min-w-0">
           <div className="font-semibold truncate flex items-center gap-2"><BarChart3 className="h-4 w-4" /> {ds?.name || "…"}</div>
-          <div className="text-xs text-white/70">{ds?.row_count || 0} lignes · {ds?.schema?.length || 0} colonnes</div>
+          <div className="text-xs text-white/70">{ds?.row_count || 0} lignes · {ds?.column_count || 0} colonnes</div>
         </div>
       </header>
       <main className="p-3 max-w-md mx-auto space-y-3 pb-32">

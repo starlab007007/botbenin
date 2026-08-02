@@ -1,86 +1,79 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { useMobileAuth } from "../../hooks/useMobileAuth";
+import { presenceRepository, type PresenceEvent, type PresenceMember, type PresenceSite } from "@/lib/waouh/presenceRepository";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, MapPin, Plus, QrCode as QrIcon, Download, Copy, Share2, Printer, Users, ExternalLink } from "lucide-react";
+import { ArrowLeft, MapPin, Plus, QrCode as QrIcon, Download, Copy, Share2, Printer, Users, ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import QRCode from "qrcode";
+
+const ACTION_LABELS: Record<string, string> = {
+  arrival: "🟢 Arrivée",
+  check_in: "🟢 Arrivée",
+  break_start: "☕ Pause",
+  break_end: "▶️ Retour",
+  departure: "🔴 Sortie",
+  check_out: "🔴 Sortie",
+};
 
 export default function AttendanceDashboard() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useMobileAuth();
-  const [site, setSite] = useState<any>(null);
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [events, setEvents] = useState<any[]>([]);
+  const [site, setSite] = useState<PresenceSite | null>(null);
+  const [members, setMembers] = useState<PresenceMember[]>([]);
+  const [events, setEvents] = useState<PresenceEvent[]>([]);
+  const [qrPayload, setQrPayload] = useState("");
   const [qrDataUrl, setQrDataUrl] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
-  const [form, setForm] = useState({ full_name: "", msisdn: "" });
+  const [generating, setGenerating] = useState(false);
+  const [form, setForm] = useState({ display_name: "", phone: "", employee_code: "" });
 
-  const PUBLIC_BASE = "https://bot.bj";
-  const shortCode = site?.qr_token ? String(site.qr_token).slice(0, 8).toLowerCase() : "";
-  const shareUrl = shortCode ? `${PUBLIC_BASE}/p/?c=${shortCode}` : "";
+  const PUBLIC_BASE = typeof window !== "undefined" ? window.location.origin : "https://bot.bj";
+  const shareUrl = qrPayload ? `${PUBLIC_BASE}/checkin/${encodeURIComponent(qrPayload)}` : "";
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
+    if (!id) return;
     setLoadingData(true);
-    const { data: s, error: siteError } = await supabase
-      .from("waouh_attendance_sites")
-      .select("*")
-      .eq("id", id)
-      .maybeSingle();
-
-    if (siteError) toast.error(siteError.message);
-    setSite(s);
-
-    const { data: emps, error: employeeError } = await supabase
-      .from("waouh_attendance_employees")
-      .select("*")
-      .eq("site_id", id)
-      .order("full_name");
-
-    if (employeeError) toast.error(employeeError.message);
-    setEmployees(emps || []);
-
-    const { data: evs, error: eventError } = await supabase
-      .from("waouh_attendance_events")
-      .select("*, waouh_attendance_employees(full_name)")
-      .eq("site_id", id)
-      .order("created_at", { ascending: false })
-      .limit(30);
-
-    if (eventError) toast.error(eventError.message);
-    setEvents(evs || []);
-    setLoadingData(false);
-  };
-
-  useEffect(() => {
-    void refresh();
+    try {
+      const [s, m, e] = await Promise.all([
+        presenceRepository.fetchSite(id),
+        presenceRepository.fetchMembers(id),
+        presenceRepository.fetchEvents(id, 30),
+      ]);
+      setSite(s);
+      setMembers(m);
+      setEvents(e);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoadingData(false);
+    }
   }, [id]);
 
-  const generateQr = async () => {
-    if (!site?.qr_token || !shareUrl) {
-      toast.error("Le lien de pointage n'est pas encore disponible");
-      return;
-    }
+  useEffect(() => { void refresh(); }, [refresh]);
 
+  const generateQr = async () => {
+    if (!id) return;
+    setGenerating(true);
     try {
-      const dataUrl = await QRCode.toDataURL(shareUrl, {
-        width: 512,
-        margin: 2,
-        errorCorrectionLevel: "H",
+      const token = await presenceRepository.createQrToken(id);
+      setQrPayload(token.qr_payload);
+      const url = `${PUBLIC_BASE}/checkin/${encodeURIComponent(token.qr_payload)}`;
+      const dataUrl = await QRCode.toDataURL(url, {
+        width: 512, margin: 2, errorCorrectionLevel: "H",
         color: { dark: "#06483F", light: "#FFFFFF" },
       });
       setQrDataUrl(dataUrl);
       setShowQr(true);
-    } catch {
-      toast.error("Impossible de générer le QR");
+    } catch (e: any) {
+      toast.error(e.message || "Impossible de générer le QR");
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -94,55 +87,36 @@ export default function AttendanceDashboard() {
 
   const copyLink = async () => {
     if (!shareUrl) return;
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      toast.success("Lien court copié");
-    } catch {
-      toast.error("Impossible de copier le lien");
-    }
+    try { await navigator.clipboard.writeText(shareUrl); toast.success("Lien copié"); }
+    catch { toast.error("Impossible de copier le lien"); }
   };
 
   const shareLink = async () => {
     if (!shareUrl || !site) return;
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: `Pointage — ${site.name}`,
-          text: "Ouvrez ce lien pour renseigner votre pointage de présence.",
-          url: shareUrl,
-        });
-      } catch {
-        // Partage annulé par l'utilisateur.
-      }
-    } else {
-      await copyLink();
-    }
+        await navigator.share({ title: `Pointage — ${site.name}`, text: "Ouvrez ce lien pour pointer votre présence.", url: shareUrl });
+      } catch { /* annulé */ }
+    } else await copyLink();
   };
 
-  const openPublicPage = () => {
-    if (!shareUrl) return;
-    window.open(shareUrl, "_blank", "noopener,noreferrer");
-  };
+  const openPublicPage = () => { if (shareUrl) window.open(shareUrl, "_blank", "noopener,noreferrer"); };
 
   const printA4 = () => {
     if (!qrDataUrl || !site || !shareUrl) return;
     const win = window.open("", "_blank", "width=800,height=1000");
     if (!win) return toast.error("Autorisez les fenêtres pop-up pour imprimer");
-
     const safeName = String(site.name || "Site").replace(/[<>]/g, "");
     const safeAddress = String(site.address || "").replace(/[<>]/g, "");
-
     win.document.write(`<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><title>Pointage — ${safeName}</title>
       <style>
         @page { size: A4; margin: 15mm; }
-        * { box-sizing: border-box; }
         body { font-family: -apple-system, system-ui, sans-serif; margin: 0; color: #111; text-align: center; }
         .wrap { display: flex; flex-direction: column; align-items: center; padding: 18mm 10mm; }
         h1 { font-size: 28pt; margin: 0 0 4mm; }
         .site { font-size: 18pt; color: #555; margin-bottom: 9mm; }
         img { width: 128mm; height: 128mm; border: 3mm solid #06483f; padding: 4mm; background: #fff; }
         ol { text-align: left; max-width: 150mm; font-size: 13pt; line-height: 1.65; margin: 9mm auto 4mm; }
-        .url { font-family: monospace; font-size: 15pt; font-weight: 700; color: #075e54; margin-top: 5mm; }
         .foot { margin-top: 8mm; font-size: 10pt; color: #666; }
       </style></head><body onload="window.print();window.setTimeout(()=>window.close(),500)">
       <div class="wrap">
@@ -151,41 +125,30 @@ export default function AttendanceDashboard() {
         <img src="${qrDataUrl}" alt="QR Code de pointage" />
         <ol>
           <li>Scannez ce QR avec l'appareil photo de votre téléphone.</li>
-          <li>La page de pointage s'ouvre directement, sans connexion.</li>
-          <li>Sélectionnez votre nom et saisissez les 4 derniers chiffres de votre téléphone.</li>
+          <li>La page de pointage s'ouvre directement.</li>
           <li>Autorisez la position GPS, puis choisissez Arrivée, Pause, Retour ou Sortie.</li>
-          <li>Le pointage est accepté dans un rayon de ${site.radius_m} m autour du site.</li>
+          <li>Le pointage est accepté dans un rayon de ${site.radius_meters} m autour du site.</li>
         </ol>
-        <div class="url">${shareUrl}</div>
         <div class="foot">Bot.BJ — Système de pointage géolocalisé</div>
       </div></body></html>`);
     win.document.close();
   };
 
-  const addEmp = async () => {
-    if (!user || !form.full_name.trim() || !form.msisdn.trim()) {
-      return toast.error("Nom et téléphone requis");
-    }
-
-    const { error } = await supabase.from("waouh_attendance_employees").insert({
-      site_id: id,
-      user_id: user.id,
-      full_name: form.full_name,
-      msisdn: form.msisdn,
-    });
-
-    if (error) return toast.error(error.message);
-    toast.success("Employé ajouté");
-    setShowAdd(false);
-    setForm({ full_name: "", msisdn: "" });
-    void refresh();
-  };
-
-  const ACTION_LABELS: Record<string, string> = {
-    arrival: "🟢 Arrivée",
-    break_start: "☕ Pause",
-    break_end: "▶️ Retour",
-    departure: "🔴 Sortie",
+  const addMember = async () => {
+    if (!id || !form.display_name.trim()) return toast.error("Nom requis");
+    try {
+      await presenceRepository.saveMember({
+        siteId: id,
+        displayName: form.display_name,
+        phone: form.phone || null,
+        employeeCode: form.employee_code || null,
+        role: "member",
+      });
+      toast.success("Membre ajouté");
+      setShowAdd(false);
+      setForm({ display_name: "", phone: "", employee_code: "" });
+      void refresh();
+    } catch (e: any) { toast.error(e.message); }
   };
 
   return (
@@ -199,11 +162,11 @@ export default function AttendanceDashboard() {
             <MapPin className="h-4 w-4" /> {site?.name || "…"}
           </div>
           <div className="text-xs text-white/70">
-            {employees.length} employés · rayon {site?.radius_m || "…"} m
+            {members.length} membres · rayon {site?.radius_meters || "…"} m
           </div>
         </div>
-        <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={generateQr}>
-          <QrIcon />
+        <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={generateQr} disabled={generating}>
+          {generating ? <Loader2 className="animate-spin" /> : <QrIcon />}
         </Button>
         <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={() => setShowAdd(true)}>
           <Plus />
@@ -214,23 +177,21 @@ export default function AttendanceDashboard() {
         <Card>
           <CardContent className="p-3">
             <div className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">
-              <Users className="h-3 w-3" /> EMPLOYÉS ({employees.length})
+              <Users className="h-3 w-3" /> ÉQUIPE ({members.length})
             </div>
             {loadingData ? (
               <p className="text-sm text-muted-foreground py-2">Chargement…</p>
-            ) : employees.length ? (
-              employees.map((employee) => (
-                <div key={employee.id} className="flex justify-between py-1 text-sm border-b last:border-0">
-                  <span>{employee.full_name}</span>
-                  <span className="text-muted-foreground text-xs">{employee.msisdn}</span>
+            ) : members.length ? (
+              members.map((member) => (
+                <div key={member.id} className="flex justify-between py-1 text-sm border-b last:border-0">
+                  <span>{member.display_name}</span>
+                  <span className="text-muted-foreground text-xs">{member.member_phone || member.employee_code || member.status}</span>
                 </div>
               ))
             ) : (
               <div className="text-center py-6">
-                <p className="text-sm text-muted-foreground mb-3">Aucun employé pour l'instant.</p>
-                <Button size="sm" onClick={() => setShowAdd(true)}>
-                  <Plus className="mr-1 h-3 w-3" /> Ajouter un employé
-                </Button>
+                <p className="text-sm text-muted-foreground mb-3">Aucun membre pour l'instant.</p>
+                <Button size="sm" onClick={() => setShowAdd(true)}><Plus className="mr-1 h-3 w-3" /> Ajouter un membre</Button>
               </div>
             )}
           </CardContent>
@@ -244,81 +205,49 @@ export default function AttendanceDashboard() {
             ) : events.length ? (
               events.map((event) => (
                 <div key={event.id} className="flex justify-between py-1 text-sm border-b last:border-0 gap-2">
-                  <span>{ACTION_LABELS[event.action]} {event.waouh_attendance_employees?.full_name}</span>
+                  <span>{ACTION_LABELS[event.action] || event.action} {event.waouh_presence_members?.display_name || ""}</span>
                   <span className="text-xs text-muted-foreground whitespace-nowrap">
-                    {new Date(event.created_at).toLocaleString("fr-FR")}
+                    {new Date(event.occurred_at).toLocaleString("fr-FR")}
                   </span>
                 </div>
               ))
             ) : (
-              <div className="text-center py-6">
-                <p className="text-sm text-muted-foreground mb-3">Aucun pointage encore.</p>
-                <Button size="sm" variant="outline" onClick={generateQr}>
-                  <QrIcon className="mr-1 h-3 w-3" /> Générer le QR à afficher
-                </Button>
-              </div>
+              <div className="text-center py-6 text-sm text-muted-foreground">Aucun pointage enregistré.</div>
             )}
           </CardContent>
         </Card>
       </main>
 
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
-        <DialogContent className="max-w-[90vw]">
-          <DialogHeader><DialogTitle>Ajouter un employé</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-[90vw] sm:max-w-md max-h-[90dvh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Ajouter un membre</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div>
-              <Label>Nom complet</Label>
-              <Input value={form.full_name} onChange={(event) => setForm({ ...form, full_name: event.target.value })} />
-            </div>
-            <div>
-              <Label>Téléphone (avec indicatif)</Label>
-              <Input value={form.msisdn} onChange={(event) => setForm({ ...form, msisdn: event.target.value })} placeholder="22961234567" />
-            </div>
-            <Button className="w-full" onClick={addEmp}>Ajouter</Button>
+            <div className="space-y-1"><Label>Nom complet *</Label>
+              <Input value={form.display_name} onChange={e => setForm({ ...form, display_name: e.target.value })} /></div>
+            <div className="space-y-1"><Label>Téléphone</Label>
+              <Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="22961234567" /></div>
+            <div className="space-y-1"><Label>Code employé</Label>
+              <Input value={form.employee_code} onChange={e => setForm({ ...form, employee_code: e.target.value })} /></div>
+            <Button className="w-full" onClick={addMember}>Ajouter</Button>
           </div>
         </DialogContent>
       </Dialog>
 
       <Dialog open={showQr} onOpenChange={setShowQr}>
-        <DialogContent className="max-w-[92vw] max-h-[92dvh] overflow-y-auto">
-          <DialogHeader><DialogTitle>QR pointage — {site?.name}</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            {qrDataUrl && (
-              <img
-                src={qrDataUrl}
-                alt="QR de pointage"
-                className="mx-auto max-w-full rounded-lg border-4 border-primary/20 bg-white p-2"
-              />
-            )}
-
-            <div className="rounded-xl bg-muted p-3">
-              <div className="text-[10px] uppercase font-semibold text-muted-foreground mb-1">Lien court public</div>
-              <div className="font-mono text-sm font-semibold text-primary break-all">{shareUrl}</div>
-              <div className="grid grid-cols-3 gap-2 mt-3">
-                <Button size="sm" variant="outline" onClick={copyLink}>
-                  <Copy className="mr-1 h-4 w-4" /> Copier
-                </Button>
-                <Button size="sm" variant="outline" onClick={shareLink}>
-                  <Share2 className="mr-1 h-4 w-4" /> Partager
-                </Button>
-                <Button size="sm" variant="outline" onClick={openPublicPage}>
-                  <ExternalLink className="mr-1 h-4 w-4" /> Tester
-                </Button>
-              </div>
+        <DialogContent className="max-w-[90vw] sm:max-w-md max-h-[90dvh] overflow-y-auto">
+          <DialogHeader><DialogTitle>QR de pointage</DialogTitle></DialogHeader>
+          <div className="space-y-3 text-center">
+            {qrDataUrl && <img src={qrDataUrl} alt="QR de pointage du site" className="w-56 h-56 mx-auto rounded-xl border" />}
+            <p className="text-xs text-muted-foreground break-all">{shareUrl}</p>
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant="outline" onClick={downloadQr}><Download className="mr-1 h-4 w-4" /> Télécharger</Button>
+              <Button variant="outline" onClick={copyLink}><Copy className="mr-1 h-4 w-4" /> Copier</Button>
+              <Button variant="outline" onClick={shareLink}><Share2 className="mr-1 h-4 w-4" /> Partager</Button>
+              <Button variant="outline" onClick={printA4}><Printer className="mr-1 h-4 w-4" /> Imprimer</Button>
             </div>
-
-            <p className="text-xs text-muted-foreground text-center">
-              Le QR ouvre une page publique de pointage à renseigner. La validation reste limitée à un rayon de <strong>{site?.radius_m} m</strong> autour du site.
-            </p>
-
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <Button onClick={downloadQr} variant="outline">
-                <Download className="mr-2 h-4 w-4" /> PNG
-              </Button>
-              <Button onClick={printA4}>
-                <Printer className="mr-2 h-4 w-4" /> Imprimer A4
-              </Button>
-            </div>
+            <Button variant="ghost" className="w-full" onClick={openPublicPage}>
+              <ExternalLink className="mr-1 h-4 w-4" /> Ouvrir la page de pointage
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

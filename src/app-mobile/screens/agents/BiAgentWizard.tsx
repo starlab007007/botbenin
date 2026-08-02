@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { biRepository, parseCsv } from "@/lib/waouh/biRepository";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,17 +47,45 @@ export default function BiAgentWizard() {
     if (sourceType !== "file" && !url.trim()) return toast.error("URL requise");
     setLoading(true);
     try {
-      let body: Record<string, any> = { name, source_type: sourceType, source_url: url };
+      let columns: string[] = [];
+      let rows: Record<string, any>[] = [];
+
       if (sourceType === "file" && file) {
         const csv = await fileToCsv(file);
-        if (csv.length > 4_000_000) throw new Error("Fichier trop volumineux (max ~4 Mo). Réduisez le nombre de lignes.");
-        body = { name, source_type: "csv_inline", source_url: file.name, csv_text: csv };
+        ({ columns, rows } = parseCsv(csv));
+      } else if (sourceType === "json_url") {
+        const res = await fetch(url.trim());
+        if (!res.ok) throw new Error(`Source inaccessible (${res.status})`);
+        const json = await res.json();
+        const list = Array.isArray(json) ? json : Array.isArray(json?.data) ? json.data : [];
+        rows = list.filter((r: any) => r && typeof r === "object");
+        columns = Array.from(new Set(rows.flatMap((r) => Object.keys(r))));
+      } else {
+        let target = url.trim();
+        if (sourceType === "google_sheet") {
+          const match = target.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+          if (match) {
+            const gid = target.match(/[#&?]gid=(\d+)/)?.[1] || "0";
+            target = `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv&gid=${gid}`;
+          }
+        }
+        const res = await fetch(target);
+        if (!res.ok) throw new Error("Source inaccessible. Vérifiez le partage en lecture publique.");
+        ({ columns, rows } = parseCsv(await res.text()));
       }
-      const { data, error } = await supabase.functions.invoke("waouh-bi-ingest", { body });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      toast.success(`Source connectée · ${data.datasource.row_count} lignes`);
-      navigate(`/app/agents/bi/${data.datasource.id}`);
+
+      if (!rows.length) throw new Error("Aucune ligne exploitable dans cette source.");
+
+      const source = await biRepository.importSource({
+        name,
+        type: sourceType === "file" ? "file" : sourceType,
+        sourceUrl: sourceType === "file" ? file?.name || null : url,
+        columns,
+        rows: rows.slice(0, 5000),
+        metadata: { imported_from: "web" },
+      });
+      toast.success(`Source connectée · ${source.row_count ?? rows.length} lignes`);
+      navigate(`/app/agents/bi/${source.id}`);
     } catch (e: any) {
       toast.error(e.message || "Échec de la connexion");
     } finally {
