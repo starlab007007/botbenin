@@ -151,10 +151,28 @@ export const stockRepository = {
       partnerIds = [String(created.id)];
     }
 
+    // Un produit doit être rattaché à un établissement du partenaire.
+    const { data: businesses } = await db
+      .from("waouh_partner_businesses")
+      .select("id")
+      .eq("partner_id", partnerIds[0])
+      .limit(1);
+    let businessId = businesses?.[0]?.id as string | undefined;
+    if (!businessId) {
+      const { data: business, error: businessError } = await db
+        .from("waouh_partner_businesses")
+        .insert({ partner_id: partnerIds[0], nom_entreprise: "Mon commerce", statut: "active" })
+        .select("id")
+        .single();
+      if (businessError) throw new Error(businessError.message);
+      businessId = String(business.id);
+    }
+
     const { data, error } = await db
       .from("waouh_partner_products")
       .insert({
         partner_id: partnerIds[0],
+        business_id: businessId,
         nom,
         categorie: input.categorie?.trim() || null,
         unite: input.unite?.trim() || null,
