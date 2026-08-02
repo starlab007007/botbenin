@@ -1,403 +1,189 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { stockRepository, isLowStock, type StockProduct, type StockMovement } from "@/lib/waouh/stockRepository";
 import { supabase } from "@/integrations/supabase/client";
-import { useMobileAuth } from "../../hooks/useMobileAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Plus, TrendingUp, TrendingDown, Sparkles, Package, AlertTriangle, Loader2, Upload, FileSpreadsheet } from "lucide-react";
+import { ArrowLeft, Package, Plus, TrendingDown, TrendingUp, Sparkles, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
-
 export default function StockAgentDashboard() {
-  const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useMobileAuth();
-  const [agent, setAgent] = useState<any>(null);
-  const [items, setItems] = useState<any[]>([]);
-  const [insight, setInsight] = useState("");
-  const [loadingInsight, setLoadingInsight] = useState(false);
-  const [showAdd, setShowAdd] = useState(false);
-  const [showImport, setShowImport] = useState(false);
-  const [importUrl, setImportUrl] = useState("");
-  const [importing, setImporting] = useState(false);
-  const [importPreview, setImportPreview] = useState<any[] | null>(null);
-  const [importRawHeaders, setImportRawHeaders] = useState<string[]>([]);
-  const [showMove, setShowMove] = useState<any>(null);
-  const [form, setForm] = useState({
-    name: "", sku: "", category: "",
-    quantity: "0", threshold_low: "5",
-    unit_price_fcfa: "0", cost_price_fcfa: "0",
-    supplier: "",
-  });
-  const emptyForm = { name: "", sku: "", category: "", quantity: "0", threshold_low: "5", unit_price_fcfa: "0", cost_price_fcfa: "0", supplier: "" };
-  const [moveQty, setMoveQty] = useState("1");
-  const [moveType, setMoveType] = useState<"in" | "out">("in");
+  const [products, setProducts] = useState<StockProduct[]>([]);
+  const [movements, setMovements] = useState<StockMovement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<StockProduct | null>(null);
+  const [qty, setQty] = useState("1");
+  const [note, setNote] = useState("");
+  const [minimum, setMinimum] = useState("0");
+  const [analysis, setAnalysis] = useState<string>("");
+  const [analyzing, setAnalyzing] = useState(false);
 
-
-  const refresh = async () => {
-    const { data: a } = await supabase.from("waouh_stock_agents").select("*").eq("id", id).maybeSingle();
-    setAgent(a);
-    const { data: its } = await supabase.from("waouh_stock_items").select("*").eq("agent_id", id).order("created_at", { ascending: false });
-    setItems(its || []);
-  };
-  useEffect(() => { refresh(); }, [id]);
-
-  const totalValue = items.reduce((s, i) => s + Number(i.quantity) * Number(i.unit_price_fcfa), 0);
-  const outStock = items.filter(i => Number(i.quantity) <= 0).length;
-  const lowStock = items.filter(i => Number(i.quantity) > 0 && Number(i.quantity) <= Number(i.threshold_low)).length;
-
-  const addItem = async () => {
-    if (!user || !form.name.trim()) return toast.error("Nom requis");
-    const { error } = await supabase.from("waouh_stock_items").insert({
-      agent_id: id, user_id: user.id,
-      name: form.name.trim(),
-      sku: form.sku.trim() || null,
-      category: form.category.trim() || null,
-      supplier: form.supplier.trim() || null,
-      quantity: Number(form.quantity) || 0,
-      threshold_low: Number(form.threshold_low) || 0,
-      unit_price_fcfa: Number(form.unit_price_fcfa) || 0,
-      cost_price_fcfa: Number(form.cost_price_fcfa) || 0,
-    });
-    if (error) return toast.error(error.message);
-    toast.success("Produit ajouté");
-    setShowAdd(false); setForm(emptyForm);
-    refresh();
-  };
-
-  const doMovement = async () => {
-    if (!user || !showMove) return;
-    const qty = Number(moveQty);
-    if (!qty) return toast.error("Quantité invalide");
-    const delta = moveType === "in" ? qty : -qty;
-    const newQty = Number(showMove.quantity) + delta;
-    if (newQty < 0) return toast.error("Stock insuffisant");
-    await supabase.from("waouh_stock_movements").insert({
-      item_id: showMove.id, user_id: user.id, movement_type: moveType, quantity: qty,
-    });
-    await supabase.from("waouh_stock_items").update({ quantity: newQty }).eq("id", showMove.id);
-    toast.success(`${moveType === "in" ? "Entrée" : "Sortie"} enregistrée`);
-    setShowMove(null); setMoveQty("1");
-    refresh();
-  };
-
-  const askAi = async () => {
-    setLoadingInsight(true);
+  const refresh = useCallback(async () => {
+    setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("waouh-stock-analyze", { body: { agent_id: id } });
+      const [p, m] = await Promise.all([
+        stockRepository.fetchProducts(),
+        stockRepository.fetchMovements(null, 30),
+      ]);
+      setProducts(p);
+      setMovements(m);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  const openProduct = (p: StockProduct) => {
+    setSelected(p);
+    setQty("1");
+    setNote("");
+    setMinimum(String(p.stock_minimum ?? 0));
+  };
+
+  const move = async (movementType: "in" | "out") => {
+    if (!selected) return;
+    try {
+      await stockRepository.registerMovement({
+        product: selected,
+        quantity: Math.abs(Number(qty) || 0),
+        movementType,
+        note: note || null,
+      });
+      toast.success(movementType === "in" ? "Entrée enregistrée" : "Sortie enregistrée");
+      setSelected(null);
+      void refresh();
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const saveThreshold = async () => {
+    if (!selected) return;
+    try {
+      await stockRepository.updateThresholds(selected, Number(minimum) || 0, selected.stock_target);
+      toast.success("Seuil mis à jour");
+      setSelected(null);
+      void refresh();
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const reorder = async () => {
+    if (!selected) return;
+    try {
+      await stockRepository.requestReorder(selected, Math.abs(Number(qty) || 0), note || null);
+      toast.success("Réapprovisionnement demandé");
+      setSelected(null);
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const analyze = async () => {
+    setAnalyzing(true);
+    setAnalysis("");
+    try {
+      const { data, error } = await supabase.functions.invoke("waouh-stock-analyze", {
+        body: { question: "Analyse mon stock et donne les priorités de réapprovisionnement." },
+      });
       if (error) throw error;
-      setInsight(data.insight || "Aucune recommandation.");
-    } catch (e: any) { toast.error(e.message); }
-    finally { setLoadingInsight(false); }
+      if ((data as any)?.error) throw new Error((data as any).error);
+      setAnalysis((data as any).analysis || (data as any).answer || "Aucune analyse disponible.");
+    } catch (e: any) {
+      toast.error(e.message || "Analyse indisponible");
+    } finally { setAnalyzing(false); }
   };
 
-  // --- Import Excel / CSV / Google Sheet (avec aperçu et validation) ---
-  const parseCsvText = (text: string) => {
-    const lines = text.replace(/\r/g, "").split("\n").filter(l => l.trim());
-    if (!lines.length) return [];
-    const split = (l: string) => { const out: string[] = []; let cur = ""; let q = false; for (const ch of l) { if (ch === '"') q = !q; else if (ch === "," && !q) { out.push(cur); cur = ""; } else cur += ch; } out.push(cur); return out.map(s => s.trim().replace(/^"|"$/g, "")); };
-    const headers = split(lines[0]).map(h => h.toLowerCase());
-    return lines.slice(1).map(l => { const c = split(l); return Object.fromEntries(headers.map((h, i) => [h, c[i] ?? ""])); });
-  };
-  const pickField = (row: any, keys: string[]) => { for (const k of keys) { const found = Object.keys(row).find(x => x.includes(k)); if (found && row[found] != null && row[found] !== "") return row[found]; } return ""; };
-
-  const mapRow = (r: any) => ({
-    name: String(pickField(r, ["nom", "name", "produit", "product", "designation", "libell", "article"])).trim(),
-    sku: String(pickField(r, ["sku", "code", "ref"])).trim(),
-    category: String(pickField(r, ["categor", "categ", "rayon", "famille", "type"])).trim(),
-    supplier: String(pickField(r, ["fourniss", "supplier", "vendeur", "marque"])).trim(),
-    quantity: Number(String(pickField(r, ["quantit", "quantity", "stock", "qte", "qté"])).replace(/[^\d.-]/g, "")) || 0,
-    threshold_low: Number(String(pickField(r, ["seuil", "threshold", "min", "alerte"])).replace(/[^\d.-]/g, "")) || 5,
-    unit_price_fcfa: Number(String(pickField(r, ["prix vente", "prix_vente", "prix", "price", "fcfa", "vente"])).replace(/[^\d.]/g, "")) || 0,
-    cost_price_fcfa: Number(String(pickField(r, ["cout", "coût", "achat", "cost"])).replace(/[^\d.]/g, "")) || 0,
-    _valid: true, _error: "",
-  });
-
-  const validatePreview = (items: any[]) => items.map(it => {
-    let _error = "";
-    if (!it.name) _error = "Nom manquant";
-    else if (it.quantity < 0) _error = "Quantité négative";
-    else if (it.unit_price_fcfa < 0) _error = "Prix invalide";
-    return { ...it, _valid: !_error, _error };
-  });
-
-  const buildPreview = async (rows: any[]) => {
-    if (!rows.length) throw new Error("Fichier vide");
-    setImportRawHeaders(Object.keys(rows[0]));
-    const mapped = validatePreview(rows.map(mapRow));
-    if (!mapped.some(m => m.name)) throw new Error("Aucune colonne 'nom' reconnue. Colonnes attendues : nom, sku, catégorie, quantité, seuil, prix, coût, fournisseur.");
-    setImportPreview(mapped);
-  };
-
-  const importFile = async (file: File) => {
-    if (!user) return;
-    setImporting(true);
-    try {
-      let rows: any[] = [];
-      const ext = file.name.split(".").pop()?.toLowerCase();
-      if (ext === "csv" || ext === "txt") { rows = parseCsvText(await file.text()); }
-      else if (ext === "xlsx" || ext === "xls") {
-        const XLSX = await import("xlsx");
-        const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
-        const csv = XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]);
-        rows = parseCsvText(csv);
-      } else throw new Error("Format non supporté (CSV, XLSX, XLS)");
-      await buildPreview(rows);
-    } catch (e: any) { toast.error(e.message); }
-    finally { setImporting(false); }
-  };
-
-  const importGoogleSheet = async () => {
-    if (!importUrl.trim()) return toast.error("URL requise");
-    setImporting(true);
-    try {
-      const m = importUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
-      if (!m) throw new Error("URL Google Sheet invalide");
-      const gid = (importUrl.match(/[#?&]gid=(\d+)/) || [])[1] || "0";
-      const csvUrl = `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=csv&gid=${gid}`;
-      const r = await fetch(csvUrl);
-      if (!r.ok) throw new Error("Sheet inaccessible (rendez-le public en lecture)");
-      const rows = parseCsvText(await r.text());
-      await buildPreview(rows);
-    } catch (e: any) { toast.error(e.message); }
-    finally { setImporting(false); }
-  };
-
-  const confirmImport = async () => {
-    if (!user || !importPreview) return;
-    const valid = importPreview.filter(x => x._valid);
-    if (!valid.length) return toast.error("Aucune ligne valide à importer");
-    setImporting(true);
-    try {
-      const payload = valid.map(({ _valid, _error, ...it }) => ({ ...it, agent_id: id, user_id: user.id, sku: it.sku || null, category: it.category || null, supplier: it.supplier || null }));
-      const { error } = await supabase.from("waouh_stock_items").insert(payload);
-      if (error) throw error;
-      toast.success(`${valid.length} produits importés`);
-      setImportPreview(null); setShowImport(false); setImportUrl("");
-      refresh();
-    } catch (e: any) { toast.error(e.message); }
-    finally { setImporting(false); }
-  };
-
-  const updatePreviewCell = (idx: number, key: string, val: any) => {
-    if (!importPreview) return;
-    const next = [...importPreview];
-    next[idx] = { ...next[idx], [key]: key === "name" || key === "sku" || key === "category" || key === "supplier" ? val : Number(val) || 0 };
-    setImportPreview(validatePreview(next));
-  };
-  const removePreviewRow = (idx: number) => setImportPreview(p => p ? p.filter((_, i) => i !== idx) : null);
-
-
-
-
+  const low = products.filter(isLowStock);
 
   return (
     <div className="min-h-[100dvh] bg-background">
       <header className="bg-[hsl(165_91%_18%)] text-white px-3 py-3 flex items-center gap-2 sticky top-0 z-10">
         <Button variant="ghost" size="icon" onClick={() => navigate("/app/bots")} className="text-white hover:bg-white/15"><ArrowLeft /></Button>
         <div className="flex-1 min-w-0">
-          <div className="font-semibold truncate flex items-center gap-2"><Package className="h-4 w-4" /> {agent?.name || "…"}</div>
-          <div className="text-xs text-white/70">{items.length} produits · {totalValue.toLocaleString("fr-FR")} FCFA</div>
+          <div className="font-semibold flex items-center gap-2"><Package className="h-4 w-4" /> Stock IA</div>
+          <div className="text-xs text-white/70">{products.length} produits · {low.length} en alerte</div>
         </div>
-        <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={() => setShowImport(true)} title="Importer"><Upload className="h-5 w-5" /></Button>
-        <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={() => setShowAdd(true)}><Plus /></Button>
+        <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={() => void refresh()}><RefreshCw /></Button>
+        <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={() => navigate("/app/agents/stock/new")}><Plus /></Button>
       </header>
 
-
       <main className="p-3 max-w-md mx-auto space-y-3 pb-24">
-        <div className="grid grid-cols-3 gap-2">
-          <Card><CardContent className="p-3 text-center"><div className="text-xs text-muted-foreground">Valeur</div><div className="text-sm font-bold">{Math.round(totalValue / 1000)}k</div></CardContent></Card>
-          <Card><CardContent className="p-3 text-center"><div className="text-xs text-muted-foreground">Stock bas</div><div className="text-sm font-bold text-amber-600">{lowStock}</div></CardContent></Card>
-          <Card><CardContent className="p-3 text-center"><div className="text-xs text-muted-foreground">Ruptures</div><div className="text-sm font-bold text-red-600">{outStock}</div></CardContent></Card>
-        </div>
-
-        <Button onClick={askAi} disabled={loadingInsight} className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white">
-          {loadingInsight ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-          Analyse IA
+        <Button className="w-full" variant="outline" onClick={analyze} disabled={analyzing}>
+          {analyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+          Analyse IA du stock
         </Button>
-        {insight && <Card><CardContent className="p-3 text-sm whitespace-pre-wrap">{insight}</CardContent></Card>}
-
-        {items.map(it => {
-          const isOut = Number(it.quantity) <= 0;
-          const isLow = !isOut && Number(it.quantity) <= Number(it.threshold_low);
-          return (
-            <Card key={it.id} className={isOut ? "border-red-300" : isLow ? "border-amber-300" : ""}>
-              <CardContent className="p-3 flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate">{it.name}</div>
-                  <div className="text-xs text-muted-foreground">{it.sku || "—"} · {Number(it.unit_price_fcfa).toLocaleString("fr-FR")} FCFA</div>
-                </div>
-                <div className="text-right">
-                  <div className={`font-bold ${isOut ? "text-red-600" : isLow ? "text-amber-600" : ""}`}>{it.quantity}</div>
-                  {(isOut || isLow) && <AlertTriangle className="h-3 w-3 inline text-amber-500" />}
-                </div>
-                <div className="flex flex-col gap-1">
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setShowMove(it); setMoveType("in"); }}><TrendingUp className="h-4 w-4 text-green-600" /></Button>
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setShowMove(it); setMoveType("out"); }}><TrendingDown className="h-4 w-4 text-red-600" /></Button>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-        {!items.length && (
-          <Card><CardContent className="p-6 text-center space-y-3">
-            <Package className="h-10 w-10 mx-auto text-muted-foreground/50" />
-            <div className="font-medium">Aucun produit pour l'instant</div>
-            <p className="text-xs text-muted-foreground">Ajoutez manuellement ou importez un fichier Excel / Google Sheet.</p>
-            <div className="flex flex-col gap-2">
-              <Button size="sm" onClick={() => setShowAdd(true)}><Plus className="mr-1 h-3 w-3" /> Ajouter un produit</Button>
-              <Button size="sm" variant="outline" onClick={() => setShowImport(true)}><Upload className="mr-1 h-3 w-3" /> Importer un fichier</Button>
-            </div>
-          </CardContent></Card>
+        {analysis && (
+          <Card><CardContent className="p-3 text-sm whitespace-pre-wrap">{analysis}</CardContent></Card>
         )}
-      </main>
 
-
-      <Dialog open={showAdd} onOpenChange={(o) => { setShowAdd(o); if (!o) setForm(emptyForm); }}>
-        <DialogContent className="max-h-[90dvh] overflow-y-auto max-w-[92vw] sm:max-w-lg">
-          <DialogHeader><DialogTitle>Nouveau produit</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div><Label>Nom du produit *</Label><Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Ex : Savon Palmida 400g" /></div>
-            <div className="grid grid-cols-2 gap-2">
-              <div><Label>SKU / Code</Label><Input value={form.sku} onChange={e => setForm({ ...form, sku: e.target.value })} placeholder="SAV-400" /></div>
-              <div><Label>Catégorie</Label><Input value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} placeholder="Hygiène" /></div>
-            </div>
-            <div><Label>Fournisseur</Label><Input value={form.supplier} onChange={e => setForm({ ...form, supplier: e.target.value })} placeholder="Nom du fournisseur" /></div>
-            <div className="grid grid-cols-2 gap-2">
-              <div><Label>Quantité en stock</Label><Input type="number" inputMode="numeric" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} /></div>
-              <div><Label>Seuil d'alerte</Label><Input type="number" inputMode="numeric" value={form.threshold_low} onChange={e => setForm({ ...form, threshold_low: e.target.value })} /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div><Label>Prix d'achat (FCFA)</Label><Input type="number" inputMode="numeric" value={form.cost_price_fcfa} onChange={e => setForm({ ...form, cost_price_fcfa: e.target.value })} /></div>
-              <div><Label>Prix de vente (FCFA) *</Label><Input type="number" inputMode="numeric" value={form.unit_price_fcfa} onChange={e => setForm({ ...form, unit_price_fcfa: e.target.value })} /></div>
-            </div>
-            {Number(form.cost_price_fcfa) > 0 && Number(form.unit_price_fcfa) > 0 && (
-              <div className="rounded-md bg-muted/60 p-2 text-xs">
-                Marge estimée : <b>{Math.round(((Number(form.unit_price_fcfa) - Number(form.cost_price_fcfa)) / Number(form.unit_price_fcfa)) * 100)}%</b>
-                {" · "}Valeur stock : <b>{(Number(form.quantity) * Number(form.unit_price_fcfa)).toLocaleString("fr-FR")} FCFA</b>
+        <Card>
+          <CardContent className="p-3">
+            <div className="text-xs font-semibold text-muted-foreground mb-2">PRODUITS ({products.length})</div>
+            {loading ? (
+              <p className="text-sm text-muted-foreground py-2">Chargement…</p>
+            ) : products.length ? (
+              products.map((p) => (
+                <button key={p.id} onClick={() => openProduct(p)}
+                  className="w-full flex justify-between items-center py-2 text-sm border-b last:border-0 text-left">
+                  <span className="min-w-0 flex-1 truncate">{p.nom}</span>
+                  <span className="flex items-center gap-2">
+                    {isLowStock(p) && <Badge variant="destructive" className="text-[10px]">Alerte</Badge>}
+                    <span className="font-semibold">{p.stock_estime ?? 0}{p.unite ? ` ${p.unite}` : ""}</span>
+                  </span>
+                </button>
+              ))
+            ) : (
+              <div className="text-center py-6">
+                <p className="text-sm text-muted-foreground mb-3">Aucun produit en stock.</p>
+                <Button size="sm" onClick={() => navigate("/app/agents/stock/new")}><Plus className="mr-1 h-3 w-3" /> Ajouter un produit</Button>
               </div>
             )}
-            <div className="flex gap-2 pt-1">
-              <Button variant="outline" className="flex-1" onClick={() => { setShowAdd(false); setShowImport(true); }}>
-                <Upload className="mr-1 h-3 w-3" /> Importer plutôt
-              </Button>
-              <Button className="flex-1" onClick={addItem}>Ajouter</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </CardContent>
+        </Card>
 
-      <Dialog open={!!showMove} onOpenChange={() => setShowMove(null)}>
-        <DialogContent className="max-w-[90vw]">
-          <DialogHeader><DialogTitle>{moveType === "in" ? "Entrée" : "Sortie"} — {showMove?.name}</DialogTitle></DialogHeader>
+        <Card>
+          <CardContent className="p-3">
+            <div className="text-xs font-semibold text-muted-foreground mb-2">MOUVEMENTS ({movements.length})</div>
+            {movements.length ? movements.map((m) => (
+              <div key={m.id} className="flex justify-between py-1 text-sm border-b last:border-0">
+                <span className="flex items-center gap-1">
+                  {m.movement_type === "in" ? <TrendingUp className="h-3 w-3 text-green-600" /> : <TrendingDown className="h-3 w-3 text-red-600" />}
+                  {m.movement_type} · {m.quantity}
+                </span>
+                <span className="text-xs text-muted-foreground">{new Date(m.created_at).toLocaleString("fr-FR")}</span>
+              </div>
+            )) : <p className="text-sm text-muted-foreground py-2">Aucun mouvement.</p>}
+          </CardContent>
+        </Card>
+      </main>
+
+      <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
+        <DialogContent className="max-w-[90vw] sm:max-w-md max-h-[90dvh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{selected?.nom}</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div><Label>Quantité (stock actuel : {showMove?.quantity})</Label><Input type="number" value={moveQty} onChange={e => setMoveQty(e.target.value)} /></div>
-            <Button className="w-full" onClick={doMovement}>Confirmer</Button>
+            <div className="text-sm text-muted-foreground">
+              Stock actuel : <strong>{selected?.stock_estime ?? 0}</strong>
+              {selected?.stock_minimum ? ` · seuil ${selected.stock_minimum}` : ""}
+            </div>
+            <div className="space-y-1"><Label>Quantité</Label>
+              <Input type="number" value={qty} onChange={(e) => setQty(e.target.value)} /></div>
+            <div className="space-y-1"><Label>Note</Label>
+              <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Facultatif" /></div>
+            <div className="grid grid-cols-2 gap-2">
+              <Button onClick={() => move("in")}><TrendingUp className="mr-1 h-4 w-4" /> Entrée</Button>
+              <Button variant="outline" onClick={() => move("out")}><TrendingDown className="mr-1 h-4 w-4" /> Sortie</Button>
+            </div>
+            <Button variant="secondary" className="w-full" onClick={reorder}>Demander un réapprovisionnement</Button>
+            <div className="space-y-1"><Label>Seuil d'alerte</Label>
+              <Input type="number" value={minimum} onChange={(e) => setMinimum(e.target.value)} /></div>
+            <Button variant="outline" className="w-full" onClick={saveThreshold}>Enregistrer le seuil</Button>
           </div>
         </DialogContent>
       </Dialog>
-
-      <Dialog open={showImport} onOpenChange={(o) => { setShowImport(o); if (!o) { setImportPreview(null); setImportUrl(""); } }}>
-        <DialogContent className="max-h-[92dvh] overflow-y-auto max-w-[95vw] sm:max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>{importPreview ? `Aperçu · ${importPreview.length} ligne(s)` : "Importer des produits"}</DialogTitle>
-          </DialogHeader>
-
-          {!importPreview ? (
-            <div className="space-y-4">
-              <div className="rounded-md bg-muted/60 p-3 text-xs space-y-1">
-                <div className="font-medium">Colonnes reconnues automatiquement :</div>
-                <div>📦 <b>nom</b> · sku/code · catégorie · fournisseur</div>
-                <div>🔢 <b>quantité</b> · seuil · prix (vente) · coût (achat)</div>
-                <div className="text-muted-foreground">Peu importe l'ordre ou la casse — on détecte les colonnes.</div>
-              </div>
-
-              <div>
-                <Label className="text-sm mb-2 block flex items-center gap-2"><Upload className="h-4 w-4" /> Fichier CSV / Excel</Label>
-                <label className="block cursor-pointer">
-                  <div className={`border-2 border-dashed rounded-lg p-6 text-center ${importing ? "opacity-50" : "hover:border-primary/50 hover:bg-primary/5"}`}>
-                    {importing ? <Loader2 className="h-6 w-6 mx-auto animate-spin text-primary" /> : <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />}
-                    <div className="text-sm font-medium">Cliquez ou déposez votre fichier</div>
-                    <div className="text-xs text-muted-foreground mt-1">CSV, XLSX, XLS — jusqu'à 5000 lignes</div>
-                  </div>
-                  <input type="file" accept=".csv,.xlsx,.xls" className="hidden" disabled={importing} onChange={(e) => { const f = e.target.files?.[0]; if (f) importFile(f); }} />
-                </label>
-              </div>
-
-              <div className="relative"><div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div><div className="relative flex justify-center text-xs"><span className="bg-background px-2 text-muted-foreground">ou</span></div></div>
-
-              <div className="space-y-2">
-                <Label className="text-sm flex items-center gap-2"><FileSpreadsheet className="h-4 w-4" /> Google Sheet (lecture publique)</Label>
-                <Input placeholder="https://docs.google.com/spreadsheets/d/…" value={importUrl} onChange={e => setImportUrl(e.target.value)} />
-                <Button className="w-full" onClick={importGoogleSheet} disabled={importing || !importUrl}>
-                  {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileSpreadsheet className="mr-2 h-4 w-4" />} Charger l'aperçu
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2 text-xs">
-                <span className="rounded-full bg-green-100 text-green-800 px-2 py-0.5">✓ {importPreview.filter(x => x._valid).length} valides</span>
-                {importPreview.filter(x => !x._valid).length > 0 && (
-                  <span className="rounded-full bg-red-100 text-red-800 px-2 py-0.5">✗ {importPreview.filter(x => !x._valid).length} en erreur</span>
-                )}
-                <span className="text-muted-foreground self-center">Corrigez ou supprimez les lignes en rouge avant d'importer.</span>
-              </div>
-
-              <div className="overflow-x-auto border rounded-md max-h-[50vh]">
-                <table className="w-full text-xs">
-                  <thead className="bg-muted sticky top-0">
-                    <tr>
-                      <th className="p-1.5 text-left">Nom</th>
-                      <th className="p-1.5 text-left">SKU</th>
-                      <th className="p-1.5 text-left">Catégorie</th>
-                      <th className="p-1.5 text-right">Qté</th>
-                      <th className="p-1.5 text-right">Seuil</th>
-                      <th className="p-1.5 text-right">Prix</th>
-                      <th className="p-1.5 text-right">Coût</th>
-                      <th className="p-1.5"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {importPreview.map((row, idx) => (
-                      <tr key={idx} className={row._valid ? "border-t" : "border-t bg-red-50"}>
-                        <td className="p-1"><input className="w-32 bg-transparent outline-none" value={row.name} onChange={e => updatePreviewCell(idx, "name", e.target.value)} /></td>
-                        <td className="p-1"><input className="w-20 bg-transparent outline-none" value={row.sku} onChange={e => updatePreviewCell(idx, "sku", e.target.value)} /></td>
-                        <td className="p-1"><input className="w-24 bg-transparent outline-none" value={row.category} onChange={e => updatePreviewCell(idx, "category", e.target.value)} /></td>
-                        <td className="p-1"><input type="number" className="w-14 bg-transparent outline-none text-right" value={row.quantity} onChange={e => updatePreviewCell(idx, "quantity", e.target.value)} /></td>
-                        <td className="p-1"><input type="number" className="w-14 bg-transparent outline-none text-right" value={row.threshold_low} onChange={e => updatePreviewCell(idx, "threshold_low", e.target.value)} /></td>
-                        <td className="p-1"><input type="number" className="w-20 bg-transparent outline-none text-right" value={row.unit_price_fcfa} onChange={e => updatePreviewCell(idx, "unit_price_fcfa", e.target.value)} /></td>
-                        <td className="p-1"><input type="number" className="w-20 bg-transparent outline-none text-right" value={row.cost_price_fcfa} onChange={e => updatePreviewCell(idx, "cost_price_fcfa", e.target.value)} /></td>
-                        <td className="p-1 text-center">
-                          <button className="text-red-500 hover:text-red-700 px-1" onClick={() => removePreviewRow(idx)} title="Supprimer">×</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {importPreview.some(x => !x._valid) && (
-                <div className="text-xs text-red-600">
-                  Erreurs : {[...new Set(importPreview.filter(x => !x._valid).map(x => x._error))].join(" · ")}
-                </div>
-              )}
-
-              <div className="flex gap-2 pt-1">
-                <Button variant="outline" className="flex-1" onClick={() => setImportPreview(null)}>Annuler</Button>
-                <Button className="flex-1" onClick={confirmImport} disabled={importing || !importPreview.some(x => x._valid)}>
-                  {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Importer {importPreview.filter(x => x._valid).length} produit(s)
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
     </div>
   );
 }
-
