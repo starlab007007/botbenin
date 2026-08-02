@@ -14,7 +14,9 @@ import {
   Megaphone,
   MessageSquareText,
   Package,
+  QrCode,
   Search,
+
   ShieldCheck,
   ShoppingCart,
   Sparkles,
