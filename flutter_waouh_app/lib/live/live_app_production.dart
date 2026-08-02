@@ -289,6 +289,20 @@ class LiveProductionShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final controller = context.watch<LiveWaouhController>();
+    if (path == '/app/chat/waouh' &&
+        controller is LiveWaouhControllerV2) {
+      final immediate = controller.takeImmediateMatch();
+      if (immediate != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!context.mounted) return;
+          context.go(
+            '/app/chat/match/${Uri.encodeComponent(immediate.key)}',
+            extra: immediate,
+          );
+        });
+      }
+    }
     final focused = path.startsWith('/app/chat/') ||
         path.startsWith('/app/profile') ||
         path.startsWith('/app/partner/businesses/');
