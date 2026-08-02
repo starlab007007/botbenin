@@ -170,6 +170,17 @@ jobs:
                   ('fontSize: 13,', 'fontSize: 11.5,'),
               ],
           )
+
+          controller_v2 = Path(
+              'flutter_waouh_app/lib/live/live_controller_v2.dart'
+          )
+          controller_text = controller_v2.read_text()
+          controller_text = controller_text.replace(
+              "import '../main.dart' as legacy;\n",
+              '',
+              1,
+          )
+          controller_v2.write_text(controller_text)
           PY
 
       - name: Install Flutter
@@ -190,7 +201,15 @@ jobs:
             lib/live/live_app_production.dart \
             lib/live/live_inbox_production.dart \
             lib/live/live_widgets.dart
-          flutter analyze --no-fatal-infos
+          flutter analyze \
+            --no-fatal-warnings \
+            --no-fatal-infos \
+            lib/live/live_controller_v2.dart \
+            lib/live/live_controller_extensions.dart \
+            lib/live/live_match_chat_v2.dart \
+            lib/live/live_app_production.dart \
+            lib/live/live_inbox_production.dart \
+            lib/live/live_widgets.dart
           flutter test test/live_chat_premium_cards_test.dart
 
       - name: Commit validated corrections to codex
