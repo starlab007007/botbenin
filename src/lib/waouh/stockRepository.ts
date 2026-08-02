@@ -141,9 +141,10 @@ export const stockRepository = {
 
     let partnerIds = await this.fetchPartnerIds();
     if (!partnerIds.length) {
+      const code = `P${Date.now().toString(36).toUpperCase()}`;
       const { data: created, error: partnerError } = await db
         .from("waouh_partners")
-        .insert({ user_id: userId, nom: "Mon commerce", statut: "actif" })
+        .insert({ user_id: userId, nom: "Mon commerce", code_partenaire: code, statut: "active" })
         .select("id")
         .single();
       if (partnerError) throw new Error(partnerError.message);
