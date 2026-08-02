@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { useMobileAuth } from "../../hooks/useMobileAuth";
+import { biRepository } from "@/lib/waouh/biRepository";
+import { stockRepository } from "@/lib/waouh/stockRepository";
+import { presenceRepository } from "@/lib/waouh/presenceRepository";
 import { Card, CardContent } from "@/components/ui/card";
 import { BarChart3, Package, MapPin, ChevronRight } from "lucide-react";
 
@@ -9,7 +11,7 @@ type Agent = { id: string; name: string; kind: "bi" | "stock" | "attendance"; su
 
 const META: Record<Agent["kind"], { label: string; icon: any; route: (id: string) => string; color: string }> = {
   bi:         { label: "BI / Analyse",   icon: BarChart3, route: (id) => `/app/agents/bi/${id}`,         color: "bg-blue-100 text-blue-700" },
-  stock:      { label: "Gestion stock",  icon: Package,   route: (id) => `/app/agents/stock/${id}`,      color: "bg-amber-100 text-amber-700" },
+  stock:      { label: "Gestion stock",  icon: Package,   route: () => `/app/agents/stock`,              color: "bg-amber-100 text-amber-700" },
   attendance: { label: "Présence QR",    icon: MapPin,    route: (id) => `/app/agents/attendance/${id}`, color: "bg-fuchsia-100 text-fuchsia-700" },
 };
 
@@ -21,15 +23,28 @@ export default function MyAiAgentsSection() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const [bi, stock, att] = await Promise.all([
-        supabase.from("waouh_bi_datasources").select("id, name, row_count, updated_at").eq("user_id", user.id).order("updated_at", { ascending: false }).limit(10),
-        supabase.from("waouh_stock_agents").select("id, name, business_name, updated_at").eq("user_id", user.id).order("updated_at", { ascending: false }).limit(10),
-        supabase.from("waouh_attendance_sites").select("id, name, address, updated_at").eq("user_id", user.id).order("updated_at", { ascending: false }).limit(10),
+      const [bi, products, sites] = await Promise.all([
+        biRepository.fetchSources().catch(() => []),
+        stockRepository.fetchProducts().catch(() => []),
+        presenceRepository.fetchSites().catch(() => []),
       ]);
+
       const list: Agent[] = [
-        ...(bi.data || []).map((r) => ({ id: r.id, name: r.name, kind: "bi" as const, sub: `${r.row_count || 0} lignes`, updated_at: r.updated_at })),
-        ...(stock.data || []).map((r) => ({ id: r.id, name: r.name, kind: "stock" as const, sub: r.business_name || undefined, updated_at: r.updated_at })),
-        ...(att.data || []).map((r) => ({ id: r.id, name: r.name, kind: "attendance" as const, sub: r.address || undefined, updated_at: r.updated_at })),
+        ...bi.slice(0, 10).map((r) => ({
+          id: r.id, name: r.name, kind: "bi" as const,
+          sub: `${r.row_count || 0} lignes`, updated_at: r.updated_at,
+        })),
+        ...(products.length
+          ? [{
+              id: "stock", name: "Stock IA", kind: "stock" as const,
+              sub: `${products.length} produits`,
+              updated_at: products[0].updated_at,
+            }]
+          : []),
+        ...sites.slice(0, 10).map((s) => ({
+          id: s.id, name: s.name, kind: "attendance" as const,
+          sub: s.address || undefined, updated_at: s.updated_at,
+        })),
       ].sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""));
       setAgents(list);
     })();
