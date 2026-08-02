@@ -249,30 +249,29 @@ const AppContent = () => {
                     <Route path="/use-case/ecommerce" element={<UseCaseEcommercePage />} />
                     <Route path="/use-case/support" element={<UseCaseSupportPage />} />
                     
-                    {/* Modules IA */}
-                    <Route path="/modules/business" element={<BusinessModule />} />
-                    <Route path="/knowledge-bases" element={<KnowledgeBasesPage />} />
-                    <Route path="/modules/visual-creator" element={<VisualCreatorModule />} />
-                    <Route path="/visual-gallery" element={<VisualGalleryPage />} />
+                    {/* Modules IA (hors périmètre Flutter) */}
+                    <Route path="/modules/business" element={<FlutterParityGate><BusinessModule /></FlutterParityGate>} />
+                    <Route path="/knowledge-bases" element={<FlutterParityGate><KnowledgeBasesPage /></FlutterParityGate>} />
+                    <Route path="/modules/visual-creator" element={<FlutterParityGate><VisualCreatorModule /></FlutterParityGate>} />
+                    <Route path="/visual-gallery" element={<FlutterParityGate><VisualGalleryPage /></FlutterParityGate>} />
                     
-                    {/* Marketing */}
-                    <Route path="/marketing-gallery" element={<MarketingGallery />} />
-                    <Route path="/video-production" element={<VideoProductionPage />} />
-                    <Route path="/video-production/calendar" element={<VideoProductionCalendar />} />
-                    <Route path="/video-production/generate" element={<VideoGenerationPage />} />
-          <Route path="/video-library" element={<VideoLibraryPage />} />
-          <Route path="/promotional-text/:videoId" element={<PromotionalTextGeneratorPage />} />
-          <Route path="/video-assets" element={<VideoAssetsPage />} />
+                    {/* Marketing (hors périmètre Flutter) */}
+                    <Route path="/marketing-gallery" element={<FlutterParityGate><MarketingGallery /></FlutterParityGate>} />
+                    <Route path="/video-production" element={<FlutterParityGate><VideoProductionPage /></FlutterParityGate>} />
+                    <Route path="/video-production/calendar" element={<FlutterParityGate><VideoProductionCalendar /></FlutterParityGate>} />
+                    <Route path="/video-production/generate" element={<FlutterParityGate><VideoGenerationPage /></FlutterParityGate>} />
+                    <Route path="/video-library" element={<FlutterParityGate><VideoLibraryPage /></FlutterParityGate>} />
+                    <Route path="/promotional-text/:videoId" element={<FlutterParityGate><PromotionalTextGeneratorPage /></FlutterParityGate>} />
+                    <Route path="/video-assets" element={<FlutterParityGate><VideoAssetsPage /></FlutterParityGate>} />
                     
-                    {/* Support et compte */}
-                    <Route path="/support" element={<SupportPage />} />
-                    <Route path="/account" element={<AccountPage />} />
-                    
-                    {/* Administration */}
+                    {/* Support et compte (hors périmètre Flutter) */}
+                    <Route path="/support" element={<FlutterParityGate><SupportPage /></FlutterParityGate>} />
+                    <Route path="/account" element={<FlutterParityGate><AccountPage /></FlutterParityGate>} />
                     
                     {/* Tests système */}
-                    <Route path="/system-test" element={<SystemTestPage />} />
-                    <Route path="/platform-test" element={<PlatformTestPage />} />
+                    <Route path="/system-test" element={<FlutterParityGate><SystemTestPage /></FlutterParityGate>} />
+                    <Route path="/platform-test" element={<FlutterParityGate><PlatformTestPage /></FlutterParityGate>} />
+
                     
                     {/* Admin dashboard - Protected */}
                     <Route path="/admin" element={<AdminRoute><AdminDashboardPage /></AdminRoute>} />
