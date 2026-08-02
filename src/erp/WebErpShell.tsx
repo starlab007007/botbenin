@@ -328,8 +328,9 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
             <button
               type="button"
               className="waouh-erp-search-trigger"
-              onClick={() => navigate('/app/chat')}
+              onClick={openWaouh}
             >
+
               <Search size={17} />
               <span>Rechercher dans WaouhApp</span>
               <kbd><Command size={12} /> K</kbd>
