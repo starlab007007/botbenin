@@ -214,20 +214,22 @@ const AppContent = () => {
                   <Route element={<MainLayout />}>
                     {/* Route d'accueil */}
                     <Route path="/" element={<Navigate to="/app/chat" replace />} />
-                    <Route path="/legacy" element={<Index />} />
-                    <Route path="/home" element={<HomePage />} />
-                    <Route path="/chat" element={<KpakpatoPage />} />
-                    <Route path="/dashboard" element={<DashboardPage />} />
+                    {/* Modules web historiques — hors périmètre Flutter : réservés aux administrateurs */}
+                    <Route path="/legacy" element={<FlutterParityGate><Index /></FlutterParityGate>} />
+                    <Route path="/home" element={<FlutterParityGate><HomePage /></FlutterParityGate>} />
+                    <Route path="/chat" element={<FlutterParityGate><KpakpatoPage /></FlutterParityGate>} />
+                    <Route path="/dashboard" element={<FlutterParityGate><DashboardPage /></FlutterParityGate>} />
                     
                     {/* Gestion des bots */}
-                    <Route path="/bots" element={<BotManagementPage />} />
+                    <Route path="/bots" element={<FlutterParityGate><BotManagementPage /></FlutterParityGate>} />
                     
                     {/* Campagnes de partage */}
-                    <Route path="/social-campaigns" element={<SocialSharingCampaignsPage />} />
+                    <Route path="/social-campaigns" element={<FlutterParityGate><SocialSharingCampaignsPage /></FlutterParityGate>} />
                     
                     {/* WhatsApp Connect */}
-                    <Route path="/whatsapp-connect" element={<WhatsAppConnectPage />} />
-                    <Route path="/whatsapp-diffusion" element={<WhatsAppDiffusionPage />} />
+                    <Route path="/whatsapp-connect" element={<FlutterParityGate><WhatsAppConnectPage /></FlutterParityGate>} />
+                    <Route path="/whatsapp-diffusion" element={<FlutterParityGate><WhatsAppDiffusionPage /></FlutterParityGate>} />
+
                     
                     {/* SEO Pages */}
                     <Route path="/features" element={<FeaturesPage />} />
