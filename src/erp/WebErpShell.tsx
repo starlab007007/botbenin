@@ -4,7 +4,12 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   BarChart3,
   Bell,
+  BookOpenText,
   Bot,
+  GraduationCap,
+  MessagesSquare,
+  Radar as RadarIcon,
+
   ChevronLeft,
   ChevronRight,
   CircleDot,
@@ -51,79 +56,82 @@ type NavigationItem = {
   accent?: 'chat' | 'ai' | 'stock' | 'bi' | 'store';
 };
 
+type NavigationSection = {
+  title: string;
+  items: NavigationItem[];
+};
+
 const HOME_PATH = '/app/chat';
 
-const navigation: NavigationItem[] = [
+const navigationSections: NavigationSection[] = [
   {
-    label: 'Chat Command Center',
-    to: HOME_PATH,
-    icon: MessageSquareText,
-    accent: 'chat',
+    title: 'Communication',
+    items: [
+      { label: 'Chat Command Center', to: HOME_PATH, icon: MessageSquareText, accent: 'chat' },
+      { label: 'Radar', to: '/app/chat?tab=radar', icon: RadarIcon, brick: 'radar' },
+      { label: 'WhatsApp IA', to: '/app/whatsapp', icon: UsersRound, brick: 'whatsapp' },
+      { label: 'Diffusion', to: '/app/diffusion', icon: Megaphone, brick: 'diffusion' },
+    ],
   },
   {
-    label: 'Bots & Agents IA',
-    to: '/app/bots',
-    icon: Bot,
-    brick: 'bots',
-    accent: 'ai',
+    title: 'Agents IA',
+    items: [
+      { label: 'Bots', to: '/app/bots', icon: Bot, brick: 'bots', accent: 'ai' },
+      { label: 'Agents IA', to: '/app/agents', icon: Sparkles, brick: 'agents', accent: 'ai' },
+      { label: 'Conversationnel', to: '/app/bots/new', icon: MessagesSquare, brick: 'conversational' },
+      { label: 'BI WAOUH IA', to: '/app/agents/bi', icon: BarChart3, brick: 'bi', accent: 'bi' },
+      { label: 'Stock WAOUH IA', to: '/app/agents/stock', icon: Package, brick: 'stock', accent: 'stock' },
+      { label: 'Présence QR', to: '/app/agents/attendance', icon: QrCode, brick: 'presence' },
+    ],
   },
   {
-    label: 'BI IA',
-    to: '/app/agents/bi/new',
-    icon: BarChart3,
-    brick: 'bi',
-    accent: 'bi',
+    title: 'Commerce',
+    items: [
+      { label: 'Boutiques & magasins', to: '/app/partner/businesses', icon: Store, brick: 'store', accent: 'store' },
+      { label: 'Ventes', to: '/app/partner/sales', icon: ShoppingCart, brick: 'sales' },
+      { label: 'Partenaires', to: '/app/partner', icon: Handshake, brick: 'partner' },
+    ],
   },
   {
-    label: 'Stock IA',
-    to: '/app/agents/stock/new',
-    icon: Package,
-    brick: 'stock',
-    accent: 'stock',
-  },
-  {
-    label: 'Présence QR',
-    to: '/app/agents/attendance/new',
-    icon: QrCode,
-    brick: 'presence',
-  },
-
-  {
-    label: 'Boutiques & magasins',
-    to: '/app/partner/businesses',
-    icon: Store,
-    brick: 'store',
-    accent: 'store',
-  },
-  {
-    label: 'Ventes',
-    to: '/app/partner/sales',
-    icon: ShoppingCart,
-    brick: 'sales',
-  },
-  {
-    label: 'WhatsApp IA',
-    to: '/app/whatsapp',
-    icon: UsersRound,
-    brick: 'whatsapp',
-  },
-  {
-    label: 'Diffusion',
-    to: '/app/diffusion',
-    icon: Megaphone,
-    brick: 'diffusion',
-  },
-  {
-    label: 'Partenaires',
-    to: '/app/partner',
-    icon: Handshake,
-    brick: 'partner',
+    title: 'Services IA',
+    items: [
+      { label: 'AprèsBac IA', to: '/app/apres-bac', icon: GraduationCap, brick: 'apresbac' },
+      { label: 'FA IA', to: '/app/fa', icon: BookOpenText, brick: 'fa' },
+    ],
   },
 ];
 
+const navigation: NavigationItem[] = navigationSections.flatMap((section) => section.items);
+
+
 
 const routeContext = (pathname: string) => {
+  if (pathname.includes('tab=radar')) {
+    return {
+      eyebrow: 'Détection locale',
+      title: 'Radar WAOUH',
+      description: 'Opportunités et signaux à proximité, en temps réel.',
+      prompt: 'Demander à WAOUH les opportunités proches',
+    };
+  }
+  if (pathname.startsWith('/app/apres-bac')) {
+    return {
+      eyebrow: 'Orientation',
+      title: 'AprèsBac IA',
+      description: 'Analyse de profil, éligibilité et recommandations post-BAC.',
+      prompt: 'Demander à AprèsBac IA une recommandation',
+    };
+  }
+  if (pathname.startsWith('/app/fa')) {
+    return {
+      eyebrow: 'Consultation',
+      title: 'FA IA',
+      description: 'Lecture contextuelle, quota journalier et codes d’accès.',
+      prompt: 'Ouvrir une consultation FA IA',
+    };
+  }
   if (pathname.startsWith('/app/chat')) {
+
     return {
       eyebrow: 'Centre opérationnel',
       title: 'Chat Command Center',
@@ -145,6 +153,14 @@ const routeContext = (pathname: string) => {
       title: 'BI IA',
       description: 'Tableaux de bord, graphiques et lecture intelligente de vos données.',
       prompt: 'Demander à WAOUH une lecture de mes indicateurs',
+    };
+  }
+  if (pathname.startsWith('/app/agents/attendance')) {
+    return {
+      eyebrow: 'Terrain',
+      title: 'Présence QR',
+      description: 'Sites, QR géolocalisés et pointages notifiés sur WhatsApp.',
+      prompt: 'Demander à WAOUH un point sur les présences',
     };
   }
   if (pathname.startsWith('/app/bots') || pathname.startsWith('/app/agents')) {
@@ -296,35 +312,41 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
         {!collapsed && <div className="waouh-erp-nav-label">ESPACE DE TRAVAIL</div>}
 
         <nav className="waouh-erp-nav">
-          {navigation.map((item) => {
-            const Icon = item.icon;
-            const active = isHome
-              ? (item.brick ?? null) === activeBrick
-              : location.pathname.startsWith(item.to);
-            const badge = !item.brick && unreadChat > 0 ? unreadChat : 0;
+          {navigationSections.map((section) => (
+            <div key={section.title} className="waouh-erp-nav__group">
+              {!collapsed && <div className="waouh-erp-nav__group-title">{section.title}</div>}
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                const active = isHome
+                  ? (item.brick ?? null) === activeBrick
+                  : location.pathname.startsWith(item.to.split('?')[0]);
+                const badge = !item.brick && unreadChat > 0 ? unreadChat : 0;
 
-            return (
-              <button
-                key={item.to}
-                type="button"
-                onClick={() => selectItem(item)}
-                aria-current={active ? 'page' : undefined}
-                className={cn(
-                  'waouh-erp-nav__item',
-                  active && 'is-active',
-                  item.accent && `is-${item.accent}`,
-                )}
-                title={collapsed ? item.label : undefined}
-              >
-                <span className="waouh-erp-nav__icon"><Icon size={19} /></span>
-                {!collapsed && <span className="waouh-erp-nav__text">{item.label}</span>}
-                {badge > 0 && (
-                  <span className="waouh-erp-nav__badge">{badge > 99 ? '99+' : badge}</span>
-                )}
-              </button>
-            );
-          })}
+                return (
+                  <button
+                    key={item.to}
+                    type="button"
+                    onClick={() => selectItem(item)}
+                    aria-current={active ? 'page' : undefined}
+                    className={cn(
+                      'waouh-erp-nav__item',
+                      active && 'is-active',
+                      item.accent && `is-${item.accent}`,
+                    )}
+                    title={collapsed ? item.label : undefined}
+                  >
+                    <span className="waouh-erp-nav__icon"><Icon size={19} /></span>
+                    {!collapsed && <span className="waouh-erp-nav__text">{item.label}</span>}
+                    {badge > 0 && (
+                      <span className="waouh-erp-nav__badge">{badge > 99 ? '99+' : badge}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </nav>
+
 
 
         <div className="waouh-erp-sidebar__footer">

@@ -7,27 +7,38 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { useMobileAuth } from '@/app-mobile/hooks/useMobileAuth';
 
 export type BrickId =
+  | 'radar'
+  | 'whatsapp'
+  | 'diffusion'
   | 'bots'
+  | 'agents'
+  | 'conversational'
   | 'bi'
   | 'stock'
   | 'presence'
   | 'store'
   | 'sales'
-  | 'whatsapp'
-  | 'diffusion'
-  | 'partner';
+  | 'partner'
+  | 'apresbac'
+  | 'fa';
 
 const BRICKS: Record<BrickId, ReturnType<typeof lazy>> = {
-  bots: lazy(() => import('@/app-mobile/screens/bots/KnowledgeBasesListScreen')),
-  bi: lazy(() => import('@/app-mobile/screens/agents/BiAgentWizard')),
-  stock: lazy(() => import('@/app-mobile/screens/agents/StockAgentWizard')),
-  presence: lazy(() => import('@/app-mobile/screens/agents/AttendanceAgentWizard')),
-  store: lazy(() => import('@/app-mobile/screens/partner/PartnerBusinessesScreen')),
-  sales: lazy(() => import('@/app-mobile/screens/partner/PartnerSalesScreen')),
+  radar: lazy(() => import('@/app-mobile/components/radar/RadarPanel').then((m) => ({ default: m.RadarPanel }))),
   whatsapp: lazy(() => import('@/app-mobile/screens/WhatsAppScreen')),
   diffusion: lazy(() => import('@/app-mobile/screens/DiffusionScreen')),
+  bots: lazy(() => import('@/app-mobile/screens/bots/KnowledgeBasesListScreen')),
+  agents: lazy(() => import('@/app-mobile/screens/bots/AiAgentsListScreen')),
+  conversational: lazy(() => import('@/app-mobile/screens/bots/KnowledgeBaseCreateWizard')),
+  bi: lazy(() => import('./BrickHome').then((m) => ({ default: m.BiBrickHome }))),
+  stock: lazy(() => import('./BrickHome').then((m) => ({ default: m.StockBrickHome }))),
+  presence: lazy(() => import('./BrickHome').then((m) => ({ default: m.PresenceBrickHome }))),
+  store: lazy(() => import('@/app-mobile/screens/partner/PartnerBusinessesScreen')),
+  sales: lazy(() => import('@/app-mobile/screens/partner/PartnerSalesScreen')),
   partner: lazy(() => import('@/app-mobile/screens/partner/PartnerHomeScreen')),
+  apresbac: lazy(() => import('@/pages/apres-bac/ApresBacPage')),
+  fa: lazy(() => import('@/app-mobile/screens/FaIaScreen')),
 };
+
 
 
 /**

@@ -656,3 +656,16 @@ button.waouh-erp-nav__item {
   cursor: pointer;
   background: transparent;
 }
+
+/* Rail groupé par domaine fonctionnel (parité modules Flutter) */
+.waouh-erp-nav__group { display: flex; flex-direction: column; gap: 2px; }
+.waouh-erp-nav__group + .waouh-erp-nav__group { margin-top: 14px; }
+.waouh-erp-nav__group-title {
+  padding: 0 12px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground));
+  opacity: .75;
+}
