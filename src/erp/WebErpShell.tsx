@@ -248,23 +248,39 @@ const contextualActions = (pathname: string) => {
   ];
 };
 
+/** URL is the single source of truth for the active brick. */
+const brickForLocation = (pathname: string, search: string): BrickId | null => {
+  if (pathname === HOME_PATH) {
+    return new URLSearchParams(search).get('tab') === 'radar' ? 'radar' : null;
+  }
+  const candidates = navigation.filter((item) => item.brick).map((item) => ({
+    brick: item.brick as BrickId,
+    path: item.to.split('?')[0],
+  }));
+  // Longest path first so /app/partner/businesses wins over /app/partner.
+  candidates.sort((a, b) => b.path.length - a.path.length);
+  const hit = candidates.find(
+    (c) => c.path !== HOME_PATH && (pathname === c.path || pathname.startsWith(`${c.path}/`)),
+  );
+  return hit?.brick ?? null;
+};
+
 export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useMobileAuth();
   const { profile } = useMobileProfile();
   const [collapsed, setCollapsed] = useState(false);
-  const [activeBrick, setActiveBrick] = useState<BrickId | null>(null);
 
-  const isHome = location.pathname === HOME_PATH;
+  const activeBrick = useMemo(
+    () => brickForLocation(location.pathname, location.search),
+    [location.pathname, location.search],
+  );
 
-  // Leaving the command center (profile, notifications, deep links) resets the canvas.
-  useEffect(() => {
-    if (!isHome && activeBrick) setActiveBrick(null);
-  }, [isHome, activeBrick]);
+  const isHome = location.pathname === HOME_PATH && !activeBrick;
 
   const contextPath = activeBrick
-    ? navigation.find((item) => item.brick === activeBrick)?.to ?? location.pathname
+    ? `${location.pathname}${location.search}`
     : location.pathname;
 
   const context = useMemo(() => routeContext(contextPath), [contextPath]);
@@ -279,14 +295,13 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
     .join('') || 'W';
 
   const openWaouh = () => {
-    setActiveBrick(null);
-    if (!isHome) navigate(HOME_PATH);
+    if (location.pathname !== HOME_PATH || location.search) navigate(HOME_PATH);
   };
 
   const selectItem = (item: NavigationItem) => {
-    if (!isHome) navigate(HOME_PATH);
-    setActiveBrick(item.brick ?? null);
+    navigate(item.to);
   };
+
 
   return (
     <div className={cn('waouh-erp-shell', collapsed && 'waouh-erp-shell--collapsed')}>
