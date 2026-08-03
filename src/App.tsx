@@ -182,6 +182,7 @@ const MobileAuthHome = lazy(() => import("./app-mobile/screens/auth/AuthHomeScre
 const MobileAuthEmail = lazy(() => import("./app-mobile/screens/auth/EmailAuthScreen"));
 const MobileAuthOtp = lazy(() => import("./app-mobile/screens/auth/WhatsAppOtpScreen"));
 const MobileProfile = lazy(() => import("./app-mobile/screens/ProfileScreen"));
+const FaIaScreen = lazy(() => import("./app-mobile/screens/FaIaScreen"));
 const AgentTypePicker = lazy(() => import("./app-mobile/screens/agents/AgentTypePickerScreen"));
 const BiAgentWizard = lazy(() => import("./app-mobile/screens/agents/BiAgentWizard"));
 const BiAgentDetail = lazy(() => import("./app-mobile/screens/agents/BiAgentDetailScreen"));
@@ -286,7 +287,6 @@ const AppContent = () => {
           <Route path="/admin/bots-control" element={<AdminRoute><AdminBotsControlPage /></AdminRoute>} />
           <Route path="/admin/apresbac" element={<AdminRoute><AdminApresBacPage /></AdminRoute>} />
           <Route path="/admin/fa" element={<AdminRoute><AdminFaPage /></AdminRoute>} />
-          <Route path="/app/apres-bac" element={<FlutterParityGate><ApresBacPage /></FlutterParityGate>} />
           <Route path="/apres-bac" element={<Navigate to="/app/apres-bac" replace />} />
                     
                      {/* CRM & Prospects (hors périmètre Flutter) */}
@@ -345,6 +345,9 @@ const AppContent = () => {
                     <Route path="bots/new" element={<MobileCreateBot />} />
                     <Route path="bots/:id" element={<MobileBotDetail />} />
                     <Route path="bots/:id/table/:tableId/entry/:index" element={<MobileBotEntryForm />} />
+                    <Route path="apres-bac" element={<ApresBacPage />} />
+                    <Route path="fa" element={<FaIaScreen />} />
+                    <Route path="agents" element={<MobileBots />} />
                     <Route path="agents/new" element={<AgentTypePicker />} />
                     <Route path="agents/bi/new" element={<BiAgentWizard />} />
                     <Route path="agents/bi/:id" element={<BiAgentDetail />} />
