@@ -332,9 +332,10 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
               {!collapsed && <div className="waouh-erp-nav__group-title">{section.title}</div>}
               {section.items.map((item) => {
                 const Icon = item.icon;
-                const active = isHome
-                  ? (item.brick ?? null) === activeBrick
-                  : location.pathname.startsWith(item.to.split('?')[0]);
+                const itemPath = item.to.split('?')[0];
+                const active = item.brick
+                  ? item.brick === activeBrick
+                  : isHome && itemPath === HOME_PATH;
                 const badge = !item.brick && unreadChat > 0 ? unreadChat : 0;
 
                 return (
@@ -342,6 +343,8 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
                     key={item.to}
                     type="button"
                     onClick={() => selectItem(item)}
+                    onMouseEnter={() => item.brick && preloadBrick(item.brick)}
+                    onFocus={() => item.brick && preloadBrick(item.brick)}
                     aria-current={active ? 'page' : undefined}
                     className={cn(
                       'waouh-erp-nav__item',
@@ -350,6 +353,7 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
                     )}
                     title={collapsed ? item.label : undefined}
                   >
+
                     <span className="waouh-erp-nav__icon"><Icon size={19} /></span>
                     {!collapsed && <span className="waouh-erp-nav__text">{item.label}</span>}
                     {badge > 0 && (
