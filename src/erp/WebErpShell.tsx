@@ -4,7 +4,12 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   BarChart3,
   Bell,
+  BookOpenText,
   Bot,
+  GraduationCap,
+  MessagesSquare,
+  Radar as RadarIcon,
+
   ChevronLeft,
   ChevronRight,
   CircleDot,
