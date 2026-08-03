@@ -169,7 +169,7 @@ export const CenterCanvas = () => {
         {/* CONVERSATION Supabase */}
         {view === 'conversation' && activeConvId && (
           <div className="absolute inset-0">
-            <ChatScreen embeddedConversationId={activeConvId} />
+            <ChatScreen embedded convIdOverride={activeConvId} />
           </div>
         )}
 
