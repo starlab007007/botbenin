@@ -69,6 +69,17 @@ export function WaouhMatchChatList({
   });
   const loadRef = useRef<() => void>(() => {});
 
+  // Le bouton « Archives (n) » du cadre central ouvre la section archivée.
+  useEffect(() => {
+    const onShowArchived = () => {
+      setShowArchived(true);
+      setExpanded(true);
+    };
+    window.addEventListener("waouh:show-archived", onShowArchived as EventListener);
+    return () => window.removeEventListener("waouh:show-archived", onShowArchived as EventListener);
+  }, []);
+
+
   const persistArchived = useCallback(
     (next: Set<string>) => {
       setArchived(new Set(next));
