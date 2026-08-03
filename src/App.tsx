@@ -183,6 +183,9 @@ const MobileAuthEmail = lazy(() => import("./app-mobile/screens/auth/EmailAuthSc
 const MobileAuthOtp = lazy(() => import("./app-mobile/screens/auth/WhatsAppOtpScreen"));
 const MobileProfile = lazy(() => import("./app-mobile/screens/ProfileScreen"));
 const FaIaScreen = lazy(() => import("./app-mobile/screens/FaIaScreen"));
+const BiBrickHome = lazy(() => import("./erp/BrickHome").then((m) => ({ default: m.BiBrickHome })));
+const PresenceBrickHome = lazy(() => import("./erp/BrickHome").then((m) => ({ default: m.PresenceBrickHome })));
+
 const AgentTypePicker = lazy(() => import("./app-mobile/screens/agents/AgentTypePickerScreen"));
 const BiAgentWizard = lazy(() => import("./app-mobile/screens/agents/BiAgentWizard"));
 const BiAgentDetail = lazy(() => import("./app-mobile/screens/agents/BiAgentDetailScreen"));
