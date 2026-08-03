@@ -279,35 +279,41 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
         {!collapsed && <div className="waouh-erp-nav-label">ESPACE DE TRAVAIL</div>}
 
         <nav className="waouh-erp-nav">
-          {navigation.map((item) => {
-            const Icon = item.icon;
-            const active = isHome
-              ? (item.brick ?? null) === activeBrick
-              : location.pathname.startsWith(item.to);
-            const badge = !item.brick && unreadChat > 0 ? unreadChat : 0;
+          {navigationSections.map((section) => (
+            <div key={section.title} className="waouh-erp-nav__group">
+              {!collapsed && <div className="waouh-erp-nav__group-title">{section.title}</div>}
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                const active = isHome
+                  ? (item.brick ?? null) === activeBrick
+                  : location.pathname.startsWith(item.to.split('?')[0]);
+                const badge = !item.brick && unreadChat > 0 ? unreadChat : 0;
 
-            return (
-              <button
-                key={item.to}
-                type="button"
-                onClick={() => selectItem(item)}
-                aria-current={active ? 'page' : undefined}
-                className={cn(
-                  'waouh-erp-nav__item',
-                  active && 'is-active',
-                  item.accent && `is-${item.accent}`,
-                )}
-                title={collapsed ? item.label : undefined}
-              >
-                <span className="waouh-erp-nav__icon"><Icon size={19} /></span>
-                {!collapsed && <span className="waouh-erp-nav__text">{item.label}</span>}
-                {badge > 0 && (
-                  <span className="waouh-erp-nav__badge">{badge > 99 ? '99+' : badge}</span>
-                )}
-              </button>
-            );
-          })}
+                return (
+                  <button
+                    key={item.to}
+                    type="button"
+                    onClick={() => selectItem(item)}
+                    aria-current={active ? 'page' : undefined}
+                    className={cn(
+                      'waouh-erp-nav__item',
+                      active && 'is-active',
+                      item.accent && `is-${item.accent}`,
+                    )}
+                    title={collapsed ? item.label : undefined}
+                  >
+                    <span className="waouh-erp-nav__icon"><Icon size={19} /></span>
+                    {!collapsed && <span className="waouh-erp-nav__text">{item.label}</span>}
+                    {badge > 0 && (
+                      <span className="waouh-erp-nav__badge">{badge > 99 ? '99+' : badge}</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </nav>
+
 
 
         <div className="waouh-erp-sidebar__footer">
