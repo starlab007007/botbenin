@@ -253,16 +253,12 @@ const brickForLocation = (pathname: string, search: string): BrickId | null => {
   if (pathname === HOME_PATH) {
     return new URLSearchParams(search).get('tab') === 'radar' ? 'radar' : null;
   }
-  const candidates = navigation.filter((item) => item.brick).map((item) => ({
-    brick: item.brick as BrickId,
-    path: item.to.split('?')[0],
-  }));
-  // Longest path first so /app/partner/businesses wins over /app/partner.
-  candidates.sort((a, b) => b.path.length - a.path.length);
-  const hit = candidates.find(
-    (c) => c.path !== HOME_PATH && (pathname === c.path || pathname.startsWith(`${c.path}/`)),
+  // Exact match only: deeper routes (détail d'un agent, d'une boutique…) gardent leur écran dédié.
+  const hit = navigation.find(
+    (item) => item.brick && item.to.split('?')[0] === pathname && pathname !== HOME_PATH,
   );
-  return hit?.brick ?? null;
+  return (hit?.brick as BrickId) ?? null;
+
 };
 
 export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
