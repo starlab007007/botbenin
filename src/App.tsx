@@ -349,7 +349,10 @@ const AppContent = () => {
                     <Route path="fa" element={<FaIaScreen />} />
                     <Route path="agents" element={<MobileBots />} />
                     <Route path="agents/new" element={<AgentTypePicker />} />
+                    <Route path="agents/bi" element={<BiBrickHome />} />
+                    <Route path="agents/attendance" element={<PresenceBrickHome />} />
                     <Route path="agents/bi/new" element={<BiAgentWizard />} />
+
                     <Route path="agents/bi/:id" element={<BiAgentDetail />} />
                     <Route path="agents/stock" element={<StockAgentDashboard />} />
                     <Route path="agents/stock/new" element={<StockAgentWizard />} />
