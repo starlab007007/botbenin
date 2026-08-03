@@ -1,6 +1,6 @@
-import { useEffect, useState, type ComponentType } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BarChart3, ChevronRight, MapPin, Package, Plus, RefreshCw } from 'lucide-react';
+import { BarChart3, ChevronRight, MapPin, Package, Plus, RefreshCw, type LucideIcon } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -21,7 +21,7 @@ type SmartCard = {
 type KindConfig = {
   label: string;
   description: string;
-  icon: ComponentType<{ size?: number; className?: string }>;
+  icon: LucideIcon;
   accent: string;
   createLabel: string;
   createRoute: string;
@@ -42,7 +42,7 @@ const CONFIG: Record<BrickHomeKind, KindConfig> = {
     emptyHint: 'Connectez un Google Sheet, un fichier Excel/CSV ou une API pour lancer vos analyses.',
     load: async () => {
       const sources = await biRepository.fetchSources().catch(() => []);
-      const rows = sources.reduce((total, source) => total + (source.row_count ?? 0), 0);
+      const rows = sources.reduce((total: number, source) => total + (source.row_count ?? 0), 0);
       return {
         cards: sources.map((source) => ({
           id: source.id,
