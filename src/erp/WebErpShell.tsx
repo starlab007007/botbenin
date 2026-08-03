@@ -443,8 +443,14 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
 
         <div className="waouh-erp-body">
           <main className="waouh-erp-workspace">
-            {isHome ? (activeBrick ? <ErpBrickCanvas brick={activeBrick} /> : <CenterCanvas />) : children}
+            {/* Le moteur de chat reste monté : basculer de brique ne le recharge jamais. */}
+            <div className={cn('h-full w-full', !isHome && 'hidden')}>
+              <CenterCanvas />
+            </div>
+            {activeBrick ? <ErpBrickCanvas brick={activeBrick} /> : null}
+            {!isHome && !activeBrick ? children : null}
           </main>
+
 
 
           <aside className="waouh-erp-copilot" aria-label="Copilote contextuel WaouhApp">
