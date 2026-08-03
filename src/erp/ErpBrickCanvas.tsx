@@ -22,22 +22,35 @@ export type BrickId =
   | 'apresbac'
   | 'fa';
 
-const BRICKS: Record<BrickId, ReturnType<typeof lazy>> = {
-  radar: lazy(() => import('@/app-mobile/components/radar/RadarPanel').then((m) => ({ default: m.RadarPanel }))),
-  whatsapp: lazy(() => import('@/app-mobile/screens/WhatsAppScreen')),
-  diffusion: lazy(() => import('@/app-mobile/screens/DiffusionScreen')),
-  bots: lazy(() => import('@/app-mobile/screens/bots/KnowledgeBasesListScreen')),
-  agents: lazy(() => import('@/app-mobile/screens/bots/AiAgentsListScreen')),
-  conversational: lazy(() => import('@/app-mobile/screens/bots/KnowledgeBaseCreateWizard')),
-  bi: lazy(() => import('./BrickHome').then((m) => ({ default: m.BiBrickHome }))),
-  stock: lazy(() => import('./BrickHome').then((m) => ({ default: m.StockBrickHome }))),
-  presence: lazy(() => import('./BrickHome').then((m) => ({ default: m.PresenceBrickHome }))),
-  store: lazy(() => import('@/app-mobile/screens/partner/PartnerBusinessesScreen')),
-  sales: lazy(() => import('@/app-mobile/screens/partner/PartnerSalesScreen')),
-  partner: lazy(() => import('@/app-mobile/screens/partner/PartnerHomeScreen')),
-  apresbac: lazy(() => import('@/pages/apres-bac/ApresBacPage')),
-  fa: lazy(() => import('@/app-mobile/screens/FaIaScreen')),
+type Loader = () => Promise<{ default: React.ComponentType<any> }>;
+
+const LOADERS: Record<BrickId, Loader> = {
+  radar: () => import('@/app-mobile/components/radar/RadarPanel').then((m) => ({ default: m.RadarPanel })),
+  whatsapp: () => import('@/app-mobile/screens/WhatsAppScreen'),
+  diffusion: () => import('@/app-mobile/screens/DiffusionScreen'),
+  bots: () => import('@/app-mobile/screens/bots/KnowledgeBasesListScreen'),
+  agents: () => import('@/app-mobile/screens/bots/AiAgentsListScreen'),
+  conversational: () => import('@/app-mobile/screens/bots/KnowledgeBaseCreateWizard'),
+  bi: () => import('./BrickHome').then((m) => ({ default: m.BiBrickHome })),
+  stock: () => import('./BrickHome').then((m) => ({ default: m.StockBrickHome })),
+  presence: () => import('./BrickHome').then((m) => ({ default: m.PresenceBrickHome })),
+  store: () => import('@/app-mobile/screens/partner/PartnerBusinessesScreen'),
+  sales: () => import('@/app-mobile/screens/partner/PartnerSalesScreen'),
+  partner: () => import('@/app-mobile/screens/partner/PartnerHomeScreen'),
+  apresbac: () => import('@/pages/apres-bac/ApresBacPage'),
+  fa: () => import('@/app-mobile/screens/FaIaScreen'),
 };
+
+const BRICKS: Record<BrickId, ReturnType<typeof lazy>> = Object.fromEntries(
+  (Object.keys(LOADERS) as BrickId[]).map((id) => [id, lazy(LOADERS[id] as any)]),
+) as Record<BrickId, ReturnType<typeof lazy>>;
+
+/** Warm up a brick chunk (hover on the rail) so the switch feels instant. */
+export const preloadBrick = (brick: BrickId) => {
+  void LOADERS[brick]?.().catch(() => undefined);
+};
+
+
 
 
 

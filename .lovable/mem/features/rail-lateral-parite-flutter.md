@@ -13,3 +13,11 @@ Rail web (`src/erp/WebErpShell.tsx`) organisé en 4 sections, chaque entrée ouv
 BI / Stock / Présence ouvrent d'abord `src/erp/BrickHome.tsx` (cartes smart + compteurs live via biRepository / stockRepository / presenceRepository), pas le wizard.
 FA IA : `src/app-mobile/screens/FaIaScreen.tsx` → edge function `waouh-fa-chat` (quota 1/jour, code 6 chiffres = 3 consultations).
 `/app/apres-bac` n'est plus derrière FlutterParityGate.
+
+## Rail piloté par l'URL (2026-08-03)
+La brique active est dérivée du chemin (`brickForLocation` dans `WebErpShell`), jamais d'un état local :
+chaque entrée du rail navigue vers sa vraie route `/app/...` (deep link + rechargement + retour navigateur OK).
+Correspondance exacte uniquement : les sous-routes (`/app/agents/stock/:id`, `/app/partner/businesses/...`)
+gardent leur écran dédié. `CenterCanvas` reste monté (caché) pour ne jamais recharger le moteur de chat,
+et `preloadBrick` précharge le chunk au survol du rail.
+Routes ajoutées : `/app/agents/bi` (BiBrickHome) et `/app/agents/attendance` (PresenceBrickHome).
