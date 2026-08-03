@@ -95,41 +95,25 @@ export const CenterCanvas = () => {
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-background">
-      {/* Persistent command bar */}
-      <div className="shrink-0 border-b border-border bg-card/60 px-6 py-4">
-        <div className="mx-auto flex w-full max-w-4xl items-center gap-3">
-          {view !== 'home' && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => setView('home')}
-              aria-label="Revenir à l’accueil du centre de commande"
-            >
-              <ArrowLeft size={18} />
-            </Button>
-          )}
-          <form
-            className="flex flex-1 items-center gap-2 rounded-2xl border border-border bg-background px-4 py-2 shadow-sm focus-within:border-primary"
-            onSubmit={(e) => {
-              e.preventDefault();
-              runPrompt(draft);
+      {/* Barre supérieure : retour + accès rapides */}
+      {view !== 'home' && (
+        <div className="flex shrink-0 items-center gap-2 border-b border-border bg-card/60 px-4 py-2 sm:px-6">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              setActiveConvId(null);
+              setView('home');
             }}
+            aria-label="Revenir aux discussions"
           >
-            <Search size={18} className="text-muted-foreground" />
-            <input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder="Demandez à WAOUH : acheter, vendre, négocier, analyser…"
-              className="h-9 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-              aria-label="Commande WAOUH"
-            />
-            <Button type="submit" size="icon" className="h-9 w-9 shrink-0" aria-label="Envoyer à WAOUH">
-              <Send size={16} />
-            </Button>
-          </form>
-
-          <div className="hidden items-center gap-2 xl:flex">
+            <ArrowLeft size={18} />
+          </Button>
+          <span className="text-sm font-semibold text-foreground">
+            {view === 'chat' ? 'WAOUH Assistant IA' : view === 'conversation' ? 'Conversation' : view === 'radar' ? 'Radar' : 'Statuts'}
+          </span>
+          <div className="ml-auto hidden items-center gap-2 xl:flex">
             {(['statuses', 'radar'] as const).map((key) => (
               <Button
                 key={key}
@@ -144,72 +128,22 @@ export const CenterCanvas = () => {
             ))}
           </div>
         </div>
-      </div>
+      )}
 
       <div className="relative min-h-0 flex-1">
-        {/* HOME */}
+        {/* HOME — parité Flutter */}
         <div className={cn('absolute inset-0 overflow-y-auto', view !== 'home' && 'hidden')}>
-          <div className="mx-auto w-full max-w-4xl px-6 py-8">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Centre de commande WAOUH
-            </p>
-            <h2 className="mt-1 text-2xl font-semibold text-foreground">
-              Tout se pilote ici, sans changer de page
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Lancez une intention, reprenez une négociation ou ouvrez une brique ERP : le centre reste le même.
-            </p>
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              {INTENTS.map((intent) => {
-                const Icon = intent.icon;
-                return (
-                  <button
-                    key={intent.label}
-                    type="button"
-                    onClick={() => openIntent(intent.prompt)}
-                    className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition hover:border-primary hover:text-primary"
-                  >
-                    <Icon size={15} />
-                    {intent.label}
-                  </button>
-                );
-              })}
-              <button
-                type="button"
-                onClick={() => {
-                  if (!requireAuth('/app/chat')) return;
-                  setActiveKey('main');
-                  setView('chat');
-                  setTimeout(() => chatRef.current?.startNewThread(), 60);
-                }}
-                className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90"
-              >
-                <Plus size={15} />
-                Nouveau chat WAOUH
-              </button>
-            </div>
-
-            <div className="mt-6 grid gap-2 sm:grid-cols-3">
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => runPrompt(s)}
-                  className="rounded-xl border border-border bg-card p-3 text-left text-xs leading-relaxed text-muted-foreground transition hover:border-primary hover:text-foreground"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-8">
-              <h3 className="mb-2 text-sm font-semibold text-foreground">Négociations par article</h3>
-              <div className="rounded-2xl border border-border bg-card p-2">
-                <WaouhMatchChatList sessionId={sid || null} authUserId={user?.id ?? null} />
-              </div>
-            </div>
-          </div>
+          <CenterChatHome
+            sessionId={sid}
+            waouhUserIds={waouhUserIds}
+            authUserId={user?.id ?? null}
+            isGuest={!user}
+            onOpenWaouh={openWaouh}
+            onNewWaouh={startNewThread}
+            onIntent={openIntent}
+            onOpenConversation={openConversation}
+            onSignIn={() => navigate('/app/auth')}
+          />
         </div>
 
         {/* CHAT — always mounted so the engine and its cache never reload */}
@@ -232,6 +166,13 @@ export const CenterCanvas = () => {
           </div>
         </div>
 
+        {/* CONVERSATION Supabase */}
+        {view === 'conversation' && activeConvId && (
+          <div className="absolute inset-0">
+            <ChatScreen embeddedConversationId={activeConvId} />
+          </div>
+        )}
+
         {/* STATUSES */}
         {view === 'statuses' && (
           <div className="absolute inset-0 overflow-y-auto">
@@ -248,6 +189,7 @@ export const CenterCanvas = () => {
       </div>
     </div>
   );
+
 };
 
 export default CenterCanvas;
