@@ -106,7 +106,32 @@ const navigation: NavigationItem[] = navigationSections.flatMap((section) => sec
 
 
 const routeContext = (pathname: string) => {
+  if (pathname.includes('tab=radar')) {
+    return {
+      eyebrow: 'Détection locale',
+      title: 'Radar WAOUH',
+      description: 'Opportunités et signaux à proximité, en temps réel.',
+      prompt: 'Demander à WAOUH les opportunités proches',
+    };
+  }
+  if (pathname.startsWith('/app/apres-bac')) {
+    return {
+      eyebrow: 'Orientation',
+      title: 'AprèsBac IA',
+      description: 'Analyse de profil, éligibilité et recommandations post-BAC.',
+      prompt: 'Demander à AprèsBac IA une recommandation',
+    };
+  }
+  if (pathname.startsWith('/app/fa')) {
+    return {
+      eyebrow: 'Consultation',
+      title: 'FA IA',
+      description: 'Lecture contextuelle, quota journalier et codes d’accès.',
+      prompt: 'Ouvrir une consultation FA IA',
+    };
+  }
   if (pathname.startsWith('/app/chat')) {
+
     return {
       eyebrow: 'Centre opérationnel',
       title: 'Chat Command Center',
