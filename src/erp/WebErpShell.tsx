@@ -155,6 +155,14 @@ const routeContext = (pathname: string) => {
       prompt: 'Demander à WAOUH une lecture de mes indicateurs',
     };
   }
+  if (pathname.startsWith('/app/agents/attendance')) {
+    return {
+      eyebrow: 'Terrain',
+      title: 'Présence QR',
+      description: 'Sites, QR géolocalisés et pointages notifiés sur WhatsApp.',
+      prompt: 'Demander à WAOUH un point sur les présences',
+    };
+  }
   if (pathname.startsWith('/app/bots') || pathname.startsWith('/app/agents')) {
 
     return {
