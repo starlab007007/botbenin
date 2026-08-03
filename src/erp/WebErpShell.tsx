@@ -38,7 +38,7 @@ import { useMobileAuth } from '@/app-mobile/hooks/useMobileAuth';
 import { useMobileProfile } from '@/app-mobile/hooks/useMobileProfile';
 
 import { CenterCanvas } from './CenterCanvas';
-import { ErpBrickCanvas, type BrickId } from './ErpBrickCanvas';
+import { ErpBrickCanvas, preloadBrick, type BrickId } from './ErpBrickCanvas';
 
 import './erp-theme.css';
 
