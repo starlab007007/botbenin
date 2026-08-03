@@ -51,75 +51,53 @@ type NavigationItem = {
   accent?: 'chat' | 'ai' | 'stock' | 'bi' | 'store';
 };
 
+type NavigationSection = {
+  title: string;
+  items: NavigationItem[];
+};
+
 const HOME_PATH = '/app/chat';
 
-const navigation: NavigationItem[] = [
+const navigationSections: NavigationSection[] = [
   {
-    label: 'Chat Command Center',
-    to: HOME_PATH,
-    icon: MessageSquareText,
-    accent: 'chat',
+    title: 'Communication',
+    items: [
+      { label: 'Chat Command Center', to: HOME_PATH, icon: MessageSquareText, accent: 'chat' },
+      { label: 'Radar', to: '/app/chat?tab=radar', icon: RadarIcon, brick: 'radar' },
+      { label: 'WhatsApp IA', to: '/app/whatsapp', icon: UsersRound, brick: 'whatsapp' },
+      { label: 'Diffusion', to: '/app/diffusion', icon: Megaphone, brick: 'diffusion' },
+    ],
   },
   {
-    label: 'Bots & Agents IA',
-    to: '/app/bots',
-    icon: Bot,
-    brick: 'bots',
-    accent: 'ai',
+    title: 'Agents IA',
+    items: [
+      { label: 'Bots', to: '/app/bots', icon: Bot, brick: 'bots', accent: 'ai' },
+      { label: 'Agents IA', to: '/app/agents', icon: Sparkles, brick: 'agents', accent: 'ai' },
+      { label: 'Conversationnel', to: '/app/bots/new', icon: MessagesSquare, brick: 'conversational' },
+      { label: 'BI WAOUH IA', to: '/app/agents/bi', icon: BarChart3, brick: 'bi', accent: 'bi' },
+      { label: 'Stock WAOUH IA', to: '/app/agents/stock', icon: Package, brick: 'stock', accent: 'stock' },
+      { label: 'Présence QR', to: '/app/agents/attendance', icon: QrCode, brick: 'presence' },
+    ],
   },
   {
-    label: 'BI IA',
-    to: '/app/agents/bi/new',
-    icon: BarChart3,
-    brick: 'bi',
-    accent: 'bi',
+    title: 'Commerce',
+    items: [
+      { label: 'Boutiques & magasins', to: '/app/partner/businesses', icon: Store, brick: 'store', accent: 'store' },
+      { label: 'Ventes', to: '/app/partner/sales', icon: ShoppingCart, brick: 'sales' },
+      { label: 'Partenaires', to: '/app/partner', icon: Handshake, brick: 'partner' },
+    ],
   },
   {
-    label: 'Stock IA',
-    to: '/app/agents/stock/new',
-    icon: Package,
-    brick: 'stock',
-    accent: 'stock',
-  },
-  {
-    label: 'Présence QR',
-    to: '/app/agents/attendance/new',
-    icon: QrCode,
-    brick: 'presence',
-  },
-
-  {
-    label: 'Boutiques & magasins',
-    to: '/app/partner/businesses',
-    icon: Store,
-    brick: 'store',
-    accent: 'store',
-  },
-  {
-    label: 'Ventes',
-    to: '/app/partner/sales',
-    icon: ShoppingCart,
-    brick: 'sales',
-  },
-  {
-    label: 'WhatsApp IA',
-    to: '/app/whatsapp',
-    icon: UsersRound,
-    brick: 'whatsapp',
-  },
-  {
-    label: 'Diffusion',
-    to: '/app/diffusion',
-    icon: Megaphone,
-    brick: 'diffusion',
-  },
-  {
-    label: 'Partenaires',
-    to: '/app/partner',
-    icon: Handshake,
-    brick: 'partner',
+    title: 'Services IA',
+    items: [
+      { label: 'AprèsBac IA', to: '/app/apres-bac', icon: GraduationCap, brick: 'apresbac' },
+      { label: 'FA IA', to: '/app/fa', icon: BookOpenText, brick: 'fa' },
+    ],
   },
 ];
+
+const navigation: NavigationItem[] = navigationSections.flatMap((section) => section.items);
+
 
 
 const routeContext = (pathname: string) => {
