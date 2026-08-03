@@ -1,54 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  ArrowLeft,
-  MessageSquareText,
-  Plus,
-  Radar,
-  Search,
-  Send,
-  ShoppingBag,
-  Sparkles,
-  Store,
-} from 'lucide-react';
+import { ArrowLeft, Radar, Sparkles } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import WaouhWebChat, { type WaouhWebChatHandle } from '@/components/waouh/WaouhWebChat';
 import { WaouhMatchChatWindow } from '@/components/waouh/WaouhMatchChatWindow';
-import { WaouhMatchChatList } from '@/components/waouh/WaouhMatchChatList';
 import { useWaouhMatchChats } from '@/components/waouh/useWaouhMatchChats';
 import { useWaouhIdentity } from '@/app-mobile/hooks/useWaouhIdentity';
 import { useMobileAuth } from '@/app-mobile/hooks/useMobileAuth';
 import { RadarPanel } from '@/app-mobile/components/radar/RadarPanel';
 import { StatusesPanel } from '@/components/waouh/statuses/StatusesPanel';
+import ChatScreen from '@/app-mobile/screens/ChatScreen';
+import CenterChatHome from './CenterChatHome';
 import { cn } from '@/lib/utils';
 
-type CanvasView = 'home' | 'chat' | 'statuses' | 'radar';
-
-const INTENTS: { label: string; prompt: string; icon: typeof ShoppingBag }[] = [
-  { label: 'Acheter', prompt: 'Je veux acheter ', icon: ShoppingBag },
-  { label: 'Vendre', prompt: 'Je veux vendre ', icon: Store },
-  { label: 'Négocier', prompt: 'Je veux négocier le prix de ', icon: MessageSquareText },
-];
-
-const SUGGESTIONS = [
-  'Trouve-moi un iPhone à Cotonou à moins de 250 000 FCFA',
-  'Je vends une moto Bajaj 2022, 450 000 FCFA, Calavi',
-  'Quelles sont mes discussions prioritaires aujourd’hui ?',
-];
+type CanvasView = 'home' | 'chat' | 'conversation' | 'statuses' | 'radar';
 
 /**
  * Mono-page central canvas of the WaouhApp AI ERP.
  * The chat engine stays mounted so switching states never reloads a page.
+ * L'accueil réplique l'écran Chat de l'app Flutter (parité 1:1).
  */
 export const CenterCanvas = () => {
   const navigate = useNavigate();
   const { user } = useMobileAuth();
-  const { sessionId } = useWaouhIdentity();
+  const { sessionId, waouhUserIds } = useWaouhIdentity();
   const sid = sessionId ?? '';
 
   const [view, setView] = useState<CanvasView>('home');
-  const [draft, setDraft] = useState('');
+  const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const chatRef = useRef<WaouhWebChatHandle>(null);
 
   const matchChats = useWaouhMatchChats(sid, user?.id ?? null);
@@ -57,7 +37,10 @@ export const CenterCanvas = () => {
 
   // A dedicated product window opened anywhere → bring the chat state forward.
   useEffect(() => {
-    const onOpen = () => setView('chat');
+    const onOpen = () => {
+      setActiveConvId(null);
+      setView('chat');
+    };
     window.addEventListener('waouh:open-match-chat', onOpen as EventListener);
     return () => window.removeEventListener('waouh:open-match-chat', onOpen as EventListener);
   }, []);
@@ -76,22 +59,17 @@ export const CenterCanvas = () => {
     [navigate, user],
   );
 
-  const runPrompt = useCallback(
-    (text: string) => {
-      const value = text.trim();
-      if (!value) return;
-      if (!requireAuth('/app/chat')) return;
-      setActiveKey('main');
-      setView('chat');
-      setDraft('');
-      setTimeout(() => chatRef.current?.prefillAndSend(value), 60);
-    },
-    [requireAuth, setActiveKey],
-  );
+  const openWaouh = useCallback(() => {
+    if (!requireAuth('/app/chat')) return;
+    setActiveConvId(null);
+    setActiveKey('main');
+    setView('chat');
+  }, [requireAuth, setActiveKey]);
 
   const openIntent = useCallback(
     (prompt: string) => {
       if (!requireAuth('/app/chat')) return;
+      setActiveConvId(null);
       setActiveKey('main');
       setView('chat');
       setTimeout(() => chatRef.current?.prefill(prompt), 60);
@@ -99,7 +77,21 @@ export const CenterCanvas = () => {
     [requireAuth, setActiveKey],
   );
 
+  const startNewThread = useCallback(() => {
+    if (!requireAuth('/app/chat')) return;
+    setActiveConvId(null);
+    setActiveKey('main');
+    setView('chat');
+    setTimeout(() => chatRef.current?.startNewThread(), 60);
+  }, [requireAuth, setActiveKey]);
+
+  const openConversation = useCallback((id: string) => {
+    setActiveConvId(id);
+    setView('conversation');
+  }, []);
+
   const activeMatch = activeKey && activeKey !== 'main' ? matches.find((m) => m.key === activeKey) : null;
+
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-background">
