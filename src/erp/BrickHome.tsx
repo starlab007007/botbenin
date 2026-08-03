@@ -42,7 +42,7 @@ const CONFIG: Record<BrickHomeKind, KindConfig> = {
     emptyHint: 'Connectez un Google Sheet, un fichier Excel/CSV ou une API pour lancer vos analyses.',
     load: async () => {
       const sources = await biRepository.fetchSources().catch(() => []);
-      const rows = sources.reduce((total: number, source) => total + (source.row_count ?? 0), 0);
+      const rows = sources.reduce<number>((total, source) => total + (source.row_count ?? 0), 0);
       return {
         cards: sources.map((source) => ({
           id: source.id,
