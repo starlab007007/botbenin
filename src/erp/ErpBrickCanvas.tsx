@@ -26,21 +26,24 @@ type Loader = () => Promise<{ default: React.ComponentType<any> }>;
 
 const LOADERS: Record<BrickId, Loader> = {
   radar: () => import('@/app-mobile/components/radar/RadarPanel').then((m) => ({ default: m.RadarPanel })),
-  // Desktop ERP parity: these three modules must render the same functional
-  // content as Flutter, but without mobile fixed/inset layouts inside the Web shell.
+
+  // Desktop ERP parity: these modules render Web-safe bricks that mirror the
+  // Flutter functional content without injecting fixed mobile screens inside
+  // the desktop shell.
   whatsapp: () => import('./FlutterParityBricks').then((m) => ({ default: m.WhatsAppFlutterParityBrick })),
   diffusion: () => import('./FlutterParityBricks').then((m) => ({ default: m.DiffusionFlutterParityBrick })),
   bots: () => import('./FlutterParityBricks').then((m) => ({ default: m.BotsFlutterParityBrick })),
-  agents: () => import('@/app-mobile/screens/bots/AiAgentsListScreen'),
-  conversational: () => import('@/app-mobile/screens/bots/KnowledgeBaseCreateWizard'),
-  bi: () => import('./BrickHome').then((m) => ({ default: m.BiBrickHome })),
-  stock: () => import('@/app-mobile/screens/agents/StockAgentDashboard'),
-  presence: () => import('./BrickHome').then((m) => ({ default: m.PresenceBrickHome })),
-  store: () => import('@/app-mobile/screens/partner/PartnerBusinessesScreen'),
-  sales: () => import('@/app-mobile/screens/partner/PartnerSalesScreen'),
-  partner: () => import('@/app-mobile/screens/partner/PartnerHomeScreen'),
-  apresbac: () => import('@/pages/apres-bac/ApresBacPage'),
-  fa: () => import('@/app-mobile/screens/FaIaScreen'),
+
+  agents: () => import('./FlutterRemainingParityBricks').then((m) => ({ default: m.AgentsIaParityBrick })),
+  conversational: () => import('./FlutterRemainingParityBricks').then((m) => ({ default: m.ConversationalParityBrick })),
+  bi: () => import('./FlutterRemainingParityBricks').then((m) => ({ default: m.BiWaouhParityBrick })),
+  stock: () => import('./FlutterRemainingParityBricks').then((m) => ({ default: m.StockWaouhParityBrick })),
+  presence: () => import('./FlutterRemainingParityBricks').then((m) => ({ default: m.PresenceQrParityBrick })),
+  store: () => import('./FlutterRemainingParityBricks').then((m) => ({ default: m.StoresParityBrick })),
+  sales: () => import('./FlutterRemainingParityBricks').then((m) => ({ default: m.SalesParityBrick })),
+  partner: () => import('./FlutterRemainingParityBricks').then((m) => ({ default: m.PartnerParityBrick })),
+  apresbac: () => import('./FlutterRemainingParityBricks').then((m) => ({ default: m.ApresBacParityBrick })),
+  fa: () => import('./FlutterRemainingParityBricks').then((m) => ({ default: m.FaIaParityBrick })),
 };
 
 const BRICKS: Record<BrickId, ReturnType<typeof lazy>> = Object.fromEntries(
