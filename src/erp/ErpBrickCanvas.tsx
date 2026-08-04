@@ -43,10 +43,11 @@ const LOADERS: Record<BrickId, Loader> = {
   sales: () => import('./FlutterRemainingParityBricks').then((m) => ({ default: m.SalesParityBrick })),
   partner: () => import('./FlutterRemainingParityBricks').then((m) => ({ default: m.PartnerParityBrick })),
 
-  // These two public IA products already have their validated public builds.
-  // The ERP modules must mirror those official routes exactly.
-  apresbac: () => import('./PublicContentMirrorBricks').then((m) => ({ default: m.ApresBacPublicMirrorBrick })),
-  fa: () => import('./PublicContentMirrorBricks').then((m) => ({ default: m.FaIaPublicMirrorBrick })),
+  // FA IA and AprèsBac IA use their full validated public code inside the ERP
+  // canvas. This is not an iframe mirror: the public HTML/CSS/JS bundle is
+  // loaded and executed inside the current React shell.
+  apresbac: () => import('./PublicContentMirrorBricks').then((m) => ({ default: m.ApresBacPublicIntegratedBrick })),
+  fa: () => import('./PublicContentMirrorBricks').then((m) => ({ default: m.FaIaPublicIntegratedBrick })),
 };
 
 const BRICKS: Record<BrickId, ReturnType<typeof lazy>> = Object.fromEntries(
