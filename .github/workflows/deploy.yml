@@ -28,13 +28,21 @@ jobs:
           grep -q '20260724-home-v23-1' public/fa/index.html
           grep -q 'home-premium-v23.css' public/fa/index.html
 
+          test -f public/apresbacia/index.html
+          test -f public/apresbacia/styles-v2.css
+          test -f public/apresbacia/theme-v2_16.css
+          test -f public/apresbacia/production-finalization-v2_17.js
+          grep -q '/apresbacia/styles-v2.css' public/apresbacia/index.html
+          grep -q '/apresbacia/theme-v2_16.css' public/apresbacia/index.html
+          grep -q '/apresbacia/production-finalization-v2_17.js' public/apresbacia/index.html
+
           test -f src/pages/PublicAgentWebChatPage.tsx
           test -f src/pages/NotFound.tsx
           grep -q 'PUBLIC_AGENT_API_BASE' src/pages/PublicAgentWebChatPage.tsx
           grep -q 'PUBLIC_AGENT_SLUG' src/pages/NotFound.tsx
           grep -q 'PublicAgentWebChatPage' src/pages/NotFound.tsx
 
-          echo "✅ Sources FA IA et Web Chat public prêtes"
+          echo "✅ Sources FA IA, AprèsBac IA et Web Chat public prêtes"
 
       - name: Déployer sur le VPS avec Docker Compose
         uses: appleboy/ssh-action@v0.1.10
@@ -125,10 +133,16 @@ jobs:
 
             test -f "$RELEASE_DIR/public/fa/index.html"
             test -f "$RELEASE_DIR/public/fa/home-premium-v23.css"
+            test -f "$RELEASE_DIR/public/apresbacia/index.html"
+            test -f "$RELEASE_DIR/public/apresbacia/styles-v2.css"
+            test -f "$RELEASE_DIR/public/apresbacia/theme-v2_16.css"
+            test -f "$RELEASE_DIR/public/apresbacia/production-finalization-v2_17.js"
             test -f "$RELEASE_DIR/src/pages/PublicAgentWebChatPage.tsx"
             test -f "$RELEASE_DIR/src/pages/NotFound.tsx"
             grep -q '20260724-corpus-v15-2' "$RELEASE_DIR/public/fa/index.html"
             grep -q '20260724-home-v23-1' "$RELEASE_DIR/public/fa/index.html"
+            grep -q '/apresbacia/styles-v2.css' "$RELEASE_DIR/public/apresbacia/index.html"
+            grep -q '/apresbacia/production-finalization-v2_17.js' "$RELEASE_DIR/public/apresbacia/index.html"
             grep -q 'PUBLIC_AGENT_SLUG' "$RELEASE_DIR/src/pages/NotFound.tsx"
 
             echo "📂 Synchronisation du code..."
@@ -154,6 +168,8 @@ jobs:
             READY=0
             for i in $(seq 1 15); do
               if curl -fsSL http://127.0.0.1:8084/apresbacia >/dev/null 2>&1 && \
+                 curl -fsSL http://127.0.0.1:8084/apresbacia/styles-v2.css >/dev/null 2>&1 && \
+                 curl -fsSL http://127.0.0.1:8084/apresbacia/production-finalization-v2_17.js >/dev/null 2>&1 && \
                  curl -fsSL http://127.0.0.1:8084/fa >/dev/null 2>&1 && \
                  curl -fsSL http://127.0.0.1:8084/ecqdg4yzr >/dev/null 2>&1; then
                 READY=1
@@ -166,7 +182,11 @@ jobs:
 
             echo "🧪 Vérification des fichiers dans le conteneur..."
             docker compose exec -T react-app test -f /usr/share/nginx/html/apresbacia/index.html
+            docker compose exec -T react-app test -f /usr/share/nginx/html/apresbacia/styles-v2.css
+            docker compose exec -T react-app test -f /usr/share/nginx/html/apresbacia/theme-v2_16.css
             docker compose exec -T react-app test -f /usr/share/nginx/html/apresbacia/production-finalization-v2_17.js
+            docker compose exec -T react-app grep -q '/apresbacia/styles-v2.css' /usr/share/nginx/html/apresbacia/index.html
+            docker compose exec -T react-app grep -q '/apresbacia/production-finalization-v2_17.js' /usr/share/nginx/html/apresbacia/index.html
             docker compose exec -T react-app test -f /usr/share/nginx/html/fa/index.html
             docker compose exec -T react-app test -f /usr/share/nginx/html/fa/home-premium-v23.css
             docker compose exec -T react-app grep -q '20260724-home-v23-1' /usr/share/nginx/html/fa/index.html
@@ -182,6 +202,9 @@ jobs:
             PUBLIC_READY=0
             for i in $(seq 1 15); do
               if curl -fsSL https://bot.bj/apresbacia >/dev/null 2>&1 && \
+                 curl -fsSL https://bot.bj/apresbacia/styles-v2.css | grep -q -- '--green' && \
+                 curl -fsSL https://bot.bj/apresbacia/theme-v2_16.css | grep -q -- '--ab-blue' && \
+                 curl -fsSL https://bot.bj/apresbacia/production-finalization-v2_17.js >/dev/null 2>&1 && \
                  curl -fsSL https://bot.bj/fa >/dev/null 2>&1 && \
                  curl -fsSL -H 'Cache-Control: no-cache' "https://bot.bj/ecqdg4yzr?deploy_check=${DEPLOY_SHA}" >/dev/null 2>&1; then
                 PUBLIC_READY=1
@@ -190,7 +213,7 @@ jobs:
               echo "⏳ Santé publique $i/15..."
               sleep 4
             done
-            [ "$PUBLIC_READY" -eq 1 ] || { echo "❌ Web Chat public non publié"; exit 1; }
+            [ "$PUBLIC_READY" -eq 1 ] || { echo "❌ Assets publics AprèsBac IA/Web Chat non publiés"; exit 1; }
 
             echo "🧪 Vérification publique de la version V23.1..."
             PUBLIC_FA_HTML=$(curl -fsSL --retry 3 --retry-all-errors 'https://bot.bj/fa?deploy_check=20260724-home-v23-1')
@@ -218,4 +241,4 @@ jobs:
             '
 
             docker image prune -af || true
-            echo "✅ Déploiement production et Web Chat public terminé"
+            echo "✅ Déploiement production, AprèsBac IA et Web Chat public terminés"
