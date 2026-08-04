@@ -46,8 +46,8 @@ const LOADERS: Record<BrickId, Loader> = {
   // FA IA and AprèsBac IA use their full validated public code inside the ERP
   // canvas. This is not an iframe mirror: the public HTML/CSS/JS bundle is
   // loaded and executed inside the current React shell.
-  apresbac: () => import('./PublicContentMirrorBricks').then((m) => ({ default: m.ApresBacPublicIntegratedBrick })),
-  fa: () => import('./PublicContentMirrorBricks').then((m) => ({ default: m.FaIaPublicIntegratedBrick })),
+  apresbac: () => import('./PublicContentIntegratedBricks').then((m) => ({ default: m.ApresBacPublicIntegratedBrick })),
+  fa: () => import('./PublicContentIntegratedBricks').then((m) => ({ default: m.FaIaPublicIntegratedBrick })),
 };
 
 const BRICKS: Record<BrickId, ReturnType<typeof lazy>> = Object.fromEntries(
