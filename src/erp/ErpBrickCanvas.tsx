@@ -42,8 +42,11 @@ const LOADERS: Record<BrickId, Loader> = {
   store: () => import('./FlutterRemainingParityBricks').then((m) => ({ default: m.StoresParityBrick })),
   sales: () => import('./FlutterRemainingParityBricks').then((m) => ({ default: m.SalesParityBrick })),
   partner: () => import('./FlutterRemainingParityBricks').then((m) => ({ default: m.PartnerParityBrick })),
-  apresbac: () => import('./FlutterRemainingParityBricks').then((m) => ({ default: m.ApresBacParityBrick })),
-  fa: () => import('./FlutterRemainingParityBricks').then((m) => ({ default: m.FaIaParityBrick })),
+
+  // These two public IA products already have their validated public builds.
+  // The ERP modules must mirror those official routes exactly.
+  apresbac: () => import('./PublicContentMirrorBricks').then((m) => ({ default: m.ApresBacPublicMirrorBrick })),
+  fa: () => import('./PublicContentMirrorBricks').then((m) => ({ default: m.FaIaPublicMirrorBrick })),
 };
 
 const BRICKS: Record<BrickId, ReturnType<typeof lazy>> = Object.fromEntries(
