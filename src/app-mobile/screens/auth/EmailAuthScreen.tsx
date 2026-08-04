@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 
 import { ArrowLeft, Mail, Lock, User, Loader2, Info } from "lucide-react";
 import { Haptics, ImpactStyle, NotificationType } from "@capacitor/haptics";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import { SegmentedTabs } from "@/app-mobile/components/auth/SegmentedTabs";
 import { NativeTextField } from "@/app-mobile/components/auth/NativeTextField";
 import { GoogleButton } from "@/app-mobile/components/auth/GoogleButton";
@@ -12,10 +13,30 @@ import { PasswordStrengthBar } from "@/app-mobile/components/auth/PasswordStreng
 
 type Tab = "login" | "register" | "reset";
 
+type AuthLocationState = { from?: string } | null;
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const FALLBACK_REDIRECT = "/app/chat";
+
+const normalizeRedirect = (target?: string | null): string => {
+  if (!target || typeof target !== "string") return FALLBACK_REDIRECT;
+  if (!target.startsWith("/app")) return FALLBACK_REDIRECT;
+  if (target.startsWith("/app/auth")) return FALLBACK_REDIRECT;
+  return target;
+};
+
+const waitForSupabaseSession = async (): Promise<boolean> => {
+  for (let i = 0; i < 20; i += 1) {
+    const { data } = await supabase.auth.getSession();
+    if (data.session?.user) return true;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  return false;
+};
 
 export default function EmailAuthScreen() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [params] = useSearchParams();
   const initialTab = (params.get("tab") as Tab) || "login";
   const { login, register, resetPassword, loginWithGoogle, isAuthenticated } = useAuth();
@@ -33,14 +54,26 @@ export default function EmailAuthScreen() {
 
   const consumeRedirect = (): string => {
     try {
-      const t = sessionStorage.getItem("waouh_post_auth_redirect");
-      if (t) { sessionStorage.removeItem("waouh_post_auth_redirect"); return t; }
+      const stored = sessionStorage.getItem("waouh_post_auth_redirect");
+      if (stored) {
+        sessionStorage.removeItem("waouh_post_auth_redirect");
+        return normalizeRedirect(stored);
+      }
     } catch {}
-    return "/app/chat";
+
+    const stateTarget = (location.state as AuthLocationState)?.from;
+    return normalizeRedirect(stateTarget);
   };
 
   useEffect(() => {
-    if (isAuthenticated) navigate(consumeRedirect(), { replace: true });
+    if (!isAuthenticated) return;
+    let cancelled = false;
+    waitForSupabaseSession().then(() => {
+      if (!cancelled) navigate(consumeRedirect(), { replace: true });
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [isAuthenticated, navigate]);
 
   const errors = useMemo(() => {
@@ -79,6 +112,7 @@ export default function EmailAuthScreen() {
         const ok = await login(email, password);
         if (ok) {
           Haptics.notification({ type: NotificationType.Success }).catch(() => {});
+          await waitForSupabaseSession();
           navigate(consumeRedirect(), { replace: true });
         } else {
           Haptics.notification({ type: NotificationType.Error }).catch(() => {});
@@ -119,13 +153,11 @@ export default function EmailAuthScreen() {
     }
   };
 
-
   const title = tab === "login" ? "Se connecter" : tab === "register" ? "Créer un compte" : "Mot de passe";
   const cta = tab === "login" ? "Se connecter" : tab === "register" ? "Créer le compte" : "Envoyer le lien";
 
   return (
     <div className="fixed inset-0 flex flex-col bg-background">
-      {/* Header */}
       <header
         className="sticky top-0 z-20 flex items-center gap-2 px-2 border-b bg-background/95 backdrop-blur"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
@@ -142,13 +174,11 @@ export default function EmailAuthScreen() {
         </div>
       </header>
 
-      {/* Scrollable content */}
       <form
         id="auth-form"
         onSubmit={submit}
         className="flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] px-5 pt-4 pb-6"
       >
-
         <div className="max-w-md mx-auto space-y-5">
           <SegmentedTabs
             tabs={[
@@ -173,84 +203,82 @@ export default function EmailAuthScreen() {
           )}
 
           <div key={tab} className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-200">
-
-              {tab === "register" && (
-                <NativeTextField
-                  label="Nom complet"
-                  icon={<User className="h-5 w-5" />}
-                  placeholder="Votre nom complet"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  autoComplete="name"
-                  enterKeyHint="next"
-                  error={errors.name}
-                  valid={!!name.trim() && !errors.name}
-                />
-              )}
-
+            {tab === "register" && (
               <NativeTextField
-                label="Email"
-                icon={<Mail className="h-5 w-5" />}
-                placeholder="votre@email.com"
-                inputMode="email"
-                autoComplete="email"
+                label="Nom complet"
+                icon={<User className="h-5 w-5" />}
+                placeholder="Votre nom complet"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoComplete="name"
                 enterKeyHint="next"
-                value={email}
-                onChange={(e) => setEmail(e.target.value.trim())}
-                error={errors.email}
-                valid={EMAIL_RE.test(email) && !errors.email}
+                error={errors.name}
+                valid={!!name.trim() && !errors.name}
               />
+            )}
 
-              {tab !== "reset" && (
-                <>
-                  <NativeTextField
-                    label="Mot de passe"
-                    icon={<Lock className="h-5 w-5" />}
-                    placeholder="••••••••"
-                    togglePassword
-                    autoComplete={tab === "register" ? "new-password" : "current-password"}
-                    enterKeyHint={tab === "register" ? "next" : "done"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    error={errors.password}
-                  />
-                  {tab === "register" && <PasswordStrengthBar password={password} />}
-                </>
-              )}
+            <NativeTextField
+              label="Email"
+              icon={<Mail className="h-5 w-5" />}
+              placeholder="votre@email.com"
+              inputMode="email"
+              autoComplete="email"
+              enterKeyHint="next"
+              value={email}
+              onChange={(e) => setEmail(e.target.value.trim())}
+              error={errors.email}
+              valid={EMAIL_RE.test(email) && !errors.email}
+            />
 
-              {tab === "register" && (
+            {tab !== "reset" && (
+              <>
                 <NativeTextField
-                  label="Confirmer le mot de passe"
+                  label="Mot de passe"
                   icon={<Lock className="h-5 w-5" />}
                   placeholder="••••••••"
                   togglePassword
-                  autoComplete="new-password"
-                  enterKeyHint="done"
-                  value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
-                  error={errors.confirm}
-                  valid={!!confirm && password === confirm}
+                  autoComplete={tab === "register" ? "new-password" : "current-password"}
+                  enterKeyHint={tab === "register" ? "next" : "done"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  error={errors.password}
                 />
-              )}
+                {tab === "register" && <PasswordStrengthBar password={password} />}
+              </>
+            )}
 
-              {tab === "reset" && (
-                <div className="flex items-start gap-2.5 rounded-2xl bg-muted/60 p-3.5 text-sm text-muted-foreground">
-                  <Info className="h-4 w-4 mt-0.5 shrink-0" />
-                  <p>Saisissez votre email pour recevoir un lien de réinitialisation.</p>
-                </div>
-              )}
+            {tab === "register" && (
+              <NativeTextField
+                label="Confirmer le mot de passe"
+                icon={<Lock className="h-5 w-5" />}
+                placeholder="••••••••"
+                togglePassword
+                autoComplete="new-password"
+                enterKeyHint="done"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                error={errors.confirm}
+                valid={!!confirm && password === confirm}
+              />
+            )}
 
-              {tab === "login" && (
-                <button
-                  type="button"
-                  onClick={() => { setTab("reset"); setSubmitted(false); }}
-                  className="block w-full text-center text-sm text-primary font-medium pt-1"
-                >
-                  Mot de passe oublié ?
-                </button>
-              )}
+            {tab === "reset" && (
+              <div className="flex items-start gap-2.5 rounded-2xl bg-muted/60 p-3.5 text-sm text-muted-foreground">
+                <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                <p>Saisissez votre email pour recevoir un lien de réinitialisation.</p>
+              </div>
+            )}
+
+            {tab === "login" && (
+              <button
+                type="button"
+                onClick={() => { setTab("reset"); setSubmitted(false); }}
+                className="block w-full text-center text-sm text-primary font-medium pt-1"
+              >
+                Mot de passe oublié ?
+              </button>
+            )}
           </div>
-
 
           <p className="text-[11px] text-center text-muted-foreground pt-4">
             En continuant, vous acceptez nos conditions d'utilisation.
@@ -258,7 +286,6 @@ export default function EmailAuthScreen() {
         </div>
       </form>
 
-      {/* Sticky bottom CTA */}
       <div
         className="shrink-0 bg-background/95 backdrop-blur border-t px-5 pt-3"
         style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
@@ -273,7 +300,6 @@ export default function EmailAuthScreen() {
           {cta}
         </button>
       </div>
-
     </div>
   );
 }
