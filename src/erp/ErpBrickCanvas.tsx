@@ -26,9 +26,11 @@ type Loader = () => Promise<{ default: React.ComponentType<any> }>;
 
 const LOADERS: Record<BrickId, Loader> = {
   radar: () => import('@/app-mobile/components/radar/RadarPanel').then((m) => ({ default: m.RadarPanel })),
-  whatsapp: () => import('@/app-mobile/screens/WhatsAppScreen'),
-  diffusion: () => import('@/app-mobile/screens/DiffusionScreen'),
-  bots: () => import('@/app-mobile/screens/bots/AiAgentsListScreen'),
+  // Desktop ERP parity: these three modules must render the same functional
+  // content as Flutter, but without mobile fixed/inset layouts inside the Web shell.
+  whatsapp: () => import('./FlutterParityBricks').then((m) => ({ default: m.WhatsAppFlutterParityBrick })),
+  diffusion: () => import('./FlutterParityBricks').then((m) => ({ default: m.DiffusionFlutterParityBrick })),
+  bots: () => import('./FlutterParityBricks').then((m) => ({ default: m.BotsFlutterParityBrick })),
   agents: () => import('@/app-mobile/screens/bots/AiAgentsListScreen'),
   conversational: () => import('@/app-mobile/screens/bots/KnowledgeBaseCreateWizard'),
   bi: () => import('./BrickHome').then((m) => ({ default: m.BiBrickHome })),
@@ -50,10 +52,6 @@ export const preloadBrick = (brick: BrickId) => {
   void LOADERS[brick]?.().catch(() => undefined);
 };
 
-
-
-
-
 /**
  * Renders an ERP brick inside the central canvas — no page navigation,
  * the shell and the chat engine stay mounted.
@@ -73,7 +71,7 @@ export const ErpBrickCanvas = ({ brick }: { brick: BrickId }) => {
         <p className="max-w-sm text-sm text-muted-foreground">
           Connectez-vous pour piloter cette brique ERP depuis le centre de commande.
         </p>
-        <Button type="button" onClick={() => navigate('/app/auth')}>
+        <Button type="button" onClick={() => navigate('/app/auth/email?tab=login')}>
           Se connecter
         </Button>
       </div>
