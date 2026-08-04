@@ -2,9 +2,18 @@ import { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useMobileAuth } from "../hooks/useMobileAuth";
 
+const buildAuthRedirect = (path: string, search: string) => {
+  const target = `${path}${search || ""}`;
+  try {
+    sessionStorage.setItem("waouh_post_auth_redirect", target);
+  } catch {}
+  return "/app/auth/email?tab=login";
+};
+
 export const RequireMobileAuth = ({ children }: { children: ReactNode }) => {
   const { user, loading } = useMobileAuth();
   const location = useLocation();
+
   if (loading) {
     return (
       <div className="min-h-[100dvh] flex items-center justify-center bg-background">
@@ -12,7 +21,17 @@ export const RequireMobileAuth = ({ children }: { children: ReactNode }) => {
       </div>
     );
   }
-  if (!user) return <Navigate to="/app/auth" replace state={{ from: location.pathname }} />;
+
+  if (!user) {
+    return (
+      <Navigate
+        to={buildAuthRedirect(location.pathname, location.search)}
+        replace
+        state={{ from: `${location.pathname}${location.search || ""}` }}
+      />
+    );
+  }
+
   return <>{children}</>;
 };
 
