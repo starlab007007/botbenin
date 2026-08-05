@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ChatRightPane, ChatRightPaneEmpty } from "../components/ChatRightPane";
 import { useWaouhMatchChats } from "@/components/waouh/useWaouhMatchChats";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,7 +9,7 @@ import { useUnreadCounts } from "../hooks/useUnreadCounts";
 import { useWaouhIdentity } from "../hooks/useWaouhIdentity";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Search, Plus, ShoppingBag, Bell } from "lucide-react";
+import { Search, Plus, ShoppingBag } from "lucide-react";
 import { useNotifications } from "../hooks/useNotifications";
 
 import { WaouhNotificationsBell } from "@/components/waouh/WaouhNotificationsBell";
@@ -37,6 +37,8 @@ type Conv = {
   user_id: string | null;
 };
 
+type ChatTab = "chats" | "statuses" | "radar";
+
 function formatStamp(iso: string) {
   const d = new Date(iso);
   const now = new Date();
@@ -57,6 +59,7 @@ function formatStamp(iso: string) {
 
 export default function ChatListScreen() {
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
   const isMobile = useIsMobile();
 
   // Force re-render on viewport changes so the 2-col layout toggles smoothly
@@ -93,7 +96,26 @@ export default function ChatListScreen() {
   });
   const [loading, setLoading] = useState(convs.length === 0);
   const [q, setQ] = useState("");
-  const [tab, setTab] = useState<"chats" | "statuses" | "radar">("chats");
+
+  const tabFromUrl = (): ChatTab => {
+    const value = params.get("tab");
+    return value === "statuses" || value === "radar" ? value : "chats";
+  };
+  const [tab, setTab] = useState<ChatTab>(() => tabFromUrl());
+
+  useEffect(() => {
+    const next = tabFromUrl();
+    setTab((current) => (current === next ? current : next));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
+
+  const setChatTab = (next: ChatTab) => {
+    setTab(next);
+    const updated = new URLSearchParams(params);
+    if (next === "chats") updated.delete("tab");
+    else updated.set("tab", next);
+    setParams(updated, { replace: true });
+  };
 
   // Desktop right-pane state
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
@@ -185,7 +207,7 @@ export default function ChatListScreen() {
       );
     }
     return () => { mounted = false; channels.forEach((c) => supabase.removeChannel(c)); };
-  }, [ready, waouhUserIds.join("|"), sessionId, isGuest]);
+  }, [ready, waouhUserIds.join("|"), sessionId, isGuest, snapshotKey]);
 
   const enriched = useMemo(
     () => convs.map((c) => {
@@ -214,10 +236,14 @@ export default function ChatListScreen() {
 
   const initials = (profile?.full_name ?? profile?.phone ?? "U").slice(0, 2).toUpperCase();
 
+  const goToAuth = (target: string) => {
+    try { sessionStorage.setItem("waouh_post_auth_redirect", target); } catch {}
+    navigate("/app/auth/email?tab=login", { state: { from: target } });
+  };
+
   const requireAuth = (target: string): boolean => {
     if (!isGuest) return true;
-    try { sessionStorage.setItem("waouh_post_auth_redirect", target); } catch {}
-    navigate("/app/auth");
+    goToAuth(target);
     return false;
   };
   const openWaouh = () => {
@@ -279,7 +305,7 @@ export default function ChatListScreen() {
           )}
           <div className="flex items-center gap-1">
             {isGuest ? (
-              <Button size="sm" className="bg-white text-[hsl(165_91%_18%)] hover:bg-white/90 h-8" onClick={() => navigate("/app/auth")}>
+              <Button size="sm" className="bg-white text-[hsl(165_91%_18%)] hover:bg-white/90 h-8" onClick={() => goToAuth("/app/chat")}>
                 Se connecter
               </Button>
             ) : (
@@ -321,7 +347,7 @@ export default function ChatListScreen() {
           ].map((t) => (
             <button
               key={t.k}
-              onClick={() => setTab(t.k as "chats" | "statuses" | "radar")}
+              onClick={() => setChatTab(t.k as ChatTab)}
               className={
                 "flex-1 py-2.5 text-sm font-semibold transition-colors " +
                 (tab === t.k
