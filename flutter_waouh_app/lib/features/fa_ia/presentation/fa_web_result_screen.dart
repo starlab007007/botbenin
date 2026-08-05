@@ -130,10 +130,28 @@ class _FaWebResultScreenState extends State<FaWebResultScreen> {
 
       if (!mounted) rethrow;
       final entered = await _requestAccessCode(error.message);
-      if (entered == null) rethrow;
+      if (entered == null) {
+        return _corpus.localAnswer(
+          sign: _entry.sign,
+          category: _entry.category,
+          intention: _entry.intention,
+          originalQuestion: message,
+          focus: focus,
+        );
+      }
       await _store.setAccessCode(entered);
       accessCode = entered;
-      return invoke();
+      try {
+        return await invoke();
+      } on FaWebQuotaException {
+        return _corpus.localAnswer(
+          sign: _entry.sign,
+          category: _entry.category,
+          intention: _entry.intention,
+          originalQuestion: message,
+          focus: focus,
+        );
+      }
     }
   }
 
@@ -275,15 +293,30 @@ class _FaWebResultScreenState extends State<FaWebResultScreen> {
             borderRadius: BorderRadius.circular(28),
             child: Column(
               children: [
-                FaWebChainCard(
-                  faces: _entry.faces,
-                  phase: _entry.sign.name,
-                  showTraits: true,
-                  showHeader: true,
-                  height: (MediaQuery.sizeOf(context).height * 0.44)
-                      .clamp(380.0, 460.0)
-                      .toDouble(),
-                ),
+                if (_entry.faces.length == 8)
+                  FaWebChainCard(
+                    faces: _entry.faces,
+                    phase: _entry.sign.name,
+                    showTraits: true,
+                    showHeader: true,
+                    height: (MediaQuery.sizeOf(context).width * 1.66)
+                        .clamp(620.0, 740.0)
+                        .toDouble(),
+                  )
+                else
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(24),
+                    color: const Color(0xFF3A1712),
+                    child: const Text(
+                      'Résultat incomplet : la chaîne doit contenir exactement huit cauris. Aucun signe partiel ne sera interprété.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
                 Container(
                   width: double.infinity,
                   color: const Color(0xFF392619),
@@ -317,6 +350,64 @@ class _FaWebResultScreenState extends State<FaWebResultScreen> {
                           fontSize: 16,
                         ),
                       ),
+                      const SizedBox(height: 18),
+                      const Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'A',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Color(0xFFDBA74C),
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              'B',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Color(0xFFDBA74C),
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      for (var row = 0; row < 4; row += 1)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 3),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _entry.sign.columnA[row],
+                                  key: ValueKey<String>('fa-matrix-a-$row'),
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  _entry.sign.columnB[row],
+                                  key: ValueKey<String>('fa-matrix-b-$row'),
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                     ],
                   ),
                 ),

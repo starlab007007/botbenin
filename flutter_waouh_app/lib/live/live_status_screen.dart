@@ -28,13 +28,15 @@ class _LiveStatusFeedState extends State<LiveStatusFeed> {
       backgroundColor: WaouhPalette.pearl,
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: WaouhPalette.green,
-        onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LiveStatusComposerScreen())),
+        onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => const LiveStatusComposerScreen())),
         icon: const Icon(Icons.add_a_photo_outlined),
         label: const Text('Publier'),
       ),
       body: Column(children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(WaouhSpace.lg, WaouhSpace.sm, WaouhSpace.lg, WaouhSpace.sm),
+          padding: const EdgeInsets.fromLTRB(
+              WaouhSpace.lg, WaouhSpace.sm, WaouhSpace.lg, WaouhSpace.sm),
           child: Row(children: [
             _filter('Tous', null, Icons.apps_rounded),
             const SizedBox(width: 8),
@@ -45,7 +47,8 @@ class _LiveStatusFeedState extends State<LiveStatusFeed> {
             _filter('Annonces', 'announce', Icons.campaign_outlined),
           ]),
         ),
-        Expanded(child: StreamBuilder<List<LiveStatus>>(
+        Expanded(
+            child: StreamBuilder<List<LiveStatus>>(
           stream: controller.statuses(type: filter),
           builder: (_, snapshot) {
             final statuses = snapshot.data ?? const <LiveStatus>[];
@@ -55,22 +58,26 @@ class _LiveStatusFeedState extends State<LiveStatusFeed> {
                 child: WaouhEmptyPanel(
                   icon: Icons.auto_awesome_outlined,
                   title: 'Aucun statut actif',
-                  message: 'Publiez une vente urgente, une recherche ou une promo visible 24h.',
+                  message:
+                      'Publiez une vente urgente, une recherche ou une promo visible 24h.',
                   actionLabel: 'Publier un statut',
                   tint: WaouhPalette.amber,
                   iconColor: WaouhPalette.orange,
-                  onAction: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LiveStatusComposerScreen())),
+                  onAction: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const LiveStatusComposerScreen())),
                 ),
               );
             }
             return ListView.builder(
-              padding: const EdgeInsets.fromLTRB(WaouhSpace.lg, 4, WaouhSpace.lg, 110),
+              padding: const EdgeInsets.fromLTRB(
+                  WaouhSpace.lg, 4, WaouhSpace.lg, 110),
               itemCount: statuses.length,
               itemBuilder: (_, index) {
                 final item = statuses[index];
                 return _StatusCard(
                   status: item,
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => LiveStatusViewer(status: item))),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => LiveStatusViewer(status: item))),
                 );
               },
             );
@@ -90,16 +97,19 @@ class _LiveStatusFeedState extends State<LiveStatusFeed> {
         decoration: BoxDecoration(
           color: selected ? WaouhPalette.green : Colors.white,
           borderRadius: BorderRadius.circular(WaouhRadius.chip),
-          border: Border.all(color: selected ? WaouhPalette.green : WaouhPalette.line),
+          border: Border.all(
+              color: selected ? WaouhPalette.green : WaouhPalette.line),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 14, color: selected ? Colors.white : WaouhPalette.muted),
+          Icon(icon,
+              size: 14, color: selected ? Colors.white : WaouhPalette.muted),
           const SizedBox(width: 6),
-          Text(label, style: TextStyle(
-            fontSize: 12.5,
-            fontWeight: FontWeight.w700,
-            color: selected ? Colors.white : WaouhPalette.muted,
-          )),
+          Text(label,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: selected ? Colors.white : WaouhPalette.muted,
+              )),
         ]),
       ),
     );
@@ -131,54 +141,73 @@ class _StatusCard extends StatelessWidget {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(WaouhRadius.thumb),
                   child: status.mediaUrls.isNotEmpty
-                      ? Image.network(status.mediaUrls.first, height: 76, width: 76, fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _typeBadge(gradient, status.type))
+                      ? Image.network(status.mediaUrls.first,
+                          height: 76,
+                          width: 76,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) =>
+                              _typeBadge(gradient, status.type))
                       : _typeBadge(gradient, status.type),
                 ),
                 Positioned(
                   bottom: -4,
                   right: -4,
-                  child: CountdownRing(expiresAt: status.expiresAt, size: 30, stroke: 2.6),
+                  child: CountdownRing(
+                      expiresAt: status.expiresAt, size: 30, stroke: 2.6),
                 ),
               ],
             ),
             const SizedBox(width: WaouhSpace.md),
             Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Expanded(child: Text(status.title, style: WaouhText.h3, overflow: TextOverflow.ellipsis)),
-                  WaouhPill(
-                    label: _statusLabel(status.type),
-                    background: status.type == 'sell'
-                        ? WaouhPalette.redTint
-                        : status.type == 'buy'
-                            ? WaouhPalette.mint
-                            : WaouhPalette.orangeTint,
-                    foreground: status.type == 'sell'
-                        ? const Color(0xFFB3242E)
-                        : status.type == 'buy'
-                            ? WaouhPalette.jade
-                            : WaouhPalette.orange,
-                  ),
-                ]),
-                if ((status.caption ?? '').isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(status.caption!, maxLines: 1, overflow: TextOverflow.ellipsis, style: WaouhText.caption),
-                  ),
-                const SizedBox(height: 6),
-                Row(children: [
-                  if (status.price != null) ...[
-                    Text('${_formatNumber(status.price!)} F', style: WaouhText.bodyStrong.copyWith(color: WaouhPalette.green, fontSize: 14)),
-                    const SizedBox(width: 8),
-                  ],
-                  if ((status.location ?? '').isNotEmpty) ...[
-                    const Icon(Icons.location_on_outlined, size: 12, color: WaouhPalette.muted),
-                    const SizedBox(width: 2),
-                    Expanded(child: Text(status.location!, style: WaouhText.caption, overflow: TextOverflow.ellipsis)),
-                  ],
-                ]),
-              ]),
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Expanded(
+                          child: Text(status.title,
+                              style: WaouhText.h3,
+                              overflow: TextOverflow.ellipsis)),
+                      WaouhPill(
+                        label: _statusLabel(status.type),
+                        background: status.type == 'sell'
+                            ? WaouhPalette.redTint
+                            : status.type == 'buy'
+                                ? WaouhPalette.mint
+                                : WaouhPalette.orangeTint,
+                        foreground: status.type == 'sell'
+                            ? const Color(0xFFB3242E)
+                            : status.type == 'buy'
+                                ? WaouhPalette.jade
+                                : WaouhPalette.orange,
+                      ),
+                    ]),
+                    if ((status.caption ?? '').isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(status.caption!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: WaouhText.caption),
+                      ),
+                    const SizedBox(height: 6),
+                    Row(children: [
+                      if (status.price != null) ...[
+                        Text('${_formatNumber(status.price!)} F',
+                            style: WaouhText.bodyStrong.copyWith(
+                                color: WaouhPalette.green, fontSize: 14)),
+                        const SizedBox(width: 8),
+                      ],
+                      if ((status.location ?? '').isNotEmpty) ...[
+                        const Icon(Icons.location_on_outlined,
+                            size: 12, color: WaouhPalette.muted),
+                        const SizedBox(width: 2),
+                        Expanded(
+                            child: Text(status.location!,
+                                style: WaouhText.caption,
+                                overflow: TextOverflow.ellipsis)),
+                      ],
+                    ]),
+                  ]),
             ),
           ]),
         ),
@@ -189,9 +218,15 @@ class _StatusCard extends StatelessWidget {
   Widget _typeBadge(Gradient gradient, String type) => Container(
         height: 76,
         width: 76,
-        decoration: BoxDecoration(gradient: gradient, borderRadius: BorderRadius.circular(WaouhRadius.thumb)),
+        decoration: BoxDecoration(
+            gradient: gradient,
+            borderRadius: BorderRadius.circular(WaouhRadius.thumb)),
         child: Icon(
-          type == 'sell' ? Icons.sell_outlined : type == 'buy' ? Icons.search_rounded : Icons.campaign_outlined,
+          type == 'sell'
+              ? Icons.sell_outlined
+              : type == 'buy'
+                  ? Icons.search_rounded
+                  : Icons.campaign_outlined,
           color: Colors.white,
         ),
       );
@@ -207,12 +242,17 @@ String _formatNumber(num value) {
   return buffer.toString();
 }
 
-String _statusLabel(String type) => type == 'sell' ? 'Vente' : type == 'buy' ? 'Recherche' : 'Annonce';
+String _statusLabel(String type) => type == 'sell'
+    ? 'Vente'
+    : type == 'buy'
+        ? 'Recherche'
+        : 'Annonce';
 
 class LiveStatusComposerScreen extends StatefulWidget {
   const LiveStatusComposerScreen({super.key});
   @override
-  State<LiveStatusComposerScreen> createState() => _LiveStatusComposerScreenState();
+  State<LiveStatusComposerScreen> createState() =>
+      _LiveStatusComposerScreenState();
 }
 
 class _LiveStatusComposerScreenState extends State<LiveStatusComposerScreen> {
@@ -226,13 +266,27 @@ class _LiveStatusComposerScreenState extends State<LiveStatusComposerScreen> {
   bool gpsLoading = false;
 
   @override
-  void initState() { super.initState(); WidgetsBinding.instance.addPostFrameCallback((_) async { city.text = await context.read<LiveWaouhController>().city; if (mounted) setState(() {}); }); }
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      city.text = await context.read<LiveWaouhController>().city;
+      if (mounted) setState(() {});
+    });
+  }
+
   @override
-  void dispose() { title.dispose(); price.dispose(); city.dispose(); caption.dispose(); super.dispose(); }
+  void dispose() {
+    title.dispose();
+    price.dispose();
+    city.dispose();
+    caption.dispose();
+    super.dispose();
+  }
 
   Future<void> _photo(ImageSource source) async {
     if (photos.length >= 2) return;
-    final file = await ImagePicker().pickImage(source: source, imageQuality: 82);
+    final file =
+        await ImagePicker().pickImage(source: source, imageQuality: 82);
     if (file != null && mounted) setState(() => photos.add(file));
   }
 
@@ -243,9 +297,10 @@ class _LiveStatusComposerScreenState extends State<LiveStatusComposerScreen> {
       await controller.useDeviceLocation();
       if (!mounted) return;
       final position = controller.position;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(position.available
-          ? '📍 Position GPS ajoutée. Indiquez aussi la ville ou le quartier.'
-          : 'Position non disponible. Saisissez votre ville.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(position.available
+              ? '📍 Position GPS ajoutée. Indiquez aussi la ville ou le quartier.'
+              : 'Position non disponible. Saisissez votre ville.')));
     } finally {
       if (mounted) setState(() => gpsLoading = false);
     }
@@ -257,16 +312,35 @@ class _LiveStatusComposerScreenState extends State<LiveStatusComposerScreen> {
       next: '/app/chat',
       actionLabel: 'publier ce statut',
     )) return;
-    if (title.text.trim().isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Titre obligatoire.'))); return; }
+    if (title.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Titre obligatoire.')));
+      return;
+    }
     setState(() => publishing = true);
     try {
       final controller = context.read<LiveWaouhController>();
       await controller.setCity(city.text);
-      await controller.publishStatus(type: type, title: title.text, caption: caption.text, price: num.tryParse(price.text), locationText: city.text, photos: photos);
-      if (mounted) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Statut publié pour 24 heures.'))); Navigator.pop(context); }
+      await controller.publishStatus(
+          type: type,
+          title: title.text,
+          caption: caption.text,
+          price: num.tryParse(price.text),
+          locationText: city.text,
+          photos: photos);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('✅ Statut publié pour 24 heures.')),
+      );
+      Navigator.of(context).pop();
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
-    } finally { if (mounted) setState(() => publishing = false); }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    } finally {
+      if (mounted) setState(() => publishing = false);
+    }
   }
 
   static const _types = [
@@ -277,125 +351,222 @@ class _LiveStatusComposerScreenState extends State<LiveStatusComposerScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: WaouhPalette.pearl,
-    appBar: const LiveHeader(title: 'Nouveau statut', subtitle: 'Visible pendant 24h', back: true),
-    body: ListView(padding: const EdgeInsets.fromLTRB(WaouhSpace.lg, WaouhSpace.lg, WaouhSpace.lg, WaouhSpace.xxl), children: [
-      Row(children: _types.map((entry) {
-        final selected = type == entry.$1;
-        final gradient = WaouhGradients.forStatusType(entry.$1);
-        return Expanded(
-          child: Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
-              onTap: () => setState(() => type = entry.$1),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  gradient: selected ? gradient : null,
-                  color: selected ? null : Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: selected ? Colors.transparent : WaouhPalette.line),
-                  boxShadow: selected ? WaouhShadows.card : null,
+        backgroundColor: WaouhPalette.pearl,
+        appBar: const LiveHeader(
+            title: 'Nouveau statut',
+            subtitle: 'Visible pendant 24h',
+            back: true),
+        body: ListView(
+            padding: const EdgeInsets.fromLTRB(
+                WaouhSpace.lg, WaouhSpace.lg, WaouhSpace.lg, WaouhSpace.xxl),
+            children: [
+              Row(
+                  children: _types.map((entry) {
+                final selected = type == entry.$1;
+                final gradient = WaouhGradients.forStatusType(entry.$1);
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () => setState(() => type = entry.$1),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 160),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          gradient: selected ? gradient : null,
+                          color: selected ? null : Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                              color: selected
+                                  ? Colors.transparent
+                                  : WaouhPalette.line),
+                          boxShadow: selected ? WaouhShadows.card : null,
+                        ),
+                        child: Column(children: [
+                          Icon(entry.$3,
+                              size: 20,
+                              color:
+                                  selected ? Colors.white : WaouhPalette.muted),
+                          const SizedBox(height: 4),
+                          Text(entry.$2,
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
+                                color: selected
+                                    ? Colors.white
+                                    : WaouhPalette.muted,
+                              )),
+                        ]),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList()),
+              const SizedBox(height: WaouhSpace.xl),
+              _label(type == 'sell'
+                  ? 'Titre de la vente *'
+                  : type == 'buy'
+                      ? 'Objet recherché *'
+                      : "Titre de l'annonce *"),
+              TextField(
+                  controller: title,
+                  decoration: const InputDecoration(
+                      hintText: 'Ex: Réfrigérateur Samsung 250L')),
+              const SizedBox(height: WaouhSpace.md),
+              _label(type == 'buy' ? 'Budget (FCFA)' : 'Prix (FCFA)'),
+              TextField(
+                  controller: price,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(hintText: '15 000')),
+              const SizedBox(height: WaouhSpace.md),
+              _label('Ville ou quartier'),
+              Row(children: [
+                Expanded(
+                    child: TextField(
+                        controller: city,
+                        decoration: const InputDecoration(
+                            hintText: 'Cotonou, Akpakpa...'))),
+                const SizedBox(width: 8),
+                SizedBox(
+                  height: 52,
+                  width: 52,
+                  child: OutlinedButton(
+                    onPressed: gpsLoading ? null : _gps,
+                    style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
+                    child: gpsLoading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.my_location_rounded, size: 19),
+                  ),
                 ),
-                child: Column(children: [
-                  Icon(entry.$3, size: 20, color: selected ? Colors.white : WaouhPalette.muted),
-                  const SizedBox(height: 4),
-                  Text(entry.$2, style: TextStyle(
-                    fontSize: 12.5, fontWeight: FontWeight.w700,
-                    color: selected ? Colors.white : WaouhPalette.muted,
-                  )),
-                ]),
+              ]),
+              const SizedBox(height: WaouhSpace.sm),
+              Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    'Cotonou',
+                    'Abomey-Calavi',
+                    'Porto-Novo',
+                    'Parakou',
+                    'Bohicon'
+                  ]
+                      .map((value) => GestureDetector(
+                            onTap: () => setState(() => city.text = value),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 7),
+                              decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius:
+                                      BorderRadius.circular(WaouhRadius.chip),
+                                  border: Border.all(color: WaouhPalette.line)),
+                              child: Text(value, style: WaouhText.caption),
+                            ),
+                          ))
+                      .toList()),
+              const SizedBox(height: WaouhSpace.lg),
+              _label('Détails, état, quantité ou contact'),
+              TextField(
+                  controller: caption,
+                  minLines: 3,
+                  maxLines: 5,
+                  decoration: const InputDecoration(
+                      hintText: 'Décrivez votre offre...')),
+              const SizedBox(height: WaouhSpace.lg),
+              _label('Photos (2 max)'),
+              Row(children: [
+                for (var i = 0; i < photos.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Stack(children: [
+                      ClipRRect(
+                          borderRadius:
+                              BorderRadius.circular(WaouhRadius.thumb),
+                          child: Image.file(File(photos[i].path),
+                              width: 80, height: 80, fit: BoxFit.cover)),
+                      Positioned(
+                          top: 2,
+                          right: 2,
+                          child: GestureDetector(
+                            onTap: () => setState(() => photos.removeAt(i)),
+                            child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: const BoxDecoration(
+                                    color: WaouhPalette.red,
+                                    shape: BoxShape.circle),
+                                child: const Icon(Icons.close_rounded,
+                                    size: 13, color: Colors.white)),
+                          )),
+                    ]),
+                  ),
+                if (photos.length < 2)
+                  GestureDetector(
+                    onTap: () => _showPhotoSheet(),
+                    child: Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                          borderRadius:
+                              BorderRadius.circular(WaouhRadius.thumb),
+                          border:
+                              Border.all(color: WaouhPalette.line, width: 1.4)),
+                      child: const Icon(Icons.add_photo_alternate_outlined,
+                          color: WaouhPalette.muted),
+                    ),
+                  ),
+              ]),
+              const SizedBox(height: WaouhSpace.xl),
+              SizedBox(
+                height: 54,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                      backgroundColor: WaouhPalette.green),
+                  onPressed: publishing ? null : _publish,
+                  icon: publishing
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white))
+                      : const Icon(Icons.publish_outlined),
+                  label: Text(
+                      publishing ? 'Publication...' : 'Publier · visible 24h'),
+                ),
               ),
-            ),
-          ),
-        );
-      }).toList()),
-      const SizedBox(height: WaouhSpace.xl),
-      _label(type == 'sell' ? 'Titre de la vente *' : type == 'buy' ? 'Objet recherché *' : "Titre de l'annonce *"),
-      TextField(controller: title, decoration: const InputDecoration(hintText: 'Ex: Réfrigérateur Samsung 250L')),
-      const SizedBox(height: WaouhSpace.md),
-      _label(type == 'buy' ? 'Budget (FCFA)' : 'Prix (FCFA)'),
-      TextField(controller: price, keyboardType: TextInputType.number, decoration: const InputDecoration(hintText: '15 000')),
-      const SizedBox(height: WaouhSpace.md),
-      _label('Ville ou quartier'),
-      Row(children: [
-        Expanded(child: TextField(controller: city, decoration: const InputDecoration(hintText: 'Cotonou, Akpakpa...'))),
-        const SizedBox(width: 8),
-        SizedBox(
-          height: 52, width: 52,
-          child: OutlinedButton(
-            onPressed: gpsLoading ? null : _gps,
-            style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
-            child: gpsLoading
-                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.my_location_rounded, size: 19),
-          ),
-        ),
-      ]),
-      const SizedBox(height: WaouhSpace.sm),
-      Wrap(spacing: 8, runSpacing: 8, children: ['Cotonou', 'Abomey-Calavi', 'Porto-Novo', 'Parakou', 'Bohicon'].map((value) => GestureDetector(
-        onTap: () => setState(() => city.text = value),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(WaouhRadius.chip), border: Border.all(color: WaouhPalette.line)),
-          child: Text(value, style: WaouhText.caption),
-        ),
-      )).toList()),
-      const SizedBox(height: WaouhSpace.lg),
-      _label('Détails, état, quantité ou contact'),
-      TextField(controller: caption, minLines: 3, maxLines: 5, decoration: const InputDecoration(hintText: 'Décrivez votre offre...')),
-      const SizedBox(height: WaouhSpace.lg),
-      _label('Photos (2 max)'),
-      Row(children: [
-        for (var i = 0; i < photos.length; i++)
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Stack(children: [
-              ClipRRect(borderRadius: BorderRadius.circular(WaouhRadius.thumb), child: Image.file(File(photos[i].path), width: 80, height: 80, fit: BoxFit.cover)),
-              Positioned(top: 2, right: 2, child: GestureDetector(
-                onTap: () => setState(() => photos.removeAt(i)),
-                child: Container(padding: const EdgeInsets.all(2), decoration: const BoxDecoration(color: WaouhPalette.red, shape: BoxShape.circle), child: const Icon(Icons.close_rounded, size: 13, color: Colors.white)),
-              )),
             ]),
-          ),
-        if (photos.length < 2)
-          GestureDetector(
-            onTap: () => _showPhotoSheet(),
-            child: Container(
-              width: 80, height: 80,
-              decoration: BoxDecoration(borderRadius: BorderRadius.circular(WaouhRadius.thumb), border: Border.all(color: WaouhPalette.line, width: 1.4)),
-              child: const Icon(Icons.add_photo_alternate_outlined, color: WaouhPalette.muted),
-            ),
-          ),
-      ]),
-      const SizedBox(height: WaouhSpace.xl),
-      SizedBox(
-        height: 54,
-        child: FilledButton.icon(
-          style: FilledButton.styleFrom(backgroundColor: WaouhPalette.green),
-          onPressed: publishing ? null : _publish,
-          icon: publishing ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.publish_outlined),
-          label: Text(publishing ? 'Publication...' : 'Publier · visible 24h'),
-        ),
-      ),
-    ]),
-  );
+      );
 
   Widget _label(String text) => Padding(
-    padding: const EdgeInsets.only(bottom: WaouhSpace.xs),
-    child: Text(text, style: WaouhText.bodyStrong.copyWith(fontSize: 13.5)),
-  );
+        padding: const EdgeInsets.only(bottom: WaouhSpace.xs),
+        child: Text(text, style: WaouhText.bodyStrong.copyWith(fontSize: 13.5)),
+      );
 
   void _showPhotoSheet() {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(WaouhRadius.sheet))),
+      shape: const RoundedRectangleBorder(
+          borderRadius:
+              BorderRadius.vertical(top: Radius.circular(WaouhRadius.sheet))),
       builder: (context) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(leading: const Icon(Icons.camera_alt_outlined), title: const Text('Prendre une photo'), onTap: () { Navigator.pop(context); _photo(ImageSource.camera); }),
-          ListTile(leading: const Icon(Icons.photo_outlined), title: const Text('Choisir dans la galerie'), onTap: () { Navigator.pop(context); _photo(ImageSource.gallery); }),
+          ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Prendre une photo'),
+              onTap: () {
+                Navigator.pop(context);
+                _photo(ImageSource.camera);
+              }),
+          ListTile(
+              leading: const Icon(Icons.photo_outlined),
+              title: const Text('Choisir dans la galerie'),
+              onTap: () {
+                Navigator.pop(context);
+                _photo(ImageSource.gallery);
+              }),
         ]),
       ),
     );
@@ -416,10 +587,15 @@ class LiveStatusViewer extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           if (status.mediaUrls.isNotEmpty)
-            Image.network(status.mediaUrls.first, fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(decoration: const BoxDecoration(gradient: WaouhGradients.brand)))
+            Image.network(status.mediaUrls.first,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                    decoration:
+                        const BoxDecoration(gradient: WaouhGradients.brand)))
           else
-            Container(decoration: BoxDecoration(gradient: WaouhGradients.forStatusType(status.type))),
+            Container(
+                decoration: BoxDecoration(
+                    gradient: WaouhGradients.forStatusType(status.type))),
           DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -437,7 +613,8 @@ class LiveStatusViewer extends StatelessWidget {
           ),
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(WaouhSpace.lg, WaouhSpace.sm, WaouhSpace.lg, WaouhSpace.lg),
+              padding: const EdgeInsets.fromLTRB(
+                  WaouhSpace.lg, WaouhSpace.sm, WaouhSpace.lg, WaouhSpace.lg),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -452,40 +629,70 @@ class LiveStatusViewer extends StatelessWidget {
                   ),
                   const SizedBox(height: WaouhSpace.md),
                   Row(children: [
-                    CircleAvatar(radius: 19, backgroundColor: WaouhPalette.jade, child: const Icon(Icons.storefront, color: Colors.white, size: 18)),
+                    CircleAvatar(
+                        radius: 19,
+                        backgroundColor: WaouhPalette.jade,
+                        child: const Icon(Icons.storefront,
+                            color: Colors.white, size: 18)),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(status.authorName ?? 'WAOUH', style: WaouhText.onDark(WaouhText.bodyStrong)),
-                        Text(hoursLeft > 0 ? 'Expire dans ${hoursLeft}h' : 'Expire bientôt', style: WaouhText.onDarkMuted(WaouhText.caption)),
-                      ]),
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(status.authorName ?? 'WAOUH',
+                                style: WaouhText.onDark(WaouhText.bodyStrong)),
+                            Text(
+                                hoursLeft > 0
+                                    ? 'Expire dans ${hoursLeft}h'
+                                    : 'Expire bientôt',
+                                style:
+                                    WaouhText.onDarkMuted(WaouhText.caption)),
+                          ]),
                     ),
-                    IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close_rounded, color: Colors.white)),
+                    IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close_rounded,
+                            color: Colors.white)),
                   ]),
                   const Spacer(),
                   WaouhPill(
-                    label: status.type == 'sell' ? '🏷️ Vente' : status.type == 'buy' ? '🔍 Recherche' : '📢 Annonce',
+                    label: status.type == 'sell'
+                        ? '🏷️ Vente'
+                        : status.type == 'buy'
+                            ? '🔍 Recherche'
+                            : '📢 Annonce',
                     background: Colors.white.withOpacity(0.16),
                     foreground: Colors.white,
                   ),
                   const SizedBox(height: WaouhSpace.sm),
-                  Text(status.title, style: WaouhText.onDark(WaouhText.display.copyWith(fontSize: 28))),
+                  Text(status.title,
+                      style: WaouhText.onDark(
+                          WaouhText.display.copyWith(fontSize: 28))),
                   if ((status.caption ?? '').isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: WaouhSpace.sm),
-                      child: Text(status.caption!, style: WaouhText.onDarkMuted(WaouhText.body.copyWith(fontSize: 15.5))),
+                      child: Text(status.caption!,
+                          style: WaouhText.onDarkMuted(
+                              WaouhText.body.copyWith(fontSize: 15.5))),
                     ),
-                  if (status.price != null || (status.location ?? '').isNotEmpty)
+                  if (status.price != null ||
+                      (status.location ?? '').isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: WaouhSpace.md),
                       child: Row(children: [
                         if (status.price != null)
-                          Text('${_formatNumber(status.price!)} FCFA', style: WaouhText.onDark(WaouhText.h2.copyWith(color: WaouhPalette.neon))),
-                        if (status.price != null && (status.location ?? '').isNotEmpty) const SizedBox(width: 10),
+                          Text('${_formatNumber(status.price!)} FCFA',
+                              style: WaouhText.onDark(WaouhText.h2
+                                  .copyWith(color: WaouhPalette.neon))),
+                        if (status.price != null &&
+                            (status.location ?? '').isNotEmpty)
+                          const SizedBox(width: 10),
                         if ((status.location ?? '').isNotEmpty) ...[
-                          const Icon(Icons.location_on_outlined, size: 15, color: Colors.white70),
+                          const Icon(Icons.location_on_outlined,
+                              size: 15, color: Colors.white70),
                           const SizedBox(width: 3),
-                          Text(status.location!, style: WaouhText.onDarkMuted(WaouhText.caption)),
+                          Text(status.location!,
+                              style: WaouhText.onDarkMuted(WaouhText.caption)),
                         ],
                       ]),
                     ),
@@ -494,10 +701,25 @@ class LiveStatusViewer extends StatelessWidget {
                     height: 54,
                     width: double.infinity,
                     child: FilledButton.icon(
-                      style: FilledButton.styleFrom(backgroundColor: WaouhPalette.neon, foregroundColor: WaouhPalette.ink),
+                      style: FilledButton.styleFrom(
+                          backgroundColor: WaouhPalette.neon,
+                          foregroundColor: WaouhPalette.ink),
                       onPressed: () async {
-                        await context.read<LiveWaouhController>().openStatusReply(status);
-                        if (context.mounted) context.go('/app/chat/waouh');
+                        if (!await requireLiveAuthentication(
+                          context,
+                          next: '/app/chat/waouh',
+                          actionLabel: 'répondre à ce statut',
+                        )) {
+                          return;
+                        }
+                        if (!context.mounted) return;
+                        final router = GoRouter.of(context);
+                        await context
+                            .read<LiveWaouhController>()
+                            .openStatusReply(status);
+                        if (!context.mounted) return;
+                        Navigator.of(context).pop();
+                        router.go('/app/chat/waouh');
                       },
                       icon: const Icon(Icons.chat_bubble_outline_rounded),
                       label: const Text('Répondre dans WAOUH'),

@@ -8,6 +8,8 @@ import 'package:go_router/go_router.dart';
 import '../main.dart' as legacy;
 import 'brand_mark.dart';
 import 'live_models.dart';
+import 'live_commerce_workflow.dart';
+import 'live_thread_flow.dart';
 
 class LiveHeader extends StatelessWidget implements PreferredSizeWidget {
   const LiveHeader(
@@ -70,9 +72,15 @@ class LiveHeader extends StatelessWidget implements PreferredSizeWidget {
 }
 
 class LiveMessageBubble extends StatelessWidget {
-  const LiveMessageBubble({super.key, required this.message, this.onPayload});
+  const LiveMessageBubble({
+    super.key,
+    required this.message,
+    this.onPayload,
+    this.actionsEnabled = true,
+  });
   final LiveMessage message;
   final ValueChanged<String>? onPayload;
+  final bool actionsEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +91,9 @@ class LiveMessageBubble extends StatelessWidget {
     // are enabled only after a non-empty, validated product list is produced.
     final displayText = liveVisibleText(message.text);
     final products = _safePremiumProducts(message);
-    final actions = _smartMessageActions(message, products);
+    final actions = actionsEnabled
+        ? _smartMessageActions(message, products)
+        : const <_SmartMessageAction>[];
     final outgoing = message.outgoing;
     final delivery = message.meta['delivery_state']?.toString() ?? 'delivered';
     final pending = delivery == 'sending' || delivery == 'queued';
@@ -164,7 +174,11 @@ class LiveMessageBubble extends StatelessWidget {
                           text: _premiumIntro(displayText))),
                   const SizedBox(height: 9),
                 ],
-                _PremiumResultsGrid(products: products, onPayload: onPayload),
+                _PremiumResultsGrid(
+                  products: products,
+                  onPayload: onPayload,
+                  actionsEnabled: actionsEnabled,
+                ),
               ],
               if (products.isEmpty &&
                   actions.isNotEmpty &&
@@ -281,71 +295,84 @@ class _SmartMessageAction {
 }
 
 Map<String, dynamic> liveCommercePayloadMeta(String payload) {
-  final value = payload.trim();
-  final queryAt = value.indexOf('?');
-  final command = queryAt < 0 ? value : value.substring(0, queryAt);
-  final query = queryAt < 0 ? const <String, String>{} :
-      Uri.splitQueryString(value.substring(queryAt + 1));
-  final separator = command.indexOf(':');
-  final action = (separator < 0 ? command : command.substring(0, separator))
-      .trim()
-      .toLowerCase();
-  final reference =
-      separator < 0 ? '' : command.substring(separator + 1).trim();
-  const workflowActions = {
-    'accepter',
-    'accept',
-    'contre-proposition',
-    'counter',
-    'refuser',
-    'refuse',
-    'payer-mobile',
-    'paiement-effectue',
-    'paiement-livraison',
-    'confirmer-disponibilite',
-    'preparer',
-    'suivre-livraison',
-    'confirmer-reception',
-    'signaler-probleme',
-    'annuler',
-    'mtn',
-    'moov',
-    'sbin',
-  };
-  return <String, dynamic>{
+  final command = liveCommerceRawCommand(payload);
+  final query = liveCommerceQuery(payload);
+  final kind = liveCommerceActionKind(payload);
+  final result = <String, dynamic>{
     'button_payload': command,
-    if (action.startsWith('interess') || action.startsWith('intéress'))
-      'action': 'interested',
-    if (workflowActions.contains(action)) 'commerce_action': action,
-    if (reference.isNotEmpty) 'commerce_reference': reference,
-    for (final key in const <String>[
-      'thread_id',
-      'article_id',
-      'buyer_user_id',
-      'seller_user_id',
-      'search_request_id',
-      'search_thread_id',
-      'source',
-      'role',
-      'status_id',
-      'status_type',
-      'radar_item_id',
-      'radar_signal_id',
-      'radar_source',
-      'radar_intent',
-      'counterpart_user_id',
-      'negotiation_id',
-      'deal_id',
-      'transaction_id',
-    ])
-      if ((query[key] ?? '').trim().isNotEmpty) key: query[key]!.trim(),
+    ...query,
   };
+  final legacyReference = liveCommerceLegacyReference(payload);
+  if (legacyReference != null) {
+    result['commerce_reference'] = legacyReference;
+    if (kind == LiveCommerceActionKind.counter &&
+        RegExp(r'^\d+$').hasMatch(legacyReference)) {
+      result.putIfAbsent('suggested_price', () => legacyReference);
+    } else {
+      result.putIfAbsent('negotiation_id', () => legacyReference);
+    }
+  }
+  switch (kind) {
+    case LiveCommerceActionKind.interest:
+      result['action'] = 'interested';
+      result['intent'] = 'interested';
+      result['commerce_action'] = 'interest';
+      break;
+    case LiveCommerceActionKind.accept:
+      result['action'] = 'accept';
+      result['intent'] = 'negotiation_accept';
+      result['commerce_action'] = 'accept_offer';
+      break;
+    case LiveCommerceActionKind.counter:
+      result['action'] = 'counter';
+      result['intent'] = 'negotiation_counter';
+      result['commerce_action'] = 'counter_offer';
+      break;
+    case LiveCommerceActionKind.reject:
+      result['action'] = 'reject';
+      result['intent'] = 'negotiation_reject';
+      result['commerce_action'] = 'reject_offer';
+      break;
+    case LiveCommerceActionKind.unknown:
+      break;
+  }
+  return result;
 }
 
-String liveCommercePayloadText(String payload) {
+String liveCommercePayloadText(String payload) =>
+    liveCommerceOutboundText(payload);
+
+/// Rend tout bouton « Intéressé » auto-descriptif. Même lorsqu'une ancienne
+/// carte ne fournit ni article_id ni vendeur, le payload conserve désormais
+/// action/intent. L'idempotency_key ajoutée au moment de l'envoi suffit alors
+/// à créer une identité provisoire déterministe et à ouvrir la page sans réseau.
+String liveCanonicalInterestedButtonPayload(
+  String payload, {
+  Map<String, String> context = const <String, String>{},
+}) {
   final value = payload.trim();
+  final command = liveCommercePayloadText(value);
+  if (!liveIsInterestedMeta(
+    <String, dynamic>{'button_payload': command},
+    text: command,
+  )) {
+    return payload;
+  }
+
+  final merged = <String, String>{};
   final queryAt = value.indexOf('?');
-  return queryAt < 0 ? value : value.substring(0, queryAt).trim();
+  if (queryAt >= 0) {
+    try {
+      merged.addAll(Uri.splitQueryString(value.substring(queryAt + 1)));
+    } catch (_) {
+      // Un ancien payload mal formé ne doit pas empêcher le clic.
+    }
+  }
+  merged.addAll(context);
+  merged['action'] = 'interested';
+  merged['intent'] = 'interested';
+  merged.putIfAbsent('origin_surface', () => 'flutter_product_card');
+  return '$command?${Uri(queryParameters: merged).query}';
 }
 
 /// Rendu Smart UI commun aux résultats Radar, aux entêtes de match et aux
@@ -415,6 +442,32 @@ Color _smartActionTone(String payload) {
   return const Color(0xFF765A00);
 }
 
+_SmartMessageAction _scopeMessageAction(
+  _SmartMessageAction action,
+  LiveMessage message,
+) {
+  final kind = liveCommerceActionKind(action.payload);
+  if (kind != LiveCommerceActionKind.accept &&
+      kind != LiveCommerceActionKind.counter &&
+      kind != LiveCommerceActionKind.reject) {
+    return action;
+  }
+  final context = <String, String>{...liveCommerceScopeFromMessage(message)};
+  final legacyReference = liveCommerceLegacyReference(action.payload);
+  if (legacyReference != null) {
+    if (kind == LiveCommerceActionKind.counter &&
+        RegExp(r'^\d+$').hasMatch(legacyReference)) {
+      context.putIfAbsent('suggested_price', () => legacyReference);
+    } else {
+      context.putIfAbsent('negotiation_id', () => legacyReference);
+    }
+  }
+  return _SmartMessageAction(
+    payload: liveCanonicalWorkflowPayload(kind, context: context),
+    label: action.label,
+  );
+}
+
 List<_SmartMessageAction> _smartMessageActions(
   LiveMessage message,
   List<_PremiumProduct> products,
@@ -424,15 +477,15 @@ List<_SmartMessageAction> _smartMessageActions(
   }
   final text = message.text.toLowerCase();
   final intent = '${message.meta['intent'] ?? ''}'.toLowerCase();
-  if (text.contains('accord conclu') ||
-      text.contains('accord enregistré') ||
-      text.contains('achat confirmé') ||
+  if (text.contains('achat confirmé') ||
       text.contains('vente conclue') ||
       text.contains('négociation terminée') ||
       text.contains('négociation fermée') ||
-      intent.contains('deal_created') ||
-      intent.contains('deal_accepted') ||
-      intent.contains('negotiation_closed')) {
+      text.contains('livraison terminée') ||
+      intent.contains('negotiation_closed') ||
+      intent.contains('delivery_completed') ||
+      intent.contains('sale_completed') ||
+      intent.contains('transaction_completed')) {
     return const <_SmartMessageAction>[];
   }
   final rawActions = message.meta['actions'];
@@ -449,7 +502,21 @@ List<_SmartMessageAction> _smartMessageActions(
         })
         .where((action) => action.payload.isNotEmpty && action.label.isNotEmpty)
         .toList(growable: false);
-    if (explicit.isNotEmpty) return explicit;
+    if (explicit.isNotEmpty) {
+      return explicit
+          .map((action) => _scopeMessageAction(action, message))
+          .toList(growable: false);
+    }
+  }
+
+  // Un accord peut ouvrir immédiatement l'étape paiement, disponibilité ou
+  // livraison. Sans actions autoritaires du backend, Flutter n'en invente pas.
+  if (text.contains('accord conclu') ||
+      text.contains('accord enregistré') ||
+      intent.contains('deal_created') ||
+      intent.contains('deal_accepted') ||
+      intent.contains('deal_already_accepted')) {
+    return const <_SmartMessageAction>[];
   }
 
   if (text.contains('demande envoyée au vendeur') ||
@@ -460,14 +527,29 @@ List<_SmartMessageAction> _smartMessageActions(
       caseSensitive: false,
     ).firstMatch(message.text)?.group(1)?.replaceAll(RegExp(r'\D'), '');
     return <_SmartMessageAction>[
-      const _SmartMessageAction(payload: 'oui', label: '✅ Accepter ce prix'),
       _SmartMessageAction(
-        payload: suggested == null || suggested.isEmpty
-            ? 'proposer'
-            : 'proposer:$suggested',
+          payload: liveCanonicalWorkflowPayload(
+            LiveCommerceActionKind.accept,
+            context: liveCommerceScopeFromMessage(message),
+          ),
+          label: '✅ Accepter ce prix'),
+      _SmartMessageAction(
+        payload: liveCanonicalWorkflowPayload(
+          LiveCommerceActionKind.counter,
+          context: <String, String>{
+            ...liveCommerceScopeFromMessage(message),
+            if (suggested != null && suggested.isNotEmpty)
+              'suggested_price': suggested,
+          },
+        ),
         label: '💬 Proposer un prix',
       ),
-      const _SmartMessageAction(payload: 'non', label: '❌ Refuser'),
+      _SmartMessageAction(
+          payload: liveCanonicalWorkflowPayload(
+            LiveCommerceActionKind.reject,
+            context: liveCommerceScopeFromMessage(message),
+          ),
+          label: '❌ Refuser'),
     ];
   }
 
@@ -476,21 +558,48 @@ List<_SmartMessageAction> _smartMessageActions(
       text.contains('contre proposition') ||
       intent.contains('negotiation_open') ||
       intent.contains('negotiation_decision')) {
-    return const <_SmartMessageAction>[
-      _SmartMessageAction(payload: 'accepter', label: '✅ Accepter'),
+    return <_SmartMessageAction>[
       _SmartMessageAction(
-        payload: 'contre-proposition',
+        payload: liveCanonicalWorkflowPayload(
+          LiveCommerceActionKind.accept,
+          context: liveCommerceScopeFromMessage(message),
+        ),
+        label: '✅ Accepter',
+      ),
+      _SmartMessageAction(
+        payload: liveCanonicalWorkflowPayload(
+          LiveCommerceActionKind.counter,
+          context: liveCommerceScopeFromMessage(message),
+        ),
         label: '💬 Contre-proposer',
       ),
-      _SmartMessageAction(payload: 'refuser', label: '❌ Refuser'),
+      _SmartMessageAction(
+        payload: liveCanonicalWorkflowPayload(
+          LiveCommerceActionKind.reject,
+          context: liveCommerceScopeFromMessage(message),
+        ),
+        label: '❌ Refuser',
+      ),
     ];
   }
 
   if (RegExp(r'r[ée]pondez\s+.*oui.*non', caseSensitive: false)
       .hasMatch(message.text)) {
-    return const <_SmartMessageAction>[
-      _SmartMessageAction(payload: 'oui', label: '✅ Oui'),
-      _SmartMessageAction(payload: 'non', label: '❌ Non'),
+    return <_SmartMessageAction>[
+      _SmartMessageAction(
+        payload: liveCanonicalWorkflowPayload(
+          LiveCommerceActionKind.accept,
+          context: liveCommerceScopeFromMessage(message),
+        ),
+        label: '✅ Oui',
+      ),
+      _SmartMessageAction(
+        payload: liveCanonicalWorkflowPayload(
+          LiveCommerceActionKind.reject,
+          context: liveCommerceScopeFromMessage(message),
+        ),
+        label: '❌ Non',
+      ),
     ];
   }
   return const <_SmartMessageAction>[];
@@ -505,6 +614,22 @@ List<_PremiumProduct> _safePremiumProducts(LiveMessage message) {
     // A malformed optional UI payload must never hide the conversation.
     return const <_PremiumProduct>[];
   }
+}
+
+/// Les actions d'intérêt des résultats de recherche restent utilisables même
+/// lorsqu'aucune négociation n'est encore ouverte. Elles ne doivent pas être
+/// soumises au verrou « une seule étape de négociation active ».
+///
+/// Les actions de paiement, de contre-offre ou de livraison ne passent jamais
+/// par cette exception : elles restent pilotées par la dernière étape métier.
+bool liveMessageHasStandaloneProductInterestActions(LiveMessage message) {
+  return _safePremiumProducts(message).any(
+    (product) => product.actions.any(
+      (action) =>
+          liveCommerceActionKind(action.payload) ==
+          LiveCommerceActionKind.interest,
+    ),
+  );
 }
 
 String? _premiumString(dynamic value) {
@@ -723,7 +848,8 @@ List<_SmartMessageAction> _premiumExplicitActions(dynamic value) {
       .whereType<Map>()
       .map((raw) {
         final payload = (raw['id'] ?? raw['payload'] ?? '').toString().trim();
-        final label = (raw['label'] ?? raw['title'] ?? payload).toString().trim();
+        final label =
+            (raw['label'] ?? raw['title'] ?? payload).toString().trim();
         return _SmartMessageAction(payload: payload, label: label);
       })
       .where((action) => action.payload.isNotEmpty && action.label.isNotEmpty)
@@ -735,13 +861,17 @@ _SmartMessageAction _premiumScopedAction({
   required Map<String, dynamic> row,
   required LiveMessage message,
 }) {
-  final command = liveCommercePayloadText(action.payload).toLowerCase();
-  if (!command.startsWith('interesse') &&
-      !command.startsWith('intéressé') &&
-      !command.startsWith('interested')) {
-    return action;
+  final params = <String, String>{...liveCommerceQuery(action.payload)};
+  final legacyReference = liveCommerceLegacyReference(action.payload);
+  if (legacyReference != null) {
+    final legacyKind = liveCommerceActionKind(action.payload);
+    if (legacyKind == LiveCommerceActionKind.counter &&
+        RegExp(r'^\d+$').hasMatch(legacyReference)) {
+      params.putIfAbsent('suggested_price', () => legacyReference);
+    } else {
+      params.putIfAbsent('negotiation_id', () => legacyReference);
+    }
   }
-  final params = <String, String>{};
   for (final key in const <String>[
     'thread_id',
     'article_id',
@@ -765,17 +895,83 @@ _SmartMessageAction _premiumScopedAction({
     final value = _premiumString(row[key] ?? message.meta[key]);
     if (value != null) params[key] = value;
   }
+  if (params['seller_user_id'] == null) {
+    final sellerUserId = _premiumString(
+      row['owner_user_id'] ??
+          row['author_user_id'] ??
+          row['user_id'] ??
+          message.meta['owner_user_id'] ??
+          message.meta['author_user_id'] ??
+          message.meta['user_id'],
+    );
+    if (sellerUserId != null) {
+      params['seller_user_id'] = sellerUserId;
+      params.putIfAbsent('counterpart_user_id', () => sellerUserId);
+    }
+  }
   if (params['article_id'] == null) {
     final source = (_premiumString(row['source']) ?? '').toLowerCase();
-    final articleId = source.contains('radar') ? null : _premiumString(row['id']);
+    final articleId =
+        source.contains('radar') ? null : _premiumString(row['id']);
     if (articleId != null) params['article_id'] = articleId;
   }
-  if (params.isEmpty) return action;
-  final base = liveCommercePayloadText(action.payload);
-  return _SmartMessageAction(
-    payload: '$base?${Uri(queryParameters: params).query}',
-    label: action.label,
+
+  void visibleParam(String key, dynamic value) {
+    final normalized = _premiumString(value);
+    if (normalized != null && normalized.isNotEmpty) params[key] = normalized;
+  }
+
+  visibleParam(
+    'title',
+    row['title'] ?? row['name'] ?? row['nom'] ?? message.meta['title'],
   );
+  visibleParam(
+    'product_title',
+    row['product_title'] ?? row['title'] ?? message.meta['product_title'],
+  );
+  if (row['price'] != null) visibleParam('price', row['price']);
+  visibleParam('city', row['city'] ?? row['ville'] ?? message.meta['city']);
+  visibleParam(
+    'seller_name',
+    row['seller_name'] ??
+        row['business_name'] ??
+        row['counterpart_name'] ??
+        message.meta['seller_name'],
+  );
+  visibleParam('category', row['category'] ?? message.meta['category']);
+  visibleParam('condition', row['condition'] ?? row['state']);
+  visibleParam('availability', row['availability'] ?? row['status']);
+  visibleParam('distance', row['distance'] ?? message.meta['distance']);
+
+  final scopedPhotos = liveAttachments(
+    row['photos'] ??
+        row['images'] ??
+        row['attachments'] ??
+        row['image_url'] ??
+        message.meta['photos'] ??
+        message.attachments.map((item) => item.toJson()).toList(),
+  );
+  if (scopedPhotos.isNotEmpty) params['image_url'] = scopedPhotos.first.url;
+
+  final kind = liveCommerceActionKind(action.payload);
+  if (kind == LiveCommerceActionKind.interest) {
+    return _SmartMessageAction(
+      payload: liveCanonicalInterestedButtonPayload(
+        action.payload,
+        context: params,
+      ),
+      label: action.label,
+    );
+  }
+  if (kind == LiveCommerceActionKind.accept ||
+      kind == LiveCommerceActionKind.counter ||
+      kind == LiveCommerceActionKind.reject) {
+    return _SmartMessageAction(
+      payload: liveCanonicalWorkflowPayload(kind, context: params),
+      label: action.label,
+    );
+  }
+  return action;
 }
 
 List<_SmartMessageAction> _premiumWorkflowActions({
@@ -784,6 +980,27 @@ List<_SmartMessageAction> _premiumWorkflowActions({
   required int index,
   required int productCount,
 }) {
+  final workflow = _premiumString(
+        row['workflow_state'] ??
+            row['stage'] ??
+            message.meta['workflow_state'] ??
+            message.meta['intent'],
+      )?.toLowerCase() ??
+      '';
+
+  // Les états réellement terminaux et l'attente de la contrepartie sont
+  // autoritaires. Un accord n'est pas terminal lorsqu'il fournit les actions
+  // de paiement, de disponibilité ou de livraison de l'étape suivante.
+  if (workflow.contains('summary_only') ||
+      workflow.contains('awaiting_counterparty') ||
+      workflow.contains('completed') ||
+      workflow.contains('delivered') ||
+      workflow.contains('closed') ||
+      workflow.contains('refused') ||
+      workflow.contains('cancelled')) {
+    return const <_SmartMessageAction>[];
+  }
+
   final explicit = _premiumExplicitActions(row['actions']);
   if (explicit.isNotEmpty) {
     return explicit
@@ -806,97 +1023,49 @@ List<_SmartMessageAction> _premiumWorkflowActions({
           .toList(growable: false);
     }
   }
-  final workflow = _premiumString(
-        row['workflow_state'] ??
-            row['stage'] ??
-            message.meta['workflow_state'] ??
-            message.meta['intent'],
-      )
-          ?.toLowerCase() ??
-      '';
-  final role = _premiumString(row['role'] ?? message.meta['role'])
-          ?.toLowerCase() ??
-      '';
-  final negotiationId = _premiumString(
-    row['negotiation_id'] ?? message.meta['negotiation_id'],
-  );
-  final dealId = _premiumString(row['deal_id'] ?? message.meta['deal_id']);
-  final transactionId = _premiumString(
-    row['transaction_id'] ?? message.meta['transaction_id'],
-  );
-  final token = dealId ?? transactionId ?? negotiationId ?? '';
-  String payload(String action) => token.isEmpty ? action : '$action:$token';
 
-  if (workflow.contains('summary_only')) {
-    return const <_SmartMessageAction>[];
-  }
-  if (workflow.contains('completed') ||
-      workflow.contains('closed') ||
-      workflow.contains('refused') ||
-      workflow.contains('cancelled')) {
-    return const <_SmartMessageAction>[];
-  }
-  if (workflow.contains('delivered')) {
-    return <_SmartMessageAction>[
-      _SmartMessageAction(
-          payload: payload('confirmer-reception'),
-          label: '✅ Confirmer la réception'),
-      _SmartMessageAction(
-          payload: payload('signaler-probleme'),
-          label: '⚠️ Signaler un problème'),
-    ];
-  }
-  if (workflow.contains('ready_for_pickup') ||
-      workflow.contains('picked_up') ||
-      workflow.contains('paid') ||
-      workflow.contains('cod_confirmed')) {
-    if (role == 'seller') {
-      return <_SmartMessageAction>[
-        _SmartMessageAction(
-            payload: payload('preparer'), label: '📦 Article prêt'),
-        _SmartMessageAction(
-            payload: payload('annuler'), label: '❌ Annuler'),
-      ];
-    }
-    return <_SmartMessageAction>[
-      _SmartMessageAction(
-          payload: payload('suivre-livraison'), label: '🛵 Suivre'),
-    ];
-  }
-  if (workflow.contains('payment') ||
-      workflow.contains('deal_created') ||
+  // Après accord, seules les actions explicites du backend sont valides.
+  if (workflow.contains('deal_created') ||
       workflow.contains('deal_accepted') ||
-      workflow.contains('awaiting_payment')) {
-    if (role == 'seller') {
-      return <_SmartMessageAction>[
-        _SmartMessageAction(
-            payload: payload('confirmer-disponibilite'),
-            label: '✅ Article disponible'),
-        _SmartMessageAction(
-            payload: payload('annuler'), label: '❌ Indisponible'),
-      ];
-    }
-    return <_SmartMessageAction>[
-      _SmartMessageAction(
-          payload: payload('payer-mobile'), label: '💳 Mobile Money'),
-      _SmartMessageAction(
-          payload: payload('paiement-livraison'),
-          label: '💵 À la livraison'),
-      _SmartMessageAction(
-          payload: payload('annuler'), label: '❌ Annuler'),
-    ];
+      workflow.contains('already_accepted')) {
+    return const <_SmartMessageAction>[];
   }
-  if (workflow.contains('negotiation') ||
+
+  if (workflow.contains('buyer_interest') ||
+      workflow.contains('new_buyer') ||
+      workflow.contains('negotiation') ||
       workflow.contains('counter') ||
-      workflow.contains('proposed')) {
+      workflow.contains('proposed') ||
+      workflow.contains('awaiting_buyer_decision') ||
+      workflow.contains('awaiting_seller_decision')) {
     return <_SmartMessageAction>[
-      _SmartMessageAction(payload: payload('accepter'), label: '✅ Accepter'),
-      _SmartMessageAction(
-          payload: payload('contre-proposition'),
-          label: '💬 Contre-proposer'),
-      _SmartMessageAction(payload: payload('refuser'), label: '❌ Refuser'),
+      _premiumScopedAction(
+        action: const _SmartMessageAction(
+          payload: 'waouh:accept',
+          label: '✅ Accepter le prix',
+        ),
+        row: row,
+        message: message,
+      ),
+      _premiumScopedAction(
+        action: const _SmartMessageAction(
+          payload: 'waouh:counter',
+          label: '💬 Faire une contre-offre',
+        ),
+        row: row,
+        message: message,
+      ),
+      _premiumScopedAction(
+        action: const _SmartMessageAction(
+          payload: 'waouh:reject',
+          label: '❌ Refuser',
+        ),
+        row: row,
+        message: message,
+      ),
     ];
   }
+
   return <_SmartMessageAction>[
     _premiumScopedAction(
       action: _SmartMessageAction(
@@ -1227,9 +1396,14 @@ String _premiumIntro(String text) {
 }
 
 class _PremiumResultsGrid extends StatelessWidget {
-  const _PremiumResultsGrid({required this.products, this.onPayload});
+  const _PremiumResultsGrid({
+    required this.products,
+    this.onPayload,
+    this.actionsEnabled = true,
+  });
   final List<_PremiumProduct> products;
   final ValueChanged<String>? onPayload;
+  final bool actionsEnabled;
 
   @override
   Widget build(BuildContext context) =>
@@ -1260,9 +1434,11 @@ class _PremiumResultsGrid extends StatelessWidget {
               return SizedBox(
                   width: width,
                   child: _PremiumProductCard(
-                      product: products[index],
-                      index: index,
-                      onPayload: onPayload));
+                    product: products[index],
+                    index: index,
+                    onPayload: onPayload,
+                    actionsEnabled: actionsEnabled,
+                  ));
             }),
           ),
           const Padding(
@@ -1275,11 +1451,16 @@ class _PremiumResultsGrid extends StatelessWidget {
 }
 
 class _PremiumProductCard extends StatelessWidget {
-  const _PremiumProductCard(
-      {required this.product, required this.index, this.onPayload});
+  const _PremiumProductCard({
+    required this.product,
+    required this.index,
+    this.onPayload,
+    this.actionsEnabled = true,
+  });
   final _PremiumProduct product;
   final int index;
   final ValueChanged<String>? onPayload;
+  final bool actionsEnabled;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -1450,7 +1631,7 @@ class _PremiumProductCard extends StatelessWidget {
                             fontWeight: FontWeight.w700))),
               ]),
               const SizedBox(height: 12),
-              if (product.actions.isNotEmpty)
+              if (actionsEnabled && product.actions.isNotEmpty)
                 Wrap(
                   spacing: 7,
                   runSpacing: 7,
@@ -1459,9 +1640,8 @@ class _PremiumProductCard extends StatelessWidget {
                     final primary = entry.key == 0;
                     final tone = _smartActionTone(action.payload);
                     return SizedBox(
-                      width: product.actions.length == 1
-                          ? double.infinity
-                          : null,
+                      width:
+                          product.actions.length == 1 ? double.infinity : null,
                       child: primary
                           ? FilledButton(
                               onPressed: onPayload == null

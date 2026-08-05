@@ -9,6 +9,7 @@ import '../main.dart' as legacy;
 import 'brand_mark.dart';
 import 'live_controller.dart';
 import 'live_guest_action_gate.dart';
+import 'live_match_navigation.dart';
 import 'live_controller_match_actions.dart';
 import 'live_models.dart';
 import 'live_radar_models.dart';
@@ -723,10 +724,7 @@ class _MatchTile extends StatelessWidget {
       child: InkWell(
         onTap: () {
           unawaited(controller.markMatchRead(match));
-          context.go(
-            '/app/chat/match/${Uri.encodeComponent(match.key)}',
-            extra: match,
-          );
+          unawaited(livePushMatchChat(context, match));
         },
         child: Padding(
           padding: const EdgeInsets.fromLTRB(11, 10, 8, 10),
@@ -1393,7 +1391,7 @@ class _ProductionRadarFeedState extends State<_ProductionRadarFeed>
       backgroundColor: Colors.transparent,
       builder: (_) => _RadarFiltersSheet(value: _filters),
     );
-    if (next == null) return;
+    if (!mounted || next == null) return;
     setState(() => _filters = next);
     await _scan();
   }
@@ -1427,20 +1425,49 @@ class _ProductionRadarFeedState extends State<_ProductionRadarFeed>
         'Je vends un article correspondant à « ${item.title} » à ${item.distanceLabel}.',
     };
     final controller = context.read<LiveWaouhController>();
+    await controller.startNewChat();
+    final flowAction = switch (action) {
+      _RadarAction.interest => 'interested',
+      _RadarAction.negotiate => 'negotiate',
+      _RadarAction.buy => 'buy',
+      _RadarAction.propose => 'propose',
+    };
+    final counterpartUserId = liveText(
+      item.raw['seller_user_id'] ??
+          item.raw['owner_user_id'] ??
+          item.raw['author_user_id'] ??
+          item.raw['user_id'],
+    ).trim();
+    final currentUserId = (controller.auth.user?.id ?? '').trim();
+    final isBuyerRequest = item.type == LiveRadarItemType.buy ||
+        liveText(item.raw['status_type']).trim().toLowerCase() == 'buy';
+    final buyerUserId = isBuyerRequest ? counterpartUserId : currentUserId;
+    final sellerUserId = isBuyerRequest ? currentUserId : counterpartUserId;
     controller.setComposerSeed(
       intent,
       meta: {
         'source': 'flutter_radar',
+        'origin_surface': 'flutter_radar',
+        'source_id': item.sourceId,
         'auto_send': true,
+        'action': flowAction,
+        'intent': flowAction,
+        'radar_intent': flowAction,
         'radar_item_id': item.id,
         'radar_source': item.source,
-        'article_id': item.articleId,
+        if (item.source == 'status') 'status_id': item.sourceId,
+        if (!isBuyerRequest) 'article_id': item.articleId,
         'title': item.title,
         'distance': item.distanceLabel,
         if (item.priceMin != null) 'price': item.priceMin,
-        if (item.currency != null) 'devise': item.currency,
-        'radar_intent': action.name,
-        'role': item.type == LiveRadarItemType.buy ? 'seller' : 'buyer',
+        'currency': item.currency ?? 'FCFA',
+        if (item.city != null) 'city': item.city,
+        if (item.photoUrls.isNotEmpty) 'photos': item.photoUrls,
+        if (buyerUserId.isNotEmpty) 'buyer_user_id': buyerUserId,
+        if (sellerUserId.isNotEmpty) 'seller_user_id': sellerUserId,
+        if (counterpartUserId.isNotEmpty)
+          'counterpart_user_id': counterpartUserId,
+        'role': isBuyerRequest ? 'seller' : 'buyer',
       },
     );
     _pause('Action Radar préparée pour « ${item.title} ».');
@@ -1448,7 +1475,7 @@ class _ProductionRadarFeedState extends State<_ProductionRadarFeed>
     if (!context.read<legacy.AuthController>().signedIn) {
       context.go('/app/auth?next=${Uri.encodeComponent('/app/chat/waouh')}');
     } else {
-      context.go('/app/chat/waouh');
+      await context.push('/app/chat/waouh');
     }
   }
 

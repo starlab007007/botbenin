@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import '../main.dart' as legacy;
 import 'brand_mark.dart';
 import 'live_controller.dart';
+import 'live_models.dart';
 import 'live_radar_models.dart';
 import 'live_radar_service.dart';
 import 'live_widgets.dart';
@@ -248,13 +249,30 @@ class _LiveRadarMapScreenState extends State<LiveRadarMapScreen>
         'Je suis intéressé par « ${item.title} » à ${item.distanceLabel}. ',
       _MapRadarAction.negotiate =>
         'Je souhaite négocier « ${item.title} » à ${item.distanceLabel}. ',
-      _MapRadarAction.contact =>
-        item.type == LiveRadarItemType.buy
-            ? 'Je vends un article correspondant à « ${item.title} ». '
-            : 'Bonjour, je souhaite en savoir plus sur « ${item.title} ». ',
+      _MapRadarAction.contact => item.type == LiveRadarItemType.buy
+          ? 'Je vends un article correspondant à « ${item.title} ». '
+          : 'Bonjour, je souhaite en savoir plus sur « ${item.title} ». ',
     };
 
     final controller = context.read<LiveWaouhController>();
+    await controller.startNewChat();
+    if (!mounted) return;
+    final counterpartUserId = liveText(
+      item.raw['seller_user_id'] ??
+          item.raw['owner_user_id'] ??
+          item.raw['author_user_id'] ??
+          item.raw['user_id'],
+    ).trim();
+    final currentUserId = (controller.auth.user?.id ?? '').trim();
+    final isBuyerRequest = item.type == LiveRadarItemType.buy ||
+        liveText(item.raw['status_type']).trim().toLowerCase() == 'buy';
+    final buyerUserId = isBuyerRequest ? counterpartUserId : currentUserId;
+    final sellerUserId = isBuyerRequest ? currentUserId : counterpartUserId;
+    final flowAction = switch (action) {
+      _MapRadarAction.interest => 'interested',
+      _MapRadarAction.negotiate => 'negotiate',
+      _MapRadarAction.contact => isBuyerRequest ? 'propose' : 'contact',
+    };
     controller.setComposerSeed(seed, meta: {
       'source': item.source == 'catalog'
           ? 'partner'
@@ -263,28 +281,34 @@ class _LiveRadarMapScreenState extends State<LiveRadarMapScreen>
               : 'radar',
       'origin_surface': 'flutter_radar_map',
       'auto_send': true,
-      if (action == _MapRadarAction.interest) 'action': 'interested',
+      'action': flowAction,
+      'intent': flowAction,
       'radar_item_id': item.id,
       'source_id': item.sourceId,
+      if (buyerUserId.isNotEmpty) 'buyer_user_id': buyerUserId,
+      if (sellerUserId.isNotEmpty) 'seller_user_id': sellerUserId,
+      if (counterpartUserId.isNotEmpty)
+        'counterpart_user_id': counterpartUserId,
+      if ((item.sellerName ?? '').trim().isNotEmpty)
+        'seller_name': item.sellerName,
       'radar_source': item.source,
-      'radar_intent': item.type == LiveRadarItemType.buy &&
-              action == _MapRadarAction.contact
+      'radar_intent': isBuyerRequest && action == _MapRadarAction.contact
           ? 'propose'
           : action.name,
-      if (item.type != LiveRadarItemType.buy) 'article_id': item.articleId,
+      if (!isBuyerRequest) 'article_id': item.articleId,
       if (item.source == 'status') 'status_id': item.sourceId,
       'title': item.title,
       'distance': item.distanceLabel,
       if (item.priceMin != null) 'price': item.priceMin,
       if (item.currency != null) 'devise': item.currency,
-      'role': item.type == LiveRadarItemType.buy ? 'seller' : 'buyer',
+      'role': isBuyerRequest ? 'seller' : 'buyer',
     });
 
     if (!context.read<legacy.AuthController>().signedIn) {
       context.go('/app/auth?next=${Uri.encodeComponent('/app/chat/waouh')}');
       return;
     }
-    context.go('/app/chat/waouh');
+    await context.push('/app/chat/waouh');
   }
 
   void _centerMap() => _map.move(

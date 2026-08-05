@@ -123,6 +123,49 @@ Map<String, dynamic> liveMap(dynamic value) {
   return decoded is Map ? Map<String, dynamic>.from(decoded) : const {};
 }
 
+String? liveExtractThreadId(dynamic value, [int depth = 0]) {
+  if (value == null || depth > 6) return null;
+  final decoded = _liveJsonValue(value);
+  if (decoded is String || decoded is num) {
+    final text = liveText(decoded).trim();
+    return text.isEmpty || text == 'null' ? null : text;
+  }
+  if (decoded is List) {
+    for (final item in decoded) {
+      final found = liveExtractThreadId(item, depth + 1);
+      if (found != null) return found;
+    }
+    return null;
+  }
+  if (decoded is Map) {
+    const directKeys = <String>[
+      'thread_id',
+      'threadId',
+      'resolved_thread_id',
+      'resolvedThreadId',
+      'conversation_thread_id',
+    ];
+    for (final key in directKeys) {
+      final found = liveExtractThreadId(decoded[key], depth + 1);
+      if (found != null) return found;
+    }
+    const nestedKeys = <String>[
+      'meta',
+      'payload',
+      'data',
+      'result',
+      'thread',
+      'conversation_scope',
+      'conversationScope',
+    ];
+    for (final key in nestedKeys) {
+      final found = liveExtractThreadId(decoded[key], depth + 1);
+      if (found != null) return found;
+    }
+  }
+  return null;
+}
+
 dynamic _liveJsonValue(dynamic value) {
   if (value is! String) return value;
   final text = value.trim();
@@ -330,6 +373,11 @@ class LiveMessage {
       'radar_signal_id',
       'radar_source',
       'radar_intent',
+      'idempotency_key',
+      'request_id',
+      'correlation_id',
+      'dedupe_key',
+      'event_id',
     ]) {
       if (!meta.containsKey(key) && row[key] != null) meta[key] = row[key];
     }
@@ -360,7 +408,14 @@ class LiveMessage {
     // Les réponses Smart UI peuvent encapsuler les photos dans chaque produit
     // plutôt qu'au niveau du message. Elles doivent tout de même être
     // disponibles au rendu, à l'historique et aux fenêtres de match.
-    for (final key in ['products', 'articles', 'items', 'results', 'matches', 'offers']) {
+    for (final key in [
+      'products',
+      'articles',
+      'items',
+      'results',
+      'matches',
+      'offers'
+    ]) {
       final rows = meta[key];
       if (rows is! List) continue;
       for (final raw in rows.whereType<Map>()) {
@@ -386,7 +441,7 @@ class LiveMessage {
       createdAt: liveDate(row['created_at']),
       direction: liveText(row['direction'] ?? row['role'], 'out'),
       conversationId: row['conversation_id']?.toString(),
-      threadId: (row['thread_id'] ?? meta['thread_id'])?.toString(),
+      threadId: liveExtractThreadId(<String, dynamic>{...row, 'meta': meta}),
       threadType: liveText(
         row['thread_type'] ?? meta['thread_type'],
         'product_meet',
@@ -517,7 +572,8 @@ class LiveMatch {
             payload['role'] == 'seller' ||
             payload['target_role'] == 'seller' ||
             notificationType == 'match_seller' ||
-            notificationType == 'new_buyer'
+            notificationType == 'new_buyer' ||
+            notificationType == 'buyer_interested'
         ? 'seller'
         : 'buyer';
     final threadId = (row['thread_id'] ?? payload['thread_id'])?.toString();
@@ -552,7 +608,8 @@ class LiveMatch {
               payload['buyer_name'] ??
               payload['seller_name'])
           ?.toString(),
-      negotiationId: (payload['negotiation_id'] ?? payload['neg_id'])?.toString(),
+      negotiationId:
+          (payload['negotiation_id'] ?? payload['neg_id'])?.toString(),
       dealId: payload['deal_id']?.toString(),
       transactionId: payload['transaction_id']?.toString(),
       seedText:
@@ -568,11 +625,41 @@ class LiveMatch {
     );
   }
 
+  LiveMatch withAuthoritativeThread(String value) {
+    final thread = value.trim();
+    if (thread.isEmpty || thread == threadId) return this;
+    return LiveMatch(
+      key: liveMatchKey(articleId, role, counterpartUserId, thread),
+      articleId: articleId,
+      role: role,
+      title: title,
+      lastAt: lastAt,
+      notificationIds: notificationIds,
+      buyerProfileId: buyerProfileId,
+      counterpartUserId: counterpartUserId,
+      threadId: thread,
+      threadType: threadType,
+      searchRequestId: searchRequestId,
+      buyerUserId: buyerUserId,
+      sellerUserId: sellerUserId,
+      source: source,
+      counterpartLabel: counterpartLabel,
+      negotiationId: negotiationId,
+      dealId: dealId,
+      transactionId: transactionId,
+      seedText: seedText,
+      price: price,
+      city: city,
+      photo: photo,
+      photoUrls: photoUrls,
+      unreadCount: unreadCount,
+    );
+  }
+
   LiveMatch merge(LiveMatch other) {
     final newer = other.lastAt.isAfter(lastAt) ? other : this;
-    final resolvedTitle = newer.title == 'Annonce' && title != 'Annonce'
-        ? title
-        : newer.title;
+    final resolvedTitle =
+        newer.title == 'Annonce' && title != 'Annonce' ? title : newer.title;
     final ids = <String>{...notificationIds, ...other.notificationIds}.toList();
     return LiveMatch(
       key: key,
@@ -609,10 +696,66 @@ String liveMatchKey(
   String? counterpartUserId, [
   String? threadId,
 ]) {
-  if (threadId != null && threadId.isNotEmpty) return 'meet_$threadId';
+  final article = articleId.trim();
+  final normalizedRole =
+      role.trim().isEmpty ? 'buyer' : role.trim().toLowerCase();
   final counterpart = counterpartUserId?.trim() ?? '';
-  final suffix = counterpart.isEmpty ? '' : '_$counterpart';
-  return 'art_${articleId}_$role$suffix';
+
+  // Parité Web : une fenêtre est identifiée par
+  // 1 article × 1 rôle × 1 interlocuteur. Le thread_id enrichit le fil
+  // sans remplacer cette identité métier ni provoquer un second écran.
+  if (article.isNotEmpty) {
+    return 'art_${article}_${normalizedRole}_${counterpart.isEmpty ? 'any' : counterpart}';
+  }
+
+  // Compatibilité pour les anciens liens qui ne portent qu'un thread_id.
+  final thread = threadId?.trim() ?? '';
+  if (thread.isNotEmpty) return 'meet_$thread';
+  return 'art_none_${normalizedRole}_${counterpart.isEmpty ? 'any' : counterpart}';
+}
+
+String liveMatchScopeKey(LiveMatch match) {
+  final counterpart = match.counterpartUserId?.trim() ?? '';
+  return 'scope_${match.articleId}_${match.role}_${counterpart.isEmpty ? 'any' : counterpart}';
+}
+
+String _liveMessageCounterpart(LiveMessage message, String role) {
+  final meta = message.meta;
+  final value = role == 'seller'
+      ? meta['buyer_user_id'] ?? meta['counterpart_user_id']
+      : meta['seller_user_id'] ?? meta['counterpart_user_id'];
+  return liveText(value).trim();
+}
+
+bool liveMessageBelongsToMatch(
+  LiveMessage message,
+  LiveMatch match, {
+  String? authoritativeThreadId,
+}) {
+  final expectedThread = (authoritativeThreadId ?? match.threadId ?? '').trim();
+  final messageThread = (message.threadId ?? '').trim();
+  if (expectedThread.isNotEmpty && messageThread == expectedThread) return true;
+  if (expectedThread.isNotEmpty &&
+      messageThread.isNotEmpty &&
+      messageThread != expectedThread) {
+    return false;
+  }
+
+  final expectedArticle = match.isSearch ? '' : match.articleId.trim();
+  final messageArticle =
+      (message.articleId ?? liveText(message.meta['article_id'])).trim();
+  if (expectedArticle.isNotEmpty && messageArticle != expectedArticle) {
+    return false;
+  }
+
+  final expectedCounterpart = match.counterpartUserId?.trim() ?? '';
+  final messageCounterpart = _liveMessageCounterpart(message, match.role);
+  if (expectedCounterpart.isNotEmpty &&
+      messageCounterpart.isNotEmpty &&
+      messageCounterpart != expectedCounterpart) {
+    return false;
+  }
+  return expectedArticle.isNotEmpty || expectedThread.isNotEmpty;
 }
 
 class LiveStatus {
@@ -630,6 +773,7 @@ class LiveStatus {
     this.mediaUrls = const [],
     this.authorName,
     this.authorAvatarUrl,
+    this.authorUserId,
     this.articleId,
     this.views = 0,
   });
@@ -647,6 +791,7 @@ class LiveStatus {
   final List<String> mediaUrls;
   final String? authorName;
   final String? authorAvatarUrl;
+  final String? authorUserId;
   final String? articleId;
   final int views;
 
@@ -673,6 +818,7 @@ class LiveStatus {
           : (fallback == null || fallback.isEmpty ? const [] : [fallback]),
       authorName: row['author_name']?.toString(),
       authorAvatarUrl: row['author_avatar_url']?.toString(),
+      authorUserId: row['user_id']?.toString(),
       articleId: row['article_id']?.toString(),
       views: int.tryParse('${row['views_count'] ?? row['views'] ?? 0}') ?? 0,
     );
@@ -732,33 +878,43 @@ class LiveNotification {
   }
 
   bool get isMatch {
-    final searchThread = payload['thread_type'] == 'search' &&
-        threadId != null &&
-        threadId!.isNotEmpty;
-    final productThread = articleId != null &&
-        ((threadId != null && threadId!.isNotEmpty) ||
-            const {
-              'match',
-              'match_buyer',
-              'match_seller',
-              'new_buyer',
-              'radar_match',
-              'negotiation_open',
-              'deal_created',
-              'deal_accepted',
-              'deal_seller',
-              'deal_buyer',
-              'deal_assigned',
-              'deal_eta_updated',
-              'deal_picked_up',
-              'deal_delivered',
-              'deal_payment_request',
-              'deal_paid',
-              'deal_cancelled',
-              'payment_link',
-              'contact_exchange',
-            }.contains(type));
-    return searchThread || productThread;
+    final thread = threadId?.trim() ?? '';
+    final threadType = liveText(payload['thread_type']).toLowerCase();
+    final notificationType = liveText(type).toLowerCase();
+    const matchTypes = {
+      'match',
+      'match_buyer',
+      'match_seller',
+      'new_buyer',
+      'radar_match',
+      'negotiation_open',
+      'deal_created',
+      'deal_accepted',
+      'deal_seller',
+      'deal_buyer',
+      'deal_assigned',
+      'deal_eta_updated',
+      'deal_picked_up',
+      'deal_delivered',
+      'deal_payment_request',
+      'deal_paid',
+      'deal_cancelled',
+      'payment_link',
+      'contact_exchange',
+      'search_thread',
+      'interested',
+      'interest_created',
+      'buyer_interested',
+      'status_interest',
+    };
+    if (thread.isNotEmpty &&
+        (threadType == 'search' ||
+            threadType == 'product_meet' ||
+            matchTypes.contains(notificationType))) {
+      return true;
+    }
+    return articleId?.trim().isNotEmpty == true &&
+        matchTypes.contains(notificationType);
   }
 }
 

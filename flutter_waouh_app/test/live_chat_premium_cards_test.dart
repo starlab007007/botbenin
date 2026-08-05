@@ -88,9 +88,28 @@ void main() {
         find.textContaining('Meilleur rapport qualité-prix'), findsOneWidget);
     expect(find.byType(Image).evaluate().length, greaterThanOrEqualTo(2));
 
-    await tester.tap(find.text('Je suis intéressé').first);
+    final firstInterest = find.text('Je suis intéressé').first;
+    await tester.ensureVisible(firstInterest);
+    await tester.pumpAndSettle();
+    await tester.tap(firstInterest);
     await tester.pump();
-    expect(selectedPayload, 'intéressé 1');
+
+    // Le texte visible reste stable pour le backend historique, mais le bouton
+    // transporte maintenant un payload canonique auto-descriptif. Le test doit
+    // vérifier les deux contrats au lieu d'exiger l'ancienne chaîne brute.
+    expect(selectedPayload, isNotNull);
+    final payload = selectedPayload!;
+    expect(liveCommercePayloadText(payload), 'intéressé 1');
+
+    final meta = liveCommercePayloadMeta(payload);
+    expect(meta['action'], 'interested');
+    expect(meta['intent'], 'interested');
+    expect(meta['origin_surface'], 'flutter_product_card');
+
+    final queryAt = payload.indexOf('?');
+    expect(queryAt, greaterThan(0));
+    final query = Uri.splitQueryString(payload.substring(queryAt + 1));
+    expect(query['image_url'], _onePixelPng);
   });
 
   testWidgets('renders structured metadata gallery and only article payload',
@@ -218,7 +237,9 @@ Ou proposez votre prix : Je propose 90 000 FCFA.''',
     expect(find.text('❌ Refuser'), findsOneWidget);
     await tester.tap(find.text('💬 Proposer un prix'));
     await tester.pump();
-    expect(selectedPayload, 'proposer:90000');
+    expect(selectedPayload, isNotNull);
+    expect(selectedPayload, contains('waouh:counter?'));
+    expect(selectedPayload, contains('suggested_price=90000'));
   });
 
   testWidgets(
@@ -250,14 +271,16 @@ Ou proposez votre prix : Je propose 90 000 FCFA.''',
       meta: const {'intent': 'deal_created'},
     );
 
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: LiveSmartTimeline(
-          messages: [offer, conclusion],
-          onPayload: (value) => selectedPayload = value,
-        ),
-      ),
-    ));
+    Widget timeline(List<LiveMessage> messages) => MaterialApp(
+          home: Scaffold(
+            body: LiveSmartTimeline(
+              messages: messages,
+              onPayload: (value) => selectedPayload = value,
+            ),
+          ),
+        );
+
+    await tester.pumpWidget(timeline([offer]));
     await tester.pumpAndSettle();
 
     expect(find.text('✅ Accepter'), findsOneWidget);
@@ -265,10 +288,19 @@ Ou proposez votre prix : Je propose 90 000 FCFA.''',
     expect(find.text('❌ Refuser'), findsOneWidget);
     await tester.tap(find.text('✅ Accepter'));
     await tester.pump();
-    expect(selectedPayload, 'accepter:neg-1');
+    expect(selectedPayload, isNotNull);
+    expect(selectedPayload, contains('waouh:accept?'));
+    expect(selectedPayload, contains('negotiation_id=neg-1'));
+
+    await tester.pumpWidget(timeline([offer, conclusion]));
+    await tester.pumpAndSettle();
+    expect(find.text('✅ Accepter'), findsNothing);
+    expect(find.text('💬 Contre-proposer'), findsNothing);
+    expect(find.text('❌ Refuser'), findsNothing);
   });
 
-  testWidgets('keeps product gallery and payment payload in the same smart card',
+  testWidgets(
+      'keeps product gallery and payment payload in the same smart card',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(430, 1200));
     addTearDown(() => tester.binding.setSurfaceSize(null));

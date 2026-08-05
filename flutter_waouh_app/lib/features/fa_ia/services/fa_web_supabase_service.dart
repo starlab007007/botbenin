@@ -94,12 +94,30 @@ class FaWebSupabaseService {
       'access_code': accessCode,
     };
 
-    final result = await _post(body, deviceId, accessCode);
-    final answer = '${result['answer'] ?? ''}'.trim();
-    if (answer.isEmpty) {
-      throw const FaWebBackendException('Réponse FA IA vide.');
+    try {
+      final result = await _post(body, deviceId, accessCode);
+      final answer = '${result['answer'] ?? ''}'.trim();
+      if (answer.isEmpty) {
+        return corpus.localAnswer(
+          sign: sign,
+          category: category,
+          intention: intention,
+          originalQuestion: question,
+          focus: focus,
+        );
+      }
+      return FaWebCorpusRepository.cleanAnswer(answer);
+    } on FaWebQuotaException {
+      rethrow;
+    } catch (_) {
+      return corpus.localAnswer(
+        sign: sign,
+        category: category,
+        intention: intention,
+        originalQuestion: question,
+        focus: focus,
+      );
     }
-    return FaWebCorpusRepository.cleanAnswer(answer);
   }
 
   Future<Map<String, dynamic>> _post(

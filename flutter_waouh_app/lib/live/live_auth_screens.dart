@@ -31,9 +31,24 @@ class LiveOnboardingScreen extends StatelessWidget {
         next == null ? path : '$path?next=${Uri.encodeComponent(next)}';
 
     final items = [
-      (Icons.shopping_bag_rounded, 'Vendre', 'Publiez un article en 30s', WaouhPalette.neon),
-      (Icons.search_rounded, 'Acheter', 'Trouvez pres de vous', WaouhPalette.blue),
-      (Icons.handshake_rounded, 'Negocier', 'Proposez votre prix', WaouhPalette.orange),
+      (
+        Icons.shopping_bag_rounded,
+        'Vendre',
+        'Publiez un article en 30s',
+        WaouhPalette.neon
+      ),
+      (
+        Icons.search_rounded,
+        'Acheter',
+        'Trouvez pres de vous',
+        WaouhPalette.blue
+      ),
+      (
+        Icons.handshake_rounded,
+        'Negocier',
+        'Proposez votre prix',
+        WaouhPalette.orange
+      ),
     ];
 
     return Scaffold(
@@ -43,10 +58,14 @@ class LiveOnboardingScreen extends StatelessWidget {
           child: LayoutBuilder(
             builder: (context, constraints) => SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(
-                WaouhSpace.xl, WaouhSpace.lg, WaouhSpace.xl, WaouhSpace.lg,
+                WaouhSpace.xl,
+                WaouhSpace.lg,
+                WaouhSpace.xl,
+                WaouhSpace.lg,
               ),
               child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight - 32),
+                constraints:
+                    BoxConstraints(minHeight: constraints.maxHeight - 32),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -59,18 +78,22 @@ class LiveOnboardingScreen extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: WaouhPalette.onDarkSurface,
                             borderRadius: BorderRadius.circular(28),
-                            border: Border.all(color: WaouhPalette.onDarkBorder),
+                            border:
+                                Border.all(color: WaouhPalette.onDarkBorder),
                             boxShadow: WaouhShadows.brandGlow,
                           ),
-                          child: const Icon(Icons.chat_bubble_rounded, color: Colors.white, size: 42),
+                          child: const Icon(Icons.chat_bubble_rounded,
+                              color: Colors.white, size: 42),
                         ),
                         const SizedBox(height: WaouhSpace.lg),
-                        Text('WaouhApp', style: WaouhText.onDark(WaouhText.display)),
+                        Text('WaouhApp',
+                            style: WaouhText.onDark(WaouhText.display)),
                         const SizedBox(height: WaouhSpace.md),
                         Text(
                           'Envoyez un message.',
                           textAlign: TextAlign.center,
-                          style: WaouhText.onDark(WaouhText.h1.copyWith(fontSize: 26)),
+                          style: WaouhText.onDark(
+                              WaouhText.h1.copyWith(fontSize: 26)),
                         ),
                         Text(
                           'Le monde achete.',
@@ -83,33 +106,45 @@ class LiveOnboardingScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: WaouhSpace.xl),
                         ...items.map((item) => Padding(
-                              padding: const EdgeInsets.only(bottom: WaouhSpace.sm),
+                              padding:
+                                  const EdgeInsets.only(bottom: WaouhSpace.sm),
                               child: Container(
                                 padding: const EdgeInsets.all(WaouhSpace.md),
                                 decoration: BoxDecoration(
                                   color: WaouhPalette.onDarkSurface,
                                   borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: WaouhPalette.onDarkBorder),
+                                  border: Border.all(
+                                      color: WaouhPalette.onDarkBorder),
                                 ),
                                 child: Row(
                                   children: [
                                     Container(
                                       width: 46,
                                       height: 46,
-                                      decoration: BoxDecoration(color: item.$4, shape: BoxShape.circle),
+                                      decoration: BoxDecoration(
+                                          color: item.$4,
+                                          shape: BoxShape.circle),
                                       child: Icon(
                                         item.$1,
-                                        color: item.$4 == WaouhPalette.neon ? WaouhPalette.ink : Colors.white,
+                                        color: item.$4 == WaouhPalette.neon
+                                            ? WaouhPalette.ink
+                                            : Colors.white,
                                         size: 22,
                                       ),
                                     ),
                                     const SizedBox(width: WaouhSpace.md),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
-                                          Text(item.$2, style: WaouhText.onDark(WaouhText.h3.copyWith(fontSize: 17))),
-                                          Text(item.$3, style: WaouhText.onDarkMuted(WaouhText.caption)),
+                                          Text(item.$2,
+                                              style: WaouhText.onDark(WaouhText
+                                                  .h3
+                                                  .copyWith(fontSize: 17))),
+                                          Text(item.$3,
+                                              style: WaouhText.onDarkMuted(
+                                                  WaouhText.caption)),
                                         ],
                                       ),
                                     ),
@@ -130,10 +165,12 @@ class LiveOnboardingScreen extends StatelessWidget {
                               style: FilledButton.styleFrom(
                                 backgroundColor: const Color(0xFF25D366),
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(WaouhRadius.control),
+                                  borderRadius: BorderRadius.circular(
+                                      WaouhRadius.control),
                                 ),
                               ),
-                              onPressed: () => context.go(authPath('/app/auth/whatsapp')),
+                              onPressed: () =>
+                                  context.go(authPath('/app/auth/whatsapp')),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: const [
@@ -153,10 +190,12 @@ class LiveOnboardingScreen extends StatelessWidget {
                                 backgroundColor: Colors.white,
                                 foregroundColor: WaouhPalette.green,
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(WaouhRadius.control),
+                                  borderRadius: BorderRadius.circular(
+                                      WaouhRadius.control),
                                 ),
                               ),
-                              onPressed: () => context.go(authPath('/app/auth/email')),
+                              onPressed: () =>
+                                  context.go(authPath('/app/auth/email')),
                               child: const Text('Continuer avec Email'),
                             ),
                           ),
@@ -198,17 +237,21 @@ class _AuthHeader extends StatelessWidget implements PreferredSizeWidget {
       toolbarHeight: 92,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_rounded),
-        onPressed: () => context.canPop() ? context.pop() : context.go('/app/auth'),
+        onPressed: () =>
+            context.canPop() ? context.pop() : context.go('/app/auth'),
       ),
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(title, style: WaouhText.onDark(WaouhText.h1.copyWith(fontSize: 21))),
-          if (subtitle != null) Text(subtitle!, style: WaouhText.onDarkMuted(WaouhText.caption)),
+          Text(title,
+              style: WaouhText.onDark(WaouhText.h1.copyWith(fontSize: 21))),
+          if (subtitle != null)
+            Text(subtitle!, style: WaouhText.onDarkMuted(WaouhText.caption)),
         ],
       ),
-      flexibleSpace: const DecoratedBox(decoration: BoxDecoration(gradient: WaouhGradients.brand)),
+      flexibleSpace: const DecoratedBox(
+          decoration: BoxDecoration(gradient: WaouhGradients.brand)),
     );
   }
 }
@@ -261,7 +304,8 @@ class _LiveEmailAuthScreenState extends State<LiveEmailAuthScreen> {
       context.go(_nextRoute(context) ?? '/app/ia');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
 
@@ -282,7 +326,8 @@ class _LiveEmailAuthScreenState extends State<LiveEmailAuthScreen> {
       backgroundColor: WaouhPalette.pearl,
       appBar: _AuthHeader(title: title, subtitle: 'WaouhApp'),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(WaouhSpace.lg, WaouhSpace.lg, WaouhSpace.lg, WaouhSpace.xxl),
+        padding: const EdgeInsets.fromLTRB(
+            WaouhSpace.lg, WaouhSpace.lg, WaouhSpace.lg, WaouhSpace.xxl),
         children: [
           Container(
             padding: const EdgeInsets.all(4),
@@ -302,23 +347,28 @@ class _LiveEmailAuthScreenState extends State<LiveEmailAuthScreen> {
           const SizedBox(height: WaouhSpace.lg),
           if (tab != 2) ...[
             SocialSignInButton(
-              label: tab == 1 ? "S'inscrire avec Google" : 'Continuer avec Google',
+              label:
+                  tab == 1 ? "S'inscrire avec Google" : 'Continuer avec Google',
               icon: const GoogleMark(),
               loading: auth.loading,
-              onPressed: () => auth.signInWithGoogle().catchError((error) {
-                if (mounted) {
+              onPressed: () async {
+                try {
+                  await auth.signInWithGoogle();
+                } catch (error) {
+                  if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text(error.toString())),
                   );
                 }
-              }),
+              },
             ),
             const SizedBox(height: WaouhSpace.lg),
             Row(
               children: [
                 const Expanded(child: Divider(color: WaouhPalette.line)),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: WaouhSpace.sm),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: WaouhSpace.sm),
                   child: Text('OU PAR EMAIL', style: WaouhText.eyebrow),
                 ),
                 const Expanded(child: Divider(color: WaouhPalette.line)),
@@ -327,7 +377,10 @@ class _LiveEmailAuthScreenState extends State<LiveEmailAuthScreen> {
             const SizedBox(height: WaouhSpace.lg),
           ],
           if (tab == 1) ...[
-            _field(controller: name, label: 'Nom complet', icon: Icons.person_outline_rounded),
+            _field(
+                controller: name,
+                label: 'Nom complet',
+                icon: Icons.person_outline_rounded),
             const SizedBox(height: WaouhSpace.md),
           ],
           _field(
@@ -344,7 +397,11 @@ class _LiveEmailAuthScreenState extends State<LiveEmailAuthScreen> {
               icon: Icons.lock_outline_rounded,
               obscure: obscure,
               suffix: IconButton(
-                icon: Icon(obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 20),
+                icon: Icon(
+                    obscure
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                    size: 20),
                 onPressed: () => setState(() => obscure = !obscure),
               ),
             ),
@@ -368,10 +425,13 @@ class _LiveEmailAuthScreenState extends State<LiveEmailAuthScreen> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.error_outline_rounded, color: WaouhPalette.red, size: 18),
+                  const Icon(Icons.error_outline_rounded,
+                      color: WaouhPalette.red, size: 18),
                   const SizedBox(width: WaouhSpace.sm),
                   Expanded(
-                    child: Text(auth.error!, style: WaouhText.bodyStrong.copyWith(color: WaouhPalette.red)),
+                    child: Text(auth.error!,
+                        style: WaouhText.bodyStrong
+                            .copyWith(color: WaouhPalette.red)),
                   ),
                 ],
               ),
@@ -384,8 +444,10 @@ class _LiveEmailAuthScreenState extends State<LiveEmailAuthScreen> {
               onPressed: auth.loading ? null : () => _submit(auth),
               child: auth.loading
                   ? const SizedBox(
-                      width: 22, height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2.4, color: Colors.white),
                     )
                   : Text(cta, style: WaouhText.button),
             ),
@@ -481,7 +543,8 @@ class _LiveWhatsAppOtpScreenState extends State<LiveWhatsAppOtpScreen> {
       if (mounted) setState(() => sent = true);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.toString())));
       }
     }
   }
@@ -497,7 +560,8 @@ class _LiveWhatsAppOtpScreenState extends State<LiveWhatsAppOtpScreen> {
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.toString())));
       }
     }
   }
@@ -517,7 +581,8 @@ class _LiveWhatsAppOtpScreenState extends State<LiveWhatsAppOtpScreen> {
       if (mounted) context.go(_nextRoute(context) ?? '/app/ia');
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(error.toString())));
       }
     }
   }
@@ -537,14 +602,17 @@ class _LiveWhatsAppOtpScreenState extends State<LiveWhatsAppOtpScreen> {
         },
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(WaouhSpace.xl, WaouhSpace.xl, WaouhSpace.xl, WaouhSpace.xxl),
+        padding: const EdgeInsets.fromLTRB(
+            WaouhSpace.xl, WaouhSpace.xl, WaouhSpace.xl, WaouhSpace.xxl),
         children: [
           Center(
             child: Container(
               width: 84,
               height: 84,
-              decoration: const BoxDecoration(color: Color(0xFFE6FBEF), shape: BoxShape.circle),
-              child: const Icon(Icons.chat_bubble_rounded, size: 40, color: Color(0xFF25D366)),
+              decoration: const BoxDecoration(
+                  color: Color(0xFFE6FBEF), shape: BoxShape.circle),
+              child: const Icon(Icons.chat_bubble_rounded,
+                  size: 40, color: Color(0xFF25D366)),
             ),
           ),
           const SizedBox(height: WaouhSpace.xl),
@@ -565,32 +633,47 @@ class _LiveWhatsAppOtpScreenState extends State<LiveWhatsAppOtpScreen> {
             SizedBox(
               height: 54,
               child: FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
+                style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF25D366)),
                 onPressed: auth.loading ? null : () => _send(auth),
                 child: auth.loading
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
                     : const Text('Envoyer le code'),
               ),
             ),
           ] else if (step == 'otp') ...[
-            Text('Code recu sur ${phone.text}', textAlign: TextAlign.center, style: WaouhText.h3),
+            Text('Code recu sur ${phone.text}',
+                textAlign: TextAlign.center, style: WaouhText.h3),
             const SizedBox(height: WaouhSpace.lg),
             TextField(
               controller: code,
               maxLength: 6,
               keyboardType: TextInputType.number,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, letterSpacing: 10),
-              decoration: const InputDecoration(counterText: '', hintText: '------'),
+              style: const TextStyle(
+                  fontSize: 26, fontWeight: FontWeight.w900, letterSpacing: 10),
+              decoration:
+                  const InputDecoration(counterText: '', hintText: '------'),
             ),
             const SizedBox(height: WaouhSpace.lg),
             SizedBox(
               height: 54,
               child: FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: const Color(0xFF25D366)),
-                onPressed: auth.loading || code.text.length != 6 ? null : () => _verify(auth),
+                style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF25D366)),
+                onPressed: auth.loading || code.text.length != 6
+                    ? null
+                    : () => _verify(auth),
                 child: auth.loading
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
                     : const Text('Verifier'),
               ),
             ),
@@ -601,7 +684,8 @@ class _LiveWhatsAppOtpScreenState extends State<LiveWhatsAppOtpScreen> {
               ),
             ),
           ] else ...[
-            const Text('Completez votre profil', style: WaouhText.h1, textAlign: TextAlign.center),
+            const Text('Completez votre profil',
+                style: WaouhText.h1, textAlign: TextAlign.center),
             const SizedBox(height: WaouhSpace.xs),
             Text(
               'Pour finaliser votre compte WaouhApp',
@@ -609,7 +693,10 @@ class _LiveWhatsAppOtpScreenState extends State<LiveWhatsAppOtpScreen> {
               style: WaouhText.body.copyWith(color: WaouhPalette.muted),
             ),
             const SizedBox(height: WaouhSpace.xl),
-            _profileField(controller: fullName, label: 'Nom complet *', icon: Icons.person_outline_rounded),
+            _profileField(
+                controller: fullName,
+                label: 'Nom complet *',
+                icon: Icons.person_outline_rounded),
             const SizedBox(height: WaouhSpace.md),
             _profileField(
               controller: recoveryEmail,
@@ -618,14 +705,19 @@ class _LiveWhatsAppOtpScreenState extends State<LiveWhatsAppOtpScreen> {
               keyboardType: TextInputType.emailAddress,
             ),
             const SizedBox(height: WaouhSpace.sm),
-            Text('Utile pour recuperer votre compte.', style: WaouhText.caption),
+            Text('Utile pour recuperer votre compte.',
+                style: WaouhText.caption),
             const SizedBox(height: WaouhSpace.xl),
             SizedBox(
               height: 54,
               child: FilledButton(
                 onPressed: auth.loading ? null : () => _completeProfile(auth),
                 child: auth.loading
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
                     : const Text('Terminer'),
               ),
             ),
@@ -644,7 +736,8 @@ class _LiveWhatsAppOtpScreenState extends State<LiveWhatsAppOtpScreen> {
     return TextField(
       controller: controller,
       keyboardType: keyboardType,
-      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 20)),
+      decoration:
+          InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 20)),
     );
   }
 }

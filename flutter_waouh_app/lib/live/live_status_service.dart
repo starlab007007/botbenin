@@ -13,13 +13,16 @@ class LiveStatusService {
   Future<List<LiveStatus>> load({String? type}) async {
     final rows = await client
         .from('waouh_statuses')
-        .select('id,type,title,caption,price_fcfa,location,lat,lng,media_url,media_urls,author_name,author_avatar_url,article_id,views_count,created_at,expires_at')
+        .select(
+            'id,user_id,type,title,caption,price_fcfa,location,lat,lng,media_url,media_urls,author_name,author_avatar_url,article_id,views_count,created_at,expires_at')
         .gt('expires_at', DateTime.now().toUtc().toIso8601String())
         .order('created_at', ascending: false)
         .limit(100);
     return (rows as List)
-        .map((raw) => LiveStatus.fromJson(Map<String, dynamic>.from(raw as Map)))
-        .where((status) => status.active && (type == null || status.type == type))
+        .map(
+            (raw) => LiveStatus.fromJson(Map<String, dynamic>.from(raw as Map)))
+        .where(
+            (status) => status.active && (type == null || status.type == type))
         .toList();
   }
 
@@ -47,7 +50,8 @@ class LiveStatusService {
       );
       urls.add(uploaded.url);
     }
-    final response = await client.functions.invoke('waouh-status-publish', body: {
+    final response =
+        await client.functions.invoke('waouh-status-publish', body: {
       'type': type,
       'title': title.trim(),
       'caption': caption.trim().isEmpty ? null : caption.trim(),

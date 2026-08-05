@@ -1,3 +1,4 @@
+// WAOUH_V25_7_1_AUTH_ACTOR_STABLE
 // waouh-notify-dispatch
 // Unified notification dispatcher for the WAOUH cycle.
 // Always carries the same photos[] across channels (WhatsApp + in-app),
@@ -108,7 +109,10 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    let { kind, article_id, catalog_id, buyer_profile_id, recipient, extra_text, counterpart_user_id, counterpart_name, buyer_user_id, seller_user_id, thread_id } = body || {};
+    let { kind, article_id, catalog_id, buyer_profile_id, recipient, extra_text, counterpart_user_id, counterpart_name, buyer_user_id, seller_user_id, thread_id, negotiation_id, actions } = body || {};
+    const workflowActions = Array.isArray(actions)
+      ? actions.filter((item: any) => item && item.id && item.label).slice(0, 3)
+      : [];
     if (!kind || !recipient || (!article_id && !catalog_id)) {
       return new Response(JSON.stringify({ error: "kind, recipient and article_id|catalog_id are required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -257,7 +261,9 @@ serve(async (req) => {
           p_template: kind,
           p_payload: {
             text,
-            actions: [],
+            actions: workflowActions,
+            negotiation_id: negotiation_id ?? null,
+            workflow_state: kind === "new_buyer" ? "proposed" : kind,
             article_id,
             recipient,
             photos,
@@ -320,8 +326,13 @@ serve(async (req) => {
               eventType: kind,
               attachments: photos.slice(0, 4).map((url) => ({ url, type: "image/jpeg" })),
               imageUrl: photos[0] ?? null,
+              actions: workflowActions,
+              negotiationId: negotiation_id ?? null,
               dedupSuffix: `notify:${recipient}${counterpart_user_id ? `:cp_${counterpart_user_id}` : (buyer_profile_id ? `:${buyer_profile_id}` : "")}`,
               payloadExtra: {
+                negotiation_id: negotiation_id ?? null,
+                workflow_state: kind === "new_buyer" ? "proposed" : kind,
+                actions: workflowActions,
                 article_id,
                 recipient,
                 buyer_profile_id: buyer_profile_id ?? null,
@@ -384,6 +395,9 @@ serve(async (req) => {
           thread_id,
           counterpart_name: counterpart_name ?? buyerProfile?.name ?? buyerProfile?.display_name ?? null,
           article_id,
+          negotiation_id: negotiation_id ?? null,
+          workflow_state: kind === "new_buyer" ? "proposed" : kind,
+          actions: workflowActions,
           photos,
           contact: { channel: target.channel, whatsapp: target.whatsapp, partner_id: target.partnerId },
         },

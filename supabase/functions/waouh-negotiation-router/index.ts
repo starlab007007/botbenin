@@ -1,3 +1,4 @@
+// WAOUH_V25_7_1_AUTH_ACTOR_STABLE
 // WAOUH Negotiation Router — pilote l'échange acheteur↔vendeur après un match,
 // puis ouvre le workflow paiement/livraison sans partager les coordonnées.
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
@@ -539,7 +540,7 @@ Deno.serve(async (req) => {
         await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, article_id: neg.article_id, thread_id: activeThreadId, buyer_user_id: neg.buyer_user_id, seller_user_id: neg.seller_user_id, closed: true, from_user_id: user.id, target_role: otherRole }, `❌ ${isBuyer ? "L'acheteur" : "Le vendeur"} a refusé. Négociation clôturée.`, { intent: "negotiation_closed", negotiation_id: neg.id, article_id: neg.article_id, thread_id: activeThreadId, buyer_user_id: neg.buyer_user_id, seller_user_id: neg.seller_user_id, products: [stateProduct("cancelled", otherRole)] }, null, [], `neg:${neg.id}:closed:${otherUserId}`, "negotiation_closed", contextAttachments);
       }
       await bindThreadState(sb, activeThreadId, { status: "cancelled", negotiation_id: neg.id });
-      return new Response(JSON.stringify({ ok: true, reply: "OK, négociation fermée. Merci !", thread_id: activeThreadId, article_id: neg.article_id, products: [stateProduct("cancelled", isBuyer ? "buyer" : "seller")], attachments: contextAttachments }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ ok: true, reply: "OK, négociation fermée. Merci !", intent: "negotiation_closed", workflow_state: "closed", negotiation_id: neg.id, actions: [], thread_id: activeThreadId, article_id: neg.article_id, products: [stateProduct("cancelled", isBuyer ? "buyer" : "seller")], attachments: contextAttachments }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (intent.kind === "price" && intent.price) {
@@ -570,13 +571,15 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ limit: 20 }),
       }).catch(() => {});
       await bindThreadState(sb, activeThreadId, { status: "negotiating", negotiation_id: neg.id, transaction_id: neg.transaction_id });
-      return new Response(JSON.stringify({ ok: true, reply: `Contre-offre ${fmt(intent.price)} transmise.`, thread_id: activeThreadId, article_id: neg.article_id, transaction_id: neg.transaction_id, actions: negotiationActions(neg.id), products: [stateProduct("negotiating", isBuyer ? "buyer" : "seller", negotiationActions(neg.id), intent.price)], attachments: contextAttachments }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ ok: true, reply: `Contre-offre ${fmt(intent.price)} transmise.`, intent: "negotiation_counter_sent", workflow_state: "awaiting_counterparty", negotiation_id: neg.id, thread_id: activeThreadId, article_id: neg.article_id, transaction_id: neg.transaction_id, actions: [], products: [stateProduct("awaiting_counterparty", isBuyer ? "buyer" : "seller", [], intent.price)], attachments: contextAttachments }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     return new Response(JSON.stringify({
       ok: true,
       reply: "Choisissez Accepter, Refuser, ou saisissez un montant pour contre-proposer.",
       intent: "negotiation_decision",
+      workflow_state: neg.state,
+      negotiation_id: neg.id,
       actions: negotiationActions(neg.id),
       thread_id: activeThreadId,
       article_id: neg.article_id,

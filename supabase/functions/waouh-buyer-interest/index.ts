@@ -1,3 +1,4 @@
+// WAOUH_V25_7_1_AUTH_ACTOR_STABLE
 // waouh-buyer-interest
 // Records an explicit buyer interest on an article (independent from chat messages)
 // and notifies the seller via the unified dispatcher (in-app + WhatsApp).
@@ -17,7 +18,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const body = await req.json().catch(() => ({}));
-    let { article_id, catalog_id, source = "chat" } = body || {};
+    let { article_id, catalog_id, source = "chat", buyer_user_id: explicitBuyerUserId } = body || {};
     if (!article_id && !catalog_id) {
       return new Response(JSON.stringify({ error: "article_id or catalog_id required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -41,6 +42,7 @@ Deno.serve(async (req) => {
     // Resolve the calling user from the JWT (if any)
     const auth = req.headers.get("Authorization") ?? "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+    const trustedInternal = token === SERVICE_ROLE;
     let authUserId: string | null = null;
     if (token) {
       try {
@@ -48,15 +50,15 @@ Deno.serve(async (req) => {
         authUserId = data?.user?.id ?? null;
       } catch { /* anonymous */ }
     }
-    if (!authUserId) {
+    if (!authUserId && !trustedInternal) {
       return new Response(JSON.stringify({ error: "auth required" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     // Resolve buyer waouh_users id
-    let buyerUserId: string | null = null;
-    if (authUserId) {
+    let buyerUserId: string | null = trustedInternal ? (explicitBuyerUserId || null) : null;
+    if (!buyerUserId && authUserId) {
       const { data } = await sb.from("waouh_users")
         .select("id,auth_user_id,phone_number,web_session_id")
         .eq("auth_user_id", authUserId).maybeSingle();
@@ -160,6 +162,13 @@ Deno.serve(async (req) => {
       status: "negotiating",
       negotiation_id: negotiationId,
     });
+    const decisionActions = negotiationId
+      ? [
+          { id: `accepter:${negotiationId}`, label: "✅ Accepter le prix" },
+          { id: `contre-proposition:${negotiationId}`, label: "💬 Faire une contre-offre" },
+          { id: `refuser:${negotiationId}`, label: "❌ Refuser" },
+        ]
+      : [];
 
 
     // Always dispatch the seller notification. The dispatcher has its own
@@ -181,6 +190,9 @@ Deno.serve(async (req) => {
           seller_user_id: article.seller_id,
           counterpart_user_id: buyerUserId,
           recipient: "seller",
+          negotiation_id: negotiationId,
+          actions: decisionActions,
+          extra_text: `📩 Nouvel acheteur intéressé\n\n📦 ${(article as any).title || "Annonce"}\n💰 ${Number((article as any).price || 0).toLocaleString("fr-FR")} FCFA\n\nAcceptez le prix, faites une contre-offre ou refusez.`,
         }),
       });
       dispatched = true;
@@ -201,11 +213,7 @@ Deno.serve(async (req) => {
           const photos = Array.isArray((article as any)?.photos)
             ? (article as any).photos.filter((url: unknown) => typeof url === "string" && /^https?:\/\//i.test(url as string))
             : [];
-          const actions = [
-            { id: "accepter", label: "✅ Accepter le prix" },
-            { id: "contre-proposition", label: "💬 Proposer un prix" },
-            { id: "refuser", label: "❌ Refuser" },
-          ];
+          const actions = decisionActions;
           await pushSyncedEvent({
             sb,
             user: buyerUser,
@@ -229,6 +237,9 @@ Deno.serve(async (req) => {
             imageUrl: photos[0] ?? null,
             payloadExtra: {
               source,
+              workflow_state: "proposed",
+              negotiation_id: negotiationId,
+              actions,
               actions,
               products: [{
                 id: article_id,
@@ -265,6 +276,9 @@ Deno.serve(async (req) => {
       ok: true,
       duplicate: !!isDuplicate,
       seller_notified: dispatched,
+      negotiation_id: negotiationId,
+      workflow_state: negotiationId ? "proposed" : "interest_recorded",
+      actions: decisionActions,
       thread_id: threadId,
       article_id,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });

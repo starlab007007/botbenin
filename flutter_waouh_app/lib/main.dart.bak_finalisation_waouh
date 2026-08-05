@@ -354,23 +354,19 @@ class WaouhStatus {
     kind: parseStatusKind(json['type'] ?? json['kind']),
     title: asString(json['title']),
     caption: json['caption'] ?? json['detail'] ?? json['description'],
-    price: json['price_fcfa'] == null
-        ? (json['price'] == null ? null : asNum(json['price']))
-        : asNum(json['price_fcfa']),
+    price: json['price'] == null ? null : asNum(json['price']),
     location: json['location'] ?? json['city'] ?? json['ville'],
-    mediaUrls: <String>[
-      if (asString(json['media_url']).isNotEmpty) asString(json['media_url']),
-      ...(((json['media_urls'] ?? json['media_files'] ?? json['photos']) as List?)
-              ?.map((e) => asString(e))
-              .where((e) => e.isNotEmpty)
-              .toList() ??
-          const <String>[]),
-    ],
+    mediaUrls:
+        ((json['media_urls'] ?? json['media_files'] ?? json['photos']) as List?)
+            ?.map((e) => asString(e))
+            .where((e) => e.isNotEmpty)
+            .toList() ??
+        const [],
     createdAt: asDate(json['created_at']),
     expiresAt: asDate(json['expires_at']),
     authorName: json['author_name'] ?? json['display_name'],
     articleId: json['article_id'],
-    views: asNum(json['views_count'] ?? json['views']).toInt(),
+    views: asNum(json['views']).toInt(),
   );
 }
 
@@ -1220,12 +1216,10 @@ class StatusController extends ChangeNotifier {
       'description': caption,
       'caption': caption,
       'price': price,
-      'price_fcfa': price,
       'city': location,
       'location': location,
       'photos': mediaUrls,
       'media_urls': mediaUrls,
-      'media_kind': mediaUrls.isNotEmpty ? 'image' : null,
       'auth_user_id': auth.user?.id,
       'author_name': auth.profile?.fullName ?? auth.user?.email,
       'source': 'flutter_native',
@@ -1250,12 +1244,10 @@ class StatusController extends ChangeNotifier {
           'description': caption,
           'caption': caption,
           'price': price,
-          'price_fcfa': price,
           'city': location,
           'location': location,
           'photos': mediaUrls,
           'media_urls': mediaUrls,
-          'media_kind': mediaUrls.isNotEmpty ? 'image' : null,
           'expires_at': DateTime.now()
               .add(const Duration(hours: 24))
               .toIso8601String(),

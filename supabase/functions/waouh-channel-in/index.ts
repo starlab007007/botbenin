@@ -1,9 +1,11 @@
+// WAOUH_V25_7_1_AUTH_ACTOR_STABLE
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { lidToPhoneInline } from "../_shared/waouh-format.ts";
 import { resolveSiblingUserIds } from "../_shared/waouh-identity.ts";
 import { bindThreadState, resolveProductThread, resolveSearchThreadForActor } from "../_shared/waouh-thread.ts";
+import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 
 
@@ -384,6 +386,32 @@ serve(async (req) => {
     }
     log("user", { id: user?.id });
 
+    // WAOUH_V25_7_1_AUTH_ACTOR_CANONICALIZATION
+    // Le navigateur et Flutter peuvent créer plusieurs lignes waouh_users pour
+    // le même compte Auth. Avant de résoudre un thread préféré, on rattache
+    // l'acteur à la ligne exacte indiquée par son rôle, uniquement si elle
+    // appartient au même auth_user_id vérifié par le JWT.
+    if (channel === "web" && authUserId && user?.id) {
+      if (!user.auth_user_id) {
+        user = { ...user, auth_user_id: authUserId };
+      }
+      const hintedActorUserId = clientMeta?.role === "seller"
+        ? String(clientMeta?.seller_user_id || "").trim()
+        : clientMeta?.role === "buyer"
+          ? String(clientMeta?.buyer_user_id || "").trim()
+          : "";
+      if (hintedActorUserId && hintedActorUserId !== user.id) {
+        const { data: hintedActor } = await sb.from("waouh_users")
+          .select("*")
+          .eq("id", hintedActorUserId)
+          .maybeSingle();
+        if (hintedActor?.id && hintedActor.auth_user_id === authUserId) {
+          user = hintedActor;
+          log("canonical web actor", { id: user.id, role: clientMeta?.role });
+        }
+      }
+    }
+
     // Chat Meet : une relation active est déterminée par le produit, l'acheteur
     // et le vendeur. La conversation générale reste disponible, mais tous les
     // messages commerciaux portent désormais un thread_id autoritaire.
@@ -537,11 +565,103 @@ serve(async (req) => {
     }
     const inboundMessageId: string | null = inboundRow?.id ?? null;
 
+    // WAOUH_V25_6_DIRECT_CHAT_MIRROR
+    // Un message libre du Chat Meet doit être visible par l'autre partie dans
+    // le même thread. Les commandes commerciales structurées restent gérées
+    // exclusivement par negotiation-router / commerce-workflow pour éviter les
+    // doublons et conserver leurs cartes intelligentes autoritaires.
+    const directAction = String(
+      clientMeta?.commerce_action || clientMeta?.action || clientMeta?.intent || "",
+    ).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/_/g, "-");
+    const directText = String(text || "").trim().toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const structuredDirectActions = new Set([
+      "interested", "interesse", "interest", "buyer-interest",
+      "accept", "accepted", "accepter", "accept-offer", "negotiation-accept",
+      "reject", "rejected", "refuser", "reject-offer", "negotiation-reject",
+      "counter", "counter-offer", "contre-proposition", "negotiation-counter",
+      "payer-mobile", "paiement-livraison", "paiement-effectue",
+      "confirmer-disponibilite", "confirmer-reception", "signaler-probleme",
+      "annuler", "preparer", "suivre-livraison",
+    ]);
+    const structuredDirectText =
+      /^(?:oui|ok|d['’]?accord|j['’]?accepte|accepte|yes|non|no|je refuse|refuse)\b/.test(directText) ||
+      /^(?:je\s+)?propose\b/.test(directText) ||
+      /^(?:accepter|refuser|contre-proposition|payer-mobile|paiement-livraison|confirmer-disponibilite|confirmer-reception|annuler)(?::|\b)/.test(directText);
+    const shouldMirrorDirectChat = !!(
+      threadId &&
+      inboundArticleId &&
+      meet?.buyer_user_id &&
+      meet?.seller_user_id &&
+      !structuredDirectActions.has(directAction) &&
+      !structuredDirectText
+    );
+    if (shouldMirrorDirectChat) {
+      const targetRole: "buyer" | "seller" = requestedRole === "seller" ? "buyer" : "seller";
+      const targetUserId = targetRole === "buyer" ? meet!.buyer_user_id : meet!.seller_user_id;
+      if (targetUserId && targetUserId !== user.id) {
+        try {
+          const { data: targetUser } = await sb.from("waouh_users")
+            .select("id,phone_number,web_session_id,auth_user_id")
+            .eq("id", targetUserId)
+            .maybeSingle();
+          if (targetUser?.id) {
+            await pushSyncedEvent({
+              sb,
+              user: targetUser,
+              role: targetRole,
+              articleId: inboundArticleId,
+              text: text || "(image)",
+              intent: "direct_chat_message",
+              threadId,
+              buyerUserId: meet!.buyer_user_id,
+              sellerUserId: meet!.seller_user_id,
+              counterpartUserId: user.id,
+              actions: [],
+              attachments,
+              template: "direct_chat_message",
+              eventType: "direct_chat_message",
+              dedupSuffix: `direct:${idempotencyKey}`,
+              payloadExtra: {
+                workflow_state: "chat",
+                source_message_id: inboundMessageId,
+                sender_user_id: user.id,
+                sender_role: requestedRole,
+                counterpart_user_id: user.id,
+                actions: [],
+              },
+            });
+          }
+        } catch (e) {
+          console.warn("[waouh-channel-in] direct Chat Meet mirror failed", e);
+        }
+      }
+    }
+
     // === Real "interested buyer" signal ===
     // If the inbound message is tagged with an article (match chat window),
     // notify the seller ONCE per (article, buyer) pair. This replaces the old
     // publication-time seller spam.
     const articleIdFromMeta: string | null = clientMeta?.article_id ?? null;
+    const explicitInterest =
+      clientMeta?.action === "interested" ||
+      clientMeta?.intent === "interested" ||
+      clientMeta?.commerce_action === "interest";
+    if (articleIdFromMeta && explicitInterest) {
+      try {
+        await fetch(`${SUPABASE_URL}/functions/v1/waouh-buyer-interest`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            article_id: articleIdFromMeta,
+            buyer_user_id: meet?.buyer_user_id ?? user.id,
+            source: clientMeta?.source || clientMeta?.origin_surface || "flutter",
+          }),
+        });
+      } catch (e) {
+        console.warn("[waouh-channel-in] explicit buyer interest failed", e);
+      }
+    }
     if (articleIdFromMeta) {
       try {
         const { data: art } = await sb

@@ -16,9 +16,13 @@ class FaWebCorpusEntry {
 }
 
 class FaWebCorpusRepository {
+  FaWebCorpusRepository({AssetBundle? bundle}) : _bundle = bundle ?? rootBundle;
+
   static const assetPath = 'assets/fa_ia/fa_256_document_corpus.json';
   static const corpusVersion = '2026-07-23-corpus-book-256-v14';
   static const presentationVersion = '2026-07-24-corpus-presentation-v15';
+
+  final AssetBundle _bundle;
 
   Map<String, FaWebCorpusEntry>? _entries;
   Set<String>? _missing;
@@ -26,7 +30,7 @@ class FaWebCorpusRepository {
   Future<void> load() async {
     if (_entries != null && _missing != null) return;
 
-    final raw = await rootBundle.loadString(assetPath);
+    final raw = await _bundle.loadString(assetPath);
     final decoded = jsonDecode(raw);
     if (decoded is! Map) {
       throw const FormatException('Corpus FA invalide.');
@@ -122,6 +126,69 @@ class FaWebCorpusRepository {
       entry.text,
       'RÉPONSE ATTENDUE : français clair, précis et contextualisé, maximum ${focus.maxWords} mots. Ne mentionne aucune source, page, entrée ou livre. N’invente aucun verset, rituel, interdit ou prescription.',
     ].join('\n\n');
+  }
+
+  Future<String> localAnswer({
+    required FaWebResolvedSign sign,
+    required String category,
+    required String intention,
+    required String originalQuestion,
+    required FaWebFocus focus,
+  }) async {
+    await load();
+    final entry = _entries![sign.corpusKey];
+    if (entry == null) return missingMessage(sign.name);
+    if (focus.key == 'comprehensive') return exactReading(sign);
+
+    final paragraphs = entry.text
+        .split(RegExp(r'\n\n+'))
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+    final query = FaWebCatalog.normalizeText(<String>[
+      focus.label,
+      focus.instruction,
+      category,
+      intention,
+      originalQuestion,
+    ].join(' '));
+    final keywords =
+        query.split(RegExp(r'\s+')).where((word) => word.length >= 4).toSet();
+
+    final scored = <({int index, int score, String text})>[];
+    for (var index = 0; index < paragraphs.length; index++) {
+      final paragraph = paragraphs[index];
+      final normalized = FaWebCatalog.normalizeText(paragraph);
+      var score = 0;
+      for (final keyword in keywords) {
+        if (normalized.contains(keyword)) score += 1;
+      }
+      scored.add((index: index, score: score, text: paragraph));
+    }
+    scored.sort((a, b) {
+      final byScore = b.score.compareTo(a.score);
+      return byScore != 0 ? byScore : a.index.compareTo(b.index);
+    });
+
+    final selected = scored.where((item) => item.score > 0).take(5).toList();
+    final effective = selected.isEmpty ? scored.take(4).toList() : selected;
+    effective.sort((a, b) => a.index.compareTo(b.index));
+
+    final maxWords = focus.maxWords.clamp(120, 700);
+    final words = <String>[];
+    for (final item in effective) {
+      for (final word in item.text.split(RegExp(r'\s+'))) {
+        if (words.length >= maxWords) break;
+        words.add(word);
+      }
+      if (words.length >= maxWords) break;
+    }
+    final body = words.join(' ').trim();
+    if (body.isEmpty) return exactReading(sign);
+
+    return cleanAnswer(
+      '${focus.label} — ${sign.name}\n\n$body',
+    );
   }
 
   static String missingMessage(String name) {

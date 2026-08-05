@@ -8,9 +8,11 @@ import 'package:provider/provider.dart';
 import '../main.dart' as legacy;
 import 'live_controller.dart';
 import 'live_guest_action_gate.dart';
+import 'live_match_navigation.dart';
 import 'live_models.dart';
 import 'live_sell_sheet.dart';
 import 'live_smart_timeline.dart';
+import 'live_thread_flow.dart';
 import 'live_widgets.dart';
 
 class LiveMainChatScreen extends StatefulWidget {
@@ -26,11 +28,15 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
   final optimistic = <LiveMessage>[];
   Map<String, dynamic> pendingMeta = const {};
   late final Stream<List<LiveMessage>> _messageStream;
+  late final LiveWaouhController _controller;
+  bool _interestInFlight = false;
+  bool _interestNavigationFailed = false;
 
   @override
   void initState() {
     super.initState();
-    _messageStream = context.read<LiveWaouhController>().mainMessages();
+    _controller = context.read<LiveWaouhController>();
+    _messageStream = _controller.mainMessages();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final controller = context.read<LiveWaouhController>();
       final seed = controller.takeComposerSeed();
@@ -100,9 +106,15 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
     if (command.startsWith('ouvrir-meet:')) {
       final threadId = payload.substring('ouvrir-meet:'.length).trim();
       if (threadId.isNotEmpty && mounted) {
-        context.go(
-          '/app/chat/match/${Uri.encodeComponent('meet_$threadId')}',
+        final match = LiveMatch(
+          key: 'meet_$threadId',
+          articleId: '',
+          role: 'buyer',
+          title: 'Discussion produit',
+          lastAt: DateTime.now(),
+          threadId: threadId,
         );
+        unawaited(livePushMatchChat(context, match));
       }
       return;
     }
@@ -148,13 +160,18 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
       context,
       next: '/app/chat/waouh',
       actionLabel: 'envoyer un message ou lancer une recherche',
-    )) return;
-    final controller = context.read<LiveWaouhController>();
+    )) {
+      return;
+    }
+    if (!mounted) return;
+
+    final controller = _controller;
     final text = payload == null
         ? composer.text.trim()
         : liveCommercePayloadText(payload);
     final files = List<LiveAttachment>.from(attachments);
-    final meta = Map<String, dynamic>.from(pendingMeta)..remove('auto_send');
+    var meta = Map<String, dynamic>.from(pendingMeta)..remove('auto_send');
+
     final searchRequest = meta['intent'] == 'buy' ||
         meta['action'] == 'buy' ||
         RegExp(
@@ -162,58 +179,121 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
           caseSensitive: false,
         ).hasMatch(text);
     if (searchRequest) {
-      // Contrat client : le rendu accepte au maximum dix résultats.
-      // Les services plus récents peuvent exploiter ces deux alias.
       meta.putIfAbsent('result_limit', () => 10);
       meta.putIfAbsent('max_results', () => 10);
     }
+
     if (payload != null && payload.trim().isNotEmpty) {
       meta.addAll(liveCommercePayloadMeta(payload));
     }
+
     meta.putIfAbsent('idempotency_key', controller.newIdempotencyKey);
+    meta = liveCanonicalInterestedMeta(
+      text: text,
+      meta: meta,
+      authUserId: controller.auth.user?.id,
+    );
+    final interested = liveIsInterestedMeta(meta, text: text);
+    if (interested && _interestInFlight) {
+      _notice('Ouverture de la discussion déjà en cours.');
+      return;
+    }
+
     if (text.isEmpty && files.isEmpty) return;
+
+    if (interested) _interestInFlight = true;
+    final prepared = interested
+        ? controller.prepareInterestedMeet(text: text, meta: meta)
+        : null;
+
     final local = LiveMessage(
-        id: 'client_${DateTime.now().microsecondsSinceEpoch}',
-        text: text,
-        createdAt: DateTime.now(),
-        direction: 'in',
-        attachments: files,
-        meta: {
-          ...meta,
-          'delivery_state': controller.isOnline ? 'sending' : 'queued'
-        });
+      id: 'client_${DateTime.now().microsecondsSinceEpoch}',
+      text: text,
+      createdAt: DateTime.now(),
+      direction: 'in',
+      attachments: files,
+      meta: {
+        ...meta,
+        'delivery_state': controller.isOnline ? 'sending' : 'queued',
+      },
+    );
+
     setState(() {
       optimistic.add(local);
       composer.clear();
       attachments.clear();
       pendingMeta = const {};
     });
-    composerFocus.requestFocus();
+
+    // La navigation doit partir avant toute attente réseau. `_deliver` n'est
+    // créé qu'après le push afin qu'aucun upload, sessionId ou appel Supabase
+    // synchrone ne puisse retarder le premier frame de la nouvelle page.
+    if (prepared != null && mounted) {
+      unawaited(_openInterestedMatch(prepared));
+    } else {
+      composerFocus.requestFocus();
+    }
     unawaited(_deliver(local, meta));
   }
 
-  Future<void> _deliver(LiveMessage local, Map<String, dynamic> meta) async {
+  Future<void> _openInterestedMatch(LiveMatch match) async {
+    _interestNavigationFailed = false;
     try {
-      final controller = context.read<LiveWaouhController>();
-      await controller.sendMain(
-          text: local.text, attachments: local.attachments, meta: meta);
-      _replaceDelivery(local.id, controller.isOnline ? 'sent' : 'queued');
-      final pendingMatch = controller.takePendingMeet();
-      final pendingMatchKey = controller.takePendingMeetKey();
-      final matchKey = pendingMatch?.key ?? pendingMatchKey;
-      if (matchKey != null && mounted) {
-        context.go(
-          '/app/chat/match/${Uri.encodeComponent(matchKey)}',
-          extra: pendingMatch,
+      await livePushMatchChat<void>(context, match);
+    } catch (error) {
+      _interestNavigationFailed = true;
+      if (!mounted) return;
+      _notice(
+        'Impossible d’ouvrir la discussion produit. Réessayez depuis la carte.',
+      );
+    }
+  }
+
+  Future<void> _deliver(
+    LiveMessage local,
+    Map<String, dynamic> meta,
+  ) async {
+    final interested = liveIsInterestedMeta(meta, text: local.text);
+    try {
+      await _controller.sendMain(
+        text: local.text,
+        attachments: local.attachments,
+        meta: meta,
+      );
+      _replaceDelivery(
+        local.id,
+        _controller.isOnline ? 'sent' : 'queued',
+      );
+
+      // Filet de sécurité aligné sur le Web : si un ancien payload local n'a
+      // pas été reconnu, le backend peut quand même renvoyer un intent/article
+      // structuré. Le contrôleur publie alors le Match autoritaire ou provisoire
+      // correspondant et cette page l'ouvre après la réponse.
+      final responseMeet = _controller.takePendingMeet();
+      if (responseMeet != null &&
+          mounted &&
+          (!interested || _interestNavigationFailed)) {
+        unawaited(_openInterestedMatch(responseMeet));
+      }
+    } catch (error) {
+      _replaceDelivery(local.id, 'failed');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              interested
+                  ? 'Intérêt non finalisé : ${error.toString()}'
+                  : 'Message non envoyé.',
+            ),
+            action: SnackBarAction(
+              label: 'Réessayer',
+              onPressed: () => _retry(local, meta),
+            ),
+          ),
         );
       }
-    } catch (_) {
-      _replaceDelivery(local.id, 'failed');
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: const Text('Message non envoyé.'),
-            action: SnackBarAction(
-                label: 'Réessayer', onPressed: () => _retry(local, meta))));
+    } finally {
+      if (interested) _interestInFlight = false;
     }
   }
 

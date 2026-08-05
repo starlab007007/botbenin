@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
 
+import 'live_commerce_workflow.dart';
 import 'live_models.dart';
 import 'live_widgets.dart';
 
+/// Timeline unique du Chat Meet.
+///
+/// Une seule étape commerciale est active à la fois : les boutons d'une
+/// ancienne offre disparaissent dès qu'une réponse est envoyée ou qu'un état
+/// terminal est reçu. Cela évite les doubles acceptations et les payloads
+/// obsolètes après une contre-offre.
 class LiveSmartTimeline extends StatefulWidget {
   const LiveSmartTimeline({
     super.key,
@@ -44,9 +51,8 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
     if (newest.id == _lastMessageId) return;
     _lastMessageId = newest.id;
     if (_followTail || newest.outgoing) {
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _scrollToBottom(true),
-      );
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _scrollToBottom(true));
     } else {
       setState(() => _unseen += 1);
     }
@@ -74,11 +80,11 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
     } else {
       _scrollController.jumpTo(target);
     }
-    if (mounted)
-      setState(() {
-        _followTail = true;
-        _unseen = 0;
-      });
+    if (!mounted) return;
+    setState(() {
+      _followTail = true;
+      _unseen = 0;
+    });
   }
 
   @override
@@ -102,6 +108,8 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
         ),
       );
     }
+
+    final latestActionIndex = liveLatestActionableMessageIndex(widget.messages);
     return Stack(
       children: [
         ListView.builder(
@@ -111,13 +119,19 @@ class _LiveSmartTimelineState extends State<LiveSmartTimeline> {
           itemCount:
               widget.messages.length + (widget.showAssistantHint ? 1 : 0),
           itemBuilder: (_, index) {
-            if (index == widget.messages.length)
+            if (index == widget.messages.length) {
               return _AssistantHint(
-                searching: _isSearchRequest(widget.messages),
-              );
+                  searching: _isSearchRequest(widget.messages));
+            }
+            final message = widget.messages[index];
+            final standaloneProductInterest =
+                liveMessageHasStandaloneProductInterestActions(message);
+            final enabled =
+                index == latestActionIndex || standaloneProductInterest;
             return LiveMessageBubble(
-              message: widget.messages[index],
-              onPayload: widget.onPayload,
+              message: message,
+              actionsEnabled: enabled,
+              onPayload: enabled ? widget.onPayload : null,
             );
           },
         ),
@@ -172,7 +186,7 @@ class _AssistantHint extends StatelessWidget {
                 child: Text(
                   searching
                       ? 'WAOUH recherche et organise les résultats…'
-                      : 'WAOUH analyse votre message…',
+                      : 'WAOUH traite l’étape en cours…',
                   style: const TextStyle(
                     color: Color(0xFF075E54),
                     fontSize: 12.5,

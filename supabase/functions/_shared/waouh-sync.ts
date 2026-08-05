@@ -1,3 +1,4 @@
+// WAOUH_V25_7_1_AUTH_ACTOR_STABLE
 // WAOUH — Synchronisation universelle chat ↔ WhatsApp (par partie).
 //
 // Pour CHAQUE partie d'un évènement (acheteur OU vendeur), insère un
@@ -39,6 +40,7 @@ export interface PushSyncedEventArgs {
   attachments?: Array<{ url: string; type: string; caption?: string }>;
   imageUrl?: string | null;
   payloadExtra?: Record<string, any>;
+  actions?: Array<{ id: string; label: string; url?: string }>;
   // Optional: explicit phone to skip resolution (rare)
   forcePhoneE164?: string | null;
   // Suffix to disambiguate same intent for same user (ex: actor vs recipient)
@@ -79,7 +81,7 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
     threadId = null, buyerUserId = null, sellerUserId = null,
     counterpartUserId = null,
     template, eventType, attachments = [], imageUrl = null,
-    payloadExtra = {}, forcePhoneE164 = null, dedupSuffix = "",
+    payloadExtra = {}, actions = [], forcePhoneE164 = null, dedupSuffix = "",
     traceId: traceIdIn = null,
   } = args;
   const traceId = traceIdIn || newTraceId();
@@ -106,6 +108,7 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
     counterpart_user_id: counterpartUserId,
     role,
     trace_id: traceId,
+    actions,
     ...payloadExtra,
   };
 
@@ -152,7 +155,7 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
   const basePayload = {
     ...payloadExtra,
     text,
-    actions: [] as Array<{ id: string; label: string }>,
+    actions,
     article_id: articleId ?? null,
     negotiation_id: negotiationId,
     transaction_id: transactionId,
