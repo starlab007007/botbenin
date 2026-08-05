@@ -17,13 +17,13 @@ const fetchUrl = (input: FetchInput): string => {
   return (input as Request).url;
 };
 
+const isWaouhChannelIn = (url: string): boolean =>
+  url.includes('/functions/v1/waouh-channel-in') &&
+  !url.includes('/functions/v1/waouh-channel-in-secure');
+
 const rewriteWaouhFunctionInput = (input: FetchInput): FetchInput => {
   const rawUrl = fetchUrl(input);
-  if (
-    rawUrl &&
-    rawUrl.includes('/functions/v1/waouh-channel-in') &&
-    !rawUrl.includes('/functions/v1/waouh-channel-in-secure')
-  ) {
+  if (rawUrl && isWaouhChannelIn(rawUrl)) {
     const secureUrl = rawUrl.replace('/functions/v1/waouh-channel-in', '/functions/v1/waouh-channel-in-secure');
     if (typeof input === 'string') return secureUrl;
     if (input instanceof URL) return new URL(secureUrl);
@@ -32,45 +32,77 @@ const rewriteWaouhFunctionInput = (input: FetchInput): FetchInput => {
   return input;
 };
 
+const cloneInitForRetry = (init?: RequestInit): RequestInit | undefined => {
+  if (!init) return undefined;
+  const headers = new Headers(init.headers || undefined);
+  return { ...init, headers };
+};
+
+const shouldFallbackToLegacyWaouhChannel = (res: Response): boolean => {
+  // 404 = fonction secure pas encore déployée.
+  // 502/503/504 = Edge Runtime ou proxy temporairement indisponible.
+  // 500 est toléré ici pour rétablir le chat pendant la migration, mais les
+  // erreurs métier/sécurité 400/401/403 ne retombent jamais sur l'ancien endpoint.
+  return [404, 500, 502, 503, 504].includes(res.status);
+};
+
 // Hardened fetch wrapper: timeout + 1 retry to avoid hung promises on flaky networks
 // (root cause of ERR_TIMED_OUT loops on /app/chat over 2G/3G).
 const TIMEOUT_MS = 12_000;
 const hardenedFetch: typeof fetch = async (originalInput, init) => {
+  const originalUrl = fetchUrl(originalInput);
+  const usesWaouhSecureMigration = isWaouhChannelIn(originalUrl);
   const input = rewriteWaouhFunctionInput(originalInput);
   const url = fetchUrl(input);
   // Never wrap realtime/storage upload streams.
   const isRealtime = url.includes('/realtime/');
   if (isRealtime) return fetch(input, init);
 
-  const attempt = async (signalTimeout: number) => {
+  const attempt = async (attemptInput: FetchInput, attemptInit: RequestInit | undefined, signalTimeout: number) => {
     const ctrl = new AbortController();
     // Chain external abort signal if any
-    const ext = init?.signal;
+    const ext = attemptInit?.signal;
     if (ext) {
       if (ext.aborted) ctrl.abort(ext.reason);
       else ext.addEventListener('abort', () => ctrl.abort(ext.reason), { once: true });
     }
     const to = setTimeout(() => ctrl.abort(new DOMException('Timeout', 'TimeoutError')), signalTimeout);
     try {
-      return await fetch(input, { ...init, signal: ctrl.signal });
+      return await fetch(attemptInput, { ...(attemptInit || {}), signal: ctrl.signal });
     } finally {
       clearTimeout(to);
     }
   };
 
   try {
-    const res = await attempt(TIMEOUT_MS);
-    // Detect 402 exceed_egress_quota globally so the UI can show a degraded-mode banner.
+    const res = await attempt(input, init, TIMEOUT_MS);
     void inspectResponseForQuota(res);
+
+    if (usesWaouhSecureMigration && shouldFallbackToLegacyWaouhChannel(res)) {
+      console.warn('[waouh-chat] waouh-channel-in-secure unavailable, fallback legacy', res.status);
+      const legacyRes = await attempt(originalInput, cloneInitForRetry(init), TIMEOUT_MS);
+      void inspectResponseForQuota(legacyRes);
+      return legacyRes;
+    }
+
     return res;
   } catch (e: any) {
+    if (usesWaouhSecureMigration) {
+      console.warn('[waouh-chat] waouh-channel-in-secure request failed, fallback legacy', e?.message || e);
+      try {
+        const legacyRes = await attempt(originalInput, cloneInitForRetry(init), TIMEOUT_MS);
+        void inspectResponseForQuota(legacyRes);
+        return legacyRes;
+      } catch {}
+    }
+
     const method = (init?.method || 'GET').toUpperCase();
     const idempotent = method === 'GET' || method === 'HEAD';
     const isAbort = e?.name === 'AbortError' || e?.name === 'TimeoutError';
     if (!idempotent || !isAbort) throw e;
     // One short retry for read requests
     await new Promise((r) => setTimeout(r, 400));
-    const res = await attempt(TIMEOUT_MS);
+    const res = await attempt(input, cloneInitForRetry(init), TIMEOUT_MS);
     void inspectResponseForQuota(res);
     return res;
   }
