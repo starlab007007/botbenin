@@ -9,10 +9,25 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
+const rewriteWaouhFunctionInput = (input: Parameters<typeof fetch>[0]): Parameters<typeof fetch>[0] => {
+  const rawUrl = typeof input === 'string' ? input : (input as Request).url;
+  if (
+    rawUrl &&
+    rawUrl.includes('/functions/v1/waouh-channel-in') &&
+    !rawUrl.includes('/functions/v1/waouh-channel-in-secure')
+  ) {
+    const secureUrl = rawUrl.replace('/functions/v1/waouh-channel-in', '/functions/v1/waouh-channel-in-secure');
+    if (typeof input === 'string') return secureUrl;
+    return new Request(secureUrl, input as Request);
+  }
+  return input;
+};
+
 // Hardened fetch wrapper: timeout + 1 retry to avoid hung promises on flaky networks
 // (root cause of ERR_TIMED_OUT loops on /app/chat over 2G/3G).
 const TIMEOUT_MS = 12_000;
-const hardenedFetch: typeof fetch = async (input, init) => {
+const hardenedFetch: typeof fetch = async (originalInput, init) => {
+  const input = rewriteWaouhFunctionInput(originalInput);
   const url = typeof input === 'string' ? input : (input as Request).url;
   // Never wrap realtime/storage upload streams.
   const isRealtime = url.includes('/realtime/');
