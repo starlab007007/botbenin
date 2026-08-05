@@ -19,7 +19,6 @@ import { ChatImageLightbox } from "@/app-mobile/components/ChatImageLightbox";
 import { isImageReady, preloadImage, prefetchNeighbours } from "@/components/waouh/waouhImageCache";
 import { cn } from "@/lib/utils";
 
-
 /**
  * Fiche produit d'un résultat de recherche WAOUH.
  * INVARIANT : 1 fiche = 1 article + SES propres photos.
@@ -57,6 +56,12 @@ function SourceIcon({ source }: { source?: string }) {
   return <ShoppingBag className="h-3.5 w-3.5 text-primary" />;
 }
 
+const defaultInterestAction = (result: WaouhResultCard): string | null => {
+  const idx = Number(result.index);
+  if (!Number.isFinite(idx) || idx <= 0) return null;
+  return `intéressé ${idx}`;
+};
+
 export function WaouhProductCard({
   result,
   onAction,
@@ -73,6 +78,7 @@ export function WaouhProductCard({
   const [asking, setAsking] = useState(false);
   const [question, setQuestion] = useState("");
   const gallery = photos.map((url) => ({ url, caption: result.title }));
+  const interestAction = result.action || defaultInterestAction(result);
 
   // Cache + préchargement des voisins → carrousel fluide même avec plusieurs résultats
   useEffect(() => {
@@ -201,11 +207,11 @@ export function WaouhProductCard({
         {/* Actions dédiées à CET article — chacune reste rattachée à sa fenêtre */}
         {onAction && (
           <div className="mt-1 space-y-1.5">
-            {result.action && (
+            {interestAction && (
               <Button
                 size="sm"
                 className="w-full h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-                onClick={() => onAction(result.action!)}
+                onClick={() => onAction(interestAction)}
               >
                 Je suis intéressé
               </Button>
@@ -256,7 +262,6 @@ export function WaouhProductCard({
   );
 }
 
-
 export function WaouhProductResults({
   results,
   onAction,
@@ -267,9 +272,14 @@ export function WaouhProductResults({
   compact?: boolean;
 }) {
   if (!results?.length) return null;
+  const normalized = results.map((r, i) => ({
+    ...r,
+    index: Number(r.index) || i + 1,
+    action: r.action || `intéressé ${Number(r.index) || i + 1}`,
+  }));
   return (
     <div className="not-prose mt-2 grid gap-2 sm:grid-cols-2">
-      {results.map((r) => (
+      {normalized.map((r) => (
         <WaouhProductCard key={`${r.id}-${r.index}`} result={r} onAction={onAction} compact={compact} />
       ))}
     </div>
@@ -286,7 +296,7 @@ export default WaouhProductCard;
 export function validateResultsInvariant(results: WaouhResultCard[], lastMatches?: Array<{ id: string }>): boolean {
   return results.every((r, i) => {
     if (r.index !== i + 1) return false;
-    if (r.action && r.action !== `intéressé ${i + 1}`) return false;
+    if ((r.action || `intéressé ${i + 1}`) !== `intéressé ${i + 1}`) return false;
     if (lastMatches && lastMatches[i] && lastMatches[i].id !== r.id) return false;
     return true;
   });
