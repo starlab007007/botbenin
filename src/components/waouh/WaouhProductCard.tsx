@@ -35,12 +35,33 @@ export interface WaouhResultCard {
   quartier?: string | null;
   condition?: string | null;
   distance_km?: number | null;
-  source?: "partner" | "waouh" | "radar" | string;
+  source?: "partner" | "waouh" | "radar" | "chat" | string;
   badge?: string | null;
   market_line?: string | null;
   photos?: string[] | null;
+  /**
+   * undefined = générer automatiquement « intéressé N ».
+   * null = pas d'action d'intérêt (ex : fiche de confirmation déjà ouverte).
+   */
   action?: string | null;
+  /** Optionnel : fourni par certaines surfaces pour ouvrir directement 1 article × 1 interlocuteur. */
+  seller_id?: string | null;
+  counterpart_user_id?: string | null;
 }
+
+type OpenDetail = {
+  article_id: string;
+  counterpart_user_id: string | null;
+  seller_user_id?: string | null;
+  kind: "buyer";
+  title: string;
+  price: number | null;
+  city: string | null;
+  photo: string | null;
+  source: string;
+};
+
+const PENDING_OPEN_KEY = "waouh_pending_open";
 
 const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
 
@@ -62,6 +83,51 @@ const defaultInterestAction = (result: WaouhResultCard): string | null => {
   return `intéressé ${idx}`;
 };
 
+const canonicalKey = (d: OpenDetail) => `art_${d.article_id}_buyer_${d.counterpart_user_id ?? "any"}`;
+
+function bufferOpenIntent(detail: OpenDetail) {
+  try {
+    const raw = localStorage.getItem(PENDING_OPEN_KEY);
+    const arr = raw ? (JSON.parse(raw) as any[]) : [];
+    const key = canonicalKey(detail);
+    const filtered = arr.filter((d: any) => {
+      const candidate = `art_${d?.article_id ?? "none"}_${d?.kind === "seller" ? "seller" : "buyer"}_${d?.counterpart_user_id ?? "any"}`;
+      return candidate !== key;
+    });
+    filtered.push(detail);
+    localStorage.setItem(PENDING_OPEN_KEY, JSON.stringify(filtered.slice(-10)));
+  } catch {}
+}
+
+function shouldOpenOptimistically(result: WaouhResultCard): boolean {
+  // Les sources partner/radar peuvent nécessiter une promotion backend avant d'avoir
+  // un vrai waouh_articles.id. Les annonces créées dans WAOUH/chat portent déjà l'id article.
+  const src = String(result.source || "waouh").toLowerCase();
+  return !!result.id && src !== "partner" && src !== "radar";
+}
+
+function openDedicatedWindowFromResult(result: WaouhResultCard) {
+  if (!shouldOpenOptimistically(result)) return;
+  const photos = (result.photos || []).filter(Boolean);
+  const detail: OpenDetail = {
+    article_id: result.id,
+    counterpart_user_id: result.counterpart_user_id ?? result.seller_id ?? null,
+    seller_user_id: result.seller_id ?? result.counterpart_user_id ?? null,
+    kind: "buyer",
+    title: result.title || "Annonce",
+    price: Number(result.price ?? result.price_min ?? result.price_max ?? 0) || null,
+    city: result.city ?? null,
+    photo: photos[0] ?? null,
+    source: "product_card_interest",
+  };
+  bufferOpenIntent(detail);
+  window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));
+  // Double émission courte : couvre le cas où le panneau droit / mobile tabs se monte juste après le clic.
+  window.setTimeout(() => {
+    window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));
+  }, 120);
+}
+
 export function WaouhProductCard({
   result,
   onAction,
@@ -78,9 +144,8 @@ export function WaouhProductCard({
   const [asking, setAsking] = useState(false);
   const [question, setQuestion] = useState("");
   const gallery = photos.map((url) => ({ url, caption: result.title }));
-  const interestAction = result.action || defaultInterestAction(result);
+  const interestAction = result.action === null ? null : (result.action || defaultInterestAction(result));
 
-  // Cache + préchargement des voisins → carrousel fluide même avec plusieurs résultats
   useEffect(() => {
     const url = photos[cur];
     if (!url) return;
@@ -106,9 +171,14 @@ export function WaouhProductCard({
     setAsking(false);
   };
 
+  const handleInterest = () => {
+    if (!interestAction || !onAction) return;
+    openDedicatedWindowFromResult(result);
+    onAction(interestAction);
+  };
+
   return (
     <div className="not-prose rounded-xl border border-border bg-card overflow-hidden shadow-sm">
-      {/* Carrousel — photos de CET article uniquement */}
       <div className={cn("relative bg-muted", compact ? "aspect-[16/10]" : "aspect-[4/3]")}>
         {photos.length > 0 ? (
           <>
@@ -118,19 +188,14 @@ export function WaouhProductCard({
               className="block w-full h-full"
               aria-label={`Agrandir la photo de ${result.title}`}
             >
-              {!ready && (
-                <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-muted to-muted-foreground/10" />
-              )}
+              {!ready && <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-muted to-muted-foreground/10" />}
               <img
                 src={photos[cur]}
                 alt={result.title}
                 loading="lazy"
                 decoding="async"
                 onLoad={() => setReady(true)}
-                className={cn(
-                  "w-full h-full object-cover transition-opacity duration-200",
-                  ready ? "opacity-100" : "opacity-0"
-                )}
+                className={cn("w-full h-full object-cover transition-opacity duration-200", ready ? "opacity-100" : "opacity-0")}
               />
             </button>
             <button
@@ -204,34 +269,23 @@ export function WaouhProductCard({
           <p className="text-[11px] leading-snug text-muted-foreground line-clamp-3">{result.market_line}</p>
         )}
 
-        {/* Actions dédiées à CET article — chacune reste rattachée à sa fenêtre */}
         {onAction && (
           <div className="mt-1 space-y-1.5">
             {interestAction && (
               <Button
                 size="sm"
                 className="w-full h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-                onClick={() => onAction(interestAction)}
+                onClick={handleInterest}
               >
                 Je suis intéressé
               </Button>
             )}
             <div className="grid grid-cols-2 gap-1.5">
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 text-[11px]"
-                onClick={() => setAsking((a) => !a)}
-              >
+              <Button size="sm" variant="outline" className="h-8 text-[11px]" onClick={() => setAsking((a) => !a)}>
                 <MessageCircleQuestion className="h-3.5 w-3.5 mr-1" />
                 Question au {counterpartWord}
               </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-8 text-[11px] text-muted-foreground hover:text-destructive"
-                onClick={() => onAction(`annuler ${result.index}`)}
-              >
+              <Button size="sm" variant="ghost" className="h-8 text-[11px] text-muted-foreground hover:text-destructive" onClick={() => onAction(`annuler ${result.index}`)}>
                 <X className="h-3.5 w-3.5 mr-1" />
                 Annuler
               </Button>
@@ -272,11 +326,14 @@ export function WaouhProductResults({
   compact?: boolean;
 }) {
   if (!results?.length) return null;
-  const normalized = results.map((r, i) => ({
-    ...r,
-    index: Number(r.index) || i + 1,
-    action: r.action || `intéressé ${Number(r.index) || i + 1}`,
-  }));
+  const normalized = results.map((r, i) => {
+    const idx = Number(r.index) || i + 1;
+    return {
+      ...r,
+      index: idx,
+      action: r.action === null ? null : (r.action || `intéressé ${idx}`),
+    };
+  });
   return (
     <div className="not-prose mt-2 grid gap-2 sm:grid-cols-2">
       {normalized.map((r) => (
@@ -296,7 +353,8 @@ export default WaouhProductCard;
 export function validateResultsInvariant(results: WaouhResultCard[], lastMatches?: Array<{ id: string }>): boolean {
   return results.every((r, i) => {
     if (r.index !== i + 1) return false;
-    if ((r.action || `intéressé ${i + 1}`) !== `intéressé ${i + 1}`) return false;
+    const expected = `intéressé ${i + 1}`;
+    if (r.action !== null && (r.action || expected) !== expected) return false;
     if (lastMatches && lastMatches[i] && lastMatches[i].id !== r.id) return false;
     return true;
   });
