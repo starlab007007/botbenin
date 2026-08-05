@@ -9,8 +9,16 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-const rewriteWaouhFunctionInput = (input: Parameters<typeof fetch>[0]): Parameters<typeof fetch>[0] => {
-  const rawUrl = typeof input === 'string' ? input : (input as Request).url;
+type FetchInput = Parameters<typeof fetch>[0];
+
+const fetchUrl = (input: FetchInput): string => {
+  if (typeof input === 'string') return input;
+  if (input instanceof URL) return input.toString();
+  return (input as Request).url;
+};
+
+const rewriteWaouhFunctionInput = (input: FetchInput): FetchInput => {
+  const rawUrl = fetchUrl(input);
   if (
     rawUrl &&
     rawUrl.includes('/functions/v1/waouh-channel-in') &&
@@ -18,6 +26,7 @@ const rewriteWaouhFunctionInput = (input: Parameters<typeof fetch>[0]): Paramete
   ) {
     const secureUrl = rawUrl.replace('/functions/v1/waouh-channel-in', '/functions/v1/waouh-channel-in-secure');
     if (typeof input === 'string') return secureUrl;
+    if (input instanceof URL) return new URL(secureUrl);
     return new Request(secureUrl, input as Request);
   }
   return input;
@@ -28,7 +37,7 @@ const rewriteWaouhFunctionInput = (input: Parameters<typeof fetch>[0]): Paramete
 const TIMEOUT_MS = 12_000;
 const hardenedFetch: typeof fetch = async (originalInput, init) => {
   const input = rewriteWaouhFunctionInput(originalInput);
-  const url = typeof input === 'string' ? input : (input as Request).url;
+  const url = fetchUrl(input);
   // Never wrap realtime/storage upload streams.
   const isRealtime = url.includes('/realtime/');
   if (isRealtime) return fetch(input, init);
@@ -76,7 +85,7 @@ const sessionHeaderFetch: typeof fetch = (input, init) => {
       ? localStorage.getItem('waouh_web_session_id')
       : null;
     if (sid) {
-      const headers = new Headers(init?.headers || (typeof input !== 'string' && 'headers' in (input as Request) ? (input as Request).headers : undefined));
+      const headers = new Headers(init?.headers || (typeof input !== 'string' && !(input instanceof URL) && 'headers' in (input as Request) ? (input as Request).headers : undefined));
       if (!headers.has('x-waouh-session')) headers.set('x-waouh-session', sid);
       return hardenedFetch(input, { ...(init || {}), headers });
     }
