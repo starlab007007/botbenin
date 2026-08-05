@@ -1,0 +1,45 @@
+name: Deploy WAOUH Edge Functions
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - prod
+    paths:
+      - 'supabase/functions/waouh-history/**'
+      - 'supabase/functions/waouh-channel-in-secure/**'
+      - 'supabase/functions/_shared/waouh-auth.ts'
+      - '.github/workflows/deploy-waouh-edge.yml'
+
+jobs:
+  deploy-waouh-edge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Validate WAOUH Edge sources
+        run: |
+          set -euo pipefail
+          test -f supabase/functions/_shared/waouh-auth.ts
+          test -f supabase/functions/waouh-history/index.ts
+          test -f supabase/functions/waouh-channel-in-secure/index.ts
+          grep -q 'invalid_guest_session' supabase/functions/_shared/waouh-auth.ts
+          grep -q 'auth_user_mismatch' supabase/functions/waouh-history/index.ts
+          grep -q 'waouh-channel-in-secure' supabase/functions/waouh-channel-in-secure/index.ts
+          echo '✅ Sources Edge WAOUH sécurisées prêtes'
+
+      - name: Deploy secured WAOUH Edge Functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: mvynepqulhflxtyymtzs
+        run: |
+          set -euo pipefail
+          supabase functions deploy waouh-history --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+          supabase functions deploy waouh-channel-in-secure --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+          echo '✅ Edge Functions WAOUH déployées'
