@@ -14,8 +14,27 @@
   <meta property="og:url" content="https://bot.bj/privatia" />
   <meta property="og:site_name" content="BOT.BJ" />
   <meta name="twitter:card" content="summary_large_image" />
-  <link rel="stylesheet" href="/privatia/styles.css?v=20260808-3" />
-  <script defer src="/privatia/app.js?v=20260808-3"></script>
+  <link rel="stylesheet" href="/privatia/styles.css?v=20260808-4" />
+  <style>
+    .pa-svg{display:block;width:1em;height:1em;overflow:visible;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+    .pa-svg.fill{fill:currentColor;stroke:none}
+    .pa-platform-logo{width:34px;height:34px;flex:0 0 34px;display:block;color:currentColor}
+    .pa-platform-logo.windows{fill:currentColor;stroke:none}
+    .pa-platform-logo.apple{fill:currentColor;stroke:none}
+    .pa-theme .pa-svg{width:17px;height:17px}
+    .pa-trust b .pa-svg{width:13px;height:13px}
+    .pa-step-icon .pa-svg{width:23px;height:23px}
+    .pa-security-card>i .pa-svg{width:23px;height:23px;margin:auto}
+    .pa-settings .pa-svg{width:13px;height:13px;display:inline-block;vertical-align:-2px;margin-right:4px}
+    .pa-local-status .pa-svg{width:14px;height:14px;display:inline-block;vertical-align:-3px;margin-right:4px}
+    .pa-download.pa-windows:not(.recommended),.pa-download.pa-mac:not(.recommended){background:#fff!important;color:#111827!important;border-color:#e3e8ef!important;box-shadow:0 8px 20px rgba(16,24,40,.06)!important}
+    .pa-download.recommended{background:linear-gradient(135deg,#6754ee,#5540d4)!important;color:#fff!important;border-color:transparent!important;box-shadow:0 14px 30px rgba(102,84,235,.26)!important}
+    .pa-download:not(.recommended) .pa-recommended{display:none!important}
+    .pa-download.recommended .pa-recommended{display:inline-flex!important}
+    .pa-page[data-theme="dark"] .pa-download.pa-windows:not(.recommended),.pa-page[data-theme="dark"] .pa-download.pa-mac:not(.recommended){background:#171c2b!important;color:#f8fafc!important;border-color:#30384b!important}
+    @media(max-width:720px){.pa-platform-logo{width:30px;height:30px;flex-basis:30px}}
+  </style>
+  <script defer src="/privatia/app.js?v=20260808-4"></script>
 </head>
 <body>
   <main class="pa-page" id="top">
@@ -32,8 +51,8 @@
           <a href="#download">Télécharger</a>
         </div>
         <button class="pa-theme" type="button" aria-label="Changer le thème" aria-pressed="false">
-          <span class="pa-theme-sun" aria-hidden="true">☼</span>
-          <span class="pa-theme-moon" aria-hidden="true">◐</span>
+          <span class="pa-theme-sun" aria-hidden="true"><svg class="pa-svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg></span>
+          <span class="pa-theme-moon" aria-hidden="true"><svg class="pa-svg" viewBox="0 0 24 24"><path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5 8.7 8.7 0 1 0 20.5 14.2Z"/></svg></span>
         </button>
       </nav>
     </header>
@@ -45,22 +64,22 @@
         <p class="pa-lead">PrivatAI exécute l’intelligence artificielle directement sur votre machine. Après l’installation des modèles, travaillez hors ligne et gardez vos documents sensibles dans votre environnement.</p>
 
         <div class="pa-trust" aria-label="Avantages principaux">
-          <span><b>⌁</b> Hors ligne</span>
-          <span><b>◇</b> Données locales</span>
-          <span><b>▤</b> Rapports pro</span>
-          <span><b>⊘</b> Sans Cloud obligatoire</span>
+          <span><b><svg class="pa-svg" viewBox="0 0 24 24"><path d="M3 9a13 13 0 0 1 18 0M6.5 12.5a8 8 0 0 1 11 0M10 16a3 3 0 0 1 4 0M3 3l18 18"/></svg></b> Hors ligne</span>
+          <span><b><svg class="pa-svg" viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6l-7-3Z"/><path d="m9.5 12 1.7 1.7 3.6-4"/></svg></b> Données locales</span>
+          <span><b><svg class="pa-svg" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M15 3v4h4M9 12h6M9 16h6"/></svg></b> Rapports pro</span>
+          <span><b><svg class="pa-svg" viewBox="0 0 24 24"><path d="M5.5 18H18a4 4 0 0 0 .7-7.9A6.5 6.5 0 0 0 7.2 7.2 5 5 0 0 0 5.5 18Z"/><path d="m3 3 18 18"/></svg></b> Sans Cloud obligatoire</span>
         </div>
 
         <div class="pa-download-zone" id="download">
           <div class="pa-detect"><i></i><span id="systemLabel">Système détecté automatiquement</span></div>
           <div class="pa-download-grid">
             <a class="pa-download pa-windows" data-platform="windows" href="https://github.com/zimesongbian007/privatai/releases" target="_blank" rel="noopener">
-              <span class="pa-os-icon pa-win-icon" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+              <svg class="pa-platform-logo windows" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 4.2 10.8 3v8.1H2.5V4.2Zm9.3-1.4L21.5 1.4v9.7h-9.7V2.8ZM2.5 12.1h8.3v8.1L2.5 19v-6.9Zm9.3 0h9.7v9.7l-9.7-1.4v-8.3Z"/></svg>
               <span><small>Télécharger</small><strong>pour Windows</strong></span>
               <em class="pa-recommended">Recommandé</em>
             </a>
             <a class="pa-download pa-mac" data-platform="mac" href="https://github.com/zimesongbian007/privatai/releases" target="_blank" rel="noopener">
-              <span class="pa-os-icon pa-apple" aria-hidden="true">●</span>
+              <svg class="pa-platform-logo apple" viewBox="0 0 24 24" aria-hidden="true"><path d="M18.71 19.5c-.83 1.24-1.72 2.45-3.05 2.47-1.31.03-1.73-.78-3.23-.78-1.5 0-1.97.76-3.2.81-1.28.05-2.25-1.32-3.09-2.55-1.71-2.48-3.02-7.01-1.26-10.07.87-1.52 2.47-2.48 4.19-2.5 1.3-.03 2.52.88 3.23.88.68 0 2.11-1.09 3.56-.93.61.03 2.32.24 3.42 1.85-.09.06-2.04 1.2-2.02 3.61.03 2.87 2.51 3.83 2.54 3.84-.02.07-.4 1.38-1.31 2.77M13.7 5.71c.7-.83 1.81-1.46 2.79-1.5.13 1.15-.3 2.31-.97 3.15-.66.84-1.74 1.49-2.81 1.41-.15-1.13.39-2.32.99-3.06Z"/></svg>
               <span><small>Télécharger</small><strong>pour Mac</strong></span>
               <em class="pa-recommended">Recommandé</em>
             </a>
@@ -85,17 +104,15 @@
               <div class="pa-file">Contrat de partenariat.docx</div>
               <div class="pa-file">Étude de marché.pdf</div>
               <div class="pa-file">Rapport juridique.pdf</div>
-              <div class="pa-settings">⚙ Paramètres</div>
+              <div class="pa-settings"><svg class="pa-svg" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21h-4v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H3v-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6V3h4v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.1v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg>Paramètres</div>
             </aside>
             <section class="pa-demo">
-              <div class="pa-demo-head">
-                <div><h2>Bonjour ! Comment puis-je vous aider ?</h2><p>PrivatAI analyse vos documents en toute confidentialité.</p></div>
-              </div>
+              <div class="pa-demo-head"><div><h2>Bonjour ! Comment puis-je vous aider ?</h2><p>PrivatAI analyse vos documents en toute confidentialité.</p></div></div>
               <div class="pa-actions-mini"><span>Analyser un document</span><span>Comparer des fichiers</span><span>Résumer un dossier</span><span>Extraire des données</span></div>
               <div class="pa-document-card"><div class="pa-pdf">PDF</div><div><b>Analyse financière Q1.pdf</b><small>PDF • 2,4 Mo • 24 pages</small></div><button type="button" aria-label="Fermer">×</button></div>
               <div class="pa-prompt">Fais-moi une analyse détaillée des points clés, des risques et des opportunités. Génère aussi un résumé exécutif.</div>
               <div class="pa-input">Posez votre question… <b>→</b></div>
-              <div class="pa-local-status"><span>♡</span> Traitement local • Vos données restent sur cet appareil</div>
+              <div class="pa-local-status"><svg class="pa-svg" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6l-7-3Z"/><path d="m9.5 12 1.7 1.7 3.6-4"/></svg>Traitement local • Vos données restent sur cet appareil</div>
             </section>
           </div>
         </div>
@@ -103,38 +120,28 @@
     </section>
 
     <section class="pa-steps" id="how">
-      <div class="pa-section-head pa-reveal">
-        <span>SIMPLE. PRIVÉ. PUISSANT.</span>
-        <h2>Trois étapes. 100% local.</h2>
-      </div>
+      <div class="pa-section-head pa-reveal"><span>SIMPLE. PRIVÉ. PUISSANT.</span><h2>Trois étapes. 100% local.</h2></div>
       <div class="pa-step-grid">
-        <article class="pa-step pa-reveal"><div class="pa-step-icon">▧</div><b>1</b><h3>Importez vos documents</h3><p>Glissez-déposez PDF, DOCX, TXT ou Markdown. Vos fichiers restent sur votre ordinateur.</p></article>
+        <article class="pa-step pa-reveal"><div class="pa-step-icon"><svg class="pa-svg" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M12 17v-6M9.5 13.5 12 11l2.5 2.5"/></svg></div><b>1</b><h3>Importez vos documents</h3><p>Glissez-déposez PDF, DOCX, TXT ou Markdown. Vos fichiers restent sur votre ordinateur.</p></article>
         <span class="pa-step-arrow" aria-hidden="true">→</span>
-        <article class="pa-step pa-reveal"><div class="pa-step-icon">✦</div><b>2</b><h3>Analysez avec l’IA locale</h3><p>Posez vos questions. PrivatAI recherche, comprend et analyse votre contexte localement.</p></article>
+        <article class="pa-step pa-reveal"><div class="pa-step-icon"><svg class="pa-svg" viewBox="0 0 24 24"><path d="m12 2 1.7 5.3L19 9l-5.3 1.7L12 16l-1.7-5.3L5 9l5.3-1.7L12 2Z"/><path d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z"/></svg></div><b>2</b><h3>Analysez avec l’IA locale</h3><p>Posez vos questions. PrivatAI recherche, comprend et analyse votre contexte localement.</p></article>
         <span class="pa-step-arrow" aria-hidden="true">→</span>
-        <article class="pa-step pa-reveal"><div class="pa-step-icon">⇩</div><b>3</b><h3>Téléchargez vos rapports</h3><p>Générez des livrables professionnels en Word .docx, PDF, HTML ou Markdown.</p></article>
+        <article class="pa-step pa-reveal"><div class="pa-step-icon"><svg class="pa-svg" viewBox="0 0 24 24"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 19h14"/></svg></div><b>3</b><h3>Téléchargez vos rapports</h3><p>Générez des livrables professionnels en Word .docx, PDF, HTML ou Markdown.</p></article>
       </div>
     </section>
 
     <section class="pa-security" id="security">
-      <div class="pa-section-head pa-reveal">
-        <span>CONFIDENTIALITÉ PAR CONCEPTION</span>
-        <h2>Votre confidentialité. Notre priorité.</h2>
-      </div>
+      <div class="pa-section-head pa-reveal"><span>CONFIDENTIALITÉ PAR CONCEPTION</span><h2>Votre confidentialité. Notre priorité.</h2></div>
       <div class="pa-security-grid">
-        <article class="pa-security-card pa-reveal"><i class="violet">◇</i><h3>Pas de Cloud obligatoire</h3><p>Le moteur local fonctionne sans dépendre d’un service d’IA distant.</p></article>
-        <article class="pa-security-card pa-reveal"><i class="green">▣</i><h3>Traitement local</h3><p>Les analyses locales s’exécutent sur votre machine après installation des modèles.</p></article>
-        <article class="pa-security-card pa-reveal"><i class="blue">◎</i><h3>Vous gardez le contrôle</h3><p>Vos projets, documents et discussions restent dans votre environnement.</p></article>
-        <article class="pa-security-card pa-reveal"><i class="pink">◆</i><h3>Espaces séparés</h3><p>Projets et agents organisent les contextes sensibles sans mélanger les dossiers.</p></article>
+        <article class="pa-security-card pa-reveal"><i class="violet"><svg class="pa-svg" viewBox="0 0 24 24"><path d="M5.5 18H18a4 4 0 0 0 .7-7.9A6.5 6.5 0 0 0 7.2 7.2 5 5 0 0 0 5.5 18Z"/><path d="m3 3 18 18"/></svg></i><h3>Pas de Cloud obligatoire</h3><p>Le moteur local fonctionne sans dépendre d’un service d’IA distant.</p></article>
+        <article class="pa-security-card pa-reveal"><i class="green"><svg class="pa-svg" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></i><h3>Traitement local</h3><p>Les analyses locales s’exécutent sur votre machine après installation des modèles.</p></article>
+        <article class="pa-security-card pa-reveal"><i class="blue"><svg class="pa-svg" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/><path d="m17 10 1.5 1.5L21 9"/></svg></i><h3>Vous gardez le contrôle</h3><p>Vos projets, documents et discussions restent dans votre environnement.</p></article>
+        <article class="pa-security-card pa-reveal"><i class="pink"><svg class="pa-svg" viewBox="0 0 24 24"><path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5M3 17l9 5 9-5"/></svg></i><h3>Espaces séparés</h3><p>Projets et agents organisent les contextes sensibles sans mélanger les dossiers.</p></article>
       </div>
     </section>
 
     <section class="pa-why" id="why">
-      <div class="pa-why-copy pa-reveal">
-        <span>UNE IA POUR LE TRAVAIL RÉEL</span>
-        <h2>Du document à la décision.</h2>
-        <p>Contrats, audits, finance, RH, santé, conformité, stratégie : PrivatAI transforme vos dossiers en analyses exploitables et en documents professionnels.</p>
-      </div>
+      <div class="pa-why-copy pa-reveal"><span>UNE IA POUR LE TRAVAIL RÉEL</span><h2>Du document à la décision.</h2><p>Contrats, audits, finance, RH, santé, conformité, stratégie : PrivatAI transforme vos dossiers en analyses exploitables et en documents professionnels.</p></div>
       <div class="pa-why-pills pa-reveal"><span>Direction</span><span>Juridique</span><span>Audit</span><span>Finance</span><span>RH</span><span>Santé</span><span>Conformité</span><span>Stratégie</span></div>
     </section>
 
@@ -143,8 +150,8 @@
       <div class="pa-cta-downloads">
         <div class="pa-detect small"><i></i><span class="systemLabelMirror">Système détecté automatiquement</span></div>
         <div class="pa-download-grid compact">
-          <a class="pa-download pa-windows" data-platform="windows" href="https://github.com/zimesongbian007/privatai/releases" target="_blank" rel="noopener"><span class="pa-os-icon pa-win-icon"><i></i><i></i><i></i><i></i></span><span><small>Télécharger</small><strong>pour Windows</strong></span><em class="pa-recommended">Recommandé</em></a>
-          <a class="pa-download pa-mac" data-platform="mac" href="https://github.com/zimesongbian007/privatai/releases" target="_blank" rel="noopener"><span class="pa-os-icon pa-apple">●</span><span><small>Télécharger</small><strong>pour Mac</strong></span><em class="pa-recommended">Recommandé</em></a>
+          <a class="pa-download pa-windows" data-platform="windows" href="https://github.com/zimesongbian007/privatai/releases" target="_blank" rel="noopener"><svg class="pa-platform-logo windows" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 4.2 10.8 3v8.1H2.5V4.2Zm9.3-1.4L21.5 1.4v9.7h-9.7V2.8ZM2.5 12.1h8.3v8.1L2.5 19v-6.9Zm9.3 0h9.7v9.7l-9.7-1.4v-8.3Z"/></svg><span><small>Télécharger</small><strong>pour Windows</strong></span><em class="pa-recommended">Recommandé</em></a>
+          <a class="pa-download pa-mac" data-platform="mac" href="https://github.com/zimesongbian007/privatai/releases" target="_blank" rel="noopener"><svg class="pa-platform-logo apple" viewBox="0 0 24 24" aria-hidden="true"><path d="M18.71 19.5c-.83 1.24-1.72 2.45-3.05 2.47-1.31.03-1.73-.78-3.23-.78-1.5 0-1.97.76-3.2.81-1.28.05-2.25-1.32-3.09-2.55-1.71-2.48-3.02-7.01-1.26-10.07.87-1.52 2.47-2.48 4.19-2.5 1.3-.03 2.52.88 3.23.88.68 0 2.11-1.09 3.56-.93.61.03 2.32.24 3.42 1.85-.09.06-2.04 1.2-2.02 3.61.03 2.87 2.51 3.83 2.54 3.84-.02.07-.4 1.38-1.31 2.77M13.7 5.71c.7-.83 1.81-1.46 2.79-1.5.13 1.15-.3 2.31-.97 3.15-.66.84-1.74 1.49-2.81 1.41-.15-1.13.39-2.32.99-3.06Z"/></svg><span><small>Télécharger</small><strong>pour Mac</strong></span><em class="pa-recommended">Recommandé</em></a>
         </div>
       </div>
     </section>
