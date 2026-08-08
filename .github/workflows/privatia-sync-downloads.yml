@@ -1,0 +1,121 @@
+name: Publish PrivatAI public downloads
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: write
+
+env:
+  PRIVATE_REPO: zimesongbian007/privatai
+  PUBLIC_REPO: starlab007007/botbenin
+  PUBLIC_TAG: privatia-latest
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check private-release token
+        id: token
+        shell: bash
+        env:
+          PRIVATAI_RELEASE_TOKEN: ${{ secrets.PRIVATAI_RELEASE_TOKEN }}
+        run: |
+          if [ -z "$PRIVATAI_RELEASE_TOKEN" ]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Secret PRIVATAI_RELEASE_TOKEN absent. La synchronisation est ignorée."
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download latest PrivatAI desktop release
+        if: steps.token.outputs.available == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.PRIVATAI_RELEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+
+          RELEASE_JSON="$(gh api "/repos/$PRIVATE_REPO/releases/latest")"
+          PRIVATE_TAG="$(jq -r '.tag_name' <<< "$RELEASE_JSON")"
+          echo "Private release: $PRIVATE_TAG"
+
+          EXE_ID="$(jq -r '[.assets[] | select(.name | endswith(".exe"))][0].id // empty' <<< "$RELEASE_JSON")"
+          MSI_ID="$(jq -r '[.assets[] | select(.name | endswith(".msi"))][0].id // empty' <<< "$RELEASE_JSON")"
+          DMG_ID="$(jq -r '[.assets[] | select(.name | endswith(".dmg"))][0].id // empty' <<< "$RELEASE_JSON")"
+
+          test -n "$EXE_ID" || { echo "EXE absent de la release $PRIVATE_TAG"; exit 20; }
+          test -n "$MSI_ID" || { echo "MSI absent de la release $PRIVATE_TAG"; exit 21; }
+          test -n "$DMG_ID" || { echo "DMG absent de la release $PRIVATE_TAG"; exit 22; }
+
+          gh api \
+            -H "Accept: application/octet-stream" \
+            "/repos/$PRIVATE_REPO/releases/assets/$EXE_ID" \
+            > dist/PrivatAI-Windows-x64-Setup.exe
+
+          gh api \
+            -H "Accept: application/octet-stream" \
+            "/repos/$PRIVATE_REPO/releases/assets/$MSI_ID" \
+            > dist/PrivatAI-Windows-x64.msi
+
+          gh api \
+            -H "Accept: application/octet-stream" \
+            "/repos/$PRIVATE_REPO/releases/assets/$DMG_ID" \
+            > dist/PrivatAI-Mac-Intel.dmg
+
+          test -s dist/PrivatAI-Windows-x64-Setup.exe
+          test -s dist/PrivatAI-Windows-x64.msi
+          test -s dist/PrivatAI-Mac-Intel.dmg
+
+          (
+            cd dist
+            sha256sum \
+              PrivatAI-Windows-x64-Setup.exe \
+              PrivatAI-Windows-x64.msi \
+              PrivatAI-Mac-Intel.dmg \
+              > SHA256SUMS.txt
+          )
+
+          printf '%s\n' "$PRIVATE_TAG" > dist/PRIVATE_RELEASE_TAG.txt
+
+      - name: Create or update public PrivatAI release
+        if: steps.token.outputs.available == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if ! gh release view "$PUBLIC_TAG" --repo "$PUBLIC_REPO" >/dev/null 2>&1; then
+            gh release create "$PUBLIC_TAG" \
+              --repo "$PUBLIC_REPO" \
+              --target prod \
+              --title "PrivatAI Desktop — téléchargements publics" \
+              --notes "Installateurs publics de PrivatAI Desktop. Les sources de l’application restent privées. Les fichiers de cette release sont synchronisés automatiquement depuis la release desktop validée."
+          fi
+
+          gh release upload "$PUBLIC_TAG" \
+            dist/PrivatAI-Windows-x64-Setup.exe \
+            dist/PrivatAI-Windows-x64.msi \
+            dist/PrivatAI-Mac-Intel.dmg \
+            dist/SHA256SUMS.txt \
+            dist/PRIVATE_RELEASE_TAG.txt \
+            --repo "$PUBLIC_REPO" \
+            --clobber
+
+      - name: Verify public assets
+        if: steps.token.outputs.available == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ASSETS="$(gh release view "$PUBLIC_TAG" --repo "$PUBLIC_REPO" --json assets)"
+          jq -e '.assets | map(.name) | index("PrivatAI-Windows-x64-Setup.exe") != null' <<< "$ASSETS"
+          jq -e '.assets | map(.name) | index("PrivatAI-Windows-x64.msi") != null' <<< "$ASSETS"
+          jq -e '.assets | map(.name) | index("PrivatAI-Mac-Intel.dmg") != null' <<< "$ASSETS"
+          echo "PrivatAI public downloads are ready."
