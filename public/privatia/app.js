@@ -27,6 +27,7 @@
     frame.style.pointerEvents = 'none';
     frame.style.border = '0';
     frame.style.left = '-9999px';
+    frame.style.top = '-9999px';
     document.body.appendChild(frame);
     return frame;
   };
@@ -79,18 +80,33 @@
   });
 
   const configureDirectDownload = (button, url, fileName) => {
+    // Le lien visible reste sur bot.bj. Le fichier est demandé dans une iframe
+    // invisible afin qu'aucune page ou aucun onglet GitHub ne puisse s'ouvrir.
+    button.removeAttribute('target');
     button.removeAttribute('rel');
-    button.setAttribute('href', url);
-    button.setAttribute('target', DOWNLOAD_FRAME);
-    button.setAttribute('download', fileName);
-    button.addEventListener('click', () => {
-      ensureDownloadFrame();
-      const original = button.querySelector('small')?.textContent || 'Télécharger';
+    button.removeAttribute('download');
+    button.setAttribute('href', '#download');
+    button.dataset.downloadName = fileName;
+
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const frame = ensureDownloadFrame();
       const small = button.querySelector('small');
-      if (small) small.textContent = 'Téléchargement…';
+      const original = small?.textContent || '';
+
+      button.setAttribute('aria-busy', 'true');
       button.classList.add('downloading');
+      if (small) small.textContent = 'Téléchargement…';
+
+      // Attribution de src seulement après l'action utilisateur : les navigateurs
+      // reconnaissent le geste et le téléchargement démarre sans navigation visuelle.
+      frame.src = url;
+
       window.setTimeout(() => {
-        if (small) small.textContent = original;
+        if (small) small.textContent = original || 'Télécharger';
+        button.removeAttribute('aria-busy');
         button.classList.remove('downloading');
       }, 2200);
     });
