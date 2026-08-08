@@ -134,6 +134,23 @@ server {
         expires -1;
     }
 
+    # URL publique canonique PrivatAI — landing page isolée du routeur React
+    location = /privatia/ {
+        return 308 https://bot.bj/privatia;
+    }
+
+    location = /privatia/index.html {
+        return 308 https://bot.bj/privatia;
+    }
+
+    location = /privatia {
+        if (\$args != "") {
+            return 308 https://bot.bj/privatia;
+        }
+        try_files /privatia/index.html =404;
+        expires -1;
+    }
+
     # Gestion optimale pour SPA (Single Page Application)
     location / {
         try_files \$uri \$uri/ @fallback;
@@ -214,6 +231,8 @@ RUN ls -la /usr/share/nginx/html/ && \
     test -f /usr/share/nginx/html/fa/index.html && \
     test -f /usr/share/nginx/html/fa/app.js && \
     test -f /usr/share/nginx/html/fa/auth-bridge.js && \
+    test -f /usr/share/nginx/html/privatia/index.html && \
+    test -f /usr/share/nginx/html/privatia/styles.css && \
     chmod -R 755 /usr/share/nginx/html && \
     chown -R nginx:nginx /usr/share/nginx/html
 
@@ -233,6 +252,8 @@ ls -la /usr/share/nginx/html/
 test -f /usr/share/nginx/html/apresbacia/index.html
 test -f /usr/share/nginx/html/fa/index.html
 test -f /usr/share/nginx/html/fa/app.js
+test -f /usr/share/nginx/html/privatia/index.html
+test -f /usr/share/nginx/html/privatia/styles.css
 echo "📄 Contenu de index.html:"
 head -10 /usr/share/nginx/html/index.html
 
