@@ -18,29 +18,33 @@
 
   const savedTheme = localStorage.getItem('privatai-theme');
   const initialTheme = savedTheme || getSystemTheme();
-  if (initialTheme === 'dark') {
-    root?.setAttribute('data-theme', 'dark');
-    themeButton?.setAttribute('aria-pressed', 'true');
-  }
+
+  const applyTheme = (theme) => {
+    const dark = theme === 'dark';
+    if (dark) root?.setAttribute('data-theme', 'dark');
+    else root?.removeAttribute('data-theme');
+    themeButton?.setAttribute('aria-pressed', dark ? 'true' : 'false');
+    themeButton?.setAttribute('aria-label', dark ? 'Passer au thème clair' : 'Passer au thème sombre');
+  };
+
+  applyTheme(initialTheme);
 
   themeButton?.addEventListener('click', () => {
     const isDark = root?.getAttribute('data-theme') === 'dark';
-    if (isDark) {
-      root?.removeAttribute('data-theme');
-      localStorage.setItem('privatai-theme', 'light');
-      themeButton.setAttribute('aria-pressed', 'false');
-    } else {
-      root?.setAttribute('data-theme', 'dark');
-      localStorage.setItem('privatai-theme', 'dark');
-      themeButton.setAttribute('aria-pressed', 'true');
-    }
+    const next = isDark ? 'light' : 'dark';
+    applyTheme(next);
+    localStorage.setItem('privatai-theme', next);
   });
 
-  const ua = `${navigator.userAgent || ''} ${navigator.platform || ''}`.toLowerCase();
-  let detected = 'other';
-  if (ua.includes('win')) detected = 'windows';
-  else if (ua.includes('mac')) detected = 'mac';
+  const detectPlatform = () => {
+    const uaPlatform = navigator.userAgentData?.platform || navigator.platform || '';
+    const ua = `${navigator.userAgent || ''} ${uaPlatform}`.toLowerCase();
+    if (ua.includes('windows') || ua.includes('win32') || ua.includes('win64') || ua.includes('win')) return 'windows';
+    if (ua.includes('macintosh') || ua.includes('macintel') || ua.includes('mac os') || ua.includes('mac')) return 'mac';
+    return 'other';
+  };
 
+  const detected = detectPlatform();
   const labels = {
     windows: 'Windows détecté automatiquement',
     mac: 'Mac détecté automatiquement',
@@ -54,10 +58,14 @@
 
   platformButtons.forEach((button) => {
     const platform = button.getAttribute('data-platform');
-    button.classList.toggle('recommended', platform === detected);
+    const recommended = platform === detected;
+    button.classList.toggle('recommended', recommended);
+    button.setAttribute('aria-label', `${button.textContent.trim()}${recommended ? ' — recommandé pour cet appareil' : ''}`);
     if (platform === 'windows') button.setAttribute('href', WINDOWS_DOWNLOAD);
     if (platform === 'mac') button.setAttribute('href', MAC_DOWNLOAD);
   });
+
+  root?.setAttribute('data-detected-platform', detected);
 
   const observer = 'IntersectionObserver' in window
     ? new IntersectionObserver(
