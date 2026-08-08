@@ -6,12 +6,32 @@
   const platformButtons = document.querySelectorAll('[data-platform]');
   const year = document.getElementById('year');
 
-  const PUBLIC_RELEASE = 'https://github.com/starlab007007/botbenin/releases/tag/privatia-latest';
   const WINDOWS_DOWNLOAD = 'https://github.com/starlab007007/botbenin/releases/download/privatia-latest/PrivatAI-Windows-x64-Setup.exe';
   const WINDOWS_MSI_DOWNLOAD = 'https://github.com/starlab007007/botbenin/releases/download/privatia-latest/PrivatAI-Windows-x64.msi';
   const MAC_DOWNLOAD = 'https://github.com/starlab007007/botbenin/releases/download/privatia-latest/PrivatAI-Mac-Intel.dmg';
+  const DOWNLOAD_FRAME = 'privatai-download-frame';
 
   if (year) year.textContent = String(new Date().getFullYear());
+
+  const ensureDownloadFrame = () => {
+    let frame = document.querySelector(`iframe[name="${DOWNLOAD_FRAME}"]`);
+    if (frame) return frame;
+    frame = document.createElement('iframe');
+    frame.name = DOWNLOAD_FRAME;
+    frame.setAttribute('aria-hidden', 'true');
+    frame.tabIndex = -1;
+    frame.style.position = 'fixed';
+    frame.style.width = '1px';
+    frame.style.height = '1px';
+    frame.style.opacity = '0';
+    frame.style.pointerEvents = 'none';
+    frame.style.border = '0';
+    frame.style.left = '-9999px';
+    document.body.appendChild(frame);
+    return frame;
+  };
+
+  ensureDownloadFrame();
 
   const getSystemTheme = () =>
     window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -58,49 +78,40 @@
     el.textContent = labels[detected];
   });
 
+  const configureDirectDownload = (button, url, fileName) => {
+    button.removeAttribute('rel');
+    button.setAttribute('href', url);
+    button.setAttribute('target', DOWNLOAD_FRAME);
+    button.setAttribute('download', fileName);
+    button.addEventListener('click', () => {
+      ensureDownloadFrame();
+      const original = button.querySelector('small')?.textContent || 'Télécharger';
+      const small = button.querySelector('small');
+      if (small) small.textContent = 'Téléchargement…';
+      button.classList.add('downloading');
+      window.setTimeout(() => {
+        if (small) small.textContent = original;
+        button.classList.remove('downloading');
+      }, 2200);
+    });
+  };
+
   platformButtons.forEach((button) => {
     const platform = button.getAttribute('data-platform');
     const recommended = platform === detected;
     button.classList.toggle('recommended', recommended);
     button.setAttribute('aria-label', `${button.textContent.trim()}${recommended ? ' — recommandé pour cet appareil' : ''}`);
-    button.removeAttribute('target');
-    button.removeAttribute('rel');
-    button.setAttribute('download', '');
-    if (platform === 'windows') button.setAttribute('href', WINDOWS_DOWNLOAD);
-    if (platform === 'mac') button.setAttribute('href', MAC_DOWNLOAD);
+    if (platform === 'windows') configureDirectDownload(button, WINDOWS_DOWNLOAD, 'PrivatAI-Windows-x64-Setup.exe');
+    if (platform === 'mac') configureDirectDownload(button, MAC_DOWNLOAD, 'PrivatAI-Mac-Intel.dmg');
   });
 
   document.querySelectorAll('.pa-other').forEach((link) => {
-    link.setAttribute('href', WINDOWS_MSI_DOWNLOAD);
-    link.removeAttribute('target');
-    link.removeAttribute('rel');
-    link.setAttribute('download', '');
     link.innerHTML = 'Windows MSI direct <span>→</span>';
     link.setAttribute('aria-label', 'Télécharger directement PrivatAI pour Windows au format MSI');
+    configureDirectDownload(link, WINDOWS_MSI_DOWNLOAD, 'PrivatAI-Windows-x64.msi');
   });
 
   root?.setAttribute('data-detected-platform', detected);
-
-  const markUnavailable = (url, selector, message) => {
-    fetch(url, { method: 'HEAD', cache: 'no-store' })
-      .then((response) => {
-        if (response.ok || response.type === 'opaque') return;
-        throw new Error(`HTTP ${response.status}`);
-      })
-      .catch(() => {
-        document.querySelectorAll(selector).forEach((el) => {
-          el.removeAttribute('download');
-          el.setAttribute('href', PUBLIC_RELEASE);
-          el.setAttribute('target', '_blank');
-          el.setAttribute('rel', 'noopener');
-          el.setAttribute('title', message);
-        });
-      });
-  };
-
-  markUnavailable(WINDOWS_DOWNLOAD, '[data-platform="windows"]', 'Installateur EXE en cours de publication');
-  markUnavailable(MAC_DOWNLOAD, '[data-platform="mac"]', 'Installateur DMG en cours de publication');
-  markUnavailable(WINDOWS_MSI_DOWNLOAD, '.pa-other', 'Installateur MSI en cours de publication');
 
   const observer = 'IntersectionObserver' in window
     ? new IntersectionObserver(
