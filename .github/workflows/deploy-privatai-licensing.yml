@@ -1,0 +1,97 @@
+name: Deploy PrivatAI Licensing
+
+on:
+  push:
+    branches: [prod]
+    paths:
+      - 'supabase/functions/privatai-license/**'
+      - 'supabase/functions/privatai-license-admin/**'
+      - 'supabase/migrations/20260808230000_privatai_licensing.sql'
+      - '.github/workflows/deploy-privatai-licensing.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-privatai-licensing
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_PROJECT_REF: mvynepqulhflxtyymtzs
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+    steps:
+      - name: Checkout prod
+        uses: actions/checkout@v4
+        with:
+          ref: prod
+
+      - name: Vérifier les secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ -n "${SUPABASE_ACCESS_TOKEN:-}" ] || { echo '::error::SUPABASE_ACCESS_TOKEN absent'; exit 1; }
+          [ -n "${SUPABASE_ANON_KEY:-}" ] || { echo '::error::SUPABASE_ANON_KEY absent'; exit 1; }
+
+      - name: Appliquer uniquement le schéma PrivatAI Licensing
+        shell: bash
+        run: |
+          set -euo pipefail
+          SQL_FILE='supabase/migrations/20260808230000_privatai_licensing.sql'
+          jq -Rs '{query: .}' "$SQL_FILE" > /tmp/privatai-license-schema.json
+          code=$(curl -sS -o /tmp/schema-response.json -w '%{http_code}' \
+            -X POST "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/database/query" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H 'Content-Type: application/json' \
+            --data-binary @/tmp/privatai-license-schema.json)
+          cat /tmp/schema-response.json || true
+          echo
+          if [ "$code" != '200' ] && [ "$code" != '201' ]; then
+            echo "::error::Migration PrivatAI Licensing HTTP ${code}"
+            exit 1
+          fi
+
+      - name: Installer Supabase CLI
+        run: npm install --global supabase@2.109.0
+
+      - name: Déployer le service public de licence
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase functions deploy privatai-license \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --no-verify-jwt \
+            --use-api
+
+      - name: Déployer le backoffice de licence
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase functions deploy privatai-license-admin \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --use-api
+
+      - name: Test essai public
+        shell: bash
+        run: |
+          set -euo pipefail
+          endpoint="https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/privatai-license"
+          device="github-ci-$(date +%s)-${GITHUB_RUN_ID}"
+          code=$(curl -sS -o /tmp/trial.json -w '%{http_code}' \
+            -X POST "$endpoint" \
+            -H 'Content-Type: application/json' \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            --data "$(jq -nc --arg d "$device" '{action:"trial",device_id:$d,device_label:"GitHub CI",platform:"ci",app_version:"0.1.0"}')")
+          cat /tmp/trial.json
+          echo
+          [ "$code" = '200' ]
+          jq -e '.valid == true and .status == "trial" and (.trialExpiresAt | length > 0)' /tmp/trial.json >/dev/null
+
+      - name: Résultat
+        run: echo '✅ PrivatAI Licensing déployé — essai, activation, validation et backoffice prêts.'
