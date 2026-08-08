@@ -3,18 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PrivatAI — L’IA privée qui travaille sur votre ordinateur</title>
-  <meta name="description" content="PrivatAI analyse vos documents sensibles, travaille hors ligne et génère des rapports professionnels directement sur votre ordinateur, sans abonnement Cloud obligatoire." />
+  <title>PrivatAI — Votre IA privée. Vos données. Votre ordinateur.</title>
+  <meta name="description" content="PrivatAI est une IA professionnelle locale pour analyser vos documents sensibles, travailler hors ligne et générer des rapports directement sur votre ordinateur." />
   <meta name="theme-color" content="#f7f9fc" />
   <meta name="robots" content="index,follow" />
   <link rel="canonical" href="https://bot.bj/privatia" />
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="PrivatAI — Votre IA. Vos données. Votre ordinateur." />
-  <meta property="og:description" content="Une IA professionnelle locale pour vos documents sensibles, projets et rapports." />
+  <meta property="og:title" content="PrivatAI — Votre IA privée. Vos données. Votre ordinateur." />
+  <meta property="og:description" content="IA locale, hors ligne, privée et professionnelle pour vos documents sensibles." />
   <meta property="og:url" content="https://bot.bj/privatia" />
   <meta property="og:site_name" content="BOT.BJ" />
   <meta name="twitter:card" content="summary_large_image" />
-  <link rel="stylesheet" href="/privatia/styles.css?v=20260808-2" />
+  <link rel="stylesheet" href="/privatia/styles.css?v=20260808-3" />
+  <script defer src="/privatia/app.js?v=20260808-3"></script>
 </head>
 <body>
   <main class="pa-page" id="top">
@@ -25,120 +26,133 @@
           <strong>PrivatAI</strong>
         </a>
         <div class="pa-links">
-          <a href="#benefits">Pourquoi PrivatAI</a>
-          <a href="#how">Comment ça marche</a>
-          <a href="#uses">Pour qui</a>
+          <a href="#why">Pourquoi</a>
+          <a href="#how">Fonctionnement</a>
+          <a href="#security">Sécurité</a>
+          <a href="#download">Télécharger</a>
         </div>
-        <a class="pa-nav-cta" href="#launch">Découvrir <span>→</span></a>
+        <button class="pa-theme" type="button" aria-label="Changer le thème" aria-pressed="false">
+          <span class="pa-theme-sun" aria-hidden="true">☼</span>
+          <span class="pa-theme-moon" aria-hidden="true">◐</span>
+        </button>
       </nav>
     </header>
 
-    <section class="pa-hero">
-      <div class="pa-hero-copy">
-        <div class="pa-kicker"><span></span> IA locale • privée • professionnelle</div>
-        <h1>Votre IA.<br><em>Vos données.</em><br>Votre ordinateur.</h1>
-        <p>Analysez vos documents sensibles, posez vos questions et créez vos rapports professionnels avec une IA conçue pour travailler localement.</p>
-        <div class="pa-actions">
-          <a class="pa-btn pa-primary" href="#benefits">Découvrir PrivatAI <span>→</span></a>
-          <a class="pa-btn pa-secondary" href="#how">Voir comment ça fonctionne</a>
-        </div>
+    <section class="pa-hero" aria-labelledby="pa-title">
+      <div class="pa-hero-copy pa-reveal">
+        <div class="pa-kicker">IA LOCALE • PRIVÉE PAR DÉFAUT</div>
+        <h1 id="pa-title">Votre IA privée.<br><em>Vos données.</em><br>Votre ordinateur.</h1>
+        <p class="pa-lead">PrivatAI exécute l’intelligence artificielle directement sur votre machine. Après l’installation des modèles, travaillez hors ligne et gardez vos documents sensibles dans votre environnement.</p>
+
         <div class="pa-trust" aria-label="Avantages principaux">
-          <span><b>✓</b> Hors ligne</span>
-          <span><b>✓</b> Données locales</span>
-          <span><b>✓</b> Sans abonnement Cloud obligatoire</span>
+          <span><b>⌁</b> Hors ligne</span>
+          <span><b>◇</b> Données locales</span>
+          <span><b>▤</b> Rapports pro</span>
+          <span><b>⊘</b> Sans Cloud obligatoire</span>
+        </div>
+
+        <div class="pa-download-zone" id="download">
+          <div class="pa-detect"><i></i><span id="systemLabel">Système détecté automatiquement</span></div>
+          <div class="pa-download-grid">
+            <a class="pa-download pa-windows" data-platform="windows" href="https://github.com/zimesongbian007/privatai/releases" target="_blank" rel="noopener">
+              <span class="pa-os-icon pa-win-icon" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+              <span><small>Télécharger</small><strong>pour Windows</strong></span>
+              <em class="pa-recommended">Recommandé</em>
+            </a>
+            <a class="pa-download pa-mac" data-platform="mac" href="https://github.com/zimesongbian007/privatai/releases" target="_blank" rel="noopener">
+              <span class="pa-os-icon pa-apple" aria-hidden="true">●</span>
+              <span><small>Télécharger</small><strong>pour Mac</strong></span>
+              <em class="pa-recommended">Recommandé</em>
+            </a>
+          </div>
+          <a class="pa-other" href="https://github.com/zimesongbian007/privatai/releases" target="_blank" rel="noopener">Autres versions et options avancées <span>→</span></a>
         </div>
       </div>
 
-      <div class="pa-device" aria-label="Aperçu de PrivatAI">
+      <div class="pa-device pa-reveal" aria-label="Aperçu de l’interface PrivatAI">
         <div class="pa-window">
           <div class="pa-window-top"><i></i><i></i><i></i><span>PrivatAI</span></div>
           <div class="pa-window-body">
             <aside class="pa-side">
               <div class="pa-side-brand"><span class="pa-mark small" aria-hidden="true"><i></i><i></i><i></i></span><b>PrivatAI</b></div>
+              <button class="pa-new-chat" type="button">＋ Nouveau chat</button>
               <div class="pa-menu active">Accueil</div>
-              <div class="pa-menu">Discussions</div>
               <div class="pa-menu">Projets</div>
-              <div class="pa-menu">Agents</div>
               <div class="pa-menu">Documents</div>
-              <div class="pa-local"><span></span><div><b>Mode local</b><small>Données sur cet appareil</small></div></div>
+              <div class="pa-menu">Agents</div>
+              <small class="pa-recents">RÉCENTS</small>
+              <div class="pa-file">Analyse financière Q1.pdf</div>
+              <div class="pa-file">Contrat de partenariat.docx</div>
+              <div class="pa-file">Étude de marché.pdf</div>
+              <div class="pa-file">Rapport juridique.pdf</div>
+              <div class="pa-settings">⚙ Paramètres</div>
             </aside>
             <section class="pa-demo">
-              <div class="pa-demo-head"><div><small>ESPACE PRIVÉ</small><h2>Analyse confidentielle</h2></div><span class="pa-ready"><i></i> Modèle local prêt</span></div>
-              <div class="pa-demo-pills"><span>12 documents</span><span>Projet isolé</span><span>Agent spécialisé</span></div>
-              <div class="pa-chat">
-                <div class="pa-user">Analyse les risques de ces documents et prépare une note pour la Direction.</div>
-                <div class="pa-answer">
-                  <div class="pa-answer-title"><span class="pa-mark tiny" aria-hidden="true"><i></i><i></i><i></i></span><b>PrivatAI</b></div>
-                  <h3>Résumé exécutif</h3>
-                  <p>Trois points prioritaires ont été identifiés. Les constats sont structurés avec leurs sources et les actions recommandées.</p>
-                  <div class="pa-report"><span>Rapport prêt</span><b>Word .docx</b><b>PDF</b></div>
-                </div>
+              <div class="pa-demo-head">
+                <div><h2>Bonjour ! Comment puis-je vous aider ?</h2><p>PrivatAI analyse vos documents en toute confidentialité.</p></div>
               </div>
+              <div class="pa-actions-mini"><span>Analyser un document</span><span>Comparer des fichiers</span><span>Résumer un dossier</span><span>Extraire des données</span></div>
+              <div class="pa-document-card"><div class="pa-pdf">PDF</div><div><b>Analyse financière Q1.pdf</b><small>PDF • 2,4 Mo • 24 pages</small></div><button type="button" aria-label="Fermer">×</button></div>
+              <div class="pa-prompt">Fais-moi une analyse détaillée des points clés, des risques et des opportunités. Génère aussi un résumé exécutif.</div>
+              <div class="pa-input">Posez votre question… <b>→</b></div>
+              <div class="pa-local-status"><span>♡</span> Traitement local • Vos données restent sur cet appareil</div>
             </section>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="pa-benefits" id="benefits">
-      <article><span class="pa-icon">⌁</span><h2>Travaillez hors ligne.</h2><p>Une fois les modèles installés, PrivatAI peut fonctionner sans connexion Internet permanente.</p></article>
-      <article><span class="pa-icon">▣</span><h2>Gardez vos données chez vous.</h2><p>Documents, discussions, projets et index restent dans votre environnement local.</p></article>
-      <article><span class="pa-icon">∞</span><h2>Évitez l’abonnement Cloud.</h2><p>Le moteur local ne nécessite pas de forfait IA mensuel obligatoire pour fonctionner.</p></article>
-    </section>
-
-    <section class="pa-how" id="how">
-      <div class="pa-section-head">
-        <span>Simple par conception</span>
-        <h2>Vos documents entrent.<br>Votre intelligence reste.</h2>
+    <section class="pa-steps" id="how">
+      <div class="pa-section-head pa-reveal">
+        <span>SIMPLE. PRIVÉ. PUISSANT.</span>
+        <h2>Trois étapes. 100% local.</h2>
       </div>
-      <div class="pa-flow">
-        <article><b>01</b><div><h3>Ajoutez vos documents</h3><p>PDF, DOCX, TXT ou Markdown.</p></div></article>
-        <span class="pa-arrow">→</span>
-        <article><b>02</b><div><h3>PrivatAI analyse localement</h3><p>Recherche, contexte, agents et IA locale.</p></div></article>
-        <span class="pa-arrow">→</span>
-        <article><b>03</b><div><h3>Obtenez un livrable</h3><p>Réponse sourcée, synthèse ou rapport professionnel.</p></div></article>
-      </div>
-      <div class="pa-system-note"><strong>Fonctionnement :</strong> application desktop locale • Internet utile pour le téléchargement initial des modèles et les mises à jour • traitement local ensuite</div>
-    </section>
-
-    <section class="pa-uses" id="uses">
-      <div class="pa-section-head centered">
-        <span>Pour les dossiers sensibles</span>
-        <h2>Une IA pensée pour le travail réel.</h2>
-        <p>PrivatAI aide les équipes qui manipulent des informations internes, confidentielles ou stratégiques.</p>
-      </div>
-      <div class="pa-use-grid">
-        <article><span>01</span><h3>Direction & stratégie</h3><p>Notes, décisions, projets et dossiers confidentiels.</p></article>
-        <article><span>02</span><h3>Juridique & audit</h3><p>Contrats, risques, conformité et contrôles.</p></article>
-        <article><span>03</span><h3>Finance & RH</h3><p>Analyses internes, procédures et documents sensibles.</p></article>
-        <article><span>04</span><h3>Santé & données sensibles</h3><p>Analyse documentaire locale et comptes rendus professionnels.</p></article>
+      <div class="pa-step-grid">
+        <article class="pa-step pa-reveal"><div class="pa-step-icon">▧</div><b>1</b><h3>Importez vos documents</h3><p>Glissez-déposez PDF, DOCX, TXT ou Markdown. Vos fichiers restent sur votre ordinateur.</p></article>
+        <span class="pa-step-arrow" aria-hidden="true">→</span>
+        <article class="pa-step pa-reveal"><div class="pa-step-icon">✦</div><b>2</b><h3>Analysez avec l’IA locale</h3><p>Posez vos questions. PrivatAI recherche, comprend et analyse votre contexte localement.</p></article>
+        <span class="pa-step-arrow" aria-hidden="true">→</span>
+        <article class="pa-step pa-reveal"><div class="pa-step-icon">⇩</div><b>3</b><h3>Téléchargez vos rapports</h3><p>Générez des livrables professionnels en Word .docx, PDF, HTML ou Markdown.</p></article>
       </div>
     </section>
 
-    <section class="pa-output">
-      <div>
-        <span class="pa-label">Du chat au document</span>
-        <h2>Une réponse utile.<br>Un document prêt.</h2>
-        <p>Transformez votre analyse en note de synthèse, rapport d’audit, compte rendu ou document professionnel éditable.</p>
-        <div class="pa-formats"><span>Word .docx</span><span>PDF</span><span>HTML</span><span>Markdown</span></div>
+    <section class="pa-security" id="security">
+      <div class="pa-section-head pa-reveal">
+        <span>CONFIDENTIALITÉ PAR CONCEPTION</span>
+        <h2>Votre confidentialité. Notre priorité.</h2>
       </div>
-      <div class="pa-paper" aria-hidden="true">
-        <small>CONFIDENTIEL</small><h3>Rapport d’analyse</h3><span>PrivatAI • Direction générale</span><hr><h4>Résumé exécutif</h4><i></i><i></i><i class="short"></i><h4>Recommandations</h4><i></i><i class="short"></i>
+      <div class="pa-security-grid">
+        <article class="pa-security-card pa-reveal"><i class="violet">◇</i><h3>Pas de Cloud obligatoire</h3><p>Le moteur local fonctionne sans dépendre d’un service d’IA distant.</p></article>
+        <article class="pa-security-card pa-reveal"><i class="green">▣</i><h3>Traitement local</h3><p>Les analyses locales s’exécutent sur votre machine après installation des modèles.</p></article>
+        <article class="pa-security-card pa-reveal"><i class="blue">◎</i><h3>Vous gardez le contrôle</h3><p>Vos projets, documents et discussions restent dans votre environnement.</p></article>
+        <article class="pa-security-card pa-reveal"><i class="pink">◆</i><h3>Espaces séparés</h3><p>Projets et agents organisent les contextes sensibles sans mélanger les dossiers.</p></article>
       </div>
     </section>
 
-    <section class="pa-launch" id="launch">
-      <div class="pa-launch-mark"><span class="pa-mark large" aria-hidden="true"><i></i><i></i><i></i></span></div>
-      <span class="pa-label">PrivatAI</span>
-      <h2>L’IA professionnelle<br>qui reste avec vous.</h2>
-      <p>Travaillez localement. Protégez vos documents. Gardez le contrôle.</p>
-      <div class="pa-launch-pills"><span>Local-first</span><span>Hors ligne</span><span>Privé</span><span>Sans abonnement Cloud obligatoire</span></div>
+    <section class="pa-why" id="why">
+      <div class="pa-why-copy pa-reveal">
+        <span>UNE IA POUR LE TRAVAIL RÉEL</span>
+        <h2>Du document à la décision.</h2>
+        <p>Contrats, audits, finance, RH, santé, conformité, stratégie : PrivatAI transforme vos dossiers en analyses exploitables et en documents professionnels.</p>
+      </div>
+      <div class="pa-why-pills pa-reveal"><span>Direction</span><span>Juridique</span><span>Audit</span><span>Finance</span><span>RH</span><span>Santé</span><span>Conformité</span><span>Stratégie</span></div>
+    </section>
+
+    <section class="pa-bottom-cta pa-reveal">
+      <div class="pa-cta-brand"><span class="pa-mark large" aria-hidden="true"><i></i><i></i><i></i></span><div><h2>Prêt à reprendre le contrôle de vos données ?</h2><p>Téléchargez PrivatAI et utilisez la puissance de l’IA locale sur votre ordinateur.</p></div></div>
+      <div class="pa-cta-downloads">
+        <div class="pa-detect small"><i></i><span class="systemLabelMirror">Système détecté automatiquement</span></div>
+        <div class="pa-download-grid compact">
+          <a class="pa-download pa-windows" data-platform="windows" href="https://github.com/zimesongbian007/privatai/releases" target="_blank" rel="noopener"><span class="pa-os-icon pa-win-icon"><i></i><i></i><i></i><i></i></span><span><small>Télécharger</small><strong>pour Windows</strong></span><em class="pa-recommended">Recommandé</em></a>
+          <a class="pa-download pa-mac" data-platform="mac" href="https://github.com/zimesongbian007/privatai/releases" target="_blank" rel="noopener"><span class="pa-os-icon pa-apple">●</span><span><small>Télécharger</small><strong>pour Mac</strong></span><em class="pa-recommended">Recommandé</em></a>
+        </div>
+      </div>
     </section>
 
     <footer class="pa-footer">
-      <a class="pa-brand" href="#top"><span class="pa-mark" aria-hidden="true"><i></i><i></i><i></i></span><strong>PrivatAI</strong></a>
-      <p>Une initiative BOT.BJ • Intelligence artificielle locale pour le travail professionnel.</p>
-      <a href="https://bot.bj/privatia">bot.bj/privatia</a>
+      <div>PrivatAI © <span id="year"></span></div>
+      <div class="pa-footer-links"><a href="#security">Confidentialité</a><a href="#how">Fonctionnement</a><a href="#download">Télécharger</a><a href="https://bot.bj">BOT.BJ</a></div>
+      <a href="https://github.com/zimesongbian007/privatai" target="_blank" rel="noopener">GitHub ↗</a>
     </footer>
   </main>
 </body>
