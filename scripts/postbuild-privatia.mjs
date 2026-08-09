@@ -34,6 +34,11 @@ let after = before.replace(
   `/privatia/app.js?v=${fingerprint}`,
 );
 
+after = after.replace(
+  /\/privatia\/journey\.js\?v=[^"']+/g,
+  `/privatia/journey.js?v=${journeyFingerprint}`,
+);
+
 // Le parcours de démonstration est chargé avant app.js afin que la navigation,
 // les animations de révélation et le suivi de section le prennent en compte.
 if (!after.includes('/privatia/journey.js')) {
