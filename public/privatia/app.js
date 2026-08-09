@@ -6,33 +6,13 @@
   const platformButtons = document.querySelectorAll('[data-platform]');
   const year = document.getElementById('year');
 
-  const WINDOWS_DOWNLOAD = 'https://github.com/starlab007007/botbenin/releases/download/privatia-latest/PrivatAI-Windows-x64-Setup.exe';
-  const WINDOWS_MSI_DOWNLOAD = 'https://github.com/starlab007007/botbenin/releases/download/privatia-latest/PrivatAI-Windows-x64.msi';
-  const MAC_DOWNLOAD = 'https://github.com/starlab007007/botbenin/releases/download/privatia-latest/PrivatAI-Mac-Intel.dmg';
-  const DOWNLOAD_FRAME = 'privatai-download-frame';
+  // Téléchargements strictement same-origin : le navigateur reste sur bot.bj.
+  // Les binaires sont synchronisés côté serveur puis servis par bot.bj.
+  const WINDOWS_DOWNLOAD = '/privatia/downloads/PrivatAI-Windows-x64-Setup.exe';
+  const WINDOWS_MSI_DOWNLOAD = '/privatia/downloads/PrivatAI-Windows-x64.msi';
+  const MAC_DOWNLOAD = '/privatia/downloads/PrivatAI-Mac-Intel.dmg';
 
   if (year) year.textContent = String(new Date().getFullYear());
-
-  const ensureDownloadFrame = () => {
-    let frame = document.querySelector(`iframe[name="${DOWNLOAD_FRAME}"]`);
-    if (frame) return frame;
-    frame = document.createElement('iframe');
-    frame.name = DOWNLOAD_FRAME;
-    frame.setAttribute('aria-hidden', 'true');
-    frame.tabIndex = -1;
-    frame.style.position = 'fixed';
-    frame.style.width = '1px';
-    frame.style.height = '1px';
-    frame.style.opacity = '0';
-    frame.style.pointerEvents = 'none';
-    frame.style.border = '0';
-    frame.style.left = '-9999px';
-    frame.style.top = '-9999px';
-    document.body.appendChild(frame);
-    return frame;
-  };
-
-  ensureDownloadFrame();
 
   const getSystemTheme = () =>
     window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -60,7 +40,8 @@
   });
 
   const detectPlatform = () => {
-    const uaPlatform = navigator.userAgentData?.platform || navigator.platform || '';
+    const uaData = navigator.userAgentData;
+    const uaPlatform = uaData?.platform || navigator.platform || '';
     const ua = `${navigator.userAgent || ''} ${uaPlatform}`.toLowerCase();
     if (ua.includes('windows') || ua.includes('win32') || ua.includes('win64') || ua.includes('win')) return 'windows';
     if (ua.includes('macintosh') || ua.includes('macintel') || ua.includes('mac os') || ua.includes('mac')) return 'mac';
@@ -80,29 +61,18 @@
   });
 
   const configureDirectDownload = (button, url, fileName) => {
-    // Le lien visible reste sur bot.bj. Le fichier est demandé dans une iframe
-    // invisible afin qu'aucune page ou aucun onglet GitHub ne puisse s'ouvrir.
     button.removeAttribute('target');
     button.removeAttribute('rel');
-    button.removeAttribute('download');
-    button.setAttribute('href', '#download');
+    button.setAttribute('href', url);
+    button.setAttribute('download', fileName);
     button.dataset.downloadName = fileName;
 
-    button.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      const frame = ensureDownloadFrame();
+    button.addEventListener('click', () => {
       const small = button.querySelector('small');
       const original = small?.textContent || '';
-
       button.setAttribute('aria-busy', 'true');
       button.classList.add('downloading');
       if (small) small.textContent = 'Téléchargement…';
-
-      // Attribution de src seulement après l'action utilisateur : les navigateurs
-      // reconnaissent le geste et le téléchargement démarre sans navigation visuelle.
-      frame.src = url;
 
       window.setTimeout(() => {
         if (small) small.textContent = original || 'Télécharger';
@@ -125,6 +95,17 @@
     link.innerHTML = 'Windows MSI direct <span>→</span>';
     link.setAttribute('aria-label', 'Télécharger directement PrivatAI pour Windows au format MSI');
     configureDirectDownload(link, WINDOWS_MSI_DOWNLOAD, 'PrivatAI-Windows-x64.msi');
+  });
+
+  // Aucun lien de téléchargement ne doit conduire vers une page GitHub.
+  document.querySelectorAll('a[href*="github.com"]').forEach((link) => {
+    if (link.matches('[data-platform], .pa-other')) return;
+    if (link.closest('.pa-footer')) {
+      link.setAttribute('href', 'https://bot.bj');
+      link.removeAttribute('target');
+      link.removeAttribute('rel');
+      link.textContent = 'BOT.BJ ↗';
+    }
   });
 
   root?.setAttribute('data-detected-platform', detected);
