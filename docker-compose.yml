@@ -34,6 +34,52 @@ services:
     networks:
       - web
 
+  privatai-downloads:
+    image: python:3.12-alpine
+    container_name: privatai-downloads-botbj
+    restart: always
+    command:
+      - python
+      - -u
+      - /app/privatai_download_server.py
+    environment:
+      PRIVATAI_DOWNLOAD_PORT: "8080"
+      PRIVATAI_REFRESH_SECONDS: "3600"
+      PRIVATAI_DOWNLOAD_CACHE: "/cache"
+      PRIVATAI_DOWNLOAD_APP_JS: "/app/privatai_download_app.js"
+    volumes:
+      - ./server/privatai_download_server.py:/app/privatai_download_server.py:ro
+      - ./server/privatai_download_app.js:/app/privatai_download_app.js:ro
+      - privatai_download_cache:/cache
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.privatai-download-files.rule=Host(`bot.bj`) && PathPrefix(`/privatia/downloads/`)"
+      - "traefik.http.routers.privatai-download-files.entrypoints=websecure"
+      - "traefik.http.routers.privatai-download-files.tls.certresolver=myresolver"
+      - "traefik.http.routers.privatai-download-files.priority=300"
+      - "traefik.http.routers.privatai-download-files.service=privatai-downloads"
+      - "traefik.http.routers.privatai-download-js.rule=Host(`bot.bj`) && Path(`/privatia/app.js`)"
+      - "traefik.http.routers.privatai-download-js.entrypoints=websecure"
+      - "traefik.http.routers.privatai-download-js.tls.certresolver=myresolver"
+      - "traefik.http.routers.privatai-download-js.priority=300"
+      - "traefik.http.routers.privatai-download-js.service=privatai-downloads"
+      - "traefik.http.services.privatai-downloads.loadbalancer.server.port=8080"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=3).read()"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - web
+
+volumes:
+  privatai_download_cache:
+
 networks:
   web:
     external: true
