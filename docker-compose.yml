@@ -47,6 +47,9 @@ services:
       PRIVATAI_REFRESH_SECONDS: "3600"
       PRIVATAI_DOWNLOAD_CACHE: "/cache"
       PRIVATAI_DOWNLOAD_APP_JS: "/app/privatai_download_app.js"
+      PRIVATAI_MAX_UPLOAD_BYTES: "2147483648"
+      PRIVATAI_SUPABASE_URL: "https://mvynepqulhflxtyymtzs.supabase.co"
+      PRIVATAI_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12eW5lcHF1bGhmbHh0eXltdHpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc1OTgxNTMsImV4cCI6MjA2MzE3NDE1M30.g1llr-Q6T3h06xFV7hCNRWZHG20wQHoBmp5zL0OAKh8"
     volumes:
       - ./server/privatai_download_server.py:/app/privatai_download_server.py:ro
       - ./server/privatai_download_app.js:/app/privatai_download_app.js:ro
@@ -58,6 +61,11 @@ services:
       - "traefik.http.routers.privatai-download-files.tls.certresolver=myresolver"
       - "traefik.http.routers.privatai-download-files.priority=300"
       - "traefik.http.routers.privatai-download-files.service=privatai-downloads"
+      - "traefik.http.routers.privatai-download-admin.rule=Host(`bot.bj`) && PathPrefix(`/privatia/admin/downloads`)"
+      - "traefik.http.routers.privatai-download-admin.entrypoints=websecure"
+      - "traefik.http.routers.privatai-download-admin.tls.certresolver=myresolver"
+      - "traefik.http.routers.privatai-download-admin.priority=350"
+      - "traefik.http.routers.privatai-download-admin.service=privatai-downloads"
       - "traefik.http.routers.privatai-download-js.rule=Host(`bot.bj`) && Path(`/privatia/app.js`)"
       - "traefik.http.routers.privatai-download-js.entrypoints=websecure"
       - "traefik.http.routers.privatai-download-js.tls.certresolver=myresolver"
