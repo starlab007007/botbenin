@@ -3,16 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Users, Shield, Key, Activity, Settings, Palette, Database, Megaphone, Bot, GraduationCap, Sparkles, KeyRound, ArrowLeft } from 'lucide-react';
+import { Users, Shield, Key, Activity, Settings, Palette, Database, Megaphone, Bot, GraduationCap, Sparkles, PackageOpen, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import AdminPrivatAILicensesPage from './AdminPrivatAILicensesPage';
+import AdminPrivatAIPage from './AdminPrivatAIPage';
 
 export const AdminDashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [pendingDiffusion, setPendingDiffusion] = useState<number>(0);
-  const [showPrivatAILicenses, setShowPrivatAILicenses] = useState(false);
+  const [showPrivatAI, setShowPrivatAI] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -61,10 +61,10 @@ export const AdminDashboardPage: React.FC = () => {
       color: 'text-cyan-500',
     },
     {
-      title: 'PrivatAI — Licences',
-      description: 'Essai gratuit 7 jours, génération de codes, durée de validité, appareils et révocation',
-      icon: KeyRound,
-      path: '__privatai_licenses__',
+      title: 'PrivatAI — Administration',
+      description: 'Publier DMG/EXE/MSI, gérer l’essai 7 jours, licences, appareils, révocations et journal',
+      icon: PackageOpen,
+      path: '__privatai__',
       color: 'text-violet-500',
     },
     {
@@ -112,15 +112,15 @@ export const AdminDashboardPage: React.FC = () => {
     },
   ];
 
-  if (showPrivatAILicenses) {
+  if (showPrivatAI) {
     return (
       <div>
         <div className="container mx-auto px-4 pt-6">
-          <Button variant="outline" onClick={() => setShowPrivatAILicenses(false)}>
+          <Button variant="outline" onClick={() => setShowPrivatAI(false)}>
             <ArrowLeft className="h-4 w-4 mr-2" />Retour au dashboard admin
           </Button>
         </div>
-        <AdminPrivatAILicensesPage />
+        <AdminPrivatAIPage />
       </div>
     );
   }
@@ -138,10 +138,10 @@ export const AdminDashboardPage: React.FC = () => {
         {adminCards.map((card) => {
           const Icon = card.icon;
           return (
-            <Card 
+            <Card
               key={card.path}
               className="cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => card.path === '__privatai_licenses__' ? setShowPrivatAILicenses(true) : navigate(card.path)}
+              onClick={() => card.path === '__privatai__' ? setShowPrivatAI(true) : navigate(card.path)}
             >
               <CardHeader>
                 <div className="flex items-center justify-between">
