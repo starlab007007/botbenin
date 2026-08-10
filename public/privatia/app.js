@@ -6,8 +6,6 @@
   const platformButtons = document.querySelectorAll('[data-platform]');
   const year = document.getElementById('year');
 
-  // Téléchargements strictement same-origin : le navigateur reste sur bot.bj.
-  // Les binaires sont synchronisés côté serveur puis servis par bot.bj.
   const WINDOWS_DOWNLOAD = '/privatia/downloads/PrivatAI-Windows-x64-Setup.exe';
   const WINDOWS_MSI_DOWNLOAD = '/privatia/downloads/PrivatAI-Windows-x64.msi';
   const MAC_DOWNLOAD = '/privatia/downloads/PrivatAI-Mac-Intel.dmg';
@@ -15,12 +13,7 @@
   if (year) year.textContent = String(new Date().getFullYear());
 
   const getSystemTheme = () =>
-    window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-      ? 'dark'
-      : 'light';
-
-  const savedTheme = localStorage.getItem('privatai-theme');
-  const initialTheme = savedTheme || getSystemTheme();
+    window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 
   const applyTheme = (theme) => {
     const dark = theme === 'dark';
@@ -30,21 +23,18 @@
     themeButton?.setAttribute('aria-label', dark ? 'Passer au thème clair' : 'Passer au thème sombre');
   };
 
-  applyTheme(initialTheme);
-
+  applyTheme(localStorage.getItem('privatai-theme') || getSystemTheme());
   themeButton?.addEventListener('click', () => {
-    const isDark = root?.getAttribute('data-theme') === 'dark';
-    const next = isDark ? 'light' : 'dark';
+    const next = root?.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
     applyTheme(next);
     localStorage.setItem('privatai-theme', next);
   });
 
   const detectPlatform = () => {
-    const uaData = navigator.userAgentData;
-    const uaPlatform = uaData?.platform || navigator.platform || '';
-    const ua = `${navigator.userAgent || ''} ${uaPlatform}`.toLowerCase();
-    if (ua.includes('windows') || ua.includes('win32') || ua.includes('win64') || ua.includes('win')) return 'windows';
-    if (ua.includes('macintosh') || ua.includes('macintel') || ua.includes('mac os') || ua.includes('mac')) return 'mac';
+    const p = navigator.userAgentData?.platform || navigator.platform || '';
+    const ua = `${navigator.userAgent || ''} ${p}`.toLowerCase();
+    if (/windows|win32|win64/.test(ua)) return 'windows';
+    if (/macintosh|macintel|mac os|mac/.test(ua)) return 'mac';
     return 'other';
   };
 
@@ -54,259 +44,201 @@
     mac: 'Mac détecté automatiquement',
     other: 'Choisissez votre système',
   };
-
   if (systemLabel) systemLabel.textContent = labels[detected];
-  mirrors.forEach((el) => {
-    el.textContent = labels[detected];
-  });
+  mirrors.forEach((el) => { el.textContent = labels[detected]; });
+  root?.setAttribute('data-detected-platform', detected);
 
-  const installMacGuide = () => {
-    if (document.getElementById('pa-mac-guide')) {
-      return document.getElementById('pa-mac-guide');
-    }
-
-    const style = document.createElement('style');
-    style.id = 'pa-mac-guide-style';
-    style.textContent = `
-      .pa-mac-help-row{margin:12px 0 0;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;color:var(--muted);font-size:11px;line-height:1.45}
-      .pa-mac-help-row[hidden]{display:none!important}
-      .pa-mac-help-row button{appearance:none;border:0;background:transparent;color:var(--violet);font:inherit;font-weight:800;cursor:pointer;padding:3px 4px;border-radius:7px}
-      .pa-mac-help-row button:hover,.pa-mac-help-row button:focus-visible{background:var(--violet-soft);outline:none}
-      .pa-mac-guide{position:fixed;inset:0;z-index:1000;display:none;align-items:center;justify-content:center;padding:22px;background:rgba(15,23,42,.48);backdrop-filter:blur(8px)}
-      .pa-mac-guide.open{display:flex}
-      .pa-mac-guide-card{width:min(620px,100%);max-height:min(760px,calc(100vh - 44px));overflow:auto;border:1px solid var(--line);border-radius:24px;background:var(--surface);color:var(--ink);box-shadow:0 32px 90px rgba(15,23,42,.28);transform:translateY(8px) scale(.985);opacity:0;transition:transform .18s ease,opacity .18s ease}
-      .pa-mac-guide.open .pa-mac-guide-card{transform:none;opacity:1}
-      .pa-mac-guide-head{position:sticky;top:0;z-index:2;padding:22px 24px 18px;display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(16px)}
-      .pa-mac-guide-logo{width:46px;height:46px;display:grid;place-items:center;border-radius:14px;background:var(--violet-soft);color:var(--violet)}
-      .pa-mac-guide-logo svg{width:26px;height:26px;fill:currentColor}
-      .pa-mac-guide-title{margin:0;font-size:20px;letter-spacing:-.035em}
-      .pa-mac-guide-sub{margin:4px 0 0;color:var(--muted);font-size:12px;line-height:1.5}
-      .pa-mac-guide-close{width:36px;height:36px;border:1px solid var(--line);border-radius:50%;background:var(--surface);color:var(--muted);font-size:21px;line-height:1;cursor:pointer}
-      .pa-mac-guide-body{padding:24px}
-      .pa-mac-download-state{margin:0 0 18px;padding:12px 14px;display:flex;align-items:flex-start;gap:10px;border:1px solid color-mix(in srgb,var(--green) 35%,var(--line));border-radius:14px;background:var(--green-soft);color:var(--ink)}
-      .pa-mac-download-state strong{display:block;font-size:12px}.pa-mac-download-state span{display:block;margin-top:2px;color:var(--muted);font-size:11px;line-height:1.45}
-      .pa-mac-download-state i{width:9px;height:9px;margin-top:4px;flex:none;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px color-mix(in srgb,var(--green) 15%,transparent)}
-      .pa-mac-steps{display:grid;gap:10px;counter-reset:macsteps}
-      .pa-mac-step{counter-increment:macsteps;padding:15px 16px;display:grid;grid-template-columns:34px 1fr;gap:12px;border:1px solid var(--line);border-radius:15px;background:var(--surface-soft)}
-      .pa-mac-step:before{content:counter(macsteps);width:30px;height:30px;display:grid;place-items:center;border-radius:50%;background:var(--violet-soft);color:var(--violet);font-size:12px;font-weight:900}
-      .pa-mac-step h4{margin:1px 0 4px;font-size:13px}.pa-mac-step p{margin:0;color:var(--muted);font-size:11px;line-height:1.55}
-      .pa-mac-path{display:inline-flex;margin-top:6px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font-size:10px;font-weight:750}
-      .pa-mac-note{margin-top:16px;padding:14px 15px;border:1px solid color-mix(in srgb,#f59e0b 35%,var(--line));border-radius:14px;background:color-mix(in srgb,#f59e0b 7%,var(--surface));color:var(--muted);font-size:11px;line-height:1.55}
-      .pa-mac-note strong{color:var(--ink)}
-      .pa-mac-security{margin-top:12px;padding:13px 15px;display:flex;gap:10px;border:1px solid color-mix(in srgb,var(--green) 32%,var(--line));border-radius:14px;background:color-mix(in srgb,var(--green) 6%,var(--surface));color:var(--muted);font-size:11px;line-height:1.55}
-      .pa-mac-security svg{width:18px;height:18px;flex:none;color:var(--green);fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
-      .pa-mac-guide-actions{padding:0 24px 24px;display:flex;justify-content:flex-end;gap:10px}
-      .pa-mac-guide-actions button{min-height:42px;padding:0 17px;border-radius:11px;font-size:12px;font-weight:800;cursor:pointer}
-      .pa-mac-copy{border:1px solid var(--line);background:var(--surface);color:var(--ink)}
-      .pa-mac-done{border:0;background:linear-gradient(135deg,#6754ee,#5540d4);color:#fff}
-      .pa-page[data-theme="dark"] .pa-mac-guide{background:rgba(0,0,0,.64)}
-      @media(max-width:640px){.pa-mac-guide{padding:10px;align-items:flex-end}.pa-mac-guide-card{max-height:88vh;border-radius:22px 22px 16px 16px}.pa-mac-guide-head{padding:18px}.pa-mac-guide-body{padding:18px}.pa-mac-guide-actions{padding:0 18px 18px}.pa-mac-guide-title{font-size:18px}}
-    `;
-    document.head.appendChild(style);
-
-    const guide = document.createElement('div');
-    guide.className = 'pa-mac-guide';
-    guide.id = 'pa-mac-guide';
-    guide.setAttribute('role', 'dialog');
-    guide.setAttribute('aria-modal', 'true');
-    guide.setAttribute('aria-labelledby', 'pa-mac-guide-title');
-    guide.innerHTML = `
-      <div class="pa-mac-guide-card" role="document">
-        <div class="pa-mac-guide-head">
-          <div class="pa-mac-guide-logo" aria-hidden="true">
-            <svg viewBox="0 0 24 24"><path d="M18.71 19.5c-.83 1.24-1.72 2.45-3.05 2.47-1.31.03-1.73-.78-3.23-.78-1.5 0-1.97.76-3.2.81-1.28.05-2.25-1.32-3.09-2.55-1.71-2.48-3.02-7.01-1.26-10.07.87-1.52 2.47-2.48 4.19-2.5 1.3-.03 2.52.88 3.23.88.68 0 2.11-1.09 3.56-.93.61.03 2.32.24 3.42 1.85-.09.06-2.04 1.2-2.02 3.61.03 2.87 2.51 3.83 2.54 3.84-.02.07-.4 1.38-1.31 2.77M13.7 5.71c.7-.83 1.81-1.46 2.79-1.5.13 1.15-.3 2.31-.97 3.15-.66.84-1.74 1.49-2.81 1.41-.15-1.13.39-2.32.99-3.06Z"/></svg>
-          </div>
-          <div>
-            <h3 class="pa-mac-guide-title" id="pa-mac-guide-title">Installer PrivatAI sur Mac</h3>
-            <p class="pa-mac-guide-sub">Guide officiel pour la version Mac distribuée directement depuis BOT.BJ.</p>
-          </div>
-          <button class="pa-mac-guide-close" type="button" aria-label="Fermer le guide">×</button>
-        </div>
-        <div class="pa-mac-guide-body">
-          <div class="pa-mac-download-state">
-            <i aria-hidden="true"></i>
-            <div><strong>Téléchargement direct depuis bot.bj</strong><span>Le fichier PrivatAI-Mac-Intel.dmg est téléchargé sans ouvrir GitHub.</span></div>
-          </div>
-          <div class="pa-mac-steps">
-            <article class="pa-mac-step"><div><h4>Ouvrez le fichier DMG</h4><p>Dans Téléchargements, ouvrez <strong>PrivatAI-Mac-Intel.dmg</strong>.</p></div></article>
-            <article class="pa-mac-step"><div><h4>Installez PrivatAI</h4><p>Glissez <strong>PrivatAI.app</strong> dans le dossier <strong>Applications</strong>, puis ouvrez PrivatAI depuis Applications.</p></div></article>
-            <article class="pa-mac-step"><div><h4>Si macOS bloque la première ouverture</h4><p>Fermez le message, puis ouvrez les réglages de sécurité du Mac.</p><span class="pa-mac-path">Réglages Système → Confidentialité et sécurité</span></div></article>
-            <article class="pa-mac-step"><div><h4>Autorisez uniquement PrivatAI</h4><p>Dans la section Sécurité, cliquez sur <strong>Ouvrir quand même</strong> pour PrivatAI. macOS peut demander votre mot de passe ou Touch ID.</p></div></article>
-            <article class="pa-mac-step"><div><h4>Confirmez l’ouverture</h4><p>Relancez PrivatAI puis confirmez <strong>Ouvrir</strong>. Cette autorisation concerne PrivatAI uniquement.</p></div></article>
-          </div>
-          <div class="pa-mac-note"><strong>Pourquoi macOS affiche-t-il ce contrôle ?</strong><br>La version actuelle est distribuée hors Mac App Store avec une signature ad-hoc et n’est pas encore notarialisée par Apple. Ce message signifie qu’Apple ne peut pas confirmer l’identité du développeur pour cette version ; il ne signifie pas qu’Apple a détecté un logiciel malveillant.</div>
-          <div class="pa-mac-security">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6l-7-3Z"/><path d="m9.5 12 1.7 1.7 3.6-4"/></svg>
-            <div><strong>La sécurité du Mac reste activée.</strong><br>PrivatAI ne vous demande pas de désactiver Gatekeeper, de modifier les protections globales de macOS ni d’exécuter une commande Terminal.</div>
-          </div>
-        </div>
-        <div class="pa-mac-guide-actions">
-          <button class="pa-mac-copy" type="button">Copier les étapes</button>
-          <button class="pa-mac-done" type="button">J’ai compris</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(guide);
-
-    const closeGuide = () => {
-      guide.classList.remove('open');
-      document.body.style.removeProperty('overflow');
-      window.setTimeout(() => guide.setAttribute('aria-hidden', 'true'), 180);
-    };
-
-    guide.querySelector('.pa-mac-guide-close')?.addEventListener('click', closeGuide);
-    guide.querySelector('.pa-mac-done')?.addEventListener('click', closeGuide);
-    guide.addEventListener('click', (event) => {
-      if (event.target === guide) closeGuide();
-    });
-
-    guide.querySelector('.pa-mac-copy')?.addEventListener('click', async (event) => {
-      const button = event.currentTarget;
-      const instructions = [
-        'Installation PrivatAI sur Mac',
-        '1. Ouvrez PrivatAI-Mac-Intel.dmg depuis Téléchargements.',
-        '2. Glissez PrivatAI.app dans Applications.',
-        '3. Ouvrez PrivatAI depuis Applications.',
-        '4. Si macOS bloque l’ouverture : Réglages Système → Confidentialité et sécurité.',
-        '5. Cliquez sur Ouvrir quand même pour PrivatAI, authentifiez-vous puis confirmez Ouvrir.',
-        'Aucune désactivation de Gatekeeper ni commande Terminal n’est nécessaire.',
-      ].join('\n');
-      try {
-        await navigator.clipboard.writeText(instructions);
-        button.textContent = 'Étapes copiées ✓';
-        window.setTimeout(() => { button.textContent = 'Copier les étapes'; }, 1800);
-      } catch {
-        button.textContent = 'Copie indisponible';
-        window.setTimeout(() => { button.textContent = 'Copier les étapes'; }, 1800);
-      }
-    });
-
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && guide.classList.contains('open')) closeGuide();
-    });
-
-    return guide;
-  };
-
-  const macGuide = installMacGuide();
-
-  const openMacGuide = (downloadStarted = false) => {
-    macGuide.removeAttribute('aria-hidden');
-    const state = macGuide.querySelector('.pa-mac-download-state span');
-    if (state) {
-      state.textContent = downloadStarted
-        ? 'Le téléchargement du fichier PrivatAI-Mac-Intel.dmg a été lancé directement depuis bot.bj.'
-        : 'Le fichier PrivatAI-Mac-Intel.dmg sera téléchargé directement depuis bot.bj.';
-    }
-    macGuide.classList.add('open');
-    document.body.style.overflow = 'hidden';
-    window.setTimeout(() => macGuide.querySelector('.pa-mac-guide-close')?.focus(), 60);
-  };
-
-  document.querySelectorAll('.pa-download-zone').forEach((zone) => {
-    if (zone.querySelector('.pa-mac-help-row')) return;
-    const help = document.createElement('div');
-    help.className = 'pa-mac-help-row';
-    help.hidden = detected !== 'mac';
-    help.innerHTML = '<span>Première installation sur Mac ?</span><button type="button">Voir le guide d’installation</button>';
-    help.querySelector('button')?.addEventListener('click', () => openMacGuide(false));
-    zone.appendChild(help);
-  });
-
-  // La version publique macOS actuelle est un DMG Intel.
-  document.querySelectorAll('.pa-download.pa-mac strong').forEach((label) => {
-    label.textContent = 'pour Mac (Intel)';
-  });
-
-  const configureDirectDownload = (button, url, fileName, options = {}) => {
+  const configureDownload = (button, url, fileName) => {
     button.removeAttribute('target');
     button.removeAttribute('rel');
-    button.setAttribute('href', url);
+    button.href = url;
     button.setAttribute('download', fileName);
-    button.dataset.downloadName = fileName;
-
     button.addEventListener('click', () => {
       const small = button.querySelector('small');
-      const original = small?.textContent || '';
-      button.setAttribute('aria-busy', 'true');
+      const original = small?.textContent || 'Télécharger';
       button.classList.add('downloading');
+      button.setAttribute('aria-busy', 'true');
       if (small) small.textContent = 'Téléchargement…';
-
-      if (options.showMacGuide) {
-        window.setTimeout(() => openMacGuide(true), 650);
-      }
-
-      window.setTimeout(() => {
-        if (small) small.textContent = original || 'Télécharger';
-        button.removeAttribute('aria-busy');
+      setTimeout(() => {
+        if (small) small.textContent = original;
         button.classList.remove('downloading');
+        button.removeAttribute('aria-busy');
       }, 2200);
     });
   };
 
   platformButtons.forEach((button) => {
     const platform = button.getAttribute('data-platform');
-    const recommended = platform === detected;
-    button.classList.toggle('recommended', recommended);
-    button.setAttribute('aria-label', `${button.textContent.trim()}${recommended ? ' — recommandé pour cet appareil' : ''}`);
-    if (platform === 'windows') configureDirectDownload(button, WINDOWS_DOWNLOAD, 'PrivatAI-Windows-x64-Setup.exe');
-    if (platform === 'mac') configureDirectDownload(button, MAC_DOWNLOAD, 'PrivatAI-Mac-Intel.dmg', { showMacGuide: true });
+    button.classList.toggle('recommended', platform === detected);
+    if (platform === 'windows') configureDownload(button, WINDOWS_DOWNLOAD, 'PrivatAI-Windows-x64-Setup.exe');
+    if (platform === 'mac') {
+      const strong = button.querySelector('strong');
+      if (strong) strong.textContent = 'pour Mac (Intel)';
+      configureDownload(button, MAC_DOWNLOAD, 'PrivatAI-Mac-Intel.dmg');
+    }
   });
 
   document.querySelectorAll('.pa-other').forEach((link) => {
     link.innerHTML = 'Windows MSI direct <span>→</span>';
-    link.setAttribute('aria-label', 'Télécharger directement PrivatAI pour Windows au format MSI');
-    configureDirectDownload(link, WINDOWS_MSI_DOWNLOAD, 'PrivatAI-Windows-x64.msi');
+    configureDownload(link, WINDOWS_MSI_DOWNLOAD, 'PrivatAI-Windows-x64.msi');
   });
 
-  // Aucun lien de téléchargement ne doit conduire vers une page GitHub.
-  document.querySelectorAll('a[href*="github.com"]').forEach((link) => {
-    if (link.matches('[data-platform], .pa-other')) return;
-    if (link.closest('.pa-footer')) {
-      link.setAttribute('href', 'https://bot.bj');
-      link.removeAttribute('target');
-      link.removeAttribute('rel');
-      link.textContent = 'BOT.BJ ↗';
-    }
-  });
+  // ---------------------------------------------------------------------------
+  // DEMO LIVE : visible immédiatement dans le hero, autonome et sans dépendance.
+  // ---------------------------------------------------------------------------
+  const device = document.querySelector('.pa-device');
+  if (device) {
+    const style = document.createElement('style');
+    style.id = 'pa-live-demo-style';
+    style.textContent = `
+      .pa-live{position:relative;width:100%;border:1px solid #e4e7ec;border-radius:26px;background:#fff;box-shadow:0 28px 80px rgba(15,23,42,.14);overflow:hidden;color:#172033;min-height:560px}
+      .pa-page[data-theme="dark"] .pa-live{background:#101522;border-color:#2a3345;color:#f6f8fc;box-shadow:0 28px 80px rgba(0,0,0,.35)}
+      .pa-live-bar{height:46px;padding:0 15px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #e8ebf0;background:#fbfcfe}.pa-page[data-theme="dark"] .pa-live-bar{background:#151b29;border-color:#2a3345}
+      .pa-live-dot{width:9px;height:9px;border-radius:50%}.pa-live-dot.r{background:#ff5f57}.pa-live-dot.y{background:#febc2e}.pa-live-dot.g{background:#28c840}
+      .pa-live-name{margin-left:8px;font-size:11px;font-weight:850}.pa-live-badge{margin-left:auto;display:flex;align-items:center;gap:6px;padding:6px 9px;border-radius:999px;background:#eefcf4;color:#137a46;font-size:9px;font-weight:850}.pa-live-badge i{width:6px;height:6px;border-radius:50%;background:#16a060;box-shadow:0 0 0 4px rgba(22,160,96,.12)}
+      .pa-page[data-theme="dark"] .pa-live-badge{background:#123123;color:#75e0a7}
+      .pa-live-layout{display:grid;grid-template-columns:132px 1fr;min-height:514px}.pa-live-side{padding:17px 12px;border-right:1px solid #eaedf2;background:#fafbfc}.pa-page[data-theme="dark"] .pa-live-side{background:#121825;border-color:#293244}
+      .pa-live-logo{font-size:12px;font-weight:900;margin-bottom:18px}.pa-live-nav{display:grid;gap:7px}.pa-live-nav span{padding:8px 9px;border-radius:9px;color:#697386;font-size:9px;font-weight:750}.pa-live-nav span.active{background:#efeafe;color:#5f48da}.pa-page[data-theme="dark"] .pa-live-nav span{color:#9ba7bb}.pa-page[data-theme="dark"] .pa-live-nav span.active{background:#282047;color:#a999ff}
+      .pa-live-main{padding:18px;display:flex;flex-direction:column;min-width:0}.pa-live-stage-head{display:flex;align-items:flex-start;gap:10px;margin-bottom:14px}.pa-live-step{width:31px;height:31px;display:grid;place-items:center;flex:none;border-radius:10px;background:#eee9ff;color:#6048de;font-size:10px;font-weight:900}.pa-live-stage-head h3{margin:0;font-size:15px;letter-spacing:-.02em}.pa-live-stage-head p{margin:3px 0 0;color:#7a8497;font-size:9.5px;line-height:1.5}
+      .pa-live-canvas{position:relative;flex:1;display:flex;align-items:center;justify-content:center;padding:14px;border:1px solid #e8ebf0;border-radius:17px;background:linear-gradient(145deg,#fafbff,#f6f8fb);overflow:hidden}.pa-page[data-theme="dark"] .pa-live-canvas{background:linear-gradient(145deg,#151b28,#111723);border-color:#2a3345}
+      .pa-live-card{width:min(430px,100%);padding:17px;border:1px solid #e4e8ef;border-radius:16px;background:#fff;box-shadow:0 16px 45px rgba(15,23,42,.09);animation:paLiveIn .38s cubic-bezier(.2,.8,.2,1)}.pa-page[data-theme="dark"] .pa-live-card{background:#171e2d;border-color:#30394c}
+      @keyframes paLiveIn{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
+      .pa-live-card-top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:13px}.pa-live-card-top strong{font-size:10px}.pa-live-local{padding:5px 7px;border-radius:999px;background:#effaf4;color:#168153;font-size:8px;font-weight:850}.pa-page[data-theme="dark"] .pa-live-local{background:#173226;color:#7cddb0}
+      .pa-live-field{padding:11px;border:1px solid #e5e9ef;border-radius:11px;background:#f9fafc;margin-top:8px}.pa-page[data-theme="dark"] .pa-live-field{background:#111826;border-color:#2b3548}.pa-live-field b{display:block;font-size:10px}.pa-live-field small{display:block;margin-top:4px;color:#7a8497;font-size:8.5px;line-height:1.4}
+      .pa-live-primary{display:inline-flex;margin-top:11px;padding:8px 11px;border-radius:9px;background:#6550e8;color:#fff;font-size:8.5px;font-weight:850}
+      .pa-live-agent{display:flex;gap:10px;align-items:center}.pa-live-avatar{width:38px;height:38px;display:grid;place-items:center;border-radius:12px;background:linear-gradient(135deg,#6550e8,#8d62ef);color:#fff;font-size:11px;font-weight:900}.pa-live-agent b{font-size:10px}.pa-live-agent span{display:block;margin-top:3px;color:#7a8497;font-size:8.5px}
+      .pa-live-file{display:grid;grid-template-columns:42px 1fr auto;gap:10px;align-items:center}.pa-live-file-icon{width:42px;height:46px;display:grid;place-items:center;border-radius:9px;background:#e5484d;color:#fff;font-size:8px;font-weight:900}.pa-live-file b{font-size:9.5px}.pa-live-file small{display:block;color:#7a8497;font-size:8px;margin-top:3px}.pa-live-secret{padding:5px 7px;border-radius:7px;background:#ffe7e7;color:#bc2a2e;font-size:7px;font-weight:900;letter-spacing:.04em}
+      .pa-live-progress{height:5px;margin-top:12px;border-radius:999px;background:#e9edf2;overflow:hidden}.pa-live-progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,#6550e8,#8b5cf6);animation:paLoad 2.5s ease forwards}@keyframes paLoad{to{width:100%}}
+      .pa-live-chat{display:grid;gap:9px}.pa-live-bubble{padding:10px 11px;border-radius:12px;font-size:8.8px;line-height:1.5;max-width:92%}.pa-live-bubble.user{margin-left:auto;background:#6550e8;color:#fff;border-bottom-right-radius:4px}.pa-live-bubble.ai{background:#f6f7fa;border:1px solid #e5e9ef;border-bottom-left-radius:4px}.pa-page[data-theme="dark"] .pa-live-bubble.ai{background:#111826;border-color:#2b3548}.pa-live-bubble.ai b{color:#6550e8}.pa-live-cites{display:flex;gap:5px;margin-top:7px;flex-wrap:wrap}.pa-live-cites span{padding:4px 6px;border:1px solid #dfe4eb;border-radius:6px;background:#fff;color:#6d7788;font-size:7px}.pa-page[data-theme="dark"] .pa-live-cites span{background:#171e2d;border-color:#30394c;color:#aeb8c8}
+      .pa-live-export{display:flex;align-items:center;gap:10px;padding:12px;border:1px solid #e3e7ee;border-radius:12px;background:#f9fafc}.pa-page[data-theme="dark"] .pa-live-export{background:#111826;border-color:#2b3548}.pa-live-export-icon{width:40px;height:44px;display:grid;place-items:center;border-radius:9px;background:#e9efff;color:#3657b3;font-size:8px;font-weight:900}.pa-live-export b{font-size:9.5px}.pa-live-export small{display:block;margin-top:3px;color:#7a8497;font-size:8px}.pa-live-download{margin-left:auto;padding:7px 9px;border-radius:8px;background:#6550e8;color:#fff;font-size:8px;font-weight:850}
+      .pa-live-footer{margin-top:13px;display:flex;align-items:center;gap:9px}.pa-live-points{display:flex;gap:5px;flex:1}.pa-live-points button{width:7px;height:7px;padding:0;border:0;border-radius:999px;background:#d7dce5;cursor:pointer;transition:.2s}.pa-live-points button.active{width:20px;background:#6550e8}.pa-live-control{border:1px solid #e0e5ec;border-radius:8px;background:#fff;color:#667085;padding:6px 8px;font:inherit;font-size:8px;font-weight:800;cursor:pointer}.pa-page[data-theme="dark"] .pa-live-control{background:#171e2d;border-color:#30394c;color:#b3bdcc}
+      .pa-live-caption{position:absolute;left:12px;bottom:10px;display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,.88);backdrop-filter:blur(8px);box-shadow:0 5px 16px rgba(15,23,42,.07);font-size:7.5px;font-weight:800;color:#268457}.pa-live-caption i{width:6px;height:6px;border-radius:50%;background:#1da568;animation:paPulse 1.5s infinite}@keyframes paPulse{50%{opacity:.35;transform:scale(.7)}}.pa-page[data-theme="dark"] .pa-live-caption{background:rgba(20,27,40,.9);color:#7ce0ae}
+      @media(max-width:900px){.pa-live{min-height:510px}.pa-live-layout{grid-template-columns:110px 1fr;min-height:464px}.pa-live-side{padding:14px 9px}.pa-live-main{padding:14px}}
+      @media(max-width:720px){.pa-live{min-height:440px;border-radius:20px}.pa-live-layout{grid-template-columns:1fr;min-height:394px}.pa-live-side{display:none}.pa-live-main{padding:12px}.pa-live-stage-head p{font-size:8.5px}.pa-live-canvas{padding:9px}.pa-live-card{padding:13px}.pa-live-caption{display:none}}
+      @media(prefers-reduced-motion:reduce){.pa-live-card,.pa-live-progress i,.pa-live-caption i{animation:none}.pa-live-progress i{width:100%}}
+    `;
+    document.head.appendChild(style);
 
-  root?.setAttribute('data-detected-platform', detected);
+    const scenes = [
+      {
+        nav:'Accueil', n:'01', title:'Ouvrez PrivatAI', sub:'Votre espace IA démarre directement sur votre ordinateur.',
+        html:`<div class="pa-live-card"><div class="pa-live-card-top"><strong>PrivatAI est prêt</strong><span class="pa-live-local">● Moteur local</span></div><div class="pa-live-field"><b>IA locale active</b><small>Modèle conversationnel et moteur de recherche documentaire disponibles hors ligne.</small></div><div class="pa-live-field"><b>Vos données restent ici</b><small>Aucun document sensible n’est envoyé vers une API d’IA distante.</small></div><span class="pa-live-primary">Commencer →</span></div>`
+      },
+      {
+        nav:'Projets', n:'02', title:'Créez un projet privé', sub:'Isolez documents, agent, conversations et livrables.',
+        html:`<div class="pa-live-card"><div class="pa-live-card-top"><strong>Nouveau projet</strong><span class="pa-live-local">Local</span></div><div class="pa-live-field"><b>Opération Atlas — CONFIDENTIEL</b><small>Analyse stratégique d’un dossier interne à diffusion strictement limitée.</small></div><div class="pa-live-field"><b>Contexte isolé</b><small>Documents, échanges et livrables restent attachés à ce projet.</small></div><span class="pa-live-primary">Créer le projet</span></div>`
+      },
+      {
+        nav:'Agents', n:'03', title:'Créez votre agent spécialisé', sub:'Définissez son rôle, ses consignes et sa prudence.',
+        html:`<div class="pa-live-card"><div class="pa-live-card-top"><strong>Agent privé</strong><span class="pa-live-local">Sur cet appareil</span></div><div class="pa-live-agent"><div class="pa-live-avatar">AS</div><div><b>Analyste stratégique privé</b><span>Analyse les risques • cite les passages • signale les incertitudes</span></div></div><div class="pa-live-field"><b>Instruction</b><small>Répondre uniquement à partir des documents du projet et toujours citer les références.</small></div><span class="pa-live-primary">Activer l’agent</span></div>`
+      },
+      {
+        nav:'Documents', n:'04', title:'Chargez un document top confidentiel', sub:'PrivatAI l’indexe localement pour pouvoir l’interroger.',
+        html:`<div class="pa-live-card"><div class="pa-live-card-top"><strong>Documents du projet</strong><span class="pa-live-local">Indexation locale</span></div><div class="pa-live-file"><div class="pa-live-file-icon">PDF</div><div><b>Projet_Atlas_TOP_SECRET.pdf</b><small>86 pages • 18,4 Mo • stocké localement</small></div><span class="pa-live-secret">TOP SECRET</span></div><div class="pa-live-progress"><i></i></div><div class="pa-live-field"><b>Le document ne quitte pas l’ordinateur</b><small>Découpage, indexation sémantique et recherche réalisés localement.</small></div></div>`
+      },
+      {
+        nav:'Discussion', n:'05', title:'Posez une question sur le document', sub:'Interrogez le dossier comme avec un analyste métier.',
+        html:`<div class="pa-live-card"><div class="pa-live-card-top"><strong>Chat du projet</strong><span class="pa-live-local">Hors ligne</span></div><div class="pa-live-chat"><div class="pa-live-bubble user">Identifie les 5 risques critiques, explique leur impact et cite les pages qui justifient chaque conclusion.</div><div class="pa-live-bubble ai">Recherche locale dans <b>Projet_Atlas_TOP_SECRET.pdf</b>…</div></div><div class="pa-live-progress"><i></i></div></div>`
+      },
+      {
+        nav:'Discussion', n:'06', title:'Recevez une réponse sourcée', sub:'Le modèle local répond à partir des passages trouvés dans votre dossier.',
+        html:`<div class="pa-live-card"><div class="pa-live-card-top"><strong>Réponse PrivatAI</strong><span class="pa-live-local">100% local</span></div><div class="pa-live-chat"><div class="pa-live-bubble ai" style="max-width:100%"><b>1. Dépendance fournisseur — risque élevé.</b><br>Trois composants critiques reposent sur un fournisseur unique, sans alternative contractuelle immédiate.<div class="pa-live-cites"><span>p. 18</span><span>p. 34–35</span><span>p. 62</span></div></div><div class="pa-live-bubble ai" style="max-width:100%"><b>2. Calendrier — risque élevé.</b><br>Deux jalons structurants disposent de moins de dix jours de marge.<div class="pa-live-cites"><span>p. 41</span><span>p. 47</span></div></div></div></div>`
+      },
+      {
+        nav:'Documents', n:'07', title:'Générez votre rapport professionnel', sub:'Transformez l’analyse en livrable prêt à télécharger.',
+        html:`<div class="pa-live-card"><div class="pa-live-card-top"><strong>Studio Documents</strong><span class="pa-live-local">Généré localement</span></div><div class="pa-live-export"><div class="pa-live-export-icon">DOCX</div><div><b>Rapport_confidentiel_Atlas.docx</b><small>Synthèse • risques • références • recommandations</small></div><span class="pa-live-download">Télécharger</span></div><div class="pa-live-field"><b>Formats disponibles</b><small>Word .docx • PDF • HTML • Markdown — enregistrés sur votre ordinateur.</small></div></div>`
+      }
+    ];
+
+    device.innerHTML = `
+      <div class="pa-live" aria-label="Démonstration animée de PrivatAI" aria-live="polite">
+        <div class="pa-live-bar"><i class="pa-live-dot r"></i><i class="pa-live-dot y"></i><i class="pa-live-dot g"></i><span class="pa-live-name">PrivatAI</span><span class="pa-live-badge"><i></i> Démo live • traitement local</span></div>
+        <div class="pa-live-layout">
+          <aside class="pa-live-side"><div class="pa-live-logo">◈ PrivatAI</div><div class="pa-live-nav"><span data-live-nav="Accueil">Accueil</span><span data-live-nav="Projets">Projets</span><span data-live-nav="Agents">Agents</span><span data-live-nav="Documents">Documents</span><span data-live-nav="Discussion">Discussion</span></div></aside>
+          <section class="pa-live-main">
+            <div class="pa-live-stage-head"><span class="pa-live-step">01</span><div><h3>Ouvrez PrivatAI</h3><p>Votre espace IA démarre directement sur votre ordinateur.</p></div></div>
+            <div class="pa-live-canvas"><div data-live-scene></div><div class="pa-live-caption"><i></i> Aucun document envoyé dans le cloud</div></div>
+            <div class="pa-live-footer"><div class="pa-live-points" aria-label="Étapes de la démonstration"></div><button class="pa-live-control" type="button">Pause</button></div>
+          </section>
+        </div>
+      </div>`;
+
+    const sceneHost = device.querySelector('[data-live-scene]');
+    const stepEl = device.querySelector('.pa-live-step');
+    const titleEl = device.querySelector('.pa-live-stage-head h3');
+    const subEl = device.querySelector('.pa-live-stage-head p');
+    const navEls = [...device.querySelectorAll('[data-live-nav]')];
+    const points = device.querySelector('.pa-live-points');
+    const control = device.querySelector('.pa-live-control');
+    let current = 0;
+    let paused = false;
+    let timer = null;
+
+    scenes.forEach((_, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.setAttribute('aria-label', `Voir l’étape ${i + 1}`);
+      b.addEventListener('click', () => { current = i; render(true); });
+      points.appendChild(b);
+    });
+    const pointEls = [...points.children];
+
+    const render = (manual = false) => {
+      const s = scenes[current];
+      stepEl.textContent = s.n;
+      titleEl.textContent = s.title;
+      subEl.textContent = s.sub;
+      sceneHost.innerHTML = s.html;
+      navEls.forEach((el) => el.classList.toggle('active', el.dataset.liveNav === s.nav));
+      pointEls.forEach((el, i) => el.classList.toggle('active', i === current));
+      if (manual && !paused) schedule();
+    };
+
+    const schedule = () => {
+      clearTimeout(timer);
+      if (paused || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      timer = setTimeout(() => {
+        current = (current + 1) % scenes.length;
+        render();
+        schedule();
+      }, 3600);
+    };
+
+    control.addEventListener('click', () => {
+      paused = !paused;
+      control.textContent = paused ? 'Reprendre' : 'Pause';
+      if (paused) clearTimeout(timer); else schedule();
+    });
+    device.addEventListener('mouseenter', () => { if (!paused) clearTimeout(timer); });
+    device.addEventListener('mouseleave', () => { if (!paused) schedule(); });
+
+    render();
+    schedule();
+  }
 
   const observer = 'IntersectionObserver' in window
-    ? new IntersectionObserver(
-        (entries) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              entry.target.classList.add('visible');
-              observer.unobserve(entry.target);
-            }
-          });
-        },
-        { threshold: 0.12 },
-      )
+    ? new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.12 })
     : null;
 
   document.querySelectorAll('.pa-reveal').forEach((el) => {
-    if (observer) observer.observe(el);
-    else el.classList.add('visible');
+    if (observer) observer.observe(el); else el.classList.add('visible');
   });
 
   const navLinks = [...document.querySelectorAll('.pa-links a')];
-  const sections = navLinks
-    .map((link) => document.querySelector(link.getAttribute('href')))
-    .filter(Boolean);
-
+  const sections = navLinks.map((link) => document.querySelector(link.getAttribute('href'))).filter(Boolean);
   const updateActiveNav = () => {
     const y = window.scrollY + 130;
     let currentId = '';
-    sections.forEach((section) => {
-      if (section.offsetTop <= y) currentId = `#${section.id}`;
-    });
-    navLinks.forEach((link) => {
-      link.classList.toggle('active', link.getAttribute('href') === currentId);
-    });
+    sections.forEach((section) => { if (section.offsetTop <= y) currentId = `#${section.id}`; });
+    navLinks.forEach((link) => link.classList.toggle('active', link.getAttribute('href') === currentId));
   };
-
   updateActiveNav();
   window.addEventListener('scroll', updateActiveNav, { passive: true });
 })();
