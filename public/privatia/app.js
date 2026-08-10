@@ -9,6 +9,7 @@
   });
 
   loadScript('/privatia/app-core.js?v=20260810-1')
+    .then(() => loadScript('/privatia/hero-agent-demo.js?v=20260810-1'))
     .then(() => loadScript('/privatia/journey.js?v=20260810-2'))
     .then(() => loadScript('/privatia/journey-video.js?v=20260810-1'))
     .catch((error) => console.error('[PrivatAI landing]', error));
