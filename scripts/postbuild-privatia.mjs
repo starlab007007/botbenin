@@ -8,6 +8,7 @@ const assetNames = [
   'hero-agent-demo.js',
   'journey.js',
   'journey-video.js',
+  'experience-v2.js',
 ];
 
 if (!fs.existsSync(htmlFile)) {
@@ -44,6 +45,16 @@ if (!journeyVideoSource.includes('pa-tour-cursor')) {
   throw new Error('Le curseur animé du parcours PrivatAI est absent de journey-video.js.');
 }
 
+const experienceSource = fs.readFileSync(assetFiles['experience-v2.js'], 'utf8');
+if (
+  !experienceSource.includes('Cas d’usage concrets') ||
+  !experienceSource.includes('Message 1') ||
+  !experienceSource.includes('Réponse 2') ||
+  !experienceSource.includes('Décisions sous 30 jours')
+) {
+  throw new Error('Le parcours détaillé et les cas pratiques PrivatAI sont incomplets dans experience-v2.js.');
+}
+
 const scriptBlock = assetNames
   .map((name) => `  <script defer src="/privatia/${name}?v=${fingerprints[name]}"></script>`)
   .join('\n');
@@ -53,7 +64,7 @@ let after = before;
 
 // Le HTML final charge directement les modules dans l'ordre déterministe.
 // On ne dépend plus d'un chargeur JavaScript pouvant être conservé en cache.
-const legacyScriptPattern = /\s*<script\s+defer\s+src="\/privatia\/(?:app|app-core|hero-agent-demo|journey|journey-video)\.js\?v=[^"]+"><\/script>/g;
+const legacyScriptPattern = /\s*<script\s+defer\s+src="\/privatia\/(?:app|app-core|hero-agent-demo|journey|journey-video|experience-v2)\.js\?v=[^"]+"><\/script>/g;
 after = after.replace(legacyScriptPattern, '');
 
 if (!after.includes('</head>')) {
@@ -99,5 +110,6 @@ console.log('✅ PrivatAI landing: modules injectés directement dans le HTML fi
 for (const name of assetNames) {
   console.log(`✅ PrivatAI landing: ${name} fingerprint ${fingerprints[name]}.`);
 }
-console.log('✅ PrivatAI landing: Agent Démo Live + curseurs animés obligatoires au build.');
+console.log('✅ PrivatAI landing: Agent Démo Live + parcours décisionnel détaillé obligatoires au build.');
+console.log('✅ PrivatAI landing: cas pratiques métier obligatoires au build.');
 console.log('✅ PrivatAI landing: aucun téléchargement ne navigue vers GitHub.');
