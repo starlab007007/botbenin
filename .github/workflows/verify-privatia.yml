@@ -47,11 +47,11 @@ jobs:
                echo "$JOURNEY" | grep -q 'Projet_Atlas_TOP_SECRET.pdf' && \
                echo "$VIDEO" | grep -q 'pa-tour-cursor' && \
                echo "$EXPERIENCE" | grep -q 'Cas d’usage concrets' && \
-               echo "$EXPERIENCE" | grep -q 'Message 1' && \
-               echo "$EXPERIENCE" | grep -q 'Réponse 1' && \
-               echo "$EXPERIENCE" | grep -q 'Message 2' && \
-               echo "$EXPERIENCE" | grep -q 'Réponse 2' && \
-               echo "$EXPERIENCE" | grep -q 'Décisions sous 30 jours' && \
+               echo "$EXPERIENCE" | grep -q "label:'Message 1'" && \
+               echo "$EXPERIENCE" | grep -q "label:'Réponse 1'" && \
+               echo "$EXPERIENCE" | grep -q "label:'Message 2'" && \
+               echo "$EXPERIENCE" | grep -q "label:'Réponse 2'" && \
+               echo "$EXPERIENCE" | grep -qi 'décisions sous 30 jours' && \
                echo "$EXPERIENCE" | grep -q 'Art. 12.3' && \
                echo "$EXPERIENCE" | grep -q 'Amani Industrie'; then
               READY=1
