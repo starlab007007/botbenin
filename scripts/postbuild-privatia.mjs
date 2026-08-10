@@ -46,13 +46,31 @@ if (!journeyVideoSource.includes('pa-tour-cursor')) {
 }
 
 const experienceSource = fs.readFileSync(assetFiles['experience-v2.js'], 'utf8');
-if (
-  !experienceSource.includes('Cas d’usage concrets') ||
-  !experienceSource.includes('Message 1') ||
-  !experienceSource.includes('Réponse 2') ||
-  !experienceSource.includes('Décisions sous 30 jours')
-) {
-  throw new Error('Le parcours détaillé et les cas pratiques PrivatAI sont incomplets dans experience-v2.js.');
+const experienceLower = experienceSource.toLocaleLowerCase('fr');
+const requiredExperienceMarkers = [
+  'Cas d’usage concrets',
+  "label:'Message 1'",
+  "label:'Réponse 1'",
+  "label:'Message 2'",
+  "label:'Réponse 2'",
+  'Amani Industrie',
+  'Art. 12.3',
+];
+for (const marker of requiredExperienceMarkers) {
+  if (!experienceSource.includes(marker)) {
+    throw new Error(`Marqueur PrivatAI Experience V2 manquant: ${marker}`);
+  }
+}
+if (!experienceLower.includes('décisions sous 30 jours')) {
+  throw new Error('Le parcours PrivatAI ne contient pas la relance de décision sous 30 jours.');
+}
+
+// Valide la syntaxe du module public avant de publier une page qui pourrait casser
+// uniquement dans le navigateur.
+try {
+  new Function(experienceSource);
+} catch (error) {
+  throw new Error(`Syntaxe invalide dans experience-v2.js: ${error instanceof Error ? error.message : String(error)}`);
 }
 
 const scriptBlock = assetNames
@@ -110,6 +128,7 @@ console.log('✅ PrivatAI landing: modules injectés directement dans le HTML fi
 for (const name of assetNames) {
   console.log(`✅ PrivatAI landing: ${name} fingerprint ${fingerprints[name]}.`);
 }
+console.log('✅ PrivatAI landing: syntaxe Experience V2 validée.');
 console.log('✅ PrivatAI landing: Agent Démo Live + parcours décisionnel détaillé obligatoires au build.');
 console.log('✅ PrivatAI landing: cas pratiques métier obligatoires au build.');
 console.log('✅ PrivatAI landing: aucun téléchargement ne navigue vers GitHub.');
