@@ -1,0 +1,63 @@
+name: Verify PrivatAI Agent Demo Live
+
+on:
+  workflow_run:
+    workflows:
+      - Deploy React App botbj
+    types:
+      - completed
+
+jobs:
+  verify-privatia:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'prod'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Vérifier la landing et l'Agent Démo Live publiés
+        env:
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+
+          READY=0
+          for i in $(seq 1 20); do
+            PAGE_URL="https://bot.bj/privatia?deploy_check=${DEPLOY_SHA}-${i}"
+            HERO_URL="https://bot.bj/privatia/hero-agent-demo.js?deploy_check=${DEPLOY_SHA}-${i}"
+            CORE_URL="https://bot.bj/privatia/app-core.js?deploy_check=${DEPLOY_SHA}-${i}"
+            JOURNEY_URL="https://bot.bj/privatia/journey.js?deploy_check=${DEPLOY_SHA}-${i}"
+            VIDEO_URL="https://bot.bj/privatia/journey-video.js?deploy_check=${DEPLOY_SHA}-${i}"
+
+            HTML=$(curl -fsSL --retry 2 --retry-all-errors -H 'Cache-Control: no-cache' "$PAGE_URL" || true)
+            HERO=$(curl -fsSL --retry 2 --retry-all-errors -H 'Cache-Control: no-cache' "$HERO_URL" || true)
+            CORE=$(curl -fsSL --retry 2 --retry-all-errors -H 'Cache-Control: no-cache' "$CORE_URL" || true)
+            JOURNEY=$(curl -fsSL --retry 2 --retry-all-errors -H 'Cache-Control: no-cache' "$JOURNEY_URL" || true)
+            VIDEO=$(curl -fsSL --retry 2 --retry-all-errors -H 'Cache-Control: no-cache' "$VIDEO_URL" || true)
+
+            if echo "$HTML" | grep -q '/privatia/app-core.js?v=' && \
+               echo "$HTML" | grep -q '/privatia/hero-agent-demo.js?v=' && \
+               echo "$HTML" | grep -q '/privatia/journey.js?v=' && \
+               echo "$HTML" | grep -q '/privatia/journey-video.js?v=' && \
+               echo "$HERO" | grep -q 'Agent Démo Live' && \
+               echo "$HERO" | grep -q 'pa-agent-demo-cursor' && \
+               echo "$CORE" | grep -q 'pa-live-canvas' && \
+               echo "$JOURNEY" | grep -q 'Projet_Atlas_TOP_SECRET.pdf' && \
+               echo "$VIDEO" | grep -q 'pa-tour-cursor'; then
+              READY=1
+              break
+            fi
+
+            echo "⏳ PrivatAI Agent Démo Live pas encore propagé ($i/20)..."
+            sleep 6
+          done
+
+          if [ "$READY" -ne 1 ]; then
+            echo '❌ La production BOT.BJ ne sert pas encore l’Agent Démo Live complet.'
+            exit 1
+          fi
+
+          echo '✅ Page /privatia charge directement tous les modules fingerprintés.'
+          echo '✅ Agent Démo Live public détecté.'
+          echo '✅ Curseur hero détecté.'
+          echo '✅ Parcours TOP SECRET détecté.'
+          echo '✅ Curseur du parcours détecté.'
