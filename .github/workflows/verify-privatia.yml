@@ -14,7 +14,7 @@ jobs:
       github.event.workflow_run.head_branch == 'prod'
     runs-on: ubuntu-latest
     steps:
-      - name: Vérifier la landing et l'Agent Démo Live publiés
+      - name: Vérifier la landing, le parcours détaillé et les cas pratiques
         env:
           DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
@@ -27,37 +27,50 @@ jobs:
             CORE_URL="https://bot.bj/privatia/app-core.js?deploy_check=${DEPLOY_SHA}-${i}"
             JOURNEY_URL="https://bot.bj/privatia/journey.js?deploy_check=${DEPLOY_SHA}-${i}"
             VIDEO_URL="https://bot.bj/privatia/journey-video.js?deploy_check=${DEPLOY_SHA}-${i}"
+            EXPERIENCE_URL="https://bot.bj/privatia/experience-v2.js?deploy_check=${DEPLOY_SHA}-${i}"
 
             HTML=$(curl -fsSL --retry 2 --retry-all-errors -H 'Cache-Control: no-cache' "$PAGE_URL" || true)
             HERO=$(curl -fsSL --retry 2 --retry-all-errors -H 'Cache-Control: no-cache' "$HERO_URL" || true)
             CORE=$(curl -fsSL --retry 2 --retry-all-errors -H 'Cache-Control: no-cache' "$CORE_URL" || true)
             JOURNEY=$(curl -fsSL --retry 2 --retry-all-errors -H 'Cache-Control: no-cache' "$JOURNEY_URL" || true)
             VIDEO=$(curl -fsSL --retry 2 --retry-all-errors -H 'Cache-Control: no-cache' "$VIDEO_URL" || true)
+            EXPERIENCE=$(curl -fsSL --retry 2 --retry-all-errors -H 'Cache-Control: no-cache' "$EXPERIENCE_URL" || true)
 
             if echo "$HTML" | grep -q '/privatia/app-core.js?v=' && \
                echo "$HTML" | grep -q '/privatia/hero-agent-demo.js?v=' && \
                echo "$HTML" | grep -q '/privatia/journey.js?v=' && \
                echo "$HTML" | grep -q '/privatia/journey-video.js?v=' && \
+               echo "$HTML" | grep -q '/privatia/experience-v2.js?v=' && \
                echo "$HERO" | grep -q 'Agent Démo Live' && \
                echo "$HERO" | grep -q 'pa-agent-demo-cursor' && \
                echo "$CORE" | grep -q 'pa-live-canvas' && \
                echo "$JOURNEY" | grep -q 'Projet_Atlas_TOP_SECRET.pdf' && \
-               echo "$VIDEO" | grep -q 'pa-tour-cursor'; then
+               echo "$VIDEO" | grep -q 'pa-tour-cursor' && \
+               echo "$EXPERIENCE" | grep -q 'Cas d’usage concrets' && \
+               echo "$EXPERIENCE" | grep -q 'Message 1' && \
+               echo "$EXPERIENCE" | grep -q 'Réponse 1' && \
+               echo "$EXPERIENCE" | grep -q 'Message 2' && \
+               echo "$EXPERIENCE" | grep -q 'Réponse 2' && \
+               echo "$EXPERIENCE" | grep -q 'Décisions sous 30 jours' && \
+               echo "$EXPERIENCE" | grep -q 'Art. 12.3' && \
+               echo "$EXPERIENCE" | grep -q 'Amani Industrie'; then
               READY=1
               break
             fi
 
-            echo "⏳ PrivatAI Agent Démo Live pas encore propagé ($i/20)..."
+            echo "⏳ PrivatAI expérience V2 pas encore propagée ($i/20)..."
             sleep 6
           done
 
           if [ "$READY" -ne 1 ]; then
-            echo '❌ La production BOT.BJ ne sert pas encore l’Agent Démo Live complet.'
+            echo '❌ La production BOT.BJ ne sert pas encore le parcours PrivatAI détaillé complet.'
             exit 1
           fi
 
           echo '✅ Page /privatia charge directement tous les modules fingerprintés.'
           echo '✅ Agent Démo Live public détecté.'
-          echo '✅ Curseur hero détecté.'
-          echo '✅ Parcours TOP SECRET détecté.'
-          echo '✅ Curseur du parcours détecté.'
+          echo '✅ Parcours documentaire TOP SECRET détecté.'
+          echo '✅ Deux messages et deux réponses sourcées détectés.'
+          echo '✅ Matrice de décisions sous 30 jours détectée.'
+          echo '✅ Cas pratique juridique complet détecté.'
+          echo '✅ Cas d’usage métier concrets détectés.'
