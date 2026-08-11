@@ -2,7 +2,8 @@
   "name": "Bot.BJ - Chatbot WhatsApp IA",
   "short_name": "Bot.BJ",
   "description": "Automatisez votre service client avec des chatbots WhatsApp intelligents au Bénin",
-  "start_url": "/",
+  "start_url": "/app/chat",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#3b82f6",
@@ -31,17 +32,17 @@
   "dir": "ltr",
   "shortcuts": [
     {
-      "name": "Tableau de bord",
-      "short_name": "Dashboard",
-      "description": "Accéder au tableau de bord",
-      "url": "/dashboard",
+      "name": "Chat WAOUH",
+      "short_name": "WAOUH",
+      "description": "Ouvrir le chat WAOUH",
+      "url": "/app/chat",
       "icons": [{ "src": "/favicon.ico", "sizes": "96x96" }]
     },
     {
-      "name": "Créer un bot",
-      "short_name": "Nouveau bot",
-      "description": "Créer un nouveau chatbot",
-      "url": "/bots",
+      "name": "Nouveau chat WAOUH",
+      "short_name": "Nouveau chat",
+      "description": "Démarrer une nouvelle discussion WAOUH",
+      "url": "/app/chat/waouh?new=1",
       "icons": [{ "src": "/favicon.ico", "sizes": "96x96" }]
     }
   ]
