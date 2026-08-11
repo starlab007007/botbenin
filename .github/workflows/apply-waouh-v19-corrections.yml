@@ -1,6 +1,9 @@
 name: Apply WAOUH V19 corrections
 
 on:
+  push:
+    branches:
+      - codex-trigger-waouh-v19-fixes
   pull_request:
     branches:
       - codex
@@ -15,7 +18,7 @@ permissions:
 
 jobs:
   apply-fixes:
-    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'codex-trigger-waouh-v19-fixes'
+    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/codex-trigger-waouh-v19-fixes' || github.head_ref == 'codex-trigger-waouh-v19-fixes'
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
