@@ -43,7 +43,6 @@ jobs:
                   if isinstance(candidates, str):
                       candidates = [candidates]
                   if new in block:
-                      # Already patched: keep workflow idempotent.
                       continue
                   matched = False
                   for old in candidates:
@@ -63,30 +62,17 @@ jobs:
               'class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {',
               'class _SearchBar extends StatelessWidget {',
               [
-                  ((
-                      'Size get preferredSize => const Size.fromHeight(78);',
-                      'Size get preferredSize => const Size.fromHeight(64);',
-                  ), 'Size get preferredSize => const Size.fromHeight(58);'),
-                  ((
-                      'toolbarHeight: 78,',
-                      'toolbarHeight: 64,',
-                  ), 'toolbarHeight: 58,'),
-                  ((
-                      'leadingWidth: 64,',
-                      'leadingWidth: 54,',
-                  ), 'leadingWidth: 52,'),
+                  (('Size get preferredSize => const Size.fromHeight(78);', 'Size get preferredSize => const Size.fromHeight(64);'),
+                   'Size get preferredSize => const Size.fromHeight(58);'),
+                  (('toolbarHeight: 78,', 'toolbarHeight: 64,'), 'toolbarHeight: 58,'),
+                  (('leadingWidth: 64,', 'leadingWidth: 54,'), 'leadingWidth: 52,'),
                   ('fontSize: 21,', 'fontSize: 18.5,'),
-                  ((
-                      'letterSpacing: -.3,',
-                      'letterSpacing: -.2,',
-                  ), 'letterSpacing: -.25,'),
+                  (('letterSpacing: -.3,', 'letterSpacing: -.2,'), 'letterSpacing: -.25,'),
                   ('const SizedBox(height: 2),', 'const SizedBox(height: 1),'),
                   ('const SizedBox(width: 6),', 'const SizedBox(width: 5),'),
                   ('fontSize: 12.5,', 'fontSize: 11.5,'),
-                  ((
-                      "tooltip: 'Nouveau chat',\n            icon: const Icon(Icons.add_rounded, size: 29),",
-                      "tooltip: 'Nouveau chat',\n            icon: const Icon(Icons.add_rounded, size: 26),",
-                  ),
+                  (("tooltip: 'Nouveau chat',\n            icon: const Icon(Icons.add_rounded, size: 29),",
+                    "tooltip: 'Nouveau chat',\n            icon: const Icon(Icons.add_rounded, size: 26),"),
                    "tooltip: 'Nouveau chat',\n            visualDensity: VisualDensity.compact,\n            icon: const Icon(Icons.add_rounded, size: 25),"),
                   ('const SizedBox(width: 4),', 'const SizedBox(width: 2),'),
               ],
@@ -96,10 +82,8 @@ jobs:
               'class _SearchBar extends StatelessWidget {',
               'class _InboxTabs extends StatelessWidget {',
               [
-                  ('padding: const EdgeInsets.fromLTRB(16, 6, 16, 14),
-',
-                   'padding: const EdgeInsets.fromLTRB(14, 3, 14, 8),
-'),
+                  ('padding: const EdgeInsets.fromLTRB(16, 6, 16, 14),',
+                   'padding: const EdgeInsets.fromLTRB(14, 3, 14, 8),'),
                   ("style: const TextStyle(color: Colors.white, fontSize: 16),",
                    "style: const TextStyle(color: Colors.white, fontSize: 14.5),"),
                   ('decoration: InputDecoration(', 'decoration: InputDecoration(\n          isDense: true,'),
@@ -151,8 +135,7 @@ jobs:
                   ('radius: 28,', 'radius: 23,'),
                   ('radius: 23,', 'radius: 19,'),
                   ('fontSize: 22,', 'fontSize: 17,'),
-                  ('fontWeight: FontWeight.w500,',
-                   'fontWeight: FontWeight.w600,'),
+                  ('fontWeight: FontWeight.w500,', 'fontWeight: FontWeight.w600,'),
               ],
           )
           patch_block(
