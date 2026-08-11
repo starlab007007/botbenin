@@ -26,23 +26,24 @@ class LiveHeader extends StatelessWidget implements PreferredSizeWidget {
   final Widget? leading;
 
   @override
-  Size get preferredSize => const Size.fromHeight(92);
+  Size get preferredSize => const Size.fromHeight(68);
 
   @override
   Widget build(BuildContext context) => AppBar(
-        toolbarHeight: 92,
+        toolbarHeight: 68,
         automaticallyImplyLeading: false,
         leading: leading ??
             (back
                 ? IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded),
+                    icon: const Icon(Icons.arrow_back_rounded, size: 22),
+                    visualDensity: VisualDensity.compact,
                     onPressed: () => context.canPop()
                         ? context.pop()
                         : context.go('/app/chat'))
                 : null),
         title: Row(children: [
-          const BrandMark(size: 34),
-          const SizedBox(width: 10),
+          const BrandMark(size: 29),
+          const SizedBox(width: 8),
           Expanded(
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -50,12 +51,12 @@ class LiveHeader extends StatelessWidget implements PreferredSizeWidget {
                   children: [
                 Text(title,
                     style: const TextStyle(
-                        fontSize: 22, fontWeight: FontWeight.w900)),
+                        fontSize: 19, fontWeight: FontWeight.w900)),
                 if (subtitle != null)
                   Text(subtitle!,
                       style: const TextStyle(
                           color: Color(0xFFC9F6E3),
-                          fontSize: 13,
+                          fontSize: 11.5,
                           fontWeight: FontWeight.w700)),
               ])),
         ]),

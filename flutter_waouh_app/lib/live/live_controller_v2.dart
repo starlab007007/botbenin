@@ -1,4 +1,3 @@
-import '../main.dart' as legacy;
 import 'live_controller.dart';
 
 class LiveWaouhControllerV2 extends LiveWaouhController {

@@ -172,13 +172,13 @@ class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback onNewChat;
 
   @override
-  Size get preferredSize => const Size.fromHeight(64);
+  Size get preferredSize => const Size.fromHeight(58);
 
   @override
   Widget build(BuildContext context) => AppBar(
-        toolbarHeight: 64,
+        toolbarHeight: 58,
         automaticallyImplyLeading: false,
-        leadingWidth: 54,
+        leadingWidth: 52,
         leading: Center(
           child: _ProfileAvatar(
             name: displayName,
@@ -198,15 +198,15 @@ class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
               style: const TextStyle(
                 fontSize: 18.5,
                 fontWeight: FontWeight.w900,
-                letterSpacing: -.2,
+                letterSpacing: -.25,
               ),
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 1),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const _OnlineDot(),
-                const SizedBox(width: 6),
+                const SizedBox(width: 5),
                 Text(
                   onlineLabel,
                   style: const TextStyle(
@@ -234,9 +234,10 @@ class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
           IconButton(
             onPressed: onNewChat,
             tooltip: 'Nouveau chat',
-            icon: const Icon(Icons.add_rounded, size: 26),
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.add_rounded, size: 25),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 2),
         ],
         flexibleSpace: const DecoratedBox(
           decoration: BoxDecoration(
@@ -275,17 +276,23 @@ class _SearchBar extends StatelessWidget {
         onChanged: (_) => onChanged(),
         style: const TextStyle(color: Colors.white, fontSize: 15),
         decoration: InputDecoration(
+          isDense: true,
           hintText: hint,
           hintStyle: const TextStyle(color: Color(0xFFBEE1D8), fontSize: 15),
           prefixIcon: const Icon(
             Icons.search_rounded,
+            size: 21,
             color: Color(0xFFD6F0E8),
           ),
+          prefixIconConstraints:
+              const BoxConstraints(minWidth: 42, minHeight: 42),
           suffixIcon: controller.text.isEmpty
               ? null
               : IconButton(
+                  visualDensity: VisualDensity.compact,
                   icon: const Icon(
                     Icons.close_rounded,
+                    size: 20,
                     color: Color(0xFFD6F0E8),
                   ),
                   onPressed: () {
@@ -306,7 +313,7 @@ class _SearchBar extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Color(0xFFBFF7E4), width: 1.4),
+            borderSide: const BorderSide(color: Color(0xFFBFF7E4), width: 1.2),
           ),
         ),
       ),
@@ -326,13 +333,13 @@ class _InboxTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+        padding: const EdgeInsets.fromLTRB(14, 9, 14, 7),
         child: Container(
-          height: 54,
+          height: 46,
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(24),
             border: Border.all(color: const Color(0xFF87A198)),
           ),
           child: Row(
@@ -399,14 +406,14 @@ class _InboxTabButton extends StatelessWidget {
           onTap: onTap,
           child: Center(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 5),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
                     selected ? Icons.check_rounded : icon,
-                    size: 18,
+                    size: 17,
                     color: selected
                         ? const Color(0xFF08756A)
                         : const Color(0xFF263530),
@@ -418,7 +425,7 @@ class _InboxTabButton extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 14.5,
+                        fontSize: 13.5,
                         fontWeight: FontWeight.w800,
                         color: selected
                             ? const Color(0xFF075E54)
@@ -427,7 +434,7 @@ class _InboxTabButton extends StatelessWidget {
                     ),
                   ),
                   if (badge > 0) ...[
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 3),
                     _CountBubble(value: badge, small: true),
                   ],
                 ],
@@ -2852,11 +2859,17 @@ class _HeaderIcon extends StatelessWidget {
   Widget build(BuildContext context) => Stack(
         clipBehavior: Clip.none,
         children: [
-          IconButton(onPressed: onTap, tooltip: tooltip, icon: Icon(icon)),
+          IconButton(
+            onPressed: onTap,
+            tooltip: tooltip,
+            iconSize: 23,
+            visualDensity: VisualDensity.compact,
+            icon: Icon(icon),
+          ),
           if (count > 0)
             Positioned(
-              top: 5,
-              right: 5,
+              top: 2,
+              right: 2,
               child: _CountBubble(value: count, small: true),
             ),
         ],
@@ -2894,8 +2907,8 @@ class _OnlineDot extends StatelessWidget {
   const _OnlineDot();
   @override
   Widget build(BuildContext context) => Container(
-        width: 9,
-        height: 9,
+        width: 8,
+        height: 8,
         decoration: const BoxDecoration(
           color: Color(0xFF22D98C),
           shape: BoxShape.circle,
