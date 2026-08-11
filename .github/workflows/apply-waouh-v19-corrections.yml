@@ -1,0 +1,245 @@
+name: Apply WAOUH V19 corrections
+
+on:
+  pull_request:
+    branches:
+      - codex
+    types:
+      - opened
+      - synchronize
+      - reopened
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fixes:
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'codex-trigger-waouh-v19-fixes'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout codex
+        uses: actions/checkout@v4
+        with:
+          ref: codex
+          fetch-depth: 0
+
+      - name: Compact green UI without touching business logic
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def patch_block(path_name, start, end, replacements):
+              path = Path(path_name)
+              text = path.read_text()
+              begin = text.index(start)
+              finish = text.index(end, begin)
+              block = text[begin:finish]
+              changed = False
+              for candidates, new in replacements:
+                  if isinstance(candidates, str):
+                      candidates = [candidates]
+                  if new in block:
+                      # Already patched: keep workflow idempotent.
+                      continue
+                  matched = False
+                  for old in candidates:
+                      if old in block:
+                          block = block.replace(old, new, 1)
+                          changed = True
+                          matched = True
+                          break
+                  if not matched:
+                      print(f'WARN {path_name}: skipped missing replacement -> {new!r}')
+              if changed:
+                  path.write_text(text[:begin] + block + text[finish:])
+
+          inbox = 'flutter_waouh_app/lib/live/live_inbox_production.dart'
+          patch_block(
+              inbox,
+              'class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {',
+              'class _SearchBar extends StatelessWidget {',
+              [
+                  ((
+                      'Size get preferredSize => const Size.fromHeight(78);',
+                      'Size get preferredSize => const Size.fromHeight(64);',
+                  ), 'Size get preferredSize => const Size.fromHeight(58);'),
+                  ((
+                      'toolbarHeight: 78,',
+                      'toolbarHeight: 64,',
+                  ), 'toolbarHeight: 58,'),
+                  ((
+                      'leadingWidth: 64,',
+                      'leadingWidth: 54,',
+                  ), 'leadingWidth: 52,'),
+                  ('fontSize: 21,', 'fontSize: 18.5,'),
+                  ((
+                      'letterSpacing: -.3,',
+                      'letterSpacing: -.2,',
+                  ), 'letterSpacing: -.25,'),
+                  ('const SizedBox(height: 2),', 'const SizedBox(height: 1),'),
+                  ('const SizedBox(width: 6),', 'const SizedBox(width: 5),'),
+                  ('fontSize: 12.5,', 'fontSize: 11.5,'),
+                  ((
+                      "tooltip: 'Nouveau chat',\n            icon: const Icon(Icons.add_rounded, size: 29),",
+                      "tooltip: 'Nouveau chat',\n            icon: const Icon(Icons.add_rounded, size: 26),",
+                  ),
+                   "tooltip: 'Nouveau chat',\n            visualDensity: VisualDensity.compact,\n            icon: const Icon(Icons.add_rounded, size: 25),"),
+                  ('const SizedBox(width: 4),', 'const SizedBox(width: 2),'),
+              ],
+          )
+          patch_block(
+              inbox,
+              'class _SearchBar extends StatelessWidget {',
+              'class _InboxTabs extends StatelessWidget {',
+              [
+                  ('padding: const EdgeInsets.fromLTRB(16, 6, 16, 14),
+',
+                   'padding: const EdgeInsets.fromLTRB(14, 3, 14, 8),
+'),
+                  ("style: const TextStyle(color: Colors.white, fontSize: 16),",
+                   "style: const TextStyle(color: Colors.white, fontSize: 14.5),"),
+                  ('decoration: InputDecoration(', 'decoration: InputDecoration(\n          isDense: true,'),
+                  ("hintStyle: const TextStyle(color: Color(0xFFBEE1D8), fontSize: 16),",
+                   "hintStyle: const TextStyle(color: Color(0xFFBEE1D8), fontSize: 14.5),"),
+                  ("Icons.search_rounded,\n            color: Color(0xFFD6F0E8),",
+                   "Icons.search_rounded,\n            size: 21,\n            color: Color(0xFFD6F0E8),"),
+                  ("          suffixIcon: controller.text.isEmpty",
+                   "          prefixIconConstraints:\n              const BoxConstraints(minWidth: 42, minHeight: 42),\n          suffixIcon: controller.text.isEmpty"),
+                  ("icon: const Icon(\n                    Icons.close_rounded,",
+                   "visualDensity: VisualDensity.compact,\n                  icon: const Icon(\n                    Icons.close_rounded,\n                    size: 20,"),
+                  ('contentPadding: const EdgeInsets.symmetric(vertical: 15),',
+                   'contentPadding: const EdgeInsets.symmetric(vertical: 10),'),
+                  ('borderRadius: BorderRadius.circular(18),',
+                   'borderRadius: BorderRadius.circular(15),'),
+                  ('width: 1.4', 'width: 1.2'),
+              ],
+          )
+          patch_block(
+              inbox,
+              'class _InboxTabs extends StatelessWidget {',
+              'class _InboxTabButton extends StatelessWidget {',
+              [
+                  ('padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),',
+                   'padding: const EdgeInsets.fromLTRB(14, 9, 14, 7),'),
+                  ('height: 54,', 'height: 46,'),
+                  ('borderRadius: BorderRadius.circular(28),',
+                   'borderRadius: BorderRadius.circular(24),'),
+              ],
+          )
+          patch_block(
+              inbox,
+              'class _InboxTabButton extends StatelessWidget {',
+              'class _ProductionDiscussionFeed extends StatelessWidget {',
+              [
+                  ('padding: const EdgeInsets.symmetric(horizontal: 6),',
+                   'padding: const EdgeInsets.symmetric(horizontal: 5),'),
+                  ('size: 18,', 'size: 17,'),
+                  ('const SizedBox(width: 5),', 'const SizedBox(width: 4),'),
+                  ('fontSize: 14.5,', 'fontSize: 13.5,'),
+                  ('const SizedBox(width: 4),', 'const SizedBox(width: 3),'),
+              ],
+          )
+          patch_block(
+              inbox,
+              'class _ProfileAvatar extends StatelessWidget {',
+              'class _HeaderIcon extends StatelessWidget {',
+              [
+                  ('radius: 28,', 'radius: 23,'),
+                  ('radius: 23,', 'radius: 19,'),
+                  ('fontSize: 22,', 'fontSize: 17,'),
+                  ('fontWeight: FontWeight.w500,',
+                   'fontWeight: FontWeight.w600,'),
+              ],
+          )
+          patch_block(
+              inbox,
+              'class _HeaderIcon extends StatelessWidget {',
+              'class _CountBubble extends StatelessWidget {',
+              [
+                  ('IconButton(onPressed: onTap, tooltip: tooltip, icon: Icon(icon)),',
+                   'IconButton(\n            onPressed: onTap,\n            tooltip: tooltip,\n            iconSize: 23,\n            visualDensity: VisualDensity.compact,\n            icon: Icon(icon),\n          ),'),
+                  ('top: 5,', 'top: 2,'),
+                  ('right: 5,', 'right: 2,'),
+              ],
+          )
+          patch_block(
+              inbox,
+              'class _OnlineDot extends StatelessWidget {',
+              'class _RemoteImage extends StatelessWidget {',
+              [
+                  ('width: 9,', 'width: 8,'),
+                  ('height: 9,', 'height: 8,'),
+              ],
+          )
+
+          widgets = 'flutter_waouh_app/lib/live/live_widgets.dart'
+          patch_block(
+              widgets,
+              'class LiveHeader extends StatelessWidget implements PreferredSizeWidget {',
+              'class LiveMessageBubble extends StatelessWidget {',
+              [
+                  ('Size get preferredSize => const Size.fromHeight(92);',
+                   'Size get preferredSize => const Size.fromHeight(68);'),
+                  ('toolbarHeight: 92,', 'toolbarHeight: 68,'),
+                  ('icon: const Icon(Icons.arrow_back_rounded),',
+                   'icon: const Icon(Icons.arrow_back_rounded, size: 22),\n                    visualDensity: VisualDensity.compact,'),
+                  ('const BrandMark(size: 34),', 'const BrandMark(size: 29),'),
+                  ('const SizedBox(width: 10),', 'const SizedBox(width: 8),'),
+                  ('fontSize: 22, fontWeight: FontWeight.w900',
+                   'fontSize: 19, fontWeight: FontWeight.w900'),
+                  ('fontSize: 13,', 'fontSize: 11.5,'),
+              ],
+          )
+
+          controller_v2 = Path('flutter_waouh_app/lib/live/live_controller_v2.dart')
+          controller_text = controller_v2.read_text()
+          controller_text = controller_text.replace("import '../main.dart' as legacy;\n", '', 1)
+          controller_v2.write_text(controller_text)
+          PY
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Validate Flutter corrections
+        working-directory: flutter_waouh_app
+        shell: bash
+        run: |
+          flutter pub get
+          dart format \
+            lib/live/live_controller_v2.dart \
+            lib/live/live_controller_extensions.dart \
+            lib/live/live_match_chat_v2.dart \
+            lib/live/live_app_production.dart \
+            lib/live/live_inbox_production.dart \
+            lib/live/live_widgets.dart
+          flutter analyze \
+            --no-fatal-warnings \
+            --no-fatal-infos \
+            lib/live/live_controller_v2.dart \
+            lib/live/live_controller_extensions.dart \
+            lib/live/live_match_chat_v2.dart \
+            lib/live/live_app_production.dart \
+            lib/live/live_inbox_production.dart \
+            lib/live/live_widgets.dart
+          flutter test test/live_chat_premium_cards_test.dart
+
+      - name: Commit validated corrections to codex
+        shell: bash
+        run: |
+          rm -f .github/workflows/apply-waouh-v19-corrections.yml
+          git config user.name "WAOUH Codex"
+          git config user.email "waouh-codex@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No WAOUH V19 changes to commit; codex is already corrected."
+            exit 0
+          fi
+          git commit -m "fix: instant interested chat and compact green UI"
+          git push origin HEAD:codex
