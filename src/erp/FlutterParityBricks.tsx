@@ -247,7 +247,7 @@ export function WhatsAppFlutterParityBrick() {
               const meta = statusMeta(session.status);
               const Icon = meta.icon;
               const phone = session.config?.metadata?.phone_number;
-              const isWorking = session.status === 'WORKING' || session.status === 'connected';
+              const isWorking = session.status === 'WORKING' || (session.status as string) === 'connected';
               return (
                 <div key={session.name} className="flex flex-col gap-3 rounded-2xl border bg-white p-4 md:flex-row md:items-center md:justify-between">
                   <div className="min-w-0">
