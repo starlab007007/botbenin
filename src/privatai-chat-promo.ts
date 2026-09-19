@@ -7,7 +7,7 @@ const STYLE_ID = "privatai-chat-promo-style";
 const isChatHome = () => window.location.pathname.replace(/\/$/, "") === "/app/chat";
 
 const detectPlatform = () => {
-  const platform = `${navigator.userAgentData?.platform || ""} ${navigator.platform || ""} ${navigator.userAgent || ""}`.toLowerCase();
+  const platform = `${(navigator as any).userAgentData?.platform || ""} ${navigator.platform || ""} ${navigator.userAgent || ""}`.toLowerCase();
   if (/win/.test(platform)) return "windows";
   if (/mac/.test(platform)) return "mac";
   return "other";
