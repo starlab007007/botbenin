@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Send, Users, Zap, Shield, Target, CheckCircle2 } from 'lucide-react';
 import whatsappLogo from '@/assets/whatsapp-icon-official.png';
 import { WhatsAppDiffusionV2 } from '@/components/whatsapp/WhatsAppDiffusionV2';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const WhatsAppDiffusionPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
@@ -77,7 +78,9 @@ const WhatsAppDiffusionPage: React.FC = () => {
           </p>
         </div>
         <div className="w-full max-w-5xl mx-auto">
-          <WhatsAppDiffusionV2 />
+          <ErrorBoundary>
+            <WhatsAppDiffusionV2 />
+          </ErrorBoundary>
         </div>
       </div>
     </div>
