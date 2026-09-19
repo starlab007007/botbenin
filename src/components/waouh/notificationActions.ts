@@ -1,4 +1,4 @@
-import { getMatchKind, type WaouhNotification } from "@/hooks/useWaouhMatchNotifications";
+import { getMatchKind, type WaouhNotification } from "@/hooks/waouhNotificationTypes";
 import { correlationIdFor, traceUi } from "./waouhCorrelation";
 
 export type OpenNotificationOptions = {

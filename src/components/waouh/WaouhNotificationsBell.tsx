@@ -9,7 +9,7 @@ import {
   type WaouhNotification,
   getMatchKind,
   getMatchBadgeLabel,
-} from "@/hooks/useWaouhMatchNotifications";
+} from "@/hooks/waouhNotificationTypes";
 import { WaouhDealPaymentDialog } from "./WaouhDealPaymentDialog";
 
 const BADGE_STYLES: Record<string, string> = {
