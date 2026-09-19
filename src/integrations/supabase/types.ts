@@ -3483,6 +3483,208 @@ export type Database = {
         }
         Relationships: []
       }
+      privatai_license_devices: {
+        Row: {
+          app_version: string | null
+          device_hash: string
+          device_label: string | null
+          first_activated_at: string
+          id: string
+          last_seen_at: string
+          license_id: string
+          platform: string | null
+          revoked_at: string | null
+        }
+        Insert: {
+          app_version?: string | null
+          device_hash: string
+          device_label?: string | null
+          first_activated_at?: string
+          id?: string
+          last_seen_at?: string
+          license_id: string
+          platform?: string | null
+          revoked_at?: string | null
+        }
+        Update: {
+          app_version?: string | null
+          device_hash?: string
+          device_label?: string | null
+          first_activated_at?: string
+          id?: string
+          last_seen_at?: string
+          license_id?: string
+          platform?: string | null
+          revoked_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "privatai_license_devices_license_id_fkey"
+            columns: ["license_id"]
+            isOneToOne: false
+            referencedRelation: "privatai_licenses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      privatai_license_events: {
+        Row: {
+          created_at: string
+          detail: Json
+          device_hash: string | null
+          event_type: string
+          id: string
+          license_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          detail?: Json
+          device_hash?: string | null
+          event_type: string
+          id?: string
+          license_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          detail?: Json
+          device_hash?: string | null
+          event_type?: string
+          id?: string
+          license_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "privatai_license_events_license_id_fkey"
+            columns: ["license_id"]
+            isOneToOne: false
+            referencedRelation: "privatai_licenses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      privatai_license_settings: {
+        Row: {
+          default_max_devices: number
+          default_validity_days: number
+          id: number
+          online_check_hours: number
+          trial_days: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          default_max_devices?: number
+          default_validity_days?: number
+          id?: number
+          online_check_hours?: number
+          trial_days?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          default_max_devices?: number
+          default_validity_days?: number
+          id?: number
+          online_check_hours?: number
+          trial_days?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      privatai_licenses: {
+        Row: {
+          activation_mode: string
+          active: boolean
+          code: string
+          created_at: string
+          created_by: string | null
+          customer_email: string | null
+          customer_name: string | null
+          expires_at: string | null
+          first_activated_at: string | null
+          fixed_expires_at: string | null
+          id: string
+          last_validated_at: string | null
+          max_devices: number
+          notes: string | null
+          updated_at: string
+          validity_days: number
+        }
+        Insert: {
+          activation_mode?: string
+          active?: boolean
+          code: string
+          created_at?: string
+          created_by?: string | null
+          customer_email?: string | null
+          customer_name?: string | null
+          expires_at?: string | null
+          first_activated_at?: string | null
+          fixed_expires_at?: string | null
+          id?: string
+          last_validated_at?: string | null
+          max_devices?: number
+          notes?: string | null
+          updated_at?: string
+          validity_days?: number
+        }
+        Update: {
+          activation_mode?: string
+          active?: boolean
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          customer_email?: string | null
+          customer_name?: string | null
+          expires_at?: string | null
+          first_activated_at?: string | null
+          fixed_expires_at?: string | null
+          id?: string
+          last_validated_at?: string | null
+          max_devices?: number
+          notes?: string | null
+          updated_at?: string
+          validity_days?: number
+        }
+        Relationships: []
+      }
+      privatai_trials: {
+        Row: {
+          app_version: string | null
+          created_at: string
+          device_hash: string
+          device_label: string | null
+          expires_at: string
+          id: string
+          last_seen_at: string
+          platform: string | null
+          started_at: string
+        }
+        Insert: {
+          app_version?: string | null
+          created_at?: string
+          device_hash: string
+          device_label?: string | null
+          expires_at: string
+          id?: string
+          last_seen_at?: string
+          platform?: string | null
+          started_at?: string
+        }
+        Update: {
+          app_version?: string | null
+          created_at?: string
+          device_hash?: string
+          device_label?: string | null
+          expires_at?: string
+          id?: string
+          last_seen_at?: string
+          platform?: string | null
+          started_at?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           category: string | null
@@ -14440,12 +14642,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -14469,11 +14671,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -14494,11 +14696,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -14519,11 +14721,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -14536,11 +14738,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
