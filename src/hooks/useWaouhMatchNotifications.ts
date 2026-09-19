@@ -1,4 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
+import {
+  MATCH_TEMPLATES,
+  isSelfNotif,
+  type WaouhNotification,
+} from "@/hooks/waouhNotificationTypes";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
