@@ -410,10 +410,10 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
         _pendingSeed != null && liveIsProvisionalInterestedMatch(_pendingSeed!);
     return Scaffold(
       appBar: LiveHeader(
-        title: match.title,
+        title: 'WAOUH One',
         subtitle: pendingThread
-            ? 'Discussion ouverte · synchronisation…'
-            : '${match.role == 'seller' ? 'Acheteur intéressé' : 'Discussion produit'}${match.city == null ? '' : ' · ${match.city}'}',
+            ? 'Deal Room · synchronisation…'
+            : 'Deal Room · ${match.title}${match.city == null ? '' : ' · ${match.city}'}',
         back: true,
         actions: pendingThread
             ? const <Widget>[]
@@ -480,6 +480,12 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                     match: match,
                     messages: merged,
                     pending: pendingThread,
+                    onIntelligence: () => showLiveUnifiedIntelligenceSheet(
+                      context,
+                      messages: merged,
+                      busy: waiting,
+                      match: match,
+                    ),
                   ),
                   Expanded(
                     child: LiveSmartTimeline(
@@ -505,8 +511,11 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
         SafeArea(
           top: false,
           child: Container(
-            color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(6, 5, 8, 8),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: Color(0xFFE1E9E6))),
+            ),
+            padding: const EdgeInsets.fromLTRB(8, 7, 8, 9),
             child: Row(children: [
               IconButton(
                   tooltip: 'Prendre une photo',
@@ -525,9 +534,15 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _send(),
                       decoration: InputDecoration(
+                          filled: true,
+                          fillColor: const Color(0xFFF5F8F7),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: BorderSide.none,
+                          ),
                           hintText: match.role == 'seller'
-                              ? 'Votre réponse à l’acheteur...'
-                              : 'Votre réponse au vendeur...'))),
+                              ? 'Répondre à l’acheteur…'
+                              : 'Répondre au vendeur…'))),
               IconButton(
                   tooltip: 'Envoyer',
                   onPressed: _send,
