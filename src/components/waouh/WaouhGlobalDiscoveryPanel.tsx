@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Building2, ExternalLink, Globe2, Loader2, MapPin, MessageCircle, Radar,
-  Search, Send, Share2, ShoppingBag, Store, Users, Wifi, WifiOff,
+  Search, Send, Share2, Store, Users, Wifi, WifiOff,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
