@@ -378,6 +378,7 @@ export async function prepareNexusContact(fabricId: string) {
       can_reveal: boolean;
       can_auto_contact: boolean;
       requires_approval: boolean;
+      can_blind_message?: boolean;
       label: string;
     };
     contacts: Array<{
@@ -401,6 +402,8 @@ export async function sendNexusDiscoveryContact(input: {
 }) {
   return invokeWaouhAgentic<{
     queued: boolean;
+    blind?: boolean;
+    approval_id?: string;
     channel: string;
     contactability_level: string;
     phone_last4?: string | null;
