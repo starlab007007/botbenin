@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { ShoppingBag, Search, Handshake, CreditCard, X, Sparkles, Info, PanelsTopLeft, Rows3, BrainCircuit } from "lucide-react";
+import { ShoppingBag, Search, Handshake, X, Sparkles, Info, PanelsTopLeft, Rows3, BrainCircuit } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,14 +36,14 @@ const QUICK_ACTIONS = [
   { icon: ShoppingBag, title: "Vendre", desc: "Publiez un article en 30s", gradient: "from-emerald-500 to-teal-500" },
   { icon: Search, title: "Acheter", desc: "Trouvez près de vous", gradient: "from-cyan-500 to-blue-500" },
   { icon: Handshake, title: "Négocier", desc: "Proposez votre prix", gradient: "from-amber-500 to-orange-500" },
-  { icon: CreditCard, title: "Payer", desc: "Mobile Money sécurisé", gradient: "from-purple-500 to-pink-500" },
+  { icon: BrainCircuit, title: "Muse", desc: "Poursuit votre objectif", gradient: "from-violet-500 to-cyan-500" },
 ];
 
 const EXAMPLES = [
   '"Je vends mon iPhone 14 Pro 256Go à Cotonou — 650 000 FCFA"',
   '"Je cherche un frigo d\'occasion à Calavi, max 150 000 FCFA"',
   '"Je propose 580 000 FCFA pour l\'iPhone"',
-  '"Je paye en Mobile Money MTN, mon numéro 97 12 34 56"',
+  '"Trouve des acheteurs sérieux pour mes 10 tonnes de soja à Parakou"',
 ];
 
 const HelpContent = () => (
@@ -69,8 +69,8 @@ const HelpContent = () => (
         ))}
       </ul>
     </div>
-    <div className="p-3 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 text-white text-xs leading-relaxed">
-      🔒 Paiements Mobile Money via escrow. L'argent n'est libéré qu'après confirmation.
+    <div className="p-3 rounded-lg bg-gradient-to-br from-emerald-600 to-cyan-700 text-white text-xs leading-relaxed">
+      🔒 WAOUH protège les contacts avec le Contact Layer C0–C4 et demande votre accord avant les actions sensibles.
     </div>
   </div>
 );
@@ -143,7 +143,7 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
   }, []);
 
   useEffect(() => {
-    document.title = "WAOUH Chat — Achetez, Vendez, Négociez, Payez | bot.bj";
+    document.title = "WAOUH Chat — Commerce Agent IA | bot.bj";
   }, []);
 
   useEffect(() => {
@@ -247,7 +247,7 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
           </div>
           <div className="leading-tight">
             <div className="text-sm font-bold text-foreground">WAOUH</div>
-            <div className="text-[11px] text-muted-foreground">Marketplace IA — bot.bj</div>
+            <div className="text-[11px] text-muted-foreground">Commerce Agent IA · Muse + NEXUS</div>
           </div>
         </Link>
         <div className="flex items-center gap-2">
