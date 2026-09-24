@@ -300,14 +300,63 @@ async function enrichChatWithSignalFabric(
       return acc;
     }, {});
 
-    const existing = new Set(input.coreResults.map(chatSignalKey));
+    const rankedByKey = new Map<string, any>();
+    const rankedByRecordId = new Map<string, any>();
+    for (const row of ranked) {
+      rankedByKey.set(chatSignalKey(row), row);
+      const evidence =
+        row?.evidence && typeof row.evidence === "object" ? row.evidence : {};
+      for (const candidateId of [
+        evidence.article_id,
+        evidence.catalog_id,
+        evidence.external_listing_id,
+        evidence.buyer_profile_id,
+        row.source_record_id,
+      ]) {
+        if (candidateId != null) rankedByRecordId.set(String(candidateId), row);
+      }
+    }
+
+    // Enrichit les cartes historiques sans modifier leur ordre ni leur action.
+    // L'index métier reste donc parfaitement aligné avec last_matches.
+    const enrichedCore = input.coreResults.map((row: any) => {
+      const matched =
+        (row?.id != null ? rankedByRecordId.get(String(row.id)) : null) ??
+        rankedByKey.get(chatSignalKey(row)) ??
+        null;
+      if (!matched) return row;
+      const scores = matched.scores ?? null;
+      return {
+        ...row,
+        fabric_id: row.fabric_id ?? matched.fabric_id ?? null,
+        source_url: row.source_url ?? matched.source_url ?? null,
+        intent: row.intent ?? matched.intent ?? null,
+        actor_type: row.actor_type ?? matched.actor_type ?? null,
+        contactability_level:
+          row.contactability_level ?? matched.contactability_level ?? "C0",
+        total_score: row.total_score ?? scores?.total_score ?? null,
+        relevance_score:
+          row.relevance_score ?? scores?.relevance_score ?? null,
+        trust_score: row.trust_score ?? scores?.trust_score ?? null,
+        price_score: row.price_score ?? scores?.price_score ?? null,
+        location_score:
+          row.location_score ?? scores?.location_score ?? null,
+        freshness_score:
+          row.freshness_score ?? scores?.freshness_score ?? null,
+        scores: row.scores ?? scores,
+        reasons: row.reasons ?? scores?.reasons ?? [],
+        evidence: row.evidence ?? matched.evidence ?? null,
+      };
+    });
+
+    const existing = new Set(enrichedCore.map(chatSignalKey));
     const appended: any[] = [];
 
     for (const row of ranked) {
       const evidence =
         row?.evidence && typeof row.evidence === "object" ? row.evidence : {};
       const candidate = {
-        index: input.coreResults.length + appended.length + 1,
+        index: enrichedCore.length + appended.length + 1,
         id: String(
           evidence.article_id ??
             evidence.catalog_id ??
@@ -348,10 +397,10 @@ async function enrichChatWithSignalFabric(
       if (existing.has(key)) continue;
       existing.add(key);
       appended.push(candidate);
-      if (input.coreResults.length + appended.length >= 8) break;
+      if (enrichedCore.length + appended.length >= 8) break;
     }
 
-    const results = [...input.coreResults, ...appended].map(
+    const results = [...enrichedCore, ...appended].map(
       (row: any, index: number) => ({ ...row, index: index + 1 }),
     );
     const top = ranked[0] as any;
