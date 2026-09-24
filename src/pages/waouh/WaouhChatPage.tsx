@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { ShoppingBag, Search, Handshake, CreditCard, X, Sparkles, Info, PanelsTopLeft, Rows3 } from "lucide-react";
+import { ShoppingBag, Search, Handshake, CreditCard, X, Sparkles, Info, PanelsTopLeft, Rows3, BrainCircuit } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -192,6 +192,14 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
             </Badge>
           </Link>
           <div className="flex items-center gap-1">
+            <Link
+              to="/waouh/muse"
+              className="p-2 rounded-lg hover:bg-gray-100 active:bg-gray-200"
+              aria-label="Ouvrir WAOUH Muse"
+              title="WAOUH Muse"
+            >
+              <BrainCircuit className="w-5 h-5 text-cyan-700" />
+            </Link>
             {NotifButton}
             <Sheet>
               <SheetTrigger asChild>
@@ -284,6 +292,12 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
             </div>
           </TooltipProvider>
 
+          <Button asChild size="sm" variant="secondary" className="hidden sm:inline-flex">
+            <Link to="/waouh/muse">
+              <BrainCircuit className="mr-1.5 h-4 w-4" />
+              Muse
+            </Link>
+          </Button>
           {NotifButton}
           <Sheet>
             <SheetTrigger asChild>

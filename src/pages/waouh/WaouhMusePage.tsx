@@ -20,16 +20,16 @@ export default function WaouhMusePage() {
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <Badge className="gap-1 bg-cyan-600 text-white hover:bg-cyan-600">
                 <BrainCircuit className="h-3.5 w-3.5" />
-                WAOUH NEXUS
+                WAOUH Muse
               </Badge>
               <Badge variant="secondary" className="gap-1">
                 <Sparkles className="h-3.5 w-3.5" />
-                Muse + Market Brain
+                Propulsé par NEXUS
               </Badge>
             </div>
-            <h1 className="text-2xl font-semibold tracking-tight">Votre IA d’achat et de vente</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">Votre agent IA pour acheter et vendre</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Chercher · comparer · surveiller · trouver les bons acheteurs · négocier avec contrôle humain.
+              Muse poursuit votre objectif. NEXUS cherche vendeurs et acheteurs, compare et prépare les meilleures actions sous votre contrôle.
             </p>
           </div>
 
@@ -52,6 +52,21 @@ export default function WaouhMusePage() {
       </header>
 
       <section className="mx-auto w-full max-w-7xl space-y-4 px-2 py-4 sm:px-4">
+        <div className="grid gap-2 sm:grid-cols-3">
+          <div className="rounded-xl border bg-card px-3 py-2.5">
+            <div className="text-xs font-semibold">Chat</div>
+            <div className="mt-0.5 text-[11px] text-muted-foreground">Répond immédiatement.</div>
+          </div>
+          <div className="rounded-xl border border-cyan-200 bg-cyan-50/60 px-3 py-2.5 dark:border-cyan-900 dark:bg-cyan-950/20">
+            <div className="text-xs font-semibold">Muse</div>
+            <div className="mt-0.5 text-[11px] text-muted-foreground">Planifie, suit et poursuit votre objectif.</div>
+          </div>
+          <div className="rounded-xl border bg-card px-3 py-2.5">
+            <div className="text-xs font-semibold">NEXUS</div>
+            <div className="mt-0.5 text-[11px] text-muted-foreground">Cherche partout et relie offre ↔ demande.</div>
+          </div>
+        </div>
+
         <WaouhGlobalDiscoveryPanel />
 
         <WaouhNexusInnovationPanel />
