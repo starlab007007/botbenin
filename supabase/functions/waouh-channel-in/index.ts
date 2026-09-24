@@ -276,13 +276,31 @@ async function enrichChatWithSignalFabric(
       .limit(2500);
     if (error) throw error;
 
+    const fold = (value: unknown) =>
+      String(value ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+    const foldedText = fold(input.text);
+    const explicitCity = [...new Set(
+      (data ?? [])
+        .map((signal: any) => signal.city)
+        .filter((value: unknown) => typeof value === "string" && value.trim()),
+    )].find((candidate: any) => {
+      const cityToken = fold(candidate);
+      return cityToken.length >= 3 && foldedText.includes(cityToken);
+    }) as string | undefined;
+    const scoringCity = explicitCity ?? input.city ?? null;
+
     const ranked = (data ?? [])
       .map((signal: FabricSignal) => ({
         ...signal,
         scores: scoreFabricSignal({
           query: input.text,
           mode,
-          city: input.city ?? null,
+          city: scoringCity,
           budgetMax,
           signal,
         }),
@@ -414,7 +432,7 @@ async function enrichChatWithSignalFabric(
       intelligence: {
         mode,
         normalized_query: input.text.trim().slice(0, 700),
-        city: input.city ?? null,
+        city: scoringCity,
         budget_max: budgetMax,
         priorities: [
           "relevance",
