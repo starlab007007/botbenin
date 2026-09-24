@@ -67,7 +67,10 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
 
   Future<void> runSearch() async {
     final text = query.text.trim();
-    if (text.isEmpty) return notice('Décrivez ce que WAOUH doit chercher.');
+    if (text.isEmpty) {
+      notice('Décrivez ce que WAOUH doit chercher.');
+      return;
+    }
     setState(() => busy = true);
     try {
       final maxBudget =
@@ -144,7 +147,10 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
 
   Future<void> startBuyerAutopilot() async {
     final goal = query.text.trim();
-    if (goal.isEmpty) return notice('Lancez d’abord une recherche.');
+    if (goal.isEmpty) {
+      notice('Lancez d’abord une recherche.');
+      return;
+    }
     setState(() => busy = true);
     try {
       final maxBudget =
@@ -197,7 +203,8 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
     if (shareText.text.trim().isEmpty &&
         shareUrl.text.trim().isEmpty &&
         (shareImageUrl?.isEmpty ?? true)) {
-      return notice('Ajoutez un message, un lien ou une image.');
+      notice('Ajoutez un message, un lien ou une image.');
+      return;
     }
     setState(() => busy = true);
     try {
@@ -227,7 +234,10 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
 
   Future<void> submitScout() async {
     final title = scoutTitle.text.trim();
-    if (title.isEmpty) return notice('Indiquez le produit observé.');
+    if (title.isEmpty) {
+      notice('Indiquez le produit observé.');
+      return;
+    }
     setState(() => busy = true);
     try {
       final price =
@@ -436,7 +446,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
             label: const Text('Muse : acheter pour moi'),
           ),
         ],
-        if ((discovery?.sourceMix ?? const {}).isNotEmpty) ...[
+        if ((discovery?.sourceMix ?? const <String, int>{}).isNotEmpty) ...[
           const SizedBox(height: 12),
           Wrap(
             spacing: 6,
