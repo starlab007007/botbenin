@@ -413,6 +413,16 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
                     LiveCommerceAgentBar(
                       messages: messages,
                       busy: waiting,
+                      onTap: () => showLiveUnifiedIntelligenceSheet(
+                        context,
+                        messages: messages,
+                        busy: waiting,
+                        missionCount: controller.agentic.activeMissionCount,
+                        watchCount: controller.agentic.activeWatchCount,
+                        approvalCount: controller.agentic.pendingApprovalCount,
+                        onNewGoal: () { unawaited(_newChat()); },
+                        onOpenAgentic: () { unawaited(_openAgenticWorkspace()); },
+                      ),
                     ),
                     LiveSmartComposerBar(
                       messages: messages,
