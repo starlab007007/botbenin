@@ -75,6 +75,61 @@ export async function chatCompletion(opts: {
   return answer;
 }
 
+
+export async function visionCompletion(opts: {
+  imageUrl: string;
+  prompt: string;
+  model?: string;
+  jsonMode?: boolean;
+  temperature?: number;
+}): Promise<string> {
+  const model = normalizeModel(opts.model || "gemini-2.5-flash");
+  const parsed = new URL(opts.imageUrl);
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error("Image URL non supportée");
+  }
+  const imageResponse = await fetch(parsed.toString());
+  if (!imageResponse.ok) throw new Error(`Téléchargement image ${imageResponse.status}`);
+  const contentType = imageResponse.headers.get("content-type") || "image/jpeg";
+  if (!/^image\//i.test(contentType)) throw new Error("Le média fourni n'est pas une image");
+  const bytes = new Uint8Array(await imageResponse.arrayBuffer());
+  if (bytes.byteLength > 8 * 1024 * 1024) throw new Error("Image trop volumineuse");
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, Math.min(i + chunk, bytes.length)));
+  }
+  const base64 = btoa(binary);
+  const generationConfig: Record<string, unknown> = {
+    temperature: opts.temperature ?? 0.1,
+    maxOutputTokens: 1200,
+  };
+  if (opts.jsonMode) generationConfig.responseMimeType = "application/json";
+  const response = await fetch(`${GEMINI_API_BASE}/${model}:generateContent`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": getGeminiKey(),
+    },
+    body: JSON.stringify({
+      contents: [{
+        role: "user",
+        parts: [
+          { inline_data: { mime_type: contentType.split(";")[0], data: base64 } },
+          { text: opts.prompt.slice(0, 12000) },
+        ],
+      }],
+      generationConfig,
+    }),
+  });
+  const raw = await response.text();
+  if (!response.ok) throw new Error(`Gemini vision ${response.status}: ${raw.slice(0, 1000)}`);
+  const data = JSON.parse(raw);
+  const answer = extractText(data);
+  if (!answer) throw new Error("Gemini vision vide");
+  return answer;
+}
+
 export async function embedText(text: string): Promise<number[]> {
   const response = await fetch(`${GEMINI_API_BASE}/${EMBEDDING_MODEL}:embedContent`, {
     method: "POST",

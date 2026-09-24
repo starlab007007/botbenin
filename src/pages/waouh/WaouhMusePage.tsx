@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { WaouhAgentCenter } from "@/components/waouh/WaouhAgentCenter";
 import { WaouhNexusDashboard } from "@/components/waouh/WaouhNexusDashboard";
+import { WaouhNexusInnovationPanel } from "@/components/waouh/WaouhNexusInnovationPanel";
 import WaouhWebChat, { type WaouhWebChatHandle } from "@/components/waouh/WaouhWebChat";
 
 export default function WaouhMusePage() {
@@ -50,6 +51,8 @@ export default function WaouhMusePage() {
       </header>
 
       <section className="mx-auto w-full max-w-7xl space-y-4 px-2 py-4 sm:px-4">
+        <WaouhNexusInnovationPanel />
+
         <WaouhNexusDashboard
           onAsk={(prompt) => {
             void chatRef.current?.prefillAndSend(prompt);
