@@ -4,7 +4,7 @@ import {
   jsonResponse,
   waouhCorsHeaders,
 } from "../_shared/waouh-auth.ts";
-import { chatCompletion } from "../_shared/agent-ai.ts";
+import { chatCompletion, visionCompletion } from "../_shared/agent-ai.ts";
 import {
   marketStats,
   nexusTokens,
@@ -939,6 +939,180 @@ Deno.serve(async (req: Request) => {
           auto_negotiate: preference.auto_negotiate,
         });
         return jsonResponse({ ok: true, data: { preference } });
+      }
+
+
+      case "nexus.identify_visual": {
+        const imageUrl = safeUrl(payload.image_url, "image_url");
+        if (!imageUrl) throw new ApiError(422, "image_url_required");
+        const hint = optionalString(payload.hint, "hint", 500);
+        let identification: any = {};
+        try {
+          const raw = await visionCompletion({
+            imageUrl,
+            jsonMode: true,
+            temperature: 0.05,
+            prompt: `Identifie le produit visible pour une recherche commerciale au Bénin.
+Retourne uniquement JSON: {product,brand,model,category,condition,color,variant,gtin_visible,confidence,search_query,notes}.
+- N'invente pas marque/modèle/GTIN s'ils ne sont pas visibles ou raisonnablement identifiables.
+- confidence entre 0 et 1.
+- search_query doit être courte et utile pour comparer ce produit.
+Indice utilisateur: ${hint ?? "aucun"}`,
+          });
+          identification = JSON.parse(raw);
+        } catch (error) {
+          console.warn("[waouh-nexus] vision fallback", error instanceof Error ? error.message : error);
+          if (!hint) throw new ApiError(502, "visual_identification_failed");
+          identification = { product: hint, search_query: hint, confidence: 0.25, notes: "fallback_text_hint" };
+        }
+        const query = String(identification.search_query || [
+          identification.brand, identification.model, identification.product, identification.variant,
+        ].filter(Boolean).join(" ") || hint || "produit").trim().slice(0, 500);
+        await audit(sb, ownerId, "nexus.visual_identified", "media", null, {
+          query,
+          confidence: Number(identification.confidence ?? 0),
+        });
+        return jsonResponse({ ok: true, data: { identification, query, image_url: imageUrl } });
+      }
+
+      case "nexus.barcode_lookup": {
+        const code = asString(payload.code, "code", 6, 32).replace(/[^0-9A-Za-z-]/g, "");
+        const [articles, catalog, scouts] = await Promise.all([
+          sb.from("waouh_articles")
+            .select("id,title,brand,model,price,currency,city,photos,status,source_channel,gtin")
+            .eq("gtin", code).eq("status", "active").limit(20),
+          sb.from("waouh_unified_catalog")
+            .select("id,titre,prix_min,prix_max,devise,ville,photos,source,is_active,gtin,promoted_article_id")
+            .eq("gtin", code).eq("is_active", true).limit(20),
+          sb.from("waouh_scout_reports")
+            .select("id,title,observed_price,currency,city,place_name,availability,observed_at,gtin,trust_state")
+            .eq("gtin", code).order("observed_at", { ascending: false }).limit(20),
+        ]);
+        for (const result of [articles, catalog, scouts]) {
+          if (result.error) throw new ApiError(500, "barcode_lookup_failed", result.error.message);
+        }
+        const title = articles.data?.[0]?.title ?? catalog.data?.[0]?.titre ?? scouts.data?.[0]?.title ?? null;
+        const query = title ? String(title) : code;
+        return jsonResponse({ ok: true, data: {
+          code, query, articles: articles.data ?? [], catalog: catalog.data ?? [], observations: scouts.data ?? [],
+        } });
+      }
+
+      case "nexus.market_history": {
+        const queryText = asString(payload.query, "query", 2, 1000);
+        const city = optionalString(payload.city, "city", 120);
+        const limit = integer(payload.limit, "limit", 30, 1, 120);
+        let q = sb.from("waouh_market_snapshots")
+          .select("id,query,canonical_key,category,city,min_amount,median_amount,max_amount,average_amount,sample_count,source_mix,observed_at")
+          .eq("owner_id", ownerId)
+          .ilike("query", `%${queryText.replace(/[%_]/g, "")}%`)
+          .order("observed_at", { ascending: false }).limit(limit);
+        if (city) q = q.ilike("city", city);
+        const { data, error } = await q;
+        if (error) throw new ApiError(500, "market_history_failed", error.message);
+        return jsonResponse({ ok: true, data: { query: queryText, points: (data ?? []).reverse() } });
+      }
+
+      case "nexus.sources": {
+        const [providers, articleSources, buyerSources, radar] = await Promise.all([
+          sb.from("waouh_radar_api_configs")
+            .select("provider,active,daily_quota,usage_today,last_test_at,last_test_status")
+            .order("provider"),
+          sb.from("waouh_articles").select("source_channel,status").eq("status", "active").limit(2000),
+          sb.from("waouh_buyer_profiles").select("source_channel,is_active").eq("is_active", true).limit(3000),
+          sb.from("waouh_radar_signals").select("source_type,intent,contact_phone,status").limit(3000),
+        ]);
+        const countBy = (rows: any[] | null, key: string) => (rows ?? []).reduce((acc: Record<string, number>, row: any) => {
+          const value = String(row?.[key] ?? "unknown");
+          acc[value] = (acc[value] ?? 0) + 1;
+          return acc;
+        }, {});
+        return jsonResponse({ ok: true, data: {
+          providers: providers.data ?? [],
+          offers: countBy(articleSources.data, "source_channel"),
+          demands: countBy(buyerSources.data, "source_channel"),
+          radar: {
+            sources: countBy(radar.data, "source_type"),
+            intents: countBy(radar.data, "intent"),
+            contacts_ready: (radar.data ?? []).filter((row: any) => !!row.contact_phone).length,
+          },
+        } });
+      }
+
+      case "nexus.scout.submit": {
+        const title = asString(payload.title, "title", 2, 240);
+        const price = positiveNumber(payload.observed_price, "observed_price", true);
+        const report = await queryOne<any>(
+          sb.from("waouh_scout_reports").insert({
+            owner_id: ownerId,
+            article_id: payload.article_id ? uuid(payload.article_id, "article_id") : null,
+            catalog_id: payload.catalog_id ? uuid(payload.catalog_id, "catalog_id") : null,
+            title,
+            category: optionalString(payload.category, "category", 120),
+            observed_price: price,
+            city: optionalString(payload.city, "city", 120),
+            place_name: optionalString(payload.place_name, "place_name", 240),
+            latitude: payload.latitude == null ? null : Number(payload.latitude),
+            longitude: payload.longitude == null ? null : Number(payload.longitude),
+            source_type: pickEnum(payload.source_type, "source_type", ["field","shop","market","barcode","photo","receipt","partner"] as const, "field"),
+            photo_urls: stringArray(payload.photo_urls, "photo_urls", 8),
+            gtin: optionalString(payload.gtin, "gtin", 64),
+            availability: pickEnum(payload.availability, "availability", ["available","low_stock","out_of_stock","unknown"] as const, "unknown"),
+            note: optionalString(payload.note, "note", 2000),
+            metadata: jsonObject(payload.metadata, "metadata"),
+          }).select("*").single(),
+          "scout_report_create_failed",
+        );
+        await audit(sb, ownerId, "nexus.scout.submitted", "scout_report", report.id, {
+          title, observed_price: price, city: report.city, source_type: report.source_type,
+        });
+        return jsonResponse({ ok: true, data: { report } }, 201);
+      }
+
+      case "nexus.autopilot.create": {
+        const mode = pickEnum(payload.mode, "mode", ["buyer", "seller"] as const);
+        const goal = asString(payload.goal, "goal", 3, 2000);
+        if (mode === "buyer") {
+          const mission = await queryOne<any>(
+            sb.from("waouh_agent_missions").insert({
+              owner_id: ownerId, goal, channel: "web", locale: "fr-BJ", status: "active",
+              constraints: {
+                budget_max_amount: positiveNumber(payload.budget_max, "budget_max", true),
+                currency: "XOF",
+                city: optionalString(payload.city, "city", 120),
+                nexus_autopilot: true,
+              },
+              preferences: { objective: "best_total_value", approval_before_contact: true },
+            }).select("*").single(),
+            "nexus_autopilot_mission_failed",
+          );
+          const watch = await queryOne<any>(
+            sb.from("waouh_watchlists").insert({
+              owner_id: ownerId, query: goal,
+              target_amount: positiveNumber(payload.budget_max, "budget_max", true),
+              currency: "XOF", status: "active", check_interval_minutes: 360,
+            }).select("*").single(),
+            "nexus_autopilot_watch_failed",
+          );
+          await audit(sb, ownerId, "nexus.autopilot.buyer_created", "mission", mission.id, { watch_id: watch.id });
+          return jsonResponse({ ok: true, data: { mode, mission, watch } }, 201);
+        }
+        const articleId = uuid(payload.article_id, "article_id");
+        const article = await ownedArticle(sb, ownerId, articleId);
+        const minPrice = positiveNumber(payload.min_price_amount, "min_price_amount", true);
+        const policy = await queryOne<any>(
+          sb.from("waouh_seller_policies").upsert({
+            owner_id: ownerId, article_id: articleId, mode: "assisted",
+            min_price_amount: minPrice,
+            max_discount_percent: positiveNumber(payload.max_discount_percent, "max_discount_percent", true) ?? 10,
+            allow_counteroffers: true, auto_expire_minutes: 1440,
+            delivery_zones: stringArray(payload.delivery_zones, "delivery_zones", 30),
+            rules: { nexus_autopilot: true, approval_before_accept: true }, active: true,
+          }, { onConflict: "owner_id,article_id" }).select("*").single(),
+          "nexus_autopilot_policy_failed",
+        );
+        await audit(sb, ownerId, "nexus.autopilot.seller_created", "article", articleId, { policy_id: policy.id });
+        return jsonResponse({ ok: true, data: { mode, article, policy } }, 201);
       }
 
       case "nexus.search": {
