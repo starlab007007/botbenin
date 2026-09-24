@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: telCorsHeaders(req) });
   }
   if (req.method !== "POST") return methodNotAllowed(req);
-  if (!isInternalRequest(req)) {
+  if (!(await isInternalRequest(req))) {
     return telError(
       401,
       "internal_authorization_required",
