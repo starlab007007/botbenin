@@ -356,7 +356,9 @@ class LiveCommerceAgentBar extends StatelessWidget {
               style: const TextStyle(color: Color(0xFF78958A), fontSize: 9.5, fontWeight: FontWeight.w700),
             ),
           ),
-      ]),
+          ]),
+        ),
+      ),
     );
   }
 }
@@ -677,8 +679,6 @@ class LiveUnifiedIntelligenceSheet extends StatelessWidget {
               ),
             ),
         ],
-      ),
-        ),
       ),
     );
   }
