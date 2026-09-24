@@ -18,7 +18,7 @@ class LiveNexusScreen extends StatefulWidget {
 
 class _LiveNexusScreenState extends State<LiveNexusScreen> {
   final query = TextEditingController();
-  final city = TextEditingController(text: 'Cotonou');
+  final city = TextEditingController();
   final budget = TextEditingController();
   final shareText = TextEditingController();
   final shareUrl = TextEditingController();
@@ -91,7 +91,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
         if (smartMode &&
             plan?.city != null &&
             plan!.city!.trim().isNotEmpty &&
-            city.text.trim() == 'Cotonou') {
+            city.text.trim().isEmpty) {
           city.text = plan.city!;
         }
         if (smartMode &&
