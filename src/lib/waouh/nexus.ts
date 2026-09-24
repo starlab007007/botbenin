@@ -167,10 +167,13 @@ export function nexusBadgeLabel(value: string) {
 
 
 export type NexusSourceStatus = {
-  providers: Array<{ provider: string; active: boolean; daily_quota?: number | null; usage_today?: number | null; last_test_at?: string | null; last_test_status?: string | null }>;
+  providers: Array<{ provider: string; active: boolean; configured?: boolean; daily_quota?: number | null; usage_today?: number | null; last_test_at?: string | null; last_test_status?: string | null }>;
+  registry?: NexusDiscoverySource[];
+  fabric?: { total: number; by_source: Record<string, number>; by_intent: Record<string, number>; by_contactability: Record<string, number> };
   offers: Record<string, number>;
   demands: Record<string, number>;
   radar: { sources: Record<string, number>; intents: Record<string, number>; contacts_ready: number };
+  google_places?: { configured: boolean };
 };
 
 export async function identifyNexusVisual(imageUrl: string, hint?: string) {
@@ -242,4 +245,167 @@ export async function createNexusSellerAutopilot(payload: {
     "nexus.autopilot.create",
     { mode: "seller", ...payload },
   );
+}
+
+
+export type NexusDiscoveryMode = "find_sellers" | "find_buyers";
+
+export type NexusDiscoveryResult = {
+  fabric_id: string;
+  source_record_id?: string | null;
+  source_key: string;
+  intent: "BUY" | "SELL" | "ANNOUNCE" | "RFQ" | string;
+  actor_type?: string | null;
+  subject?: string | null;
+  raw_text?: string | null;
+  category?: string | null;
+  brand?: string | null;
+  model?: string | null;
+  condition?: string | null;
+  price_min?: number | null;
+  price_max?: number | null;
+  currency?: string | null;
+  city?: string | null;
+  canonical_key?: string | null;
+  contactability_level?: "C0" | "C1" | "C2" | "C3" | "C4" | string;
+  trust_score?: number | null;
+  observed_at?: string | null;
+  source_url?: string | null;
+  evidence?: Record<string, unknown> | null;
+  scores: {
+    total_score: number;
+    relevance_score: number;
+    intent_score: number;
+    trust_score: number;
+    price_score: number;
+    location_score: number;
+    freshness_score: number;
+    contactability_score: number;
+    reasons: string[];
+  };
+  contact_policy: {
+    level: "C0" | "C1" | "C2" | "C3" | "C4";
+    can_reveal: boolean;
+    can_auto_contact: boolean;
+    requires_approval: boolean;
+    label: string;
+  };
+};
+
+export type NexusDiscoverySource = {
+  source_key: string;
+  label: string;
+  family: string;
+  connector_mode: string;
+  operational_state: "live" | "requires_config" | "ingest_only" | "planned" | "disabled";
+  configured: boolean;
+  reason?: string | null;
+  supports_buy: boolean;
+  supports_sell: boolean;
+  supports_business: boolean;
+  supports_contact: boolean;
+  default_contactability: string;
+  capabilities?: Record<string, unknown>;
+  signal_count: number;
+};
+
+export async function globalNexusDiscovery(input: {
+  query: string;
+  mode: NexusDiscoveryMode;
+  city?: string;
+  budget_max?: number;
+  limit?: number;
+  refresh_external?: boolean;
+}) {
+  return invokeWaouhAgentic<{
+    mode: NexusDiscoveryMode;
+    query: string;
+    city?: string | null;
+    results: NexusDiscoveryResult[];
+    source_mix: Record<string, number>;
+    refresh: Record<string, { configured?: boolean; inserted?: number; reason?: string | null }>;
+    explanation?: string;
+  }>("nexus.global_discovery", input);
+}
+
+export async function ingestSharedCommerceSignal(input: {
+  raw_text: string;
+  source_url?: string;
+  origin_surface?: "whatsapp" | "facebook" | "instagram" | "tiktok" | "telegram" | "web" | "other" | string;
+  source_key?: "share_to_waouh" | "b2b_rfq";
+  evidence?: Record<string, unknown>;
+}) {
+  return invokeWaouhAgentic<{
+    signal: {
+      id: string;
+      source_key: string;
+      intent: string;
+      actor_type: string;
+      product_name?: string | null;
+      category?: string | null;
+      price_min?: number | null;
+      price_max?: number | null;
+      city?: string | null;
+      confidence: number;
+      contactability_level: string;
+    };
+    entity: { id: string; entity_type: string; primary_name?: string | null; verification_state: string; trust_score: number };
+    contact_policy: { level: string; can_reveal: boolean; can_auto_contact: boolean; requires_approval: boolean; label: string };
+  }>("nexus.signal.ingest", {
+    source_key: input.source_key ?? "share_to_waouh",
+    ...input,
+  });
+}
+
+export async function searchGooglePlacesWithNexus(input: { query: string; city?: string; limit?: number }) {
+  return invokeWaouhAgentic<{
+    configured: boolean;
+    inserted: number;
+    results: unknown[];
+    reason?: string | null;
+  }>("nexus.google_places.search", input);
+}
+
+export async function prepareNexusContact(fabricId: string) {
+  return invokeWaouhAgentic<{
+    fabric_id: string;
+    kind: "external" | "internal";
+    source_url?: string | null;
+    actor_name?: string | null;
+    product_name?: string | null;
+    contact_policy: {
+      level: "C0" | "C1" | "C2" | "C3" | "C4";
+      can_reveal: boolean;
+      can_auto_contact: boolean;
+      requires_approval: boolean;
+      can_blind_message?: boolean;
+      label: string;
+    };
+    contacts: Array<{
+      id: string;
+      channel: string;
+      value: string;
+      value_last4?: string | null;
+      contactability_level: string;
+      consent_state: string;
+      is_public_business: boolean;
+      can_auto_contact: boolean;
+    }>;
+    note?: string;
+  }>("nexus.contact.prepare", { fabric_id: fabricId });
+}
+
+export async function sendNexusDiscoveryContact(input: {
+  fabric_id: string;
+  message: string;
+  confirmed: true;
+}) {
+  return invokeWaouhAgentic<{
+    queued: boolean;
+    blind?: boolean;
+    approval_id?: string;
+    channel: string;
+    contactability_level: string;
+    phone_last4?: string | null;
+  }>("nexus.contact.send", input);
 }

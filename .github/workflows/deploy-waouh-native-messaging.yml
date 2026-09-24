@@ -13,8 +13,10 @@ on:
       - "supabase/functions/waouh-webhook/index.ts"
       - "supabase/functions/waouh-agentic-core/**"
       - "supabase/functions/_shared/waouh-nexus*"
+      - "supabase/functions/_shared/waouh-signal-fabric*"
       - "supabase/migrations/*waouh_nexus*.sql"
       - "src/components/waouh/WaouhNexusDashboard.tsx"
+      - "src/components/waouh/WaouhGlobalDiscoveryPanel.tsx"
       - "src/lib/waouh/nexus.ts"
       - "src/lib/waouh/__tests__/nexus.test.ts"
       - "supabase/migrations/*waouh_agentic_core*.sql"
@@ -47,8 +49,10 @@ on:
       - "supabase/functions/waouh-webhook/index.ts"
       - "supabase/functions/waouh-agentic-core/**"
       - "supabase/functions/_shared/waouh-nexus*"
+      - "supabase/functions/_shared/waouh-signal-fabric*"
       - "supabase/migrations/*waouh_nexus*.sql"
       - "src/components/waouh/WaouhNexusDashboard.tsx"
+      - "src/components/waouh/WaouhGlobalDiscoveryPanel.tsx"
       - "src/lib/waouh/nexus.ts"
       - "src/lib/waouh/__tests__/nexus.test.ts"
       - "supabase/migrations/*waouh_agentic_core*.sql"
@@ -214,7 +218,9 @@ jobs:
         run: deno test --no-config supabase/functions/_shared/waouh-tel/waouh_tel_pure_test.ts
 
       - name: Test WAOUH NEXUS ranking contracts
-        run: deno test --no-config supabase/functions/_shared/waouh-nexus-test.ts
+        run: |
+          deno test --no-config supabase/functions/_shared/waouh-nexus-test.ts
+          deno test --no-config supabase/functions/_shared/waouh-signal-fabric-test.ts
 
       - name: Validate Native Messaging web integration
         shell: bash
@@ -245,6 +251,7 @@ jobs:
             src/lib/waouh/nexus.ts \
             src/lib/waouh/__tests__/nexus.test.ts \
             src/components/waouh/WaouhNexusDashboard.tsx \
+            src/components/waouh/WaouhGlobalDiscoveryPanel.tsx \
             src/pages/waouh/WaouhMusePage.tsx
           npx tsc --noEmit
           npm run build
