@@ -501,12 +501,7 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
     );
   }
 
-  Widget _quick(String label, IconData icon, VoidCallback callback) => Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: ActionChip(
-          avatar: Icon(icon, size: 18),
-          label: Text(label),
-          onPressed: callback));
+
 }
 
 class LiveConversationScreen extends StatefulWidget {
