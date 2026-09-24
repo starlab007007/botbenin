@@ -534,7 +534,7 @@ as $$
        where name = 'waouh_tel_internal_secret'
          and char_length(decrypted_secret) >= 24
          and p_internal_secret_sha256 ~ '^[0-9a-f]{64}$'
-         and encode(digest(decrypted_secret, 'sha256'), 'hex') = p_internal_secret_sha256
+         and encode(extensions.digest(decrypted_secret, 'sha256'), 'hex') = p_internal_secret_sha256
     );
 $$;
 
