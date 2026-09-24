@@ -846,6 +846,45 @@ async function refreshGooglePlaces(
   return { configured: true, inserted: saved.length, results: saved };
 }
 
+function publicSourceKey(urlValue: string, mode: DiscoveryMode) {
+  try {
+    const host = new URL(urlValue).hostname.toLowerCase().replace(/^www\./, "");
+    if (host === "facebook.com" || host.endsWith(".facebook.com") || host === "fb.com") return "facebook_business";
+    if (host === "instagram.com" || host.endsWith(".instagram.com")) return "instagram_business";
+    if (host === "tiktok.com" || host.endsWith(".tiktok.com")) return "tiktok_connected";
+    if (host === "t.me" || host.endsWith(".telegram.me") || host.endsWith(".telegram.org")) return "telegram_public";
+    if (host === "monentreprise.bj" || host.endsWith(".cci.bj") || host.endsWith(".apiex.bj")) return "benin_directory";
+    if (mode === "find_buyers" && (
+      host.includes("marches-publics") || host.includes("appeloffres") || host.includes("tender") ||
+      host.includes("procurement") || host.includes("dgmp") || host.includes("armp")
+    )) return "b2b_rfq";
+  } catch {
+    // Keep generic public Web source.
+  }
+  return "serpapi";
+}
+
+function publicSearchProfiles(mode: DiscoveryMode, query: string, city?: string | null) {
+  const clean = query.replace(/"/g, "").trim();
+  const where = [city, "Bénin"].filter(Boolean).join(" ");
+  const sellIntent = '("à vendre" OR vente OR prix OR disponible OR arrivage OR boutique OR fournisseur)';
+  const buyIntent = '("je cherche" OR "besoin de" OR "qui vend" OR "cherche fournisseur" OR "demande de cotation" OR RFQ OR "appel d\'offres")';
+  const intent = mode === "find_sellers" ? sellIntent : buyIntent;
+  const socialSites = "(site:facebook.com OR site:instagram.com OR site:tiktok.com OR site:t.me)";
+  const localBusinessSites = "(site:monentreprise.bj OR site:cci.bj OR site:apiex.bj OR site:.bj)";
+  const commerceSites = "(site:jiji.bj OR site:afribaba.bj OR site:expat.com OR site:linkedin.com)";
+  const b2bSites = "(site:marches-publics.bj OR site:armp.bj OR site:dgmp.bj OR site:linkedin.com OR site:.bj)";
+  const profiles = [
+    { key: "social", q: `"${clean}" ${intent} ${where} ${socialSites}` },
+    { key: "local", q: `"${clean}" ${intent} ${where} ${localBusinessSites}` },
+    {
+      key: mode === "find_buyers" ? "b2b" : "commerce",
+      q: `"${clean}" ${intent} ${where} ${mode === "find_buyers" ? b2bSites : commerceSites}`,
+    },
+  ];
+  return profiles;
+}
+
 async function refreshSerpApi(
   sb: SupabaseClient,
   ownerId: string,
@@ -855,48 +894,90 @@ async function refreshSerpApi(
   limit = 10,
 ) {
   const key = await getRadarApiKey(sb as any, "serpapi", "SERPAPI_KEY");
-  if (!key.ok || !key.key) return { configured: false, inserted: 0, results: [] as any[], reason: key.reason ?? "serpapi_not_ready" };
-  const intentTerms = mode === "find_sellers"
-    ? '("à vendre" OR "vente" OR "prix" OR "disponible" OR "arrivage")'
-    : '("je cherche" OR "besoin de" OR "cherche fournisseur" OR "demande de cotation" OR "appel d\'offres")';
-  const publicSurface = "(site:facebook.com OR site:instagram.com OR site:tiktok.com OR site:t.me OR site:linkedin.com OR site:jiji.bj OR site:afribaba.bj OR site:expat.com OR site:.bj)";
-  const searchQuery = `"${query.replace(/"/g, "")}" ${intentTerms} ${[city,"Bénin"].filter(Boolean).join(" ")} ${publicSurface}`;
-  const url = new URL("https://serpapi.com/search.json");
-  url.searchParams.set("engine", "google");
-  url.searchParams.set("q", searchQuery);
-  url.searchParams.set("num", String(Math.min(Math.max(limit, 1), 20)));
-  url.searchParams.set("gl", "bj");
-  url.searchParams.set("hl", "fr");
-  url.searchParams.set("tbs", "qdr:m");
-  url.searchParams.set("api_key", key.key);
-  const response = await fetch(url.toString());
-  if (!response.ok) return { configured: true, inserted: 0, results: [], reason: `serpapi_${response.status}` };
-  await incrementRadarUsage(sb as any, key.configId, 1);
-  const data = await response.json();
-  const organic = Array.isArray(data?.organic_results) ? data.organic_results.slice(0, limit) : [];
-  const saved: any[] = [];
-  for (const item of organic) {
-    if (!item?.link) continue;
-    let hostname = "web";
-    try { hostname = new URL(item.link).hostname.replace(/^www\./, ""); } catch { /* keep web */ }
-    const rawText = [item.title, item.snippet].filter(Boolean).join("\n");
-    const expectedIntent = mode === "find_sellers" ? "SELL" : "BUY";
-    const ingested = await ingestCommerceSignal(sb, ownerId, {
-      source_key: "serpapi",
-      source_external_id: item.link,
-      source_url: item.link,
-      raw_text: rawText,
-      intent: expectedIntent,
-      actor_type: mode === "find_sellers" ? "seller" : "buyer",
-      product_name: query,
-      city: city ?? null,
-      contact_consent_basis: "unknown",
-      confidence: 0.58,
-      evidence: { position: item.position ?? null, hostname, title: item.title ?? null },
-    }, { expectedIntent });
-    saved.push(ingested.signal);
+  if (!key.ok || !key.key) {
+    return {
+      configured: false,
+      inserted: 0,
+      results: [] as any[],
+      reason: key.reason ?? "serpapi_not_ready",
+      surfaces: {} as Record<string, number>,
+    };
   }
-  return { configured: true, inserted: saved.length, results: saved };
+
+  const profiles = publicSearchProfiles(mode, query, city);
+  const perProfile = Math.max(2, Math.min(6, Math.ceil(limit / profiles.length)));
+  const saved: any[] = [];
+  const seen = new Set<string>();
+  const surfaces: Record<string, number> = {};
+  let calls = 0;
+
+  for (const profile of profiles) {
+    const url = new URL("https://serpapi.com/search.json");
+    url.searchParams.set("engine", "google");
+    url.searchParams.set("q", profile.q);
+    url.searchParams.set("num", String(perProfile));
+    url.searchParams.set("gl", "bj");
+    url.searchParams.set("hl", "fr");
+    url.searchParams.set("tbs", "qdr:m");
+    url.searchParams.set("api_key", key.key);
+
+    const response = await fetch(url.toString());
+    calls += 1;
+    await incrementRadarUsage(sb as any, key.configId, 1);
+    if (!response.ok) {
+      surfaces[profile.key] = 0;
+      continue;
+    }
+
+    const data = await response.json();
+    const organic = Array.isArray(data?.organic_results) ? data.organic_results.slice(0, perProfile) : [];
+    let insertedForProfile = 0;
+    for (const item of organic) {
+      const link = typeof item?.link === "string" ? item.link : "";
+      if (!link || seen.has(link)) continue;
+      seen.add(link);
+      let hostname = "web";
+      try { hostname = new URL(link).hostname.replace(/^www\./, ""); } catch { /* keep web */ }
+      const sourceKey = publicSourceKey(link, mode);
+      const publicBusiness = sourceKey === "benin_directory";
+      const expectedIntent = mode === "find_sellers" ? "SELL" : (sourceKey === "b2b_rfq" ? "RFQ" : "BUY");
+      const rawText = [item.title, item.snippet].filter(Boolean).join("\n");
+
+      const ingested = await ingestCommerceSignal(sb, ownerId, {
+        source_key: sourceKey,
+        source_external_id: link,
+        source_url: link,
+        raw_text: rawText,
+        intent: expectedIntent,
+        actor_type: publicBusiness ? "business" : (mode === "find_sellers" ? "seller" : "buyer"),
+        product_name: query,
+        city: city ?? null,
+        contact_consent_basis: publicBusiness ? "public_business" : "unknown",
+        public_business: publicBusiness,
+        confidence: publicBusiness ? 0.72 : 0.60,
+        trust_score: publicBusiness ? 82 : undefined,
+        evidence: {
+          position: item.position ?? null,
+          hostname,
+          title: item.title ?? null,
+          search_surface: profile.key,
+          discovered_via: "serpapi",
+        },
+      }, { expectedIntent, publicBusiness });
+      saved.push(ingested.signal);
+      insertedForProfile += 1;
+    }
+    surfaces[profile.key] = insertedForProfile;
+  }
+
+  return {
+    configured: true,
+    inserted: saved.length,
+    results: saved,
+    calls,
+    surfaces,
+    reason: saved.length ? null : "no_public_results",
+  };
 }
 
 async function globalDiscoverySearch(
@@ -1601,20 +1682,60 @@ Indice utilisateur: ${hint ?? "aucun"}`,
           ["share_to_waouh","b2b_rfq"] as const,
           "share_to_waouh",
         );
-        const rawText = asString(payload.raw_text, "raw_text", 2, 20_000);
         const originSurface = optionalString(payload.origin_surface, "origin_surface", 80);
         const sourceUrl = safeUrl(payload.source_url, "source_url");
+        const imageUrl = safeUrl(payload.image_url, "image_url");
+        let rawText = optionalString(payload.raw_text, "raw_text", 20_000) ?? "";
+        let visualExtraction: Record<string, unknown> | null = null;
+
+        if (imageUrl) {
+          const imageHost = new URL(imageUrl).hostname;
+          const storageHost = new URL(supabaseUrl).hostname;
+          if (imageHost !== storageHost) throw new ApiError(422, "untrusted_image_host");
+          try {
+            const visualRaw = await visionCompletion({
+              imageUrl,
+              jsonMode: true,
+              temperature: 0.05,
+              prompt: `Analyse cette capture/photo comme un signal commercial au Bénin.
+Retourne uniquement JSON:
+{transcription,intent,actor_name,actor_handle,product_name,category,brand,model,condition,quantity,unit,price_min,price_max,city,phones,emails,availability,confidence}.
+- intent parmi BUY, SELL, ANNOUNCE, RFQ, UNKNOWN.
+- Extrais seulement les coordonnées réellement visibles.
+- Montants numériques en FCFA quand identifiable.
+- N'invente rien.`,
+            });
+            visualExtraction = JSON.parse(visualRaw);
+            const transcription = typeof visualExtraction?.transcription === "string" ? visualExtraction.transcription : "";
+            rawText = [rawText, transcription, JSON.stringify(visualExtraction)].filter(Boolean).join("\n").slice(0, 20_000);
+          } catch (error) {
+            console.warn("[waouh-global-discovery] visual share fallback", error instanceof Error ? error.message : error);
+            if (!rawText && !sourceUrl) throw new ApiError(502, "shared_image_analysis_failed");
+          }
+        }
+
+        if (!rawText && !sourceUrl) throw new ApiError(422, "signal_content_required");
+        const visualPhones = Array.isArray(visualExtraction?.phones)
+          ? visualExtraction!.phones.filter((v): v is string => typeof v === "string")
+          : [];
+        const visualEmails = Array.isArray(visualExtraction?.emails)
+          ? visualExtraction!.emails.filter((v): v is string => typeof v === "string")
+          : [];
         const signalInput: JsonObject = {
           ...payload,
           source_key: sourceKey,
           raw_text: rawText,
           source_url: sourceUrl,
+          contact_phones: [...stringArray(payload.contact_phones, "contact_phones", 5), ...visualPhones].slice(0, 5),
+          contact_emails: [...stringArray(payload.contact_emails, "contact_emails", 5), ...visualEmails].slice(0, 5),
           contact_consent_basis: sourceKey === "b2b_rfq" ? "initiated" : "shared_by_user",
           public_business: false,
           evidence: {
             ...jsonObject(payload.evidence, "evidence"),
             origin_surface: originSurface,
             user_shared: true,
+            image_url: imageUrl,
+            visual_extraction: visualExtraction,
           },
         };
         const result = await ingestCommerceSignal(
