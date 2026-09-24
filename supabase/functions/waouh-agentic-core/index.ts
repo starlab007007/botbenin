@@ -975,7 +975,7 @@ Deno.serve(async (req: Request) => {
             .order("updated_at", { ascending: false })
             .limit(500),
           sb.from("waouh_unified_catalog")
-            .select("id,titre,description,categorie,prix_min,prix_max,devise,ville,vendeur_nom,vendeur_whatsapp,source,photos,promoted_article_id,is_active")
+            .select("id,titre,description,categorie,prix_min,prix_max,devise,ville,vendeur_nom,vendeur_whatsapp,source,photos,promoted_article_id,is_active,updated_at")
             .eq("is_active", true)
             .order("updated_at", { ascending: false })
             .limit(500),
