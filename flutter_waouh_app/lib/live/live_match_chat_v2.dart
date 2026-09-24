@@ -524,7 +524,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                       maxLines: 4,
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _send(),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                           hintText: match.role == 'seller'
                               ? 'Votre réponse à l’acheteur...'
                               : 'Votre réponse au vendeur...'))),
