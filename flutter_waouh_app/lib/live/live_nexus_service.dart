@@ -141,28 +141,105 @@ class NexusDiscoveryItem {
   }
 }
 
+class NexusSmartDiscoveryPlan {
+  const NexusSmartDiscoveryPlan({
+    required this.mode,
+    required this.normalizedQuery,
+    required this.priorities,
+    required this.sourceFamilies,
+    required this.missing,
+    required this.nextActions,
+    required this.confidence,
+    required this.rationale,
+    this.city,
+    this.budgetMax,
+  });
+
+  final String mode;
+  final String normalizedQuery;
+  final String? city;
+  final double? budgetMax;
+  final List<String> priorities;
+  final List<String> sourceFamilies;
+  final List<String> missing;
+  final List<String> nextActions;
+  final double confidence;
+  final String rationale;
+
+  bool get findSellers => mode != 'find_buyers';
+
+  factory NexusSmartDiscoveryPlan.fromJson(Map<String, dynamic> json) =>
+      NexusSmartDiscoveryPlan(
+        mode: _text(json['mode'], 'find_sellers'),
+        normalizedQuery: _text(json['normalized_query']),
+        city: json['city'] == null ? null : _text(json['city']),
+        budgetMax: json['budget_max'] == null
+            ? null
+            : _number(json['budget_max']),
+        priorities: _list(json['priorities'])
+            .map(_text)
+            .where((value) => value.trim().isNotEmpty)
+            .toList(growable: false),
+        sourceFamilies: _list(json['source_families'])
+            .map(_text)
+            .where((value) => value.trim().isNotEmpty)
+            .toList(growable: false),
+        missing: _list(json['missing'])
+            .map(_text)
+            .where((value) => value.trim().isNotEmpty)
+            .toList(growable: false),
+        nextActions: _list(json['next_actions'])
+            .map(_text)
+            .where((value) => value.trim().isNotEmpty)
+            .toList(growable: false),
+        confidence: _number(json['confidence']),
+        rationale: _text(json['rationale']),
+      );
+}
+
 class NexusDiscoveryResponse {
   const NexusDiscoveryResponse({
+    required this.mode,
     required this.results,
     required this.sourceMix,
     required this.refresh,
+    this.normalizedQuery,
+    this.explanation,
+    this.intelligence,
   });
 
+  final String mode;
+  final String? normalizedQuery;
+  final String? explanation;
+  final NexusSmartDiscoveryPlan? intelligence;
   final List<NexusDiscoveryItem> results;
   final Map<String, int> sourceMix;
   final Map<String, dynamic> refresh;
 
-  factory NexusDiscoveryResponse.fromJson(Map<String, dynamic> json) =>
-      NexusDiscoveryResponse(
-        results: _list(json['results'])
-            .map((value) => NexusDiscoveryItem.fromJson(_map(value)))
-            .where((item) => item.fabricId.isNotEmpty)
-            .toList(growable: false),
-        sourceMix: _map(json['source_mix']).map(
-          (key, value) => MapEntry(key, _number(value).round()),
-        ),
-        refresh: _map(json['refresh']),
-      );
+  bool get findSellers => mode != 'find_buyers';
+
+  factory NexusDiscoveryResponse.fromJson(Map<String, dynamic> json) {
+    final intelligenceJson = _map(json['intelligence']);
+    return NexusDiscoveryResponse(
+      mode: _text(json['mode'], 'find_sellers'),
+      normalizedQuery: json['normalized_query'] == null
+          ? null
+          : _text(json['normalized_query']),
+      explanation:
+          json['explanation'] == null ? null : _text(json['explanation']),
+      intelligence: intelligenceJson.isEmpty
+          ? null
+          : NexusSmartDiscoveryPlan.fromJson(intelligenceJson),
+      results: _list(json['results'])
+          .map((value) => NexusDiscoveryItem.fromJson(_map(value)))
+          .where((item) => item.fabricId.isNotEmpty)
+          .toList(growable: false),
+      sourceMix: _map(json['source_mix']).map(
+        (key, value) => MapEntry(key, _number(value).round()),
+      ),
+      refresh: _map(json['refresh']),
+    );
+  }
 }
 
 class NexusSourceInfo {
@@ -425,6 +502,7 @@ class LiveNexusService {
   Future<NexusDiscoveryResponse> search({
     required String query,
     required bool findSellers,
+    bool smartMode = false,
     String? city,
     double? budgetMax,
     bool refreshExternal = true,
@@ -432,9 +510,13 @@ class LiveNexusService {
   }) async {
     final data = await _invoke('nexus.global_discovery', {
       'query': query.trim(),
-      'mode': findSellers ? 'find_sellers' : 'find_buyers',
+      'mode': smartMode
+          ? 'auto'
+          : (findSellers ? 'find_sellers' : 'find_buyers'),
+      'smart': true,
       if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
-      if (budgetMax != null && findSellers) 'budget_max': budgetMax,
+      if (budgetMax != null && (smartMode || findSellers))
+        'budget_max': budgetMax,
       'limit': limit,
       'refresh_external': refreshExternal,
     });
