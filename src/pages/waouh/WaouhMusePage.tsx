@@ -1,7 +1,8 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { BrainCircuit, MessageSquareText, RadioTower, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { WaouhAgentCenter } from "@/components/waouh/WaouhAgentCenter";
 import { WaouhNexusDashboard } from "@/components/waouh/WaouhNexusDashboard";
@@ -11,6 +12,7 @@ import WaouhWebChat, { type WaouhWebChatHandle } from "@/components/waouh/WaouhW
 
 export default function WaouhMusePage() {
   const chatRef = useRef<WaouhWebChatHandle>(null);
+  const [section, setSection] = useState("discover");
 
   return (
     <main className="min-h-screen bg-background">
@@ -67,29 +69,48 @@ export default function WaouhMusePage() {
           </div>
         </div>
 
-        <WaouhGlobalDiscoveryPanel />
+        <Tabs value={section} onValueChange={setSection} className="space-y-3">
+          <TabsList className="grid h-auto w-full grid-cols-4">
+            <TabsTrigger value="discover" className="text-xs sm:text-sm">Découvrir</TabsTrigger>
+            <TabsTrigger value="tools" className="text-xs sm:text-sm">Outils</TabsTrigger>
+            <TabsTrigger value="missions" className="text-xs sm:text-sm">Missions</TabsTrigger>
+            <TabsTrigger value="chat" className="text-xs sm:text-sm">Chat</TabsTrigger>
+          </TabsList>
 
-        <WaouhNexusInnovationPanel />
+          <TabsContent value="discover" className="mt-0">
+            <WaouhGlobalDiscoveryPanel />
+          </TabsContent>
 
-        <WaouhNexusDashboard
-          onAsk={(prompt) => {
-            void chatRef.current?.prefillAndSend(prompt);
-            setTimeout(() => document.getElementById("waouh-nexus-chat")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
-          }}
-        />
+          <TabsContent value="tools" className="mt-0">
+            <WaouhNexusInnovationPanel />
+          </TabsContent>
 
-        <div id="waouh-nexus-chat" className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-          <div className="flex items-center gap-2 border-b px-4 py-3">
-            <Sparkles className="h-4 w-4 text-cyan-600" />
-            <div>
-              <div className="text-sm font-semibold">Parler à WAOUH</div>
-              <div className="text-[11px] text-muted-foreground">Demandez un conseil, une comparaison ou une négociation.</div>
+          <TabsContent value="missions" className="mt-0">
+            <WaouhNexusDashboard
+              onAsk={(prompt) => {
+                setSection("chat");
+                setTimeout(() => {
+                  void chatRef.current?.prefillAndSend(prompt);
+                }, 120);
+              }}
+            />
+          </TabsContent>
+
+          <TabsContent value="chat" className="mt-0">
+            <div id="waouh-nexus-chat" className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+              <div className="flex items-center gap-2 border-b px-4 py-3">
+                <Sparkles className="h-4 w-4 text-cyan-600" />
+                <div>
+                  <div className="text-sm font-semibold">Parler à WAOUH</div>
+                  <div className="text-[11px] text-muted-foreground">Demandez un conseil, une comparaison ou une négociation.</div>
+                </div>
+              </div>
+              <div className="min-h-[68vh]">
+                <WaouhWebChat ref={chatRef} embedded fullscreen />
+              </div>
             </div>
-          </div>
-          <div className="min-h-[68vh]">
-            <WaouhWebChat ref={chatRef} embedded fullscreen />
-          </div>
-        </div>
+          </TabsContent>
+        </Tabs>
       </section>
     </main>
   );
