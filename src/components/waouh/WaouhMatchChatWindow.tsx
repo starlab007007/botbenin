@@ -20,6 +20,7 @@ import { formatMatchLabel } from "@/app-mobile/utils/chatLabel";
 import "@/app-mobile/theme/chat-bg.css";
 import { engageWaouhChatSyncLock } from "./waouhChatSyncLock";
 import { correlationIdFor, traceUi } from "./waouhCorrelation";
+import type { WaouhWorkspaceDealState } from "@/lib/waouh/workspaceState";
 
 export type MatchChatMeta = {
   key: string;
@@ -75,6 +76,7 @@ export function WaouhMatchChatWindow({
   setCached,
   getHasMore,
   setHasMoreCached,
+  onDealStateChange,
 }: {
   match: MatchChatMeta;
   sessionId: string;
@@ -85,6 +87,7 @@ export function WaouhMatchChatWindow({
   setCached?: (key: string, msgs: Msg[]) => void;
   getHasMore?: (key: string) => boolean;
   setHasMoreCached?: (key: string, v: boolean) => void;
+  onDealStateChange?: (state: WaouhWorkspaceDealState) => void;
 }) {
   // Synchronous hydration of meta (status + seed) from localStorage so the first
   // paint shows the full bubble immediately — no spinner, no layout shift.
@@ -583,6 +586,30 @@ export function WaouhMatchChatWindow({
     }
     return "";
   }, [messages]);
+
+  useEffect(() => {
+    if (!active) return;
+    onDealStateChange?.({
+      active: true,
+      title: match.title,
+      role: match.kind,
+      contactLevel: dealContactLevel,
+      intent: latestDealIntent || null,
+      closed,
+      price: match.price,
+      city: match.city ?? null,
+    });
+  }, [
+    active,
+    closed,
+    dealContactLevel,
+    latestDealIntent,
+    match.city,
+    match.kind,
+    match.price,
+    match.title,
+    onDealStateChange,
+  ]);
 
   const seedText = seedNotif?.text?.trim() || match.seed_text?.trim() || null;
 
