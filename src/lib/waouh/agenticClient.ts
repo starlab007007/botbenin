@@ -1,8 +1,9 @@
 import { supabase } from "@/integrations/supabase/client";
 import { type AgenticAction, unwrapAgenticEnvelope } from "./agenticContracts";
+import { WAOUH_RUNTIME_ENDPOINTS } from "./runtimeEndpoints";
 
 export async function invokeWaouhAgentic<T>(action: AgenticAction, payload: Record<string, unknown> = {}): Promise<T> {
-  const { data, error } = await supabase.functions.invoke("waouh-agentic-core", {
+  const { data, error } = await supabase.functions.invoke(WAOUH_RUNTIME_ENDPOINTS.agenticCore, {
     body: { action, payload },
   });
   if (error) throw new Error(error.message || "Impossible de joindre le service agentique WAOUH.");
