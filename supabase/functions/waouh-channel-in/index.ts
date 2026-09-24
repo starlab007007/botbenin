@@ -1,8 +1,10 @@
+import { readWaouhEngineResponse } from "../_shared/waouh-response.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { lidToPhoneInline } from "../_shared/waouh-format.ts";
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
+import { isServiceRoleRequest } from "../_shared/waouh-auth.ts";
 
 
 const corsHeaders = {
@@ -216,6 +218,14 @@ serve(async (req) => {
   }
 
   try {
+    // Browser/mobile clients must enter through waouh-channel-in-secure.
+    // WAHA and test orchestration are relayed by trusted Edge Functions.
+    if (!isServiceRoleRequest(req)) {
+      return new Response(JSON.stringify({ ok: false, error: "trusted_relay_required" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const sb = createClient(SUPABASE_URL, SERVICE);
     const raw = await req.json().catch(() => ({}));
     log("payload", raw);
@@ -507,15 +517,18 @@ serve(async (req) => {
         headers: { Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
         body: JSON.stringify({ phone, text, user_id: negUserId }),
       });
-      const negData = await negRes.json().catch(() => ({}));
-      const negReply = negData?.reply || "OK";
+      const negData = await readWaouhEngineResponse(negRes);
+      const negReply = negData?.reply ?? "";
       const negTxId = negData?.transaction_id || null;
       const negIntent = negData?.intent || "negotiation";
       const negActions: WaouhAction[] = Array.isArray(negData?.actions) ? negData.actions : [];
       const negAttachments = Array.isArray(negData?.attachments) ? negData.attachments : [];
       const suppressDirectReply = negData?.suppress_direct_reply === true;
+      const negResults = Array.isArray(negData.results) ? negData.results : [];
+      const negProducts = Array.isArray(negData.products) ? negData.products : [];
+      let negOutboundId = negData.outbound_message_id ?? null;
       if (!suppressDirectReply) {
-        await sb.from("waouh_messages").insert({
+        const { data: negRow, error: negWriteError } = await sb.from("waouh_messages").insert({
           conversation_id: convId,
           user_id: user.id, channel, direction: "out", text: negReply,
           web_session_id: sessionId, phone_number: phone,
@@ -525,7 +538,7 @@ serve(async (req) => {
             intent: negIntent,
             transaction_id: negTxId,
             article_id: clientMeta?.article_id ?? null,
-            actions: negActions,
+            actions: negActions, results: negResults, products: negProducts,
             // 🔑 Garantit que la fenêtre WaouhMatchChatWindow de l'expéditeur
             // range bien la réponse dans le bon onglet (clé = counterpart + role).
             counterpart_user_id: clientMeta?.counterpart_user_id ?? clientMeta?.buyer_user_id ?? clientMeta?.buyer_profile_id ?? null,
@@ -533,7 +546,9 @@ serve(async (req) => {
             role: clientMeta?.role ?? null,
             correlation_id: correlationId,
           },
-        });
+        }).select("id").single();
+        if (negWriteError) throw negWriteError;
+        negOutboundId = negRow.id;
         if (convId) {
           await sb.from("waouh_conversations")
             .update({ last_message: negReply, updated_at: new Date().toISOString() })
@@ -546,7 +561,7 @@ serve(async (req) => {
           await sendWahaReply(WAHA_BASE_URL, wahaSession, replyChatIds, negReply, negActions, firstImage);
         } catch (e) { console.error("WAHA send failed", e); }
       }
-      return new Response(JSON.stringify({ ok: true, reply: negReply, intent: negIntent, transaction_id: negTxId, attachments: negAttachments, inbound_message_id: inboundMessageId, conversation_id: convId, user_id: user.id, correlation_id: correlationId }), {
+      return new Response(JSON.stringify({ ok: true, reply: suppressDirectReply ? null : negReply, suppress_direct_reply: suppressDirectReply, outbound_message_id: negOutboundId, actions: negActions, results: negResults, products: negProducts, article_id: clientMeta?.article_id ?? null, counterpart_user_id: clientMeta?.counterpart_user_id ?? null, intent: negIntent, transaction_id: negTxId, attachments: negAttachments, inbound_message_id: inboundMessageId, conversation_id: convId, user_id: user.id, correlation_id: correlationId }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
 
@@ -563,23 +578,25 @@ serve(async (req) => {
         user_id: user.id, auth_user_id: user.auth_user_id ?? authUserId,
       }),
     });
-    const core = await coreRes.json().catch(() => ({}));
+    const core = await readWaouhEngineResponse(coreRes);
     log("core reply", { ok: coreRes.ok, intent: core.intent, hasReply: !!core.reply });
-    const reply: string = core.reply ?? "Désolé, une erreur est survenue. Réessayez.";
+    const reply: string = core.reply ?? "";
     const actions: WaouhAction[] = Array.isArray(core.actions) ? core.actions : [];
     // 🖼️ Fiches produit structurées (1 fiche = 1 article + ses photos)
     const results: any[] = Array.isArray(core.results) ? core.results : [];
+    const products: any[] = Array.isArray(core.products) ? core.products : [];
 
     // Persist outgoing
     const outboundArticleId: string | null = core.article_id ?? inboundArticleId ?? null;
-    const { data: outboundRow } = await sb.from("waouh_messages").insert({
+    const { data: outboundRow, error: outboundError } = await sb.from("waouh_messages").insert({
       conversation_id: convId,
       user_id: user.id, channel, direction: "out", text: reply,
       web_session_id: sessionId, phone_number: phone,
       attachments: Array.isArray(core.attachments) ? core.attachments : [],
       article_id: outboundArticleId,
-      meta: { intent: core.intent ?? null, transaction_id: core.transaction_id ?? null, article_id: outboundArticleId, counterpart_user_id: core.counterpart_user_id ?? null, correlation_id: correlationId, actions, results },
+      meta: { intent: core.intent ?? null, transaction_id: core.transaction_id ?? null, article_id: outboundArticleId, counterpart_user_id: core.counterpart_user_id ?? null, correlation_id: correlationId, actions, results, products },
     }).select("id").maybeSingle();
+    if (outboundError) throw outboundError;
     const outboundMessageId: string | null = outboundRow?.id ?? null;
 
     if (convId) {
@@ -596,7 +613,7 @@ serve(async (req) => {
       } catch (e) { console.error("WAHA send failed", e); }
     }
 
-    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, actions, results, attachments: Array.isArray(core.attachments) ? core.attachments : [], inbound_message_id: inboundMessageId, outbound_message_id: outboundMessageId, conversation_id: convId, user_id: user.id, article_id: outboundArticleId, counterpart_user_id: core.counterpart_user_id ?? null, transaction_id: core.transaction_id ?? null, correlation_id: correlationId }), {
+    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, actions, results, products, attachments: Array.isArray(core.attachments) ? core.attachments : [], inbound_message_id: inboundMessageId, outbound_message_id: outboundMessageId, conversation_id: convId, user_id: user.id, article_id: outboundArticleId, counterpart_user_id: core.counterpart_user_id ?? null, transaction_id: core.transaction_id ?? null, correlation_id: correlationId }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 

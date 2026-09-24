@@ -330,3 +330,30 @@ verify_jwt = false
 
 [functions.waouh-trace-ui]
 verify_jwt = false
+
+[functions.waouh-agentic-core]
+verify_jwt = true
+
+[functions.waouh-native-messaging-settings]
+verify_jwt = true
+
+[functions.waouh-tel-ingress]
+verify_jwt = false
+
+[functions.waouh-tel-dispatch]
+verify_jwt = false
+
+[functions.waouh-tel-receipts]
+verify_jwt = false
+
+[functions.waouh-tel-open-messages]
+verify_jwt = false
+
+[functions.waouh-tel-invite]
+verify_jwt = false
+
+[functions.waouh-tel-command]
+verify_jwt = false
+
+[functions.waouh-tel-room]
+verify_jwt = false

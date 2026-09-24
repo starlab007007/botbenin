@@ -1,3 +1,4 @@
+import { assertChatResponse, normalizeChatReply, mergeChatRows, reconcileChatResponse } from "@/lib/chatReply";
 import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -17,6 +18,10 @@ import { WaouhQuickActions, type QuickAction } from "./WaouhQuickActions";
 import { WaouhSellWizard } from "./WaouhSellWizard";
 import { ChatImage } from "@/app-mobile/components/ChatImage";
 import { WaouhProductResults, compactResultsText, type WaouhResultCard } from "@/components/waouh/WaouhProductCard";
+import { WaouhAgentBlocks } from "@/components/waouh/WaouhAgentBlocks";
+import { WaouhAgentCenter } from "@/components/waouh/WaouhAgentCenter";
+import { invokeWaouhAgentic } from "@/lib/waouh/agenticClient";
+import type { AgenticAction, WaouhMessageBlock } from "@/lib/waouh/agenticContracts";
 
 import { NativeSellSheet } from "./NativeSellSheet";
 import { useAuth } from "@/contexts/AuthContext";
@@ -50,6 +55,7 @@ type Msg = {
     article_id?: string | null;
     counterpart_user_id?: string | null;
     results?: WaouhResultCard[] | null;
+    blocks?: WaouhMessageBlock[] | null;
   } | null;
 
 };
@@ -118,6 +124,8 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   const [messages, setMessages] = useState<Msg[]>(() => readMainSnapshot());
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [agentAction, setAgentAction] = useState<AgenticAction | null>(null);
+  const sendingRef = useRef(false);
   const [pendingAtts, setPendingAtts] = useState<Att[]>([]);
   const [uploading, setUploading] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
@@ -158,24 +166,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
 
 
   // Merge helper: dedupe by id, preserve optimistic temp-* until persisted, re-sort ASC.
-  const mergeMessages = (prev: Msg[], incoming: Msg[]): Msg[] => {
-    if (!incoming.length) return prev;
-    const incomingIds = new Set(incoming.map((m) => m.id));
-    const keepOptimistic = prev.filter(
-      (m) =>
-        m.id.startsWith("temp-") &&
-        !incoming.some(
-          (f) =>
-            f.direction === m.direction &&
-            f.text === m.text &&
-            Math.abs(new Date(f.created_at).getTime() - new Date(m.created_at).getTime()) < 30000
-        )
-    );
-    const prevKeep = prev.filter((p) => !incomingIds.has(p.id) && !p.id.startsWith("temp-"));
-    return [...prevKeep, ...incoming, ...keepOptimistic].sort(
-      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-    );
-  };
+  const mergeMessages = mergeChatRows<Msg>;
 
   // Direct fallback when the edge function is unavailable.
   const fetchPageDirect = async (ids: string[], before: string | null, limit: number) => {
@@ -203,6 +194,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   const fetchPage = async (ids: string[], before: string | null, limit: number) => {
     try {
       const { data: hist, error: histErr } = await supabase.functions.invoke("waouh-history", {
+        headers: { "x-waouh-session": sessionId },
         body: {
           sessionId,
           authUserId: user?.id ?? null,
@@ -302,21 +294,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       const m = payload.new as any;
       const cutoff = threadCutoffRef.current;
       if (cutoff && m.created_at && m.created_at < cutoff) return;
-      setMessages((prev) => {
-        if (prev.find((x) => x.id === m.id)) return prev;
-        const incomingTs = new Date(m.created_at).getTime();
-        const filtered = prev.filter((p) => {
-          if (!p.id.startsWith("temp-")) return true;
-          if (p.direction !== m.direction) return true;
-          const sameText = (p.text || "") === (m.text || "");
-          const pImg = Array.isArray(p.attachments) ? p.attachments[0]?.url : null;
-          const mImg = Array.isArray(m.attachments) ? m.attachments[0]?.url : null;
-          const sameImg = !!pImg && pImg === mImg;
-          const close = Math.abs(new Date(p.created_at).getTime() - incomingTs) < 30000;
-          return !(close && (sameText || sameImg));
-        });
-        return [...filtered, m];
-      });
+      setMessages((prev) => mergeMessages(prev, [m]));
     };
 
     sessionChannelRef.current = supabase
@@ -345,10 +323,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       const m = payload.new as any;
       const cutoff = threadCutoffRef.current;
       if (cutoff && m.created_at && m.created_at < cutoff) return;
-      setMessages((prev) => {
-        if (prev.find((x) => x.id === m.id)) return prev;
-        return [...prev, m];
-      });
+      setMessages((prev) => mergeMessages(prev, [m]));
     };
     const desired = new Set(waouhIds);
     const current = subscribedUserIdsRef.current;
@@ -453,10 +428,11 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   };
 
   const sendCore = async (text: string, atts: Att[], locationOverride?: { lat: number | null; lng: number | null; city: string } | null) => {
-    if (!text && atts.length === 0) return;
+    if ((!text && atts.length === 0) || sendingRef.current) return;
+    sendingRef.current = true;
     setSending(true);
     const now = new Date().toISOString();
-    const tempInId = `temp-in-${Date.now()}`;
+    const tempInId = `temp-in-${crypto.randomUUID()}`;
     setMessages((prev) => [
       ...prev,
       { id: tempInId, direction: "in", text: text || "(image)", created_at: now, attachments: atts },
@@ -466,6 +442,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       const effLng = locationOverride?.lng ?? geo.lng;
       const effCity = (locationOverride?.city && locationOverride.city.trim()) || geo.city;
       const { data, error } = await supabase.functions.invoke("waouh-channel-in", {
+        headers: { "x-waouh-session": sessionId },
         body: {
           channel: "web",
           sessionId,
@@ -477,54 +454,13 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           authUserId: user?.id ?? null,
         },
       });
-      if (error) throw error;
-      const realInId = (data as any)?.inbound_message_id ?? null;
-      // Replace the optimistic IN msg with the real id (dedupes against realtime/loadHistory).
-      setMessages((prev) => {
-        const filtered = prev.filter((m) => m.id !== tempInId);
-        if (realInId && !filtered.some((m) => m.id === realInId)) {
-          filtered.push({
-            id: realInId,
-            direction: "in",
-            text: text || "(image)",
-            created_at: now,
-            attachments: atts,
-          });
-        }
-        return filtered;
-      });
-      // Realtime delivers persisted rows; no full reload needed.
-
-      const respIntent: string | null = (data as any)?.intent ?? null;
-      const respArticleId: string | null = (data as any)?.article_id ?? null;
-      const respCounterpart: string | null = (data as any)?.counterpart_user_id ?? null;
-
-      if ((data as any)?.reply) {
-        const replyAtts = Array.isArray((data as any)?.attachments) ? (data as any).attachments : null;
-        const replyResults: WaouhResultCard[] = Array.isArray((data as any)?.results) ? (data as any).results : [];
-        setMessages((prev) => {
-          const hasFresh = prev.some((m) => m.direction === "out" && m.created_at && new Date(m.created_at).getTime() > Date.now() - 15000);
-          if (hasFresh) return prev;
-          return [
-            ...prev,
-            {
-              id: `temp-out-${Date.now()}`,
-              direction: "out",
-              text: (data as any).reply,
-              created_at: new Date().toISOString(),
-              attachments: replyAtts,
-              meta: {
-                intent: respIntent,
-                transaction_id: (data as any).transaction_id ?? null,
-                article_id: respArticleId,
-                counterpart_user_id: respCounterpart,
-                results: replyResults,
-              },
-
-            },
-          ];
-        });
-      }
+      assertChatResponse(data, error);
+      const respIntent: string | null = data?.intent ?? null;
+      const respArticleId: string | null = data?.article_id ?? null;
+      const respCounterpart: string | null = data?.counterpart_user_id ?? null;
+      setMessages((prev) => reconcileChatResponse(prev, data, {
+        id: tempInId, direction: "in", text: text || "(image)", created_at: now, attachments: atts,
+      }));
 
       // v13 — la négociation ne reste jamais dans le fil principal : on ouvre
       // (ou on ré-active) la fenêtre dédiée (article × interlocuteur).
@@ -546,6 +482,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       toast({ title: "Envoi échoué", description: e.message, variant: "destructive" });
       throw e;
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   };
@@ -575,6 +512,23 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     } catch {
       setInput(text);
       setPendingAtts(atts);
+    }
+  };
+
+  const handleAgentAction = async (action: AgenticAction, payload: Record<string, unknown>) => {
+    if (!user) {
+      toast({ title: "Connexion requise", description: "Connectez-vous pour piloter vos missions et validations." });
+      setAuthOpen(true);
+      return;
+    }
+    setAgentAction(action);
+    try {
+      await invokeWaouhAgentic(action, payload);
+      toast({ title: "Action enregistrée", description: "Le journal WAOUH et la mission seront actualisés." });
+    } catch (error) {
+      toast({ title: "Action impossible", description: error instanceof Error ? error.message : "Réessayez.", variant: "destructive" });
+    } finally {
+      setAgentAction(null);
     }
   };
 
@@ -621,7 +575,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         // sendCore already surfaces a toast; nothing more to do.
       }
     },
-  }), []);
+  }));
 
 
 
@@ -690,7 +644,9 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           </div>
         )}
 
-        {messages.map((m) => (
+        {messages.map((m) => {
+          const rich = normalizeChatReply(m);
+          return (
           <div
             key={m.id}
             ref={(el) => { msgRefs.current[m.id] = el; }}
@@ -702,13 +658,14 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
             <div className={cn("flex", m.direction === "in" ? "justify-end" : "justify-start")}>
               <div
                 className={cn(
-                  "chat-bubble",
+                  "chat-bubble min-w-0",
+                  rich.results.length > 0 && "w-full",
                   m.direction === "in" ? "chat-bubble-out" : "chat-bubble-in waouh-bot-bubble"
                 )}
               >
                 {/* Photos à plat : masquées quand des fiches produit structurées existent
                     (chaque photo est alors rattachée à SON article). */}
-                {Array.isArray(m.attachments) && m.attachments.length > 0 && !(m.meta?.results?.length) && (
+                {Array.isArray(m.attachments) && m.attachments.length > 0 && !rich.results.length && (
 
                   <div className={cn("grid gap-2 mb-2 not-prose", m.attachments.length === 1 ? "grid-cols-1" : m.attachments.length === 2 ? "grid-cols-2" : "grid-cols-3")}>
                     {m.attachments.map((a, i) => (
@@ -723,7 +680,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                     ))}
                   </div>
                 )}
-                {m.text && m.text !== "(image)" && (
+                {rich.text && rich.text !== "(image)" && (
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     components={{
@@ -743,44 +700,16 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                       a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="text-emerald-600 dark:text-emerald-400 underline underline-offset-2">{children}</a>,
                     }}
                   >
-                    {m.meta?.results?.length ? compactResultsText(stripLegacy(m.text)) : stripLegacy(m.text)}
+                    {rich.results.length ? compactResultsText(stripLegacy(rich.text)) : stripLegacy(rich.text)}
                   </ReactMarkdown>
                 )}
 
-                {/* 🖼️ Fiches produit : 1 article = 1 fiche + SES photos (zoom dédié) */}
-                {Array.isArray(m.meta?.results) && m.meta!.results!.length > 0 && (
-                  <WaouhProductResults
-                    results={m.meta!.results!}
-                    onAction={(txt) => sendCore(txt, [])}
-                  />
+                {rich.results.length > 0 && (
+                  <WaouhProductResults results={rich.results} onAction={sending ? undefined : (txt) => { void sendCore(txt, []).catch(() => {}); }} />
                 )}
 
-                {/* Catalogue produits renvoyés par WAOUH */}
-                {Array.isArray((m as any).meta?.products) && (m as any).meta.products.length > 0 && (
-
-                  <div className="grid grid-cols-2 gap-2 mt-2 not-prose">
-                    {((m as any).meta.products as any[]).slice(0, 6).map((p, i) => {
-                      const photo = Array.isArray(p.photos) ? p.photos[0] : (p.photo || p.image || null);
-                      const price = p.prix_min && p.prix_max && p.prix_min !== p.prix_max
-                        ? `${Number(p.prix_min).toLocaleString()} - ${Number(p.prix_max).toLocaleString()} F`
-                        : (p.prix_min || p.prix_max) ? `${Number(p.prix_min || p.prix_max).toLocaleString()} F` : "";
-                      return (
-                        <div key={i} className="rounded-lg overflow-hidden border border-border bg-card">
-                          <div className="aspect-square bg-muted relative">
-                            {photo ? (
-                              <ChatImage src={photo} caption={p.nom} className="w-full h-full" imgClassName="aspect-square" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">Pas d'image</div>
-                            )}
-                          </div>
-                          <div className="p-1.5">
-                            <div className="text-[11px] font-semibold truncate text-foreground">{p.nom}</div>
-                            {price && <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">{price}</div>}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                {rich.blocks.length > 0 && (
+                  <WaouhAgentBlocks blocks={rich.blocks} onAction={handleAgentAction} busy={!!agentAction} />
                 )}
 
                 {m.direction === "out" && Array.isArray((m as any).meta?.actions) && (m as any).meta.actions.length > 0 && (
@@ -811,7 +740,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                             : a.id.startsWith("intéressé") ? a.id
                             : a.label;
                           if (kw.endsWith(" ")) { setInput(kw); setTimeout(() => inputRef.current?.focus(), 0); }
-                          else sendCore(kw, []);
+                          else void sendCore(kw, []).catch(() => {});
                         }}
                       >{a.label}</Button>
                     ))}
@@ -826,7 +755,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
             )}
 
           </div>
-        ))}
+        ); })}
         {sending && (
           <div className="flex justify-start">
             <div className="bg-card border rounded-2xl px-3 py-2 text-sm flex items-center gap-2">
@@ -851,7 +780,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         </div>
       )}
 
-      {variant !== "native" && <WaouhQuickActions onAction={handleQuickAction} disabled={sending} />}
+      {variant !== "native" && <div className="flex items-center border-t bg-background pr-2"><div className="min-w-0 flex-1"><WaouhQuickActions onAction={handleQuickAction} disabled={sending} /></div><WaouhAgentCenter compact /></div>}
       {variant === "native" && composerTopSlot}
 
       <form

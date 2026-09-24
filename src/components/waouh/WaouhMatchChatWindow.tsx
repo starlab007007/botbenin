@@ -1,3 +1,4 @@
+import { assertChatResponse, normalizeChatReply, mergeChatRows, reconcileChatResponse } from "@/lib/chatReply";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -6,6 +7,9 @@ import { Send, ShoppingBag, Target, CheckCircle2, Lock, Loader2 } from "lucide-r
 import { supabase } from "@/integrations/supabase/client";
 import { ChatImage } from "@/app-mobile/components/ChatImage";
 import { WaouhProductResults } from "@/components/waouh/WaouhProductCard";
+import { WaouhAgentBlocks } from "@/components/waouh/WaouhAgentBlocks";
+import { invokeWaouhAgentic } from "@/lib/waouh/agenticClient";
+import type { AgenticAction } from "@/lib/waouh/agenticContracts";
 import { WaouhArticleSummary } from "@/components/waouh/WaouhArticleSummary";
 
 
@@ -52,24 +56,7 @@ const CLOSED_STATUSES = new Set(["sold", "closed", "finalized", "completed", "ve
 const PAGE_INITIAL = 10;
 const PAGE_OLDER = 20;
 
-function mergeMsgs(prev: Msg[], incoming: Msg[]): Msg[] {
-  if (!incoming.length) return prev;
-  const incomingIds = new Set(incoming.map((m) => m.id));
-  const keepOptimistic = prev.filter(
-    (m) =>
-      m.id.startsWith("temp-") &&
-      !incoming.some(
-        (f) =>
-          f.direction === m.direction &&
-          f.text === m.text &&
-          Math.abs(new Date(f.created_at).getTime() - new Date(m.created_at).getTime()) < 30000
-      )
-  );
-  const prevKeep = prev.filter((p) => !incomingIds.has(p.id) && !p.id.startsWith("temp-"));
-  return [...prevKeep, ...incoming, ...keepOptimistic].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  );
-}
+const mergeMsgs = mergeChatRows<Msg>;
 
 /**
  * Full-screen match chat — fills parent flex container exactly like the main
@@ -116,6 +103,7 @@ export function WaouhMatchChatWindow({
   const [messages, setMessagesState] = useState<Msg[]>(() => initialCached);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [agentAction, setAgentAction] = useState<AgenticAction | null>(null);
   const [seedNotif, setSeedNotif] = useState<SeedNotif | null>(() => {
     if (match.seed_text) {
       return {
@@ -132,6 +120,22 @@ export function WaouhMatchChatWindow({
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
   const [dbMsgCount, setDbMsgCount] = useState<number>(() => initialCached.length);
   const [initialLoading, setInitialLoading] = useState<boolean>(() => initialCached.length === 0);
+
+  const handleAgentAction = async (action: AgenticAction, payload: Record<string, unknown>) => {
+    if (!authUserId) {
+      toast.error("Connectez-vous pour piloter cette mission.");
+      return;
+    }
+    setAgentAction(action);
+    try {
+      await invokeWaouhAgentic(action, payload);
+      toast.success("Action WAOUH enregistrée");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Action impossible");
+    } finally {
+      setAgentAction(null);
+    }
+  };
 
   // Verrou flux WAOUH chat — sentinelle runtime (voir waouhChatSyncLock.ts)
   useEffect(() => { engageWaouhChatSyncLock(); }, []);
@@ -489,13 +493,14 @@ export function WaouhMatchChatWindow({
     const text = input.trim();
     if (!text || sending || closed) return;
     setSending(true);
-    const tempId = `temp-${Date.now()}`;
+    const tempId = `temp-in-${crypto.randomUUID()}`;
     const now = new Date().toISOString();
     setMessages((prev) => [...prev, { id: tempId, direction: "in", text, created_at: now }]);
     setInput("");
     try {
       // Product context travels via meta only — never pollute the message body
       const invokeP = supabase.functions.invoke("waouh-channel-in", {
+        headers: { "x-waouh-session": sessionId },
         body: {
           channel: "web",
           sessionId,
@@ -512,10 +517,10 @@ export function WaouhMatchChatWindow({
           },
         },
       });
-      const timeoutP = new Promise<never>((_, rej) =>
-        setTimeout(() => rej(new Error("timeout")), 20000)
-      );
-      const { data } = (await Promise.race([invokeP, timeoutP])) as any;
+      let timeoutId: ReturnType<typeof setTimeout>;
+      const timeoutP = new Promise<never>((_, reject) => { timeoutId = setTimeout(() => reject(new Error("timeout")), 45000); });
+      const { data, error } = await Promise.race([invokeP, timeoutP]).finally(() => clearTimeout(timeoutId));
+      assertChatResponse(data, error);
       const realId = (data as any)?.inbound_message_id;
       traceUi({
         correlation_id: correlationId,
@@ -527,25 +532,7 @@ export function WaouhMatchChatWindow({
         intent: (data as any)?.intent ?? null,
         session_id: sessionId,
       });
-      const outboundId = (data as any)?.outbound_message_id;
-      setMessages((prev) => {
-        const f = prev.filter((m) => m.id !== tempId);
-        if (realId && !f.some((m) => m.id === realId)) {
-          f.push({ id: realId, direction: "in", text, created_at: now });
-        }
-        if ((data as any)?.reply) {
-          const replyId = outboundId || `temp-out-${Date.now()}`;
-          if (!f.some((m) => m.id === replyId)) {
-            f.push({
-              id: replyId,
-              direction: "out",
-              text: (data as any).reply,
-              created_at: new Date().toISOString(),
-            });
-          }
-        }
-        return f;
-      });
+      setMessages((prev) => reconcileChatResponse(prev, data, { id: tempId, direction: "in", text, created_at: now }));
       window.dispatchEvent(
         new CustomEvent("waouh:match-updated", { detail: { article_id: match.article_id } })
       );
@@ -704,30 +691,34 @@ export function WaouhMatchChatWindow({
           </div>
         )}
 
-        {messages.map((m) => (
+        {messages.map((m) => {
+          const rich = normalizeChatReply(m);
+          return (
 
           <div
             key={m.id}
             className={cn(
-              "max-w-[85%] rounded-2xl px-3 py-2 text-sm break-words shadow-sm",
+              "min-w-0 max-w-[85%] rounded-2xl px-3 py-2 text-sm break-words shadow-sm",
+               (rich.results.length > 0 || rich.blocks.length > 0) && "w-full",
               m.direction === "in"
                 ? "ml-auto bg-emerald-600 text-white rounded-br-sm"
                 : "mr-auto bg-card border rounded-bl-sm"
             )}
           >
             {/* Fiches produit (article + ses photos) si le moteur en a renvoyé */}
-            {Array.isArray(m.meta?.results) && m.meta.results.length > 0 ? (
-              <WaouhProductResults results={m.meta.results} compact />
+            {rich.results.length > 0 ? (
+              <WaouhProductResults results={rich.results} compact />
             ) : (
               Array.isArray(m.attachments) &&
               m.attachments.map((a: any, i: number) => (
                 <ChatImage key={i} src={a.url} alt="" className="rounded-lg mb-1 max-h-60" />
               ))
             )}
-            <div className="whitespace-pre-wrap">{m.text}</div>
+            {rich.text && <div className="whitespace-pre-wrap">{rich.text}</div>}
+            {rich.blocks.length > 0 && <WaouhAgentBlocks blocks={rich.blocks} onAction={authUserId ? handleAgentAction : undefined} busy={!!agentAction} />}
 
           </div>
-        ))}
+        ); })}
 
         {/* Empty-state hint: sync done but no message reachable for this viewer */}
         {!initialLoading && syncedAt && messages.length === 0 && !seedText && (
