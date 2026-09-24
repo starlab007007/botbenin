@@ -1,0 +1,66 @@
+name: waouh_app_native
+description: WaouhApp native Flutter application connected to the existing Bot.BJ Supabase backend.
+publish_to: "none"
+version: 18.14.1+1785694012
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  public_file_saver: ^1.1.0
+  cross_file: ^0.3.4+2
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  supabase_flutter: ^2.8.0
+  provider: ^6.1.2
+  go_router: ^14.6.2
+  fl_chart: ^0.69.2
+  flutter_slidable: ^3.1.2
+  image_picker: ^1.1.2
+  intl: ^0.20.1
+  google_sign_in: ^6.2.2
+  shared_preferences: ^2.3.3
+  geolocator: ^13.0.2
+  permission_handler: ^11.3.1
+  firebase_core: ^3.10.0
+  firebase_messaging: ^15.2.0
+  flutter_local_notifications: ^18.0.1
+  connectivity_plus: ^6.1.1
+  path_provider: 2.1.5
+  flutter_svg: ^2.0.16
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+  google_mlkit_text_recognition: ^0.16.0
+  file_picker: ^11.0.2
+  record: ^7.1.1
+
+  csv: ^7.2.0
+  excel: ^4.0.6
+  mobile_scanner: ^7.1.4
+  pdf: ^3.11.3
+  printing: ^5.14.3
+  qr_flutter: ^4.1.0
+  share_plus: ">=11.1.0 <12.0.0"
+  url_launcher: ^6.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/branding/waouh_mark.svg
+    - assets/fa_ia/fa_256_document_corpus.json
+    - assets/fa_ia/cowrie_open_real.png
+    - assets/fa_ia/cowrie_closed_real.png
+    - assets/fa_ia/fa_chain_mystic_hero.png
+    - assets/fa_ia/fa_chain_reference.png
+    - assets/fa_ia/fa_web_source_manifest.json
+
+
+dependency_overrides:
+  device_info_plus: 11.2.2
+  package_info_plus: 8.3.0
