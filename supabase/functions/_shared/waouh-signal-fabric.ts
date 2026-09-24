@@ -156,3 +156,12 @@ export function extractPublicContactHints(text: unknown) {
     .slice(0, 5);
   return { phones, emails, urls };
 }
+
+
+export function redactPublicContacts(text: unknown) {
+  let value = String(text ?? "");
+  const hints = extractPublicContactHints(value);
+  for (const phone of hints.phones) value = value.split(phone).join("[téléphone]");
+  for (const email of hints.emails) value = value.split(email).join("[email]");
+  return value;
+}
