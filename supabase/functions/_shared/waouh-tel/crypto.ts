@@ -1,3 +1,5 @@
+import { requireTelRuntimeSecret } from "./runtime-secret.ts";
+
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
@@ -23,12 +25,7 @@ async function sha256Bytes(value: string) {
 }
 
 async function encryptionKey() {
-  const secret = Deno.env.get("WAOUH_TEL_PHONE_ENCRYPTION_KEY") || "";
-  if (secret.length < 24) {
-    throw new Error(
-      "WAOUH_TEL_PHONE_ENCRYPTION_KEY must contain at least 24 characters",
-    );
-  }
+  const secret = await requireTelRuntimeSecret("phone_encryption_key", 24);
   return crypto.subtle.importKey(
     "raw",
     await sha256Bytes(secret),
@@ -88,12 +85,7 @@ export async function hmacHex(value: string, secret: string) {
 }
 
 export async function hashPhone(e164: string) {
-  const secret = Deno.env.get("WAOUH_TEL_PHONE_HASH_KEY") || "";
-  if (secret.length < 24) {
-    throw new Error(
-      "WAOUH_TEL_PHONE_HASH_KEY must contain at least 24 characters",
-    );
-  }
+  const secret = await requireTelRuntimeSecret("phone_hash_key", 24);
   return hmacHex(e164, secret);
 }
 

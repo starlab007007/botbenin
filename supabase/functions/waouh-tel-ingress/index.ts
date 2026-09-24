@@ -15,13 +15,14 @@ import {
   telJson,
 } from "../_shared/waouh-tel/http.ts";
 import { inboundRecipientMatches } from "../_shared/waouh-tel/inbound-worker.ts";
+import { telRuntimeSecret } from "../_shared/waouh-tel/runtime-secret.ts";
 import { verifyProviderWebhook } from "../_shared/waouh-tel/signature.ts";
 
-function triggerDispatch() {
+async function triggerDispatch() {
   const url = Deno.env.get("SUPABASE_URL");
-  const internalSecret = Deno.env.get("WAOUH_TEL_INTERNAL_SECRET");
+  const internalSecret = await telRuntimeSecret("internal_secret");
   if (!url || !internalSecret || internalSecret.length < 24) return;
-  const promise = fetch(`${url}/functions/v1/waouh-tel-dispatch`, {
+  const promise = fetch(`${url}/functions/v1/${Deno.env.get("WAOUH_TEL_DISPATCH_FUNCTION") || "waouh-e2e-test"}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${internalSecret}`,
@@ -180,7 +181,7 @@ Deno.serve(async (req) => {
     if (enqueueError) {
       throw new Error(`inbox_enqueue_failed:${enqueueError.message}`);
     }
-    triggerDispatch();
+    await triggerDispatch();
     return telJson(
       {
         ok: true,

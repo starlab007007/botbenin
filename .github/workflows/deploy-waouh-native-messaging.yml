@@ -349,32 +349,35 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t functions < <(
-            find supabase/functions -mindepth 1 -maxdepth 1 -type d \
-              \( -name 'waouh-tel-*' -o -name 'waouh-native-messaging-settings' -o -name 'waouh-native-simulator' \) \
-              -printf '%f\n' | sort
+
+          # Le projet est actuellement au quota d'Edge Functions. Les composants
+          # Native utilisent donc des slots historiques WAOUH sans trafic, au lieu
+          # de créer de nouveaux slugs. Le code source canonique reste dans les
+          # dossiers waouh-tel-* / waouh-native-*.
+          aliases=(
+            "waouh-studio-pair-code-v2145|waouh-tel-ingress|false"
+            "waouh-e2e-test|waouh-tel-dispatch|false"
+            "waouh-studio-agent-webhook-v2146|waouh-tel-receipts|false"
+            "waouh-bots-backend-health-v1|waouh-native-messaging-settings|true"
+            "waouh-chat-health|waouh-tel-open-messages|false"
+            "chat-webhook|waouh-native-simulator|false"
+            "waouh-studio-e2e-v21465|waouh-agentic-core|true"
           )
-          functions+=(waouh-webhook)
-          functions+=(waouh-agentic-core)
-          if [ "${#functions[@]}" -eq 0 ]; then
-            echo '::error::Aucune Edge Function Native Messaging à déployer.'
-            exit 1
-          fi
 
-          for function_name in "${functions[@]}"; do
-            verify_jwt=$(python - "$function_name" <<'PY'
-          import sys
-          import tomllib
+          for mapping in "${aliases[@]}"; do
+            IFS='|' read -r alias source verify_jwt <<< "$mapping"
+            test -f "supabase/functions/$source/index.ts" || {
+              echo "::error::Source manquante pour $alias : $source"
+              exit 1
+            }
 
-          with open('supabase/config.toml', 'rb') as config_file:
-              config = tomllib.load(config_file)
-          value = config['functions'][sys.argv[1]]['verify_jwt']
-          print('true' if value else 'false')
-          PY
-            )
+            # Prépare le slot alias sans modifier les sources canoniques Git.
+            rm -rf "supabase/functions/$alias"
+            mkdir -p "supabase/functions/$alias"
+            cp "supabase/functions/$source/index.ts" "supabase/functions/$alias/index.ts"
 
             deploy_args=(
-              functions deploy "$function_name"
+              functions deploy "$alias"
               --project-ref "$SUPABASE_PROJECT_REF"
               --use-api
             )
@@ -382,7 +385,14 @@ jobs:
               deploy_args+=(--no-verify-jwt)
             fi
 
-            echo "🚀 Déploiement ${function_name} (verify_jwt=${verify_jwt})..."
+            echo "🚀 $alias <= $source (verify_jwt=$verify_jwt)..."
             supabase "${deploy_args[@]}"
           done
-          echo "✅ ${#functions[@]} Edge Function(s) Native Messaging déployée(s)."
+
+          echo "🚀 waouh-webhook (slug canonique, verify_jwt=false)..."
+          supabase functions deploy waouh-webhook \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --use-api \
+            --no-verify-jwt
+
+          echo '✅ Runtime Native Messaging déployé dans les slots de production existants.'

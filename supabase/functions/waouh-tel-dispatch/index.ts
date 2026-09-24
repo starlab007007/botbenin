@@ -21,6 +21,7 @@ import {
 import { ensureSmsPayload } from "../_shared/waouh-tel/render-sms.ts";
 import { drainInboundInbox } from "../_shared/waouh-tel/inbound-worker.ts";
 import type { TelOutboundPayload } from "../_shared/waouh-tel/types.ts";
+import { telRuntimeSecret } from "../_shared/waouh-tel/runtime-secret.ts";
 
 function validPayload(value: unknown): value is TelOutboundPayload {
   return Boolean(
@@ -35,7 +36,7 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: telCorsHeaders(req) });
   }
   if (req.method !== "POST") return methodNotAllowed(req);
-  if (!isInternalRequest(req)) {
+  if (!(await isInternalRequest(req))) {
     return telError(
       401,
       "internal_authorization_required",
@@ -331,9 +332,9 @@ Deno.serve(async (req) => {
     }
     if ((rows || []).length >= limit || inbox.claimed >= inboxLimit) {
       const url = Deno.env.get("SUPABASE_URL");
-      const internalSecret = Deno.env.get("WAOUH_TEL_INTERNAL_SECRET");
+      const internalSecret = await telRuntimeSecret("internal_secret");
       if (url && internalSecret) {
-        const next = fetch(`${url}/functions/v1/waouh-tel-dispatch`, {
+        const next = fetch(`${url}/functions/v1/${Deno.env.get("WAOUH_TEL_DISPATCH_FUNCTION") || "waouh-e2e-test"}`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${internalSecret}`,

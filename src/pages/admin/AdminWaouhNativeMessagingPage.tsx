@@ -8,7 +8,9 @@ import {
   Loader2,
   MessageCircle,
   MessagesSquare,
+  KeyRound,
   Radio,
+  Send,
   Save,
   ShieldCheck,
   Smartphone,
@@ -18,6 +20,7 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,6 +52,8 @@ type RuntimeReadiness = {
   phone_hash_ready: boolean;
   webhook_ready: boolean;
   internal_secret_ready: boolean;
+  infobip_base_url_ready: boolean;
+  infobip_api_key_ready: boolean;
   provider_ready: boolean;
   retry_worker_ready: boolean;
   runtime_ready: boolean;
@@ -59,10 +64,19 @@ const EMPTY_RUNTIME_READINESS: RuntimeReadiness = {
   phone_hash_ready: false,
   webhook_ready: false,
   internal_secret_ready: false,
+  infobip_base_url_ready: false,
+  infobip_api_key_ready: false,
   provider_ready: false,
   retry_worker_ready: false,
   runtime_ready: false,
 };
+
+const SUPABASE_FUNCTIONS_BASE =
+  "https://mvynepqulhflxtyymtzs.supabase.co/functions/v1";
+const NATIVE_INGRESS_URL =
+  `${SUPABASE_FUNCTIONS_BASE}/waouh-studio-pair-code-v2145`;
+const NATIVE_RECEIPTS_URL =
+  `${SUPABASE_FUNCTIONS_BASE}/waouh-studio-agent-webhook-v2146`;
 
 function currentSmsPlatform(): "android" | "ios" {
   if (typeof navigator === "undefined") return "android";
@@ -117,6 +131,14 @@ export default function AdminWaouhNativeMessagingPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [runtime, setRuntime] = useState<RuntimeReadiness>(EMPTY_RUNTIME_READINESS);
+  const [infobipBaseUrl, setInfobipBaseUrl] = useState("");
+  const [infobipApiKey, setInfobipApiKey] = useState("");
+  const [providerSaving, setProviderSaving] = useState(false);
+  const [webhookSecretOnce, setWebhookSecretOnce] = useState("");
+  const [rotatingWebhook, setRotatingWebhook] = useState(false);
+  const [testDestination, setTestDestination] = useState("");
+  const [testConsent, setTestConsent] = useState(false);
+  const [testSending, setTestSending] = useState<"sms" | "rcs" | null>(null);
 
   const update = <K extends EditableKey>(
     key: K,
@@ -198,6 +220,90 @@ export default function AdminWaouhNativeMessagingPage() {
       toast.success("Paramètres Native Messaging enregistrés.");
     }
     setSaving(false);
+  };
+
+  const configureInfobip = async () => {
+    if (!infobipBaseUrl.trim() && !infobipApiKey.trim()) {
+      toast.error("Renseignez l’URL Infobip ou la clé API.");
+      return;
+    }
+    setProviderSaving(true);
+    const { data, error } = await supabase.functions.invoke(
+      WAOUH_RUNTIME_ENDPOINTS.nativeMessagingSettings,
+      {
+        body: {
+          action: "configure_provider",
+          base_url: infobipBaseUrl.trim(),
+          api_key: infobipApiKey.trim(),
+        },
+      },
+    );
+    if (error || !data?.ok) {
+      const failure = await readFunctionFailure(
+        data,
+        error,
+        "Configuration Infobip impossible.",
+      );
+      toast.error(failure.message);
+    } else {
+      setRuntime({ ...EMPTY_RUNTIME_READINESS, ...(data.runtime || {}) });
+      setInfobipApiKey("");
+      toast.success("Configuration Infobip enregistrée côté serveur.");
+    }
+    setProviderSaving(false);
+  };
+
+  const rotateWebhookSecret = async () => {
+    setRotatingWebhook(true);
+    const { data, error } = await supabase.functions.invoke(
+      WAOUH_RUNTIME_ENDPOINTS.nativeMessagingSettings,
+      { body: { action: "rotate_webhook_secret" } },
+    );
+    if (error || !data?.ok || typeof data.secret !== "string") {
+      const failure = await readFunctionFailure(
+        data,
+        error,
+        "Rotation du secret webhook impossible.",
+      );
+      toast.error(failure.message);
+    } else {
+      setWebhookSecretOnce(data.secret);
+      toast.success("Nouveau secret webhook généré. Copiez-le maintenant.");
+      await loadSettings();
+    }
+    setRotatingWebhook(false);
+  };
+
+  const sendRealTest = async (channel: "sms" | "rcs") => {
+    if (!testConsent) {
+      toast.error("Confirmez le consentement du numéro de test.");
+      return;
+    }
+    setTestSending(channel);
+    const { data, error } = await supabase.functions.invoke(
+      WAOUH_RUNTIME_ENDPOINTS.nativeMessagingSettings,
+      {
+        body: {
+          action: "test_send",
+          channel,
+          destination: testDestination.trim(),
+          confirmed_consent: true,
+        },
+      },
+    );
+    if (error || !data?.ok) {
+      const failure = await readFunctionFailure(
+        data,
+        error,
+        `Échec du test réel ${channel.toUpperCase()}.`,
+      );
+      toast.error(failure.message);
+    } else {
+      toast.success(
+        `${channel.toUpperCase()} accepté par Infobip · ID ${data.provider_message_id || "reçu"}`,
+      );
+    }
+    setTestSending(null);
   };
 
   const copy = async (value: string, message: string) => {
@@ -330,6 +436,94 @@ export default function AdminWaouhNativeMessagingPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
+                  <KeyRound className="h-5 w-5 text-emerald-600" /> Connexion Infobip
+                </CardTitle>
+                <CardDescription>
+                  Les identifiants sont chiffrés côté serveur et ne sont jamais relus dans le navigateur.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="infobip-base-url">Base URL Infobip</Label>
+                    <Input
+                      id="infobip-base-url"
+                      value={infobipBaseUrl}
+                      onChange={(event) => setInfobipBaseUrl(event.target.value)}
+                      placeholder="https://xxxxx.api.infobip.com"
+                      autoComplete="off"
+                    />
+                    <RuntimeCheck ready={runtime.infobip_base_url_ready} label="Base URL serveur" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="infobip-api-key">API key Infobip</Label>
+                    <Input
+                      id="infobip-api-key"
+                      type="password"
+                      value={infobipApiKey}
+                      onChange={(event) => setInfobipApiKey(event.target.value)}
+                      placeholder={runtime.infobip_api_key_ready ? "Clé déjà configurée · saisir uniquement pour remplacer" : "Clé API"}
+                      autoComplete="new-password"
+                    />
+                    <RuntimeCheck ready={runtime.infobip_api_key_ready} label="API key serveur" />
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  disabled={providerSaving || (!infobipBaseUrl.trim() && !infobipApiKey.trim())}
+                  onClick={() => void configureInfobip()}
+                  className="bg-slate-950 text-white hover:bg-slate-800"
+                >
+                  {providerSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  Enregistrer Infobip
+                </Button>
+
+                <Separator />
+
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm font-medium">Webhooks à configurer dans Infobip</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Utilisez ces URL pour les messages entrants et les accusés de livraison.
+                    </p>
+                  </div>
+                  <EndpointRow label="Messages entrants SMS/RCS" value={NATIVE_INGRESS_URL} onCopy={() => void copy(NATIVE_INGRESS_URL, "URL ingress copiée.")} />
+                  <EndpointRow label="Accusés / delivery receipts" value={NATIVE_RECEIPTS_URL} onCopy={() => void copy(NATIVE_RECEIPTS_URL, "URL receipts copiée.")} />
+
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <p className="text-sm font-semibold text-amber-950">Secret de signature webhook</p>
+                    <p className="mt-1 text-xs leading-5 text-amber-800">
+                      Générez-le puis copiez-le dans Infobip. Sa valeur n’est affichée qu’au moment de la rotation.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="mt-3 border-amber-300 bg-white"
+                      disabled={rotatingWebhook}
+                      onClick={() => void rotateWebhookSecret()}
+                    >
+                      {rotatingWebhook ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <KeyRound className="mr-2 h-4 w-4" />}
+                      Générer / renouveler
+                    </Button>
+                    {webhookSecretOnce ? (
+                      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                        <Input readOnly value={webhookSecretOnce} className="font-mono text-xs" />
+                        <Button
+                          type="button"
+                          onClick={() => void copy(webhookSecretOnce, "Secret webhook copié.")}
+                        >
+                          <Copy className="mr-2 h-4 w-4" /> Copier
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
                   <Radio className="h-5 w-5 text-emerald-600" /> Canaux et disponibilité
                 </CardTitle>
                 <CardDescription>
@@ -385,6 +579,63 @@ export default function AdminWaouhNativeMessagingPage() {
               </Card>
             )}
 
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Send className="h-5 w-5 text-emerald-600" /> Test réel opérateur
+                </CardTitle>
+                <CardDescription>
+                  Envoie réellement un SMS ou un RCS via Infobip. Des frais opérateur peuvent s’appliquer.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="native-test-destination">Numéro destinataire de test</Label>
+                  <Input
+                    id="native-test-destination"
+                    value={testDestination}
+                    onChange={(event) => setTestDestination(event.target.value)}
+                    placeholder="+22901XXXXXXXX"
+                    inputMode="tel"
+                    autoComplete="tel"
+                  />
+                  <p className="text-xs text-slate-500">
+                    Pour RCS, le numéro doit être compatible avec le sender RCS configuré chez Infobip.
+                  </p>
+                </div>
+                <label className="flex cursor-pointer items-start gap-3 rounded-xl border bg-slate-50 p-3">
+                  <Checkbox
+                    checked={testConsent}
+                    onCheckedChange={(checked) => setTestConsent(checked === true)}
+                    aria-label="Consentement du destinataire"
+                  />
+                  <span className="text-sm leading-5 text-slate-700">
+                    Je confirme que ce numéro m’appartient ou que son titulaire accepte de recevoir ce message de test.
+                  </span>
+                </label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Button
+                    type="button"
+                    disabled={!runtime.provider_ready || !settings.sms_enabled || !testConsent || !testDestination.trim() || testSending !== null}
+                    onClick={() => void sendRealTest("sms")}
+                    className="bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    {testSending === "sms" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MessageCircle className="mr-2 h-4 w-4" />}
+                    Envoyer SMS réel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!runtime.provider_ready || !settings.rcs_enabled || !testConsent || !testDestination.trim() || testSending !== null}
+                    onClick={() => void sendRealTest("rcs")}
+                  >
+                    {testSending === "rcs" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MessagesSquare className="mr-2 h-4 w-4" />}
+                    Envoyer RCS réel
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card className={runtime.runtime_ready ? "border-emerald-200" : "border-amber-300 bg-amber-50"}>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
@@ -400,6 +651,8 @@ export default function AdminWaouhNativeMessagingPage() {
                 <RuntimeCheck ready={runtime.phone_hash_ready} label="Index privé distinct" />
                 <RuntimeCheck ready={runtime.webhook_ready} label="Signature des webhooks" />
                 <RuntimeCheck ready={runtime.internal_secret_ready} label="Secret interne dédié" />
+                <RuntimeCheck ready={runtime.infobip_base_url_ready} label="Base URL Infobip" />
+                <RuntimeCheck ready={runtime.infobip_api_key_ready} label="API key Infobip" />
                 <RuntimeCheck ready={runtime.provider_ready} label="Fournisseur sélectionné" />
                 <RuntimeCheck ready={runtime.retry_worker_ready} label="Worker de reprise" />
                 <RuntimeCheck ready={runtime.runtime_ready} label="Activation autorisée" strong />
@@ -475,6 +728,28 @@ export default function AdminWaouhNativeMessagingPage() {
           </aside>
         </div>
       </main>
+    </div>
+  );
+}
+
+function EndpointRow({
+  label,
+  value,
+  onCopy,
+}: {
+  label: string;
+  value: string;
+  onCopy: () => void;
+}) {
+  return (
+    <div className="rounded-xl border bg-slate-50 p-3">
+      <p className="text-xs font-medium text-slate-700">{label}</p>
+      <div className="mt-2 flex items-center gap-2">
+        <code className="min-w-0 flex-1 break-all text-xs text-slate-600">{value}</code>
+        <Button type="button" size="sm" variant="outline" onClick={onCopy}>
+          <Copy className="h-3.5 w-3.5" />
+        </Button>
+      </div>
     </div>
   );
 }
