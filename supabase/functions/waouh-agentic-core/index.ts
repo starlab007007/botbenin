@@ -1940,25 +1940,40 @@ Retourne uniquement JSON:
         const mode: DiscoveryMode = forcedMode ?? intelligence.mode;
         const semanticQuery = intelligence.normalized_query || queryText;
         const city = suppliedCity ?? intelligence.city ?? null;
-        const budgetMax = suppliedBudgetMax ?? intelligence.budget_max ?? null;
+        const budgetMax = mode === "find_sellers"
+          ? (suppliedBudgetMax ?? intelligence.budget_max ?? null)
+          : null;
 
         const refresh: Record<string, unknown> = {};
         if (refreshExternal) {
-          if (mode === "find_sellers") {
+          const sourcePlan = new Set(intelligence.source_families ?? []);
+          const useMaps = mode === "find_sellers" && (sourcePlan.size === 0 || sourcePlan.has("maps"));
+          const usePublicWeb = sourcePlan.size === 0 || [
+            "web_public", "social_public", "directories", "b2b_rfq",
+          ].some((family) => sourcePlan.has(family));
+
+          if (useMaps) {
             const places = await refreshGooglePlaces(sb, ownerId, semanticQuery, city, Math.min(limit, 10));
             refresh.google_places = {
               configured: places.configured,
               inserted: places.inserted,
               reason: places.reason ?? null,
             };
+          } else {
+            refresh.google_places = { configured: true, inserted: 0, reason: "not_selected_by_ai_plan" };
           }
-          const serp = await refreshSerpApi(sb, ownerId, mode, semanticQuery, city, Math.min(limit, 12));
-          refresh.serpapi = {
-            configured: serp.configured,
-            inserted: serp.inserted,
-            reason: serp.reason ?? null,
-            surfaces: serp.surfaces ?? {},
-          };
+
+          if (usePublicWeb) {
+            const serp = await refreshSerpApi(sb, ownerId, mode, semanticQuery, city, Math.min(limit, 12));
+            refresh.serpapi = {
+              configured: serp.configured,
+              inserted: serp.inserted,
+              reason: serp.reason ?? null,
+              surfaces: serp.surfaces ?? {},
+            };
+          } else {
+            refresh.serpapi = { configured: true, inserted: 0, reason: "not_selected_by_ai_plan", surfaces: {} };
+          }
         }
 
         const results = await globalDiscoverySearch(sb, {
