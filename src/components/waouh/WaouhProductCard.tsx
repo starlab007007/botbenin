@@ -13,12 +13,18 @@ import {
   MessageCircleQuestion,
   X,
   Send,
+  Sparkles,
+  ShieldCheck,
+  Users,
+  ExternalLink,
+  Bot,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ChatImageLightbox } from "@/app-mobile/components/ChatImageLightbox";
 import { isImageReady, preloadImage, prefetchNeighbours } from "@/components/waouh/waouhImageCache";
 import { cn } from "@/lib/utils";
+import { WaouhContactabilityBadge, contactabilityPresentation } from "./WaouhCommerceAgentBar";
 
 /**
  * Fiche produit d'un résultat de recherche WAOUH.
@@ -48,6 +54,20 @@ export interface WaouhResultCard {
   /** Optionnel : fourni par certaines surfaces pour ouvrir directement 1 article × 1 interlocuteur. */
   seller_id?: string | null;
   counterpart_user_id?: string | null;
+  source_url?: string | null;
+  intent?: string | null;
+  actor_type?: string | null;
+  contactability_level?: string | null;
+  contactability?: string | null;
+  total_score?: number | null;
+  relevance_score?: number | null;
+  trust_score?: number | null;
+  price_score?: number | null;
+  location_score?: number | null;
+  freshness_score?: number | null;
+  scores?: Record<string, unknown> | null;
+  reasons?: string[] | null;
+  evidence?: Record<string, unknown> | null;
 }
 
 type OpenDetail = {
@@ -65,6 +85,29 @@ type OpenDetail = {
 const PENDING_OPEN_KEY = "waouh_pending_open";
 
 const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
+
+const metric = (result: WaouhResultCard, key: string): number | null => {
+  const direct = (result as any)?.[key];
+  const nested = result.scores && typeof result.scores === "object" ? (result.scores as any)[key] : null;
+  const value = direct ?? nested;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : null;
+};
+
+const resultReasons = (result: WaouhResultCard): string[] => {
+  const nested = result.scores && typeof result.scores === "object" ? (result.scores as any).reasons : null;
+  const raw = Array.isArray(result.reasons) ? result.reasons : Array.isArray(nested) ? nested : [];
+  return raw.filter((value): value is string => typeof value === "string" && !!value.trim()).map((value) => value.trim()).slice(0, 3);
+};
+
+const contactLevel = (result: WaouhResultCard): string | null =>
+  (result.contactability_level || result.contactability || (result.evidence as any)?.contactability_level || null) as string | null;
+
+const isBuyerOpportunity = (result: WaouhResultCard): boolean => {
+  const intent = String(result.intent || (result.evidence as any)?.intent || "").toUpperCase();
+  const actor = String(result.actor_type || (result.evidence as any)?.actor_type || "").toLowerCase();
+  return intent === "BUY" || intent === "RFQ" || actor === "buyer";
+};
 
 function priceLabel(r: WaouhResultCard): string {
   if (r.price_min != null && r.price_max != null && r.price_min !== r.price_max) return `${fmt(r.price_min)} – ${fmt(r.price_max)}`;
@@ -133,10 +176,12 @@ export function WaouhProductCard({
   result,
   onAction,
   compact,
+  topPick = false,
 }: {
   result: WaouhResultCard;
   onAction?: (text: string) => void;
   compact?: boolean;
+  topPick?: boolean;
 }) {
   const photos = normalizeResultCards([result])[0]?.photos || [];
   const [cur, setCur] = useState(0);
@@ -147,6 +192,13 @@ export function WaouhProductCard({
   const [question, setQuestion] = useState("");
   const gallery = photos.map((url) => ({ url, caption: result.title }));
   const interestAction = result.action === null ? null : (result.action || defaultInterestAction(result));
+  const opportunity = isBuyerOpportunity(result);
+  const level = contactLevel(result);
+  const contact = level ? contactabilityPresentation(level) : null;
+  const score = metric(result, "total_score");
+  const trust = metric(result, "trust_score");
+  const priceFit = metric(result, "price_score");
+  const reasons = resultReasons(result);
 
   useEffect(() => {
     setFailed(false);
@@ -182,7 +234,10 @@ export function WaouhProductCard({
   };
 
   return (
-    <div className="not-prose rounded-xl border border-border bg-card overflow-hidden shadow-sm">
+    <div className={cn(
+      "not-prose overflow-hidden rounded-2xl border bg-card shadow-sm transition-shadow hover:shadow-md",
+      topPick ? "border-emerald-300 ring-1 ring-emerald-200/70" : "border-border"
+    )}>
       <div className={cn("relative bg-muted", compact ? "aspect-[16/10]" : "aspect-[4/3]")}>
         {photos.length > 0 ? (
           <>
@@ -241,17 +296,64 @@ export function WaouhProductCard({
             <span className="text-[11px]">Pas de photo</span>
           </div>
         )}
-        <span className="absolute left-1.5 top-1.5 rounded-md bg-background/85 px-1.5 py-0.5 text-[11px] font-bold">
-          #{result.index}
-        </span>
+        <div className="absolute left-1.5 top-1.5 flex flex-wrap gap-1">
+          <span className="rounded-md bg-background/90 px-1.5 py-0.5 text-[11px] font-bold shadow-sm">
+            #{result.index}
+          </span>
+          {topPick && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-1.5 py-0.5 text-[10px] font-black text-white shadow-sm">
+              <Sparkles className="h-3 w-3" /> Top Pick
+            </span>
+          )}
+          {opportunity && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-cyan-700 px-1.5 py-0.5 text-[10px] font-black text-white shadow-sm">
+              <Users className="h-3 w-3" /> Acheteur
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="p-2.5 space-y-1.5">
         <div className="flex items-start gap-1.5">
-          <SourceIcon source={result.source} />
-          <h4 className="flex-1 text-sm font-semibold leading-tight text-foreground line-clamp-2">{result.title}</h4>
+          {opportunity ? <Users className="h-4 w-4 shrink-0 text-cyan-700" /> : <SourceIcon source={result.source} />}
+          <div className="min-w-0 flex-1">
+            <div className="mb-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+              {opportunity ? "Opportunité acheteur" : "Offre vendeur"}
+            </div>
+            <h4 className="text-sm font-semibold leading-tight text-foreground line-clamp-2">{result.title}</h4>
+          </div>
         </div>
-        <div className="text-base font-bold text-emerald-600 dark:text-emerald-400">{priceLabel(result)}</div>
+        <div className="text-base font-black text-emerald-600 dark:text-emerald-400">{priceLabel(result)}</div>
+
+        {(score != null || trust != null || priceFit != null || level) && (
+          <div className="flex flex-wrap gap-1.5">
+            {score != null && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-800">
+                <Sparkles className="h-3 w-3" /> Match {Math.round(score)}%
+              </span>
+            )}
+            {trust != null && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-1 text-[10px] font-bold text-sky-800">
+                <ShieldCheck className="h-3 w-3" /> Confiance {Math.round(trust)}%
+              </span>
+            )}
+            {priceFit != null && (
+              <span className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-800">
+                Prix {Math.round(priceFit)}%
+              </span>
+            )}
+            {level && <WaouhContactabilityBadge level={level} />}
+          </div>
+        )}
+
+        {reasons.length > 0 && (
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50/55 px-2.5 py-2">
+            <div className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-emerald-800">
+              <Bot className="h-3 w-3" /> Pourquoi WAOUH le recommande
+            </div>
+            <div className="text-[11px] leading-snug text-emerald-950">{reasons.join(" · ")}</div>
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-1 text-[11px] text-muted-foreground">
           {(result.city || result.quartier) && (
@@ -279,16 +381,30 @@ export function WaouhProductCard({
             {interestAction && (
               <Button
                 size="sm"
-                className="w-full h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="w-full h-9 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white"
                 onClick={handleInterest}
               >
-                Je suis intéressé
+                {opportunity
+                  ? "Proposer mon offre"
+                  : level === "C2"
+                    ? "Transmettre mon intérêt via WAOUH"
+                    : level === "C3" || level === "C4"
+                      ? "Laisser Muse poursuivre"
+                      : "Je suis intéressé"}
               </Button>
             )}
             <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-1.5">
+              {result.source_url && (
+                <Button size="sm" variant="outline" className="h-8 min-w-0 px-2 text-[11px]" asChild>
+                  <a href={result.source_url} target="_blank" rel="noreferrer">
+                    <ExternalLink className="mr-1 h-3.5 w-3.5" />
+                    Source
+                  </a>
+                </Button>
+              )}
               <Button size="sm" variant="outline" className="h-8 min-w-0 px-2 text-[11px]" onClick={() => setAsking((a) => !a)}>
                 <MessageCircleQuestion className="h-3.5 w-3.5 mr-1 shrink-0" />
-                <span className="truncate">Question au {counterpartWord}</span>
+                <span className="truncate">{opportunity ? "Question à l’acheteur" : `Question au ${counterpartWord}`}</span>
               </Button>
               <Button size="sm" variant="ghost" className="h-8 px-2 text-[11px] text-muted-foreground hover:text-destructive" onClick={() => onAction(`annuler ${result.index}`)}>
                 <X className="h-3.5 w-3.5 mr-1" />
@@ -331,6 +447,9 @@ export function WaouhProductResults({
   compact?: boolean;
 }) {
   const normalized = normalizeResultCards(results);
+  const top = normalized[0];
+  const remaining = normalized.slice(1);
+  const topOpportunity = top ? isBuyerOpportunity(top) : false;
   const rail = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState(0);
   const scroll = (step: number) => {
@@ -354,15 +473,27 @@ export function WaouhProductResults({
   if (!normalized.length) return null;
   return (
     <section aria-label="Articles proposés" aria-roledescription="carrousel" className="not-prose mt-2 min-w-0 w-full overflow-hidden">
-      {normalized.length > 1 && <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-xs text-muted-foreground">{normalized.length} articles · Faites défiler</span>
+      {top && (
+        <div className="mb-3">
+          <div className="mb-2 flex items-center gap-2">
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-white">
+              <Sparkles className="h-3 w-3" />
+              {topOpportunity ? "Meilleure opportunité" : "Meilleur choix WAOUH"}
+            </span>
+            <span className="text-[10px] text-muted-foreground">Signal Fabric · classement intelligent</span>
+          </div>
+          <WaouhProductCard result={top} onAction={top.source === "catalogue" ? undefined : onAction} compact={compact} topPick />
+        </div>
+      )}
+      {remaining.length > 0 && <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="text-xs text-muted-foreground">{remaining.length} autre{remaining.length > 1 ? "s" : ""} option{remaining.length > 1 ? "s" : ""} · Faites défiler</span>
         <div className="flex gap-1">
           <Button type="button" size="icon" variant="outline" className="h-7 w-7" aria-label="Articles précédents" disabled={position === 0 || (position === 2 && (rail.current?.scrollLeft || 0) <= 1)} onClick={() => scroll(-1)}><ChevronLeft className="h-4 w-4" /></Button>
           <Button type="button" size="icon" variant="outline" className="h-7 w-7" aria-label="Articles suivants" disabled={position === 2} onClick={() => scroll(1)}><ChevronRight className="h-4 w-4" /></Button>
         </div>
       </div>}
       <div ref={rail} onScroll={updatePosition} className="flex min-w-0 gap-3 overflow-x-auto overscroll-x-contain snap-x snap-mandatory pb-2">
-        {normalized.map((r, i) => <div key={`${r.id}-${r.index}`} role="group" aria-label={`${i + 1} sur ${normalized.length}`} className={cn("min-w-0 shrink-0 snap-start", normalized.length === 1 ? "w-full" : "w-[calc(100%-1rem)] sm:w-[260px]")}>
+        {remaining.map((r, i) => <div key={`${r.id}-${r.index}`} role="group" aria-label={`${i + 2} sur ${normalized.length}`} className={cn("min-w-0 shrink-0 snap-start", "w-[calc(100%-1rem)] sm:w-[260px]")}>
           <WaouhProductCard result={r} onAction={r.source === 'catalogue' ? undefined : onAction} compact={compact} />
         </div>)}
       </div>
