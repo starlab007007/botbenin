@@ -287,8 +287,8 @@ export default function ChatListScreen() {
                 <AvatarFallback className="bg-white/20 text-white text-sm">W</AvatarFallback>
               </Avatar>
               <div className="text-left">
-                <div className="text-sm font-semibold leading-tight">WaouhApp</div>
-                <div className="text-[11px] text-white/70 leading-tight">Invité</div>
+                <div className="text-sm font-black leading-tight">WAOUH One</div>
+                <div className="text-[11px] text-white/70 leading-tight">Invité · Muse + NEXUS</div>
               </div>
             </div>
           ) : (
@@ -298,8 +298,8 @@ export default function ChatListScreen() {
                 <AvatarFallback className="bg-white/20 text-white text-sm">{initials}</AvatarFallback>
               </Avatar>
               <div className="text-left">
-                <div className="text-sm font-semibold leading-tight">{profile?.full_name ?? "WaouhApp"}</div>
-                <div className="text-[11px] text-white/70 leading-tight">{profile?.phone ?? "Mon compte"}</div>
+                <div className="text-sm font-black leading-tight">WAOUH One</div>
+                <div className="text-[11px] text-white/70 leading-tight truncate max-w-[150px]">{profile?.full_name ?? "Mon compte"} · actif</div>
               </div>
             </button>
           )}
@@ -321,7 +321,7 @@ export default function ChatListScreen() {
                     onClearAll={waouhClearAll}
                   />
                 </div>
-                <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={openNewWaouh} aria-label="Nouveau chat WAOUH">
+                <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={openNewWaouh} aria-label="Nouvel objectif WAOUH">
                   <Plus className="h-5 w-5" />
                 </Button>
               </>
@@ -332,7 +332,7 @@ export default function ChatListScreen() {
           <div className="px-4 pb-3">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/60" />
-              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher discussions, statuts…" className="pl-9 bg-white/15 border-0 text-white placeholder:text-white/60" />
+              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher échanges, statuts, radar…" className="pl-9 bg-white/15 border-0 text-white placeholder:text-white/60" />
             </div>
           </div>
         )}
@@ -341,7 +341,7 @@ export default function ChatListScreen() {
       {!isGuest && (
         <div className="sticky top-[var(--waouh-tabs-top,0)] z-[9] flex bg-background border-b border-border">
           {[
-            { k: "chats", label: "Discussions" },
+            { k: "chats", label: "Échanges" },
             { k: "statuses", label: "Statuts · 24h" },
             { k: "radar", label: "📡 Radar" },
           ].map((t) => (
@@ -378,13 +378,13 @@ export default function ChatListScreen() {
           </div>
           <div className="flex-1 min-w-0 text-left">
             <div className="flex justify-between items-baseline gap-2">
-              <span className="font-semibold truncate flex items-center gap-1.5">
-                WAOUH
+              <span className="font-black truncate flex items-center gap-1.5">
+                WAOUH One
                 <Badge className="bg-emerald-500 text-white border-0 text-[9px] py-0 px-1.5 h-4">IA</Badge>
               </span>
               <span className="text-xs text-muted-foreground shrink-0">Toujours actif</span>
             </div>
-            <p className="text-sm text-muted-foreground truncate">Achetez · Vendez · Négociez par message</p>
+            <p className="text-sm text-muted-foreground truncate">Muse · NEXUS · Signal Fabric · Contact</p>
           </div>
         </button>
 
@@ -399,7 +399,7 @@ export default function ChatListScreen() {
               size="lg"
               className="w-full max-w-sm bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)] shadow-md"
             >
-              <Plus className="h-5 w-5 mr-1" /> Nouveau chat WAOUH
+              <Plus className="h-5 w-5 mr-1" /> Nouvel objectif WAOUH
             </Button>
             <p className="text-sm text-muted-foreground mt-3">
               Envoyez un message à WAOUH et le Monde achète. ☝️
