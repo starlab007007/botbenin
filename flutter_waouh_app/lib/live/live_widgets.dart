@@ -4,10 +4,12 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../main.dart' as legacy;
 import 'brand_mark.dart';
 import 'live_models.dart';
+import 'live_nexus_service.dart';
 import 'live_commerce_workflow.dart';
 import 'live_commerce_agent_ui.dart';
 import 'live_thread_flow.dart';
@@ -799,6 +801,7 @@ class _PremiumProduct {
     this.rating,
     this.sellerLabel,
     this.source,
+    this.fabricId,
     this.score,
     this.trustScore,
     this.priceScore,
@@ -828,6 +831,7 @@ class _PremiumProduct {
   final String? rating;
   final String? sellerLabel;
   final String? source;
+  final String? fabricId;
   final double? score;
   final double? trustScore;
   final double? priceScore;
@@ -1299,6 +1303,7 @@ List<_PremiumProduct> _premiumProducts(LiveMessage message) {
         source: _premiumString(
           row['source_label'] ?? row['source'] ?? row['origin'],
         ),
+        fabricId: _premiumString(row['fabric_id'] ?? row['fabricId']),
         score: _premiumScore(
           row['total_score'] ?? scoreMap['total_score'] ?? row['match_score'] ?? row['score'],
         ),
@@ -1906,6 +1911,37 @@ class _PremiumProductCard extends StatelessWidget {
                     );
                   }).toList(),
                 ),
+              if (product.fabricId != null) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () => _showPremiumNexusContactSheet(
+                      context,
+                      product,
+                    ),
+                    icon: const Icon(Icons.shield_outlined),
+                    label: Text(
+                      product.contactability == 'C2'
+                          ? 'Transmettre via WAOUH'
+                          : product.contactability == 'C3' ||
+                                  product.contactability == 'C4'
+                              ? 'Laisser Muse poursuivre'
+                              : product.contactability == 'C1'
+                                  ? 'Contacter'
+                                  : 'Voir possibilité de contact',
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF08745D),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size(0, 46),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
               if (actionsEnabled && onPayload != null) ...[
                 const SizedBox(height: 8),
                 SizedBox(
@@ -1926,6 +1962,317 @@ class _PremiumProductCard extends StatelessWidget {
           ),
         ]),
       );
+}
+
+
+Future<void> _showPremiumNexusContactSheet(
+  BuildContext context,
+  _PremiumProduct product,
+) async {
+  if (product.fabricId == null) return;
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (_) => _PremiumNexusContactSheet(product: product),
+  );
+}
+
+class _PremiumNexusContactSheet extends StatefulWidget {
+  const _PremiumNexusContactSheet({required this.product});
+  final _PremiumProduct product;
+
+  @override
+  State<_PremiumNexusContactSheet> createState() =>
+      _PremiumNexusContactSheetState();
+}
+
+class _PremiumNexusContactSheetState
+    extends State<_PremiumNexusContactSheet> {
+  late final LiveNexusService service = LiveNexusService(legacy.supabase);
+  final message = TextEditingController();
+  NexusPreparedContact? prepared;
+  Object? error;
+  bool busy = true;
+  bool sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    message.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    try {
+      final value = await service.prepareContact(widget.product.fabricId!);
+      if (!mounted) return;
+      setState(() {
+        prepared = value;
+        busy = false;
+        error = null;
+        message.text =
+            'Bonjour, je vous contacte via WAOUH au sujet de « ' +
+                widget.product.title +
+                ' ». Est-ce toujours disponible / pertinent pour vous ?';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        error = e;
+      });
+    }
+  }
+
+  Future<void> _openContact(NexusContactItem item) async {
+    final value = item.value.trim();
+    Uri? uri;
+    if (item.channel == 'whatsapp') {
+      final digits = value.replaceAll(RegExp(r'\D'), '');
+      uri = Uri.parse('https://wa.me/' + digits);
+    } else if (item.channel == 'phone') {
+      uri = Uri(scheme: 'tel', path: value);
+    } else if (item.channel == 'email') {
+      uri = Uri(scheme: 'mailto', path: value);
+    } else {
+      uri = Uri.tryParse(value);
+    }
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _send() async {
+    final contact = prepared;
+    final text = message.text.trim();
+    if (contact == null || text.isEmpty || sending) return;
+    setState(() => sending = true);
+    try {
+      final result = await service.sendContact(
+        fabricId: contact.fabricId,
+        message: text,
+      );
+      if (!mounted) return;
+      final blind = result['blind'] == true;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            blind
+                ? 'Proposition transmise sans révéler les coordonnées privées.'
+                : 'Contact WAOUH mis en file.',
+          ),
+        ),
+      );
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final contact = prepared;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        16,
+        14,
+        16,
+        18 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 42,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFD5E1DC),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            Row(
+              children: [
+                const LiveMuseAvatar(
+                  mode: LiveMuseMode.neutral,
+                  phase: LiveMusePhase.contacting,
+                  size: 42,
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Contact intelligent WAOUH',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      Text(
+                        'Le Contact Layer applique C0–C4 avant toute action.',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          color: Color(0xFF60746E),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                LiveContactabilityBadge(
+                  level: contact?.policy.level ??
+                      widget.product.contactability,
+                  showCode: true,
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            if (busy)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(28),
+                  child: CircularProgressIndicator(),
+                ),
+              )
+            else if (error != null)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF4F3),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  error.toString(),
+                  style: const TextStyle(color: Color(0xFF8A3138)),
+                ),
+              )
+            else if (contact != null) ...[
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(13),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1FAF6),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFD5EBE2)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      contact.actorName ??
+                          contact.productName ??
+                          widget.product.title,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    if (contact.note?.trim().isNotEmpty == true) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        contact.note!,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: Color(0xFF60746E),
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (contact.contacts.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                const Text(
+                  'Contacts autorisés',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 7),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 7,
+                  children: contact.contacts.map((item) {
+                    final suffix =
+                        item.last4 == null ? '' : ' · …' + item.last4!;
+                    return OutlinedButton.icon(
+                      onPressed: () => _openContact(item),
+                      icon: Icon(
+                        item.channel == 'whatsapp'
+                            ? Icons.chat_outlined
+                            : item.channel == 'email'
+                                ? Icons.email_outlined
+                                : Icons.phone_outlined,
+                        size: 17,
+                      ),
+                      label: Text(item.channel + suffix),
+                    );
+                  }).toList(growable: false),
+                ),
+              ],
+              if (contact.policy.canBlindMessage ||
+                  contact.policy.canAutoContact) ...[
+                const SizedBox(height: 14),
+                Text(
+                  contact.policy.canBlindMessage
+                      ? 'WAOUH transmet sans révéler les coordonnées'
+                      : 'Message que Muse peut transmettre',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                TextField(
+                  controller: message,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    hintText: 'Votre message…',
+                  ),
+                ),
+                const SizedBox(height: 9),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: sending ? null : _send,
+                    icon: sending
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.send_rounded),
+                    label: Text(
+                      contact.policy.canBlindMessage
+                          ? 'Transmettre via WAOUH'
+                          : 'Confirmer et envoyer',
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 String _watchProductPayload(_PremiumProduct product) {
