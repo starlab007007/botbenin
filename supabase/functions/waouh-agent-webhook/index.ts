@@ -3,6 +3,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { runAgentTurn } from "../_shared/agent-ai.ts";
+import { isServiceRoleRequest, jsonError } from "../_shared/waouh-auth.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +12,7 @@ const cors = {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+  if (!isServiceRoleRequest(req)) return jsonError(401, "trusted_relay_required");
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   try {
     const { agent_id, session, payload } = await req.json();
@@ -18,6 +20,19 @@ serve(async (req) => {
 
     const message = String(payload.body || "").trim();
     if (!message) return new Response("ok", { headers: cors });
+    const eventId = String(payload.id?._serialized || payload.id || "").trim();
+    if (eventId) {
+      const { error: dedupeError } = await supabase.from("waouh_processed_events").insert({
+        event_id: `agent:${agent_id}:${eventId}`,
+        source: "waha-agent",
+      });
+      if (dedupeError && (dedupeError.code === "23505" || /duplicate/i.test(dedupeError.message || ""))) {
+        return new Response(JSON.stringify({ ok: true, skipped: true, reason: "duplicate" }), {
+          headers: { ...cors, "Content-Type": "application/json" },
+        });
+      }
+      if (dedupeError) throw new Error(`event_dedupe_failed: ${dedupeError.message}`);
+    }
     const from = String(payload.from || "").replace(/@c\.us|@lid/g, "");
     const contactName = payload?.notifyName || payload?.pushName || null;
 

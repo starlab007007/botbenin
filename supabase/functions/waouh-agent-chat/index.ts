@@ -3,6 +3,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { runAgentTurn } from "../_shared/agent-ai.ts";
+import { getRequestUser, jsonError } from "../_shared/waouh-auth.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -12,10 +13,20 @@ const cors = {
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   try {
+    const requestUser = await getRequestUser(req);
+    if (!requestUser) return jsonError(401, "authentication_required");
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const body = await req.json();
     const { agent_id, message, history, contact_phone, contact_name, persist } = body;
     if (!agent_id || !message) throw new Error("agent_id et message requis");
+
+    const { data: agent, error: agentError } = await supabase
+      .from("waouh_ai_agents")
+      .select("id,user_id")
+      .eq("id", agent_id)
+      .maybeSingle();
+    if (agentError || !agent) return jsonError(404, "agent_not_found");
+    if (agent.user_id !== requestUser.id) return jsonError(403, "agent_not_owned");
 
     const result = await runAgentTurn(supabase, agent_id, message, {
       history, contact_phone, contact_name, persist: !!persist,

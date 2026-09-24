@@ -1,3 +1,4 @@
+import { serializeChatReply } from "@/lib/chatReply";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useToast, toast } from '@/hooks/use-toast';
 import { BookmarkedAdvice } from '@/components/BookmarkedAdvice';
@@ -292,13 +293,7 @@ export const StandardizedChatInterface: React.FC<StandardizedChatInterfaceProps>
 
       if (contentType.includes('application/json')) {
         responseData = await response.json();
-        processedContent = responseData.output || 
-                          responseData.message || 
-                          responseData.response || 
-                          responseData.text || 
-                          responseData.content ||
-                          responseData.reply ||
-                          (typeof responseData === 'string' ? responseData : JSON.stringify(responseData));
+        processedContent = serializeChatReply(responseData);
       } else {
         responseData = await response.text();
         processedContent = responseData;

@@ -330,3 +330,6 @@ verify_jwt = false
 
 [functions.waouh-trace-ui]
 verify_jwt = false
+
+[functions.waouh-agentic-core]
+verify_jwt = true
