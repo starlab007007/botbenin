@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, ShoppingBag, Target, CheckCircle2, Lock, Loader2 } from "lucide-react";
+import { Send, ShoppingBag, Target, CheckCircle2, Lock, Loader2, Sparkles, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ChatImage } from "@/app-mobile/components/ChatImage";
 import { WaouhProductResults } from "@/components/waouh/WaouhProductCard";
@@ -11,6 +11,8 @@ import { WaouhAgentBlocks } from "@/components/waouh/WaouhAgentBlocks";
 import { invokeWaouhAgentic } from "@/lib/waouh/agenticClient";
 import type { AgenticAction } from "@/lib/waouh/agenticContracts";
 import { WaouhArticleSummary } from "@/components/waouh/WaouhArticleSummary";
+import { WaouhMuseAvatar } from "@/components/waouh/WaouhMuseAvatar";
+import { WaouhContactabilityBadge } from "@/components/waouh/WaouhCommerceAgentBar";
 
 
 import { cn } from "@/lib/utils";
@@ -562,6 +564,26 @@ export function WaouhMatchChatWindow({
       ? "le vendeur"
       : "l'acheteur";
 
+  const dealContactLevel = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const meta = messages[index]?.meta || {};
+      const level = meta.contactability_level || meta.contactability;
+      if (level) return String(level);
+      const result = Array.isArray(meta.results) ? meta.results[0] : Array.isArray(meta.products) ? meta.products[0] : null;
+      const resultLevel = result?.contactability_level || result?.contactability;
+      if (resultLevel) return String(resultLevel);
+    }
+    return null;
+  }, [messages]);
+
+  const latestDealIntent = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const intent = messages[index]?.meta?.intent;
+      if (intent) return String(intent);
+    }
+    return "";
+  }, [messages]);
+
   const seedText = seedNotif?.text?.trim() || match.seed_text?.trim() || null;
 
   const isNewBuyerSeed =
@@ -593,50 +615,59 @@ export function WaouhMatchChatWindow({
 
   return (
     <div className="flex flex-col h-full w-full bg-background">
-      {/* Sub-header with product info */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 text-white shrink-0">
-        {match.photo ? (
-          <img src={match.photo} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" />
-        ) : (
-          <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
-            <Icon className="w-5 h-5" />
-          </div>
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <div className="text-[10px] uppercase tracking-wider opacity-80 font-mono truncate">{matchLabel}</div>
-            {closed && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-white/95 text-emerald-700 px-1.5 py-0.5 rounded">
-                <CheckCircle2 className="w-3 h-3" /> Vente finalisée
+      {/* Deal Room — 1 article × 1 interlocuteur */}
+      <div className="shrink-0 border-b border-emerald-100 bg-gradient-to-r from-white via-emerald-50/70 to-cyan-50/70 px-3 py-2.5">
+        <div className="flex items-center gap-2.5">
+          <WaouhMuseAvatar mode={match.kind === "buyer" ? "buyer" : "seller"} phase={closed ? "success" : "negotiating"} size="sm" />
+          {match.photo ? (
+            <img src={match.photo} alt="" className="h-11 w-11 rounded-xl border border-white object-cover shadow-sm" />
+          ) : (
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl border bg-white text-emerald-700 shadow-sm">
+              <Icon className="h-5 w-5" />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-700 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-white">
+                <Sparkles className="h-2.5 w-2.5" /> WAOUH Deal Room
               </span>
-            )}
-            {syncedAt && !closed && (
-              <span
-                className="inline-flex items-center gap-1 text-[10px] bg-white/15 text-white/90 px-1.5 py-0.5 rounded"
-                title={`Historique synchronisé depuis la base à ${new Date(syncedAt).toLocaleTimeString("fr-FR")} — ${dbMsgCount} message${dbMsgCount > 1 ? "s" : ""} chargé${dbMsgCount > 1 ? "s" : ""} depuis la DB · Flux verrouillé v1`}
-              >
-                <CheckCircle2 className="w-3 h-3" />
-                Sync · {new Date(syncedAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })} · {dbMsgCount} msg
+              <span className="text-[10px] font-bold text-emerald-900">
+                {match.kind === "buyer" ? "Muse négocie côté acheteur" : "Muse accompagne la vente"}
               </span>
-            )}
-            {initialLoading && !syncedAt && (
-              <span className="inline-flex items-center gap-1 text-[10px] bg-white/15 text-white/90 px-1.5 py-0.5 rounded">
-                <Loader2 className="w-3 h-3 animate-spin" /> Chargement…
-              </span>
-            )}
+              {dealContactLevel && <WaouhContactabilityBadge level={dealContactLevel} showCode />}
+              {closed && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                  <CheckCircle2 className="h-3 w-3" /> Finalisée
+                </span>
+              )}
+            </div>
+            <div className="mt-0.5 truncate text-sm font-black text-slate-950">{match.title}</div>
+            <div className="flex flex-wrap items-center gap-x-2 text-[10px] text-slate-600">
+              {match.price ? <span className="font-bold text-emerald-700">{Number(match.price).toLocaleString("fr-FR")} FCFA</span> : null}
+              {match.city ? <span>📍 {match.city}</span> : null}
+              <span>{match.kind === "buyer" ? "Vendeur" : "Acheteur"} : {counterpartLabel}</span>
+              {latestDealIntent && <span className="hidden sm:inline">· {latestDealIntent.replace(/_/g, " ")}</span>}
+            </div>
           </div>
-          <div className="text-sm font-semibold truncate">{match.title}</div>
-          <div className="text-[11px] opacity-90 truncate">
-            {match.price ? `${Number(match.price).toLocaleString("fr-FR")} FCFA` : ""}
-            {match.city ? ` · ${match.city}` : ""}
-            {" · "}
-            {match.kind === "buyer" ? "Discutez avec le vendeur" : "Discutez avec l'acheteur"}
+          <div className="hidden rounded-xl border bg-white/85 px-2.5 py-1.5 text-right sm:block">
+            <div className="flex items-center justify-end gap-1 text-[9px] font-bold text-slate-500">
+              <ShieldCheck className="h-3 w-3 text-emerald-600" /> Canal WAOUH protégé
+            </div>
+            <div className="mt-0.5 text-[9px] text-slate-400">{matchLabel} · {(match.article_id || "").slice(0, 8)}</div>
           </div>
-          {/* v13 — périmètre explicite : 1 fenêtre = 1 article × 1 interlocuteur */}
-          <div className="text-[10px] opacity-75 truncate font-mono">
-            avec {counterpartLabel} · réf. {(match.article_id || "").slice(0, 8)}
-          </div>
-
+        </div>
+        <div className="mt-2 flex items-center gap-2 text-[9px] text-muted-foreground">
+          {syncedAt && !closed ? (
+            <span className="inline-flex items-center gap-1 rounded-full border bg-white/70 px-2 py-1">
+              <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+              Synchronisé · {dbMsgCount} msg
+            </span>
+          ) : initialLoading && !syncedAt ? (
+            <span className="inline-flex items-center gap-1 rounded-full border bg-white/70 px-2 py-1">
+              <Loader2 className="h-3 w-3 animate-spin" /> Synchronisation…
+            </span>
+          ) : null}
+          {!dealContactLevel && <span>Contact Layer actif · aucune coordonnée privée exposée</span>}
         </div>
       </div>
 
@@ -753,7 +784,7 @@ export function WaouhMatchChatWindow({
                 send();
               }
             }}
-            placeholder="Votre message…"
+            placeholder={match.kind === "buyer" ? "Votre réponse au vendeur…" : "Votre réponse à l’acheteur…"}
             rows={1}
             className="resize-none min-h-[40px] max-h-32 text-sm flex-1 rounded-2xl"
           />
