@@ -526,6 +526,10 @@ serve(async (req) => {
       const suppressDirectReply = negData?.suppress_direct_reply === true;
       const negResults = Array.isArray(negData.results) ? negData.results : [];
       const negProducts = Array.isArray(negData.products) ? negData.products : [];
+      const negIntelligence = negData?.intelligence ?? negData?.nexus_intelligence ?? null;
+      const negSourceMix = negData?.source_mix ?? negData?.sourceMix ?? null;
+      const negSignalFabric = negData?.signal_fabric ?? negData?.signalFabric ?? null;
+      const negContactability = negData?.contactability_level ?? negData?.contactability ?? null;
       let negOutboundId = negData.outbound_message_id ?? null;
       if (!suppressDirectReply) {
         const { data: negRow, error: negWriteError } = await sb.from("waouh_messages").insert({
@@ -545,6 +549,10 @@ serve(async (req) => {
             buyer_user_id: clientMeta?.counterpart_user_id ?? clientMeta?.buyer_user_id ?? clientMeta?.buyer_profile_id ?? null,
             role: clientMeta?.role ?? null,
             correlation_id: correlationId,
+            intelligence: negIntelligence,
+            source_mix: negSourceMix,
+            signal_fabric: negSignalFabric,
+            contactability_level: negContactability,
           },
         }).select("id").single();
         if (negWriteError) throw negWriteError;
@@ -561,7 +569,7 @@ serve(async (req) => {
           await sendWahaReply(WAHA_BASE_URL, wahaSession, replyChatIds, negReply, negActions, firstImage);
         } catch (e) { console.error("WAHA send failed", e); }
       }
-      return new Response(JSON.stringify({ ok: true, reply: suppressDirectReply ? null : negReply, suppress_direct_reply: suppressDirectReply, outbound_message_id: negOutboundId, actions: negActions, results: negResults, products: negProducts, article_id: clientMeta?.article_id ?? null, counterpart_user_id: clientMeta?.counterpart_user_id ?? null, intent: negIntent, transaction_id: negTxId, attachments: negAttachments, inbound_message_id: inboundMessageId, conversation_id: convId, user_id: user.id, correlation_id: correlationId }), {
+      return new Response(JSON.stringify({ ok: true, reply: suppressDirectReply ? null : negReply, suppress_direct_reply: suppressDirectReply, outbound_message_id: negOutboundId, actions: negActions, results: negResults, products: negProducts, article_id: clientMeta?.article_id ?? null, counterpart_user_id: clientMeta?.counterpart_user_id ?? null, intent: negIntent, transaction_id: negTxId, attachments: negAttachments, inbound_message_id: inboundMessageId, conversation_id: convId, user_id: user.id, correlation_id: correlationId, intelligence: negIntelligence, source_mix: negSourceMix, signal_fabric: negSignalFabric, contactability_level: negContactability }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
 
@@ -585,6 +593,13 @@ serve(async (req) => {
     // 🖼️ Fiches produit structurées (1 fiche = 1 article + ses photos)
     const results: any[] = Array.isArray(core.results) ? core.results : [];
     const products: any[] = Array.isArray(core.products) ? core.products : [];
+    // Contrat UI agentique : conserver les informations NEXUS/Signal Fabric
+    // lorsqu'elles sont déjà produites par le moteur. Les anciens moteurs
+    // restent compatibles car tous ces champs sont optionnels.
+    const intelligence = core?.intelligence ?? core?.nexus_intelligence ?? null;
+    const sourceMix = core?.source_mix ?? core?.sourceMix ?? null;
+    const signalFabric = core?.signal_fabric ?? core?.signalFabric ?? null;
+    const contactability = core?.contactability_level ?? core?.contactability ?? null;
 
     // Persist outgoing
     const outboundArticleId: string | null = core.article_id ?? inboundArticleId ?? null;
@@ -594,7 +609,20 @@ serve(async (req) => {
       web_session_id: sessionId, phone_number: phone,
       attachments: Array.isArray(core.attachments) ? core.attachments : [],
       article_id: outboundArticleId,
-      meta: { intent: core.intent ?? null, transaction_id: core.transaction_id ?? null, article_id: outboundArticleId, counterpart_user_id: core.counterpart_user_id ?? null, correlation_id: correlationId, actions, results, products },
+      meta: {
+        intent: core.intent ?? null,
+        transaction_id: core.transaction_id ?? null,
+        article_id: outboundArticleId,
+        counterpart_user_id: core.counterpart_user_id ?? null,
+        correlation_id: correlationId,
+        actions,
+        results,
+        products,
+        intelligence,
+        source_mix: sourceMix,
+        signal_fabric: signalFabric,
+        contactability_level: contactability,
+      },
     }).select("id").maybeSingle();
     if (outboundError) throw outboundError;
     const outboundMessageId: string | null = outboundRow?.id ?? null;
@@ -613,7 +641,7 @@ serve(async (req) => {
       } catch (e) { console.error("WAHA send failed", e); }
     }
 
-    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, actions, results, products, attachments: Array.isArray(core.attachments) ? core.attachments : [], inbound_message_id: inboundMessageId, outbound_message_id: outboundMessageId, conversation_id: convId, user_id: user.id, article_id: outboundArticleId, counterpart_user_id: core.counterpart_user_id ?? null, transaction_id: core.transaction_id ?? null, correlation_id: correlationId }), {
+    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, actions, results, products, attachments: Array.isArray(core.attachments) ? core.attachments : [], inbound_message_id: inboundMessageId, outbound_message_id: outboundMessageId, conversation_id: convId, user_id: user.id, article_id: outboundArticleId, counterpart_user_id: core.counterpart_user_id ?? null, transaction_id: core.transaction_id ?? null, correlation_id: correlationId, intelligence, source_mix: sourceMix, signal_fabric: signalFabric, contactability_level: contactability }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
