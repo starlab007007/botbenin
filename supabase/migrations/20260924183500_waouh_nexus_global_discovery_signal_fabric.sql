@@ -260,6 +260,86 @@ left join public.waouh_users u on u.id=b.user_id
 where b.is_active=true
 union all
 select
+  'catalog:' || c.id::text,
+  c.id::text,
+  case c.source::text
+    when 'partner' then 'partner'
+    when 'radar' then 'radar_ia'
+    else 'waouh_app'
+  end::text,
+  'SELL'::text,
+  case when c.partner_id is not null or c.business_id is not null then 'business' else 'seller' end::text,
+  c.titre::text,
+  c.description::text,
+  c.categorie::text,
+  null::text,
+  null::text,
+  null::text,
+  c.prix_min::numeric,
+  c.prix_max::numeric,
+  coalesce(c.devise,'XOF')::text,
+  c.ville::text,
+  c.gtin::text,
+  case
+    when c.source::text='partner' then 'C4'
+    when c.source::text='chat' then 'C2'
+    else 'C0'
+  end::text,
+  greatest(0,least(100,coalesce(c.qualite_score,case when c.verified then 85 else 60 end)))::numeric,
+  coalesce(c.last_seen_at,c.updated_at,c.created_at)::timestamptz,
+  null::text,
+  jsonb_build_object(
+    'catalog_id',c.id,
+    'source',c.source::text,
+    'partner_id',c.partner_id,
+    'business_id',c.business_id,
+    'seller_name',c.vendeur_nom,
+    'gtin',c.gtin,
+    'photos',to_jsonb(coalesce(c.photos,'{}'::text[])),
+    'verified',c.verified
+  ) as evidence
+from public.waouh_unified_catalog c
+where c.is_active=true
+  and c.promoted_article_id is null
+  and (c.expires_at is null or c.expires_at>now())
+union all
+select
+  'legacy_external:' || e.id::text,
+  e.id::text,
+  'radar_ia'::text,
+  'SELL'::text,
+  'seller'::text,
+  coalesce(e.title,e.description)::text,
+  e.description::text,
+  e.category::text,
+  null::text,
+  null::text,
+  e.condition::text,
+  e.price::numeric,
+  e.price::numeric,
+  coalesce(e.currency,'XOF')::text,
+  e.city::text,
+  null::text,
+  'C0'::text,
+  55::numeric,
+  e.scraped_at::timestamptz,
+  e.source_url::text,
+  jsonb_build_object(
+    'external_listing_id',e.id,
+    'source',e.source,
+    'seller_name',e.seller_name,
+    'contact_last4',case when e.seller_phone is null then null else right(regexp_replace(e.seller_phone,'\D','','g'),4) end,
+    'image_url',e.image_url
+  ) as evidence
+from public.waouh_external_listings e
+where e.promoted_article_id is null
+  and e.status not in ('ignored')
+  and not exists (
+    select 1 from public.waouh_radar_signals rr
+    where rr.raw_url is not null and e.source_url is not null and rr.raw_url=e.source_url
+  )
+union all
+select
   'radar:' || r.id::text,
   r.id::text,
   'radar_ia'::text,
