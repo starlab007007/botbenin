@@ -1,7 +1,8 @@
 import { constantTimeEqual, hmacHex } from "./crypto.ts";
+import { telRuntimeSecret } from "./runtime-secret.ts";
 
 export async function verifyProviderWebhook(req: Request, rawBody: string) {
-  const secret = Deno.env.get("WAOUH_TEL_WEBHOOK_SECRET") || "";
+  const secret = await telRuntimeSecret("webhook_secret");
   if (secret.length < 24) {
     return { ok: false as const, reason: "webhook_secret_not_configured" };
   }
