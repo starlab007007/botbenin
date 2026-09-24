@@ -205,7 +205,7 @@ export default function WaouhChatScreen() {
         className="flex items-center justify-between gap-2 px-2 bg-[hsl(var(--wa-green,142_70%_24%))] text-white shrink-0 shadow-md z-10"
         style={{ paddingTop: "max(env(safe-area-inset-top), 0px)", height: "calc(56px + env(safe-area-inset-top))" }}
       >
-        <div className="flex items-center gap-1 min-w-0">
+        <div className="flex min-w-0 flex-1 items-center gap-1">
           <button
             onClick={() => navigate("/app/chat")}
             className="p-2 rounded-lg hover:bg-white/15 active:bg-white/25 shrink-0"
@@ -213,36 +213,39 @@ export default function WaouhChatScreen() {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <WaouhMuseAvatar
-            mode={resolvedDeal?.active ? (resolvedDeal.role === "seller" ? "seller" : "buyer") : agentState.mode}
-            phase={resolvedDeal?.active ? (resolvedDeal.closed ? "success" : "negotiating") : agentState.phase}
-            size="sm"
-          />
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="font-black text-sm leading-tight truncate">WAOUH One</span>
-              <span className="rounded-full bg-white/15 px-1.5 py-0.5 text-[9px] font-black text-emerald-100">IA</span>
-            </div>
-            <span className="text-[11px] text-white/75 truncate block">
-              {resolvedDeal?.active
-                ? "Deal Room · négociation protégée"
-                : profile?.full_name
-                  ? `${profile.full_name.split(" ")[0]} · Muse + NEXUS + Signal`
-                  : "Muse · NEXUS · Signal · Contact"}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1">
-          <WaouhCityBadge geo={geo} loading={geoLoading} onSetCity={setCity} onRefresh={refresh} compact />
           <Sheet>
             <SheetTrigger asChild>
-              <button className="p-2 rounded-lg hover:bg-white/15 active:bg-white/25" aria-label="Intelligence WAOUH">
-                <Sparkles className="w-5 h-5" />
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 items-center gap-2 rounded-xl px-1 py-1 text-left hover:bg-white/10 active:bg-white/15"
+                aria-label="Ouvrir l’activité de Muse"
+              >
+                <WaouhMuseAvatar
+                  mode={resolvedDeal?.active ? (resolvedDeal.role === "seller" ? "seller" : "buyer") : agentState.mode}
+                  phase={resolvedDeal?.active ? (resolvedDeal.closed ? "success" : "negotiating") : agentState.phase}
+                  size="sm"
+                />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-black text-sm leading-tight truncate">WAOUH One</span>
+                    <span className="rounded-full bg-white/15 px-1.5 py-0.5 text-[9px] font-black text-emerald-100">IA</span>
+                  </div>
+                  <span className="text-[11px] text-white/75 truncate block">
+                    {resolvedDeal?.active
+                      ? resolvedDeal.closed ? "Deal conclu" : "Deal Room · Muse accompagne"
+                      : agentState.phase === "searching"
+                        ? "NEXUS cherche"
+                        : agentState.phase === "comparing"
+                          ? "Signal Fabric compare"
+                          : profile?.full_name
+                            ? `${profile.full_name.split(" ")[0]} · Muse prêt`
+                            : "Touchez Muse pour voir son activité"}
+                  </span>
+                </div>
               </button>
             </SheetTrigger>
             <SheetContent side="bottom" className="h-[82dvh] overflow-hidden rounded-t-[28px] p-0">
-              <SheetHeader className="sr-only"><SheetTitle>Intelligence WAOUH</SheetTitle></SheetHeader>
+              <SheetHeader className="sr-only"><SheetTitle>Activité et intelligence WAOUH</SheetTitle></SheetHeader>
               <WaouhUnifiedIntelligenceDock
                 compact
                 state={agentState}
@@ -255,6 +258,10 @@ export default function WaouhChatScreen() {
               />
             </SheetContent>
           </Sheet>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <WaouhCityBadge geo={geo} loading={geoLoading} onSetCity={setCity} onRefresh={refresh} compact />
           <div className="[&_button]:text-white [&_button:hover]:bg-white/15">
             <WaouhNotificationsBell
               permission={permission}
@@ -317,20 +324,22 @@ export default function WaouhChatScreen() {
         </div>
       </header>
 
-      {/* Tabs bar — switch between main WAOUH and product chats */}
-      <WaouhChatTabs
-        matches={matches}
-        activeKey={activeKey}
-        onSelect={setActiveKey}
-        onClose={close}
-        sessionId={sessionId}
-      />
+      {/* Deal Rooms appear as contextual side chats only when they exist. */}
+      {matches.length > 0 && (
+        <WaouhChatTabs
+          matches={matches}
+          activeKey={activeKey}
+          onSelect={setActiveKey}
+          onClose={close}
+          sessionId={sessionId}
+        />
+      )}
 
       {/* Active panel fills remaining space. Inactive panels stay mounted (hidden) to preserve state. */}
       <div className="flex-1 min-h-0 relative">
         <div className={cn("absolute inset-0 flex flex-col", activeKey === "main" ? "" : "hidden")}>
           <ErrorBoundary fallback={<MobileErrorFallback />}>
-            <WaouhWebChat ref={chatRef} fullscreen variant="native" composerTopSlot={composerIntelligence} onAgentStateChange={setAgentState} />
+            <WaouhWebChat ref={chatRef} fullscreen variant="native" composerTopSlot={composerIntelligence} onAgentStateChange={setAgentState} hideAgentBar />
           </ErrorBoundary>
         </div>
         {matches.map((m) => (
