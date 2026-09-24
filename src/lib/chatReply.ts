@@ -45,6 +45,7 @@ export function normalizeResultCards(value: unknown, catalogue = false): WaouhRe
       price: number(r.price ?? r.prix), price_min: number(r.price_min ?? r.prix_min), price_max: number(r.price_max ?? r.prix_max),
       city: label(r.city, r.ville), photos: [...new Set(photos)],
       source_url: label(r.source_url, r.url, r.sourceUrl) || null,
+      fabric_id: label(r.fabric_id, r.fabricId) || null,
       intent: label(r.intent, r.signal_intent) || null,
       actor_type: label(r.actor_type, r.actor_role, r.role) || null,
       contactability_level: label(r.contactability_level, r.contactability, object(r.evidence).contactability_level) || null,
