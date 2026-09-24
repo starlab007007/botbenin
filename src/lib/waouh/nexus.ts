@@ -164,3 +164,82 @@ export function nexusBadgeLabel(value: string) {
   if (value === "trusted") return "Confiance";
   return value;
 }
+
+
+export type NexusSourceStatus = {
+  providers: Array<{ provider: string; active: boolean; daily_quota?: number | null; usage_today?: number | null; last_test_at?: string | null; last_test_status?: string | null }>;
+  offers: Record<string, number>;
+  demands: Record<string, number>;
+  radar: { sources: Record<string, number>; intents: Record<string, number>; contacts_ready: number };
+};
+
+export async function identifyNexusVisual(imageUrl: string, hint?: string) {
+  return invokeWaouhAgentic<{ identification: Record<string, unknown>; query: string; image_url: string }>(
+    "nexus.identify_visual",
+    { image_url: imageUrl, ...(hint ? { hint } : {}) },
+  );
+}
+
+export async function lookupNexusBarcode(code: string) {
+  return invokeWaouhAgentic<{
+    code: string;
+    query: string;
+    articles: unknown[];
+    catalog: unknown[];
+    observations: unknown[];
+  }>("nexus.barcode_lookup", { code });
+}
+
+export async function getNexusMarketHistory(query: string, city?: string) {
+  return invokeWaouhAgentic<{ query: string; points: Array<{
+    observed_at: string;
+    min_amount?: number | null;
+    median_amount?: number | null;
+    max_amount?: number | null;
+    average_amount?: number | null;
+    sample_count?: number;
+    source_mix?: Record<string, number>;
+  }> }>("nexus.market_history", { query, ...(city ? { city } : {}) });
+}
+
+export async function getNexusSources() {
+  return invokeWaouhAgentic<NexusSourceStatus>("nexus.sources", {});
+}
+
+export async function submitNexusScoutReport(payload: {
+  title: string;
+  observed_price?: number;
+  city?: string;
+  place_name?: string;
+  source_type?: "field" | "shop" | "market" | "barcode" | "photo" | "receipt" | "partner";
+  photo_urls?: string[];
+  gtin?: string;
+  availability?: "available" | "low_stock" | "out_of_stock" | "unknown";
+  note?: string;
+}) {
+  return invokeWaouhAgentic<{ report: Record<string, unknown> }>("nexus.scout.submit", payload);
+}
+
+export async function createNexusBuyerAutopilot(payload: {
+  goal: string;
+  budget_max?: number;
+  city?: string;
+}) {
+  return invokeWaouhAgentic<{ mode: "buyer"; mission: Record<string, unknown>; watch: Record<string, unknown> }>(
+    "nexus.autopilot.create",
+    { mode: "buyer", ...payload },
+  );
+}
+
+export async function createNexusSellerAutopilot(payload: {
+  article_id: string;
+  goal: string;
+  min_price_amount?: number;
+  max_discount_percent?: number;
+  delivery_zones?: string[];
+}) {
+  return invokeWaouhAgentic<{ mode: "seller"; article: Record<string, unknown>; policy: Record<string, unknown> }>(
+    "nexus.autopilot.create",
+    { mode: "seller", ...payload },
+  );
+}
