@@ -1,3 +1,7 @@
+import { normalizeChatReply } from "@/lib/chatReply";
+import { WaouhProductResults } from "@/components/waouh/WaouhProductCard";
+import { WaouhAgentBlocks } from "@/components/waouh/WaouhAgentBlocks";
+import { ChatImage } from "@/app-mobile/components/ChatImage";
 
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -19,13 +23,14 @@ interface ChatMessageProps {
 }
 
 export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onToggleBookmark }) => {
+  const reply = React.useMemo(() => message.isUser ? { text: message.content, results: [], attachments: [], actions: [], blocks: [] } : normalizeChatReply(message.content), [message.content, message.isUser]);
   const [displayedContent, setDisplayedContent] = useState('');
   const [isTyping, setIsTyping] = useState(false);
 
   useEffect(() => {
     // Si c'est un message utilisateur ou un message d'historique, afficher immédiatement
     if (message.isUser || message.isHistoryMessage) {
-      setDisplayedContent(message.content);
+      setDisplayedContent(reply.text);
       setIsTyping(false);
       return;
     }
@@ -35,7 +40,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onToggleBookm
     setIsTyping(true);
     
     let currentIndex = 0;
-    const content = message.content;
+    const content = reply.text;
     
     const typingTimer = setInterval(() => {
       if (currentIndex < content.length) {
@@ -48,7 +53,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onToggleBookm
     }, 20);
 
     return () => clearInterval(typingTimer);
-  }, [message.content, message.isUser, message.isHistoryMessage]);
+  }, [reply.text, message.isUser, message.isHistoryMessage]);
 
   return (
     <div className={`flex ${message.isUser ? 'justify-end' : 'justify-start'} mb-4 px-1`}>
@@ -90,7 +95,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onToggleBookm
             </div>
           )}
 
-          <div className={`chat-bubble ${message.isUser ? 'chat-bubble-out' : 'chat-bubble-in'}`}>
+          <div className={`chat-bubble !max-w-full min-w-0 ${message.isUser ? 'chat-bubble-out' : 'chat-bubble-in'}`}>
             <div className="text-sm leading-relaxed break-words">
               {isTyping ? (
                 <div className="whitespace-pre-wrap">
@@ -101,6 +106,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message, onToggleBookm
                 <MediaRenderer content={displayedContent} />
               )}
             </div>
+            {reply.results.length > 0 && <WaouhProductResults results={reply.results} />}
+            {reply.blocks.length > 0 && <WaouhAgentBlocks blocks={reply.blocks} />}
+            {reply.attachments.filter((a) => a.type.startsWith('image')).map((a, i) => <ChatImage key={a.url + i} src={a.url} caption={a.caption} />)}
           </div>
 
           {/* Timestamp */}

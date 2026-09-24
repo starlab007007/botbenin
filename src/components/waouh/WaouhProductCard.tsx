@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { normalizeResultCards } from "@/lib/chatReply";
 import {
   ChevronLeft,
   ChevronRight,
@@ -66,9 +67,9 @@ const PENDING_OPEN_KEY = "waouh_pending_open";
 const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
 
 function priceLabel(r: WaouhResultCard): string {
-  if (r.price_min && r.price_max && r.price_min !== r.price_max) return `${fmt(r.price_min)} – ${fmt(r.price_max)}`;
+  if (r.price_min != null && r.price_max != null && r.price_min !== r.price_max) return `${fmt(r.price_min)} – ${fmt(r.price_max)}`;
   const p = r.price ?? r.price_min ?? r.price_max;
-  return p ? fmt(Number(p)) : "Prix à négocier";
+  return p != null && Number.isFinite(Number(p)) ? fmt(Number(p)) : "Prix à négocier";
 }
 
 function SourceIcon({ source }: { source?: string }) {
@@ -108,7 +109,7 @@ function shouldOpenOptimistically(result: WaouhResultCard): boolean {
 
 function openDedicatedWindowFromResult(result: WaouhResultCard) {
   if (!shouldOpenOptimistically(result)) return;
-  const photos = (result.photos || []).filter(Boolean);
+  const photos = normalizeResultCards([result])[0]?.photos || [];
   const detail: OpenDetail = {
     article_id: result.id,
     counterpart_user_id: result.counterpart_user_id ?? result.seller_id ?? null,
@@ -137,9 +138,10 @@ export function WaouhProductCard({
   onAction?: (text: string) => void;
   compact?: boolean;
 }) {
-  const photos = (result.photos || []).filter(Boolean);
+  const photos = normalizeResultCards([result])[0]?.photos || [];
   const [cur, setCur] = useState(0);
   const [zoom, setZoom] = useState<number | null>(null);
+  const [failed, setFailed] = useState(false);
   const [ready, setReady] = useState<boolean>(() => isImageReady(photos[0]));
   const [asking, setAsking] = useState(false);
   const [question, setQuestion] = useState("");
@@ -147,6 +149,8 @@ export function WaouhProductCard({
   const interestAction = result.action === null ? null : (result.action || defaultInterestAction(result));
 
   useEffect(() => {
+    setFailed(false);
+    if (cur >= photos.length && cur !== 0) { setCur(0); setZoom(null); return; }
     const url = photos[cur];
     if (!url) return;
     if (isImageReady(url)) {
@@ -188,15 +192,16 @@ export function WaouhProductCard({
               className="block w-full h-full"
               aria-label={`Agrandir la photo de ${result.title}`}
             >
-              {!ready && <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-muted to-muted-foreground/10" />}
-              <img
+              {!ready && !failed && <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-muted to-muted-foreground/10" />}
+              {failed ? <span className="flex h-full items-center justify-center gap-2 text-xs text-muted-foreground"><ImageOff className="h-5 w-5" />Photo indisponible</span> : <img
                 src={photos[cur]}
                 alt={result.title}
                 loading="lazy"
                 decoding="async"
                 onLoad={() => setReady(true)}
+                onError={() => setFailed(true)}
                 className={cn("w-full h-full object-cover transition-opacity duration-200", ready ? "opacity-100" : "opacity-0")}
-              />
+              />}
             </button>
             <button
               type="button"
@@ -280,12 +285,12 @@ export function WaouhProductCard({
                 Je suis intéressé
               </Button>
             )}
-            <div className="grid grid-cols-2 gap-1.5">
-              <Button size="sm" variant="outline" className="h-8 text-[11px]" onClick={() => setAsking((a) => !a)}>
-                <MessageCircleQuestion className="h-3.5 w-3.5 mr-1" />
-                Question au {counterpartWord}
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-1.5">
+              <Button size="sm" variant="outline" className="h-8 min-w-0 px-2 text-[11px]" onClick={() => setAsking((a) => !a)}>
+                <MessageCircleQuestion className="h-3.5 w-3.5 mr-1 shrink-0" />
+                <span className="truncate">Question au {counterpartWord}</span>
               </Button>
-              <Button size="sm" variant="ghost" className="h-8 text-[11px] text-muted-foreground hover:text-destructive" onClick={() => onAction(`annuler ${result.index}`)}>
+              <Button size="sm" variant="ghost" className="h-8 px-2 text-[11px] text-muted-foreground hover:text-destructive" onClick={() => onAction(`annuler ${result.index}`)}>
                 <X className="h-3.5 w-3.5 mr-1" />
                 Annuler
               </Button>
@@ -325,21 +330,43 @@ export function WaouhProductResults({
   onAction?: (text: string) => void;
   compact?: boolean;
 }) {
-  if (!results?.length) return null;
-  const normalized = results.map((r, i) => {
-    const idx = Number(r.index) || i + 1;
-    return {
-      ...r,
-      index: idx,
-      action: r.action === null ? null : (r.action || `intéressé ${idx}`),
-    };
-  });
+  const normalized = normalizeResultCards(results);
+  const rail = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState(0);
+  const scroll = (step: number) => {
+    const el = rail.current;
+    if (!el) return;
+    el.scrollBy({ left: step * Math.max(1, el.clientWidth - 24), behavior: 'smooth' });
+  };
+  const updatePosition = () => {
+    const el = rail.current;
+    if (!el) return;
+    const max = el.scrollWidth - el.clientWidth;
+    setPosition(max <= 1 ? 2 : el.scrollLeft <= 1 ? 0 : el.scrollLeft >= max - 1 ? 2 : 1);
+  };
+  useEffect(() => {
+    updatePosition();
+    if (typeof ResizeObserver === 'undefined' || !rail.current) return;
+    const observer = new ResizeObserver(updatePosition);
+    observer.observe(rail.current);
+    return () => observer.disconnect();
+  }, [normalized.length]);
+  if (!normalized.length) return null;
   return (
-    <div className="not-prose mt-2 grid gap-2 sm:grid-cols-2">
-      {normalized.map((r) => (
-        <WaouhProductCard key={`${r.id}-${r.index}`} result={r} onAction={onAction} compact={compact} />
-      ))}
-    </div>
+    <section aria-label="Articles proposés" aria-roledescription="carrousel" className="not-prose mt-2 min-w-0 w-full overflow-hidden">
+      {normalized.length > 1 && <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="text-xs text-muted-foreground">{normalized.length} articles · Faites défiler</span>
+        <div className="flex gap-1">
+          <Button type="button" size="icon" variant="outline" className="h-7 w-7" aria-label="Articles précédents" disabled={position === 0 || (position === 2 && (rail.current?.scrollLeft || 0) <= 1)} onClick={() => scroll(-1)}><ChevronLeft className="h-4 w-4" /></Button>
+          <Button type="button" size="icon" variant="outline" className="h-7 w-7" aria-label="Articles suivants" disabled={position === 2} onClick={() => scroll(1)}><ChevronRight className="h-4 w-4" /></Button>
+        </div>
+      </div>}
+      <div ref={rail} onScroll={updatePosition} className="flex min-w-0 gap-3 overflow-x-auto overscroll-x-contain snap-x snap-mandatory pb-2">
+        {normalized.map((r, i) => <div key={`${r.id}-${r.index}`} role="group" aria-label={`${i + 1} sur ${normalized.length}`} className={cn("min-w-0 shrink-0 snap-start", normalized.length === 1 ? "w-full" : "w-[calc(100%-1rem)] sm:w-[260px]")}>
+          <WaouhProductCard result={r} onAction={r.source === 'catalogue' ? undefined : onAction} compact={compact} />
+        </div>)}
+      </div>
+    </section>
   );
 }
 

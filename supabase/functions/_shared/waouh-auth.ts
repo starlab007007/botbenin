@@ -23,6 +23,15 @@ export function requestSessionId(req: Request): string | null {
   return v && v.trim() ? v.trim() : null;
 }
 
+/** Internal Edge-to-Edge calls use the project service-role bearer token. */
+export function isServiceRoleRequest(req: Request): boolean {
+  const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  if (!serviceRole) return false;
+  const authHeader = req.headers.get("authorization") || req.headers.get("Authorization") || "";
+  if (!authHeader.toLowerCase().startsWith("bearer ")) return false;
+  return authHeader.slice(7).trim() === serviceRole;
+}
+
 export async function getRequestUser(req: Request): Promise<{ id: string; email?: string | null } | null> {
   const authHeader = req.headers.get("authorization") || req.headers.get("Authorization") || "";
   if (!authHeader.toLowerCase().startsWith("bearer ")) return null;

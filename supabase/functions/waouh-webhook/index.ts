@@ -12,6 +12,10 @@ import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identit
 import { findRadarOutreachContext, findRadarSellerOutreachContext } from "../_shared/waouh-radar.ts";
 import { extractFallbackKeywords, expandKeywordVariants, escapeIlikeToken, matchesAnyKeyword, scoreRelevance, normalizeCategorySafe } from "../_shared/waouh-keywords.ts";
 import { compareMarketPrice, shortMarketLine } from "../_shared/waouh-price.ts";
+import {
+  nativeEngineRequestAuthorized,
+  requiresNativeEngineAuthorization,
+} from "../_shared/waouh-tel/native-engine-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -288,6 +292,18 @@ serve(async (req) => {
     const channel = body.channel ?? (webSessionId ? "web" : "whatsapp");
     const attachments = Array.isArray(body.attachments) ? body.attachments : [];
     const passedUserId = body.user_id || null;
+    const nativeMessagingRequest = requiresNativeEngineAuthorization(body);
+
+    if (nativeMessagingRequest) {
+      const expected = Deno.env.get("WAOUH_TEL_INTERNAL_SECRET") || "";
+      const authorization = req.headers.get("authorization") || "";
+      if (!nativeEngineRequestAuthorized(body, authorization, expected)) {
+        return new Response(JSON.stringify({ error: "native_messaging_authorization_required" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     if ((!phone && !webSessionId) || (!text && attachments.length === 0)) {
       return new Response(JSON.stringify({ ok: true, skipped: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -508,7 +524,7 @@ serve(async (req) => {
     // (1 fenêtre = 1 article × 1 interlocuteur).
     let returnedCounterpartId: string | null = null;
     let returnedTransactionId: string | null = null;
-    let replyAttachments: Array<{ url: string; type: string }> = [];
+    let replyAttachments: Array<{ url: string; type: string; caption?: string }> = [];
     // 🖼️ v14 — Fiches produit structurées (1 fiche = 1 article + SES photos).
     // Consommées par les surfaces riches (web / mobile) ; WhatsApp continue
     // d'utiliser `reply` (texte) + `attachments` (images).
@@ -560,7 +576,7 @@ serve(async (req) => {
       payload: any;
       image_url?: string | null;
       directText: string;
-      directAtts?: Array<{ url: string; type: string }>;
+      directAtts?: Array<{ url: string; type: string; caption?: string }>;
       directMeta?: any;
       transaction_id?: string | null;
       dedupe_key?: string | null;
@@ -770,6 +786,7 @@ serve(async (req) => {
           : "🤔 Je n'ai pas compris le produit. Précisez son nom. Ex : *Je vends iPhone 12 à 120000 FCFA*.";
 
       } else {
+        const finalPrice = inferredPrice!;
         const photoUrls = attachments
           .filter((a: any) => /^image\//i.test(String(a?.type || "image/jpeg")))
           .map((a: any) => a?.url)
@@ -781,7 +798,7 @@ serve(async (req) => {
           category: productCategory,
           brand: product.brand, model: product.model,
           condition: product.condition || "good",
-          price: inferredPrice, currency: "XOF",
+          price: finalPrice, currency: "XOF",
           city: user!.city,
           location: `SRID=4326;POINT(${lng} ${lat})` as any,
           photos: photoUrls,
@@ -803,18 +820,18 @@ serve(async (req) => {
               query: `${resolvedTitle} ${product.brand || ""} ${product.model || ""}`.trim(),
               city: user!.city, category: productCategory,
               brand: product.brand ?? null, model: product.model ?? null,
-              askedPrice: inferredPrice,
+              askedPrice: finalPrice,
             }),
             new Promise<null>((res) => setTimeout(() => res(null), 6000)),
           ]);
           if (cmp && (cmp as any).replyBlock) marketBlock = (cmp as any).replyBlock;
         } catch (e) { console.error("[SELL price-compare]", e); }
         if (!marketBlock) {
-          const min = product.market_price_min || inferredPrice * 0.8;
-          const max = product.market_price_max || inferredPrice * 1.2;
+          const min = product.market_price_min || finalPrice * 0.8;
+          const max = product.market_price_max || finalPrice * 1.2;
           marketBlock = `📊 *Prix marché estimé*\n• Bas : ${fmt(min)}\n• Haut : ${fmt(max)}\n⚠️ Comparables limités — estimation indicative.`;
         }
-        reply = `${waouhHeader("✅ Annonce publiée")}\n\n📦 *${resolvedTitle}*\n💰 *Prix* : ${fmt(inferredPrice)}\n🏙️ *Ville* : ${user!.city}${photoLine}\n\n${marketBlock}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.\n\n${waouhFooter()}`;
+        reply = `${waouhHeader("✅ Annonce publiée")}\n\n📦 *${resolvedTitle}*\n💰 *Prix* : ${fmt(finalPrice)}\n🏙️ *Ville* : ${user!.city}${photoLine}\n\n${marketBlock}\n\n🔔 Les acheteurs intéressés dans votre zone seront notifiés automatiquement.\n\n${waouhFooter()}`;
         // Une seule bulle WhatsApp pour la confirmation de publication, sans boutons.
         returnedActions = [];
 
@@ -865,7 +882,7 @@ serve(async (req) => {
               p_to_user_id: null,
               p_template: "radar_buyer_outreach",
               p_payload: {
-                text: `🎯 WAOUH a trouvé pour vous : *${resolvedTitle}* à ${fmt(inferredPrice)} (${user!.city}). Répondez *OUI* pour être mis en relation avec le vendeur.`,
+                text: `🎯 WAOUH a trouvé pour vous : *${resolvedTitle}* à ${fmt(finalPrice)} (${user!.city}). Répondez *OUI* pour être mis en relation avec le vendeur.`,
                 article_id: art?.id,
                 radar_signal_id: b.id,
               },
@@ -1318,8 +1335,8 @@ serve(async (req) => {
           };
           try {
             const art = r._from_external
-              ? await promoteExternalListing(sb, r, criteriaCategory)
-              : await promoteRadarSeller(sb, r, criteriaCategory);
+              ? await promoteExternalListing(sb, r, criteriaCategory ?? undefined)
+              : await promoteRadarSeller(sb, r, criteriaCategory ?? undefined);
             if (art?.id) {
               entry = {
                 id: art.id,

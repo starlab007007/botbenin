@@ -112,7 +112,7 @@ async function fetchUnified(sb: any, q: PriceCompareInput): Promise<PriceSample[
     const hi = Number(r.prix_max) || lo;
     const price = lo && hi ? Math.round((lo + hi) / 2) : (lo || hi);
     return { price, title: r.titre, source: "Catalogue WAOUH", city: r.ville, layer: "unified" as const };
-  }).filter((s) => s.price > 0);
+  }).filter((s: PriceSample) => s.price > 0);
 }
 
 async function fetchInternal(sb: any, q: PriceCompareInput): Promise<PriceSample[]> {

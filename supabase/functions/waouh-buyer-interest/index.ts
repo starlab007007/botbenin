@@ -8,6 +8,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
+import { requestSessionId, requireAuthOrGuestSession } from "../_shared/waouh-auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -23,6 +24,10 @@ Deno.serve(async (req) => {
       });
     }
 
+    const requestedSession = body?.sessionId ?? body?.session_id ?? requestSessionId(req);
+    const requestAuth = await requireAuthOrGuestSession(req, requestedSession);
+    if (!requestAuth.ok) return requestAuth.response;
+
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
     // 🆕 Promotion catalog → article si nécessaire (tunnel partenaire)
@@ -37,22 +42,21 @@ Deno.serve(async (req) => {
       article_id = promo.article_id;
     }
 
-    // Resolve the calling user from the JWT (if any)
-    const auth = req.headers.get("Authorization") ?? "";
-    const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
-    let authUserId: string | null = null;
-    if (token) {
-      try {
-        const { data } = await sb.auth.getUser(token);
-        authUserId = data?.user?.id ?? null;
-      } catch { /* anonymous */ }
-    }
-
-    // Resolve buyer waouh_users id
+    // Resolve the buyer exclusively from the verified JWT or guest session.
+    const authUserId = requestAuth.authUser?.id ?? null;
     let buyerUserId: string | null = null;
     if (authUserId) {
-      const { data } = await sb.from("waouh_users").select("id").eq("auth_user_id", authUserId).maybeSingle();
+      const { data } = await sb.from("waouh_users").select("id").eq("auth_user_id", authUserId).limit(1).maybeSingle();
       buyerUserId = data?.id ?? null;
+    } else if (requestAuth.headerSessionId) {
+      const { data } = await sb.from("waouh_users").select("id")
+        .eq("web_session_id", requestAuth.headerSessionId).limit(1).maybeSingle();
+      buyerUserId = data?.id ?? null;
+    }
+    if (!buyerUserId) {
+      return new Response(JSON.stringify({ error: "buyer_identity_required" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Load article + seller

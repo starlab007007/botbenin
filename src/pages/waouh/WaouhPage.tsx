@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ShoppingBag, TrendingUp, Users, Coins, Activity, Sparkles, MapPin, Clock, ExternalLink, Play, MessageCircle, QrCode, RefreshCw, Radar, ArrowLeft, Megaphone } from "lucide-react";
+import { ShoppingBag, TrendingUp, Users, Coins, Activity, Sparkles, MapPin, Clock, ExternalLink, Play, MessageCircle, MessagesSquare, QrCode, RefreshCw, Radar, ArrowLeft, Megaphone } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -171,6 +171,11 @@ export default function WaouhPage() {
               <Link to="/admin/waouh/health-check">
                 <Button variant="secondary" className="bg-white/15 hover:bg-white/25 text-white border-white/30">
                   <MessageCircle className="w-4 h-4 mr-2" /> Health Check
+                </Button>
+              </Link>
+              <Link to="/admin/waouh/native-messaging">
+                <Button variant="secondary" className="bg-white/15 hover:bg-white/25 text-white border-white/30">
+                  <MessagesSquare className="w-4 h-4 mr-2" /> Native Messaging
                 </Button>
               </Link>
               <Link to="/admin/waouh/demo">

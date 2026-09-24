@@ -16,17 +16,24 @@ export const useAdminRole = () => {
       }
 
       try {
-        // Appel sécurisé à la fonction SECURITY DEFINER
-        const { data, error } = await supabase.rpc('has_role', {
-          _user_id: user.id,
-          _role_name: 'admin'
-        });
+        // Appels sécurisés à la fonction SECURITY DEFINER. Un super-admin
+        // doit pouvoir ouvrir les mêmes routes protégées qu'un admin.
+        const [adminRole, superAdminRole] = await Promise.all([
+          supabase.rpc('has_role', {
+            _user_id: user.id,
+            _role_name: 'admin'
+          }),
+          supabase.rpc('has_role', {
+            _user_id: user.id,
+            _role_name: 'super_admin'
+          })
+        ]);
 
-        if (error) {
-          console.error('Error checking admin role:', error);
+        if (adminRole.error || superAdminRole.error) {
+          console.error('Error checking admin role:', adminRole.error || superAdminRole.error);
           setIsAdmin(false);
         } else {
-          setIsAdmin(data || false);
+          setIsAdmin(Boolean(adminRole.data || superAdminRole.data));
         }
       } catch (error) {
         console.error('Error in checkAdminRole:', error);
