@@ -96,7 +96,8 @@ const YovoGallery = lazy(() => import("./pages/YovoGallery"));
 // WAOUH module
 const WaouhPage = lazy(() => import("./pages/waouh/WaouhPage"));
 const WaouhDemoPage = lazy(() => import("./pages/waouh/WaouhDemoPage"));
-const WaouhNativeMessagingPublicPage = lazy(() => import("./pages/waouh/WaouhNativeMessagingPublicPage"));\nconst WaouhMusePage = lazy(() => import("./pages/waouh/WaouhMusePage"));
+const WaouhNativeMessagingPublicPage = lazy(() => import("./pages/waouh/WaouhNativeMessagingPublicPage"));
+const WaouhMusePage = lazy(() => import("./pages/waouh/WaouhMusePage"));
 
 const WaouhRadarPage = lazy(() => import("./pages/admin/WaouhRadarPage"));
 const WaouhWhatsAppOpsPage = lazy(() => import("./pages/admin/WaouhWhatsAppOpsPage"));
@@ -333,7 +334,8 @@ const AppContent = () => {
                   <Route path="/documentation" element={<DocumentationPortalPage />} />
                    <Route path="/yovo-gallery" element={<YovoGallery />} />
                    <Route path="/waouh-chat" element={<Navigate to="/app/chat" replace />} />
-                   <Route path="/waouh/messages" element={<WaouhNativeMessagingPublicPage />} />\n                   <Route path="/waouh/muse" element={<WaouhMusePage />} />
+                   <Route path="/waouh/messages" element={<WaouhNativeMessagingPublicPage />} />
+                   <Route path="/waouh/muse" element={<WaouhMusePage />} />
 
                   {/* WaouhApp — Mobile shell (Capacitor + web preview) */}
                   <Route path="/app/auth" element={<MobileAuthHome />} />
