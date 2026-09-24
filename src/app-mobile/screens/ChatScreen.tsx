@@ -208,11 +208,11 @@ export default function ChatScreen({
           <Button variant="ghost" size="icon" onClick={() => navigate("/app/chat")} className="text-white hover:bg-white/15"><ArrowLeft /></Button>
         )}
         <div className="flex-1 min-w-0">
-          <div className="font-semibold truncate flex items-center gap-2">
-            {headerLabel}
+          <div className="font-black truncate flex items-center gap-2">
+            WAOUH One
             <Badge className={`${headerBadge.tint} border-0 text-[9px] py-0 px-1.5 h-4`}>{headerBadge.label}</Badge>
           </div>
-          <div className="text-xs text-white/70 truncate">{meta?.phone_number ?? ""}</div>
+          <div className="text-xs text-white/70 truncate">{headerLabel}{meta?.phone_number ? ` · ${meta.phone_number}` : ""}</div>
         </div>
       </header>
 
@@ -322,7 +322,7 @@ export default function ChatScreen({
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-            placeholder="Message"
+            placeholder="Votre réponse…"
             rows={1}
             className="flex-1 resize-none rounded-2xl border bg-muted px-3 py-2 text-sm max-h-32 outline-none"
           />
@@ -330,7 +330,7 @@ export default function ChatScreen({
             onClick={send}
             disabled={sending || (!text.trim() && pendingAtts.length === 0)}
             size="icon"
-            className="bg-[#25D366] hover:bg-[#1da851] text-white rounded-full"
+            className="bg-emerald-700 hover:bg-emerald-800 text-white rounded-full"
           >
             <Send className="h-4 w-4" />
           </Button>

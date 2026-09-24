@@ -44,6 +44,18 @@ export function normalizeResultCards(value: unknown, catalogue = false): WaouhRe
       source: label(r.source) || (catalogue ? 'catalogue' : 'waouh'),
       price: number(r.price ?? r.prix), price_min: number(r.price_min ?? r.prix_min), price_max: number(r.price_max ?? r.prix_max),
       city: label(r.city, r.ville), photos: [...new Set(photos)],
+      source_url: label(r.source_url, r.url, r.sourceUrl) || null,
+      fabric_id: label(r.fabric_id, r.fabricId) || null,
+      intent: label(r.intent, r.signal_intent) || null,
+      actor_type: label(r.actor_type, r.actor_role, r.role) || null,
+      contactability_level: label(r.contactability_level, r.contactability, object(r.evidence).contactability_level) || null,
+      total_score: number(r.total_score ?? object(r.scores).total_score ?? r.match_score ?? r.score),
+      relevance_score: number(r.relevance_score ?? object(r.scores).relevance_score),
+      trust_score: number(r.trust_score ?? object(r.scores).trust_score),
+      price_score: number(r.price_score ?? object(r.scores).price_score),
+      location_score: number(r.location_score ?? object(r.scores).location_score),
+      freshness_score: number(r.freshness_score ?? object(r.scores).freshness_score),
+      reasons: Array.isArray(r.reasons) ? r.reasons : Array.isArray(object(r.scores).reasons) ? object(r.scores).reasons : null,
       action: r.action === null || (catalogue && r.action == null) ? null : typeof r.action === 'string' ? r.action : undefined,
     }];
   });
@@ -137,7 +149,19 @@ export function reconcileChatResponse<T extends ChatRow>(previous: T[], data: an
     messages = mergeChatRows(previous.filter((m) => m.id !== input.id), [{ ...input, id: data.inbound_message_id }]);
   }
   if (data.suppress_direct_reply) return messages;
-  const meta = { ...data.meta, ...reply, intent: data.intent, transaction_id: data.transaction_id, article_id: data.article_id, counterpart_user_id: data.counterpart_user_id, correlation_id: data.correlation_id };
+  const meta = {
+    ...data.meta,
+    ...reply,
+    intent: data.intent,
+    transaction_id: data.transaction_id,
+    article_id: data.article_id,
+    counterpart_user_id: data.counterpart_user_id,
+    correlation_id: data.correlation_id,
+    intelligence: data.intelligence ?? data.meta?.intelligence ?? null,
+    source_mix: data.source_mix ?? data.meta?.source_mix ?? null,
+    signal_fabric: data.signal_fabric ?? data.meta?.signal_fabric ?? null,
+    contactability_level: data.contactability_level ?? data.meta?.contactability_level ?? null,
+  };
   const outgoing = { id: data.outbound_message_id || input.id.replace('temp-in-', 'temp-out-'), direction: 'out', text: reply.text, created_at: new Date().toISOString(), attachments: reply.attachments, meta } as T;
   return mergeChatRows(messages, [outgoing]);
 }

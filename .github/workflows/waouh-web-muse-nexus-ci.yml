@@ -1,0 +1,76 @@
+name: WAOUH Web Muse NEXUS CI
+
+on:
+  push:
+    branches:
+      - feat/waouh-web-flutter-nexus-final
+      - prod
+    paths:
+      - "src/pages/waouh/**"
+      - "src/components/waouh/**"
+      - "src/lib/waouh/**"
+      - "src/App.tsx"
+      - "src/app-mobile/screens/ChatListScreen.tsx"
+      - "src/app-mobile/screens/WaouhChatScreen.tsx"
+      - "src/app-mobile/screens/ChatScreen.tsx"
+      - "src/app-mobile/components/ChatRightPane.tsx"
+      - "supabase/functions/waouh-agentic-core/**"
+      - "supabase/functions/waouh-channel-in/**"
+      - "supabase/functions/_shared/waouh-nexus.ts"
+      - "supabase/functions/_shared/waouh-signal-fabric.ts"
+      - ".github/workflows/waouh-web-muse-nexus-ci.yml"
+  pull_request:
+    branches:
+      - prod
+    paths:
+      - "src/pages/waouh/**"
+      - "src/components/waouh/**"
+      - "src/lib/waouh/**"
+      - "src/App.tsx"
+      - "src/app-mobile/screens/ChatListScreen.tsx"
+      - "src/app-mobile/screens/WaouhChatScreen.tsx"
+      - "src/app-mobile/screens/ChatScreen.tsx"
+      - "src/app-mobile/components/ChatRightPane.tsx"
+      - "supabase/functions/waouh-agentic-core/**"
+      - "supabase/functions/waouh-channel-in/**"
+      - "supabase/functions/_shared/waouh-nexus.ts"
+      - "supabase/functions/_shared/waouh-signal-fabric.ts"
+  workflow_dispatch:
+
+concurrency:
+  group: waouh-web-muse-nexus-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate-web-and-edge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      - name: Build Web
+        run: npm run build
+
+      - name: Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Check NEXUS Edge Function
+        run: deno check supabase/functions/waouh-agentic-core/index.ts
+
+      - name: Check WAOUH Chat Channel
+        run: deno check supabase/functions/waouh-channel-in/index.ts

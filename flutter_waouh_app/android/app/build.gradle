@@ -1,0 +1,83 @@
+import java.util.Properties
+
+plugins {
+    id "com.android.application"
+    id "org.jetbrains.kotlin.android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+final keystoreProperties = new Properties()
+final keystorePropertiesFile = rootProject.file("key.properties")
+final testReleaseWithDebugCertificate = System.getenv("WAOUH_TEST_RELEASE") == "1"
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+
+android {
+    namespace = "bj.bot.waouhapp"
+    compileSdk = 36
+    ndkVersion = "28.2.13676358"
+
+    compileOptions {
+        coreLibraryDesugaringEnabled true
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_1_8
+    }
+
+    defaultConfig {
+        applicationId = "bj.bot.waouhapp"
+        minSdkVersion = flutter.minSdkVersion
+        targetSdk = 36
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
+    }
+
+    packaging {
+        jniLibs {
+            // Reduces the downloadable TEST APK. Android extracts the native
+            // libraries at installation time; this is not used by default
+            // outside WAOUH_TEST_RELEASE=1.
+            useLegacyPackaging = testReleaseWithDebugCertificate
+        }
+    }
+
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            } else if (testReleaseWithDebugCertificate) {
+                // Test-only optimized build: Android's generated debug
+                // certificate is used. Never use this artifact for Play.
+                signingConfig = signingConfigs.debug
+            } else {
+                throw new GradleException("Release signing is required. For an optimized TEST APK only, run with WAOUH_TEST_RELEASE=1.")
+            }
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+        }
+    }
+}
+
+dependencies {
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.3'
+}
+
+flutter {
+    source = "../.."
+}

@@ -5,6 +5,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { lidToPhoneInline } from "../_shared/waouh-format.ts";
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 import { isServiceRoleRequest } from "../_shared/waouh-auth.ts";
+import {
+  contactabilityPolicy,
+  scoreFabricSignal,
+  type FabricSignal,
+} from "../_shared/waouh-signal-fabric.ts";
 
 
 const corsHeaders = {
@@ -205,6 +210,278 @@ async function sendWahaReply(base: string, session: string, chatIds: string[], t
     console.warn("[waouh-channel-in] waha reply failed", lastError);
   }
   return { ok: false, error: lastError || "no chatId" };
+}
+
+
+type ChatNexusMode = "find_sellers" | "find_buyers";
+
+function chatBudgetMax(text: string, mode: ChatNexusMode): number | null {
+  if (mode !== "find_sellers") return null;
+  const normalized = String(text || "").replace(/\u00a0/g, " ");
+  const explicit = normalized.match(
+    /(?:max(?:imum)?|budget|moins\s+de|jusqu['’]?a|jusqu['’]?à)\s*[:=]?\s*(\d[\d\s.,]*)/i,
+  );
+  const candidate = explicit?.[1] ?? normalized.match(/(\d[\d\s.,]*)\s*(?:fcfa|cfa|xof)\b/i)?.[1] ?? null;
+  if (!candidate) return null;
+  const digits = candidate.replace(/[^\d]/g, "");
+  const value = Number(digits);
+  return Number.isFinite(value) && value >= 100 ? value : null;
+}
+
+function chatSignalPhoto(signal: any): string[] {
+  const evidence = signal?.evidence && typeof signal.evidence === "object" ? signal.evidence : {};
+  const photos = Array.isArray(evidence.photos) ? evidence.photos : [];
+  const candidates = [...photos, evidence.image_url, evidence.photo, evidence.thumbnail];
+  return [...new Set(
+    candidates.filter((value) => typeof value === "string" && /^https?:\/\//i.test(value)),
+  )].slice(0, 4) as string[];
+}
+
+function chatSignalKey(row: any) {
+  const title = String(row?.title ?? row?.subject ?? row?.product_name ?? "").toLowerCase().trim();
+  const price = Number(row?.price ?? row?.price_min ?? row?.price_max ?? 0) || 0;
+  const city = String(row?.city ?? "").toLowerCase().trim();
+  return [title, price, city].join("|");
+}
+
+async function enrichChatWithSignalFabric(
+  sb: any,
+  input: {
+    intent: string;
+    text: string;
+    city?: string | null;
+    coreResults: any[];
+  },
+) {
+  const intent = String(input.intent || "").toUpperCase();
+  if (!["BUY", "SELL"].includes(intent)) {
+    return {
+      results: input.coreResults,
+      intelligence: null,
+      source_mix: null,
+      signal_fabric: null,
+      contactability_level: null,
+    };
+  }
+
+  const mode: ChatNexusMode = intent === "BUY" ? "find_sellers" : "find_buyers";
+  const desired = mode === "find_sellers" ? ["SELL", "ANNOUNCE"] : ["BUY", "RFQ"];
+  const budgetMax = chatBudgetMax(input.text, mode);
+
+  try {
+    const { data, error } = await sb.from("waouh_signal_fabric")
+      .select("*")
+      .in("intent", desired)
+      .order("observed_at", { ascending: false })
+      .limit(2500);
+    if (error) throw error;
+
+    const fold = (value: unknown) =>
+      String(value ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+    const foldedText = fold(input.text);
+    const explicitCity = [...new Set(
+      (data ?? [])
+        .map((signal: any) => signal.city)
+        .filter((value: unknown) => typeof value === "string" && value.trim()),
+    )].find((candidate: any) => {
+      const cityToken = fold(candidate);
+      return cityToken.length >= 3 && foldedText.includes(cityToken);
+    }) as string | undefined;
+    const scoringCity = explicitCity ?? input.city ?? null;
+
+    const ranked = (data ?? [])
+      .map((signal: FabricSignal) => ({
+        ...signal,
+        scores: scoreFabricSignal({
+          query: input.text,
+          mode,
+          city: scoringCity,
+          budgetMax,
+          signal,
+        }),
+        contact_policy: contactabilityPolicy(signal.contactability_level),
+      }))
+      .filter((row: any) =>
+        row.scores.relevance_score >= 18 && row.scores.total_score >= 32
+      )
+      .sort((a: any, b: any) => b.scores.total_score - a.scores.total_score)
+      .slice(0, 20);
+
+    const sourceMix = ranked.reduce((acc: Record<string, number>, row: any) => {
+      const key = String(row.source_key ?? "unknown");
+      acc[key] = (acc[key] ?? 0) + 1;
+      return acc;
+    }, {});
+
+    const rankedByKey = new Map<string, any>();
+    const rankedByRecordId = new Map<string, any>();
+    for (const row of ranked) {
+      rankedByKey.set(chatSignalKey(row), row);
+      const evidence =
+        row?.evidence && typeof row.evidence === "object" ? row.evidence : {};
+      for (const candidateId of [
+        evidence.article_id,
+        evidence.catalog_id,
+        evidence.external_listing_id,
+        evidence.buyer_profile_id,
+        row.source_record_id,
+      ]) {
+        if (candidateId != null) rankedByRecordId.set(String(candidateId), row);
+      }
+    }
+
+    // Enrichit les cartes historiques sans modifier leur ordre ni leur action.
+    // L'index métier reste donc parfaitement aligné avec last_matches.
+    const enrichedCore = input.coreResults.map((row: any) => {
+      const matched =
+        (row?.id != null ? rankedByRecordId.get(String(row.id)) : null) ??
+        rankedByKey.get(chatSignalKey(row)) ??
+        null;
+      if (!matched) return row;
+      const scores = matched.scores ?? null;
+      return {
+        ...row,
+        fabric_id: row.fabric_id ?? matched.fabric_id ?? null,
+        source_url: row.source_url ?? matched.source_url ?? null,
+        intent: row.intent ?? matched.intent ?? null,
+        actor_type: row.actor_type ?? matched.actor_type ?? null,
+        contactability_level:
+          row.contactability_level ?? matched.contactability_level ?? "C0",
+        total_score: row.total_score ?? scores?.total_score ?? null,
+        relevance_score:
+          row.relevance_score ?? scores?.relevance_score ?? null,
+        trust_score: row.trust_score ?? scores?.trust_score ?? null,
+        price_score: row.price_score ?? scores?.price_score ?? null,
+        location_score:
+          row.location_score ?? scores?.location_score ?? null,
+        freshness_score:
+          row.freshness_score ?? scores?.freshness_score ?? null,
+        scores: row.scores ?? scores,
+        reasons: row.reasons ?? scores?.reasons ?? [],
+        evidence: row.evidence ?? matched.evidence ?? null,
+      };
+    });
+
+    const existing = new Set(enrichedCore.map(chatSignalKey));
+    const appended: any[] = [];
+
+    for (const row of ranked) {
+      const evidence =
+        row?.evidence && typeof row.evidence === "object" ? row.evidence : {};
+      const candidate = {
+        index: enrichedCore.length + appended.length + 1,
+        id: String(
+          evidence.article_id ??
+            evidence.catalog_id ??
+            evidence.external_listing_id ??
+            row.source_record_id ??
+            row.fabric_id ??
+            ("signal-" + String(appended.length + 1))
+        ),
+        fabric_id: row.fabric_id ?? null,
+        title: row.subject || row.raw_text || "Opportunité WAOUH",
+        price: row.price_min === row.price_max ? row.price_min : null,
+        price_min: row.price_min ?? null,
+        price_max: row.price_max ?? null,
+        city: row.city ?? null,
+        condition: row.condition ?? null,
+        source: row.source_key ?? "nexus",
+        source_url: row.source_url ?? null,
+        photos: chatSignalPhoto(row),
+        intent: row.intent ?? null,
+        actor_type: row.actor_type ?? null,
+        contactability_level: row.contactability_level ?? "C0",
+        total_score: row.scores?.total_score ?? null,
+        relevance_score: row.scores?.relevance_score ?? null,
+        trust_score: row.scores?.trust_score ?? null,
+        price_score: row.scores?.price_score ?? null,
+        location_score: row.scores?.location_score ?? null,
+        freshness_score: row.scores?.freshness_score ?? null,
+        scores: row.scores ?? null,
+        reasons: row.scores?.reasons ?? [],
+        evidence,
+        action: null,
+        market_line:
+          mode === "find_buyers"
+            ? "Demande détectée par NEXUS · Muse poursuit le rapprochement sous contrôle."
+            : "Signal découvert par NEXUS · ouvrez la source publique lorsque disponible.",
+      };
+      const key = chatSignalKey(candidate);
+      if (existing.has(key)) continue;
+      existing.add(key);
+      appended.push(candidate);
+      if (enrichedCore.length + appended.length >= 8) break;
+    }
+
+    const results = [...enrichedCore, ...appended].map(
+      (row: any, index: number) => ({ ...row, index: index + 1 }),
+    );
+    const top = ranked[0] as any;
+    const confidence =
+      top?.scores?.total_score == null
+        ? 0.5
+        : Math.max(0, Math.min(1, Number(top.scores.total_score) / 100));
+
+    return {
+      results,
+      intelligence: {
+        mode,
+        normalized_query: input.text.trim().slice(0, 700),
+        city: scoringCity,
+        budget_max: budgetMax,
+        priorities: [
+          "relevance",
+          "trust",
+          "price",
+          "distance",
+          "freshness",
+          "contactability",
+        ],
+        source_families: Object.keys(sourceMix),
+        missing: [],
+        next_actions:
+          mode === "find_sellers"
+            ? [
+                "Comparer les meilleures offres",
+                "Vérifier la confiance et le contact",
+                "Poursuivre avec Muse",
+              ]
+            : [
+                "Comparer les demandes compatibles",
+                "Prioriser les acheteurs contactables",
+                "Poursuivre le rapprochement avec Muse",
+              ],
+        confidence,
+        rationale:
+          mode === "find_sellers"
+            ? "NEXUS complète la recherche historique du chat avec le Signal Fabric."
+            : "NEXUS complète la vente avec les demandes BUY/RFQ du Signal Fabric.",
+      },
+      source_mix: sourceMix,
+      signal_fabric: {
+        mode,
+        candidate_count: (data ?? []).length,
+        matched_count: ranked.length,
+        appended_count: appended.length,
+        top_fabric_ids: ranked.slice(0, 5).map((row: any) => row.fabric_id),
+      },
+      contactability_level: top?.contactability_level ?? null,
+    };
+  } catch (error) {
+    console.warn("[waouh-channel-in] Signal Fabric enrichment failed", error);
+    return {
+      results: input.coreResults,
+      intelligence: null,
+      source_mix: null,
+      signal_fabric: { error: "enrichment_unavailable" },
+      contactability_level: null,
+    };
+  }
 }
 
 serve(async (req) => {
@@ -526,6 +803,10 @@ serve(async (req) => {
       const suppressDirectReply = negData?.suppress_direct_reply === true;
       const negResults = Array.isArray(negData.results) ? negData.results : [];
       const negProducts = Array.isArray(negData.products) ? negData.products : [];
+      const negIntelligence = negData?.intelligence ?? negData?.nexus_intelligence ?? null;
+      const negSourceMix = negData?.source_mix ?? negData?.sourceMix ?? null;
+      const negSignalFabric = negData?.signal_fabric ?? negData?.signalFabric ?? null;
+      const negContactability = negData?.contactability_level ?? negData?.contactability ?? null;
       let negOutboundId = negData.outbound_message_id ?? null;
       if (!suppressDirectReply) {
         const { data: negRow, error: negWriteError } = await sb.from("waouh_messages").insert({
@@ -545,6 +826,10 @@ serve(async (req) => {
             buyer_user_id: clientMeta?.counterpart_user_id ?? clientMeta?.buyer_user_id ?? clientMeta?.buyer_profile_id ?? null,
             role: clientMeta?.role ?? null,
             correlation_id: correlationId,
+            intelligence: negIntelligence,
+            source_mix: negSourceMix,
+            signal_fabric: negSignalFabric,
+            contactability_level: negContactability,
           },
         }).select("id").single();
         if (negWriteError) throw negWriteError;
@@ -561,7 +846,7 @@ serve(async (req) => {
           await sendWahaReply(WAHA_BASE_URL, wahaSession, replyChatIds, negReply, negActions, firstImage);
         } catch (e) { console.error("WAHA send failed", e); }
       }
-      return new Response(JSON.stringify({ ok: true, reply: suppressDirectReply ? null : negReply, suppress_direct_reply: suppressDirectReply, outbound_message_id: negOutboundId, actions: negActions, results: negResults, products: negProducts, article_id: clientMeta?.article_id ?? null, counterpart_user_id: clientMeta?.counterpart_user_id ?? null, intent: negIntent, transaction_id: negTxId, attachments: negAttachments, inbound_message_id: inboundMessageId, conversation_id: convId, user_id: user.id, correlation_id: correlationId }), {
+      return new Response(JSON.stringify({ ok: true, reply: suppressDirectReply ? null : negReply, suppress_direct_reply: suppressDirectReply, outbound_message_id: negOutboundId, actions: negActions, results: negResults, products: negProducts, article_id: clientMeta?.article_id ?? null, counterpart_user_id: clientMeta?.counterpart_user_id ?? null, intent: negIntent, transaction_id: negTxId, attachments: negAttachments, inbound_message_id: inboundMessageId, conversation_id: convId, user_id: user.id, correlation_id: correlationId, intelligence: negIntelligence, source_mix: negSourceMix, signal_fabric: negSignalFabric, contactability_level: negContactability }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
 
@@ -582,9 +867,28 @@ serve(async (req) => {
     log("core reply", { ok: coreRes.ok, intent: core.intent, hasReply: !!core.reply });
     const reply: string = core.reply ?? "";
     const actions: WaouhAction[] = Array.isArray(core.actions) ? core.actions : [];
-    // 🖼️ Fiches produit structurées (1 fiche = 1 article + ses photos)
-    const results: any[] = Array.isArray(core.results) ? core.results : [];
+    // 🖼️ Fiches historiques + enrichissement NEXUS/Signal Fabric.
+    const coreResults: any[] = Array.isArray(core.results) ? core.results : [];
     const products: any[] = Array.isArray(core.products) ? core.products : [];
+    const nexus = await enrichChatWithSignalFabric(sb, {
+      intent: core.intent ?? "",
+      text,
+      city,
+      coreResults,
+    });
+    const results: any[] = nexus.results;
+    // Une valeur explicite du moteur reste prioritaire ; sinon NEXUS fournit
+    // l'intelligence de découverte au Chat sans casser les anciens moteurs.
+    const intelligence =
+      core?.intelligence ?? core?.nexus_intelligence ?? nexus.intelligence;
+    const sourceMix =
+      core?.source_mix ?? core?.sourceMix ?? nexus.source_mix;
+    const signalFabric =
+      core?.signal_fabric ?? core?.signalFabric ?? nexus.signal_fabric;
+    const contactability =
+      core?.contactability_level ??
+      core?.contactability ??
+      nexus.contactability_level;
 
     // Persist outgoing
     const outboundArticleId: string | null = core.article_id ?? inboundArticleId ?? null;
@@ -594,7 +898,20 @@ serve(async (req) => {
       web_session_id: sessionId, phone_number: phone,
       attachments: Array.isArray(core.attachments) ? core.attachments : [],
       article_id: outboundArticleId,
-      meta: { intent: core.intent ?? null, transaction_id: core.transaction_id ?? null, article_id: outboundArticleId, counterpart_user_id: core.counterpart_user_id ?? null, correlation_id: correlationId, actions, results, products },
+      meta: {
+        intent: core.intent ?? null,
+        transaction_id: core.transaction_id ?? null,
+        article_id: outboundArticleId,
+        counterpart_user_id: core.counterpart_user_id ?? null,
+        correlation_id: correlationId,
+        actions,
+        results,
+        products,
+        intelligence,
+        source_mix: sourceMix,
+        signal_fabric: signalFabric,
+        contactability_level: contactability,
+      },
     }).select("id").maybeSingle();
     if (outboundError) throw outboundError;
     const outboundMessageId: string | null = outboundRow?.id ?? null;
@@ -613,7 +930,7 @@ serve(async (req) => {
       } catch (e) { console.error("WAHA send failed", e); }
     }
 
-    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, actions, results, products, attachments: Array.isArray(core.attachments) ? core.attachments : [], inbound_message_id: inboundMessageId, outbound_message_id: outboundMessageId, conversation_id: convId, user_id: user.id, article_id: outboundArticleId, counterpart_user_id: core.counterpart_user_id ?? null, transaction_id: core.transaction_id ?? null, correlation_id: correlationId }), {
+    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, actions, results, products, attachments: Array.isArray(core.attachments) ? core.attachments : [], inbound_message_id: inboundMessageId, outbound_message_id: outboundMessageId, conversation_id: convId, user_id: user.id, article_id: outboundArticleId, counterpart_user_id: core.counterpart_user_id ?? null, transaction_id: core.transaction_id ?? null, correlation_id: correlationId, intelligence, source_mix: sourceMix, signal_fabric: signalFabric, contactability_level: contactability }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 

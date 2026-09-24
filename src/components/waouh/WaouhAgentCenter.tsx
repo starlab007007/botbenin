@@ -146,15 +146,15 @@ export function WaouhAgentCenter({ compact = false }: { compact?: boolean }) {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button type="button" size={compact ? "icon" : "sm"} variant="ghost" className={compact ? "relative h-8 w-8" : "relative gap-1.5"} aria-label="Ouvrir le centre agentique WAOUH">
-          <Bot className="h-4 w-4" />{!compact && <span>Agent IA</span>}
+        <Button type="button" size={compact ? "icon" : "sm"} variant="ghost" className={compact ? "relative h-8 w-8" : "relative gap-1.5"} aria-label="Ouvrir les missions et veilles WAOUH">
+          <Bot className="h-4 w-4" />{!compact && <span>Missions</span>}
           {pendingCount > 0 && <Badge className="absolute -right-1 -top-1 h-4 min-w-4 justify-center bg-amber-500 px-1 text-[9px] text-white">{pendingCount}</Badge>}
         </Button>
       </SheetTrigger>
       <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-xl">
         <SheetHeader className="border-b px-5 py-4 text-left">
           <div className="flex items-center justify-between gap-3 pr-7">
-            <div><SheetTitle className="flex items-center gap-2"><Bot className="h-5 w-5 text-cyan-600" />Centre agentique WAOUH</SheetTitle><SheetDescription>Missions, veilles, validations et agent vendeur. Aucune action de paiement.</SheetDescription></div>
+            <div><SheetTitle className="flex items-center gap-2"><Bot className="h-5 w-5 text-cyan-600" />WAOUH One · Missions & veille</SheetTitle><SheetDescription>Objectifs persistants, veilles, validations et règles vendeur — dans le même WAOUH. Aucune action de paiement.</SheetDescription></div>
             {user && <Button size="icon" variant="outline" disabled={loading} onClick={() => void refresh()} aria-label="Actualiser"><RefreshCw className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"} /></Button>}
           </div>
         </SheetHeader>

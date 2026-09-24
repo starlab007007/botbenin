@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Building2, Camera, ExternalLink, Globe2, Loader2, MapPin, MessageCircle, Radar,
-  Search, Send, Share2, Store, Upload, Users, Wifi, WifiOff,
+  Search, Send, Share2, Sparkles, Store, Upload, Users, Wifi, WifiOff,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,8 @@ import {
   type NexusDiscoveryMode,
   type NexusDiscoveryResult,
   type NexusDiscoverySource,
+  type NexusResolvedDiscoveryMode,
+  type NexusSmartDiscoveryPlan,
   type NexusSourceStatus,
 } from "@/lib/waouh/nexus";
 import { moneyXof } from "@/lib/waouh/agenticClient";
@@ -70,14 +72,21 @@ export function WaouhGlobalDiscoveryPanel() {
   const { toast } = useToast();
   const { user } = useAuth();
   const shareImageInput = useRef<HTMLInputElement>(null);
-  const [mode, setMode] = useState<NexusDiscoveryMode>("find_sellers");
+  const [mode, setMode] = useState<NexusDiscoveryMode>("auto");
+  const [resolvedMode, setResolvedMode] = useState<NexusResolvedDiscoveryMode>("find_sellers");
+  const [intelligence, setIntelligence] = useState<NexusSmartDiscoveryPlan | null>(null);
   const [query, setQuery] = useState("");
-  const [city, setCity] = useState("Cotonou");
+  const [city, setCity] = useState("");
   const [budget, setBudget] = useState("");
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<NexusDiscoveryResult[]>([]);
   const [sourceMix, setSourceMix] = useState<Record<string, number>>({});
-  const [refreshState, setRefreshState] = useState<Record<string, { configured?: boolean; inserted?: number; reason?: string | null }>>({});
+  const [refreshState, setRefreshState] = useState<Record<string, {
+    configured?: boolean;
+    inserted?: number;
+    reason?: string | null;
+    surfaces?: Record<string, number>;
+  }>>({});
   const [sources, setSources] = useState<NexusSourceStatus | null>(null);
   const [shareText, setShareText] = useState("");
   const [shareUrl, setShareUrl] = useState("");
@@ -112,17 +121,28 @@ export function WaouhGlobalDiscoveryPanel() {
         query: query.trim(),
         mode,
         city: city.trim() || undefined,
-        budget_max: mode === "find_sellers" && budget ? Number(budget) : undefined,
+        budget_max: mode !== "find_buyers" && budget ? Number(budget) : undefined,
         limit: 24,
         refresh_external: true,
+        smart: true,
       });
       setResults(response.results);
       setSourceMix(response.source_mix);
       setRefreshState(response.refresh ?? {});
+      setResolvedMode(response.mode);
+      setIntelligence(response.intelligence ?? null);
+      if (mode === "auto" && response.intelligence?.city && !city.trim()) {
+        setCity(response.intelligence.city);
+      }
+      if (mode === "auto" && response.mode === "find_sellers" && !budget && response.intelligence?.budget_max) {
+        setBudget(String(Math.round(response.intelligence.budget_max)));
+      }
       if (!response.results.length) {
         toast({
-          title: mode === "find_sellers" ? "Aucun vendeur suffisamment proche pour l’instant" : "Aucun acheteur suffisamment proche pour l’instant",
-          description: "WAOUH a conservé la requête côté NEXUS ; les sources non configurées restent indiquées comme telles.",
+          title: response.mode === "find_sellers"
+            ? "Aucun vendeur suffisamment proche pour l’instant"
+            : "Aucun acheteur suffisamment proche pour l’instant",
+          description: "WAOUH a compris l’objectif et conserve la recherche côté NEXUS. Les sources indisponibles restent signalées sans bloquer le parcours.",
         });
       }
       void loadSources();
@@ -263,43 +283,127 @@ export function WaouhGlobalDiscoveryPanel() {
           </TabsList>
 
           <TabsContent value="hunt" className="space-y-3">
-            <div className="grid gap-2 sm:grid-cols-[180px_1fr_160px_140px]">
-              <Select value={mode} onValueChange={(value) => setMode(value as NexusDiscoveryMode)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="find_sellers">Trouver des vendeurs</SelectItem>
-                  <SelectItem value="find_buyers">Trouver des acheteurs</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => event.key === "Enter" && void searchEverywhere()}
-                placeholder={mode === "find_sellers" ? "Ex. Samsung S25 256 Go, climatiseur 1,5 CV…" : "Ex. 10 tonnes soja, 50 sacs ciment…"}
-              />
-              <Input value={city} onChange={(event) => setCity(event.target.value)} placeholder="Ville / zone" />
-              {mode === "find_sellers" ? (
-                <Input value={budget} onChange={(event) => setBudget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Budget max" />
-              ) : (
-                <div className="hidden sm:block" />
-              )}
+            <div className="rounded-xl border border-cyan-200/80 bg-cyan-50/50 p-3 dark:border-cyan-900 dark:bg-cyan-950/20">
+              <div className="mb-2 flex items-center gap-2 text-xs font-semibold">
+                <Sparkles className="h-4 w-4 text-cyan-600" />
+                Dites simplement votre objectif — l’IA choisit le meilleur parcours.
+              </div>
+              <div className="grid gap-2 sm:grid-cols-[200px_1fr_160px_140px]">
+                <Select value={mode} onValueChange={(value) => { setMode(value as NexusDiscoveryMode); setIntelligence(null); }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Mode IA · WAOUH décide</SelectItem>
+                    <SelectItem value="find_sellers">Je cherche à acheter</SelectItem>
+                    <SelectItem value="find_buyers">Je cherche à vendre</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => event.key === "Enter" && void searchEverywhere()}
+                  placeholder={
+                    mode === "auto"
+                      ? "Ex. Je veux un S25 fiable à Cotonou / Je veux vendre 10 tonnes de soja"
+                      : mode === "find_sellers"
+                        ? "Ex. Samsung S25 256 Go, climatiseur 1,5 CV…"
+                        : "Ex. 10 tonnes soja, 50 sacs ciment…"
+                  }
+                />
+                <Input value={city} onChange={(event) => setCity(event.target.value)} placeholder="Ville / zone" />
+                {mode !== "find_buyers" ? (
+                  <Input value={budget} onChange={(event) => setBudget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Budget max" />
+                ) : (
+                  <div className="hidden sm:block" />
+                )}
+              </div>
             </div>
-            <Button className="w-full" onClick={() => void searchEverywhere()} disabled={!query.trim() || busy}>
-              {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : mode === "find_sellers" ? <Store className="mr-2 h-4 w-4" /> : <Users className="mr-2 h-4 w-4" />}
-              {mode === "find_sellers" ? "Trouver les vendeurs partout" : "Trouver les acheteurs partout"}
+            <Button className="w-full bg-cyan-600 text-white hover:bg-cyan-700" onClick={() => void searchEverywhere()} disabled={!query.trim() || busy}>
+              {busy ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : mode === "auto" ? (
+                <Sparkles className="mr-2 h-4 w-4" />
+              ) : mode === "find_sellers" ? (
+                <Store className="mr-2 h-4 w-4" />
+              ) : (
+                <Users className="mr-2 h-4 w-4" />
+              )}
+              {mode === "auto"
+                ? "Comprendre et chercher partout"
+                : mode === "find_sellers"
+                  ? "Trouver les vendeurs partout"
+                  : "Trouver les acheteurs partout"}
             </Button>
+
+            {intelligence && (
+              <div className="rounded-xl border bg-background p-3 shadow-sm">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm font-semibold">
+                      <Sparkles className="h-4 w-4 text-cyan-600" />
+                      Plan IA NEXUS
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {resolvedMode === "find_sellers" ? "Acheteur → vendeurs" : "Vendeur → acheteurs"}
+                      {" · "}{intelligence.normalized_query}
+                    </div>
+                  </div>
+                  <Badge variant="secondary">confiance IA {Math.round(intelligence.confidence * 100)}%</Badge>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {intelligence.priorities.slice(0, 5).map((item) => (
+                    <Badge key={`priority-${item}`} variant="outline">{item.replace(/_/g, " ")}</Badge>
+                  ))}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {intelligence.source_families.slice(0, 8).map((item) => (
+                    <Badge key={`source-family-${item}`} variant="secondary">{item.replace(/_/g, " ")}</Badge>
+                  ))}
+                </div>
+                {intelligence.next_actions.length > 0 && (
+                  <div className="mt-2 grid gap-1 sm:grid-cols-3">
+                    {intelligence.next_actions.slice(0, 3).map((item, index) => (
+                      <div key={item} className="rounded-lg bg-muted/40 px-2 py-1.5 text-[11px]">
+                        <span className="mr-1 font-semibold">{index + 1}.</span>{item}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {intelligence.missing.length > 0 && (
+                  <div className="mt-2 text-[11px] text-muted-foreground">
+                    À préciser si utile : {intelligence.missing.join(" · ")}
+                  </div>
+                )}
+              </div>
+            )}
 
             {(Object.keys(sourceMix).length > 0 || Object.keys(refreshState).length > 0) && (
               <div className="flex flex-wrap gap-1">
                 {Object.entries(sourceMix).map(([source, count]) => (
                   <Badge key={source} variant="secondary">{sourceLabel(source)} · {count}</Badge>
                 ))}
-                {Object.entries(refreshState).map(([source, state]) => (
-                  <Badge key={`refresh-${source}`} variant="outline" className="gap-1">
-                    {state.configured ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-                    {sourceLabel(source)} {state.configured ? `+${state.inserted ?? 0}` : "non configuré"}
-                  </Badge>
-                ))}
+                {Object.entries(refreshState).map(([source, state]) => {
+                  const skipped = state.reason === "not_selected_by_ai_plan";
+                  return (
+                    <Badge key={`refresh-${source}`} variant="outline" className="gap-1">
+                      {skipped ? <Radar className="h-3 w-3" /> : state.configured ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+                      {sourceLabel(source)} {skipped ? "non nécessaire" : state.configured ? `+${state.inserted ?? 0}` : "non configuré"}
+                    </Badge>
+                  );
+                })}
+              </div>
+            )}
+
+            {results.length > 0 && (
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold">
+                    {resolvedMode === "find_sellers" ? "Vendeurs et offres les plus compatibles" : "Acheteurs et demandes les plus compatibles"}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    Classés par pertinence, confiance, prix, proximité, fraîcheur et contactabilité.
+                  </div>
+                </div>
+                <Badge variant="outline">{results.length} résultat(s)</Badge>
               </div>
             )}
 

@@ -1,12 +1,12 @@
 import { assertChatResponse, normalizeChatReply, mergeChatRows, reconcileChatResponse } from "@/lib/chatReply";
-import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { MessageCircle, Send, X, Loader2, Camera, Paperclip } from "lucide-react";
+import { MessageCircle, Send, X, Loader2, Camera, Paperclip, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useWaouhGeolocation } from "@/hooks/useWaouhGeolocation";
@@ -14,14 +14,18 @@ import { WaouhCityBadge } from "./WaouhCityBadge";
 import { WaouhTransactionCard } from "./WaouhTransactionCard";
 import { WaouhAuthGate } from "./WaouhAuthGate";
 import { WaouhPaymentDialog } from "./WaouhPaymentDialog";
-import { WaouhQuickActions, type QuickAction } from "./WaouhQuickActions";
+import type { QuickAction } from "./WaouhQuickActions";
 import { WaouhSellWizard } from "./WaouhSellWizard";
 import { ChatImage } from "@/app-mobile/components/ChatImage";
 import { WaouhProductResults, compactResultsText, type WaouhResultCard } from "@/components/waouh/WaouhProductCard";
 import { WaouhAgentBlocks } from "@/components/waouh/WaouhAgentBlocks";
 import { WaouhAgentCenter } from "@/components/waouh/WaouhAgentCenter";
+import { WaouhCommerceAgentBar } from "@/components/waouh/WaouhCommerceAgentBar";
+import { WaouhSmartComposerBar } from "@/components/waouh/WaouhSmartComposerBar";
+import { WaouhMuseAvatar, type WaouhMuseMode, type WaouhMusePhase } from "@/components/waouh/WaouhMuseAvatar";
 import { invokeWaouhAgentic } from "@/lib/waouh/agenticClient";
 import type { AgenticAction, WaouhMessageBlock } from "@/lib/waouh/agenticContracts";
+import type { WaouhWorkspaceAgentState } from "@/lib/waouh/workspaceState";
 
 import { NativeSellSheet } from "./NativeSellSheet";
 import { useAuth } from "@/contexts/AuthContext";
@@ -104,7 +108,7 @@ export type WaouhWebChatHandle = {
   prefillAndSend: (text: string, opts?: { attachments?: Att[] }) => Promise<void> | void;
 };
 
-export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean; fullscreen?: boolean; variant?: "web" | "native"; composerTopSlot?: React.ReactNode }>(({ embedded = false, fullscreen = false, variant = "web", composerTopSlot }, externalRef) => {
+export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean; fullscreen?: boolean; variant?: "web" | "native"; composerTopSlot?: React.ReactNode; onAgentStateChange?: (state: WaouhWorkspaceAgentState) => void; hideAgentBar?: boolean }>(({ embedded = false, fullscreen = false, variant = "web", composerTopSlot, onAgentStateChange, hideAgentBar = false }, externalRef) => {
   const [open, setOpen] = useState(embedded || fullscreen);
   const sessionId = useRef(getSessionId()).current;
   // Cache-first hydration: load last snapshot synchronously so the chat
@@ -139,6 +143,54 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   const { geo, loading: geoLoading, setCity, refresh } = useWaouhGeolocation();
   const { user } = useAuth();
   const { toast } = useToast();
+
+  const commerceAgent = useMemo(() => {
+    const reversed = [...messages].reverse();
+    const userMessage = reversed.find((message) => message.direction === "in");
+    const assistantMessage = reversed.find((message) => message.direction === "out");
+    const goal = userMessage?.text && userMessage.text !== "(image)" ? userMessage.text : "";
+    const normalizedGoal = goal.toLowerCase();
+    const intent = String(assistantMessage?.meta?.intent || "").toLowerCase();
+    const rich = assistantMessage ? normalizeChatReply(assistantMessage) : { results: [] as WaouhResultCard[] };
+
+    let mode: WaouhMuseMode = "neutral";
+    if (/\b(je\s+vends?|vendre|à\s+vendre|écouler|ecouler|trouver\s+(des\s+)?acheteurs?|clients?|prospects?)\b/i.test(goal) || /sell|match_seller|new_buyer/.test(intent)) {
+      mode = "seller";
+    } else if (/\b(cherche|recherche|acheter|achète|achete|trouver\s+(un|une|des)?\s*(vendeur|offre|produit))\b/i.test(goal) || /buy|search|match_buyer/.test(intent)) {
+      mode = "buyer";
+    }
+
+    let phase: WaouhMusePhase = "idle";
+    if (sending) phase = /propose|contre|négoci|negoci|accept|refus/.test(normalizedGoal) ? "negotiating" : "searching";
+    else if (/negotiat|counter|deal_|decide|contact_exchange/.test(intent)) phase = "negotiating";
+    else if (rich.results.length > 0) phase = "comparing";
+    else if (goal) phase = "listening";
+
+    const sourceMix =
+      assistantMessage?.meta?.source_mix && typeof assistantMessage.meta.source_mix === "object"
+        ? Object.keys(assistantMessage.meta.source_mix as Record<string, unknown>)
+        : [];
+    const sources = [
+      ...sourceMix,
+      ...rich.results.map((result) => String(result.source || "").trim()).filter(Boolean),
+    ];
+    const contactLevel = rich.results
+      .map((result) => result.contactability_level || result.contactability || null)
+      .find(Boolean) || null;
+
+    return {
+      goal,
+      mode,
+      phase,
+      resultCount: rich.results.length,
+      sources,
+      contactLevel,
+    };
+  }, [messages, sending]);
+
+  useEffect(() => {
+    onAgentStateChange?.(commerceAgent);
+  }, [commerceAgent, onAgentStateChange]);
 
   // Resolved waouh_users.id list for this device + auth account.
   const [waouhIds, setWaouhIds] = useState<string[]>([]);
@@ -611,13 +663,13 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
             : "fixed bottom-20 right-4 w-[92vw] sm:w-[400px] h-[70vh] max-h-[100dvh] rounded-2xl z-50 border shadow-2xl"
       )}
     >
-      {variant !== "native" && (
+      {variant !== "native" && !fullscreen && (
         <div className="flex items-center justify-between p-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <MessageCircle className="w-5 h-5 shrink-0" />
             <div className="min-w-0">
-              <div className="font-semibold leading-tight truncate">WAOUH</div>
-              <div className="text-xs opacity-90 truncate">Achetez · Vendez · Négociez · Payez</div>
+              <div className="font-semibold leading-tight truncate">WAOUH Commerce Agent</div>
+              <div className="text-xs opacity-90 truncate">Muse · NEXUS · Signal Fabric</div>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -631,6 +683,18 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         </div>
       )}
 
+      {!hideAgentBar && (
+        <WaouhCommerceAgentBar
+          goal={commerceAgent.goal}
+          mode={commerceAgent.mode}
+          phase={commerceAgent.phase}
+          resultCount={commerceAgent.resultCount}
+          sources={commerceAgent.sources}
+          contactLevel={commerceAgent.contactLevel}
+          compact={!fullscreen}
+        />
+      )}
+
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2 waouh-chat-bg min-h-0">
         {hasMore && (
           <div ref={topSentinelRef} className="flex items-center justify-center py-2 text-xs text-muted-foreground">
@@ -638,9 +702,17 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           </div>
         )}
         {messages.length === 0 && (
-          <div className="text-center text-sm text-muted-foreground py-8 px-4">
-            👋 Bonjour ! Utilisez les boutons ci-dessous, ou tapez « Je vends … » / « Je cherche … ».
-            <br />📍 Annonces autour de <strong>{geo.city}</strong>.
+          <div className="mx-auto my-3 max-w-xl rounded-3xl border border-emerald-100 bg-gradient-to-br from-white via-emerald-50/60 to-cyan-50/60 p-5 text-center shadow-sm">
+            <div className="text-base font-black text-emerald-950">Que voulez-vous acheter ou vendre ?</div>
+            <div className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-muted-foreground">
+              Parlez naturellement. Muse comprend l’objectif, NEXUS cherche le marché, Signal Fabric compare et WAOUH protège le contact.
+            </div>
+            <div className="mt-3 flex flex-wrap justify-center gap-2 text-[11px]">
+              <button type="button" onClick={() => { setInput("Je cherche "); inputRef.current?.focus(); }} className="rounded-full border bg-white px-3 py-1.5 font-bold text-cyan-800 shadow-sm hover:bg-cyan-50">Acheter</button>
+              <button type="button" onClick={() => setSellOpen(true)} className="rounded-full border bg-white px-3 py-1.5 font-bold text-emerald-800 shadow-sm hover:bg-emerald-50">Vendre</button>
+              <button type="button" onClick={() => { setInput("Trouve-moi les meilleures offres près de moi pour "); inputRef.current?.focus(); }} className="rounded-full border bg-white px-3 py-1.5 font-bold text-slate-700 shadow-sm hover:bg-slate-50">Trouver autour de moi</button>
+            </div>
+            {geo.city && <div className="mt-3 text-[10px] text-muted-foreground">Zone actuelle : {geo.city}</div>}
           </div>
         )}
 
@@ -655,14 +727,30 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
               focusMsgId === m.id && "ring-2 ring-emerald-400 ring-offset-2 ring-offset-background bg-emerald-50/40"
             )}
           >
-            <div className={cn("flex", m.direction === "in" ? "justify-end" : "justify-start")}>
+            <div className={cn("flex items-start gap-2", m.direction === "in" ? "justify-end" : "justify-start")}>
+              {m.direction === "out" && (
+                <WaouhMuseAvatar
+                  mode={commerceAgent.mode}
+                  phase={sending ? "searching" : commerceAgent.phase}
+                  size="sm"
+                  className="mt-0.5 hidden sm:block"
+                />
+              )}
               <div
                 className={cn(
                   "chat-bubble min-w-0",
-                  rich.results.length > 0 && "w-full",
-                  m.direction === "in" ? "chat-bubble-out" : "chat-bubble-in waouh-bot-bubble"
+                  m.direction === "in"
+                    ? "chat-bubble-out max-w-[82%]"
+                    : rich.results.length > 0 || rich.blocks.length > 0
+                      ? "chat-bubble-in waouh-bot-bubble w-full max-w-[860px] rounded-3xl border-slate-200 bg-white/95 p-3 shadow-sm"
+                      : "chat-bubble-in waouh-bot-bubble max-w-[88%] rounded-3xl border-slate-200 bg-white/95 shadow-sm"
                 )}
               >
+                {m.direction === "out" && (
+                  <div className="mb-1.5 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-700">
+                    <Sparkles className="h-3 w-3" /> WAOUH
+                  </div>
+                )}
                 {/* Photos à plat : masquées quand des fiches produit structurées existent
                     (chaque photo est alors rattachée à SON article). */}
                 {Array.isArray(m.attachments) && m.attachments.length > 0 && !rich.results.length && (
@@ -757,9 +845,13 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           </div>
         ); })}
         {sending && (
-          <div className="flex justify-start">
-            <div className="bg-card border rounded-2xl px-3 py-2 text-sm flex items-center gap-2">
-              <Loader2 className="w-3 h-3 animate-spin" /> WAOUH réfléchit…
+          <div className="flex items-start gap-2">
+            <WaouhMuseAvatar mode={commerceAgent.mode} phase="searching" size="sm" className="hidden sm:block" />
+            <div className="max-w-[90%] rounded-3xl border border-cyan-100 bg-gradient-to-r from-cyan-50 to-emerald-50 px-3.5 py-2.5 text-xs text-slate-700 shadow-sm">
+              <div className="flex items-center gap-2 font-black text-cyan-950">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Muse orchestre la recherche
+              </div>
+              <div className="mt-1 text-[10px] font-semibold text-slate-500">NEXUS découvre · Signal Fabric classe · Contact Layer vérifie</div>
             </div>
           </div>
         )}
@@ -780,7 +872,24 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         </div>
       )}
 
-      {variant !== "native" && <div className="flex items-center border-t bg-background pr-2"><div className="min-w-0 flex-1"><WaouhQuickActions onAction={handleQuickAction} disabled={sending} /></div><WaouhAgentCenter compact /></div>}
+      {variant !== "native" && (
+        <div className="flex items-center bg-background pr-2">
+          <div className="min-w-0 flex-1">
+            <WaouhSmartComposerBar
+              mode={commerceAgent.mode}
+              phase={commerceAgent.phase}
+              resultCount={commerceAgent.resultCount}
+              disabled={sending}
+              onPrompt={(value) => {
+                setInput(value);
+                setTimeout(() => inputRef.current?.focus(), 0);
+              }}
+              onSell={() => setSellOpen(true)}
+            />
+          </div>
+          <WaouhAgentCenter compact />
+        </div>
+      )}
       {variant === "native" && composerTopSlot}
 
       <form
@@ -817,7 +926,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
               send();
             }
           }}
-          placeholder="Votre message…"
+          placeholder={commerceAgent.mode === "seller" ? "Que voulez-vous vendre ou à quels acheteurs ?" : commerceAgent.mode === "buyer" ? "Précisez produit, budget ou zone…" : "Que voulez-vous acheter ou vendre ?" }
           disabled={sending}
           rows={1}
           className="flex-1 resize-none min-h-[40px] max-h-32 text-base sm:text-sm"

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Search, Bell, MessageSquare, Plus, CheckCheck, Trash2 } from "lucide-react";
+import { Search, Bell, MessageSquare, Plus, CheckCheck, Trash2, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,18 +37,22 @@ export function WaouhChatSidebar({
   const [tab, setTab] = useState<"chats" | "notifs">("chats");
 
   return (
-    <aside className="h-full w-full flex flex-col bg-card border-r border-border">
-      {/* Header */}
-      <div className="px-3 py-3 border-b border-border flex items-center justify-between gap-2">
-        <h2 className="text-base font-semibold text-foreground">Discussions</h2>
+    <aside className="h-full w-full flex flex-col bg-white">
+      <div className="flex items-center justify-between gap-2 border-b border-slate-200/80 px-3 py-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 text-sm font-black text-slate-950">
+            <Sparkles className="h-4 w-4 text-emerald-700" />
+            Espace WAOUH
+          </div>
+          <div className="mt-0.5 text-[10px] font-semibold text-slate-500">Échanges, opportunités et alertes</div>
+        </div>
         <Button
           size="sm"
-          variant="ghost"
-          className="h-8 px-2"
+          className="h-8 rounded-xl bg-slate-950 px-2.5 text-[11px] text-white hover:bg-slate-800"
           onClick={onNewConversation}
-          aria-label="Nouvelle conversation"
+          aria-label="Nouvel objectif"
         >
-          <Plus className="h-4 w-4 mr-1" /> Nouveau
+          <Plus className="mr-1 h-3.5 w-3.5" /> Objectif
         </Button>
       </div>
 
@@ -59,7 +63,7 @@ export function WaouhChatSidebar({
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Rechercher"
+            placeholder="Rechercher un échange"
             className="pl-8 h-9 bg-background"
           />
         </div>
@@ -67,14 +71,14 @@ export function WaouhChatSidebar({
 
       {/* Tabs */}
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)} className="flex-1 flex flex-col min-h-0">
-        <TabsList className="grid grid-cols-2 mx-3 mt-2">
-          <TabsTrigger value="chats" className="gap-1.5">
+        <TabsList className="mx-3 mt-2 grid grid-cols-2 rounded-xl bg-slate-100 p-1">
+          <TabsTrigger value="chats" className="gap-1.5 rounded-lg text-xs">
             <MessageSquare className="h-3.5 w-3.5" />
-            Conversations
+            Échanges
           </TabsTrigger>
-          <TabsTrigger value="notifs" className="gap-1.5">
+          <TabsTrigger value="notifs" className="gap-1.5 rounded-lg text-xs">
             <Bell className="h-3.5 w-3.5" />
-            Notifications
+            Alertes
             {unreadCount > 0 && (
               <Badge className="ml-1 h-4 px-1.5 text-[10px] bg-primary text-primary-foreground">
                 {unreadCount}

@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { BrainCircuit, MessageSquareText, RadioTower, Sparkles } from "lucide-react";
+import { BrainCircuit, MessageSquareText, Network, RadioTower, Search, Sparkles, Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -29,9 +29,9 @@ export default function WaouhMusePage() {
                 Propulsé par NEXUS
               </Badge>
             </div>
-            <h1 className="text-2xl font-semibold tracking-tight">Votre agent IA pour acheter et vendre</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">Dites votre objectif. WAOUH cherche, compare et rapproche.</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Muse poursuit votre objectif. NEXUS cherche vendeurs et acheteurs, compare et prépare les meilleures actions sous votre contrôle.
+              Une seule demande suffit : Muse poursuit l’objectif, NEXUS découvre le marché et le Signal Fabric relie offre ↔ demande sous votre contrôle.
             </p>
           </div>
 
@@ -54,18 +54,22 @@ export default function WaouhMusePage() {
       </header>
 
       <section className="mx-auto w-full max-w-7xl space-y-4 px-2 py-4 sm:px-4">
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
           <div className="rounded-xl border bg-card px-3 py-2.5">
-            <div className="text-xs font-semibold">Chat</div>
-            <div className="mt-0.5 text-[11px] text-muted-foreground">Répond immédiatement.</div>
+            <div className="flex items-center gap-1.5 text-xs font-semibold"><MessageSquareText className="h-3.5 w-3.5" />1. Dites l’objectif</div>
+            <div className="mt-0.5 text-[11px] text-muted-foreground">Parlez simplement.</div>
           </div>
           <div className="rounded-xl border border-cyan-200 bg-cyan-50/60 px-3 py-2.5 dark:border-cyan-900 dark:bg-cyan-950/20">
-            <div className="text-xs font-semibold">Muse</div>
-            <div className="mt-0.5 text-[11px] text-muted-foreground">Planifie, suit et poursuit votre objectif.</div>
+            <div className="flex items-center gap-1.5 text-xs font-semibold"><Target className="h-3.5 w-3.5" />2. Muse poursuit</div>
+            <div className="mt-0.5 text-[11px] text-muted-foreground">Plan, veille, actions.</div>
           </div>
           <div className="rounded-xl border bg-card px-3 py-2.5">
-            <div className="text-xs font-semibold">NEXUS</div>
-            <div className="mt-0.5 text-[11px] text-muted-foreground">Cherche partout et relie offre ↔ demande.</div>
+            <div className="flex items-center gap-1.5 text-xs font-semibold"><Search className="h-3.5 w-3.5" />3. NEXUS découvre</div>
+            <div className="mt-0.5 text-[11px] text-muted-foreground">Acheteurs ↔ vendeurs.</div>
+          </div>
+          <div className="rounded-xl border bg-card px-3 py-2.5">
+            <div className="flex items-center gap-1.5 text-xs font-semibold"><Network className="h-3.5 w-3.5" />4. Signal Fabric relie</div>
+            <div className="mt-0.5 text-[11px] text-muted-foreground">Sources, confiance, contact.</div>
           </div>
         </div>
 

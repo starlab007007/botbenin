@@ -1,23 +1,38 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
-import { ShoppingBag, Search, Handshake, CreditCard, X, Sparkles, Info, PanelsTopLeft, Rows3, BrainCircuit } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import {
+  BrainCircuit,
+  Handshake,
+  Info,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Search,
+  ShieldCheck,
+  ShoppingBag,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import WaouhWebChat, { type WaouhWebChatHandle } from "@/components/waouh/WaouhWebChat";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useWaouhMatchNotifications } from "@/hooks/useWaouhMatchNotifications";
 import { WaouhNotificationsBell } from "@/components/waouh/WaouhNotificationsBell";
-import { StatusesPanel } from "@/components/waouh/statuses/StatusesPanel";
 import { WaouhChatSidebar } from "@/components/waouh/WaouhChatSidebar";
 import { WaouhChatTabs } from "@/components/waouh/WaouhChatTabs";
-import { WaouhMatchChatWindow } from "@/components/waouh/WaouhMatchChatWindow";
+import { WaouhMatchChatWindow, type MatchChatMeta } from "@/components/waouh/WaouhMatchChatWindow";
 import { useWaouhMatchChats } from "@/components/waouh/useWaouhMatchChats";
 import { openNotificationTarget } from "@/components/waouh/notificationActions";
 import { WaouhDealPaymentDialog } from "@/components/waouh/WaouhDealPaymentDialog";
+import { WaouhMuseAvatar } from "@/components/waouh/WaouhMuseAvatar";
+import { WaouhUnifiedIntelligenceDock } from "@/components/waouh/WaouhUnifiedIntelligenceDock";
+import {
+  EMPTY_WAOUH_WORKSPACE_STATE,
+  type WaouhWorkspaceAgentState,
+  type WaouhWorkspaceDealState,
+} from "@/lib/waouh/workspaceState";
 import { cn } from "@/lib/utils";
 
 const SESSION_KEY = "waouh_web_session_id";
@@ -33,63 +48,68 @@ function getSessionId() {
 }
 
 const QUICK_ACTIONS = [
-  { icon: ShoppingBag, title: "Vendre", desc: "Publiez un article en 30s", gradient: "from-emerald-500 to-teal-500" },
-  { icon: Search, title: "Acheter", desc: "Trouvez près de vous", gradient: "from-cyan-500 to-blue-500" },
-  { icon: Handshake, title: "Négocier", desc: "Proposez votre prix", gradient: "from-amber-500 to-orange-500" },
-  { icon: CreditCard, title: "Payer", desc: "Mobile Money sécurisé", gradient: "from-purple-500 to-pink-500" },
+  { icon: ShoppingBag, title: "Vendre", desc: "Décrivez l’offre, Muse cherche des acheteurs." },
+  { icon: Search, title: "Acheter", desc: "Décrivez le besoin, NEXUS cherche les vendeurs." },
+  { icon: Handshake, title: "Négocier", desc: "La Deal Room garde un seul fil par opportunité." },
+  { icon: BrainCircuit, title: "Muse", desc: "Un seul assistant pilote tout le parcours." },
 ];
 
 const EXAMPLES = [
   '"Je vends mon iPhone 14 Pro 256Go à Cotonou — 650 000 FCFA"',
-  '"Je cherche un frigo d\'occasion à Calavi, max 150 000 FCFA"',
-  '"Je propose 580 000 FCFA pour l\'iPhone"',
-  '"Je paye en Mobile Money MTN, mon numéro 97 12 34 56"',
+  '"Je cherche un frigo d’occasion à Calavi, max 150 000 FCFA"',
+  '"Trouve des acheteurs sérieux pour mes 10 tonnes de soja à Parakou"',
 ];
 
 const HelpContent = () => (
   <div className="space-y-4">
+    <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 to-cyan-50/60 p-4">
+      <div className="flex items-center gap-2 text-sm font-black text-emerald-950">
+        <Sparkles className="h-4 w-4" /> Un seul WAOUH
+      </div>
+      <p className="mt-1 text-xs leading-relaxed text-slate-600">
+        Vous parlez à WAOUH. Muse comprend, NEXUS découvre, Signal Fabric classe, le Contact Layer protège et la Deal Room poursuit la négociation dans le même espace.
+      </p>
+    </div>
     <div className="grid grid-cols-2 gap-2">
-      {QUICK_ACTIONS.map((a) => (
-        <div key={a.title} className="p-3 rounded-lg bg-white border border-gray-200">
-          <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${a.gradient} flex items-center justify-center mb-1.5`}>
-            <a.icon className="w-4 h-4 text-white" />
-          </div>
-          <h3 className="font-semibold text-gray-900 text-xs">{a.title}</h3>
-          <p className="text-[11px] text-gray-500">{a.desc}</p>
+      {QUICK_ACTIONS.map((action) => (
+        <div key={action.title} className="rounded-2xl border border-slate-200 bg-white p-3">
+          <action.icon className="mb-2 h-4 w-4 text-emerald-700" />
+          <h3 className="text-xs font-black text-slate-900">{action.title}</h3>
+          <p className="mt-0.5 text-[10px] leading-relaxed text-slate-500">{action.desc}</p>
         </div>
       ))}
     </div>
     <div>
-      <h3 className="font-semibold text-gray-900 text-sm mb-2 flex items-center gap-2">
-        <Sparkles className="w-4 h-4 text-cyan-500" /> Exemples
-      </h3>
-      <ul className="space-y-1.5">
-        {EXAMPLES.map((e) => (
-          <li key={e} className="text-xs text-gray-700 bg-gray-50 border border-gray-100 rounded-lg p-2">{e}</li>
+      <div className="mb-2 text-xs font-black text-slate-800">Exemples</div>
+      <div className="space-y-1.5">
+        {EXAMPLES.map((example) => (
+          <div key={example} className="rounded-xl bg-slate-50 px-3 py-2 text-[11px] text-slate-600">{example}</div>
         ))}
-      </ul>
+      </div>
     </div>
-    <div className="p-3 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 text-white text-xs leading-relaxed">
-      🔒 Paiements Mobile Money via escrow. L'argent n'est libéré qu'après confirmation.
+    <div className="flex items-start gap-2 rounded-2xl border border-slate-200 bg-slate-950 p-3 text-white">
+      <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+      <div className="text-[11px] leading-relaxed">
+        Le Contact Layer C0–C4 s’applique avant toute révélation de coordonnées ou action de contact. Les actions sensibles restent sous votre contrôle.
+      </div>
     </div>
   </div>
 );
 
-const LAYOUT_KEY = "waouh_chat_layout_mode";
-type LayoutMode = "split" | "list";
-
-function getInitialLayout(): LayoutMode {
-  if (typeof window === "undefined") return "split";
-  const v = localStorage.getItem(LAYOUT_KEY);
-  return v === "list" ? "list" : "split";
+function computeRailWidth(): number {
+  if (typeof window === "undefined") return 300;
+  return window.innerWidth >= 1440 ? 320 : 292;
 }
 
-function computeSidebarWidth(): number {
-  if (typeof window === "undefined") return 340;
-  const w = window.innerWidth;
-  if (w >= 1280) return 360;
-  return 320;
-}
+const PRESENCE_PHASE_LABEL: Record<WaouhWorkspaceAgentState["phase"], string> = {
+  idle: "Prêt à chercher",
+  listening: "Objectif compris",
+  searching: "NEXUS cherche",
+  comparing: "Signal Fabric compare",
+  contacting: "Contact sécurisé",
+  negotiating: "Deal Room active",
+  success: "Objectif atteint",
+};
 
 export default function WaouhChatPage({ embedded = false }: { embedded?: boolean } = {}) {
   const { user } = useAuth();
@@ -98,10 +118,16 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
   const isMobile = useIsMobile();
   const sessionId = getSessionId();
   const chatRef = useRef<WaouhWebChatHandle>(null);
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>(getInitialLayout);
-  const [sidebarWidth, setSidebarWidth] = useState<number>(computeSidebarWidth);
+
+  const [railOpen, setRailOpen] = useState(false);
+  const [railWidth, setRailWidth] = useState(computeRailWidth);
+  const [agentState, setAgentState] = useState<WaouhWorkspaceAgentState>(EMPTY_WAOUH_WORKSPACE_STATE);
+  const [dealState, setDealState] = useState<WaouhWorkspaceDealState | null>(null);
   const [payDialog, setPayDialog] = useState<{ dealId: string; amount?: number } | null>(null);
-  const { permission, requestPermission, notifications, unreadCount, markAllRead, markRead, clearAll } = useWaouhMatchNotifications(sessionId, user?.id ?? null);
+
+  const { permission, requestPermission, notifications, unreadCount, markAllRead, markRead, clearAll } =
+    useWaouhMatchNotifications(sessionId, user?.id ?? null);
+
   const {
     matches,
     waouhIds,
@@ -114,48 +140,47 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
     setHasMoreCached,
   } = useWaouhMatchChats(sessionId ?? "", user?.id ?? null);
 
+  const activeMatch = matches.find((item) => item.key === activeKey) ?? null;
+
   useEffect(() => {
-    const onResize = () => setSidebarWidth(computeSidebarWidth());
+    const onResize = () => setRailWidth(computeRailWidth());
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  const updateLayout = (mode: LayoutMode) => {
-    setLayoutMode(mode);
-    try { localStorage.setItem(LAYOUT_KEY, mode); } catch {}
-  };
-
-  // Auto-switch to split when something tries to open a chat while in list mode.
   useEffect(() => {
-    const ensureSplit = () => {
-      setLayoutMode((cur) => {
-        if (cur === "split") return cur;
-        try { localStorage.setItem(LAYOUT_KEY, "split"); } catch {}
-        return "split";
-      });
-    };
-    window.addEventListener("waouh:open-match-chat", ensureSplit as EventListener);
-    window.addEventListener("waouh:focus-message", ensureSplit as EventListener);
-    return () => {
-      window.removeEventListener("waouh:open-match-chat", ensureSplit as EventListener);
-      window.removeEventListener("waouh:focus-message", ensureSplit as EventListener);
-    };
-  }, []);
+    setDealState(null);
+  }, [activeKey]);
 
   useEffect(() => {
-    document.title = "WAOUH Chat — Achetez, Vendez, Négociez, Payez | bot.bj";
+    document.title = "WAOUH One — Agent commercial IA | bot.bj";
   }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get("new") === "1") {
-      const t = setTimeout(() => {
+      const timer = setTimeout(() => {
+        setActiveKey("main");
         chatRef.current?.startNewThread();
         navigate(location.pathname, { replace: true });
       }, 0);
-      return () => clearTimeout(t);
+      return () => clearTimeout(timer);
     }
-  }, [location.search, location.pathname, navigate]);
+  }, [location.pathname, location.search, navigate, setActiveKey]);
+
+  const handleNewGoal = () => {
+    setActiveKey("main");
+    setDealState(null);
+    chatRef.current?.startNewThread();
+    setTimeout(() => chatRef.current?.focusInput(), 0);
+  };
+
+  const handleOpenNotification = (notification: typeof notifications[number]) => {
+    openNotificationTarget(notification, {
+      beforeOpen: () => markRead(notification.id),
+      onPayDialog: (args) => setPayDialog(args),
+    });
+  };
 
   const NotifButton = (
     <WaouhNotificationsBell
@@ -169,188 +194,108 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
     />
   );
 
-  // === MOBILE: full-screen, no scroll, drawer for help ===
+  const resolvedDealState: WaouhWorkspaceDealState | null =
+    activeKey !== "main" && activeMatch
+      ? dealState ?? {
+          active: true,
+          title: activeMatch.title,
+          role: activeMatch.kind,
+          closed: activeMatch.closed,
+          price: activeMatch.price,
+          city: activeMatch.city ?? null,
+        }
+      : null;
+
+  const renderSurface = (match: MatchChatMeta | null) => {
+    if (!match || activeKey === "main") {
+      return (
+        <WaouhWebChat
+          ref={chatRef}
+          fullscreen
+          onAgentStateChange={setAgentState}
+          hideAgentBar
+        />
+      );
+    }
+    return (
+      <WaouhMatchChatWindow
+        match={match}
+        sessionId={sessionId ?? ""}
+        authUserId={user?.id ?? null}
+        waouhIds={waouhIds}
+        active
+        getCached={getCached}
+        setCached={setCached}
+        getHasMore={getHasMore}
+        setHasMoreCached={setHasMoreCached}
+        onDealStateChange={setDealState}
+      />
+    );
+  };
+
   if (isMobile) {
     return (
-      <div className="fixed inset-0 flex flex-col bg-background overflow-hidden">
-        <header className="flex items-center justify-between gap-2 px-3 h-12 border-b bg-white/95 backdrop-blur shrink-0">
-          <button
-            onClick={() => navigate("/")}
-            className="p-2 -ml-2 rounded-lg hover:bg-gray-100 active:bg-gray-200"
-            aria-label="Fermer"
-          >
-            <X className="w-5 h-5 text-gray-700" />
+      <div className="fixed inset-0 flex flex-col overflow-hidden bg-[#f6f8f7]">
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-slate-200/80 bg-white/95 px-2.5 backdrop-blur-xl">
+          <button onClick={() => navigate("/")} className="rounded-xl p-2 hover:bg-slate-100" aria-label="Fermer WAOUH">
+            <X className="h-5 w-5 text-slate-700" />
           </button>
-          <Link to="/" className="flex items-center gap-2 flex-1 min-w-0">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shrink-0">
-              <ShoppingBag className="w-4 h-4 text-white" />
-            </div>
-            <span className="font-bold text-sm text-gray-900 truncate">WAOUH</span>
-            <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px] py-0 px-1.5 h-4 hidden xs:inline-flex">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse" />
-              IA
-            </Badge>
-          </Link>
-          <div className="flex items-center gap-1">
-            <Link
-              to="/waouh/muse"
-              className="p-2 rounded-lg hover:bg-gray-100 active:bg-gray-200"
-              aria-label="Ouvrir WAOUH Muse"
-              title="WAOUH Muse"
-            >
-              <BrainCircuit className="w-5 h-5 text-cyan-700" />
-            </Link>
-            {NotifButton}
-            <Sheet>
-              <SheetTrigger asChild>
-                <button className="p-2 -mr-1 rounded-lg hover:bg-gray-100 active:bg-gray-200" aria-label="Aide">
-                  <Info className="w-5 h-5 text-gray-700" />
-                </button>
-              </SheetTrigger>
-              <SheetContent side="bottom" className="max-h-[80dvh] overflow-y-auto rounded-t-2xl">
-                <SheetHeader>
-                  <SheetTitle>Comment utiliser WAOUH</SheetTitle>
-                </SheetHeader>
-                <div className="mt-3"><HelpContent /></div>
-              </SheetContent>
-            </Sheet>
-          </div>
-        </header>
-        <div className="flex-1 min-h-0">
-          <WaouhWebChat ref={chatRef} fullscreen />
-        </div>
-      </div>
-    );
-  }
 
-  // === DESKTOP / TABLET: WhatsApp-style 2-column layout ===
-  const handleNewConversation = () => {
-    if (layoutMode === "list") updateLayout("split");
-    setActiveKey("main");
-    chatRef.current?.startNewThread();
-  };
-
-  const handleOpenNotification = (n: typeof notifications[number]) => {
-    if (layoutMode === "list") updateLayout("split");
-    openNotificationTarget(n, {
-      beforeOpen: () => markRead(n.id),
-      onPayDialog: (args) => setPayDialog(args),
-    });
-  };
-
-  return (
-    <div className={cn("flex flex-col bg-background overflow-hidden", embedded ? "h-full" : "h-[100dvh]")}>
-      <header className="shrink-0 h-14 border-b border-border bg-card/95 backdrop-blur flex items-center justify-between px-4">
-        <Link to="/" className="flex items-center gap-2.5 group">
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center shadow-sm group-hover:scale-105 transition">
-            <ShoppingBag className="w-5 h-5 text-white" />
-          </div>
-          <div className="leading-tight">
-            <div className="text-sm font-bold text-foreground">WAOUH</div>
-            <div className="text-[11px] text-muted-foreground">Marketplace IA — bot.bj</div>
-          </div>
-        </Link>
-        <div className="flex items-center gap-2">
-          <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hidden sm:inline-flex">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 mr-1.5 animate-pulse" />
-            IA en ligne
-          </Badge>
-
-          {/* Layout toggle */}
-          <TooltipProvider delayDuration={300}>
-            <div className="hidden md:inline-flex items-center rounded-md border border-border bg-background p-0.5">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant={layoutMode === "split" ? "secondary" : "ghost"}
-                    className="h-7 px-2"
-                    onClick={() => updateLayout("split")}
-                    aria-label="Vue 2 colonnes"
-                    aria-pressed={layoutMode === "split"}
-                  >
-                    <PanelsTopLeft className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>2 colonnes</TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant={layoutMode === "list" ? "secondary" : "ghost"}
-                    className="h-7 px-2"
-                    onClick={() => updateLayout("list")}
-                    aria-label="Liste uniquement"
-                    aria-pressed={layoutMode === "list"}
-                  >
-                    <Rows3 className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Liste uniquement</TooltipContent>
-              </Tooltip>
-            </div>
-          </TooltipProvider>
-
-          <Button asChild size="sm" variant="secondary" className="hidden sm:inline-flex">
-            <Link to="/waouh/muse">
-              <BrainCircuit className="mr-1.5 h-4 w-4" />
-              Muse
-            </Link>
-          </Button>
-          {NotifButton}
           <Sheet>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="sm" aria-label="Aide">
-                <Info className="w-4 h-4" />
-              </Button>
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl px-1 py-1 text-left transition hover:bg-slate-50"
+                aria-label="Ouvrir l’activité de Muse"
+              >
+                <WaouhMuseAvatar
+                  mode={resolvedDealState?.active ? (resolvedDealState.role === "seller" ? "seller" : "buyer") : agentState.mode}
+                  phase={resolvedDealState?.active ? (resolvedDealState.closed ? "success" : "negotiating") : agentState.phase}
+                  size="sm"
+                />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <div className="truncate text-sm font-black text-slate-950">WAOUH One</div>
+                    {(agentState.phase === "searching" || agentState.phase === "comparing" || resolvedDealState?.active) && (
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_7px_rgba(16,185,129,.8)]" />
+                    )}
+                  </div>
+                  <div className="truncate text-[10px] font-semibold text-slate-500">
+                    {resolvedDealState?.active
+                      ? resolvedDealState.closed ? "Deal conclu" : "Deal Room · Muse accompagne"
+                      : PRESENCE_PHASE_LABEL[agentState.phase]}
+                  </div>
+                </div>
+              </button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-[360px] overflow-y-auto">
-              <SheetHeader>
-                <SheetTitle>Comment utiliser WAOUH</SheetTitle>
-              </SheetHeader>
-              <div className="mt-4"><HelpContent /></div>
+            <SheetContent side="bottom" className="h-[82dvh] overflow-hidden rounded-t-[28px] p-0">
+              <SheetHeader className="sr-only"><SheetTitle>Activité et intelligence WAOUH</SheetTitle></SheetHeader>
+              <WaouhUnifiedIntelligenceDock
+                compact
+                state={agentState}
+                deal={resolvedDealState}
+                onNewGoal={handleNewGoal}
+              />
             </SheetContent>
           </Sheet>
-          {!embedded && (
-            <Link to="/">
-              <Button variant="ghost" size="sm">
-                <X className="w-4 h-4 mr-1.5" /> Fermer
-              </Button>
-            </Link>
-          )}
-          {!user && (
-            <Link to="/auth">
-              <Button size="sm" className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white hover:opacity-90">
-                Se connecter
-              </Button>
-            </Link>
-          )}
-        </div>
-      </header>
 
-      <div className="flex-1 min-h-0 flex overflow-hidden">
-        {/* Sidebar — JS-driven width to avoid media-query misdetection */}
-        <div
-          className="shrink-0 h-full min-h-0 flex"
-          style={{ width: layoutMode === "list" ? "100%" : `${sidebarWidth}px` }}
-        >
-          <WaouhChatSidebar
-            sessionId={sessionId ?? ""}
-            authUserId={user?.id ?? null}
-            notifications={notifications}
-            unreadCount={unreadCount}
-            onMarkAllRead={markAllRead}
-            onMarkRead={markRead}
-            onClearAll={clearAll}
-            onOpenNotification={handleOpenNotification}
-            onNewConversation={handleNewConversation}
-          />
-        </div>
+          {NotifButton}
 
-        {/* Chat area — tabs + main WAOUH + per-match conversations */}
-        {layoutMode === "split" && (
-          <main className="flex-1 min-w-0 h-full flex flex-col bg-background">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-xl" aria-label="Aide">
+                <Info className="h-4.5 w-4.5 text-slate-600" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="bottom" className="max-h-[82dvh] overflow-y-auto rounded-t-[28px]">
+              <SheetHeader><SheetTitle>WAOUH One</SheetTitle></SheetHeader>
+              <div className="mt-3"><HelpContent /></div>
+            </SheetContent>
+          </Sheet>
+        </header>
+
+        {matches.length > 0 && (
+          {matches.length > 0 && (
             <WaouhChatTabs
               matches={matches}
               activeKey={activeKey}
@@ -358,37 +303,197 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
               onClose={close}
               sessionId={sessionId ?? ""}
             />
-            <div className="flex-1 min-h-0 relative">
-              <div className={cn("absolute inset-0 flex flex-col", activeKey === "main" ? "" : "hidden")}>
-                <WaouhWebChat ref={chatRef} fullscreen />
-              </div>
-              {matches.map((m) => (
-                <div
-                  key={m.key}
-                  className={cn("absolute inset-0", activeKey === m.key ? "" : "hidden")}
-                >
-                  <WaouhMatchChatWindow
-                    match={m}
-                    sessionId={sessionId ?? ""}
-                    authUserId={user?.id ?? null}
-                    waouhIds={waouhIds}
-                    active={activeKey === m.key}
-                    getCached={getCached}
-                    setCached={setCached}
-                    getHasMore={getHasMore}
-                    setHasMoreCached={setHasMoreCached}
-                  />
-                </div>
-              ))}
-            </div>
-          </main>
+          )}
         )}
+
+        <main className="min-h-0 flex-1 overflow-hidden bg-white">
+          {renderSurface(activeMatch)}
+        </main>
+
+        {payDialog && (
+          <WaouhDealPaymentDialog
+            open
+            onOpenChange={(value) => { if (!value) setPayDialog(null); }}
+            dealId={payDialog.dealId}
+            amount={payDialog.amount}
+          />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn(
+      "flex flex-col overflow-hidden bg-[#f4f7f6]",
+      embedded ? "h-full" : "h-[100dvh]"
+    )}>
+      <header className="flex h-16 shrink-0 items-center gap-3 border-b border-slate-200/80 bg-white/90 px-3.5 backdrop-blur-xl">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="rounded-xl"
+          onClick={() => setRailOpen((value) => !value)}
+          aria-label={railOpen ? "Masquer les conversations" : "Afficher les conversations"}
+        >
+          {railOpen ? <PanelLeftClose className="h-4.5 w-4.5" /> : <PanelLeftOpen className="h-4.5 w-4.5" />}
+        </Button>
+
+        <Link to="/" className="group flex min-w-0 items-center gap-2.5">
+          <WaouhMuseAvatar
+            mode={resolvedDealState?.active ? (resolvedDealState.role === "seller" ? "seller" : "buyer") : agentState.mode}
+            phase={resolvedDealState?.active ? (resolvedDealState.closed ? "success" : "negotiating") : agentState.phase}
+            size="sm"
+          />
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-black tracking-tight text-slate-950">WAOUH One</span>
+              <Badge variant="outline" className="h-5 border-emerald-200 bg-emerald-50 px-1.5 text-[9px] font-black text-emerald-800">
+                IA
+              </Badge>
+            </div>
+            <div className="truncate text-[10px] font-semibold text-slate-500">
+              Un chat · un agent · tout le marché
+            </div>
+          </div>
+        </Link>
+
+        <div className="hidden min-w-0 flex-1 items-center justify-center md:flex">
+          <Sheet>
+            <SheetTrigger asChild>
+              <button
+                type="button"
+                className="group flex min-w-0 max-w-[620px] items-center gap-3 rounded-2xl border border-slate-200 bg-white/85 px-3 py-2 text-left shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50/45"
+                aria-label="Ouvrir l’activité de Muse et l’intelligence WAOUH"
+              >
+                <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                  {resolvedDealState?.active ? <Handshake className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+                  {(agentState.phase === "searching" || agentState.phase === "comparing" || resolvedDealState?.active) && (
+                    <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border-2 border-white bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,.8)]" />
+                  )}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2">
+                    <span className="truncate text-[11px] font-black text-slate-900">
+                      {resolvedDealState?.active
+                        ? resolvedDealState.closed ? "Deal conclu" : "Muse accompagne la négociation"
+                        : PRESENCE_PHASE_LABEL[agentState.phase]}
+                    </span>
+                    {agentState.resultCount > 0 && !resolvedDealState?.active && (
+                      <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-[9px]">
+                        {agentState.resultCount} résultat{agentState.resultCount > 1 ? "s" : ""}
+                      </Badge>
+                    )}
+                  </span>
+                  <span className="block truncate text-[10px] font-semibold text-slate-500">
+                    {resolvedDealState?.active
+                      ? resolvedDealState.title || "Deal Room WAOUH"
+                      : agentState.goal?.trim() || "Dites ce que vous voulez acheter ou vendre"}
+                  </span>
+                </span>
+                <span className="shrink-0 text-[9px] font-bold text-emerald-700 opacity-0 transition group-hover:opacity-100">
+                  Voir l’activité
+                </span>
+              </button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[390px] overflow-hidden p-0 sm:max-w-[390px]">
+              <SheetHeader className="sr-only"><SheetTitle>Activité et intelligence WAOUH</SheetTitle></SheetHeader>
+              <WaouhUnifiedIntelligenceDock
+                state={agentState}
+                deal={resolvedDealState}
+                onNewGoal={handleNewGoal}
+              />
+            </SheetContent>
+          </Sheet>
+        </div>
+
+        <div className="ml-auto flex items-center gap-1">
+          {NotifButton}
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-xl" aria-label="Aide">
+                <Info className="h-4 w-4" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[390px] overflow-y-auto">
+              <SheetHeader><SheetTitle>WAOUH One</SheetTitle></SheetHeader>
+              <div className="mt-4"><HelpContent /></div>
+            </SheetContent>
+          </Sheet>
+          {!embedded && (
+            <Button variant="ghost" size="icon" className="rounded-xl" onClick={() => navigate("/")} aria-label="Fermer">
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+          {!user && (
+            <Button asChild size="sm" className="ml-1 rounded-xl bg-slate-950 text-white hover:bg-slate-800">
+              <Link to="/auth">Connexion</Link>
+            </Button>
+          )}
+        </div>
+      </header>
+
+      <div className="flex min-h-0 flex-1 overflow-hidden p-2">
+        {railOpen && (
+          <div
+            className="mr-2 flex h-full shrink-0 overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm"
+            style={{ width: railWidth }}
+          >
+            <WaouhChatSidebar
+              sessionId={sessionId ?? ""}
+              authUserId={user?.id ?? null}
+              notifications={notifications}
+              unreadCount={unreadCount}
+              onMarkAllRead={markAllRead}
+              onMarkRead={markRead}
+              onClearAll={clearAll}
+              onOpenNotification={handleOpenNotification}
+              onNewConversation={handleNewGoal}
+            />
+          </div>
+        )}
+
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm">
+          <WaouhChatTabs
+            matches={matches}
+            activeKey={activeKey}
+            onSelect={setActiveKey}
+            onClose={close}
+            sessionId={sessionId ?? ""}
+          />
+          <div className="relative min-h-0 flex-1 overflow-hidden">
+            <div className={cn("absolute inset-0 flex flex-col", activeKey === "main" ? "" : "hidden")}>
+              <WaouhWebChat
+                ref={chatRef}
+                fullscreen
+                onAgentStateChange={setAgentState}
+                hideAgentBar
+              />
+            </div>
+            {matches.map((match) => (
+              <div key={match.key} className={cn("absolute inset-0", activeKey === match.key ? "" : "hidden")}>
+                <WaouhMatchChatWindow
+                  match={match}
+                  sessionId={sessionId ?? ""}
+                  authUserId={user?.id ?? null}
+                  waouhIds={waouhIds}
+                  active={activeKey === match.key}
+                  getCached={getCached}
+                  setCached={setCached}
+                  getHasMore={getHasMore}
+                  setHasMoreCached={setHasMoreCached}
+                  onDealStateChange={setDealState}
+                />
+              </div>
+            ))}
+          </div>
+        </main>
+
       </div>
 
       {payDialog && (
         <WaouhDealPaymentDialog
-          open={!!payDialog}
-          onOpenChange={(v) => { if (!v) setPayDialog(null); }}
+          open
+          onOpenChange={(value) => { if (!value) setPayDialog(null); }}
           dealId={payDialog.dealId}
           amount={payDialog.amount}
         />
