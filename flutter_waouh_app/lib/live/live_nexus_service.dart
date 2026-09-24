@@ -338,6 +338,90 @@ class LiveNexusService {
     return _map(envelope['data']);
   }
 
+  Future<String> identifyVisual({
+    required String imageUrl,
+    String? hint,
+  }) async {
+    final data = await _invoke('nexus.identify_visual', {
+      'image_url': imageUrl,
+      if (hint != null && hint.trim().isNotEmpty) 'hint': hint.trim(),
+    });
+    final query = _text(data['query']).trim();
+    if (query.isEmpty) {
+      throw const NexusApiException(
+        'WAOUH Vision n’a pas pu identifier ce produit.',
+      );
+    }
+    return query;
+  }
+
+  Future<String> lookupBarcode(String code) async {
+    final normalized = code.trim();
+    if (normalized.isEmpty) {
+      throw const NexusApiException('Code-barres vide.');
+    }
+    final data = await _invoke('nexus.barcode_lookup', {'code': normalized});
+    final query = _text(data['query']).trim();
+    if (query.isEmpty) {
+      throw const NexusApiException(
+        'Produit non identifié à partir de ce code.',
+      );
+    }
+    return query;
+  }
+
+  Future<Map<String, dynamic>> createBuyerAutopilot({
+    required String goal,
+    String? city,
+    double? budgetMax,
+  }) =>
+      _invoke('nexus.autopilot.create', {
+        'mode': 'buyer',
+        'goal': goal.trim(),
+        if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
+        if (budgetMax != null) 'budget_max': budgetMax,
+      });
+
+  Future<Map<String, dynamic>> createSellerAutopilot({
+    required String articleId,
+    required String goal,
+    double? minPrice,
+    double maxDiscountPercent = 15,
+    List<String> deliveryZones = const [],
+  }) =>
+      _invoke('nexus.autopilot.create', {
+        'mode': 'seller',
+        'article_id': articleId,
+        'goal': goal.trim(),
+        if (minPrice != null) 'min_price_amount': minPrice,
+        'max_discount_percent': maxDiscountPercent,
+        'delivery_zones': deliveryZones,
+      });
+
+  Future<Map<String, dynamic>> submitScout({
+    required String title,
+    double? observedPrice,
+    String? city,
+    String? placeName,
+    String? gtin,
+    String sourceType = 'field',
+    String availability = 'available',
+    String? note,
+    List<String> photoUrls = const [],
+  }) =>
+      _invoke('nexus.scout.submit', {
+        'title': title.trim(),
+        if (observedPrice != null) 'observed_price': observedPrice,
+        if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
+        if (placeName != null && placeName.trim().isNotEmpty)
+          'place_name': placeName.trim(),
+        if (gtin != null && gtin.trim().isNotEmpty) 'gtin': gtin.trim(),
+        'source_type': sourceType,
+        'availability': availability,
+        if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+        'photo_urls': photoUrls,
+      });
+
   Future<NexusDiscoveryResponse> search({
     required String query,
     required bool findSellers,
