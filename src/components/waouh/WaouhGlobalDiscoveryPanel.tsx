@@ -76,7 +76,7 @@ export function WaouhGlobalDiscoveryPanel() {
   const [resolvedMode, setResolvedMode] = useState<NexusResolvedDiscoveryMode>("find_sellers");
   const [intelligence, setIntelligence] = useState<NexusSmartDiscoveryPlan | null>(null);
   const [query, setQuery] = useState("");
-  const [city, setCity] = useState("Cotonou");
+  const [city, setCity] = useState("");
   const [budget, setBudget] = useState("");
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<NexusDiscoveryResult[]>([]);
@@ -131,7 +131,7 @@ export function WaouhGlobalDiscoveryPanel() {
       setRefreshState(response.refresh ?? {});
       setResolvedMode(response.mode);
       setIntelligence(response.intelligence ?? null);
-      if (mode === "auto" && response.intelligence?.city && city.trim() === "Cotonou") {
+      if (mode === "auto" && response.intelligence?.city && !city.trim()) {
         setCity(response.intelligence.city);
       }
       if (mode === "auto" && response.mode === "find_sellers" && !budget && response.intelligence?.budget_max) {
