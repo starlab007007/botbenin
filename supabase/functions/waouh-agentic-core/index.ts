@@ -368,6 +368,123 @@ Retourne uniquement un JSON compact avec: product, category, brand, model, condi
 
 type DiscoveryMode = "find_sellers" | "find_buyers";
 
+type NexusSmartDiscoveryPlan = {
+  mode: DiscoveryMode;
+  normalized_query: string;
+  city: string | null;
+  budget_max: number | null;
+  priorities: string[];
+  source_families: string[];
+  missing: string[];
+  next_actions: string[];
+  confidence: number;
+  rationale: string;
+};
+
+async function planNexusGoal(
+  goal: string,
+  hints: { mode?: DiscoveryMode | null; city?: string | null; budgetMax?: number | null } = {},
+): Promise<NexusSmartDiscoveryPlan> {
+  const sellSignals = /\\b(je\\s+vends?|vendre|à\\s+vendre|ecouler|écouler|trouver\\s+(?:des\\s+)?acheteurs?|clients?|prospects?|preneurs?)\\b/i;
+  const fallbackMode: DiscoveryMode = hints.mode ?? (sellSignals.test(goal) ? "find_buyers" : "find_sellers");
+  const fallbackSources = fallbackMode === "find_buyers"
+    ? ["waouh", "partners", "whatsapp_shared", "web_public", "social_public", "b2b_rfq", "scout"]
+    : ["waouh", "partners", "whatsapp_shared", "maps", "web_public", "social_public", "directories", "scout"];
+  const fallback: NexusSmartDiscoveryPlan = {
+    mode: fallbackMode,
+    normalized_query: goal.trim().slice(0, 700),
+    city: hints.city ?? null,
+    budget_max: hints.budgetMax ?? null,
+    priorities: ["relevance", "trust", "price", "distance", "freshness", "contactability"],
+    source_families: fallbackSources,
+    missing: [
+      ...(hints.city ? [] : ["zone"]),
+      ...(hints.budgetMax != null || fallbackMode === "find_buyers" ? [] : ["budget"]),
+    ],
+    next_actions: fallbackMode === "find_buyers"
+      ? ["Comparer les demandes actives", "Prioriser les acheteurs contactables", "Préparer une prise de contact sous contrôle"]
+      : ["Comparer les offres", "Vérifier prix, confiance et proximité", "Préparer le meilleur contact sous contrôle"],
+    confidence: 0.55,
+    rationale: fallbackMode === "find_buyers"
+      ? "Objectif interprété comme une recherche d’acheteurs ou de demandes."
+      : "Objectif interprété comme une recherche de vendeurs ou d’offres.",
+  };
+
+  try {
+    const raw = await chatCompletion({
+      jsonMode: true,
+      temperature: 0.08,
+      system: [
+        "Tu es le planificateur commercial NEXUS de WAOUH pour le Bénin et l'Afrique de l'Ouest.",
+        "Retourne uniquement un JSON compact avec: mode, normalized_query, city, budget_max, priorities, source_families, missing, next_actions, confidence, rationale.",
+        "mode doit être find_sellers ou find_buyers.",
+        "find_sellers = l'utilisateur veut acheter, trouver une offre, un fournisseur ou un vendeur.",
+        "find_buyers = l'utilisateur veut vendre, écouler, trouver des clients, acheteurs, demandes ou RFQ.",
+        "Si un mode imposé est fourni, respecte-le.",
+        "normalized_query doit être courte, commerciale et utile à la recherche, sans inventer marque/modèle/quantité.",
+        "source_families uniquement parmi: waouh, partners, whatsapp_shared, maps, web_public, social_public, directories, b2b_rfq, scout, voice, barcode, qr, sms_rcs, ussd.",
+        "N'ordonne jamais de scraper des espaces privés. Réseaux fermés: API officielle, partage utilisateur ou connecteur autorisé.",
+        "Aucune donnée personnelle inventée. Aucun paiement autonome.",
+        "priorities: 3 à 6 critères utiles parmi relevance, trust, price, distance, freshness, contactability, availability, speed.",
+        "missing: seulement les informations réellement utiles qui manquent.",
+        "next_actions: 2 à 4 actions courtes et concrètes.",
+        "confidence entre 0 et 1."
+      ].join("\\n"),
+      messages: [{
+        role: "user",
+        content: JSON.stringify({
+          goal: goal.slice(0, 1800),
+          mode_hint: hints.mode ?? null,
+          city_hint: hints.city ?? null,
+          budget_max_hint: hints.budgetMax ?? null,
+        }),
+      }],
+    });
+    const parsed = JSON.parse(raw);
+    const txt = (value: unknown, max = 700) =>
+      typeof value === "string" && value.trim() ? value.trim().slice(0, max) : null;
+    const num = (value: unknown) => {
+      if (value == null || value === "") return null;
+      const n = Number(value);
+      return Number.isFinite(n) && n >= 0 ? n : null;
+    };
+    const list = (value: unknown, max = 8) =>
+      Array.isArray(value)
+        ? value.filter((item) => typeof item === "string")
+            .map((item) => item.trim().slice(0, 120))
+            .filter(Boolean)
+            .slice(0, max)
+        : [];
+    const aiMode = ["find_sellers", "find_buyers"].includes(String(parsed.mode))
+      ? String(parsed.mode) as DiscoveryMode
+      : fallback.mode;
+    const allowedSources = new Set([
+      "waouh", "partners", "whatsapp_shared", "maps", "web_public", "social_public",
+      "directories", "b2b_rfq", "scout", "voice", "barcode", "qr", "sms_rcs", "ussd",
+    ]);
+    const sourceFamilies = list(parsed.source_families, 12).filter((item) => allowedSources.has(item));
+    const priorities = list(parsed.priorities, 6);
+    const nextActions = list(parsed.next_actions, 4);
+    const confidence = Number(parsed.confidence);
+    return {
+      mode: hints.mode ?? aiMode,
+      normalized_query: txt(parsed.normalized_query) ?? fallback.normalized_query,
+      city: hints.city ?? txt(parsed.city, 120) ?? fallback.city,
+      budget_max: hints.budgetMax ?? num(parsed.budget_max) ?? fallback.budget_max,
+      priorities: priorities.length ? priorities : fallback.priorities,
+      source_families: sourceFamilies.length ? sourceFamilies : fallback.source_families,
+      missing: list(parsed.missing, 6),
+      next_actions: nextActions.length ? nextActions : fallback.next_actions,
+      confidence: Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : fallback.confidence,
+      rationale: txt(parsed.rationale, 500) ?? fallback.rationale,
+    };
+  } catch (error) {
+    console.warn("[waouh-nexus] smart discovery planning fallback", error instanceof Error ? error.message : error);
+    return fallback;
+  }
+}
+
+
 function contactabilityFromBasis(
   sourceDefault: string,
   basis: string,
@@ -1788,32 +1905,64 @@ Retourne uniquement JSON:
 
       case "nexus.global_discovery": {
         const queryText = asString(payload.query, "query", 2, 1000);
-        const mode = pickEnum(payload.mode, "mode", ["find_sellers","find_buyers"] as const, "find_sellers");
-        const city = optionalString(payload.city, "city", 120);
-        const budgetMax = positiveNumber(payload.budget_max, "budget_max", true);
+        const requestedMode = pickEnum(
+          payload.mode,
+          "mode",
+          ["auto","find_sellers","find_buyers"] as const,
+          "auto",
+        );
+        const suppliedCity = optionalString(payload.city, "city", 120);
+        const suppliedBudgetMax = positiveNumber(payload.budget_max, "budget_max", true);
         const limit = integer(payload.limit, "limit", 20, 1, 50);
         const refreshExternal = bool(payload.refresh_external, true);
+        const smart = bool(payload.smart, true);
+
+        const forcedMode: DiscoveryMode | null = requestedMode === "auto" ? null : requestedMode;
+        const intelligence = (smart || requestedMode === "auto")
+          ? await planNexusGoal(queryText, {
+              mode: forcedMode,
+              city: suppliedCity,
+              budgetMax: suppliedBudgetMax,
+            })
+          : {
+              mode: forcedMode ?? "find_sellers",
+              normalized_query: queryText,
+              city: suppliedCity,
+              budget_max: suppliedBudgetMax,
+              priorities: ["relevance", "trust", "price", "distance", "freshness", "contactability"],
+              source_families: ["waouh", "partners", "web_public", "scout"],
+              missing: [],
+              next_actions: ["Comparer les résultats", "Préparer le contact sous contrôle"],
+              confidence: 1,
+              rationale: "Mode manuel appliqué sans replanification IA.",
+            } satisfies NexusSmartDiscoveryPlan;
+
+        const mode: DiscoveryMode = forcedMode ?? intelligence.mode;
+        const semanticQuery = intelligence.normalized_query || queryText;
+        const city = suppliedCity ?? intelligence.city ?? null;
+        const budgetMax = suppliedBudgetMax ?? intelligence.budget_max ?? null;
 
         const refresh: Record<string, unknown> = {};
         if (refreshExternal) {
           if (mode === "find_sellers") {
-            const places = await refreshGooglePlaces(sb, ownerId, queryText, city, Math.min(limit, 10));
+            const places = await refreshGooglePlaces(sb, ownerId, semanticQuery, city, Math.min(limit, 10));
             refresh.google_places = {
               configured: places.configured,
               inserted: places.inserted,
               reason: places.reason ?? null,
             };
           }
-          const serp = await refreshSerpApi(sb, ownerId, mode, queryText, city, Math.min(limit, 12));
+          const serp = await refreshSerpApi(sb, ownerId, mode, semanticQuery, city, Math.min(limit, 12));
           refresh.serpapi = {
             configured: serp.configured,
             inserted: serp.inserted,
             reason: serp.reason ?? null,
+            surfaces: serp.surfaces ?? {},
           };
         }
 
         const results = await globalDiscoverySearch(sb, {
-          query: queryText,
+          query: semanticQuery,
           mode,
           city,
           budgetMax,
@@ -1825,18 +1974,36 @@ Retourne uniquement JSON:
           return acc;
         }, {});
         await audit(sb, ownerId, "nexus.global_discovery", "discovery", null, {
-          mode, query: queryText, city, result_count: results.length, source_mix: sourceMix,
+          requested_mode: requestedMode,
+          resolved_mode: mode,
+          query: queryText,
+          normalized_query: semanticQuery,
+          city,
+          budget_max: budgetMax,
+          result_count: results.length,
+          source_mix: sourceMix,
+          ai_confidence: intelligence.confidence,
         });
         return jsonResponse({ ok: true, data: {
+          requested_mode: requestedMode,
           mode,
           query: queryText,
+          normalized_query: semanticQuery,
           city,
+          budget_max: budgetMax,
           results,
           source_mix: sourceMix,
           refresh,
+          intelligence: {
+            ...intelligence,
+            mode,
+            normalized_query: semanticQuery,
+            city,
+            budget_max: budgetMax,
+          },
           explanation: mode === "find_sellers"
-            ? "WAOUH cherche des offres, vendeurs, entreprises et annonceurs compatibles à travers le Signal Fabric."
-            : "WAOUH cherche des demandes, acheteurs et RFQ compatibles à travers le Signal Fabric.",
+            ? "WAOUH a compris l’objectif et cherche les meilleures offres, vendeurs, entreprises et annonceurs à travers NEXUS et le Signal Fabric."
+            : "WAOUH a compris l’objectif et cherche les demandes, acheteurs et RFQ compatibles à travers NEXUS et le Signal Fabric.",
         } });
       }
 
