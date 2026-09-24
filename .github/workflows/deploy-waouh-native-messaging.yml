@@ -88,8 +88,9 @@ jobs:
 
       - name: Install web dependencies
         run: |
-          npm ci --legacy-peer-deps --no-audit --no-fund || \
-            npm install --legacy-peer-deps --no-audit --no-fund
+          # package-lock.json is a known legacy snapshot and is intentionally
+          # not used as the source of truth for this validation workflow.
+          npm install --legacy-peer-deps --no-audit --no-fund --package-lock=false
 
       - name: Setup Deno
         uses: denoland/setup-deno@v2
@@ -199,7 +200,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npx vitest run src/lib/waouh/__tests__/native-messaging-settings.test.ts --maxWorkers=1
+          # The repository currently targets Vite 5 while package.json also
+          # declares Vitest 4. Pin a Vite-5-compatible test runner locally
+          # without modifying package.json or package-lock.json.
+          npm install --no-save --package-lock=false --legacy-peer-deps vite@5.4.1 vitest@2.1.9
+          cat > /tmp/vitest-native.config.mjs <<'EOF'
+          export default { test: { environment: "node" } };
+          EOF
+          npx vitest run src/lib/waouh/__tests__/native-messaging-settings.test.ts --config /tmp/vitest-native.config.mjs --maxWorkers=1
           npx eslint \
             src/hooks/useAdminRole.ts \
             src/lib/waouh/nativeMessagingSettings.ts \
