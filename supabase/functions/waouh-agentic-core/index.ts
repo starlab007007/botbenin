@@ -385,7 +385,7 @@ async function planNexusGoal(
   goal: string,
   hints: { mode?: DiscoveryMode | null; city?: string | null; budgetMax?: number | null } = {},
 ): Promise<NexusSmartDiscoveryPlan> {
-  const sellSignals = /\\b(je\\s+vends?|vendre|à\\s+vendre|ecouler|écouler|trouver\\s+(?:des\\s+)?acheteurs?|clients?|prospects?|preneurs?)\\b/i;
+  const sellSignals = /\b(je\s+vends?|vendre|à\s+vendre|ecouler|écouler|trouver\s+(?:des\s+)?acheteurs?|clients?|prospects?|preneurs?)\b/i;
   const fallbackMode: DiscoveryMode = hints.mode ?? (sellSignals.test(goal) ? "find_buyers" : "find_sellers");
   const fallbackSources = fallbackMode === "find_buyers"
     ? ["waouh", "partners", "whatsapp_shared", "web_public", "social_public", "b2b_rfq", "scout"]
@@ -429,7 +429,7 @@ async function planNexusGoal(
         "missing: seulement les informations réellement utiles qui manquent.",
         "next_actions: 2 à 4 actions courtes et concrètes.",
         "confidence entre 0 et 1."
-      ].join("\\n"),
+      ].join("\n"),
       messages: [{
         role: "user",
         content: JSON.stringify({
