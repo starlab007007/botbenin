@@ -1100,17 +1100,27 @@ Indice utilisateur: ${hint ?? "aucun"}`,
         const articleId = uuid(payload.article_id, "article_id");
         const article = await ownedArticle(sb, ownerId, articleId);
         const minPrice = positiveNumber(payload.min_price_amount, "min_price_amount", true);
-        const policy = await queryOne<any>(
-          sb.from("waouh_seller_policies").upsert({
-            owner_id: ownerId, article_id: articleId, mode: "assisted",
-            min_price_amount: minPrice,
-            max_discount_percent: positiveNumber(payload.max_discount_percent, "max_discount_percent", true) ?? 10,
-            allow_counteroffers: true, auto_expire_minutes: 1440,
-            delivery_zones: stringArray(payload.delivery_zones, "delivery_zones", 30),
-            rules: { nexus_autopilot: true, approval_before_accept: true }, active: true,
-          }, { onConflict: "owner_id,article_id" }).select("*").single(),
-          "nexus_autopilot_policy_failed",
-        );
+        const policyValues = {
+          owner_id: ownerId, article_id: articleId, business_id: null, mode: "assisted",
+          min_price_amount: minPrice,
+          max_discount_percent: positiveNumber(payload.max_discount_percent, "max_discount_percent", true) ?? 10,
+          allow_counteroffers: true, auto_expire_minutes: 1440,
+          delivery_zones: stringArray(payload.delivery_zones, "delivery_zones", 30),
+          rules: { nexus_autopilot: true, approval_before_accept: true }, active: true,
+        };
+        const { data: existingPolicy, error: policyLookupError } = await sb.from("waouh_seller_policies")
+          .select("id").eq("owner_id", ownerId).eq("article_id", articleId).eq("active", true)
+          .limit(1).maybeSingle();
+        if (policyLookupError) throw new ApiError(500, "nexus_autopilot_policy_lookup_failed", policyLookupError.message);
+        const policy = existingPolicy?.id
+          ? await queryOne<any>(
+              sb.from("waouh_seller_policies").update(policyValues).eq("id", existingPolicy.id).select("*").single(),
+              "nexus_autopilot_policy_update_failed",
+            )
+          : await queryOne<any>(
+              sb.from("waouh_seller_policies").insert(policyValues).select("*").single(),
+              "nexus_autopilot_policy_create_failed",
+            );
         await audit(sb, ownerId, "nexus.autopilot.seller_created", "article", articleId, { policy_id: policy.id });
         return jsonResponse({ ok: true, data: { mode, article, policy } }, 201);
       }
