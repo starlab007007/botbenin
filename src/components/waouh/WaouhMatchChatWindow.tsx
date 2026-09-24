@@ -756,13 +756,32 @@ export function WaouhMatchChatWindow({
           <div
             key={m.id}
             className={cn(
-              "min-w-0 max-w-[85%] rounded-2xl px-3 py-2 text-sm break-words shadow-sm",
-               (rich.results.length > 0 || rich.blocks.length > 0) && "w-full",
-              m.direction === "in"
-                ? "ml-auto bg-emerald-600 text-white rounded-br-sm"
-                : "mr-auto bg-card border rounded-bl-sm"
+              "flex items-start gap-2",
+              m.direction === "in" ? "justify-end" : "justify-start"
             )}
           >
+            {m.direction === "out" && (
+              <WaouhMuseAvatar
+                mode={match.kind === "buyer" ? "buyer" : "seller"}
+                phase={closed ? "success" : "negotiating"}
+                size="sm"
+                className="mt-0.5 hidden sm:block"
+              />
+            )}
+            <div
+              className={cn(
+                "min-w-0 rounded-3xl px-3 py-2 text-sm break-words shadow-sm",
+                (rich.results.length > 0 || rich.blocks.length > 0) && "w-full max-w-[860px]",
+                m.direction === "in"
+                  ? "max-w-[82%] bg-slate-950 text-white rounded-br-lg"
+                  : "max-w-[88%] bg-white border border-slate-200 rounded-bl-lg"
+              )}
+            >
+              {m.direction === "out" && (
+                <div className="mb-1.5 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-700">
+                  <Sparkles className="h-3 w-3" /> WAOUH
+                </div>
+              )}
             {/* Fiches produit (article + ses photos) si le moteur en a renvoyé */}
             {rich.results.length > 0 ? (
               <WaouhProductResults results={rich.results} compact />
@@ -774,7 +793,7 @@ export function WaouhMatchChatWindow({
             )}
             {rich.text && <div className="whitespace-pre-wrap">{rich.text}</div>}
             {rich.blocks.length > 0 && <WaouhAgentBlocks blocks={rich.blocks} onAction={authUserId ? handleAgentAction : undefined} busy={!!agentAction} />}
-
+            </div>
           </div>
         ); })}
 
