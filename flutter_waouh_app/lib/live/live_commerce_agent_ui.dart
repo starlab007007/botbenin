@@ -278,6 +278,13 @@ class LiveCommerceAgentBar extends StatelessWidget {
     final phase = _phase(busy, goal, intent, rows.length);
     final contact = _contactFromMessages(messages);
     final sources = <String>{};
+    final sourceMix = assistantMessage?.meta['source_mix'];
+    if (sourceMix is Map) {
+      for (final key in sourceMix.keys) {
+        final source = key.toString().trim();
+        if (source.isNotEmpty) sources.add(source);
+      }
+    }
     for (final row in rows) {
       final source = '${row['source'] ?? row['source_key'] ?? ''}'.trim();
       if (source.isNotEmpty) sources.add(source);
