@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
+import { WAOUH_RUNTIME_ENDPOINTS } from "@/lib/waouh/runtimeEndpoints";
   ArrowRight,
   Check,
   Copy,
@@ -36,7 +37,7 @@ const PROJECT_URL = (
 ).replace(/\/$/, "");
 
 function buildPublicConfigUrl(invite: string | null, room: string | null): string {
-  const url = new URL(`${PROJECT_URL}/functions/v1/waouh-tel-open-messages`);
+  const url = new URL(`${PROJECT_URL}/functions/v1/${WAOUH_RUNTIME_ENDPOINTS.nativeOpenMessages}`);
   if (invite) url.searchParams.set("invite", invite);
   if (room) url.searchParams.set("room", room);
   return url.toString();
