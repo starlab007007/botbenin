@@ -9,7 +9,7 @@ on:
       - "supabase/functions/_shared/waouh-tel/**"
       - "supabase/functions/waouh-tel-*/**"
       - "supabase/functions/waouh-native-messaging-settings/**"
-      - "supabase/functions/waouh-webhook/index.ts"
+      - "supabase/functions/waouh-webhook/index.ts"\n      - "supabase/functions/waouh-agentic-core/**"\n      - "supabase/migrations/*waouh_agentic_core*.sql"\n      - "supabase/migrations/*secure_waouh_sessions_and_media*.sql"\n      - "src/components/waouh/WaouhAgentCenter.tsx"\n      - "src/components/waouh/WaouhAgentBlocks.tsx"\n      - "src/lib/waouh/agenticClient.ts"\n      - "src/lib/waouh/agenticContracts.ts"\n      - "src/pages/waouh/WaouhMusePage.tsx"
       - "supabase/migrations/*waouh_native_messaging*.sql"
       - "src/App.tsx"
       - "src/hooks/useAdminRole.ts"
@@ -27,7 +27,7 @@ on:
       - "supabase/functions/_shared/waouh-tel/**"
       - "supabase/functions/waouh-tel-*/**"
       - "supabase/functions/waouh-native-messaging-settings/**"
-      - "supabase/functions/waouh-webhook/index.ts"
+      - "supabase/functions/waouh-webhook/index.ts"\n      - "supabase/functions/waouh-agentic-core/**"\n      - "supabase/migrations/*waouh_agentic_core*.sql"\n      - "supabase/migrations/*secure_waouh_sessions_and_media*.sql"\n      - "src/components/waouh/WaouhAgentCenter.tsx"\n      - "src/components/waouh/WaouhAgentBlocks.tsx"\n      - "src/lib/waouh/agenticClient.ts"\n      - "src/lib/waouh/agenticContracts.ts"\n      - "src/pages/waouh/WaouhMusePage.tsx"
       - "supabase/migrations/*waouh_native_messaging*.sql"
       - "src/App.tsx"
       - "src/hooks/useAdminRole.ts"
@@ -113,7 +113,7 @@ jobs:
             exit 1
           fi
 
-          for function_name in "${tel_functions[@]}" waouh-native-messaging-settings waouh-webhook; do
+          for function_name in "${tel_functions[@]}" waouh-native-messaging-settings waouh-webhook waouh-agentic-core; do
             test -f "supabase/functions/${function_name}/index.ts" || {
               echo "::error::Point d'entrée manquant pour ${function_name}."
               exit 1
@@ -166,7 +166,7 @@ jobs:
               \( -path '*/waouh-tel-*/*' -o -path '*/waouh-native-messaging-settings/*' \) \
               -print | sort
           )
-          entrypoints+=(supabase/functions/waouh-webhook/index.ts)
+          entrypoints+=(supabase/functions/waouh-webhook/index.ts)\n          entrypoints+=(supabase/functions/waouh-agentic-core/index.ts)
           if [ "${#entrypoints[@]}" -eq 0 ]; then
             echo '::error::Aucun point d’entrée Native Messaging à vérifier.'
             exit 1
@@ -319,7 +319,7 @@ jobs:
               \( -name 'waouh-tel-*' -o -name 'waouh-native-messaging-settings' \) \
               -printf '%f\n' | sort
           )
-          functions+=(waouh-webhook)
+          functions+=(waouh-webhook)\n          functions+=(waouh-agentic-core)
           if [ "${#functions[@]}" -eq 0 ]; then
             echo '::error::Aucune Edge Function Native Messaging à déployer.'
             exit 1
