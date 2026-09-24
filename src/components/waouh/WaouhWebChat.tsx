@@ -108,7 +108,7 @@ export type WaouhWebChatHandle = {
   prefillAndSend: (text: string, opts?: { attachments?: Att[] }) => Promise<void> | void;
 };
 
-export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean; fullscreen?: boolean; variant?: "web" | "native"; composerTopSlot?: React.ReactNode; onAgentStateChange?: (state: WaouhWorkspaceAgentState) => void }>(({ embedded = false, fullscreen = false, variant = "web", composerTopSlot, onAgentStateChange }, externalRef) => {
+export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean; fullscreen?: boolean; variant?: "web" | "native"; composerTopSlot?: React.ReactNode; onAgentStateChange?: (state: WaouhWorkspaceAgentState) => void; hideAgentBar?: boolean }>(({ embedded = false, fullscreen = false, variant = "web", composerTopSlot, onAgentStateChange, hideAgentBar = false }, externalRef) => {
   const [open, setOpen] = useState(embedded || fullscreen);
   const sessionId = useRef(getSessionId()).current;
   // Cache-first hydration: load last snapshot synchronously so the chat
@@ -683,15 +683,17 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         </div>
       )}
 
-      <WaouhCommerceAgentBar
-        goal={commerceAgent.goal}
-        mode={commerceAgent.mode}
-        phase={commerceAgent.phase}
-        resultCount={commerceAgent.resultCount}
-        sources={commerceAgent.sources}
-        contactLevel={commerceAgent.contactLevel}
-        compact={!fullscreen}
-      />
+      {!hideAgentBar && (
+        <WaouhCommerceAgentBar
+          goal={commerceAgent.goal}
+          mode={commerceAgent.mode}
+          phase={commerceAgent.phase}
+          resultCount={commerceAgent.resultCount}
+          sources={commerceAgent.sources}
+          contactLevel={commerceAgent.contactLevel}
+          compact={!fullscreen}
+        />
+      )}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2 waouh-chat-bg min-h-0">
         {hasMore && (
