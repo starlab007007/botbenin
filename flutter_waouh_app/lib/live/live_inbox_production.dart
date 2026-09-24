@@ -191,11 +191,11 @@ class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              displayName,
+            const Text(
+              'WAOUH One',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 18.5,
                 fontWeight: FontWeight.w900,
                 letterSpacing: -.25,
@@ -207,12 +207,16 @@ class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
               children: [
                 const _OnlineDot(),
                 const SizedBox(width: 5),
-                Text(
-                  onlineLabel,
-                  style: const TextStyle(
-                    color: Color(0xFFC9F6E3),
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
+                Flexible(
+                  child: Text(
+                    '$displayName · $onlineLabel',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Color(0xFFC9F6E3),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ],
@@ -233,7 +237,7 @@ class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
           IconButton(
             onPressed: onNewChat,
-            tooltip: 'Nouveau chat',
+            tooltip: 'Nouvel objectif',
             visualDensity: VisualDensity.compact,
             icon: const Icon(Icons.add_rounded, size: 25),
           ),
@@ -608,7 +612,7 @@ class _WaouhAssistantCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'WAOUH',
+                        'WAOUH One',
                         style: TextStyle(
                             fontSize: 20, fontWeight: FontWeight.w900),
                       ),
@@ -630,13 +634,13 @@ class _WaouhAssistantCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       const Text(
-                        'Assistant IA',
+                        'Muse · NEXUS · Signal Fabric · Contact',
                         maxLines: 2,
                         style: TextStyle(
                           color: Color(0xFF667A73),
-                          fontSize: 12.5,
+                          fontSize: 12.2,
                           height: 1.25,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],
