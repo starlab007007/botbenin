@@ -16,6 +16,7 @@ import {
   nativeEngineRequestAuthorized,
   requiresNativeEngineAuthorization,
 } from "../_shared/waouh-tel/native-engine-auth.ts";
+import { telRuntimeSecret } from "../_shared/waouh-tel/runtime-secret.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -295,7 +296,7 @@ serve(async (req) => {
     const nativeMessagingRequest = requiresNativeEngineAuthorization(body);
 
     if (nativeMessagingRequest) {
-      const expected = Deno.env.get("WAOUH_TEL_INTERNAL_SECRET") || "";
+      const expected = await telRuntimeSecret("internal_secret");
       const authorization = req.headers.get("authorization") || "";
       if (!nativeEngineRequestAuthorized(body, authorization, expected)) {
         return new Response(JSON.stringify({ error: "native_messaging_authorization_required" }), {
