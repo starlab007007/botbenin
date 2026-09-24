@@ -148,7 +148,19 @@ export function reconcileChatResponse<T extends ChatRow>(previous: T[], data: an
     messages = mergeChatRows(previous.filter((m) => m.id !== input.id), [{ ...input, id: data.inbound_message_id }]);
   }
   if (data.suppress_direct_reply) return messages;
-  const meta = { ...data.meta, ...reply, intent: data.intent, transaction_id: data.transaction_id, article_id: data.article_id, counterpart_user_id: data.counterpart_user_id, correlation_id: data.correlation_id };
+  const meta = {
+    ...data.meta,
+    ...reply,
+    intent: data.intent,
+    transaction_id: data.transaction_id,
+    article_id: data.article_id,
+    counterpart_user_id: data.counterpart_user_id,
+    correlation_id: data.correlation_id,
+    intelligence: data.intelligence ?? data.meta?.intelligence ?? null,
+    source_mix: data.source_mix ?? data.meta?.source_mix ?? null,
+    signal_fabric: data.signal_fabric ?? data.meta?.signal_fabric ?? null,
+    contactability_level: data.contactability_level ?? data.meta?.contactability_level ?? null,
+  };
   const outgoing = { id: data.outbound_message_id || input.id.replace('temp-in-', 'temp-out-'), direction: 'out', text: reply.text, created_at: new Date().toISOString(), attachments: reply.attachments, meta } as T;
   return mergeChatRows(messages, [outgoing]);
 }
