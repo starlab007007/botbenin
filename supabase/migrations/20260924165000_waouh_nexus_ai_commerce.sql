@@ -157,9 +157,9 @@ create policy "participants read nexus matches"
   using ((select auth.uid()) = buyer_auth_id or (select auth.uid()) = seller_auth_id);
 
 drop policy if exists "authenticated read market snapshots" on public.waouh_market_snapshots;
-create policy "authenticated read market snapshots"
+create policy "owners read market snapshots"
   on public.waouh_market_snapshots for select to authenticated
-  using (true);
+  using (owner_id is null or (select auth.uid()) = owner_id);
 
 revoke all on function public.waouh_nexus_set_updated_at() from public, anon, authenticated;
 grant execute on function public.waouh_nexus_set_updated_at() to service_role;
