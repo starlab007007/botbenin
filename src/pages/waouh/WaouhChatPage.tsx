@@ -241,28 +241,35 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
             <X className="h-5 w-5 text-slate-700" />
           </button>
 
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <WaouhMuseAvatar
-              mode={resolvedDealState?.active ? (resolvedDealState.role === "seller" ? "seller" : "buyer") : agentState.mode}
-              phase={resolvedDealState?.active ? (resolvedDealState.closed ? "success" : "negotiating") : agentState.phase}
-              size="sm"
-            />
-            <div className="min-w-0">
-              <div className="truncate text-sm font-black text-slate-950">WAOUH One</div>
-              <div className="truncate text-[10px] font-semibold text-slate-500">
-                {resolvedDealState?.active ? "Deal Room · négociation protégée" : "Muse · NEXUS · Signal · Contact"}
-              </div>
-            </div>
-          </div>
-
           <Sheet>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-xl" aria-label="Activité et intelligence WAOUH">
-                <Sparkles className="h-4.5 w-4.5 text-emerald-700" />
-              </Button>
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl px-1 py-1 text-left transition hover:bg-slate-50"
+                aria-label="Ouvrir l’activité de Muse"
+              >
+                <WaouhMuseAvatar
+                  mode={resolvedDealState?.active ? (resolvedDealState.role === "seller" ? "seller" : "buyer") : agentState.mode}
+                  phase={resolvedDealState?.active ? (resolvedDealState.closed ? "success" : "negotiating") : agentState.phase}
+                  size="sm"
+                />
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <div className="truncate text-sm font-black text-slate-950">WAOUH One</div>
+                    {(agentState.phase === "searching" || agentState.phase === "comparing" || resolvedDealState?.active) && (
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_7px_rgba(16,185,129,.8)]" />
+                    )}
+                  </div>
+                  <div className="truncate text-[10px] font-semibold text-slate-500">
+                    {resolvedDealState?.active
+                      ? resolvedDealState.closed ? "Deal conclu" : "Deal Room · Muse accompagne"
+                      : PRESENCE_PHASE_LABEL[agentState.phase]}
+                  </div>
+                </div>
+              </button>
             </SheetTrigger>
             <SheetContent side="bottom" className="h-[82dvh] overflow-hidden rounded-t-[28px] p-0">
-              <SheetHeader className="sr-only"><SheetTitle>Intelligence WAOUH</SheetTitle></SheetHeader>
+              <SheetHeader className="sr-only"><SheetTitle>Activité et intelligence WAOUH</SheetTitle></SheetHeader>
               <WaouhUnifiedIntelligenceDock
                 compact
                 state={agentState}
