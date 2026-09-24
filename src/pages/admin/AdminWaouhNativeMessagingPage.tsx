@@ -36,6 +36,7 @@ import {
   type WaouhNativeMessagingProvider,
   type WaouhNativeMessagingSettings,
 } from "@/lib/waouh/nativeMessagingSettings";
+import { WAOUH_RUNTIME_ENDPOINTS } from "@/lib/waouh/runtimeEndpoints";
 
 const providerLabels: Record<WaouhNativeMessagingProvider, string> = {
   not_configured: "À configurer",
@@ -125,7 +126,7 @@ export default function AdminWaouhNativeMessagingPage() {
   const loadSettings = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase.functions.invoke(
-      "waouh-native-messaging-settings",
+      WAOUH_RUNTIME_ENDPOINTS.nativeMessagingSettings,
       { body: { action: "get" } },
     );
     if (error || !data?.ok) {
@@ -165,7 +166,7 @@ export default function AdminWaouhNativeMessagingPage() {
     }
     setSaving(true);
     const { data, error } = await supabase.functions.invoke(
-      "waouh-native-messaging-settings",
+      WAOUH_RUNTIME_ENDPOINTS.nativeMessagingSettings,
       {
         body: {
           action: "save",
