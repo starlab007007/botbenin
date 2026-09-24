@@ -381,12 +381,15 @@ export function WaouhGlobalDiscoveryPanel() {
                 {Object.entries(sourceMix).map(([source, count]) => (
                   <Badge key={source} variant="secondary">{sourceLabel(source)} · {count}</Badge>
                 ))}
-                {Object.entries(refreshState).map(([source, state]) => (
-                  <Badge key={`refresh-${source}`} variant="outline" className="gap-1">
-                    {state.configured ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-                    {sourceLabel(source)} {state.configured ? `+${state.inserted ?? 0}` : "non configuré"}
-                  </Badge>
-                ))}
+                {Object.entries(refreshState).map(([source, state]) => {
+                  const skipped = state.reason === "not_selected_by_ai_plan";
+                  return (
+                    <Badge key={`refresh-${source}`} variant="outline" className="gap-1">
+                      {skipped ? <Radar className="h-3 w-3" /> : state.configured ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+                      {sourceLabel(source)} {skipped ? "non nécessaire" : state.configured ? `+${state.inserted ?? 0}` : "non configuré"}
+                    </Badge>
+                  );
+                })}
               </div>
             )}
 
