@@ -367,25 +367,33 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
     unawaited(_send());
   }
 
+  Future<void> _openAgenticWorkspace() => showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        backgroundColor: Colors.white,
+        builder: (_) => FractionallySizedBox(
+          heightFactor: .92,
+          child: LiveAgenticWorkspace(
+            controller: _controller.agentic,
+            onResumeMission: _resumeMission,
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<LiveWaouhController>();
-    final auth = context.watch<legacy.AuthController>();
     return Scaffold(
       appBar: LiveHeader(
-        title: 'WAOUH',
-        subtitle: auth.profile?.fullName == null
-            ? 'Assistant de recherche et de vente'
-            : 'Bonjour ${auth.profile!.fullName!.split(' ').first}',
+        title: 'WAOUH One',
+        subtitle: 'Un chat · Muse + NEXUS + Signal + Contact',
         back: true,
         actions: [
-          TextButton.icon(
+          IconButton(
+              tooltip: 'Nouvel objectif',
               onPressed: _newChat,
-              icon: const Icon(Icons.edit_outlined, size: 18),
-              label: const Text('Nouveau'),
-              style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  textStyle: const TextStyle(fontWeight: FontWeight.w800))),
+              icon: const Icon(Icons.add_comment_outlined)),
           IconButton(
               tooltip: 'Notifications',
               onPressed: () => context.go('/app/notifications'),
@@ -393,10 +401,6 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
         ],
       ),
       body: Column(children: [
-        LiveAgenticSummaryBar(
-          controller: controller.agentic,
-          onResumeMission: _resumeMission,
-        ),
         Expanded(
             child: StreamBuilder<List<LiveMessage>>(
                 stream: _messageStream,
@@ -421,7 +425,16 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
                         composerFocus.requestFocus();
                       },
                       onSell: _openSellForm,
-                      onMuse: () => context.push('/app/muse'),
+                      onMuse: () => showLiveUnifiedIntelligenceSheet(
+                        context,
+                        messages: messages,
+                        busy: waiting,
+                        missionCount: controller.agentic.activeMissionCount,
+                        watchCount: controller.agentic.activeWatchCount,
+                        approvalCount: controller.agentic.pendingApprovalCount,
+                        onNewGoal: () { unawaited(_newChat()); },
+                        onOpenAgentic: () { unawaited(_openAgenticWorkspace()); },
+                      ),
                       onLocation: () async {
                         await controller.useDeviceLocation();
                         if (!mounted) return;
