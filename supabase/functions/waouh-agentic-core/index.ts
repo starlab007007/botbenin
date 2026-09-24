@@ -945,6 +945,9 @@ Deno.serve(async (req: Request) => {
       case "nexus.identify_visual": {
         const imageUrl = safeUrl(payload.image_url, "image_url");
         if (!imageUrl) throw new ApiError(422, "image_url_required");
+        const imageHost = new URL(imageUrl).hostname;
+        const storageHost = new URL(supabaseUrl).hostname;
+        if (imageHost !== storageHost) throw new ApiError(422, "untrusted_image_host");
         const hint = optionalString(payload.hint, "hint", 500);
         let identification: any = {};
         try {
