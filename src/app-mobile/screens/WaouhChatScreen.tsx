@@ -1,11 +1,14 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation, Navigate } from "react-router-dom";
-import { ShoppingBag, Info, User, MessageSquareText, Search, Handshake, ArrowLeft, Plus } from "lucide-react";
+import { Info, User, MessageSquareText, ArrowLeft, Plus, Sparkles } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Badge } from "@/components/ui/badge";
 import WaouhWebChat, { type WaouhWebChatHandle } from "@/components/waouh/WaouhWebChat";
 import { WaouhMatchChatWindow } from "@/components/waouh/WaouhMatchChatWindow";
 import { WaouhChatTabs } from "@/components/waouh/WaouhChatTabs";
+import { WaouhUnifiedIntelligenceDock } from "@/components/waouh/WaouhUnifiedIntelligenceDock";
+import { WaouhSmartComposerBar } from "@/components/waouh/WaouhSmartComposerBar";
+import { WaouhMuseAvatar } from "@/components/waouh/WaouhMuseAvatar";
+import { EMPTY_WAOUH_WORKSPACE_STATE, type WaouhWorkspaceAgentState, type WaouhWorkspaceDealState } from "@/lib/waouh/workspaceState";
 import { useWaouhMatchChats } from "@/components/waouh/useWaouhMatchChats";
 
 
@@ -39,12 +42,6 @@ function getSessionId() {
   return id;
 }
 
-const PAYLOADS: { key: "sell" | "buy" | "negotiate"; label: string; Icon: any; tint: string }[] = [
-  { key: "sell", label: "Vendre", Icon: ShoppingBag, tint: "from-emerald-500 to-teal-600" },
-  { key: "buy", label: "Acheter", Icon: Search, tint: "from-sky-500 to-blue-600" },
-  { key: "negotiate", label: "Négocier", Icon: Handshake, tint: "from-amber-500 to-orange-600" },
-];
-
 /**
  * Native-style WAOUH chat — unified header, fullscreen messages, and a
  * WhatsApp-style composer with payload chips sitting JUST above the input.
@@ -63,6 +60,8 @@ export default function WaouhChatScreen() {
   const sessionId = getSessionId();
   const authUserId = user?.id ?? null;
   const chatRef = useRef<WaouhWebChatHandle>(null);
+  const [agentState, setAgentState] = useState<WaouhWorkspaceAgentState>(EMPTY_WAOUH_WORKSPACE_STATE);
+  const [dealState, setDealState] = useState<WaouhWorkspaceDealState | null>(null);
   const { geo, loading: geoLoading, setCity, refresh } = useWaouhGeolocation();
   const { permission, requestPermission, notifications, unreadCount, markAllRead, markRead, clearAll } =
     useWaouhMatchNotifications(sessionId, authUserId);
@@ -70,9 +69,25 @@ export default function WaouhChatScreen() {
     sessionId,
     authUserId
   );
+  const activeMatch = matches.find((item) => item.key === activeKey) ?? null;
+  const resolvedDeal: WaouhWorkspaceDealState | null =
+    activeKey !== "main" && activeMatch
+      ? dealState ?? {
+          active: true,
+          title: activeMatch.title,
+          role: activeMatch.kind,
+          closed: activeMatch.closed,
+          price: activeMatch.price,
+          city: activeMatch.city ?? null,
+        }
+      : null;
 
   useEffect(() => {
-    document.title = "WAOUH Chat — bot.bj";
+    setDealState(null);
+  }, [activeKey]);
+
+  useEffect(() => {
+    document.title = "WAOUH One — bot.bj";
   }, []);
 
   // Handle deep-links from the Radar / external triggers:
@@ -170,33 +185,17 @@ export default function WaouhChatScreen() {
     };
   }, [isNative]);
 
-  const payloadChips = (
-    <div className="px-2 py-2 bg-background border-t border-border/50 shrink-0">
-      <div className="flex gap-2 overflow-x-auto scrollbar-none">
-        {PAYLOADS.map(({ key, label, Icon, tint }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => chatRef.current?.triggerQuickAction(key)}
-            className={cn(
-              "flex items-center gap-1.5 pl-1.5 pr-3 py-1 rounded-full shrink-0",
-              "bg-card border border-border/60 shadow-sm",
-              "active:scale-95 transition-all duration-150"
-            )}
-          >
-            <span
-              className={cn(
-                "w-6 h-6 rounded-full flex items-center justify-center bg-gradient-to-br text-white",
-                tint
-              )}
-            >
-              <Icon className="w-3.5 h-3.5" />
-            </span>
-            <span className="text-[13px] font-semibold text-foreground">{label}</span>
-          </button>
-        ))}
-      </div>
-    </div>
+  const composerIntelligence = (
+    <WaouhSmartComposerBar
+      mode={agentState.mode}
+      phase={agentState.phase}
+      resultCount={agentState.resultCount}
+      onPrompt={(value) => {
+        chatRef.current?.prefill(value);
+        chatRef.current?.focusInput();
+      }}
+      onSell={() => chatRef.current?.triggerQuickAction("sell")}
+    />
   );
 
   return (
@@ -214,25 +213,48 @@ export default function WaouhChatScreen() {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center shrink-0">
-            <ShoppingBag className="w-5 h-5 text-white" />
-          </div>
+          <WaouhMuseAvatar
+            mode={resolvedDeal?.active ? (resolvedDeal.role === "seller" ? "seller" : "buyer") : agentState.mode}
+            phase={resolvedDeal?.active ? (resolvedDeal.closed ? "success" : "negotiating") : agentState.phase}
+            size="sm"
+          />
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className="font-bold text-sm leading-tight truncate">WAOUH</span>
-              <Badge className="bg-emerald-400/90 text-emerald-950 border-0 text-[9px] py-0 px-1.5 h-4">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-700 mr-1 animate-pulse" />
-                IA
-              </Badge>
+              <span className="font-black text-sm leading-tight truncate">WAOUH One</span>
+              <span className="rounded-full bg-white/15 px-1.5 py-0.5 text-[9px] font-black text-emerald-100">IA</span>
             </div>
             <span className="text-[11px] text-white/75 truncate block">
-              {profile?.full_name ? `Bonjour ${profile.full_name.split(" ")[0]}` : "Achetez · Vendez · Négociez"}
+              {resolvedDeal?.active
+                ? "Deal Room · négociation protégée"
+                : profile?.full_name
+                  ? `${profile.full_name.split(" ")[0]} · Muse + NEXUS + Signal`
+                  : "Muse · NEXUS · Signal · Contact"}
             </span>
           </div>
         </div>
 
         <div className="flex items-center gap-1">
           <WaouhCityBadge geo={geo} loading={geoLoading} onSetCity={setCity} onRefresh={refresh} compact />
+          <Sheet>
+            <SheetTrigger asChild>
+              <button className="p-2 rounded-lg hover:bg-white/15 active:bg-white/25" aria-label="Intelligence WAOUH">
+                <Sparkles className="w-5 h-5" />
+              </button>
+            </SheetTrigger>
+            <SheetContent side="bottom" className="h-[82dvh] overflow-hidden rounded-t-[28px] p-0">
+              <SheetHeader className="sr-only"><SheetTitle>Intelligence WAOUH</SheetTitle></SheetHeader>
+              <WaouhUnifiedIntelligenceDock
+                compact
+                state={agentState}
+                deal={resolvedDeal}
+                onNewGoal={() => {
+                  chatRef.current?.startNewThread();
+                  setActiveKey("main");
+                  setDealState(null);
+                }}
+              />
+            </SheetContent>
+          </Sheet>
           <div className="[&_button]:text-white [&_button:hover]:bg-white/15">
             <WaouhNotificationsBell
               permission={permission}
@@ -279,8 +301,8 @@ export default function WaouhChatScreen() {
               setActiveKey("main");
             }}
             className="p-2 rounded-lg hover:bg-white/15 active:bg-white/25"
-            aria-label="Nouvelle discussion WAOUH"
-            title="Nouvelle discussion"
+            aria-label="Nouvel objectif WAOUH"
+            title="Nouvel objectif"
           >
             <Plus className="w-5 h-5" />
           </button>
@@ -308,7 +330,7 @@ export default function WaouhChatScreen() {
       <div className="flex-1 min-h-0 relative">
         <div className={cn("absolute inset-0 flex flex-col", activeKey === "main" ? "" : "hidden")}>
           <ErrorBoundary fallback={<MobileErrorFallback />}>
-            <WaouhWebChat ref={chatRef} fullscreen variant="native" composerTopSlot={payloadChips} />
+            <WaouhWebChat ref={chatRef} fullscreen variant="native" composerTopSlot={composerIntelligence} onAgentStateChange={setAgentState} />
           </ErrorBoundary>
         </div>
         {matches.map((m) => (
@@ -326,6 +348,7 @@ export default function WaouhChatScreen() {
               setCached={setCached}
               getHasMore={getHasMore}
               setHasMoreCached={setHasMoreCached}
+              onDealStateChange={setDealState}
             />
 
           </div>
