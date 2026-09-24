@@ -86,7 +86,7 @@ class _LiveMuseScreenState extends State<LiveMuseScreen> {
     return Scaffold(
       appBar: const LiveHeader(
         title: 'WAOUH Muse',
-        subtitle: 'Votre agent autonome · propulsé par NEXUS',
+        subtitle: 'Dites l’objectif · Muse + NEXUS s’en chargent',
         back: true,
       ),
       body: auth.signedIn
@@ -94,6 +94,8 @@ class _LiveMuseScreenState extends State<LiveMuseScreen> {
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 120),
               children: [
                 const _MuseHero(),
+                const SizedBox(height: 10),
+                const _ArchitectureFlow(),
                 const SizedBox(height: 12),
                 LiveAgenticSummaryBar(
                   controller: agentic,
@@ -201,7 +203,7 @@ class _MuseHero extends StatelessWidget {
                 SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Chat répond. Muse poursuit un objectif.',
+                    'Dites l’objectif. WAOUH poursuit.',
                     style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w900,
@@ -213,7 +215,7 @@ class _MuseHero extends StatelessWidget {
             ),
             SizedBox(height: 10),
             Text(
-              'Muse comprend le besoin, utilise NEXUS pour chercher vendeurs ou acheteurs, compare prix et confiance, crée des veilles et vous demande votre accord avant les actions sensibles.',
+              'Muse planifie. NEXUS cherche acheteurs ou vendeurs. Le Signal Fabric classe les meilleures opportunités et protège les contacts.',
               style: TextStyle(
                 color: Colors.white70,
                 height: 1.35,
@@ -221,6 +223,88 @@ class _MuseHero extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      );
+}
+
+class _ArchitectureFlow extends StatelessWidget {
+  const _ArchitectureFlow();
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: const [
+          Expanded(
+            child: _FlowStep(
+              icon: Icons.chat_bubble_outline_rounded,
+              label: 'Objectif',
+            ),
+          ),
+          _FlowArrow(),
+          Expanded(
+            child: _FlowStep(
+              icon: Icons.psychology_alt_outlined,
+              label: 'Muse',
+            ),
+          ),
+          _FlowArrow(),
+          Expanded(
+            child: _FlowStep(
+              icon: Icons.travel_explore_rounded,
+              label: 'NEXUS',
+            ),
+          ),
+          _FlowArrow(),
+          Expanded(
+            child: _FlowStep(
+              icon: Icons.hub_outlined,
+              label: 'Signal',
+            ),
+          ),
+        ],
+      );
+}
+
+class _FlowStep extends StatelessWidget {
+  const _FlowStep({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 5),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF4FBF8),
+          borderRadius: BorderRadius.circular(13),
+          border: Border.all(color: const Color(0xFFD8EDE6)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 18, color: const Color(0xFF08745D)),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              maxLines: 1,
+              style: const TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _FlowArrow extends StatelessWidget {
+  const _FlowArrow();
+
+  @override
+  Widget build(BuildContext context) => const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 3),
+        child: Icon(
+          Icons.chevron_right_rounded,
+          size: 16,
+          color: Colors.blueGrey,
         ),
       );
 }
