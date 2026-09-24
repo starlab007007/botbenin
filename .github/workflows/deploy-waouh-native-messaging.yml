@@ -228,6 +228,7 @@ jobs:
           import { resolve } from "node:path";
           export default {
             resolve: { alias: { "@": resolve(process.cwd(), "src") } },
+            esbuild: { jsx: "automatic" },
             test: { environment: "node" },
           };
           EOF
