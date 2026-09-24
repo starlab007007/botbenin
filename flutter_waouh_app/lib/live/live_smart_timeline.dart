@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'live_commerce_workflow.dart';
+import 'live_commerce_agent_ui.dart';
 import 'live_models.dart';
 import 'live_widgets.dart';
 
@@ -173,20 +174,19 @@ class _AssistantHint extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Color(0xFF08756A),
-                ),
+              LiveMuseAvatar(
+                mode: searching ? LiveMuseMode.buyer : LiveMuseMode.neutral,
+                phase: searching
+                    ? LiveMusePhase.searching
+                    : LiveMusePhase.listening,
+                size: 30,
               ),
               const SizedBox(width: 9),
               Flexible(
                 child: Text(
                   searching
-                      ? 'WAOUH recherche et organise les résultats…'
-                      : 'WAOUH traite l’étape en cours…',
+                      ? 'Muse active NEXUS et compare les signaux…'
+                      : 'Muse traite l’étape en cours…',
                   style: const TextStyle(
                     color: Color(0xFF075E54),
                     fontSize: 12.5,
