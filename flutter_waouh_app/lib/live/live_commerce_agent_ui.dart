@@ -363,6 +363,7 @@ class LiveSmartComposerBar extends StatelessWidget {
     required this.onPrompt,
     required this.onSell,
     required this.onMuse,
+    this.onLocation,
     this.busy = false,
   });
 
@@ -370,6 +371,7 @@ class LiveSmartComposerBar extends StatelessWidget {
   final ValueChanged<String> onPrompt;
   final VoidCallback onSell;
   final VoidCallback onMuse;
+  final VoidCallback? onLocation;
   final bool busy;
 
   List<({String label, String value, IconData icon})> _items() {
@@ -467,6 +469,12 @@ class LiveSmartComposerBar extends StatelessWidget {
             },
           ),
         ),
+        if (onLocation != null)
+          IconButton(
+            tooltip: 'Ajouter ma zone',
+            onPressed: busy ? null : onLocation,
+            icon: const Icon(Icons.my_location_outlined),
+          ),
         IconButton(
           tooltip: 'Ouvrir Muse',
           onPressed: onMuse,
