@@ -355,6 +355,129 @@ class LiveCommerceAgentBar extends StatelessWidget {
   }
 }
 
+
+class LiveSmartComposerBar extends StatelessWidget {
+  const LiveSmartComposerBar({
+    super.key,
+    required this.messages,
+    required this.onPrompt,
+    required this.onSell,
+    required this.onMuse,
+    this.busy = false,
+  });
+
+  final List<LiveMessage> messages;
+  final ValueChanged<String> onPrompt;
+  final VoidCallback onSell;
+  final VoidCallback onMuse;
+  final bool busy;
+
+  List<({String label, String value, IconData icon})> _items() {
+    LiveMessage? userMessage;
+    LiveMessage? assistantMessage;
+    for (final message in messages.reversed) {
+      if (userMessage == null && message.outgoing) userMessage = message;
+      if (assistantMessage == null && !message.outgoing) assistantMessage = message;
+      if (userMessage != null && assistantMessage != null) break;
+    }
+    final goal = userMessage?.text == '(image)' ? '' : (userMessage?.text.trim() ?? '');
+    final intent = '${assistantMessage?.meta['intent'] ?? ''}';
+    final rows = _rows(assistantMessage);
+    final mode = _mode(goal, intent);
+    final phase = _phase(busy, goal, intent, rows.length);
+
+    if (phase == LiveMusePhase.searching) {
+      return const [
+        (label: 'NEXUS cherche…', value: '', icon: Icons.auto_awesome_rounded),
+        (label: 'Préciser ma zone', value: 'Prends en compte ma zone pour mieux classer les résultats.', icon: Icons.my_location_outlined),
+      ];
+    }
+    if (phase == LiveMusePhase.negotiating) {
+      return const [
+        (label: 'Résumer', value: "Résume-moi la négociation en cours et l'écart restant.", icon: Icons.summarize_outlined),
+        (label: 'Comparer marché', value: 'Compare cette négociation avec le prix du marché avant que je décide.', icon: Icons.compare_arrows_rounded),
+        (label: 'Mes options', value: 'Quelles sont mes options maintenant, sans prendre de décision à ma place ?', icon: Icons.auto_awesome_rounded),
+      ];
+    }
+    if (rows.isNotEmpty && mode == LiveMuseMode.seller) {
+      return const [
+        (label: 'Meilleurs acheteurs', value: 'Montre-moi les acheteurs les plus compatibles et explique pourquoi.', icon: Icons.groups_2_outlined),
+        (label: 'Préparer une offre', value: "Prépare une proposition commerciale pour le meilleur acheteur, sans l'envoyer.", icon: Icons.handshake_outlined),
+        (label: 'Continuer', value: "Continue à chercher d'autres acheteurs fiables pour cette offre.", icon: Icons.travel_explore_rounded),
+      ];
+    }
+    if (rows.isNotEmpty && mode == LiveMuseMode.buyer) {
+      return const [
+        (label: 'Comparer top 3', value: 'Compare les trois meilleures options sur prix, confiance, distance et contact.', icon: Icons.compare_arrows_rounded),
+        (label: 'Préparer négociation', value: "Prépare une stratégie de négociation pour la meilleure offre, sans envoyer de message.", icon: Icons.handshake_outlined),
+        (label: 'Continuer', value: 'Continue à chercher de meilleures offres pour ce besoin.', icon: Icons.travel_explore_rounded),
+      ];
+    }
+    if (mode == LiveMuseMode.seller) {
+      return const [
+        (label: 'Trouver acheteurs', value: 'Trouve des acheteurs fiables pour ce que je veux vendre.', icon: Icons.groups_2_outlined),
+        (label: 'Optimiser annonce', value: "Aide-moi à améliorer mon offre pour attirer plus d'acheteurs.", icon: Icons.auto_awesome_rounded),
+      ];
+    }
+    if (mode == LiveMuseMode.buyer) {
+      return const [
+        (label: 'Autour de moi', value: 'Trouve les meilleures offres autour de moi pour ce besoin.', icon: Icons.my_location_outlined),
+        (label: 'Comparer marché', value: 'Compare les prix du marché pour ce que je cherche.', icon: Icons.compare_arrows_rounded),
+      ];
+    }
+    return const [
+      (label: 'Acheter', value: 'Je cherche ', icon: Icons.search_rounded),
+      (label: 'Vendre', value: '__SELL__', icon: Icons.shopping_bag_outlined),
+      (label: 'Autour de moi', value: 'Trouve-moi les meilleures offres autour de moi pour ', icon: Icons.my_location_outlined),
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = _items().take(3).toList(growable: false);
+    return Container(
+      height: 54,
+      color: Colors.white,
+      child: Row(children: [
+        Expanded(
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 7),
+            itemBuilder: (_, index) {
+              final item = items[index];
+              final inert = item.value.isEmpty;
+              return ActionChip(
+                avatar: Icon(item.icon, size: 17),
+                label: Text(item.label),
+                onPressed: busy || inert
+                    ? null
+                    : () => item.value == '__SELL__' ? onSell() : onPrompt(item.value),
+                side: BorderSide(
+                  color: inert ? const Color(0xFFCBEBDD) : const Color(0xFFDCE8E3),
+                ),
+                backgroundColor: inert ? const Color(0xFFEFFFF7) : Colors.white,
+                labelStyle: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 11.5,
+                  color: inert ? const Color(0xFF08745D) : const Color(0xFF365048),
+                ),
+              );
+            },
+          ),
+        ),
+        IconButton(
+          tooltip: 'Ouvrir Muse',
+          onPressed: onMuse,
+          icon: const Icon(Icons.psychology_alt_outlined),
+        ),
+        const SizedBox(width: 3),
+      ]),
+    );
+  }
+}
+
 class LiveDealRoomBanner extends StatelessWidget {
   const LiveDealRoomBanner({
     super.key,
