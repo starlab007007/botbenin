@@ -4,6 +4,15 @@ import {
   jsonResponse,
   waouhCorsHeaders,
 } from "../_shared/waouh-auth.ts";
+import {
+  marketStats,
+  nexusTokens,
+  rankArticle,
+  rankBuyer,
+  type ArticleLike,
+  type BuyerLike,
+  type NexusWeights,
+} from "../_shared/waouh-nexus.ts";
 
 type JsonObject = Record<string, unknown>;
 
@@ -226,6 +235,65 @@ async function enqueue(
 
 function listMeta(rows: any[], limit: number) {
   return rows.length === limit ? rows[rows.length - 1]?.created_at ?? null : null;
+}
+
+function nexusWeights(row: any): Partial<NexusWeights> {
+  if (!row) return {};
+  return {
+    relevance: Number(row.relevance_weight ?? 0.30),
+    price: Number(row.price_weight ?? 0.24),
+    trust: Number(row.trust_weight ?? 0.18),
+    location: Number(row.location_weight ?? 0.10),
+    freshness: Number(row.freshness_weight ?? 0.10),
+    availability: Number(row.availability_weight ?? 0.08),
+  };
+}
+
+async function getNexusPreference(sb: SupabaseClient, ownerId: string) {
+  const { data, error } = await sb.from("waouh_nexus_preferences")
+    .select("*").eq("owner_id", ownerId).maybeSingle();
+  if (error && !/does not exist/i.test(error.message)) {
+    throw new ApiError(500, "nexus_preferences_failed", error.message);
+  }
+  return data ?? null;
+}
+
+async function getOrCreateNexusUser(
+  sb: SupabaseClient,
+  ownerId: string,
+  fallbackName: string,
+) {
+  const { data: existing, error } = await sb.from("waouh_users")
+    .select("id,auth_user_id,display_name,city,reputation,sales_count,is_verified")
+    .eq("auth_user_id", ownerId)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new ApiError(500, "nexus_user_lookup_failed", error.message);
+  if (existing) return existing;
+  return await queryOne<any>(
+    sb.from("waouh_users").insert({
+      auth_user_id: ownerId,
+      display_name: fallbackName || "Utilisateur WAOUH",
+      channel: "web",
+    }).select("id,auth_user_id,display_name,city,reputation,sales_count,is_verified").single(),
+    "nexus_user_create_failed",
+  );
+}
+
+function nexusAdvice(item: any, market: ReturnType<typeof marketStats>) {
+  const price = Number(item.price ?? 0);
+  const parts: string[] = [];
+  if (market.median != null && price > 0) {
+    const delta = ((price - market.median) / Math.max(market.median, 1)) * 100;
+    if (delta <= -8) parts.push(`Prix ${Math.abs(Math.round(delta))}% sous la médiane observée.`);
+    else if (delta >= 8) parts.push(`Prix ${Math.round(delta)}% au-dessus de la médiane observée.`);
+    else parts.push("Prix proche de la médiane observée.");
+  }
+  if (item.scores?.trust_score >= 75) parts.push("Confiance vendeur élevée.");
+  if (item.scores?.location_score >= 90) parts.push("Option locale.");
+  if (item.scores?.freshness_score >= 90) parts.push("Annonce récente.");
+  return parts.join(" ") || "Option compatible avec votre besoin.";
 }
 
 Deno.serve(async (req: Request) => {
@@ -741,6 +809,382 @@ Deno.serve(async (req: Request) => {
         await audit(sb, otherParty, `offer.${nextStatus}`, "offer", offer.id, {}, offer.mission_id, ownerId);
         await enqueue(sb, otherParty, `offer.${nextStatus}`, "offer", offer.id, { offer_id: offer.id, counter_offer_id: counterOffer?.id ?? null }, `offer.${nextStatus}:${offer.id}`, offer.mission_id);
         return jsonResponse({ ok: true, data: { offer: updated, counter_offer: counterOffer } });
+      }
+
+      case "nexus.summary": {
+        const userRows = await sb.from("waouh_users").select("id").eq("auth_user_id", ownerId);
+        if (userRows.error) throw new ApiError(500, "nexus_user_lookup_failed", userRows.error.message);
+        const waouhUserIds = (userRows.data ?? []).map((row: any) => row.id);
+        const sellerArticleQuery = waouhUserIds.length
+          ? sb.from("waouh_articles").select("id", { count: "exact", head: true }).in("seller_id", waouhUserIds).eq("status", "active")
+          : Promise.resolve({ count: 0, error: null } as any);
+        const buyerProfileQuery = waouhUserIds.length
+          ? sb.from("waouh_buyer_profiles").select("id", { count: "exact", head: true }).in("user_id", waouhUserIds).eq("is_active", true)
+          : Promise.resolve({ count: 0, error: null } as any);
+        const [missions, watches, approvals, offers, sellerArticles, buyerProfiles, preference] = await Promise.all([
+          sb.from("waouh_agent_missions").select("id", { count: "exact", head: true }).eq("owner_id", ownerId).in("status", ["active", "planning", "paused"]),
+          sb.from("waouh_watchlists").select("id", { count: "exact", head: true }).eq("owner_id", ownerId).eq("status", "active"),
+          sb.from("waouh_agent_approvals").select("id", { count: "exact", head: true }).eq("owner_id", ownerId).eq("status", "pending"),
+          sb.from("waouh_signed_offers").select("id", { count: "exact", head: true }).or(`buyer_id.eq.${ownerId},seller_id.eq.${ownerId}`).eq("status", "proposed"),
+          sellerArticleQuery,
+          buyerProfileQuery,
+          getNexusPreference(sb, ownerId),
+        ]);
+        for (const result of [missions, watches, approvals, offers, sellerArticles, buyerProfiles]) {
+          if ((result as any).error) throw new ApiError(500, "nexus_summary_failed", (result as any).error.message);
+        }
+        return jsonResponse({ ok: true, data: {
+          missions: missions.count ?? 0,
+          watches: watches.count ?? 0,
+          approvals: approvals.count ?? 0,
+          offers: offers.count ?? 0,
+          seller_articles: (sellerArticles as any).count ?? 0,
+          buyer_intents: (buyerProfiles as any).count ?? 0,
+          preference,
+        } });
+      }
+
+      case "nexus.preferences.get": {
+        const preference = await getNexusPreference(sb, ownerId);
+        return jsonResponse({ ok: true, data: { preference } });
+      }
+
+      case "nexus.preferences.upsert": {
+        const boundedWeight = (value: unknown, name: string, fallback: number) => {
+          const parsed = value == null ? fallback : positiveNumber(value, name)!;
+          if (parsed > 1) throw new ApiError(422, `invalid_${name}`);
+          return parsed;
+        };
+        const values = {
+          owner_id: ownerId,
+          mode: pickEnum(payload.mode, "mode", ["buyer", "seller", "both"] as const, "both"),
+          relevance_weight: boundedWeight(payload.relevance_weight, "relevance_weight", 0.30),
+          price_weight: boundedWeight(payload.price_weight, "price_weight", 0.24),
+          trust_weight: boundedWeight(payload.trust_weight, "trust_weight", 0.18),
+          location_weight: boundedWeight(payload.location_weight, "location_weight", 0.10),
+          freshness_weight: boundedWeight(payload.freshness_weight, "freshness_weight", 0.10),
+          availability_weight: boundedWeight(payload.availability_weight, "availability_weight", 0.08),
+          contact_mode: pickEnum(payload.contact_mode, "contact_mode", ["manual", "approval", "auto_opted_in"] as const, "approval"),
+          auto_negotiate: bool(payload.auto_negotiate, false),
+          max_auto_discount_percent: positiveNumber(payload.max_auto_discount_percent, "max_auto_discount_percent", true),
+          preferred_city: optionalString(payload.preferred_city, "preferred_city", 120),
+          metadata: jsonObject(payload.metadata, "metadata"),
+        };
+        if (values.max_auto_discount_percent != null && values.max_auto_discount_percent > 100) {
+          throw new ApiError(422, "invalid_max_auto_discount_percent");
+        }
+        const preference = await queryOne<any>(
+          sb.from("waouh_nexus_preferences").upsert(values, { onConflict: "owner_id" }).select("*").single(),
+          "nexus_preferences_save_failed",
+        );
+        await audit(sb, ownerId, "nexus.preferences.updated", "nexus_preferences", null, {
+          mode: preference.mode,
+          contact_mode: preference.contact_mode,
+          auto_negotiate: preference.auto_negotiate,
+        });
+        return jsonResponse({ ok: true, data: { preference } });
+      }
+
+      case "nexus.search": {
+        const queryText = asString(payload.query, "query", 2, 1_000);
+        const budgetMax = positiveNumber(payload.budget_max, "budget_max", true);
+        const budgetMin = positiveNumber(payload.budget_min, "budget_min", true);
+        const requestedCity = optionalString(payload.city, "city", 120);
+        const limit = integer(payload.limit, "limit", 8, 1, 30);
+        const persistIntent = bool(payload.persist_intent, true);
+        const preference = await getNexusPreference(sb, ownerId);
+        const weights = nexusWeights(preference);
+
+        const [articlesResult, catalogResult] = await Promise.all([
+          sb.from("waouh_articles")
+            .select("id,title,description,category,brand,model,condition,price,currency,photos,city,status,origin,source_channel,created_at,updated_at,seller:waouh_users!seller_id(id,auth_user_id,display_name,city,reputation,sales_count,is_verified)")
+            .eq("status", "active")
+            .order("updated_at", { ascending: false })
+            .limit(500),
+          sb.from("waouh_unified_catalog")
+            .select("id,titre,description,categorie,prix_min,prix_max,devise,ville,vendeur_nom,vendeur_whatsapp,source,photos,promoted_article_id,is_active")
+            .eq("is_active", true)
+            .order("updated_at", { ascending: false })
+            .limit(500),
+        ]);
+        if (articlesResult.error) throw new ApiError(500, "nexus_article_search_failed", articlesResult.error.message);
+        if (catalogResult.error) throw new ApiError(500, "nexus_catalog_search_failed", catalogResult.error.message);
+
+        const ranked: any[] = [];
+        for (const row of articlesResult.data ?? []) {
+          const seller = Array.isArray((row as any).seller) ? (row as any).seller[0] : (row as any).seller;
+          const article: ArticleLike = { ...(row as any), seller };
+          const scores = rankArticle({ query: queryText, budgetMax, budgetMin, city: requestedCity, article, weights });
+          if (scores.relevance_score < 18) continue;
+          ranked.push({
+            kind: "article",
+            article_id: row.id,
+            catalog_id: null,
+            title: row.title,
+            description: row.description,
+            category: row.category,
+            brand: row.brand,
+            model: row.model,
+            condition: row.condition,
+            price: row.price == null ? null : Number(row.price),
+            currency: row.currency ?? "XOF",
+            city: row.city,
+            photos: row.photos ?? [],
+            source: row.source_channel ?? row.origin ?? "waouh",
+            seller: seller ? {
+              display_name: seller.display_name,
+              verified: seller.is_verified === true,
+              reputation: seller.reputation == null ? null : Number(seller.reputation),
+            } : null,
+            seller_auth_id: seller?.auth_user_id ?? null,
+            scores,
+          });
+        }
+
+        for (const row of catalogResult.data ?? []) {
+          if ((row as any).promoted_article_id) continue;
+          const article: ArticleLike = {
+            id: `catalog:${row.id}`,
+            title: row.titre,
+            description: row.description,
+            category: row.categorie,
+            price: row.prix_min ?? row.prix_max,
+            city: row.ville,
+            status: "active",
+            origin: String(row.source ?? "partner"),
+            source_channel: String(row.source ?? "partner"),
+            updated_at: new Date().toISOString(),
+            seller: { display_name: row.vendeur_nom ?? "Partenaire WAOUH", is_verified: row.source === "partner" },
+          };
+          const scores = rankArticle({ query: queryText, budgetMax, budgetMin, city: requestedCity, article, weights });
+          if (scores.relevance_score < 18) continue;
+          ranked.push({
+            kind: "catalog",
+            article_id: null,
+            catalog_id: row.id,
+            title: row.titre,
+            description: row.description,
+            category: row.categorie,
+            brand: null,
+            model: null,
+            condition: null,
+            price: row.prix_min == null ? (row.prix_max == null ? null : Number(row.prix_max)) : Number(row.prix_min),
+            currency: row.devise ?? "XOF",
+            city: row.ville,
+            photos: row.photos ?? [],
+            source: String(row.source ?? "partner"),
+            seller: { display_name: row.vendeur_nom ?? "Partenaire WAOUH", verified: row.source === "partner", reputation: null },
+            seller_auth_id: null,
+            scores,
+          });
+        }
+
+        ranked.sort((a, b) => b.scores.total_score - a.scores.total_score || Number(a.price ?? Infinity) - Number(b.price ?? Infinity));
+        const relevant = ranked.filter((item) => item.scores.relevance_score >= 30);
+        const pool = relevant.length ? relevant : ranked;
+        const market = marketStats(pool.map((item) => item.price));
+        const cheapest = pool.filter((item) => item.price != null).sort((a, b) => Number(a.price) - Number(b.price))[0];
+        const trusted = [...pool].sort((a, b) => b.scores.trust_score - a.scores.trust_score)[0];
+        const selected = pool.slice(0, limit).map((item, index) => ({
+          ...item,
+          badges: [
+            ...(index === 0 ? ["recommended"] : []),
+            ...(cheapest && item.kind === cheapest.kind && (item.article_id ?? item.catalog_id) === (cheapest.article_id ?? cheapest.catalog_id) ? ["cheapest"] : []),
+            ...(trusted && item.kind === trusted.kind && (item.article_id ?? item.catalog_id) === (trusted.article_id ?? trusted.catalog_id) ? ["trusted"] : []),
+          ],
+          advice: nexusAdvice(item, market),
+        }));
+
+        let buyerProfile: any = null;
+        if (persistIntent) {
+          const nexusUser = await getOrCreateNexusUser(sb, ownerId, authUser.email?.split("@")[0] ?? "Utilisateur WAOUH");
+          const { data: existingProfile, error: profileLookupError } = await sb.from("waouh_buyer_profiles")
+            .select("*").eq("user_id", nexusUser.id).eq("query_text", queryText).eq("is_active", true)
+            .order("created_at", { ascending: false }).limit(1).maybeSingle();
+          if (profileLookupError) throw new ApiError(500, "nexus_buyer_profile_lookup_failed", profileLookupError.message);
+          buyerProfile = existingProfile;
+          if (!buyerProfile) {
+            buyerProfile = await queryOne<any>(
+              sb.from("waouh_buyer_profiles").insert({
+                user_id: nexusUser.id,
+                query_text: queryText,
+                keywords: nexusTokens(queryText),
+                price_min: budgetMin,
+                price_max: budgetMax,
+                is_active: true,
+                origin: "chat",
+                source_channel: "waouh_app",
+                ai_intent: { query: queryText, city: requestedCity, budget_min: budgetMin, budget_max: budgetMax, source: "nexus" },
+                ai_priority_score: 90,
+              }).select("*").single(),
+              "nexus_buyer_profile_create_failed",
+            );
+          }
+
+          const matchRows = selected.filter((item) => item.article_id).map((item) => ({
+            buyer_profile_id: buyerProfile.id,
+            article_id: item.article_id,
+            buyer_auth_id: ownerId,
+            seller_auth_id: item.seller_auth_id,
+            relevance_score: item.scores.relevance_score,
+            price_score: item.scores.price_score,
+            trust_score: item.scores.trust_score,
+            location_score: item.scores.location_score,
+            freshness_score: item.scores.freshness_score,
+            availability_score: item.scores.availability_score,
+            total_score: item.scores.total_score,
+            reasons: item.scores.reasons,
+            source: "nexus.search",
+            last_evaluated_at: new Date().toISOString(),
+          }));
+          if (matchRows.length) {
+            const { error: matchError } = await sb.from("waouh_nexus_matches")
+              .upsert(matchRows, { onConflict: "buyer_profile_id,article_id" });
+            if (matchError) throw new ApiError(500, "nexus_match_persist_failed", matchError.message);
+          }
+        }
+
+        if (market.sample_count > 0) {
+          await sb.from("waouh_market_snapshots").insert({
+            owner_id: ownerId,
+            query: queryText,
+            canonical_key: nexusTokens(queryText).sort().join("-").slice(0, 240) || null,
+            city: requestedCity,
+            currency: "XOF",
+            min_amount: market.min,
+            median_amount: market.median,
+            max_amount: market.max,
+            average_amount: market.average,
+            sample_count: market.sample_count,
+            source_mix: selected.reduce((acc: Record<string, number>, item: any) => {
+              const key = String(item.source ?? "unknown");
+              acc[key] = (acc[key] ?? 0) + 1;
+              return acc;
+            }, {}),
+          });
+        }
+        await audit(sb, ownerId, "nexus.search", "buyer_profile", buyerProfile?.id ?? null, {
+          query: queryText,
+          results: selected.length,
+          market_sample_count: market.sample_count,
+        });
+        return jsonResponse({ ok: true, data: {
+          query: queryText,
+          market,
+          results: selected,
+          buyer_profile: buyerProfile ? { id: buyerProfile.id, query_text: buyerProfile.query_text } : null,
+          explanation: selected.length
+            ? "WAOUH a classé les offres par pertinence, prix, confiance, ville, fraîcheur et disponibilité."
+            : "Aucune offre suffisamment proche pour l’instant. Activez une veille pour laisser WAOUH continuer.",
+        } });
+      }
+
+      case "nexus.seller_opportunities": {
+        const requestedArticleId = payload.article_id ? uuid(payload.article_id, "article_id") : null;
+        if (requestedArticleId) await ownedArticle(sb, ownerId, requestedArticleId);
+        const usersResult = await sb.from("waouh_users").select("id").eq("auth_user_id", ownerId);
+        if (usersResult.error) throw new ApiError(500, "nexus_seller_identity_failed", usersResult.error.message);
+        const sellerIds = (usersResult.data ?? []).map((row: any) => row.id);
+        if (!sellerIds.length) return jsonResponse({ ok: true, data: { articles: [], total_matches: 0 } });
+        let articleQuery = sb.from("waouh_articles")
+          .select("id,title,description,category,brand,model,condition,price,currency,photos,city,status,origin,source_channel,created_at,updated_at")
+          .in("seller_id", sellerIds).eq("status", "active").order("updated_at", { ascending: false }).limit(50);
+        if (requestedArticleId) articleQuery = articleQuery.eq("id", requestedArticleId);
+        const [articlesResult, buyersResult] = await Promise.all([
+          articleQuery,
+          sb.from("waouh_buyer_profiles")
+            .select("id,user_id,query_text,category,keywords,price_min,price_max,is_active,origin,source_channel,created_at,user:waouh_users!user_id(id,auth_user_id,display_name,city,reputation,is_verified)")
+            .eq("is_active", true).order("created_at", { ascending: false }).limit(1000),
+        ]);
+        if (articlesResult.error) throw new ApiError(500, "nexus_seller_articles_failed", articlesResult.error.message);
+        if (buyersResult.error) throw new ApiError(500, "nexus_buyer_pool_failed", buyersResult.error.message);
+        let totalMatches = 0;
+        const groups: any[] = [];
+        const matchRows: any[] = [];
+        for (const articleRow of articlesResult.data ?? []) {
+          const article = articleRow as ArticleLike;
+          const opportunities = (buyersResult.data ?? []).map((buyerRow: any) => {
+            const user = Array.isArray(buyerRow.user) ? buyerRow.user[0] : buyerRow.user;
+            const buyer: BuyerLike = { ...buyerRow, user };
+            const scores = rankBuyer({ article, buyer });
+            return {
+              buyer_profile_id: buyerRow.id,
+              query: buyerRow.query_text,
+              category: buyerRow.category,
+              budget_max: buyerRow.price_max == null ? null : Number(buyerRow.price_max),
+              source: buyerRow.source_channel ?? buyerRow.origin ?? "waouh",
+              buyer: user ? { display_name: user.display_name, verified: user.is_verified === true } : null,
+              buyer_auth_id: user?.auth_user_id ?? null,
+              scores,
+            };
+          }).filter((item: any) => item.scores.total_score >= 45)
+            .sort((a: any, b: any) => b.scores.total_score - a.scores.total_score)
+            .slice(0, 8);
+          totalMatches += opportunities.length;
+          for (const item of opportunities) {
+            matchRows.push({
+              buyer_profile_id: item.buyer_profile_id,
+              article_id: articleRow.id,
+              buyer_auth_id: item.buyer_auth_id,
+              seller_auth_id: ownerId,
+              relevance_score: item.scores.relevance_score,
+              price_score: item.scores.price_score,
+              trust_score: 50,
+              location_score: item.scores.location_score,
+              freshness_score: item.scores.freshness_score,
+              availability_score: item.scores.availability_score,
+              total_score: item.scores.total_score,
+              reasons: item.scores.reasons,
+              source: "nexus.seller_opportunities",
+              last_evaluated_at: new Date().toISOString(),
+            });
+          }
+          groups.push({
+            article: {
+              id: articleRow.id,
+              title: articleRow.title,
+              price: articleRow.price == null ? null : Number(articleRow.price),
+              currency: articleRow.currency ?? "XOF",
+              city: articleRow.city,
+              photos: articleRow.photos ?? [],
+            },
+            matched_count: opportunities.length,
+            opportunities,
+          });
+        }
+        if (matchRows.length) {
+          const { error: persistError } = await sb.from("waouh_nexus_matches")
+            .upsert(matchRows, { onConflict: "buyer_profile_id,article_id" });
+          if (persistError) throw new ApiError(500, "nexus_seller_match_persist_failed", persistError.message);
+        }
+        await audit(sb, ownerId, "nexus.seller_opportunities", "seller", null, { articles: groups.length, matches: totalMatches });
+        return jsonResponse({ ok: true, data: { articles: groups, total_matches: totalMatches } });
+      }
+
+      case "nexus.notify_buyers": {
+        const articleId = uuid(payload.article_id, "article_id");
+        await ownedArticle(sb, ownerId, articleId);
+        const response = await fetch(`${supabaseUrl}/functions/v1/waouh-notify-buyers`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${serviceKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ article_id: articleId }),
+        });
+        const raw = await response.text();
+        let result: any = {};
+        try { result = raw ? JSON.parse(raw) : {}; } catch { result = { raw: raw.slice(0, 300) }; }
+        if (!response.ok) throw new ApiError(502, "nexus_notify_buyers_failed", String(result?.error ?? response.status));
+        await audit(sb, ownerId, "nexus.buyers_notified", "article", articleId, {
+          notified: Number(result?.notified ?? 0),
+          consent_scope: "active_buyer_profiles",
+        });
+        return jsonResponse({ ok: true, data: {
+          article_id: articleId,
+          notified: Number(result?.notified ?? 0),
+          note: "Seuls les profils acheteurs actifs et compatibles sont ciblés.",
+        } });
       }
 
       case "media.create": {
