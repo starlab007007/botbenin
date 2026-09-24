@@ -16,6 +16,7 @@ import { WAOUH_RUNTIME_ENDPOINTS } from "@/lib/waouh/runtimeEndpoints";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { WaouhNativeSimulator } from "@/components/waouh/WaouhNativeSimulator";
 
 type PublicNativeMessagingConfig = {
   enabled: boolean;
@@ -243,6 +244,10 @@ export default function WaouhNativeMessagingPublicPage() {
               </div>
             )}
           </Card>
+        </section>
+
+        <section className="pb-10">
+          <WaouhNativeSimulator />
         </section>
       </div>
     </main>
