@@ -410,6 +410,28 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
                       messages: messages,
                       busy: waiting,
                     ),
+                    LiveSmartComposerBar(
+                      messages: messages,
+                      busy: waiting,
+                      onPrompt: (value) {
+                        composer.text = value;
+                        composer.selection = TextSelection.collapsed(
+                          offset: composer.text.length,
+                        );
+                        composerFocus.requestFocus();
+                      },
+                      onSell: _openSellForm,
+                      onMuse: () => context.push('/app/muse'),
+                      onLocation: () async {
+                        await controller.useDeviceLocation();
+                        if (!mounted) return;
+                        final position = controller.position;
+                        _notice(position.available
+                            ? 'Position ajoutée au prochain message.'
+                            : (position.errorMessage ??
+                                'Position GPS indisponible.'));
+                      },
+                    ),
                     Expanded(
                       child: LiveSmartTimeline(
                         messages: messages,
@@ -440,78 +462,6 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
                     onPressed: () => setState(() => pendingMeta = const {}),
                     icon: const Icon(Icons.close, size: 18))
               ])),
-        Container(
-            color: Colors.white,
-            height: 58,
-            child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                children: [
-                  _quick('Acheter', Icons.search_rounded, () {
-                    composer.text = 'Je cherche ';
-                    composerFocus.requestFocus();
-                  }),
-                  _quick('Vendre', Icons.shopping_bag_outlined, _openSellForm),
-                  _quick('Muse', Icons.psychology_alt_outlined, () {
-                    context.push('/app/muse');
-                  }),
-                  PopupMenuButton<String>(
-                    tooltip: 'Plus d’actions',
-                    onSelected: (value) async {
-                      if (value == 'negotiate') {
-                        composer.text = 'Je propose  FCFA pour ';
-                        composerFocus.requestFocus();
-                        return;
-                      }
-                      if (value == 'gps') {
-                        await controller.useDeviceLocation();
-                        if (!mounted) return;
-                        final position = controller.position;
-                        _notice(position.available
-                            ? 'Position ajoutée au prochain message.'
-                            : (position.errorMessage ??
-                                'Position GPS indisponible.'));
-                      }
-                    },
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(
-                        value: 'negotiate',
-                        child: ListTile(
-                          dense: true,
-                          leading: Icon(Icons.handshake_outlined),
-                          title: Text('Négocier'),
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'gps',
-                        child: ListTile(
-                          dense: true,
-                          leading: Icon(Icons.my_location),
-                          title: Text('Ajouter ma zone'),
-                        ),
-                      ),
-                    ],
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 7),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF3F7F5),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: const Color(0xFFDCE8E3)),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(Icons.more_horiz_rounded, size: 17),
-                          SizedBox(width: 5),
-                          Text('Plus',
-                              style: TextStyle(fontWeight: FontWeight.w800)),
-                        ],
-                      ),
-                    ),
-                  ),
-                ])),
         LiveAttachmentStrip(
             items: attachments,
             onRemove: (item) => setState(() => attachments.remove(item))),
