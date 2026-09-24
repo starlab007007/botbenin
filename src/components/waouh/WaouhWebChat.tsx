@@ -1,5 +1,5 @@
 import { assertChatResponse, normalizeChatReply, mergeChatRows, reconcileChatResponse } from "@/lib/chatReply";
-import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -20,6 +20,8 @@ import { ChatImage } from "@/app-mobile/components/ChatImage";
 import { WaouhProductResults, compactResultsText, type WaouhResultCard } from "@/components/waouh/WaouhProductCard";
 import { WaouhAgentBlocks } from "@/components/waouh/WaouhAgentBlocks";
 import { WaouhAgentCenter } from "@/components/waouh/WaouhAgentCenter";
+import { WaouhCommerceAgentBar } from "@/components/waouh/WaouhCommerceAgentBar";
+import type { WaouhMuseMode, WaouhMusePhase } from "@/components/waouh/WaouhMuseAvatar";
 import { invokeWaouhAgentic } from "@/lib/waouh/agenticClient";
 import type { AgenticAction, WaouhMessageBlock } from "@/lib/waouh/agenticContracts";
 
@@ -139,6 +141,45 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   const { geo, loading: geoLoading, setCity, refresh } = useWaouhGeolocation();
   const { user } = useAuth();
   const { toast } = useToast();
+
+  const commerceAgent = useMemo(() => {
+    const reversed = [...messages].reverse();
+    const userMessage = reversed.find((message) => message.direction === "in");
+    const assistantMessage = reversed.find((message) => message.direction === "out");
+    const goal = userMessage?.text && userMessage.text !== "(image)" ? userMessage.text : "";
+    const normalizedGoal = goal.toLowerCase();
+    const intent = String(assistantMessage?.meta?.intent || "").toLowerCase();
+    const rich = assistantMessage ? normalizeChatReply(assistantMessage) : { results: [] as WaouhResultCard[] };
+
+    let mode: WaouhMuseMode = "neutral";
+    if (/\b(je\s+vends?|vendre|à\s+vendre|écouler|ecouler|trouver\s+(des\s+)?acheteurs?|clients?|prospects?)\b/i.test(goal) || /sell|match_seller|new_buyer/.test(intent)) {
+      mode = "seller";
+    } else if (/\b(cherche|recherche|acheter|achète|achete|trouver\s+(un|une|des)?\s*(vendeur|offre|produit))\b/i.test(goal) || /buy|search|match_buyer/.test(intent)) {
+      mode = "buyer";
+    }
+
+    let phase: WaouhMusePhase = "idle";
+    if (sending) phase = /propose|contre|négoci|negoci|accept|refus/.test(normalizedGoal) ? "negotiating" : "searching";
+    else if (/negotiat|counter|deal_|decide|contact_exchange/.test(intent)) phase = "negotiating";
+    else if (rich.results.length > 0) phase = "comparing";
+    else if (goal) phase = "listening";
+
+    const sources = rich.results
+      .map((result) => String(result.source || "").trim())
+      .filter(Boolean);
+    const contactLevel = rich.results
+      .map((result) => result.contactability_level || result.contactability || null)
+      .find(Boolean) || null;
+
+    return {
+      goal,
+      mode,
+      phase,
+      resultCount: rich.results.length,
+      sources,
+      contactLevel,
+    };
+  }, [messages, sending]);
 
   // Resolved waouh_users.id list for this device + auth account.
   const [waouhIds, setWaouhIds] = useState<string[]>([]);
@@ -631,6 +672,16 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         </div>
       )}
 
+      <WaouhCommerceAgentBar
+        goal={commerceAgent.goal}
+        mode={commerceAgent.mode}
+        phase={commerceAgent.phase}
+        resultCount={commerceAgent.resultCount}
+        sources={commerceAgent.sources}
+        contactLevel={commerceAgent.contactLevel}
+        compact={!fullscreen}
+      />
+
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2 waouh-chat-bg min-h-0">
         {hasMore && (
           <div ref={topSentinelRef} className="flex items-center justify-center py-2 text-xs text-muted-foreground">
@@ -638,9 +689,17 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           </div>
         )}
         {messages.length === 0 && (
-          <div className="text-center text-sm text-muted-foreground py-8 px-4">
-            👋 Bonjour ! Utilisez les boutons ci-dessous, ou tapez « Je vends … » / « Je cherche … ».
-            <br />📍 Annonces autour de <strong>{geo.city}</strong>.
+          <div className="mx-auto my-3 max-w-xl rounded-3xl border border-emerald-100 bg-gradient-to-br from-white via-emerald-50/60 to-cyan-50/60 p-5 text-center shadow-sm">
+            <div className="text-base font-black text-emerald-950">Que voulez-vous acheter ou vendre ?</div>
+            <div className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-muted-foreground">
+              Parlez naturellement. Muse comprend l’objectif, NEXUS cherche le marché, Signal Fabric compare et WAOUH protège le contact.
+            </div>
+            <div className="mt-3 flex flex-wrap justify-center gap-2 text-[11px]">
+              <button type="button" onClick={() => { setInput("Je cherche "); inputRef.current?.focus(); }} className="rounded-full border bg-white px-3 py-1.5 font-bold text-cyan-800 shadow-sm hover:bg-cyan-50">Acheter</button>
+              <button type="button" onClick={() => setSellOpen(true)} className="rounded-full border bg-white px-3 py-1.5 font-bold text-emerald-800 shadow-sm hover:bg-emerald-50">Vendre</button>
+              <button type="button" onClick={() => { setInput("Trouve-moi les meilleures offres près de moi pour "); inputRef.current?.focus(); }} className="rounded-full border bg-white px-3 py-1.5 font-bold text-slate-700 shadow-sm hover:bg-slate-50">Trouver autour de moi</button>
+            </div>
+            {geo.city && <div className="mt-3 text-[10px] text-muted-foreground">Zone actuelle : {geo.city}</div>}
           </div>
         )}
 
@@ -758,8 +817,11 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         ); })}
         {sending && (
           <div className="flex justify-start">
-            <div className="bg-card border rounded-2xl px-3 py-2 text-sm flex items-center gap-2">
-              <Loader2 className="w-3 h-3 animate-spin" /> WAOUH réfléchit…
+            <div className="max-w-[90%] rounded-2xl border border-cyan-100 bg-gradient-to-r from-cyan-50 to-emerald-50 px-3 py-2 text-xs text-slate-700 shadow-sm">
+              <div className="flex items-center gap-2 font-bold text-cyan-900">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Muse active NEXUS…
+              </div>
+              <div className="mt-0.5 text-[10px] text-muted-foreground">Recherche · Signal Fabric · comparaison · contrôle du contact</div>
             </div>
           </div>
         )}
@@ -817,7 +879,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
               send();
             }
           }}
-          placeholder="Votre message…"
+          placeholder={commerceAgent.mode === "seller" ? "Que voulez-vous vendre ou à quels acheteurs ?" : commerceAgent.mode === "buyer" ? "Précisez produit, budget ou zone…" : "Que voulez-vous acheter ou vendre ?" }
           disabled={sending}
           rows={1}
           className="flex-1 resize-none min-h-[40px] max-h-32 text-base sm:text-sm"
