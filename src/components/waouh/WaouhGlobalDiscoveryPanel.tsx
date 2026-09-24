@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Building2, ExternalLink, Globe2, Loader2, MapPin, MessageCircle, Radar,
-  Search, Send, Share2, Store, Users, Wifi, WifiOff,
+  Building2, Camera, ExternalLink, Globe2, Loader2, MapPin, MessageCircle, Radar,
+  Search, Send, Share2, Store, Upload, Users, Wifi, WifiOff,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import {
   getNexusSources,
   globalNexusDiscovery,
@@ -66,6 +68,8 @@ type PreparedContactItem = PreparedContactState["contacts"][number];
 
 export function WaouhGlobalDiscoveryPanel() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const shareImageInput = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<NexusDiscoveryMode>("find_sellers");
   const [query, setQuery] = useState("");
   const [city, setCity] = useState("Cotonou");
@@ -78,6 +82,8 @@ export function WaouhGlobalDiscoveryPanel() {
   const [shareText, setShareText] = useState("");
   const [shareUrl, setShareUrl] = useState("");
   const [shareOrigin, setShareOrigin] = useState("whatsapp");
+  const [shareImageUrl, setShareImageUrl] = useState("");
+  const [shareImageName, setShareImageName] = useState("");
   const [sharedSignal, setSharedSignal] = useState<SharedSignalState | null>(null);
   const [contact, setContact] = useState<PreparedContactState | null>(null);
   const [contactMessage, setContactMessage] = useState("");
@@ -127,14 +133,42 @@ export function WaouhGlobalDiscoveryPanel() {
     }
   };
 
+  const uploadSharedImage = async (file: File) => {
+    if (!user) {
+      toast({ title: "Connexion requise", description: "Connectez-vous pour analyser une capture ou une photo.", variant: "destructive" });
+      return;
+    }
+    setBusy(true);
+    try {
+      const extension = (file.name.split(".").pop() || "jpg").toLowerCase();
+      const path = `nexus/${user.id}/shared/${crypto.randomUUID()}.${extension}`;
+      const { error } = await supabase.storage.from("waouh-uploads").upload(path, file, {
+        contentType: file.type || "image/jpeg",
+        upsert: false,
+      });
+      if (error) throw error;
+      const { data } = supabase.storage.from("waouh-uploads").getPublicUrl(path);
+      setShareImageUrl(data.publicUrl);
+      setShareImageName(file.name);
+      toast({ title: "Image prête", description: "WAOUH Vision pourra extraire produit, prix, lieu et coordonnées visibles." });
+    } catch (error) {
+      toast({ title: "Import impossible", description: errorText(error), variant: "destructive" });
+    } finally {
+      setBusy(false);
+      if (shareImageInput.current) shareImageInput.current.value = "";
+    }
+  };
+
   const ingestShare = async () => {
-    if (!shareText.trim()) return;
+    if (!shareText.trim() && !shareImageUrl && !shareUrl.trim()) return;
     setBusy(true);
     try {
       const response = await ingestSharedCommerceSignal({
-        raw_text: shareText.trim(),
+        raw_text: shareText.trim() || undefined,
+        image_url: shareImageUrl || undefined,
         source_url: shareUrl.trim() || undefined,
         origin_surface: shareOrigin,
+        source_key: shareOrigin === "b2b" ? "b2b_rfq" : "share_to_waouh",
       });
       setSharedSignal(response);
       toast({
@@ -143,6 +177,8 @@ export function WaouhGlobalDiscoveryPanel() {
       });
       setShareText("");
       setShareUrl("");
+      setShareImageUrl("");
+      setShareImageName("");
       void loadSources();
     } catch (error) {
       toast({ title: "Analyse impossible", description: errorText(error), variant: "destructive" });
@@ -372,13 +408,42 @@ export function WaouhGlobalDiscoveryPanel() {
               </Select>
               <Input value={shareUrl} onChange={(event) => setShareUrl(event.target.value)} placeholder="Lien source (optionnel)" />
             </div>
-            <Textarea
-              value={shareText}
-              onChange={(event) => setShareText(event.target.value)}
-              rows={5}
-              placeholder="Ex. « Je cherche 5 tonnes de maïs à Parakou, urgent… » ou « Samsung A55 neuf, 175 000 F, Cotonou, tel… »"
+            <input
+              ref={shareImageInput}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void uploadSharedImage(file);
+              }}
             />
-            <Button className="w-full" disabled={!shareText.trim() || busy} onClick={() => void ingestShare()}>
+            <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+              <Textarea
+                value={shareText}
+                onChange={(event) => setShareText(event.target.value)}
+                rows={5}
+                placeholder="Collez le message/post, ou ajoutez directement une capture d’écran/photo. Exemple : « Samsung A55 neuf, 175 000 F, Cotonou, tel… »"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="h-auto min-h-20 gap-2 sm:w-36 sm:flex-col"
+                disabled={busy}
+                onClick={() => shareImageInput.current?.click()}
+              >
+                {shareImageUrl ? <Camera className="h-5 w-5" /> : <Upload className="h-5 w-5" />}
+                <span className="text-xs">{shareImageUrl ? "Changer l’image" : "Capture / photo"}</span>
+              </Button>
+            </div>
+            {shareImageUrl && (
+              <div className="flex items-center justify-between gap-2 rounded-lg border bg-muted/20 px-3 py-2 text-xs">
+                <span className="truncate">📷 {shareImageName || "Image à analyser"}</span>
+                <Button size="sm" variant="ghost" onClick={() => { setShareImageUrl(""); setShareImageName(""); }}>Retirer</Button>
+              </div>
+            )}
+            <Button className="w-full" disabled={(!shareText.trim() && !shareImageUrl && !shareUrl.trim()) || busy} onClick={() => void ingestShare()}>
               {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Share2 className="mr-2 h-4 w-4" />}
               Analyser et ajouter au Signal Fabric
             </Button>
