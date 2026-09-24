@@ -150,11 +150,11 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
             ),
             GoRoute(
               path: '/app/muse',
-              builder: (_, __) => const LiveMuseScreen(),
+              redirect: (_, __) => '/app/chat/waouh',
             ),
             GoRoute(
               path: '/app/nexus',
-              builder: (_, __) => const LiveNexusScreen(),
+              redirect: (_, __) => '/app/chat/waouh',
             ),
             GoRoute(
               path: '/app/bots',
