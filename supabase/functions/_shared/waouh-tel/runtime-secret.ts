@@ -1,5 +1,3 @@
-const cache = new Map<string, Promise<string>>();
-
 const envByName: Record<string, string> = {
   phone_encryption_key: "WAOUH_TEL_PHONE_ENCRYPTION_KEY",
   phone_hash_key: "WAOUH_TEL_PHONE_HASH_KEY",
@@ -32,11 +30,7 @@ export function telRuntimeSecret(name: string): Promise<string> {
   const envName = envByName[name];
   const fromEnv = envName ? (Deno.env.get(envName) || "") : "";
   if (fromEnv) return Promise.resolve(fromEnv);
-  const cached = cache.get(name);
-  if (cached) return cached;
-  const promise = readVaultSecret(name);
-  cache.set(name, promise);
-  return promise;
+  return readVaultSecret(name);
 }
 
 export async function requireTelRuntimeSecret(
