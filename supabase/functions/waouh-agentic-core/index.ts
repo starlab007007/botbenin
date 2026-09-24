@@ -2024,15 +2024,72 @@ Retourne uniquement JSON:
 
       case "nexus.contact.prepare": {
         const fabricId = asString(payload.fabric_id, "fabric_id", 5, 200);
+
         if (!fabricId.startsWith("external:")) {
+          const signal = await queryOne<any>(
+            sb.from("waouh_signal_fabric").select("*").eq("fabric_id", fabricId).maybeSingle(),
+            "nexus_signal_not_found",
+          );
+          const policy = contactabilityPolicy(signal.contactability_level);
+          const evidence = signal.evidence && typeof signal.evidence === "object"
+            ? signal.evidence as Record<string, unknown>
+            : {};
+
+          let targetWaouhUserId: string | null = null;
+          if (fabricId.startsWith("buyer:")) {
+            targetWaouhUserId = typeof evidence.user_id === "string" ? evidence.user_id : null;
+          } else if (fabricId.startsWith("article:")) {
+            targetWaouhUserId = typeof evidence.seller_id === "string" ? evidence.seller_id : null;
+          }
+
+          let targetAuthUserId: string | null = null;
+          let actorName: string | null = null;
+          if (targetWaouhUserId) {
+            const { data: targetUser, error: targetError } = await sb.from("waouh_users")
+              .select("auth_user_id,display_name")
+              .eq("id", targetWaouhUserId)
+              .maybeSingle();
+            if (targetError) throw new ApiError(500, "nexus_internal_target_failed", targetError.message);
+            targetAuthUserId = targetUser?.auth_user_id ?? null;
+            actorName = targetUser?.display_name ?? null;
+          }
+
+          const canBlindMessage =
+            policy.level === "C2" &&
+            !!targetAuthUserId &&
+            targetAuthUserId !== ownerId;
+
+          await audit(sb, ownerId, "nexus.contact.prepared", "commerce_signal", signal.source_record_id ?? null, {
+            fabric_id: fabricId,
+            contactability: policy.level,
+            internal: true,
+            can_blind_message: canBlindMessage,
+          });
+
           return jsonResponse({ ok: true, data: {
             fabric_id: fabricId,
             kind: "internal",
-            contact_policy: { level: "C2", can_reveal: false, can_auto_contact: false, requires_approval: false, label: "Utiliser le parcours WAOUH interne" },
+            source_url: signal.source_url ?? null,
+            actor_name: actorName,
+            product_name: signal.subject ?? null,
+            contact_policy: {
+              ...policy,
+              // Les parcours C3/C4 internes restent gérés par les flux WAOUH
+              // intégrés tant qu'aucun connecteur contractuel dédié n'est résolu.
+              can_auto_contact: false,
+              can_blind_message: canBlindMessage,
+            },
             contacts: [],
-            note: "Pour les annonces/profils WAOUH internes, utilisez le chat, l’intérêt ou la négociation intégrée plutôt qu’une extraction de coordonnées.",
+            note: canBlindMessage
+              ? "WAOUH peut transmettre votre proposition à cet utilisateur sans révéler ses coordonnées privées. Le destinataire garde le contrôle."
+              : policy.level === "C0"
+                ? "Découverte uniquement : aucune donnée privée n’est révélée et aucun contact n’est initié."
+                : policy.level === "C2"
+                  ? "Le contact privé reste protégé. Utilisez le parcours WAOUH intégré lorsque la contrepartie devient joignable."
+                  : "Cette opportunité interne reste gérée par le chat, l’intérêt, la négociation ou le connecteur partenaire WAOUH.",
           } });
         }
+
         const signalId = uuid(fabricId.slice("external:".length), "signal_id");
         const signal = await queryOne<any>(
           sb.from("waouh_external_commerce_signals").select("*").eq("id", signalId).maybeSingle(),
@@ -2090,15 +2147,104 @@ Retourne uniquement JSON:
 
       case "nexus.contact.send": {
         const fabricId = asString(payload.fabric_id, "fabric_id", 5, 200);
-        if (!fabricId.startsWith("external:")) throw new ApiError(422, "external_signal_required");
         if (payload.confirmed !== true) throw new ApiError(422, "explicit_confirmation_required");
+        const message = asString(payload.message, "message", 5, 1000);
+
+        if (!fabricId.startsWith("external:")) {
+          const signal = await queryOne<any>(
+            sb.from("waouh_signal_fabric").select("*").eq("fabric_id", fabricId).maybeSingle(),
+            "nexus_signal_not_found",
+          );
+          const policy = contactabilityPolicy(signal.contactability_level);
+          if (policy.level !== "C2") {
+            throw new ApiError(403, "integrated_contact_path_required");
+          }
+
+          const evidence = signal.evidence && typeof signal.evidence === "object"
+            ? signal.evidence as Record<string, unknown>
+            : {};
+          let targetWaouhUserId: string | null = null;
+          if (fabricId.startsWith("buyer:")) {
+            targetWaouhUserId = typeof evidence.user_id === "string" ? evidence.user_id : null;
+          } else if (fabricId.startsWith("article:")) {
+            targetWaouhUserId = typeof evidence.seller_id === "string" ? evidence.seller_id : null;
+          }
+          if (!targetWaouhUserId) throw new ApiError(403, "blind_contact_not_available");
+
+          const target = await queryOne<any>(
+            sb.from("waouh_users")
+              .select("id,auth_user_id,display_name")
+              .eq("id", targetWaouhUserId)
+              .maybeSingle(),
+            "nexus_internal_target_not_found",
+          );
+          if (!target.auth_user_id || target.auth_user_id === ownerId) {
+            throw new ApiError(403, "blind_contact_not_available");
+          }
+
+          const approval = await queryOne<any>(
+            sb.from("waouh_agent_approvals").insert({
+              owner_id: target.auth_user_id,
+              action_type: "send_message",
+              action_summary: signal.intent === "BUY"
+                ? "Un vendeur WAOUH souhaite répondre à votre demande."
+                : "Un acheteur WAOUH souhaite répondre à votre offre.",
+              context: {
+                operation: "nexus.internal_blind_message",
+                fabric_id: fabricId,
+                source_record_id: signal.source_record_id,
+                from_auth_user: ownerId,
+                message,
+                subject: signal.subject,
+                intent: signal.intent,
+                source_key: signal.source_key,
+              },
+              status: "pending",
+              expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            }).select("*").single(),
+            "nexus_blind_approval_create_failed",
+          );
+
+          await enqueue(
+            sb,
+            target.auth_user_id,
+            "nexus.internal_blind_message_requested",
+            "approval",
+            approval.id,
+            {
+              approval_id: approval.id,
+              fabric_id: fabricId,
+              source_record_id: signal.source_record_id,
+            },
+            `nexus.internal.blind:${fabricId}:${ownerId}:${approval.id}`,
+          );
+          await audit(sb, ownerId, "nexus.blind_message.sent", "commerce_signal", signal.source_record_id ?? null, {
+            fabric_id: fabricId,
+            recipient_auth_user: target.auth_user_id,
+            approval_id: approval.id,
+            internal: true,
+          });
+          await audit(sb, target.auth_user_id, "nexus.blind_message.received", "approval", approval.id, {
+            fabric_id: fabricId,
+            source_record_id: signal.source_record_id,
+          });
+
+          return jsonResponse({ ok: true, data: {
+            queued: true,
+            blind: true,
+            approval_id: approval.id,
+            channel: "waouh",
+            contactability_level: "C2",
+            phone_last4: null,
+          } }, 202);
+        }
+
         const signalId = uuid(fabricId.slice("external:".length), "signal_id");
         const signal = await queryOne<any>(
           sb.from("waouh_external_commerce_signals").select("*").eq("id", signalId).maybeSingle(),
           "nexus_signal_not_found",
         );
         const signalPolicy = contactabilityPolicy(signal.contactability_level);
-        const message = asString(payload.message, "message", 5, 1000);
 
         if (signalPolicy.level === "C2") {
           if (!signal.submitted_by || signal.submitted_by === ownerId) {
