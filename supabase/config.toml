@@ -337,6 +337,9 @@ verify_jwt = true
 [functions.waouh-native-messaging-settings]
 verify_jwt = true
 
+[functions.waouh-native-simulator]
+verify_jwt = false
+
 [functions.waouh-tel-ingress]
 verify_jwt = false
 
