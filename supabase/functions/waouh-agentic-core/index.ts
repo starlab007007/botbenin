@@ -365,6 +365,570 @@ Retourne uniquement un JSON compact avec: product, category, brand, model, condi
   }
 }
 
+
+type DiscoveryMode = "find_sellers" | "find_buyers";
+
+function contactabilityFromBasis(
+  sourceDefault: string,
+  basis: string,
+  isPublicBusiness: boolean,
+): Contactability {
+  if (basis === "partner_contract") return "C4";
+  if (basis === "opt_in") return "C3";
+  if (basis === "initiated") return "C2";
+  if (basis === "public_business" || isPublicBusiness) return "C1";
+  return (["C0","C1","C2","C3","C4"].includes(sourceDefault) ? sourceDefault : "C0") as Contactability;
+}
+
+function actorRoleFromIntent(intent: string, actorType?: string | null) {
+  if (actorType && ["buyer","seller","announcer","business","broker","scout"].includes(actorType)) return actorType;
+  if (intent === "BUY" || intent === "RFQ") return "buyer";
+  if (intent === "SELL") return "seller";
+  return "announcer";
+}
+
+async function extractSignalIntent(
+  rawText: string,
+  expectedIntent?: "BUY" | "SELL" | "ANNOUNCE" | "RFQ" | null,
+) {
+  const fallbackIntent = expectedIntent ?? (/\b(cherche|recherche|besoin|wanted|looking for|demande de cotation|appel d.?offres)\b/i.test(rawText) ? "BUY" : "UNKNOWN");
+  try {
+    const raw = await chatCompletion({
+      jsonMode: true,
+      temperature: 0.05,
+      system: `Tu es le normaliseur de signaux commerciaux de WAOUH.
+Analyse un contenu volontairement partagé ou public et retourne uniquement JSON:
+{
+  "intent":"BUY|SELL|ANNOUNCE|RFQ|UNKNOWN",
+  "actor_type":"buyer|seller|announcer|business|broker|unknown",
+  "actor_name":string|null,
+  "actor_handle":string|null,
+  "product_name":string|null,
+  "category":string|null,
+  "brand":string|null,
+  "model":string|null,
+  "condition":string|null,
+  "quantity":number|null,
+  "unit":string|null,
+  "price_min":number|null,
+  "price_max":number|null,
+  "city":string|null,
+  "country_code":string|null,
+  "availability":"available|low_stock|out_of_stock|unknown"|null,
+  "confidence":number
+}
+Règles:
+- Ne fabrique jamais un téléphone, email, nom, prix ou localisation absent.
+- confidence entre 0 et 1.
+- Montants en FCFA quand la devise est identifiable.
+- ANNOUNCE = information commerciale sans intention BUY/SELL suffisamment certaine.
+- RFQ = demande professionnelle de devis/fournisseur.
+- expected_intent=${expectedIntent ?? "aucun"} est un indice, pas une obligation.`,
+      messages: [{ role: "user", content: rawText.slice(0, 12000) }],
+    });
+    const parsed = JSON.parse(raw);
+    const text = (value: unknown, max = 240) => typeof value === "string" && value.trim() ? value.trim().slice(0, max) : null;
+    const number = (value: unknown) => {
+      const n = Number(value);
+      return Number.isFinite(n) && n >= 0 ? n : null;
+    };
+    const intent = ["BUY","SELL","ANNOUNCE","RFQ","UNKNOWN"].includes(String(parsed.intent))
+      ? String(parsed.intent) : fallbackIntent;
+    return {
+      intent,
+      actor_type: actorRoleFromIntent(intent, text(parsed.actor_type, 40)),
+      actor_name: text(parsed.actor_name),
+      actor_handle: text(parsed.actor_handle),
+      product_name: text(parsed.product_name),
+      category: text(parsed.category, 120),
+      brand: text(parsed.brand, 120),
+      model: text(parsed.model, 120),
+      condition: text(parsed.condition, 120),
+      quantity: number(parsed.quantity),
+      unit: text(parsed.unit, 80),
+      price_min: number(parsed.price_min),
+      price_max: number(parsed.price_max),
+      city: text(parsed.city, 120),
+      country_code: text(parsed.country_code, 2) ?? "BJ",
+      availability: ["available","low_stock","out_of_stock","unknown"].includes(String(parsed.availability))
+        ? String(parsed.availability) : null,
+      confidence: Math.max(0, Math.min(1, Number(parsed.confidence ?? 0.5))),
+    };
+  } catch (error) {
+    console.warn("[waouh-signal-fabric] AI extraction fallback", error instanceof Error ? error.message : error);
+    return {
+      intent: fallbackIntent,
+      actor_type: actorRoleFromIntent(fallbackIntent),
+      actor_name: null,
+      actor_handle: null,
+      product_name: null,
+      category: null,
+      brand: null,
+      model: null,
+      condition: null,
+      quantity: null,
+      unit: null,
+      price_min: null,
+      price_max: null,
+      city: null,
+      country_code: "BJ",
+      availability: null,
+      confidence: 0.25,
+    };
+  }
+}
+
+async function resolveCommerceEntity(
+  sb: SupabaseClient,
+  input: {
+    sourceKey: string;
+    actorType: string;
+    actorName?: string | null;
+    actorHandle?: string | null;
+    city?: string | null;
+    contactPhones?: string[];
+    contactEmails?: string[];
+    contactability: Contactability;
+    consentBasis: string;
+    isPublicBusiness: boolean;
+  },
+) {
+  const normalizedPhones = (input.contactPhones ?? [])
+    .map((phone) => normalizeE164(phone))
+    .filter((phone): phone is string => !!phone);
+  const phoneHashes: string[] = [];
+  for (const phone of normalizedPhones) phoneHashes.push(await hashPhone(phone));
+
+  let entity: any = null;
+  if (phoneHashes.length) {
+    const { data: contactMatches, error: contactLookupError } = await sb.from("waouh_entity_contacts")
+      .select("entity_id").in("value_hash", phoneHashes).limit(1);
+    if (contactLookupError) throw new ApiError(500, "nexus_entity_contact_lookup_failed", contactLookupError.message);
+    if (contactMatches?.[0]?.entity_id) {
+      const { data, error } = await sb.from("waouh_commerce_entities").select("*")
+        .eq("id", contactMatches[0].entity_id).maybeSingle();
+      if (error) throw new ApiError(500, "nexus_entity_lookup_failed", error.message);
+      entity = data;
+    }
+  }
+
+  const canonicalKey = input.actorName
+    ? normalizeFabricText(`${input.actorName} ${input.city ?? ""}`).replace(/\s+/g, "-").slice(0, 240)
+    : null;
+  if (!entity && canonicalKey) {
+    const { data, error } = await sb.from("waouh_commerce_entities").select("*")
+      .eq("canonical_key", canonicalKey).order("last_seen_at", { ascending: false }).limit(1).maybeSingle();
+    if (error) throw new ApiError(500, "nexus_entity_key_lookup_failed", error.message);
+    entity = data;
+  }
+
+  if (!entity) {
+    entity = await queryOne<any>(
+      sb.from("waouh_commerce_entities").insert({
+        entity_type: ["person","business","organization","broker","announcer","scout"].includes(input.actorType)
+          ? input.actorType : "unknown",
+        primary_name: input.actorName ?? input.actorHandle ?? null,
+        canonical_key: canonicalKey,
+        city: input.city ?? null,
+        country_code: "BJ",
+        verification_state: input.consentBasis === "partner_contract" ? "partner_verified"
+          : input.isPublicBusiness ? "source_verified" : "unverified",
+        trust_score: input.isPublicBusiness ? 70 : 50,
+        source_keys: [input.sourceKey],
+        metadata: input.actorHandle ? { primary_handle: input.actorHandle } : {},
+      }).select("*").single(),
+      "nexus_entity_create_failed",
+    );
+  } else {
+    const sourceKeys = [...new Set([...(Array.isArray(entity.source_keys) ? entity.source_keys : []), input.sourceKey])];
+    const { data, error } = await sb.from("waouh_commerce_entities").update({
+      source_keys: sourceKeys,
+      last_seen_at: new Date().toISOString(),
+      primary_name: entity.primary_name ?? input.actorName ?? input.actorHandle ?? null,
+      city: entity.city ?? input.city ?? null,
+    }).eq("id", entity.id).select("*").single();
+    if (error) throw new ApiError(500, "nexus_entity_update_failed", error.message);
+    entity = data;
+  }
+
+  for (let index = 0; index < normalizedPhones.length; index++) {
+    const phone = normalizedPhones[index];
+    const hash = phoneHashes[index];
+    const encrypted = await encryptPhone(phone);
+    const { data: existing, error: existingError } = await sb.from("waouh_entity_contacts")
+      .select("id").eq("entity_id", entity.id).eq("channel", input.sourceKey === "whatsapp" ? "whatsapp" : "phone")
+      .eq("value_hash", hash).maybeSingle();
+    if (existingError) throw new ApiError(500, "nexus_contact_lookup_failed", existingError.message);
+    const values = {
+      source_key: input.sourceKey,
+      value_encrypted: encrypted,
+      value_hash: hash,
+      value_last4: phoneLast4(phone),
+      is_public_business: input.isPublicBusiness,
+      consent_state: input.consentBasis,
+      contactability_level: input.contactability,
+      verified_at: input.isPublicBusiness || ["opt_in","partner_contract","initiated"].includes(input.consentBasis)
+        ? new Date().toISOString() : null,
+    };
+    if (existing?.id) {
+      const { error } = await sb.from("waouh_entity_contacts").update(values).eq("id", existing.id);
+      if (error) throw new ApiError(500, "nexus_contact_update_failed", error.message);
+    } else {
+      const { error } = await sb.from("waouh_entity_contacts").insert({
+        entity_id: entity.id,
+        channel: input.sourceKey === "whatsapp" ? "whatsapp" : "phone",
+        ...values,
+      });
+      if (error) throw new ApiError(500, "nexus_contact_create_failed", error.message);
+    }
+  }
+
+  for (const emailRaw of input.contactEmails ?? []) {
+    const email = emailRaw.trim().toLowerCase();
+    if (!email) continue;
+    const hash = await sha256Hex(email);
+    const encrypted = await encryptPhone(email);
+    const { data: existing } = await sb.from("waouh_entity_contacts").select("id")
+      .eq("entity_id", entity.id).eq("channel", "email").eq("value_hash", hash).maybeSingle();
+    const values = {
+      source_key: input.sourceKey,
+      value_encrypted: encrypted,
+      value_hash: hash,
+      value_last4: null,
+      is_public_business: input.isPublicBusiness,
+      consent_state: input.consentBasis,
+      contactability_level: input.contactability,
+      verified_at: input.isPublicBusiness || ["opt_in","partner_contract","initiated"].includes(input.consentBasis)
+        ? new Date().toISOString() : null,
+    };
+    if (existing?.id) await sb.from("waouh_entity_contacts").update(values).eq("id", existing.id);
+    else await sb.from("waouh_entity_contacts").insert({ entity_id: entity.id, channel: "email", ...values });
+  }
+
+  if (input.actorHandle) {
+    const socialChannel = input.sourceKey.includes("facebook") ? "facebook"
+      : input.sourceKey.includes("instagram") ? "instagram"
+      : input.sourceKey.includes("tiktok") ? "tiktok"
+      : input.sourceKey.includes("telegram") ? "telegram" : null;
+    if (socialChannel) {
+      const publicValue = input.actorHandle.slice(0, 500);
+      const hash = await sha256Hex(`${socialChannel}:${publicValue.toLowerCase()}`);
+      const { data: existing } = await sb.from("waouh_entity_contacts").select("id")
+        .eq("entity_id", entity.id).eq("channel", socialChannel).eq("value_hash", hash).maybeSingle();
+      const values = {
+        source_key: input.sourceKey,
+        value_hash: hash,
+        public_value: publicValue,
+        is_public_business: input.isPublicBusiness,
+        consent_state: input.consentBasis,
+        contactability_level: input.contactability,
+      };
+      if (existing?.id) await sb.from("waouh_entity_contacts").update(values).eq("id", existing.id);
+      else await sb.from("waouh_entity_contacts").insert({ entity_id: entity.id, channel: socialChannel, ...values });
+    }
+  }
+
+  return entity;
+}
+
+async function ingestCommerceSignal(
+  sb: SupabaseClient,
+  ownerId: string | null,
+  input: JsonObject,
+  trusted: { expectedIntent?: "BUY" | "SELL" | "ANNOUNCE" | "RFQ" | null; publicBusiness?: boolean } = {},
+) {
+  const sourceKey = asString(input.source_key, "source_key", 2, 80);
+  const { data: source, error: sourceError } = await sb.from("waouh_discovery_sources")
+    .select("*").eq("source_key", sourceKey).maybeSingle();
+  if (sourceError) throw new ApiError(500, "nexus_source_lookup_failed", sourceError.message);
+  if (!source) throw new ApiError(422, "unknown_discovery_source");
+
+  const rawTextInput = optionalString(input.raw_text, "raw_text", 20_000) ?? "";
+  const sourceUrl = safeFabricSourceUrl(input.source_url);
+  if (!rawTextInput && !sourceUrl) throw new ApiError(422, "signal_content_required");
+
+  const extraction = await extractSignalIntent(
+    rawTextInput || String(input.product_name ?? input.actor_name ?? ""),
+    trusted.expectedIntent ?? null,
+  );
+
+  const hints = extractPublicContactHints(rawTextInput);
+  const explicitPhones = stringArray(input.contact_phones, "contact_phones", 5);
+  const explicitEmails = stringArray(input.contact_emails, "contact_emails", 5);
+  const contactPhones = [...new Set([...explicitPhones, ...hints.phones])];
+  const contactEmails = [...new Set([...explicitEmails, ...hints.emails])];
+
+  const consentBasis = pickEnum(
+    input.contact_consent_basis,
+    "contact_consent_basis",
+    ["unknown","public_business","initiated","opt_in","partner_contract","shared_by_user"] as const,
+    sourceKey === "share_to_waouh" ? "shared_by_user" : "unknown",
+  );
+  const isPublicBusiness = trusted.publicBusiness === true || input.public_business === true || consentBasis === "public_business";
+  const contactability = contactabilityFromBasis(
+    String(source.default_contactability ?? "C0"),
+    consentBasis,
+    isPublicBusiness,
+  );
+
+  const actorName = optionalString(input.actor_name, "actor_name", 240) ?? extraction.actor_name;
+  const actorHandle = optionalString(input.actor_handle, "actor_handle", 500) ?? extraction.actor_handle;
+  const actorType = pickEnum(
+    input.actor_type ?? extraction.actor_type,
+    "actor_type",
+    ["buyer","seller","announcer","business","broker","scout","unknown"] as const,
+    actorRoleFromIntent(extraction.intent) as any,
+  );
+  const entity = await resolveCommerceEntity(sb, {
+    sourceKey,
+    actorType,
+    actorName,
+    actorHandle,
+    city: optionalString(input.city, "city", 120) ?? extraction.city,
+    contactPhones,
+    contactEmails,
+    contactability,
+    consentBasis,
+    isPublicBusiness,
+  });
+
+  const externalIdRaw = optionalString(input.source_external_id, "source_external_id", 500);
+  const externalId = externalIdRaw ?? await sha256Hex(
+    `${sourceKey}|${sourceUrl ?? ""}|${rawTextInput.slice(0, 5000)}|${actorName ?? ""}`,
+  );
+  const row = {
+    submitted_by: ownerId,
+    source_id: source.id,
+    source_key: sourceKey,
+    source_external_id: externalId,
+    source_url: sourceUrl,
+    intent: pickEnum(
+      input.intent ?? extraction.intent,
+      "intent",
+      ["BUY","SELL","ANNOUNCE","RFQ","UNKNOWN"] as const,
+      extraction.intent as any,
+    ),
+    actor_type: actorType,
+    entity_id: entity.id,
+    actor_name: actorName,
+    actor_handle: actorHandle,
+    contactability_level: contactability,
+    contact_consent_basis: consentBasis,
+    product_name: optionalString(input.product_name, "product_name", 240) ?? extraction.product_name,
+    canonical_key: optionalString(input.canonical_key, "canonical_key", 240),
+    category: optionalString(input.category, "category", 120) ?? extraction.category,
+    brand: optionalString(input.brand, "brand", 120) ?? extraction.brand,
+    model: optionalString(input.model, "model", 120) ?? extraction.model,
+    condition: optionalString(input.condition, "condition", 120) ?? extraction.condition,
+    quantity: positiveNumber(input.quantity ?? extraction.quantity, "quantity", true),
+    unit: optionalString(input.unit, "unit", 80) ?? extraction.unit,
+    price_min: positiveNumber(input.price_min ?? extraction.price_min, "price_min", true),
+    price_max: positiveNumber(input.price_max ?? extraction.price_max, "price_max", true),
+    currency: "XOF",
+    city: optionalString(input.city, "city", 120) ?? extraction.city,
+    country_code: optionalString(input.country_code, "country_code", 2) ?? extraction.country_code ?? "BJ",
+    latitude: input.latitude == null ? null : Number(input.latitude),
+    longitude: input.longitude == null ? null : Number(input.longitude),
+    availability: input.availability != null
+      ? pickEnum(input.availability, "availability", ["available","low_stock","out_of_stock","unknown"] as const)
+      : extraction.availability,
+    raw_text: redactPublicContacts(rawTextInput).slice(0, 20_000) || null,
+    evidence: {
+      ...(jsonObject(input.evidence, "evidence")),
+      contact_hints: {
+        phone_count: contactPhones.length,
+        email_count: contactEmails.length,
+      },
+    },
+    ai_extraction: extraction,
+    confidence: Math.max(0, Math.min(1, Number(input.confidence ?? extraction.confidence ?? 0.5))),
+    trust_score: Math.max(0, Math.min(100, Number(input.trust_score ?? Number(source.trust_weight ?? 0.6) * 100))),
+    status: "active",
+    observed_at: isoDate(input.observed_at, "observed_at") ?? new Date().toISOString(),
+    expires_at: isoDate(input.expires_at, "expires_at"),
+  };
+
+  const { data: existing, error: lookupError } = await sb.from("waouh_external_commerce_signals")
+    .select("id").eq("source_key", sourceKey).eq("source_external_id", externalId).maybeSingle();
+  if (lookupError) throw new ApiError(500, "nexus_signal_lookup_failed", lookupError.message);
+  const signal = existing?.id
+    ? await queryOne<any>(
+        sb.from("waouh_external_commerce_signals").update(row).eq("id", existing.id).select("*").single(),
+        "nexus_signal_update_failed",
+      )
+    : await queryOne<any>(
+        sb.from("waouh_external_commerce_signals").insert(row).select("*").single(),
+        "nexus_signal_create_failed",
+      );
+
+  const role = actorType === "business" ? "business"
+    : actorType === "broker" ? "broker"
+    : actorType === "buyer" ? "buyer"
+    : actorType === "seller" ? "seller"
+    : actorType === "scout" ? "observer" : "announcer";
+  await sb.from("waouh_signal_entity_links").upsert({
+    signal_id: signal.id,
+    entity_id: entity.id,
+    role,
+    confidence: signal.confidence,
+  }, { onConflict: "signal_id,entity_id,role" });
+
+  return { signal, entity, contactability: contactabilityPolicy(contactability) };
+}
+
+async function refreshGooglePlaces(
+  sb: SupabaseClient,
+  ownerId: string,
+  query: string,
+  city?: string | null,
+  limit = 10,
+) {
+  const apiKey = Deno.env.get("GOOGLE_PLACES_API_KEY") || Deno.env.get("GOOGLE_MAPS_API_KEY") || "";
+  if (!apiKey) return { configured: false, inserted: 0, results: [] as any[], reason: "google_places_key_missing" };
+  const textQuery = [query, city, "Bénin"].filter(Boolean).join(" ");
+  const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": apiKey,
+      "X-Goog-FieldMask": [
+        "places.id","places.displayName","places.formattedAddress","places.location",
+        "places.nationalPhoneNumber","places.internationalPhoneNumber","places.websiteUri",
+        "places.googleMapsUri","places.businessStatus","places.rating","places.userRatingCount","places.types",
+      ].join(","),
+    },
+    body: JSON.stringify({
+      textQuery,
+      languageCode: "fr",
+      regionCode: "BJ",
+      pageSize: Math.min(Math.max(limit, 1), 20),
+    }),
+  });
+  const raw = await response.text();
+  if (!response.ok) return { configured: true, inserted: 0, results: [], reason: `google_places_${response.status}`, detail: raw.slice(0, 300) };
+  const data = JSON.parse(raw);
+  const places = Array.isArray(data?.places) ? data.places : [];
+  const saved: any[] = [];
+  for (const place of places) {
+    const actorName = place?.displayName?.text ?? null;
+    if (!actorName || !place?.id) continue;
+    const contactPhones = [place.internationalPhoneNumber, place.nationalPhoneNumber].filter(Boolean);
+    const ingested = await ingestCommerceSignal(sb, ownerId, {
+      source_key: "google_places",
+      source_external_id: String(place.id),
+      source_url: place.googleMapsUri ?? place.websiteUri ?? null,
+      raw_text: [actorName, place.formattedAddress, Array.isArray(place.types) ? place.types.join(" ") : ""].filter(Boolean).join(" · "),
+      intent: "ANNOUNCE",
+      actor_type: "business",
+      actor_name: actorName,
+      product_name: query,
+      city: city ?? null,
+      latitude: place?.location?.latitude ?? null,
+      longitude: place?.location?.longitude ?? null,
+      contact_phones: contactPhones,
+      contact_consent_basis: "public_business",
+      public_business: true,
+      confidence: 0.72,
+      trust_score: Math.min(95, 65 + Math.min(20, Number(place.rating ?? 0) * 4)),
+      evidence: {
+        google_place_id: place.id,
+        formatted_address: place.formattedAddress ?? null,
+        business_status: place.businessStatus ?? null,
+        rating: place.rating ?? null,
+        user_rating_count: place.userRatingCount ?? null,
+        website_uri: place.websiteUri ?? null,
+        google_maps_uri: place.googleMapsUri ?? null,
+        types: place.types ?? [],
+      },
+    }, { expectedIntent: "ANNOUNCE", publicBusiness: true });
+    saved.push(ingested.signal);
+  }
+  return { configured: true, inserted: saved.length, results: saved };
+}
+
+async function refreshSerpApi(
+  sb: SupabaseClient,
+  ownerId: string,
+  mode: DiscoveryMode,
+  query: string,
+  city?: string | null,
+  limit = 10,
+) {
+  const key = await getRadarApiKey(sb as any, "serpapi", "SERPAPI_KEY");
+  if (!key.ok || !key.key) return { configured: false, inserted: 0, results: [] as any[], reason: key.reason ?? "serpapi_not_ready" };
+  const intentTerms = mode === "find_sellers"
+    ? '("à vendre" OR "vente" OR "prix" OR "disponible" OR "arrivage")'
+    : '("je cherche" OR "besoin de" OR "cherche fournisseur" OR "demande de cotation" OR "appel d\'offres")';
+  const publicSurface = "(site:facebook.com OR site:instagram.com OR site:tiktok.com OR site:t.me OR site:linkedin.com OR site:jiji.bj OR site:afribaba.bj OR site:expat.com OR site:.bj)";
+  const searchQuery = `"${query.replace(/"/g, "")}" ${intentTerms} ${[city,"Bénin"].filter(Boolean).join(" ")} ${publicSurface}`;
+  const url = new URL("https://serpapi.com/search.json");
+  url.searchParams.set("engine", "google");
+  url.searchParams.set("q", searchQuery);
+  url.searchParams.set("num", String(Math.min(Math.max(limit, 1), 20)));
+  url.searchParams.set("gl", "bj");
+  url.searchParams.set("hl", "fr");
+  url.searchParams.set("tbs", "qdr:m");
+  url.searchParams.set("api_key", key.key);
+  const response = await fetch(url.toString());
+  if (!response.ok) return { configured: true, inserted: 0, results: [], reason: `serpapi_${response.status}` };
+  await incrementRadarUsage(sb as any, key.configId, 1);
+  const data = await response.json();
+  const organic = Array.isArray(data?.organic_results) ? data.organic_results.slice(0, limit) : [];
+  const saved: any[] = [];
+  for (const item of organic) {
+    if (!item?.link) continue;
+    let hostname = "web";
+    try { hostname = new URL(item.link).hostname.replace(/^www\./, ""); } catch { /* keep web */ }
+    const rawText = [item.title, item.snippet].filter(Boolean).join("\n");
+    const expectedIntent = mode === "find_sellers" ? "SELL" : "BUY";
+    const ingested = await ingestCommerceSignal(sb, ownerId, {
+      source_key: "serpapi",
+      source_external_id: item.link,
+      source_url: item.link,
+      raw_text: rawText,
+      intent: expectedIntent,
+      actor_type: mode === "find_sellers" ? "seller" : "buyer",
+      product_name: query,
+      city: city ?? null,
+      contact_consent_basis: "unknown",
+      confidence: 0.58,
+      evidence: { position: item.position ?? null, hostname, title: item.title ?? null },
+    }, { expectedIntent });
+    saved.push(ingested.signal);
+  }
+  return { configured: true, inserted: saved.length, results: saved };
+}
+
+async function globalDiscoverySearch(
+  sb: SupabaseClient,
+  input: {
+    query: string;
+    mode: DiscoveryMode;
+    city?: string | null;
+    budgetMax?: number | null;
+    limit: number;
+  },
+) {
+  const desired = input.mode === "find_sellers" ? ["SELL","ANNOUNCE"] : ["BUY","RFQ"];
+  const { data, error } = await sb.from("waouh_signal_fabric")
+    .select("*").in("intent", desired).order("observed_at", { ascending: false }).limit(3500);
+  if (error) throw new ApiError(500, "nexus_global_discovery_failed", error.message);
+  const ranked = (data ?? []).map((signal: FabricSignal) => ({
+    ...signal,
+    scores: scoreFabricSignal({
+      query: input.query,
+      mode: input.mode,
+      city: input.city,
+      budgetMax: input.budgetMax,
+      signal,
+    }),
+    contact_policy: contactabilityPolicy(signal.contactability_level),
+  })).filter((row: any) => row.scores.relevance_score >= 18 && row.scores.total_score >= 32)
+    .sort((a: any, b: any) => b.scores.total_score - a.scores.total_score)
+    .slice(0, input.limit);
+  return ranked;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: waouhCorsHeaders });
   if (req.method !== "POST") return errorResponse(405, "method_not_allowed");
