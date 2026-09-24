@@ -463,6 +463,36 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
                 .toList(growable: false),
           ),
         ],
+        if ((discovery?.refresh ?? const <String, dynamic>{}).isNotEmpty) ...[
+          const SizedBox(height: 7),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: discovery!.refresh.entries.map((entry) {
+              final raw = entry.value;
+              final state = raw is Map
+                  ? Map<String, dynamic>.from(raw)
+                  : <String, dynamic>{};
+              final configured = state['configured'] == true;
+              final inserted = (state['inserted'] as num?)?.round() ?? 0;
+              return Chip(
+                avatar: Icon(
+                  configured ? Icons.wifi_rounded : Icons.wifi_off_rounded,
+                  size: 15,
+                  color: configured
+                      ? const Color(0xFF08745D)
+                      : Colors.blueGrey,
+                ),
+                label: Text(
+                  configured
+                      ? sourceLabel(entry.key) + ' +' + inserted.toString()
+                      : sourceLabel(entry.key) + ' · non configuré',
+                  style: const TextStyle(fontSize: 10.5),
+                ),
+              );
+            }).toList(growable: false),
+          ),
+        ],
         if (results.isNotEmpty) ...[
           const SizedBox(height: 14),
           Text(
@@ -874,7 +904,13 @@ class _DiscoveryCard extends StatelessWidget {
                     child: FilledButton.icon(
                       onPressed: onContact,
                       icon: const Icon(Icons.chat_bubble_outline_rounded),
-                      label: const Text('Contacter'),
+                      label: Text(
+                        item.contactPolicy.level == 'C0'
+                            ? 'Voir contact'
+                            : item.contactPolicy.level == 'C2'
+                                ? 'Répondre via WAOUH'
+                                : 'Contacter',
+                      ),
                     ),
                   ),
                 ],
