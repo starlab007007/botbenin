@@ -18,7 +18,7 @@ import { inboundRecipientMatches } from "../_shared/waouh-tel/inbound-worker.ts"
 import { telRuntimeSecret } from "../_shared/waouh-tel/runtime-secret.ts";
 import { verifyProviderWebhook } from "../_shared/waouh-tel/signature.ts";
 
-function triggerDispatch() {
+async function triggerDispatch() {
   const url = Deno.env.get("SUPABASE_URL");
   const internalSecret = await telRuntimeSecret("internal_secret");
   if (!url || !internalSecret || internalSecret.length < 24) return;
@@ -181,7 +181,7 @@ Deno.serve(async (req) => {
     if (enqueueError) {
       throw new Error(`inbox_enqueue_failed:${enqueueError.message}`);
     }
-    triggerDispatch();
+    await triggerDispatch();
     return telJson(
       {
         ok: true,
