@@ -16,6 +16,7 @@ import {
   createNexusBuyerAutopilot,
   createNexusSellerAutopilot,
   getNexusSources,
+  getNexusMarketHistory,
   getSellerOpportunities,
   identifyNexusVisual,
   lookupNexusBarcode,
@@ -28,7 +29,7 @@ import {
 
 const message = (error: unknown) => error instanceof Error ? error.message : "Une erreur inattendue est survenue.";
 
-function SearchPreview({ result }: { result: NexusSearchResponse | null }) {
+function SearchPreview({ result, history }: { result: NexusSearchResponse | null; history?: Array<{ observed_at: string; median_amount?: number | null; sample_count?: number }> }) {
   if (!result) return null;
   return (
     <div className="space-y-2 rounded-xl border bg-muted/20 p-3">
@@ -49,11 +50,21 @@ function SearchPreview({ result }: { result: NexusSearchResponse | null }) {
             <div className="mt-1 text-sm font-bold">{moneyXof(item.price, item.currency)}</div>
             <div className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
               {item.city && <><MapPin className="h-3 w-3" />{item.city}</>}
-              <span className="ml-auto">{Math.round(item.scores.total_score)}%</span>
+              <span className="ml-auto">match {Math.round(item.scores.total_score)}% · confiance {Math.round(item.scores.trust_score)}%</span>
             </div>
           </div>
         ))}
       </div>
+      {history && history.length > 1 && (
+        <div className="flex flex-wrap items-center gap-1 border-t pt-2 text-[10px] text-muted-foreground">
+          <span className="font-medium text-foreground">Tendance prix :</span>
+          {history.slice(-5).map((point) => (
+            <span key={point.observed_at} className="rounded-full bg-background px-2 py-1">
+              {new Date(point.observed_at).toLocaleDateString("fr-BJ", { day: "2-digit", month: "2-digit" })} · {moneyXof(point.median_amount)}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -65,8 +76,10 @@ export function WaouhNexusInnovationPanel() {
   const [busy, setBusy] = useState<string | null>(null);
   const [visualQuery, setVisualQuery] = useState("");
   const [visualResult, setVisualResult] = useState<NexusSearchResponse | null>(null);
+  const [visualHistory, setVisualHistory] = useState<Array<{ observed_at: string; median_amount?: number | null; sample_count?: number }>>([]);
   const [barcode, setBarcode] = useState("");
   const [barcodeResult, setBarcodeResult] = useState<NexusSearchResponse | null>(null);
+  const [barcodeHistory, setBarcodeHistory] = useState<Array<{ observed_at: string; median_amount?: number | null; sample_count?: number }>>([]);
   const [sources, setSources] = useState<NexusSourceStatus | null>(null);
   const [sellerGroups, setSellerGroups] = useState<NexusSellerGroup[]>([]);
   const [scoutTitle, setScoutTitle] = useState("");
@@ -100,6 +113,7 @@ export function WaouhNexusInnovationPanel() {
       setVisualQuery(identified.query);
       const search = await searchNexus({ query: identified.query, limit: 6, persist_intent: true });
       setVisualResult(search);
+      getNexusMarketHistory(identified.query).then((value) => setVisualHistory(value.points)).catch(() => setVisualHistory([]));
       toast({ title: "Produit reconnu", description: `WAOUH compare maintenant « ${identified.query} ».` });
     } catch (error) {
       toast({ title: "Analyse photo impossible", description: message(error), variant: "destructive" });
@@ -118,6 +132,7 @@ export function WaouhNexusInnovationPanel() {
       setVisualQuery(lookup.query);
       const search = await searchNexus({ query: lookup.query, limit: 6, persist_intent: true });
       setBarcodeResult(search);
+      getNexusMarketHistory(lookup.query).then((value) => setBarcodeHistory(value.points)).catch(() => setBarcodeHistory([]));
       toast({
         title: "Produit retrouvé",
         description: `${lookup.articles.length + lookup.catalog.length} référence(s) GTIN directe(s), puis comparaison NEXUS.`,
@@ -235,7 +250,7 @@ export function WaouhNexusInnovationPanel() {
                 <Button disabled={busy === "buyer-auto"} onClick={() => void startBuyerAutopilot(visualQuery)}>Acheter pour moi</Button>
               </div>
             )}
-            <SearchPreview result={visualResult} />
+            <SearchPreview result={visualResult} history={visualHistory} />
           </TabsContent>
 
           <TabsContent value="barcode" className="space-y-3">
@@ -245,7 +260,7 @@ export function WaouhNexusInnovationPanel() {
                 {busy === "barcode" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Barcode className="h-4 w-4" />}
               </Button>
             </div>
-            <SearchPreview result={barcodeResult} />
+            <SearchPreview result={barcodeResult} history={barcodeHistory} />
           </TabsContent>
 
           <TabsContent value="auto" className="space-y-3">
