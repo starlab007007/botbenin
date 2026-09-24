@@ -10,6 +10,8 @@ import 'live_controller_v2.dart';
 import 'live_inbox_production.dart';
 import 'live_match_chat_v2.dart';
 import 'live_models.dart';
+import 'live_muse_screen.dart';
+import 'live_nexus_screen.dart';
 import 'live_notifications_screen_v2.dart';
 import 'live_offline_banner.dart';
 import 'live_partner_businesses_v3.dart';
@@ -147,6 +149,14 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
               builder: (_, __) => const LiveIaFinalHubScreen(),
             ),
             GoRoute(
+              path: '/app/muse',
+              builder: (_, __) => const LiveMuseScreen(),
+            ),
+            GoRoute(
+              path: '/app/nexus',
+              builder: (_, __) => const LiveNexusScreen(),
+            ),
+            GoRoute(
               path: '/app/bots',
               builder: (_, __) => const LiveBotsModulesHubScreen(),
             ),
@@ -280,6 +290,8 @@ class LiveProductionShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final focused = path.startsWith('/app/chat/') ||
+        path.startsWith('/app/muse') ||
+        path.startsWith('/app/nexus') ||
         path.startsWith('/app/profile') ||
         path.startsWith('/app/partner/businesses/');
     return Scaffold(

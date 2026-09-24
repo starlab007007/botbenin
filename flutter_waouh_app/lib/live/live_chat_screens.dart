@@ -447,6 +447,9 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
                     composer.text = 'Je propose  FCFA pour ';
                     composerFocus.requestFocus();
                   }),
+                  _quick('Muse', Icons.psychology_alt_outlined, () {
+                    context.push('/app/muse');
+                  }),
                   _quick('GPS', Icons.my_location, () async {
                     await controller.useDeviceLocation();
                     if (!mounted) return;

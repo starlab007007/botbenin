@@ -18,7 +18,7 @@ class LiveAgenticRemoteService {
   ]) async {
     try {
       final response = await client.functions.invoke(
-        'waouh-agentic-core',
+        'waouh-studio-e2e-v21465',
         body: <String, dynamic>{'action': action, 'payload': payload},
       );
       final raw = response.data;
@@ -145,7 +145,7 @@ class LiveAgenticRepository {
     WaouhApprovalRequest approval,
     WaouhApprovalStatus status,
   ) async {
-    await remote.dispatch('resolve_approval', <String, dynamic>{
+    await remote.dispatch('approval.decide', <String, dynamic>{
       'approval_id': approval.id,
       'decision':
           status == WaouhApprovalStatus.approved ? 'approved' : 'rejected',
