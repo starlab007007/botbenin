@@ -141,7 +141,7 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
   }, []);
 
   useEffect(() => {
-    if (activeKey === "main") setDealState(null);
+    setDealState(null);
   }, [activeKey]);
 
   useEffect(() => {
@@ -342,14 +342,14 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
         <div className="hidden min-w-0 flex-1 items-center justify-center lg:flex">
           <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50/80 px-2 py-1">
             {[
-              [BrainCircuit, "Muse"],
-              [Search, "NEXUS"],
-              [Network, "Signal Fabric"],
-              [ShieldCheck, "Contact C0–C4"],
-            ].map(([Icon, label], index) => (
-              <React.Fragment key={String(label)}>
+              { Icon: BrainCircuit, label: "Muse" },
+              { Icon: Search, label: "NEXUS" },
+              { Icon: Network, label: "Signal Fabric" },
+              { Icon: ShieldCheck, label: "Contact C0–C4" },
+            ].map(({ Icon, label }, index) => (
+              <React.Fragment key={label}>
                 <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold text-slate-600">
-                  <Icon className="h-3 w-3 text-emerald-700" /> {String(label)}
+                  <Icon className="h-3 w-3 text-emerald-700" /> {label}
                 </span>
                 {index < 3 && <span className="text-[10px] text-slate-300">→</span>}
               </React.Fragment>
