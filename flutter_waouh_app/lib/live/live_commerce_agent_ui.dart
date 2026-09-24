@@ -356,6 +356,537 @@ class LiveCommerceAgentBar extends StatelessWidget {
 }
 
 
+
+Future<void> showLiveUnifiedIntelligenceSheet(
+  BuildContext context, {
+  required List<LiveMessage> messages,
+  bool busy = false,
+  LiveMatch? match,
+  int missionCount = 0,
+  int watchCount = 0,
+  int approvalCount = 0,
+  VoidCallback? onNewGoal,
+  VoidCallback? onOpenAgentic,
+}) =>
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => FractionallySizedBox(
+        heightFactor: .90,
+        child: LiveUnifiedIntelligenceSheet(
+          messages: messages,
+          busy: busy,
+          match: match,
+          missionCount: missionCount,
+          watchCount: watchCount,
+          approvalCount: approvalCount,
+          onNewGoal: onNewGoal,
+          onOpenAgentic: onOpenAgentic,
+        ),
+      ),
+    );
+
+class LiveUnifiedIntelligenceSheet extends StatelessWidget {
+  const LiveUnifiedIntelligenceSheet({
+    super.key,
+    required this.messages,
+    this.busy = false,
+    this.match,
+    this.missionCount = 0,
+    this.watchCount = 0,
+    this.approvalCount = 0,
+    this.onNewGoal,
+    this.onOpenAgentic,
+  });
+
+  final List<LiveMessage> messages;
+  final bool busy;
+  final LiveMatch? match;
+  final int missionCount;
+  final int watchCount;
+  final int approvalCount;
+  final VoidCallback? onNewGoal;
+  final VoidCallback? onOpenAgentic;
+
+  @override
+  Widget build(BuildContext context) {
+    LiveMessage? userMessage;
+    LiveMessage? assistantMessage;
+    for (final message in messages.reversed) {
+      if (userMessage == null && message.outgoing) userMessage = message;
+      if (assistantMessage == null && !message.outgoing) assistantMessage = message;
+      if (userMessage != null && assistantMessage != null) break;
+    }
+    final goal = match?.title ??
+        (userMessage?.text == '(image)' ? '' : (userMessage?.text.trim() ?? ''));
+    final intent = '${assistantMessage?.meta['intent'] ?? ''}';
+    final rows = _rows(assistantMessage);
+    final mode = match != null
+        ? (match!.role == 'seller' ? LiveMuseMode.seller : LiveMuseMode.buyer)
+        : _mode(goal, intent);
+    final phase = match != null
+        ? LiveMusePhase.negotiating
+        : _phase(busy, goal, intent, rows.length);
+    final contact = _contactFromMessages(messages);
+    final sources = <String>{};
+    final sourceMix = assistantMessage?.meta['source_mix'];
+    if (sourceMix is Map) {
+      for (final key in sourceMix.keys) {
+        final value = key.toString().trim();
+        if (value.isNotEmpty) sources.add(value);
+      }
+    }
+    for (final row in rows) {
+      final value = '${row['source'] ?? row['source_key'] ?? ''}'.trim();
+      if (value.isNotEmpty) sources.add(value);
+    }
+
+    return Material(
+      color: const Color(0xFFF7FAF8),
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 8, 10),
+            child: Row(
+              children: [
+                LiveMuseAvatar(mode: mode, phase: phase, size: 48),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'WAOUH One',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF102D27),
+                        ),
+                      ),
+                      Text(
+                        'Un assistant · Muse + NEXUS + Signal + Contact',
+                        style: TextStyle(
+                          fontSize: 10.8,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF60746E),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Fermer',
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 18),
+              children: [
+                _UnifiedGoalCard(
+                  goal: goal.isEmpty
+                      ? 'Dites simplement ce que vous voulez acheter ou vendre.'
+                      : goal,
+                  mode: mode,
+                  phase: phase,
+                  resultCount: rows.length,
+                  contact: contact,
+                  match: match,
+                ),
+                const SizedBox(height: 10),
+                _UnifiedLayerCard(
+                  icon: Icons.psychology_alt_outlined,
+                  title: 'Muse',
+                  subtitle:
+                      'Comprend votre objectif, garde le contexte et prépare les prochaines actions.',
+                  active: phase != LiveMusePhase.idle,
+                  child: Text(
+                    _phaseDetail(phase),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF365048),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _UnifiedLayerCard(
+                  icon: Icons.radar_rounded,
+                  title: 'NEXUS',
+                  subtitle:
+                      'Découvre vendeurs, acheteurs et signaux utiles sur les sources autorisées.',
+                  active: phase == LiveMusePhase.searching ||
+                      phase == LiveMusePhase.comparing ||
+                      rows.isNotEmpty,
+                  child: sources.isEmpty
+                      ? const Text(
+                          'Les sources apparaissent dès que la recherche démarre.',
+                          style: TextStyle(
+                              fontSize: 10.5, color: Color(0xFF60746E)),
+                        )
+                      : Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: sources
+                              .take(6)
+                              .map(
+                                (source) => _UnifiedPill(
+                                  label: source.replaceAll('_', ' '),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                ),
+                const SizedBox(height: 8),
+                _UnifiedLayerCard(
+                  icon: Icons.hub_outlined,
+                  title: 'Signal Fabric',
+                  subtitle:
+                      'Fusionne, déduplique et classe avant d’afficher les meilleurs choix.',
+                  active: phase == LiveMusePhase.comparing || rows.isNotEmpty,
+                  child: const Wrap(
+                    spacing: 5,
+                    runSpacing: 5,
+                    children: [
+                      _UnifiedPill(label: 'Pertinence'),
+                      _UnifiedPill(label: 'Confiance'),
+                      _UnifiedPill(label: 'Prix'),
+                      _UnifiedPill(label: 'Proximité'),
+                      _UnifiedPill(label: 'Fraîcheur'),
+                      _UnifiedPill(label: 'Contact'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _UnifiedLayerCard(
+                  icon: Icons.shield_outlined,
+                  title: 'Contact Layer C0–C4',
+                  subtitle:
+                      'Vérifie les permissions avant toute révélation ou prise de contact.',
+                  active: contact != null || phase == LiveMusePhase.contacting,
+                  child: LiveContactabilityBadge(
+                    level: contact,
+                    showCode: true,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _UnifiedLayerCard(
+                  icon: Icons.handshake_outlined,
+                  title: 'Deal Room',
+                  subtitle:
+                      'Une négociation = un article × un interlocuteur, dans le même WAOUH.',
+                  active: match != null ||
+                      phase == LiveMusePhase.negotiating,
+                  child: Text(
+                    match == null
+                        ? 'Elle s’ouvre automatiquement lorsqu’une opportunité devient une conversation.'
+                        : [
+                            match!.title,
+                            if (match!.price != null)
+                              '${match!.price} FCFA',
+                            if (match!.city?.trim().isNotEmpty == true)
+                              match!.city!,
+                          ].join(' · '),
+                    style: const TextStyle(
+                      fontSize: 10.8,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF365048),
+                    ),
+                  ),
+                ),
+                if (missionCount > 0 ||
+                    watchCount > 0 ||
+                    approvalCount > 0 ||
+                    onOpenAgentic != null) ...[
+                  const SizedBox(height: 10),
+                  _UnifiedLayerCard(
+                    icon: Icons.route_outlined,
+                    title: 'Missions & veille',
+                    subtitle:
+                        'Les objectifs persistants continuent sans encombrer le fil principal.',
+                    active: missionCount > 0 || watchCount > 0,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              _UnifiedPill(label: 'Missions $missionCount'),
+                              _UnifiedPill(label: 'Veilles $watchCount'),
+                              if (approvalCount > 0)
+                                _UnifiedPill(
+                                    label: 'Accords $approvalCount',
+                                    alert: true),
+                            ],
+                          ),
+                        ),
+                        if (onOpenAgentic != null)
+                          IconButton(
+                            tooltip: 'Ouvrir le suivi',
+                            onPressed: () {
+                              Navigator.pop(context);
+                              Future<void>.delayed(
+                                Duration.zero,
+                                () => onOpenAgentic!(),
+                              );
+                            },
+                            icon: const Icon(Icons.arrow_forward_rounded),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (onNewGoal != null)
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 12),
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Future<void>.delayed(Duration.zero, () => onNewGoal!());
+                  },
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(50),
+                    backgroundColor: const Color(0xFF102D27),
+                  ),
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text(
+                    'Nouvel objectif',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _UnifiedGoalCard extends StatelessWidget {
+  const _UnifiedGoalCard({
+    required this.goal,
+    required this.mode,
+    required this.phase,
+    required this.resultCount,
+    required this.contact,
+    required this.match,
+  });
+
+  final String goal;
+  final LiveMuseMode mode;
+  final LiveMusePhase phase;
+  final int resultCount;
+  final String? contact;
+  final LiveMatch? match;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Colors.white, Color(0xFFEFFFF7), Color(0xFFF1FAFC)],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFD6EAE2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(
+              children: [
+                Icon(Icons.flag_outlined,
+                    size: 16, color: Color(0xFF08745D)),
+                SizedBox(width: 6),
+                Text(
+                  'OBJECTIF ACTUEL',
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .6,
+                    color: Color(0xFF60746E),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 7),
+            Text(
+              goal,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 14,
+                height: 1.25,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF102D27),
+              ),
+            ),
+            const SizedBox(height: 9),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _UnifiedPill(
+                  label: match != null
+                      ? 'Deal Room'
+                      : mode == LiveMuseMode.seller
+                          ? 'Vendeur'
+                          : mode == LiveMuseMode.buyer
+                              ? 'Acheteur'
+                              : 'Commerce',
+                ),
+                _UnifiedPill(label: _phaseLabel(phase)),
+                if (resultCount > 0)
+                  _UnifiedPill(label: '$resultCount résultats'),
+                if (contact != null)
+                  LiveContactabilityBadge(level: contact),
+              ],
+            ),
+          ],
+        ),
+      );
+}
+
+class _UnifiedLayerCard extends StatelessWidget {
+  const _UnifiedLayerCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.active,
+    required this.child,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool active;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: active ? const Color(0xFFF1FAF6) : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color:
+                active ? const Color(0xFFCBEBDD) : const Color(0xFFE1E9E6),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: active
+                        ? Colors.white
+                        : const Color(0xFFF5F7F6),
+                    borderRadius: BorderRadius.circular(11),
+                    border: Border.all(
+                      color: active
+                          ? const Color(0xFFCBEBDD)
+                          : const Color(0xFFE1E9E6),
+                    ),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 17,
+                    color: active
+                        ? const Color(0xFF08745D)
+                        : const Color(0xFF74877F),
+                  ),
+                ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF18352E),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                          fontSize: 10.2,
+                          height: 1.25,
+                          color: Color(0xFF60746E),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (active)
+                  Container(
+                    width: 7,
+                    height: 7,
+                    margin: const EdgeInsets.only(top: 4),
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0xFF18A875),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 9),
+            child,
+          ],
+        ),
+      );
+}
+
+class _UnifiedPill extends StatelessWidget {
+  const _UnifiedPill({required this.label, this.alert = false});
+  final String label;
+  final bool alert;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: alert ? const Color(0xFFFFF3DB) : Colors.white,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color:
+                alert ? const Color(0xFFE3A42D) : const Color(0xFFDCE8E3),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 9.5,
+            fontWeight: FontWeight.w800,
+            color: alert
+                ? const Color(0xFF8B5B00)
+                : const Color(0xFF52675F),
+          ),
+        ),
+      );
+}
+
 class LiveSmartComposerBar extends StatelessWidget {
   const LiveSmartComposerBar({
     super.key,
