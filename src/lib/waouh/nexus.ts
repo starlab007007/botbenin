@@ -329,9 +329,10 @@ export async function globalNexusDiscovery(input: {
 }
 
 export async function ingestSharedCommerceSignal(input: {
-  raw_text: string;
+  raw_text?: string;
+  image_url?: string;
   source_url?: string;
-  origin_surface?: "whatsapp" | "facebook" | "instagram" | "tiktok" | "telegram" | "web" | "other" | string;
+  origin_surface?: "whatsapp" | "facebook" | "instagram" | "tiktok" | "telegram" | "web" | "b2b" | "other" | string;
   source_key?: "share_to_waouh" | "b2b_rfq";
   evidence?: Record<string, unknown>;
 }) {
