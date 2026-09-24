@@ -83,6 +83,7 @@ export function nexusTokens(value: unknown): string[] {
 }
 
 const num = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === "") return null;
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 };
@@ -128,7 +129,9 @@ export function priceFitScore(price: unknown, budgetMax?: unknown, budgetMin?: u
   }
   if (max != null) {
     const ratio = p / Math.max(max, 1);
-    return round1(clamp(100 - ratio * 20));
+    // Une offre à l'intérieur du budget doit rester fortement valorisée :
+    // 100 sous ~50 % du budget, ~90 au plafond, avant les autres critères.
+    return round1(clamp(100 - ratio * 10));
   }
   return 85;
 }
