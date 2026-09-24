@@ -248,7 +248,21 @@ export async function createNexusSellerAutopilot(payload: {
 }
 
 
-export type NexusDiscoveryMode = "find_sellers" | "find_buyers";
+export type NexusDiscoveryMode = "auto" | "find_sellers" | "find_buyers";
+export type NexusResolvedDiscoveryMode = Exclude<NexusDiscoveryMode, "auto">;
+
+export type NexusSmartDiscoveryPlan = {
+  mode: NexusResolvedDiscoveryMode;
+  normalized_query: string;
+  city?: string | null;
+  budget_max?: number | null;
+  priorities: string[];
+  source_families: string[];
+  missing: string[];
+  next_actions: string[];
+  confidence: number;
+  rationale: string;
+};
 
 export type NexusDiscoveryResult = {
   fabric_id: string;
@@ -311,21 +325,31 @@ export type NexusDiscoverySource = {
 
 export async function globalNexusDiscovery(input: {
   query: string;
-  mode: NexusDiscoveryMode;
+  mode?: NexusDiscoveryMode;
   city?: string;
   budget_max?: number;
   limit?: number;
   refresh_external?: boolean;
+  smart?: boolean;
 }) {
   return invokeWaouhAgentic<{
-    mode: NexusDiscoveryMode;
+    requested_mode?: NexusDiscoveryMode;
+    mode: NexusResolvedDiscoveryMode;
     query: string;
+    normalized_query?: string;
     city?: string | null;
+    budget_max?: number | null;
     results: NexusDiscoveryResult[];
     source_mix: Record<string, number>;
-    refresh: Record<string, { configured?: boolean; inserted?: number; reason?: string | null }>;
+    refresh: Record<string, {
+      configured?: boolean;
+      inserted?: number;
+      reason?: string | null;
+      surfaces?: Record<string, number>;
+    }>;
+    intelligence?: NexusSmartDiscoveryPlan;
     explanation?: string;
-  }>("nexus.global_discovery", input);
+  }>("nexus.global_discovery", { mode: "auto", smart: true, ...input });
 }
 
 export async function ingestSharedCommerceSignal(input: {
