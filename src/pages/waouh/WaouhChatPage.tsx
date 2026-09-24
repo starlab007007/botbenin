@@ -4,7 +4,6 @@ import {
   BrainCircuit,
   Handshake,
   Info,
-  Network,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
@@ -102,6 +101,16 @@ function computeRailWidth(): number {
   return window.innerWidth >= 1440 ? 320 : 292;
 }
 
+const PRESENCE_PHASE_LABEL: Record<WaouhWorkspaceAgentState["phase"], string> = {
+  idle: "Prêt à chercher",
+  listening: "Objectif compris",
+  searching: "NEXUS cherche",
+  comparing: "Signal Fabric compare",
+  contacting: "Contact sécurisé",
+  negotiating: "Deal Room active",
+  success: "Objectif atteint",
+};
+
 export default function WaouhChatPage({ embedded = false }: { embedded?: boolean } = {}) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -110,8 +119,7 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
   const sessionId = getSessionId();
   const chatRef = useRef<WaouhWebChatHandle>(null);
 
-  const [railOpen, setRailOpen] = useState(() => typeof window === "undefined" ? true : window.innerWidth >= 980);
-  const [intelligenceOpen, setIntelligenceOpen] = useState(() => typeof window === "undefined" ? true : window.innerWidth >= 1280);
+  const [railOpen, setRailOpen] = useState(false);
   const [railWidth, setRailWidth] = useState(computeRailWidth);
   const [agentState, setAgentState] = useState<WaouhWorkspaceAgentState>(EMPTY_WAOUH_WORKSPACE_STATE);
   const [dealState, setDealState] = useState<WaouhWorkspaceDealState | null>(null);
@@ -205,6 +213,7 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
           ref={chatRef}
           fullscreen
           onAgentStateChange={setAgentState}
+          hideAgentBar
         />
       );
     }
@@ -248,7 +257,7 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
 
           <Sheet>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-xl" aria-label="Intelligence WAOUH">
+              <Button variant="ghost" size="icon" className="rounded-xl" aria-label="Activité et intelligence WAOUH">
                 <Sparkles className="h-4.5 w-4.5 text-emerald-700" />
               </Button>
             </SheetTrigger>
@@ -279,13 +288,15 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
         </header>
 
         {matches.length > 0 && (
-          <WaouhChatTabs
-            matches={matches}
-            activeKey={activeKey}
-            onSelect={setActiveKey}
-            onClose={close}
-            sessionId={sessionId ?? ""}
-          />
+          {matches.length > 0 && (
+            <WaouhChatTabs
+              matches={matches}
+              activeKey={activeKey}
+              onSelect={setActiveKey}
+              onClose={close}
+              sessionId={sessionId ?? ""}
+            />
+          )}
         )}
 
         <main className="min-h-0 flex-1 overflow-hidden bg-white">
@@ -339,34 +350,56 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
           </div>
         </Link>
 
-        <div className="hidden min-w-0 flex-1 items-center justify-center lg:flex">
-          <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50/80 px-2 py-1">
-            {[
-              { Icon: BrainCircuit, label: "Muse" },
-              { Icon: Search, label: "NEXUS" },
-              { Icon: Network, label: "Signal Fabric" },
-              { Icon: ShieldCheck, label: "Contact C0–C4" },
-            ].map(({ Icon, label }, index) => (
-              <React.Fragment key={label}>
-                <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold text-slate-600">
-                  <Icon className="h-3 w-3 text-emerald-700" /> {label}
+        <div className="hidden min-w-0 flex-1 items-center justify-center md:flex">
+          <Sheet>
+            <SheetTrigger asChild>
+              <button
+                type="button"
+                className="group flex min-w-0 max-w-[620px] items-center gap-3 rounded-2xl border border-slate-200 bg-white/85 px-3 py-2 text-left shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50/45"
+                aria-label="Ouvrir l’activité de Muse et l’intelligence WAOUH"
+              >
+                <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
+                  {resolvedDealState?.active ? <Handshake className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+                  {(agentState.phase === "searching" || agentState.phase === "comparing" || resolvedDealState?.active) && (
+                    <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border-2 border-white bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,.8)]" />
+                  )}
                 </span>
-                {index < 3 && <span className="text-[10px] text-slate-300">→</span>}
-              </React.Fragment>
-            ))}
-          </div>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2">
+                    <span className="truncate text-[11px] font-black text-slate-900">
+                      {resolvedDealState?.active
+                        ? resolvedDealState.closed ? "Deal conclu" : "Muse accompagne la négociation"
+                        : PRESENCE_PHASE_LABEL[agentState.phase]}
+                    </span>
+                    {agentState.resultCount > 0 && !resolvedDealState?.active && (
+                      <Badge variant="secondary" className="h-5 shrink-0 px-1.5 text-[9px]">
+                        {agentState.resultCount} résultat{agentState.resultCount > 1 ? "s" : ""}
+                      </Badge>
+                    )}
+                  </span>
+                  <span className="block truncate text-[10px] font-semibold text-slate-500">
+                    {resolvedDealState?.active
+                      ? resolvedDealState.title || "Deal Room WAOUH"
+                      : agentState.goal?.trim() || "Dites ce que vous voulez acheter ou vendre"}
+                  </span>
+                </span>
+                <span className="shrink-0 text-[9px] font-bold text-emerald-700 opacity-0 transition group-hover:opacity-100">
+                  Voir l’activité
+                </span>
+              </button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[390px] overflow-hidden p-0 sm:max-w-[390px]">
+              <SheetHeader className="sr-only"><SheetTitle>Activité et intelligence WAOUH</SheetTitle></SheetHeader>
+              <WaouhUnifiedIntelligenceDock
+                state={agentState}
+                deal={resolvedDealState}
+                onNewGoal={handleNewGoal}
+              />
+            </SheetContent>
+          </Sheet>
         </div>
 
         <div className="ml-auto flex items-center gap-1">
-          <Button
-            variant={intelligenceOpen ? "secondary" : "ghost"}
-            size="sm"
-            className="hidden rounded-xl sm:inline-flex"
-            onClick={() => setIntelligenceOpen((value) => !value)}
-          >
-            <Sparkles className="mr-1.5 h-4 w-4 text-emerald-700" />
-            Intelligence
-          </Button>
           {NotifButton}
           <Sheet>
             <SheetTrigger asChild>
@@ -426,6 +459,7 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
                 ref={chatRef}
                 fullscreen
                 onAgentStateChange={setAgentState}
+                hideAgentBar
               />
             </div>
             {matches.map((match) => (
@@ -447,26 +481,6 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
           </div>
         </main>
 
-        {intelligenceOpen && (
-          <div className="ml-2 hidden h-full w-[306px] shrink-0 overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm xl:block">
-            <WaouhUnifiedIntelligenceDock
-              state={agentState}
-              deal={resolvedDealState}
-              onNewGoal={handleNewGoal}
-            />
-          </div>
-        )}
-
-        {intelligenceOpen && (
-          <div className="ml-2 hidden h-full w-[280px] shrink-0 overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm lg:block xl:hidden">
-            <WaouhUnifiedIntelligenceDock
-              compact
-              state={agentState}
-              deal={resolvedDealState}
-              onNewGoal={handleNewGoal}
-            />
-          </div>
-        )}
       </div>
 
       {payDialog && (
