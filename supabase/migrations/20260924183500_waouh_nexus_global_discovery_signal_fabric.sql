@@ -225,7 +225,7 @@ select
   greatest(0,least(100,coalesce(a.ai_quality_score,case when a.status='active' then 70 else 40 end)))::numeric as trust_score,
   coalesce(a.last_verified_at,a.updated_at,a.created_at)::timestamptz as observed_at,
   null::text as source_url,
-  jsonb_build_object('article_id',a.id,'seller_id',a.seller_id,'partner_id',a.partner_id,'photos',coalesce(a.photos,'[]'::jsonb)) as evidence
+  jsonb_build_object('article_id',a.id,'seller_id',a.seller_id,'partner_id',a.partner_id,'photos',to_jsonb(coalesce(a.photos,'{}'::text[]))) as evidence
 from public.waouh_articles a
 where a.status='active'
 union all
@@ -262,7 +262,7 @@ union all
 select
   'radar:' || r.id::text,
   r.id::text,
-  coalesce(nullif(r.source_type,''),'radar_ia')::text,
+  'radar_ia'::text,
   case when r.intent in ('BUY','SELL') then r.intent else 'ANNOUNCE' end::text,
   case when r.intent='BUY' then 'buyer' when r.intent='SELL' then 'seller' else 'announcer' end::text,
   coalesce(r.product->>'name',r.category,r.raw_text)::text,
