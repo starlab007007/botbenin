@@ -52,6 +52,46 @@ void main() {
     expect(policy.requiresApproval, isTrue);
   });
 
+
+  test('Smart discovery parses resolved mode and AI plan', () {
+    final response = NexusDiscoveryResponse.fromJson(<String, dynamic>{
+      'mode': 'find_buyers',
+      'normalized_query': 'soja 10 tonnes',
+      'explanation': 'WAOUH cherche les acheteurs compatibles.',
+      'results': <dynamic>[],
+      'source_mix': <String, dynamic>{'b2b_rfq': 3},
+      'refresh': <String, dynamic>{},
+      'intelligence': <String, dynamic>{
+        'mode': 'find_buyers',
+        'normalized_query': 'soja 10 tonnes',
+        'city': 'Parakou',
+        'budget_max': null,
+        'priorities': <String>['relevance', 'trust', 'contactability'],
+        'source_families': <String>[
+          'waouh',
+          'b2b_rfq',
+          'social_public',
+        ],
+        'missing': <String>['prix souhaité'],
+        'next_actions': <String>[
+          'Comparer les demandes actives',
+          'Prioriser les acheteurs contactables',
+        ],
+        'confidence': 0.92,
+        'rationale': 'Objectif de vente détecté.',
+      },
+    });
+
+    expect(response.findSellers, isFalse);
+    expect(response.normalizedQuery, 'soja 10 tonnes');
+    expect(response.intelligence, isNotNull);
+    expect(response.intelligence!.findSellers, isFalse);
+    expect(response.intelligence!.confidence, 0.92);
+    expect(response.intelligence!.city, 'Parakou');
+    expect(response.intelligence!.sourceFamilies, contains('b2b_rfq'));
+    expect(response.intelligence!.nextActions, hasLength(2));
+  });
+
   test('Source registry exposes live state without inventing readiness', () {
     final source = NexusSourceInfo.fromJson(<String, dynamic>{
       'source_key': 'serpapi',
