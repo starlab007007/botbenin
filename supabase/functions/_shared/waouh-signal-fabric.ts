@@ -129,7 +129,7 @@ export function contactabilityPolicy(level: unknown) {
   switch (value) {
     case "C4": return { level: value, can_reveal: true, can_auto_contact: true, requires_approval: false, label: "Agent ↔ Agent" };
     case "C3": return { level: value, can_reveal: true, can_auto_contact: true, requires_approval: true, label: "Opt-in commercial" };
-    case "C2": return { level: value, can_reveal: true, can_auto_contact: false, requires_approval: true, label: "Conversation initiée" };
+    case "C2": return { level: value, can_reveal: false, can_auto_contact: false, requires_approval: true, label: "Conversation privée / blind matching" };
     case "C1": return { level: value, can_reveal: true, can_auto_contact: false, requires_approval: false, label: "Contact professionnel public" };
     default: return { level: "C0" as const, can_reveal: false, can_auto_contact: false, requires_approval: false, label: "Découverte uniquement" };
   }
