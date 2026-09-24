@@ -12,6 +12,11 @@ on:
       - "supabase/functions/waouh-native-simulator/**"
       - "supabase/functions/waouh-webhook/index.ts"
       - "supabase/functions/waouh-agentic-core/**"
+      - "supabase/functions/_shared/waouh-nexus*"
+      - "supabase/migrations/*waouh_nexus*.sql"
+      - "src/components/waouh/WaouhNexusDashboard.tsx"
+      - "src/lib/waouh/nexus.ts"
+      - "src/lib/waouh/__tests__/nexus.test.ts"
       - "supabase/migrations/*waouh_agentic_core*.sql"
       - "supabase/migrations/*secure_waouh_sessions_and_media*.sql"
       - "src/components/waouh/WaouhAgentCenter.tsx"
@@ -41,6 +46,11 @@ on:
       - "supabase/functions/waouh-native-simulator/**"
       - "supabase/functions/waouh-webhook/index.ts"
       - "supabase/functions/waouh-agentic-core/**"
+      - "supabase/functions/_shared/waouh-nexus*"
+      - "supabase/migrations/*waouh_nexus*.sql"
+      - "src/components/waouh/WaouhNexusDashboard.tsx"
+      - "src/lib/waouh/nexus.ts"
+      - "src/lib/waouh/__tests__/nexus.test.ts"
       - "supabase/migrations/*waouh_agentic_core*.sql"
       - "supabase/migrations/*secure_waouh_sessions_and_media*.sql"
       - "src/components/waouh/WaouhAgentCenter.tsx"
@@ -203,6 +213,9 @@ jobs:
       - name: Test Native Messaging transport contracts
         run: deno test --no-config supabase/functions/_shared/waouh-tel/waouh_tel_pure_test.ts
 
+      - name: Test WAOUH NEXUS ranking contracts
+        run: deno test --no-config supabase/functions/_shared/waouh-nexus-test.ts
+
       - name: Validate Native Messaging web integration
         shell: bash
         run: |
@@ -215,6 +228,7 @@ jobs:
           export default { test: { environment: "node" } };
           EOF
           npx vitest run src/lib/waouh/__tests__/native-messaging-settings.test.ts --config /tmp/vitest-native.config.mjs
+          npx vitest run src/lib/waouh/__tests__/nexus.test.ts src/components/waouh/__tests__/agentic-contracts.test.tsx --config /tmp/vitest-native.config.mjs
           npx eslint \
             src/hooks/useAdminRole.ts \
             src/lib/waouh/nativeMessagingSettings.ts \
@@ -222,7 +236,11 @@ jobs:
             src/pages/admin/AdminWaouhNativeMessagingPage.tsx \
             src/pages/waouh/WaouhNativeMessagingPublicPage.tsx \
             src/components/waouh/WaouhNativeSimulator.tsx \
-            src/lib/waouh/runtimeEndpoints.ts
+            src/lib/waouh/runtimeEndpoints.ts \
+            src/lib/waouh/nexus.ts \
+            src/lib/waouh/__tests__/nexus.test.ts \
+            src/components/waouh/WaouhNexusDashboard.tsx \
+            src/pages/waouh/WaouhMusePage.tsx
           npx tsc --noEmit
           npm run build
 
@@ -237,7 +255,7 @@ jobs:
           import sys
           from pglast import parse_sql
 
-          migrations = sorted(set(Path('supabase/migrations').glob('*waouh_native_messaging*.sql')) | set(Path('supabase/migrations').glob('*waouh_agentic_core*.sql')) | set(Path('supabase/migrations').glob('*secure_waouh_sessions_and_media*.sql')))
+          migrations = sorted(set(Path('supabase/migrations').glob('*waouh_native_messaging*.sql')) | set(Path('supabase/migrations').glob('*waouh_agentic_core*.sql')) | set(Path('supabase/migrations').glob('*waouh_nexus*.sql')) | set(Path('supabase/migrations').glob('*secure_waouh_sessions_and_media*.sql')))
           if not migrations:
               print('::error::Migrations WAOUH Muse/Native Messaging introuvables.')
               sys.exit(1)
