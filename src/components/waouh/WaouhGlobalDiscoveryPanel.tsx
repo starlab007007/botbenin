@@ -59,6 +59,11 @@ const stateLabel = (source: NexusDiscoverySource) => {
 
 const errorText = (error: unknown) => error instanceof Error ? error.message : "Erreur inattendue.";
 
+type SharedSignalState = Awaited<ReturnType<typeof ingestSharedCommerceSignal>>;
+type PreparedContactState = Awaited<ReturnType<typeof prepareNexusContact>> & { result: NexusDiscoveryResult };
+type PreparedContactItem = PreparedContactState["contacts"][number];
+
+
 export function WaouhGlobalDiscoveryPanel() {
   const { toast } = useToast();
   const [mode, setMode] = useState<NexusDiscoveryMode>("find_sellers");
@@ -73,8 +78,8 @@ export function WaouhGlobalDiscoveryPanel() {
   const [shareText, setShareText] = useState("");
   const [shareUrl, setShareUrl] = useState("");
   const [shareOrigin, setShareOrigin] = useState("whatsapp");
-  const [sharedSignal, setSharedSignal] = useState<any>(null);
-  const [contact, setContact] = useState<any>(null);
+  const [sharedSignal, setSharedSignal] = useState<SharedSignalState | null>(null);
+  const [contact, setContact] = useState<PreparedContactState | null>(null);
   const [contactMessage, setContactMessage] = useState("");
 
   const liveSources = useMemo(
@@ -323,7 +328,7 @@ export function WaouhGlobalDiscoveryPanel() {
                 </div>
                 {contact.note && <p className="mt-2 text-xs text-muted-foreground">{contact.note}</p>}
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {(contact.contacts ?? []).map((item: any) => (
+                  {(contact.contacts ?? []).map((item: PreparedContactItem) => (
                     <Button key={item.id} size="sm" variant="outline" onClick={() => openUserInitiatedContact(item.channel, item.value)}>
                       {item.channel === "email" ? "Email" : item.channel === "whatsapp" ? "WhatsApp" : "Appeler"} {item.value_last4 ? `…${item.value_last4}` : ""}
                     </Button>
