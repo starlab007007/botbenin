@@ -3,7 +3,17 @@ name: WAOUH Flutter Muse NEXUS CI
 on:
   push:
     branches:
-      - feat/waouh-nexus-global-discovery-flutter-v2
+      - feat/waouh-web-flutter-nexus-final
+      - prod
+    paths:
+      - "flutter_waouh_app/**"
+      - ".github/workflows/waouh-flutter-muse-nexus-ci.yml"
+  pull_request:
+    branches:
+      - prod
+    paths:
+      - "flutter_waouh_app/**"
+      - ".github/workflows/waouh-flutter-muse-nexus-ci.yml"
   workflow_dispatch:
 
 permissions:
