@@ -256,11 +256,13 @@ class LiveCommerceAgentBar extends StatelessWidget {
     required this.messages,
     this.busy = false,
     this.compact = false,
+    this.onTap,
   });
 
   final List<LiveMessage> messages;
   final bool busy;
   final bool compact;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -295,14 +297,18 @@ class LiveCommerceAgentBar extends StatelessWidget {
             ? 'Muse vendeur'
             : 'Muse commerce';
 
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.fromLTRB(12, compact ? 7 : 9, 12, compact ? 7 : 9),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(colors: [Colors.white, Color(0xFFF0FAF6), Color(0xFFF1FAFC)]),
-        border: Border(bottom: BorderSide(color: Color(0xFFDCEFE8))),
-      ),
-      child: Row(children: [
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          padding: EdgeInsets.fromLTRB(12, compact ? 7 : 9, 12, compact ? 7 : 9),
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(colors: [Colors.white, Color(0xFFF0FAF6), Color(0xFFF1FAFC)]),
+            border: Border(bottom: BorderSide(color: Color(0xFFDCEFE8))),
+          ),
+          child: Row(children: [
         LiveMuseAvatar(mode: mode, phase: phase, size: compact ? 38 : 44),
         const SizedBox(width: 9),
         Expanded(
@@ -671,6 +677,8 @@ class LiveUnifiedIntelligenceSheet extends StatelessWidget {
               ),
             ),
         ],
+      ),
+        ),
       ),
     );
   }
