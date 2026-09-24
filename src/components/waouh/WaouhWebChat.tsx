@@ -6,7 +6,7 @@ import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
-import { MessageCircle, Send, X, Loader2, Camera, Paperclip } from "lucide-react";
+import { MessageCircle, Send, X, Loader2, Camera, Paperclip, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useWaouhGeolocation } from "@/hooks/useWaouhGeolocation";
@@ -22,7 +22,7 @@ import { WaouhAgentBlocks } from "@/components/waouh/WaouhAgentBlocks";
 import { WaouhAgentCenter } from "@/components/waouh/WaouhAgentCenter";
 import { WaouhCommerceAgentBar } from "@/components/waouh/WaouhCommerceAgentBar";
 import { WaouhSmartComposerBar } from "@/components/waouh/WaouhSmartComposerBar";
-import type { WaouhMuseMode, WaouhMusePhase } from "@/components/waouh/WaouhMuseAvatar";
+import { WaouhMuseAvatar, type WaouhMuseMode, type WaouhMusePhase } from "@/components/waouh/WaouhMuseAvatar";
 import { invokeWaouhAgentic } from "@/lib/waouh/agenticClient";
 import type { AgenticAction, WaouhMessageBlock } from "@/lib/waouh/agenticContracts";
 import type { WaouhWorkspaceAgentState } from "@/lib/waouh/workspaceState";
@@ -725,14 +725,30 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
               focusMsgId === m.id && "ring-2 ring-emerald-400 ring-offset-2 ring-offset-background bg-emerald-50/40"
             )}
           >
-            <div className={cn("flex", m.direction === "in" ? "justify-end" : "justify-start")}>
+            <div className={cn("flex items-start gap-2", m.direction === "in" ? "justify-end" : "justify-start")}>
+              {m.direction === "out" && (
+                <WaouhMuseAvatar
+                  mode={commerceAgent.mode}
+                  phase={sending ? "searching" : commerceAgent.phase}
+                  size="sm"
+                  className="mt-0.5 hidden sm:block"
+                />
+              )}
               <div
                 className={cn(
                   "chat-bubble min-w-0",
-                  rich.results.length > 0 && "w-full",
-                  m.direction === "in" ? "chat-bubble-out" : "chat-bubble-in waouh-bot-bubble"
+                  m.direction === "in"
+                    ? "chat-bubble-out max-w-[82%]"
+                    : rich.results.length > 0 || rich.blocks.length > 0
+                      ? "chat-bubble-in waouh-bot-bubble w-full max-w-[860px] rounded-3xl border-slate-200 bg-white/95 p-3 shadow-sm"
+                      : "chat-bubble-in waouh-bot-bubble max-w-[88%] rounded-3xl border-slate-200 bg-white/95 shadow-sm"
                 )}
               >
+                {m.direction === "out" && (
+                  <div className="mb-1.5 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-700">
+                    <Sparkles className="h-3 w-3" /> WAOUH
+                  </div>
+                )}
                 {/* Photos à plat : masquées quand des fiches produit structurées existent
                     (chaque photo est alors rattachée à SON article). */}
                 {Array.isArray(m.attachments) && m.attachments.length > 0 && !rich.results.length && (
@@ -827,12 +843,13 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           </div>
         ); })}
         {sending && (
-          <div className="flex justify-start">
-            <div className="max-w-[90%] rounded-2xl border border-cyan-100 bg-gradient-to-r from-cyan-50 to-emerald-50 px-3 py-2 text-xs text-slate-700 shadow-sm">
-              <div className="flex items-center gap-2 font-bold text-cyan-900">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Muse active NEXUS…
+          <div className="flex items-start gap-2">
+            <WaouhMuseAvatar mode={commerceAgent.mode} phase="searching" size="sm" className="hidden sm:block" />
+            <div className="max-w-[90%] rounded-3xl border border-cyan-100 bg-gradient-to-r from-cyan-50 to-emerald-50 px-3.5 py-2.5 text-xs text-slate-700 shadow-sm">
+              <div className="flex items-center gap-2 font-black text-cyan-950">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Muse orchestre la recherche
               </div>
-              <div className="mt-0.5 text-[10px] text-muted-foreground">Recherche · Signal Fabric · comparaison · contrôle du contact</div>
+              <div className="mt-1 text-[10px] font-semibold text-slate-500">NEXUS découvre · Signal Fabric classe · Contact Layer vérifie</div>
             </div>
           </div>
         )}
