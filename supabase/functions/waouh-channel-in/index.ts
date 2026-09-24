@@ -5,6 +5,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { lidToPhoneInline } from "../_shared/waouh-format.ts";
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 import { isServiceRoleRequest } from "../_shared/waouh-auth.ts";
+import {
+  contactabilityPolicy,
+  scoreFabricSignal,
+  type FabricSignal,
+} from "../_shared/waouh-signal-fabric.ts";
 
 
 const corsHeaders = {
@@ -205,6 +210,211 @@ async function sendWahaReply(base: string, session: string, chatIds: string[], t
     console.warn("[waouh-channel-in] waha reply failed", lastError);
   }
   return { ok: false, error: lastError || "no chatId" };
+}
+
+
+type ChatNexusMode = "find_sellers" | "find_buyers";
+
+function chatBudgetMax(text: string, mode: ChatNexusMode): number | null {
+  if (mode !== "find_sellers") return null;
+  const normalized = String(text || "").replace(/\u00a0/g, " ");
+  const explicit = normalized.match(
+    /(?:max(?:imum)?|budget|moins\s+de|jusqu['’]?a|jusqu['’]?à)\s*[:=]?\s*(\d[\d\s.,]*)/i,
+  );
+  const candidate = explicit?.[1] ?? normalized.match(/(\d[\d\s.,]*)\s*(?:fcfa|cfa|xof)\b/i)?.[1] ?? null;
+  if (!candidate) return null;
+  const digits = candidate.replace(/[^\d]/g, "");
+  const value = Number(digits);
+  return Number.isFinite(value) && value >= 100 ? value : null;
+}
+
+function chatSignalPhoto(signal: any): string[] {
+  const evidence = signal?.evidence && typeof signal.evidence === "object" ? signal.evidence : {};
+  const photos = Array.isArray(evidence.photos) ? evidence.photos : [];
+  const candidates = [...photos, evidence.image_url, evidence.photo, evidence.thumbnail];
+  return [...new Set(
+    candidates.filter((value) => typeof value === "string" && /^https?:\/\//i.test(value)),
+  )].slice(0, 4) as string[];
+}
+
+function chatSignalKey(row: any) {
+  const title = String(row?.title ?? row?.subject ?? row?.product_name ?? "").toLowerCase().trim();
+  const price = Number(row?.price ?? row?.price_min ?? row?.price_max ?? 0) || 0;
+  const city = String(row?.city ?? "").toLowerCase().trim();
+  return [title, price, city].join("|");
+}
+
+async function enrichChatWithSignalFabric(
+  sb: any,
+  input: {
+    intent: string;
+    text: string;
+    city?: string | null;
+    coreResults: any[];
+  },
+) {
+  const intent = String(input.intent || "").toUpperCase();
+  if (!["BUY", "SELL"].includes(intent)) {
+    return {
+      results: input.coreResults,
+      intelligence: null,
+      source_mix: null,
+      signal_fabric: null,
+      contactability_level: null,
+    };
+  }
+
+  const mode: ChatNexusMode = intent === "BUY" ? "find_sellers" : "find_buyers";
+  const desired = mode === "find_sellers" ? ["SELL", "ANNOUNCE"] : ["BUY", "RFQ"];
+  const budgetMax = chatBudgetMax(input.text, mode);
+
+  try {
+    const { data, error } = await sb.from("waouh_signal_fabric")
+      .select("*")
+      .in("intent", desired)
+      .order("observed_at", { ascending: false })
+      .limit(2500);
+    if (error) throw error;
+
+    const ranked = (data ?? [])
+      .map((signal: FabricSignal) => ({
+        ...signal,
+        scores: scoreFabricSignal({
+          query: input.text,
+          mode,
+          city: input.city ?? null,
+          budgetMax,
+          signal,
+        }),
+        contact_policy: contactabilityPolicy(signal.contactability_level),
+      }))
+      .filter((row: any) =>
+        row.scores.relevance_score >= 18 && row.scores.total_score >= 32
+      )
+      .sort((a: any, b: any) => b.scores.total_score - a.scores.total_score)
+      .slice(0, 20);
+
+    const sourceMix = ranked.reduce((acc: Record<string, number>, row: any) => {
+      const key = String(row.source_key ?? "unknown");
+      acc[key] = (acc[key] ?? 0) + 1;
+      return acc;
+    }, {});
+
+    const existing = new Set(input.coreResults.map(chatSignalKey));
+    const appended: any[] = [];
+
+    for (const row of ranked) {
+      const evidence =
+        row?.evidence && typeof row.evidence === "object" ? row.evidence : {};
+      const candidate = {
+        index: input.coreResults.length + appended.length + 1,
+        id: String(
+          evidence.article_id ??
+            evidence.catalog_id ??
+            evidence.external_listing_id ??
+            row.source_record_id ??
+            row.fabric_id ??
+            ("signal-" + String(appended.length + 1))
+        ),
+        fabric_id: row.fabric_id ?? null,
+        title: row.subject || row.raw_text || "Opportunité WAOUH",
+        price: row.price_min === row.price_max ? row.price_min : null,
+        price_min: row.price_min ?? null,
+        price_max: row.price_max ?? null,
+        city: row.city ?? null,
+        condition: row.condition ?? null,
+        source: row.source_key ?? "nexus",
+        source_url: row.source_url ?? null,
+        photos: chatSignalPhoto(row),
+        intent: row.intent ?? null,
+        actor_type: row.actor_type ?? null,
+        contactability_level: row.contactability_level ?? "C0",
+        total_score: row.scores?.total_score ?? null,
+        relevance_score: row.scores?.relevance_score ?? null,
+        trust_score: row.scores?.trust_score ?? null,
+        price_score: row.scores?.price_score ?? null,
+        location_score: row.scores?.location_score ?? null,
+        freshness_score: row.scores?.freshness_score ?? null,
+        scores: row.scores ?? null,
+        reasons: row.scores?.reasons ?? [],
+        evidence,
+        action: null,
+        market_line:
+          mode === "find_buyers"
+            ? "Demande détectée par NEXUS · Muse poursuit le rapprochement sous contrôle."
+            : "Signal découvert par NEXUS · ouvrez la source publique lorsque disponible.",
+      };
+      const key = chatSignalKey(candidate);
+      if (existing.has(key)) continue;
+      existing.add(key);
+      appended.push(candidate);
+      if (input.coreResults.length + appended.length >= 8) break;
+    }
+
+    const results = [...input.coreResults, ...appended].map(
+      (row: any, index: number) => ({ ...row, index: index + 1 }),
+    );
+    const top = ranked[0] as any;
+    const confidence =
+      top?.scores?.total_score == null
+        ? 0.5
+        : Math.max(0, Math.min(1, Number(top.scores.total_score) / 100));
+
+    return {
+      results,
+      intelligence: {
+        mode,
+        normalized_query: input.text.trim().slice(0, 700),
+        city: input.city ?? null,
+        budget_max: budgetMax,
+        priorities: [
+          "relevance",
+          "trust",
+          "price",
+          "distance",
+          "freshness",
+          "contactability",
+        ],
+        source_families: Object.keys(sourceMix),
+        missing: [],
+        next_actions:
+          mode === "find_sellers"
+            ? [
+                "Comparer les meilleures offres",
+                "Vérifier la confiance et le contact",
+                "Poursuivre avec Muse",
+              ]
+            : [
+                "Comparer les demandes compatibles",
+                "Prioriser les acheteurs contactables",
+                "Poursuivre le rapprochement avec Muse",
+              ],
+        confidence,
+        rationale:
+          mode === "find_sellers"
+            ? "NEXUS complète la recherche historique du chat avec le Signal Fabric."
+            : "NEXUS complète la vente avec les demandes BUY/RFQ du Signal Fabric.",
+      },
+      source_mix: sourceMix,
+      signal_fabric: {
+        mode,
+        candidate_count: (data ?? []).length,
+        matched_count: ranked.length,
+        appended_count: appended.length,
+        top_fabric_ids: ranked.slice(0, 5).map((row: any) => row.fabric_id),
+      },
+      contactability_level: top?.contactability_level ?? null,
+    };
+  } catch (error) {
+    console.warn("[waouh-channel-in] Signal Fabric enrichment failed", error);
+    return {
+      results: input.coreResults,
+      intelligence: null,
+      source_mix: null,
+      signal_fabric: { error: "enrichment_unavailable" },
+      contactability_level: null,
+    };
+  }
 }
 
 serve(async (req) => {
@@ -590,16 +800,28 @@ serve(async (req) => {
     log("core reply", { ok: coreRes.ok, intent: core.intent, hasReply: !!core.reply });
     const reply: string = core.reply ?? "";
     const actions: WaouhAction[] = Array.isArray(core.actions) ? core.actions : [];
-    // 🖼️ Fiches produit structurées (1 fiche = 1 article + ses photos)
-    const results: any[] = Array.isArray(core.results) ? core.results : [];
+    // 🖼️ Fiches historiques + enrichissement NEXUS/Signal Fabric.
+    const coreResults: any[] = Array.isArray(core.results) ? core.results : [];
     const products: any[] = Array.isArray(core.products) ? core.products : [];
-    // Contrat UI agentique : conserver les informations NEXUS/Signal Fabric
-    // lorsqu'elles sont déjà produites par le moteur. Les anciens moteurs
-    // restent compatibles car tous ces champs sont optionnels.
-    const intelligence = core?.intelligence ?? core?.nexus_intelligence ?? null;
-    const sourceMix = core?.source_mix ?? core?.sourceMix ?? null;
-    const signalFabric = core?.signal_fabric ?? core?.signalFabric ?? null;
-    const contactability = core?.contactability_level ?? core?.contactability ?? null;
+    const nexus = await enrichChatWithSignalFabric(sb, {
+      intent: core.intent ?? "",
+      text,
+      city,
+      coreResults,
+    });
+    const results: any[] = nexus.results;
+    // Une valeur explicite du moteur reste prioritaire ; sinon NEXUS fournit
+    // l'intelligence de découverte au Chat sans casser les anciens moteurs.
+    const intelligence =
+      core?.intelligence ?? core?.nexus_intelligence ?? nexus.intelligence;
+    const sourceMix =
+      core?.source_mix ?? core?.sourceMix ?? nexus.source_mix;
+    const signalFabric =
+      core?.signal_fabric ?? core?.signalFabric ?? nexus.signal_fabric;
+    const contactability =
+      core?.contactability_level ??
+      core?.contactability ??
+      nexus.contactability_level;
 
     // Persist outgoing
     const outboundArticleId: string | null = core.article_id ?? inboundArticleId ?? null;
