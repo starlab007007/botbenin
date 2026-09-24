@@ -1089,6 +1089,54 @@ Indice utilisateur: ${hint ?? "aucun"}`,
             }).select("*").single(),
             "nexus_autopilot_mission_failed",
           );
+          const intent = await queryOne<any>(
+            sb.from("waouh_agent_intents").insert({
+              mission_id: mission.id,
+              owner_id: ownerId,
+              intent_type: "purchase_search",
+              normalized_query: goal,
+              slots: mission.constraints ?? {},
+              confidence: 1,
+            }).select("*").single(),
+            "nexus_autopilot_intent_failed",
+          );
+          const plan = await queryOne<any>(
+            sb.from("waouh_agent_plans").insert({
+              mission_id: mission.id,
+              owner_id: ownerId,
+              version: 1,
+              status: "active",
+              rationale: "NEXUS Autopilot : chercher, comparer, demander validation avant contact, puis surveiller le marché.",
+            }).select("*").single(),
+            "nexus_autopilot_plan_failed",
+          );
+          const { data: steps, error: stepsError } = await sb.from("waouh_agent_steps").insert([
+            {
+              plan_id: plan.id, mission_id: mission.id, owner_id: ownerId,
+              sequence_no: 1, tool_name: "nexus_market_search", status: "queued",
+              input: { goal, constraints: mission.constraints ?? {} },
+            },
+            {
+              plan_id: plan.id, mission_id: mission.id, owner_id: ownerId,
+              sequence_no: 2, tool_name: "nexus_price_compare", status: "blocked",
+              input: {},
+            },
+            {
+              plan_id: plan.id, mission_id: mission.id, owner_id: ownerId,
+              sequence_no: 3, tool_name: "request_contact_approval", status: "blocked",
+              requires_approval: true, input: {},
+            },
+            {
+              plan_id: plan.id, mission_id: mission.id, owner_id: ownerId,
+              sequence_no: 4, tool_name: "continuous_watch", status: "blocked",
+              input: { interval_minutes: 360 },
+            },
+          ]).select("*");
+          if (stepsError) throw new ApiError(500, "nexus_autopilot_steps_failed", stepsError.message);
+          const updatedMission = await queryOne<any>(
+            sb.from("waouh_agent_missions").update({ current_plan_id: plan.id }).eq("id", mission.id).select("*").single(),
+            "nexus_autopilot_mission_link_failed",
+          );
           const watch = await queryOne<any>(
             sb.from("waouh_watchlists").insert({
               owner_id: ownerId, query: goal,
@@ -1097,8 +1145,10 @@ Indice utilisateur: ${hint ?? "aucun"}`,
             }).select("*").single(),
             "nexus_autopilot_watch_failed",
           );
-          await audit(sb, ownerId, "nexus.autopilot.buyer_created", "mission", mission.id, { watch_id: watch.id });
-          return jsonResponse({ ok: true, data: { mode, mission, watch } }, 201);
+          await audit(sb, ownerId, "nexus.autopilot.buyer_created", "mission", mission.id, {
+            watch_id: watch.id, plan_id: plan.id, intent_id: intent.id,
+          });
+          return jsonResponse({ ok: true, data: { mode, mission: updatedMission, intent, plan, steps: steps ?? [], watch } }, 201);
         }
         const articleId = uuid(payload.article_id, "article_id");
         const article = await ownedArticle(sb, ownerId, articleId);
