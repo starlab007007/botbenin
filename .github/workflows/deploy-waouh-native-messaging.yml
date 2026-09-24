@@ -207,7 +207,7 @@ jobs:
           cat > /tmp/vitest-native.config.mjs <<'EOF'
           export default { test: { environment: "node" } };
           EOF
-          npx vitest run src/lib/waouh/__tests__/native-messaging-settings.test.ts --config /tmp/vitest-native.config.mjs --maxWorkers=1
+          npx vitest run src/lib/waouh/__tests__/native-messaging-settings.test.ts --config /tmp/vitest-native.config.mjs
           npx eslint \
             src/hooks/useAdminRole.ts \
             src/lib/waouh/nativeMessagingSettings.ts \
