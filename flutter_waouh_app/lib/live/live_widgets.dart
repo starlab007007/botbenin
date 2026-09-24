@@ -9,6 +9,7 @@ import '../main.dart' as legacy;
 import 'brand_mark.dart';
 import 'live_models.dart';
 import 'live_commerce_workflow.dart';
+import 'live_commerce_agent_ui.dart';
 import 'live_thread_flow.dart';
 
 class LiveHeader extends StatelessWidget implements PreferredSizeWidget {
@@ -654,6 +655,14 @@ double? _premiumAmount(dynamic value) {
   return double.tryParse(normalized);
 }
 
+
+double? _premiumScore(dynamic value) {
+  if (value == null) return null;
+  final parsed = value is num ? value.toDouble() : double.tryParse('$value');
+  if (parsed == null || !parsed.isFinite) return null;
+  return parsed.clamp(0, 100).toDouble();
+}
+
 double? _premiumMarketMedian(String? marketComparison) {
   if (marketComparison == null) return null;
   final normalizedMarket = marketComparison.replaceAll('\u00a0', ' ');
@@ -790,6 +799,13 @@ class _PremiumProduct {
     this.rating,
     this.sellerLabel,
     this.source,
+    this.score,
+    this.trustScore,
+    this.priceScore,
+    this.contactability,
+    this.intent,
+    this.actorType,
+    this.reasons = const [],
     this.badges = const [],
     this.actions = const [],
     this.workflowState,
@@ -812,7 +828,20 @@ class _PremiumProduct {
   final String? rating;
   final String? sellerLabel;
   final String? source;
+  final double? score;
+  final double? trustScore;
+  final double? priceScore;
+  final String? contactability;
+  final String? intent;
+  final String? actorType;
+  final List<String> reasons;
   final List<String> badges;
+
+  bool get isBuyerOpportunity {
+    final i = (intent ?? '').toUpperCase();
+    final actor = (actorType ?? '').toLowerCase();
+    return i == 'BUY' || i == 'RFQ' || actor == 'buyer';
+  }
   final List<_SmartMessageAction> actions;
   final String? workflowState;
   final String? role;
@@ -1203,6 +1232,26 @@ List<_PremiumProduct> _premiumProducts(LiveMessage message) {
           if (row[key] != null && row[key].toString().trim().isNotEmpty)
             row[key].toString().trim(),
       ];
+      final scoreMap = row['scores'] is Map
+          ? <String, dynamic>{
+              for (final entry in (row['scores'] as Map).entries)
+                entry.key.toString(): entry.value,
+            }
+          : const <String, dynamic>{};
+      final evidenceMap = row['evidence'] is Map
+          ? <String, dynamic>{
+              for (final entry in (row['evidence'] as Map).entries)
+                entry.key.toString(): entry.value,
+            }
+          : const <String, dynamic>{};
+      final rawReasons = row['reasons'] ?? scoreMap['reasons'];
+      final reasons = rawReasons is List
+          ? rawReasons
+              .where((item) => item is String && item.trim().isNotEmpty)
+              .map((item) => item.toString().trim())
+              .take(3)
+              .toList(growable: false)
+          : const <String>[];
       return _PremiumProduct(
         id: _premiumString(
           row['id'] ?? row['article_id'] ?? row['radar_item_id'],
@@ -1250,6 +1299,27 @@ List<_PremiumProduct> _premiumProducts(LiveMessage message) {
         source: _premiumString(
           row['source_label'] ?? row['source'] ?? row['origin'],
         ),
+        score: _premiumScore(
+          row['total_score'] ?? scoreMap['total_score'] ?? row['match_score'] ?? row['score'],
+        ),
+        trustScore: _premiumScore(
+          row['trust_score'] ?? scoreMap['trust_score'],
+        ),
+        priceScore: _premiumScore(
+          row['price_score'] ?? scoreMap['price_score'],
+        ),
+        contactability: _premiumString(
+          row['contactability_level'] ??
+              row['contactability'] ??
+              evidenceMap['contactability_level'],
+        ),
+        intent: _premiumString(
+          row['intent'] ?? row['signal_intent'] ?? evidenceMap['intent'],
+        ),
+        actorType: _premiumString(
+          row['actor_type'] ?? row['actor_role'] ?? evidenceMap['actor_type'],
+        ),
+        reasons: reasons,
         badges: badges,
         actions: _premiumWorkflowActions(
           row: row,
@@ -1526,6 +1596,7 @@ class _PremiumResultsGridState extends State<_PremiumResultsGrid> {
                               index: index,
                               onPayload: widget.onPayload,
                               actionsEnabled: widget.actionsEnabled,
+                              topPick: index == 0,
                             ),
                           ),
                         ),
@@ -1551,11 +1622,13 @@ class _PremiumProductCard extends StatelessWidget {
     required this.index,
     this.onPayload,
     this.actionsEnabled = true,
+    this.topPick = false,
   });
   final _PremiumProduct product;
   final int index;
   final ValueChanged<String>? onPayload;
   final bool actionsEnabled;
+  final bool topPick;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -1563,7 +1636,10 @@ class _PremiumProductCard extends StatelessWidget {
         decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xFFCDE5DB)),
+            border: Border.all(
+              color: topPick ? const Color(0xFF67C9A9) : const Color(0xFFCDE5DB),
+              width: topPick ? 1.4 : 1,
+            ),
             boxShadow: const [
               BoxShadow(
                   color: Color(0x1A063F33),
@@ -1598,11 +1674,51 @@ class _PremiumProductCard extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(13, 11, 13, 12),
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Wrap(
+                spacing: 5,
+                runSpacing: 5,
+                children: [
+                  if (topPick)
+                    const _PremiumBadge(
+                      '✨ Top Pick WAOUH',
+                      Color(0xFFE8F8F1),
+                      Color(0xFF08745D),
+                    ),
+                  if (product.isBuyerOpportunity)
+                    const _PremiumBadge(
+                      '👥 Opportunité acheteur',
+                      Color(0xFFEAF3FF),
+                      Color(0xFF2368FF),
+                    ),
+                  if (product.score != null)
+                    _PremiumBadge(
+                      'Match ${product.score!.round()}%',
+                      const Color(0xFFE8F8F1),
+                      const Color(0xFF08745D),
+                    ),
+                  if (product.trustScore != null)
+                    _PremiumBadge(
+                      'Confiance ${product.trustScore!.round()}%',
+                      const Color(0xFFEAF3FF),
+                      const Color(0xFF2368FF),
+                    ),
+                  if (product.contactability != null)
+                    LiveContactabilityBadge(level: product.contactability),
+                ],
+              ),
+              const SizedBox(height: 8),
               Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Padding(
-                  padding: EdgeInsets.only(top: 2),
-                  child: Icon(Icons.shopping_bag_outlined,
-                      size: 20, color: Color(0xFF2368FF)),
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Icon(
+                    product.isBuyerOpportunity
+                        ? Icons.groups_2_outlined
+                        : Icons.shopping_bag_outlined,
+                    size: 20,
+                    color: product.isBuyerOpportunity
+                        ? const Color(0xFF087A9B)
+                        : const Color(0xFF2368FF),
+                  ),
                 ),
                 const SizedBox(width: 7),
                 Expanded(
@@ -1702,8 +1818,12 @@ class _PremiumProductCard extends StatelessWidget {
               const SizedBox(height: 8),
               _PremiumInformationPanel(
                   icon: Icons.lightbulb_outline_rounded,
-                  title: 'Recommandation WAOUH',
-                  text: product.displayRecommendation,
+                  title: product.reasons.isNotEmpty
+                      ? 'Pourquoi WAOUH le recommande'
+                      : 'Recommandation WAOUH',
+                  text: product.reasons.isNotEmpty
+                      ? product.reasons.join(' · ')
+                      : product.displayRecommendation,
                   accent: const Color(0xFF8B6500),
                   background: const Color(0xFFFFF8E6)),
               const SizedBox(height: 9),
@@ -1750,9 +1870,21 @@ class _PremiumProductCard extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(11),
                                 ),
                               ),
-                              child: Text(action.label,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w900)),
+                              child: Text(
+                                liveCommerceActionKind(action.payload) ==
+                                        LiveCommerceActionKind.interest
+                                    ? product.isBuyerOpportunity
+                                        ? 'Proposer mon offre'
+                                        : product.contactability == 'C2'
+                                            ? 'Transmettre via WAOUH'
+                                            : product.contactability == 'C3' ||
+                                                    product.contactability == 'C4'
+                                                ? 'Laisser Muse poursuivre'
+                                                : action.label
+                                    : action.label,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w900),
+                              ),
                             )
                           : OutlinedButton(
                               onPressed: onPayload == null
