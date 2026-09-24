@@ -3,6 +3,7 @@ import {
   type SupabaseClient,
 } from "npm:@supabase/supabase-js@2.49.8";
 import { constantTimeEqual } from "./crypto.ts";
+import { telRuntimeSecret } from "./runtime-secret.ts";
 import type { TelSettings } from "./types.ts";
 
 export function createTelAdminClient(): SupabaseClient {
@@ -31,8 +32,8 @@ export async function getTelSettings(
   return data as TelSettings;
 }
 
-export function isInternalRequest(req: Request): boolean {
-  const expected = Deno.env.get("WAOUH_TEL_INTERNAL_SECRET") || "";
+export async function isInternalRequest(req: Request): Promise<boolean> {
+  const expected = await telRuntimeSecret("internal_secret");
   const auth = req.headers.get("authorization") || "";
   const supplied = auth.toLowerCase().startsWith("bearer ")
     ? auth.slice(7).trim()
@@ -42,8 +43,8 @@ export function isInternalRequest(req: Request): boolean {
   );
 }
 
-export function requireInternalRequest(req: Request): void {
-  if (!isInternalRequest(req)) {
+export async function requireInternalRequest(req: Request): Promise<void> {
+  if (!(await isInternalRequest(req))) {
     throw new Error("internal_authorization_required");
   }
 }
