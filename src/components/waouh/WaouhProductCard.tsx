@@ -455,8 +455,14 @@ export function WaouhProductResults({
   compact?: boolean;
 }) {
   const normalized = normalizeResultCards(results);
-  const top = normalized[0];
-  const remaining = normalized.slice(1);
+  const scored = normalized
+    .map((result, position) => ({ result, position, score: metric(result, "total_score") }))
+    .filter((entry) => entry.score != null)
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  const top = scored[0]?.result ?? normalized[0];
+  const remaining = top
+    ? normalized.filter((result) => !(result.id === top.id && result.index === top.index))
+    : normalized;
   const topOpportunity = top ? isBuyerOpportunity(top) : false;
   const rail = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState(0);
