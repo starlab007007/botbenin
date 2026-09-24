@@ -384,6 +384,12 @@ class LiveMessage {
       'correlation_id',
       'dedupe_key',
       'event_id',
+      'intelligence',
+      'nexus_intelligence',
+      'source_mix',
+      'signal_fabric',
+      'contactability_level',
+      'contactability',
     ]) {
       if (!meta.containsKey(key) && row[key] != null) meta[key] = row[key];
     }
