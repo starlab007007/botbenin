@@ -164,9 +164,14 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     else if (rich.results.length > 0) phase = "comparing";
     else if (goal) phase = "listening";
 
-    const sources = rich.results
-      .map((result) => String(result.source || "").trim())
-      .filter(Boolean);
+    const sourceMix =
+      assistantMessage?.meta?.source_mix && typeof assistantMessage.meta.source_mix === "object"
+        ? Object.keys(assistantMessage.meta.source_mix as Record<string, unknown>)
+        : [];
+    const sources = [
+      ...sourceMix,
+      ...rich.results.map((result) => String(result.source || "").trim()).filter(Boolean),
+    ];
     const contactLevel = rich.results
       .map((result) => result.contactability_level || result.contactability || null)
       .find(Boolean) || null;
