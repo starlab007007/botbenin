@@ -21,6 +21,7 @@ import { WaouhProductResults, compactResultsText, type WaouhResultCard } from "@
 import { WaouhAgentBlocks } from "@/components/waouh/WaouhAgentBlocks";
 import { WaouhAgentCenter } from "@/components/waouh/WaouhAgentCenter";
 import { WaouhCommerceAgentBar } from "@/components/waouh/WaouhCommerceAgentBar";
+import { WaouhSmartComposerBar } from "@/components/waouh/WaouhSmartComposerBar";
 import type { WaouhMuseMode, WaouhMusePhase } from "@/components/waouh/WaouhMuseAvatar";
 import { invokeWaouhAgentic } from "@/lib/waouh/agenticClient";
 import type { AgenticAction, WaouhMessageBlock } from "@/lib/waouh/agenticContracts";
@@ -847,7 +848,24 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         </div>
       )}
 
-      {variant !== "native" && <div className="flex items-center border-t bg-background pr-2"><div className="min-w-0 flex-1"><WaouhQuickActions onAction={handleQuickAction} disabled={sending} /></div><WaouhAgentCenter compact /></div>}
+      {variant !== "native" && (
+        <div className="flex items-center bg-background pr-2">
+          <div className="min-w-0 flex-1">
+            <WaouhSmartComposerBar
+              mode={commerceAgent.mode}
+              phase={commerceAgent.phase}
+              resultCount={commerceAgent.resultCount}
+              disabled={sending}
+              onPrompt={(value) => {
+                setInput(value);
+                setTimeout(() => inputRef.current?.focus(), 0);
+              }}
+              onSell={() => setSellOpen(true)}
+            />
+          </div>
+          <WaouhAgentCenter compact />
+        </div>
+      )}
       {variant === "native" && composerTopSlot}
 
       <form
