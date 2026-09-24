@@ -1045,6 +1045,14 @@ List<_SmartMessageAction> _premiumWorkflowActions({
             ))
         .toList(growable: false);
   }
+
+  // Une carte NEXUS ajoutée uniquement par le Signal Fabric peut déclarer
+  // action:null. Elle n'existe pas dans last_matches et ne doit donc jamais
+  // inventer un ancien "intéressé N". Le Contact Layer gère son parcours.
+  if (row.containsKey('action') && row['action'] == null) {
+    return const <_SmartMessageAction>[];
+  }
+
   if (productCount == 1) {
     final messageActions = _premiumExplicitActions(message.meta['actions']);
     if (messageActions.isNotEmpty) {
