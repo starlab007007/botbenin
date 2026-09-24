@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import 'live_controller.dart';
+import 'live_commerce_agent_ui.dart';
 import 'live_commerce_workflow.dart';
 import 'live_controller_extensions.dart';
 import 'live_controller_match_actions.dart';
@@ -468,18 +469,34 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
         Expanded(
           child: StreamBuilder<List<LiveMessage>>(
             stream: _messageStream,
-            builder: (_, snapshot) => LiveSmartTimeline(
-              messages: _merge(snapshot.data ?? const <LiveMessage>[]),
-              onPayload: _handlePayload,
-              showAssistantHint: _optimistic
-                  .any((item) => item.meta['delivery_state'] == 'sending'),
-              emptyMessage: pendingThread
-                  ? 'La discussion est ouverte. L’historique se charge par article et interlocuteur pendant la confirmation du fil.'
-                  : match.isSearch
-                      ? 'Commencez ou poursuivez cette recherche avec WAOUH.'
-                      : 'Commencez la discussion sur ce produit.',
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-            ),
+            builder: (_, snapshot) {
+              final merged =
+                  _merge(snapshot.data ?? const <LiveMessage>[]);
+              final waiting = _optimistic
+                  .any((item) => item.meta['delivery_state'] == 'sending');
+              return Column(
+                children: [
+                  LiveDealRoomBanner(
+                    match: match,
+                    messages: merged,
+                    pending: pendingThread,
+                  ),
+                  Expanded(
+                    child: LiveSmartTimeline(
+                      messages: merged,
+                      onPayload: _handlePayload,
+                      showAssistantHint: waiting,
+                      emptyMessage: pendingThread
+                          ? 'Deal Room ouverte. WAOUH synchronise le fil exact.'
+                          : match.isSearch
+                              ? 'Poursuivez cette recherche avec Muse.'
+                              : 'Commencez la discussion sur ce produit.',
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
         LiveAttachmentStrip(
@@ -508,7 +525,9 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                       textInputAction: TextInputAction.send,
                       onSubmitted: (_) => _send(),
                       decoration: const InputDecoration(
-                          hintText: 'Message sur ce produit...'))),
+                          hintText: match.role == 'seller'
+                              ? 'Votre réponse à l’acheteur...'
+                              : 'Votre réponse au vendeur...'))),
               IconButton(
                   tooltip: 'Envoyer',
                   onPressed: _send,
