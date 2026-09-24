@@ -321,6 +321,8 @@ export type AgenticAction =
   | "activity.list" | "approval.request" | "approval.list" | "approval.decide"
   | "seller_policy.get" | "seller_policy.upsert"
   | "offer.create" | "offer.list" | "offer.respond"
+  | "nexus.summary" | "nexus.search" | "nexus.seller_opportunities" | "nexus.notify_buyers"
+  | "nexus.preferences.get" | "nexus.preferences.upsert"
   | "media.create" | "media.list" | "domain.list";
 
 export type AgenticEnvelope<T> =
