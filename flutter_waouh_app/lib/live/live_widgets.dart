@@ -1519,6 +1519,15 @@ class _PremiumResultsGridState extends State<_PremiumResultsGrid> {
   @override
   Widget build(BuildContext context) =>
       LayoutBuilder(builder: (_, constraints) {
+        var topPickIndex = 0;
+        double? bestScore;
+        for (var i = 0; i < widget.products.length; i += 1) {
+          final score = widget.products[i].score;
+          if (score != null && (bestScore == null || score > bestScore)) {
+            bestScore = score;
+            topPickIndex = i;
+          }
+        }
         final itemWidth = widget.products.length == 1
             ? constraints.maxWidth
             : constraints.maxWidth >= 720
@@ -1601,7 +1610,7 @@ class _PremiumResultsGridState extends State<_PremiumResultsGrid> {
                               index: index,
                               onPayload: widget.onPayload,
                               actionsEnabled: widget.actionsEnabled,
-                              topPick: index == 0,
+                              topPick: index == topPickIndex,
                             ),
                           ),
                         ),
