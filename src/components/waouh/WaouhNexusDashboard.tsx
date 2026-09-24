@@ -297,7 +297,7 @@ export function WaouhNexusDashboard({ onAsk }: { onAsk?: (prompt: string) => voi
 
               <div className="grid gap-3 lg:grid-cols-3">
                 {searchResult.results.map((item, index) => {
-                  const image = item.photos?.find((url) => /^https?:\\/\\//i.test(url));
+                  const image = item.photos?.find((url) => String(url).startsWith("https://") || String(url).startsWith("http://"));
                   const key = item.article_id ?? item.catalog_id ?? `${index}`;
                   return (
                     <Card key={key} className="overflow-hidden">
