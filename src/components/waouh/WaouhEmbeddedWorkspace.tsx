@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Handshake, Sparkles } from "lucide-react";
 import WaouhWebChat, { type WaouhWebChatHandle } from "./WaouhWebChat";
 import { WaouhMatchChatWindow } from "./WaouhMatchChatWindow";
 import { WaouhChatTabs } from "./WaouhChatTabs";
 import { WaouhUnifiedIntelligenceDock } from "./WaouhUnifiedIntelligenceDock";
+import { WaouhMuseAvatar } from "./WaouhMuseAvatar";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import type { useWaouhMatchChats } from "./useWaouhMatchChats";
 import {
   EMPTY_WAOUH_WORKSPACE_STATE,
@@ -80,24 +82,61 @@ export function WaouhEmbeddedWorkspace({
   return (
     <div className="flex h-full min-h-0 w-full overflow-hidden bg-[#f4f7f6]">
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white">
-        <div className="flex h-10 shrink-0 items-center gap-2 border-b border-slate-200/80 bg-gradient-to-r from-white via-emerald-50/45 to-cyan-50/35 px-3">
-          <Sparkles className="h-3.5 w-3.5 text-emerald-700" />
-          <span className="text-[10px] font-black uppercase tracking-[0.11em] text-slate-700">WAOUH One</span>
-          <span className="truncate text-[10px] font-semibold text-slate-400">Un chat · Muse + NEXUS + Signal + Contact</span>
+        <div className="flex h-12 shrink-0 items-center gap-2 border-b border-slate-200/80 bg-white/95 px-3">
+          <Sheet>
+            <SheetTrigger asChild>
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 items-center gap-2 rounded-xl px-1.5 py-1 text-left transition hover:bg-emerald-50/60"
+                aria-label="Ouvrir l’activité de Muse"
+              >
+                <WaouhMuseAvatar
+                  mode={resolvedDeal?.active ? (resolvedDeal.role === "seller" ? "seller" : "buyer") : agentState.mode}
+                  phase={resolvedDeal?.active ? (resolvedDeal.closed ? "success" : "negotiating") : agentState.phase}
+                  size="sm"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-black text-slate-900">WAOUH One</span>
+                    {(agentState.phase === "searching" || agentState.phase === "comparing" || resolvedDeal?.active) && (
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_7px_rgba(16,185,129,.8)]" />
+                    )}
+                  </span>
+                  <span className="block truncate text-[10px] font-semibold text-slate-500">
+                    {resolvedDeal?.active
+                      ? resolvedDeal.closed ? "Deal conclu" : "Deal Room · Muse accompagne"
+                      : agentState.goal?.trim() || "Un chat · tout le marché"}
+                  </span>
+                </span>
+                {resolvedDeal?.active ? <Handshake className="h-4 w-4 shrink-0 text-emerald-700" /> : <Sparkles className="h-4 w-4 shrink-0 text-emerald-700" />}
+              </button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[390px] overflow-hidden p-0 sm:max-w-[390px]">
+              <SheetHeader className="sr-only"><SheetTitle>Activité et intelligence WAOUH</SheetTitle></SheetHeader>
+              <WaouhUnifiedIntelligenceDock
+                state={agentState}
+                deal={resolvedDeal}
+                onNewGoal={newGoal}
+              />
+            </SheetContent>
+          </Sheet>
         </div>
-        <WaouhChatTabs
-          matches={matches}
-          activeKey={activeKey}
-          onSelect={setActiveKey}
-          onClose={close}
-          sessionId={sessionId}
-        />
+        {matches.length > 0 && (
+          <WaouhChatTabs
+            matches={matches}
+            activeKey={activeKey}
+            onSelect={setActiveKey}
+            onClose={close}
+            sessionId={sessionId}
+          />
+        )}
         <div className="relative min-h-0 flex-1 overflow-hidden">
           <div className={cn("absolute inset-0 flex flex-col", activeKey === "main" ? "" : "hidden")}>
             <WaouhWebChat
               ref={chatRef}
               fullscreen
               onAgentStateChange={setAgentState}
+              hideAgentBar
             />
           </div>
           {matches.map((match) => (
@@ -119,14 +158,6 @@ export function WaouhEmbeddedWorkspace({
         </div>
       </main>
 
-      <div className="hidden h-full w-[288px] shrink-0 overflow-hidden border-l border-slate-200/80 xl:block">
-        <WaouhUnifiedIntelligenceDock
-          compact
-          state={agentState}
-          deal={resolvedDeal}
-          onNewGoal={newGoal}
-        />
-      </div>
     </div>
   );
 }
