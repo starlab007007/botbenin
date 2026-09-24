@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../main.dart' as legacy;
+import 'agentic/live_agentic_controller.dart';
+import 'agentic/live_agentic_repository.dart';
 import 'live_chat_service.dart';
 import 'live_connectivity.dart';
 import 'live_location.dart';
@@ -40,6 +42,11 @@ class LiveWaouhController extends ChangeNotifier {
     notifications = LiveNotificationService(chat, session);
     offline = LiveOfflineStore();
     connectivity = LiveConnectivity(_onConnectivityChanged);
+    agentic = LiveAgenticController(
+      repository: LiveAgenticRepository(
+        remote: LiveAgenticRemoteService(legacy.supabase),
+      ),
+    );
   }
 
   final legacy.AuthController auth;
@@ -51,6 +58,7 @@ class LiveWaouhController extends ChangeNotifier {
   late final LiveNotificationService notifications;
   late final LiveOfflineStore offline;
   late final LiveConnectivity connectivity;
+  late final LiveAgenticController agentic;
 
   LiveLocation _position = const LiveLocation();
   DateTime? _positionAt;
@@ -100,6 +108,7 @@ class LiveWaouhController extends ChangeNotifier {
         offline.initialize(),
         connectivity.initialize(),
       ]);
+      await agentic.initialize(await _agenticScope());
       if (auth.signedIn) await session.clearGuestMessageCount();
       pendingActions = await offline.pendingCount();
       if (isOnline && pendingActions > 0) await syncPending();
@@ -117,6 +126,13 @@ class LiveWaouhController extends ChangeNotifier {
   }
 
   Future<String> get city => session.city;
+
+  Future<String> _agenticScope() async {
+    final authId = (auth.user?.id ?? '').trim();
+    return authId.isNotEmpty
+        ? 'auth:$authId'
+        : 'guest:${await session.sessionId}';
+  }
 
   Future<void> useDeviceLocation() async {
     _position = await location.requestCurrent();
@@ -637,13 +653,21 @@ class LiveWaouhController extends ChangeNotifier {
       _guard(() async {
         final value = text.trim();
         if (value.isEmpty && attachments.isEmpty) return;
+        final effectiveMeta = Map<String, dynamic>.from(meta);
+        final missionId = await agentic.ensureSynchronizedMissionForRequest(
+          value,
+          effectiveMeta,
+          online: isOnline && auth.signedIn,
+        );
+        if (missionId != null) effectiveMeta['mission_id'] = missionId;
+        effectiveMeta.putIfAbsent('schema', () => 'waouh.message.v1');
         final count = await session.guestMessageCount;
         if (!auth.signedIn && count >= 10) {
           throw StateError(
               'Connectez-vous pour continuer apres 10 messages invites.');
         }
-        final locationRelevant = meta['intent'] == 'sell' ||
-            meta['intent'] == 'buy' ||
+        final locationRelevant = effectiveMeta['intent'] == 'sell' ||
+            effectiveMeta['intent'] == 'buy' ||
             RegExp(
               r'\b(cherche|recherche|acheter|achète|vends|vendre)\b',
               caseSensitive: false,
@@ -652,10 +676,11 @@ class LiveWaouhController extends ChangeNotifier {
             DateTime.now().difference(_positionAt!) >
                 const Duration(minutes: 2);
         if (locationRelevant && staleLocation) await useDeviceLocation();
-        final payload = await _mainPayload(value, attachments, meta);
+        final payload = await _mainPayload(value, attachments, effectiveMeta);
         _rememberPreparedInterestPayload(payload);
         if (!isOnline) {
           await _queueMain(payload);
+          agentic.markMissionQueued(missionId);
           _completeOfflineInterestedPayload(payload);
           if (!auth.signedIn) await session.incrementGuestMessageCount();
           return;
@@ -1107,6 +1132,12 @@ class LiveWaouhController extends ChangeNotifier {
       rethrow;
     }
 
+    agentic.applyChannelResponse(
+      requestText: text,
+      requestMeta: resolutionMeta,
+      response: response,
+    );
+
     // Parité avec le Web : la réponse structurée du backend est un second
     // arbitre. Elle rattrape les anciens boutons Flutter, les alias anglais,
     // les payloads Radar/Statut et les fautes de frappe non encore connues.
@@ -1396,8 +1427,9 @@ class LiveWaouhController extends ChangeNotifier {
 
   String _humanizeError(Object error) {
     final value = error.toString();
-    if (_isOfflineFailure(error))
+    if (_isOfflineFailure(error)) {
       return 'Connexion indisponible. Vos actions restent en attente.';
+    }
     return value;
   }
 
@@ -1475,13 +1507,19 @@ class LiveWaouhController extends ChangeNotifier {
       unawaited(session.clearGuestMessageCount());
       if (isOnline) unawaited(syncPending());
     }
+    unawaited(_switchAgenticScope());
     notifyListeners();
+  }
+
+  Future<void> _switchAgenticScope() async {
+    await agentic.switchScope(await _agenticScope());
   }
 
   @override
   void dispose() {
     auth.removeListener(_onAuthChange);
     unawaited(connectivity.dispose());
+    agentic.dispose();
     super.dispose();
   }
 }

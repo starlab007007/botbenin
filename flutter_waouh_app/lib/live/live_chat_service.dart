@@ -112,13 +112,17 @@ class LiveChatService {
     final cutoff = await session.threadCutoff;
     final byId = <String, LiveMessage>{};
     try {
-      final response = await client.functions.invoke('waouh-history', body: {
-        'sessionId': sid,
-        'authUserId': authUserId,
-        'limit': limit,
-        if (cutoff != null) 'since': cutoff,
-        'includeMeta': true,
-      });
+      final response = await client.functions.invoke(
+        'waouh-history',
+        headers: <String, String>{'x-waouh-session': sid},
+        body: {
+          'sessionId': sid,
+          'authUserId': authUserId,
+          'limit': limit,
+          if (cutoff != null) 'since': cutoff,
+          'includeMeta': true,
+        },
+      );
       final data = response.data;
       if (data is Map && data['ok'] == true && data['messages'] is List) {
         for (final raw in data['messages'] as List) {
@@ -202,17 +206,21 @@ class LiveChatService {
   }) async {
     final sid = await session.sessionId;
     await waouhUserIds(authUserId);
-    final response = await client.functions.invoke('waouh-channel-in', body: {
-      'channel': 'web',
-      'sessionId': sid,
-      'text': text.trim(),
-      'attachments': attachments.map((item) => item.toJson()).toList(),
-      'lat': latitude,
-      'lng': longitude,
-      'city': city.trim(),
-      'authUserId': authUserId,
-      'meta': {'source': 'flutter_native', ...meta},
-    });
+    final response = await client.functions.invoke(
+      'waouh-channel-in-secure',
+      headers: <String, String>{'x-waouh-session': sid},
+      body: {
+        'channel': 'web',
+        'sessionId': sid,
+        'text': text.trim(),
+        'attachments': attachments.map((item) => item.toJson()).toList(),
+        'lat': latitude,
+        'lng': longitude,
+        'city': city.trim(),
+        'authUserId': authUserId,
+        'meta': {'source': 'flutter_native', ...meta},
+      },
+    );
     final data = response.data;
     if (data is Map && data['ok'] == false) {
       throw StateError(liveText(data['error'], 'Envoi WAOUH impossible'));
@@ -485,7 +493,7 @@ class LiveChatService {
     }
 
     // Exact ChatListScreen.tsx session fallback.
-    final referenced = (messageRows as List)
+    final referenced = messageRows
         .map((raw) => liveText((raw as Map)['conversation_id']))
         .where((id) => id.isNotEmpty && !byId.containsKey(id))
         .toSet()

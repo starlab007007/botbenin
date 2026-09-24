@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'agentic/live_agentic_contracts.dart';
+
 const _waouhSupabaseOrigin = 'https://mvynepqulhflxtyymtzs.supabase.co';
 
 String liveVisibleText(dynamic value) {
@@ -339,7 +341,11 @@ class LiveMessage {
       direction == 'buyer';
 
   factory LiveMessage.fromJson(Map<String, dynamic> row) {
-    final meta = <String, dynamic>{...liveMap(row['meta'])};
+    final contract = WaouhMessageContract.tryParse(row);
+    final meta = <String, dynamic>{
+      ...liveMap(row['meta']),
+      if (contract != null) ...contract.toLegacyMeta(),
+    };
     // Certaines fonctions renvoient les données smart au premier niveau alors
     // que l'historique les conserve dans meta. Les fusionner ici garantit le
     // même rendu dans le chat principal, les matchs, l'opérateur et le Radar.
@@ -436,7 +442,9 @@ class LiveMessage {
     return LiveMessage(
       id: liveText(row['id'], 'local-${DateTime.now().microsecondsSinceEpoch}'),
       text: liveVisibleText(
-        row['text'] ?? row['content'] ?? row['message'] ?? row['body'],
+        contract?.text.isNotEmpty == true
+            ? contract!.text
+            : row['text'] ?? row['content'] ?? row['message'] ?? row['body'],
       ),
       createdAt: liveDate(row['created_at']),
       direction: liveText(row['direction'] ?? row['role'], 'out'),

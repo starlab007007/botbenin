@@ -6,6 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
+import 'agentic/live_agentic_models.dart';
+import 'agentic/live_agentic_workspace.dart';
 import 'live_controller.dart';
 import 'live_guest_action_gate.dart';
 import 'live_match_navigation.dart';
@@ -62,7 +64,9 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
       context,
       next: '/app/chat/waouh',
       actionLabel: 'joindre une photo',
-    )) return;
+    )) {
+      return;
+    }
     final file =
         await ImagePicker().pickImage(source: source, imageQuality: 82);
     if (file == null || !mounted) return;
@@ -80,7 +84,9 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
       context,
       next: '/app/chat/waouh',
       actionLabel: 'publier une vente',
-    )) return;
+    )) {
+      return;
+    }
     if (!mounted) return;
     await Navigator.of(context).push(MaterialPageRoute(
       fullscreenDialog: true,
@@ -103,6 +109,15 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
 
   Future<void> _handlePayload(String payload) async {
     final command = payload.trim().toLowerCase();
+    if (command.startsWith('waouh:watch')) {
+      await showWaouhWatchDialog(
+        context,
+        controller: _controller.agentic,
+        payload: payload,
+      );
+      if (mounted) _notice('Veille prix/stock activée.', success: true);
+      return;
+    }
     if (command.startsWith('ouvrir-meet:')) {
       final threadId = payload.substring('ouvrir-meet:'.length).trim();
       if (threadId.isNotEmpty && mounted) {
@@ -335,6 +350,22 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
           backgroundColor: success ? legacy.WaouhColors.green : null,
           content: Text(text)));
 
+  void _resumeMission(WaouhMission mission) {
+    final prompt = _controller.agentic.resumeMission(mission.id);
+    if (prompt.isEmpty) return;
+    setState(() {
+      composer.text = prompt;
+      pendingMeta = <String, dynamic>{
+        'mission_id': mission.id,
+        'action': 'resume_mission',
+        'intent': 'search',
+        'schema': 'waouh.message.v1',
+      };
+    });
+    composerFocus.requestFocus();
+    unawaited(_send());
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<LiveWaouhController>();
@@ -361,6 +392,10 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
         ],
       ),
       body: Column(children: [
+        LiveAgenticSummaryBar(
+          controller: controller.agentic,
+          onResumeMission: _resumeMission,
+        ),
         Expanded(
             child: StreamBuilder<List<LiveMessage>>(
                 stream: _messageStream,
@@ -501,7 +536,9 @@ class _LiveConversationScreenState extends State<LiveConversationScreen> {
       context,
       next: '/app/chat/${widget.conversationId}',
       actionLabel: 'envoyer ce message',
-    )) return;
+    )) {
+      return;
+    }
     final text = composer.text.trim();
     if (text.isEmpty) return;
     final local = LiveMessage(

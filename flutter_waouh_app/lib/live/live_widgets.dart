@@ -1396,7 +1396,7 @@ String _premiumIntro(String text) {
   return text.substring(0, firstArticle.start).trim();
 }
 
-class _PremiumResultsGrid extends StatelessWidget {
+class _PremiumResultsGrid extends StatefulWidget {
   const _PremiumResultsGrid({
     required this.products,
     this.onPayload,
@@ -1407,40 +1407,134 @@ class _PremiumResultsGrid extends StatelessWidget {
   final bool actionsEnabled;
 
   @override
+  State<_PremiumResultsGrid> createState() => _PremiumResultsGridState();
+}
+
+class _PremiumResultsGridState extends State<_PremiumResultsGrid> {
+  final ScrollController _controller = ScrollController();
+  int _current = 0;
+  double _itemExtent = 320;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _move(int delta) {
+    if (!_controller.hasClients) return;
+    final next = (_current + delta).clamp(0, widget.products.length - 1);
+    _controller.animateTo(
+      next * _itemExtent,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+    );
+    setState(() => _current = next);
+  }
+
+  bool _observe(ScrollNotification notification) {
+    if (notification.metrics.axis != Axis.horizontal) return false;
+    final next = (notification.metrics.pixels / _itemExtent)
+        .round()
+        .clamp(0, widget.products.length - 1);
+    if (next != _current) setState(() => _current = next);
+    return false;
+  }
+
+  @override
   Widget build(BuildContext context) =>
       LayoutBuilder(builder: (_, constraints) {
-        final columns = constraints.maxWidth >= 560 ? 2 : 1;
+        final itemWidth = widget.products.length == 1
+            ? constraints.maxWidth
+            : constraints.maxWidth >= 720
+                ? 420.0
+                : (constraints.maxWidth - 22).clamp(272.0, 420.0).toDouble();
+        _itemExtent = itemWidth + 11;
         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: BoxDecoration(
-                color: const Color(0xFF062E27),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFF8B7A25))),
-            child: Text(
-                '${products.length} résultat${products.length > 1 ? 's' : ''}',
-                style: const TextStyle(
-                    color: Color(0xFFF2D36B),
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w900)),
+          Row(
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                    color: const Color(0xFF062E27),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFF8B7A25))),
+                child: Text(
+                    '${widget.products.length} résultat${widget.products.length > 1 ? 's' : ''}',
+                    style: const TextStyle(
+                        color: Color(0xFFF2D36B),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w900)),
+              ),
+              if (widget.products.length > 1) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Article ${_current + 1} sur ${widget.products.length}',
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                      color: Color(0xFF52675F),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Article précédent',
+                  onPressed: _current > 0 ? () => _move(-1) : null,
+                  icon: const Icon(Icons.chevron_left_rounded),
+                ),
+                IconButton(
+                  tooltip: 'Article suivant',
+                  onPressed: _current < widget.products.length - 1
+                      ? () => _move(1)
+                      : null,
+                  icon: const Icon(Icons.chevron_right_rounded),
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: 8),
-          Wrap(
-            spacing: 11,
-            runSpacing: 11,
-            children: List.generate(products.length, (index) {
-              final width = columns == 2
-                  ? (constraints.maxWidth - 11) / 2
-                  : constraints.maxWidth;
-              return SizedBox(
-                  width: width,
-                  child: _PremiumProductCard(
-                    product: products[index],
-                    index: index,
-                    onPayload: onPayload,
-                    actionsEnabled: actionsEnabled,
-                  ));
-            }),
+          Semantics(
+            container: true,
+            label:
+                'Carrousel de ${widget.products.length} articles, article ${_current + 1} affiché',
+            child: NotificationListener<ScrollNotification>(
+              onNotification: _observe,
+              child: Scrollbar(
+                controller: _controller,
+                thumbVisibility: widget.products.length > 1,
+                child: SingleChildScrollView(
+                  controller: _controller,
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: List.generate(widget.products.length, (index) {
+                      return Padding(
+                        padding: EdgeInsets.only(
+                          right: index == widget.products.length - 1 ? 0 : 11,
+                        ),
+                        child: SizedBox(
+                          width: itemWidth,
+                          child: Semantics(
+                            label:
+                                'Article ${index + 1} sur ${widget.products.length}: ${widget.products[index].title}',
+                            child: _PremiumProductCard(
+                              product: widget.products[index],
+                              index: index,
+                              onPayload: widget.onPayload,
+                              actionsEnabled: widget.actionsEnabled,
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                ),
+              ),
+            ),
           ),
           const Padding(
               padding: EdgeInsets.only(top: 9, left: 3),
@@ -1680,10 +1774,38 @@ class _PremiumProductCard extends StatelessWidget {
                     );
                   }).toList(),
                 ),
+              if (actionsEnabled && onPayload != null) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => onPayload!(_watchProductPayload(product)),
+                    icon: const Icon(Icons.notifications_active_outlined),
+                    label: const Text('Suivre prix / stock'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF08745D),
+                      side: const BorderSide(color: Color(0xFF8ECDB9)),
+                      minimumSize: const Size(0, 44),
+                    ),
+                  ),
+                ),
+              ],
             ]),
           ),
         ]),
       );
+}
+
+String _watchProductPayload(_PremiumProduct product) {
+  final params = <String, String>{
+    'product_id': product.id ?? product.title,
+    'title': product.title,
+    'currency': 'XOF',
+    if (product.price != null) 'price': product.price!,
+    if (product.city != null) 'city': product.city!,
+    if (product.images.isNotEmpty) 'image_url': product.images.first.url,
+  };
+  return 'waouh:watch?${Uri(queryParameters: params).query}';
 }
 
 class _PremiumInformationPanel extends StatelessWidget {
