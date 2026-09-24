@@ -1,3 +1,4 @@
+import { telRuntimeSecret } from "./runtime-secret.ts";
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import type {
   CanonicalInboundEvent,
@@ -93,7 +94,7 @@ export async function callWaouhEngine(
   }
   await ensureEngineIdentity(admin, telUser);
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
-  const internalSecret = Deno.env.get("WAOUH_TEL_INTERNAL_SECRET") || "";
+  const internalSecret = await telRuntimeSecret("internal_secret");
   if (internalSecret.length < 24) {
     throw new Error("waouh_tel_internal_secret_missing");
   }
