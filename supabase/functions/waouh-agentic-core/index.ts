@@ -5,6 +5,19 @@ import {
   waouhCorsHeaders,
 } from "../_shared/waouh-auth.ts";
 import { chatCompletion, visionCompletion } from "../_shared/agent-ai.ts";
+import { encryptPhone, decryptPhone, hashPhone, sha256Hex } from "../_shared/waouh-tel/crypto.ts";
+import { normalizeE164, phoneLast4 } from "../_shared/waouh-tel/phone.ts";
+import { getRadarApiKey, incrementRadarUsage } from "../_shared/radar-api-config.ts";
+import {
+  contactabilityPolicy,
+  extractPublicContactHints,
+  normalizeFabricText,
+  redactPublicContacts,
+  scoreFabricSignal,
+  safeSourceUrl as safeFabricSourceUrl,
+  type Contactability,
+  type FabricSignal,
+} from "../_shared/waouh-signal-fabric.ts";
 import {
   marketStats,
   nexusTokens,
