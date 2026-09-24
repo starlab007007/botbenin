@@ -4,6 +4,7 @@ import {
   jsonResponse,
   waouhCorsHeaders,
 } from "../_shared/waouh-auth.ts";
+import { chatCompletion } from "../_shared/agent-ai.ts";
 import {
   marketStats,
   nexusTokens,
@@ -294,6 +295,61 @@ function nexusAdvice(item: any, market: ReturnType<typeof marketStats>) {
   if (item.scores?.location_score >= 90) parts.push("Option locale.");
   if (item.scores?.freshness_score >= 90) parts.push("Annonce récente.");
   return parts.join(" ") || "Option compatible avec votre besoin.";
+}
+
+type NexusIntent = {
+  product?: string | null;
+  category?: string | null;
+  brand?: string | null;
+  model?: string | null;
+  condition?: string | null;
+  city?: string | null;
+  budget_min?: number | null;
+  budget_max?: number | null;
+  priorities?: string[];
+  keywords?: string[];
+};
+
+async function enrichNexusIntent(query: string, defaults: NexusIntent): Promise<NexusIntent> {
+  try {
+    const raw = await chatCompletion({
+      jsonMode: true,
+      temperature: 0.1,
+      system: `Tu es le parseur d'intention commerce de WAOUH au Bénin.
+Retourne uniquement un JSON compact avec: product, category, brand, model, condition, city, budget_min, budget_max, priorities, keywords.
+- Montants en FCFA numériques, sans symbole.
+- N'invente pas un champ absent ou non déductible: null.
+- priorities parmi: price, trust, distance, speed, condition, warranty.
+- keywords: 2 à 8 termes utiles pour retrouver le même produit malgré une annonce mal écrite.
+- Aucun paiement, aucune donnée personnelle.`,
+      messages: [{ role: "user", content: query }],
+    });
+    const parsed = JSON.parse(raw);
+    const n = (value: unknown) => {
+      if (value == null || value === "") return null;
+      const candidate = Number(value);
+      return Number.isFinite(candidate) && candidate >= 0 ? candidate : null;
+    };
+    const s = (value: unknown, max = 160) =>
+      typeof value === "string" && value.trim() ? value.trim().slice(0, max) : null;
+    const list = (value: unknown) =>
+      Array.isArray(value) ? value.filter((item) => typeof item === "string").map((item) => item.trim().slice(0, 80)).filter(Boolean).slice(0, 8) : [];
+    return {
+      product: s(parsed.product) ?? defaults.product ?? null,
+      category: s(parsed.category) ?? defaults.category ?? null,
+      brand: s(parsed.brand) ?? defaults.brand ?? null,
+      model: s(parsed.model) ?? defaults.model ?? null,
+      condition: s(parsed.condition) ?? defaults.condition ?? null,
+      city: s(parsed.city) ?? defaults.city ?? null,
+      budget_min: n(parsed.budget_min) ?? defaults.budget_min ?? null,
+      budget_max: n(parsed.budget_max) ?? defaults.budget_max ?? null,
+      priorities: list(parsed.priorities),
+      keywords: list(parsed.keywords),
+    };
+  } catch (error) {
+    console.warn("[waouh-nexus] AI intent enrichment fallback", error instanceof Error ? error.message : error);
+    return defaults;
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -887,9 +943,26 @@ Deno.serve(async (req: Request) => {
 
       case "nexus.search": {
         const queryText = asString(payload.query, "query", 2, 1_000);
-        const budgetMax = positiveNumber(payload.budget_max, "budget_max", true);
-        const budgetMin = positiveNumber(payload.budget_min, "budget_min", true);
-        const requestedCity = optionalString(payload.city, "city", 120);
+        const suppliedBudgetMax = positiveNumber(payload.budget_max, "budget_max", true);
+        const suppliedBudgetMin = positiveNumber(payload.budget_min, "budget_min", true);
+        const suppliedCity = optionalString(payload.city, "city", 120);
+        const intent = await enrichNexusIntent(queryText, {
+          city: suppliedCity,
+          budget_min: suppliedBudgetMin,
+          budget_max: suppliedBudgetMax,
+          keywords: nexusTokens(queryText),
+        });
+        const budgetMax = suppliedBudgetMax ?? intent.budget_max ?? null;
+        const budgetMin = suppliedBudgetMin ?? intent.budget_min ?? null;
+        const requestedCity = suppliedCity ?? intent.city ?? null;
+        const semanticQuery = [
+          intent.product,
+          intent.brand,
+          intent.model,
+          intent.category,
+          ...(intent.keywords ?? []),
+          queryText,
+        ].filter(Boolean).join(" ");
         const limit = integer(payload.limit, "limit", 8, 1, 30);
         const persistIntent = bool(payload.persist_intent, true);
         const preference = await getNexusPreference(sb, ownerId);
@@ -914,7 +987,7 @@ Deno.serve(async (req: Request) => {
         for (const row of articlesResult.data ?? []) {
           const seller = Array.isArray((row as any).seller) ? (row as any).seller[0] : (row as any).seller;
           const article: ArticleLike = { ...(row as any), seller };
-          const scores = rankArticle({ query: queryText, budgetMax, budgetMin, city: requestedCity, article, weights });
+          const scores = rankArticle({ query: semanticQuery, budgetMax, budgetMin, city: requestedCity, article, weights });
           if (scores.relevance_score < 18) continue;
           ranked.push({
             kind: "article",
@@ -956,7 +1029,7 @@ Deno.serve(async (req: Request) => {
             updated_at: row.updated_at ?? null,
             seller: { display_name: row.vendeur_nom ?? "Partenaire WAOUH", is_verified: row.source === "partner" },
           };
-          const scores = rankArticle({ query: queryText, budgetMax, budgetMin, city: requestedCity, article, weights });
+          const scores = rankArticle({ query: semanticQuery, budgetMax, budgetMin, city: requestedCity, article, weights });
           if (scores.relevance_score < 18) continue;
           ranked.push({
             kind: "catalog",
@@ -1014,7 +1087,7 @@ Deno.serve(async (req: Request) => {
                 is_active: true,
                 origin: "chat",
                 source_channel: "waouh_app",
-                ai_intent: { query: queryText, city: requestedCity, budget_min: budgetMin, budget_max: budgetMax, source: "nexus" },
+                ai_intent: { ...intent, query: queryText, city: requestedCity, budget_min: budgetMin, budget_max: budgetMax, source: "nexus" },
                 ai_priority_score: 90,
               }).select("*").single(),
               "nexus_buyer_profile_create_failed",
@@ -1070,6 +1143,7 @@ Deno.serve(async (req: Request) => {
         });
         return jsonResponse({ ok: true, data: {
           query: queryText,
+          intent,
           market,
           results: selected,
           buyer_profile: buyerProfile ? { id: buyerProfile.id, query_text: buyerProfile.query_text } : null,
