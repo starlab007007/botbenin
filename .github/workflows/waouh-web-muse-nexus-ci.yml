@@ -10,6 +10,7 @@ on:
       - "src/components/waouh/**"
       - "src/lib/waouh/**"
       - "supabase/functions/waouh-agentic-core/**"
+      - "supabase/functions/waouh-channel-in/**"
       - "supabase/functions/_shared/waouh-nexus.ts"
       - "supabase/functions/_shared/waouh-signal-fabric.ts"
       - ".github/workflows/waouh-web-muse-nexus-ci.yml"
@@ -21,6 +22,7 @@ on:
       - "src/components/waouh/**"
       - "src/lib/waouh/**"
       - "supabase/functions/waouh-agentic-core/**"
+      - "supabase/functions/waouh-channel-in/**"
       - "supabase/functions/_shared/waouh-nexus.ts"
       - "supabase/functions/_shared/waouh-signal-fabric.ts"
   workflow_dispatch:
