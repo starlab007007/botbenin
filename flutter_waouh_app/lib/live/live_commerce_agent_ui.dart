@@ -1007,9 +1007,9 @@ class LiveSmartComposerBar extends StatelessWidget {
             icon: const Icon(Icons.my_location_outlined),
           ),
         IconButton(
-          tooltip: 'Ouvrir Muse',
+          tooltip: 'Intelligence WAOUH',
           onPressed: onMuse,
-          icon: const Icon(Icons.psychology_alt_outlined),
+          icon: const Icon(Icons.hub_outlined),
         ),
         const SizedBox(width: 3),
       ]),
@@ -1023,11 +1023,13 @@ class LiveDealRoomBanner extends StatelessWidget {
     required this.match,
     this.messages = const [],
     this.pending = false,
+    this.onIntelligence,
   });
 
   final LiveMatch match;
   final List<LiveMessage> messages;
   final bool pending;
+  final VoidCallback? onIntelligence;
 
   @override
   Widget build(BuildContext context) {
@@ -1076,7 +1078,17 @@ class LiveDealRoomBanner extends StatelessWidget {
             ),
           ]),
         ),
-        const Icon(Icons.shield_outlined, size: 18, color: Color(0xFF08745D)),
+        if (onIntelligence != null)
+          IconButton(
+            tooltip: 'Intelligence WAOUH',
+            onPressed: onIntelligence,
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.hub_outlined,
+                size: 19, color: Color(0xFF08745D)),
+          )
+        else
+          const Icon(Icons.shield_outlined,
+              size: 18, color: Color(0xFF08745D)),
       ]),
     );
   }
