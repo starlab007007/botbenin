@@ -24,7 +24,8 @@ import { Input } from "@/components/ui/input";
 import { ChatImageLightbox } from "@/app-mobile/components/ChatImageLightbox";
 import { isImageReady, preloadImage, prefetchNeighbours } from "@/components/waouh/waouhImageCache";
 import { cn } from "@/lib/utils";
-import { WaouhContactabilityBadge, contactabilityPresentation } from "./WaouhCommerceAgentBar";
+import { WaouhContactabilityBadge } from "./WaouhCommerceAgentBar";
+import { WaouhNexusContactSheet } from "./WaouhNexusContactSheet";
 
 /**
  * Fiche produit d'un résultat de recherche WAOUH.
@@ -55,6 +56,7 @@ export interface WaouhResultCard {
   seller_id?: string | null;
   counterpart_user_id?: string | null;
   source_url?: string | null;
+  fabric_id?: string | null;
   intent?: string | null;
   actor_type?: string | null;
   contactability_level?: string | null;
@@ -194,8 +196,7 @@ export function WaouhProductCard({
   const interestAction = result.action === null ? null : (result.action || defaultInterestAction(result));
   const opportunity = isBuyerOpportunity(result);
   const level = contactLevel(result);
-  const contact = level ? contactabilityPresentation(level) : null;
-  const score = metric(result, "total_score");
+   const score = metric(result, "total_score");
   const trust = metric(result, "trust_score");
   const priceFit = metric(result, "price_score");
   const reasons = resultReasons(result);
@@ -394,14 +395,21 @@ export function WaouhProductCard({
               </Button>
             )}
             <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-1.5">
-              {result.source_url && (
+              {result.fabric_id ? (
+                <WaouhNexusContactSheet
+                  fabricId={result.fabric_id}
+                  title={result.title}
+                  sourceUrl={result.source_url}
+                  contactabilityLevel={level}
+                />
+              ) : result.source_url ? (
                 <Button size="sm" variant="outline" className="h-8 min-w-0 px-2 text-[11px]" asChild>
                   <a href={result.source_url} target="_blank" rel="noreferrer">
                     <ExternalLink className="mr-1 h-3.5 w-3.5" />
                     Source
                   </a>
                 </Button>
-              )}
+              ) : null}
               <Button size="sm" variant="outline" className="h-8 min-w-0 px-2 text-[11px]" onClick={() => setAsking((a) => !a)}>
                 <MessageCircleQuestion className="h-3.5 w-3.5 mr-1 shrink-0" />
                 <span className="truncate">{opportunity ? "Question à l’acheteur" : `Question au ${counterpartWord}`}</span>
