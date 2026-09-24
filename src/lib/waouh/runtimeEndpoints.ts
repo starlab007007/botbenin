@@ -1,4 +1,5 @@
 /**
+ * Production web test rollout marker: Native SMS/RCS + WAOUH Muse.
  * Temporary production aliases used while the Supabase project is at its
  * Edge Function quota. Each alias points to the newly validated WAOUH code
  * deployed over an unused legacy/test function slot.
