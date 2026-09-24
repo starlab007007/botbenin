@@ -38,6 +38,7 @@ Deno.test("Signal Fabric: buyer discovery requires BUY direction", () => {
 Deno.test("Signal Fabric: contactability enforces discovery boundary", () => {
   if (contactabilityPolicy("C0").can_reveal) throw new Error("C0 contact leaked");
   if (contactabilityPolicy("C1").can_auto_contact) throw new Error("C1 auto outreach must be blocked");
+  if (contactabilityPolicy("C2").can_reveal) throw new Error("C2 private contact must not be revealed outside its conversation");
   if (!contactabilityPolicy("C3").requires_approval) throw new Error("C3 should require approval");
   if (!contactabilityPolicy("C4").can_auto_contact) throw new Error("C4 agent-to-agent should be allowed");
 });
