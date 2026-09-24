@@ -25,6 +25,7 @@ import { WaouhSmartComposerBar } from "@/components/waouh/WaouhSmartComposerBar"
 import type { WaouhMuseMode, WaouhMusePhase } from "@/components/waouh/WaouhMuseAvatar";
 import { invokeWaouhAgentic } from "@/lib/waouh/agenticClient";
 import type { AgenticAction, WaouhMessageBlock } from "@/lib/waouh/agenticContracts";
+import type { WaouhWorkspaceAgentState } from "@/lib/waouh/workspaceState";
 
 import { NativeSellSheet } from "./NativeSellSheet";
 import { useAuth } from "@/contexts/AuthContext";
@@ -107,7 +108,7 @@ export type WaouhWebChatHandle = {
   prefillAndSend: (text: string, opts?: { attachments?: Att[] }) => Promise<void> | void;
 };
 
-export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean; fullscreen?: boolean; variant?: "web" | "native"; composerTopSlot?: React.ReactNode }>(({ embedded = false, fullscreen = false, variant = "web", composerTopSlot }, externalRef) => {
+export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean; fullscreen?: boolean; variant?: "web" | "native"; composerTopSlot?: React.ReactNode; onAgentStateChange?: (state: WaouhWorkspaceAgentState) => void }>(({ embedded = false, fullscreen = false, variant = "web", composerTopSlot, onAgentStateChange }, externalRef) => {
   const [open, setOpen] = useState(embedded || fullscreen);
   const sessionId = useRef(getSessionId()).current;
   // Cache-first hydration: load last snapshot synchronously so the chat
@@ -186,6 +187,10 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       contactLevel,
     };
   }, [messages, sending]);
+
+  useEffect(() => {
+    onAgentStateChange?.(commerceAgent);
+  }, [commerceAgent, onAgentStateChange]);
 
   // Resolved waouh_users.id list for this device + auth account.
   const [waouhIds, setWaouhIds] = useState<string[]>([]);
@@ -658,7 +663,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
             : "fixed bottom-20 right-4 w-[92vw] sm:w-[400px] h-[70vh] max-h-[100dvh] rounded-2xl z-50 border shadow-2xl"
       )}
     >
-      {variant !== "native" && (
+      {variant !== "native" && !fullscreen && (
         <div className="flex items-center justify-between p-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <MessageCircle className="w-5 h-5 shrink-0" />
