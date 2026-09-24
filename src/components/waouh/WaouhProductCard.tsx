@@ -395,7 +395,7 @@ export function WaouhProductCard({
               </Button>
             )}
             <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-1.5">
-              {result.fabric_id ? (
+              {result.fabric_id && !interestAction ? (
                 <WaouhNexusContactSheet
                   fabricId={result.fabric_id}
                   title={result.title}
