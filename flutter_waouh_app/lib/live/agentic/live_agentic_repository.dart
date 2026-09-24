@@ -145,7 +145,7 @@ class LiveAgenticRepository {
     WaouhApprovalRequest approval,
     WaouhApprovalStatus status,
   ) async {
-    await remote.dispatch('resolve_approval', <String, dynamic>{
+    await remote.dispatch('approval.decide', <String, dynamic>{
       'approval_id': approval.id,
       'decision':
           status == WaouhApprovalStatus.approved ? 'approved' : 'rejected',
