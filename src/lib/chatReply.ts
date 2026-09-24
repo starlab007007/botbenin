@@ -44,6 +44,17 @@ export function normalizeResultCards(value: unknown, catalogue = false): WaouhRe
       source: label(r.source) || (catalogue ? 'catalogue' : 'waouh'),
       price: number(r.price ?? r.prix), price_min: number(r.price_min ?? r.prix_min), price_max: number(r.price_max ?? r.prix_max),
       city: label(r.city, r.ville), photos: [...new Set(photos)],
+      source_url: label(r.source_url, r.url, r.sourceUrl) || null,
+      intent: label(r.intent, r.signal_intent) || null,
+      actor_type: label(r.actor_type, r.actor_role, r.role) || null,
+      contactability_level: label(r.contactability_level, r.contactability, object(r.evidence).contactability_level) || null,
+      total_score: number(r.total_score ?? object(r.scores).total_score ?? r.match_score ?? r.score),
+      relevance_score: number(r.relevance_score ?? object(r.scores).relevance_score),
+      trust_score: number(r.trust_score ?? object(r.scores).trust_score),
+      price_score: number(r.price_score ?? object(r.scores).price_score),
+      location_score: number(r.location_score ?? object(r.scores).location_score),
+      freshness_score: number(r.freshness_score ?? object(r.scores).freshness_score),
+      reasons: Array.isArray(r.reasons) ? r.reasons : Array.isArray(object(r.scores).reasons) ? object(r.scores).reasons : null,
       action: r.action === null || (catalogue && r.action == null) ? null : typeof r.action === 'string' ? r.action : undefined,
     }];
   });
