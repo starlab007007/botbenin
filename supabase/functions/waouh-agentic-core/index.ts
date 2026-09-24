@@ -1593,6 +1593,259 @@ Indice utilisateur: ${hint ?? "aucun"}`,
         return jsonResponse({ ok: true, data: { query: queryText, points: (data ?? []).reverse() } });
       }
 
+
+      case "nexus.signal.ingest": {
+        const sourceKey = pickEnum(
+          payload.source_key,
+          "source_key",
+          ["share_to_waouh","b2b_rfq"] as const,
+          "share_to_waouh",
+        );
+        const rawText = asString(payload.raw_text, "raw_text", 2, 20_000);
+        const originSurface = optionalString(payload.origin_surface, "origin_surface", 80);
+        const sourceUrl = safeUrl(payload.source_url, "source_url");
+        const signalInput: JsonObject = {
+          ...payload,
+          source_key: sourceKey,
+          raw_text: rawText,
+          source_url: sourceUrl,
+          contact_consent_basis: sourceKey === "b2b_rfq" ? "initiated" : "shared_by_user",
+          public_business: false,
+          evidence: {
+            ...jsonObject(payload.evidence, "evidence"),
+            origin_surface: originSurface,
+            user_shared: true,
+          },
+        };
+        const result = await ingestCommerceSignal(
+          sb,
+          ownerId,
+          signalInput,
+          { expectedIntent: sourceKey === "b2b_rfq" ? "RFQ" : null },
+        );
+        await audit(sb, ownerId, "nexus.signal.ingested", "commerce_signal", result.signal.id, {
+          source_key: sourceKey,
+          intent: result.signal.intent,
+          actor_type: result.signal.actor_type,
+          contactability: result.signal.contactability_level,
+        });
+        return jsonResponse({ ok: true, data: {
+          signal: {
+            id: result.signal.id,
+            source_key: result.signal.source_key,
+            intent: result.signal.intent,
+            actor_type: result.signal.actor_type,
+            product_name: result.signal.product_name,
+            category: result.signal.category,
+            price_min: result.signal.price_min,
+            price_max: result.signal.price_max,
+            city: result.signal.city,
+            confidence: result.signal.confidence,
+            contactability_level: result.signal.contactability_level,
+          },
+          entity: {
+            id: result.entity.id,
+            entity_type: result.entity.entity_type,
+            primary_name: result.entity.primary_name,
+            verification_state: result.entity.verification_state,
+            trust_score: result.entity.trust_score,
+          },
+          contact_policy: result.contactability,
+        } }, 201);
+      }
+
+      case "nexus.google_places.search": {
+        const queryText = asString(payload.query, "query", 2, 500);
+        const city = optionalString(payload.city, "city", 120);
+        const limit = integer(payload.limit, "limit", 10, 1, 20);
+        const refreshed = await refreshGooglePlaces(sb, ownerId, queryText, city, limit);
+        await audit(sb, ownerId, "nexus.google_places.search", "discovery_source", null, {
+          query: queryText, city, configured: refreshed.configured, inserted: refreshed.inserted,
+        });
+        return jsonResponse({ ok: true, data: refreshed });
+      }
+
+      case "nexus.global_discovery": {
+        const queryText = asString(payload.query, "query", 2, 1000);
+        const mode = pickEnum(payload.mode, "mode", ["find_sellers","find_buyers"] as const, "find_sellers");
+        const city = optionalString(payload.city, "city", 120);
+        const budgetMax = positiveNumber(payload.budget_max, "budget_max", true);
+        const limit = integer(payload.limit, "limit", 20, 1, 50);
+        const refreshExternal = bool(payload.refresh_external, true);
+
+        const refresh: Record<string, unknown> = {};
+        if (refreshExternal) {
+          if (mode === "find_sellers") {
+            const places = await refreshGooglePlaces(sb, ownerId, queryText, city, Math.min(limit, 10));
+            refresh.google_places = {
+              configured: places.configured,
+              inserted: places.inserted,
+              reason: places.reason ?? null,
+            };
+          }
+          const serp = await refreshSerpApi(sb, ownerId, mode, queryText, city, Math.min(limit, 12));
+          refresh.serpapi = {
+            configured: serp.configured,
+            inserted: serp.inserted,
+            reason: serp.reason ?? null,
+          };
+        }
+
+        const results = await globalDiscoverySearch(sb, {
+          query: queryText,
+          mode,
+          city,
+          budgetMax,
+          limit,
+        });
+        const sourceMix = results.reduce((acc: Record<string, number>, row: any) => {
+          const key = String(row.source_key ?? "unknown");
+          acc[key] = (acc[key] ?? 0) + 1;
+          return acc;
+        }, {});
+        await audit(sb, ownerId, "nexus.global_discovery", "discovery", null, {
+          mode, query: queryText, city, result_count: results.length, source_mix: sourceMix,
+        });
+        return jsonResponse({ ok: true, data: {
+          mode,
+          query: queryText,
+          city,
+          results,
+          source_mix: sourceMix,
+          refresh,
+          explanation: mode === "find_sellers"
+            ? "WAOUH cherche des offres, vendeurs, entreprises et annonceurs compatibles à travers le Signal Fabric."
+            : "WAOUH cherche des demandes, acheteurs et RFQ compatibles à travers le Signal Fabric.",
+        } });
+      }
+
+      case "nexus.contact.prepare": {
+        const fabricId = asString(payload.fabric_id, "fabric_id", 5, 200);
+        if (!fabricId.startsWith("external:")) {
+          return jsonResponse({ ok: true, data: {
+            fabric_id: fabricId,
+            kind: "internal",
+            contact_policy: { level: "C2", can_reveal: false, can_auto_contact: false, requires_approval: false, label: "Utiliser le parcours WAOUH interne" },
+            contacts: [],
+            note: "Pour les annonces/profils WAOUH internes, utilisez le chat, l’intérêt ou la négociation intégrée plutôt qu’une extraction de coordonnées.",
+          } });
+        }
+        const signalId = uuid(fabricId.slice("external:".length), "signal_id");
+        const signal = await queryOne<any>(
+          sb.from("waouh_external_commerce_signals").select("*").eq("id", signalId).maybeSingle(),
+          "nexus_signal_not_found",
+        );
+        const policy = contactabilityPolicy(signal.contactability_level);
+        const contacts: any[] = [];
+        if (policy.can_reveal && signal.entity_id) {
+          const { data, error } = await sb.from("waouh_entity_contacts").select("*")
+            .eq("entity_id", signal.entity_id)
+            .order("contactability_level", { ascending: false });
+          if (error) throw new ApiError(500, "nexus_contacts_failed", error.message);
+          for (const contact of data ?? []) {
+            const contactPolicy = contactabilityPolicy(contact.contactability_level);
+            if (!contactPolicy.can_reveal) continue;
+            let value: string | null = contact.public_value ?? null;
+            if (!value && contact.value_encrypted) {
+              try { value = await decryptPhone(contact.value_encrypted); } catch { value = null; }
+            }
+            if (!value) continue;
+            contacts.push({
+              id: contact.id,
+              channel: contact.channel,
+              value,
+              value_last4: contact.value_last4,
+              contactability_level: contact.contactability_level,
+              consent_state: contact.consent_state,
+              is_public_business: contact.is_public_business === true,
+              can_auto_contact: contactPolicy.can_auto_contact,
+            });
+          }
+        }
+        await audit(sb, ownerId, "nexus.contact.prepared", "commerce_signal", signalId, {
+          contactability: signal.contactability_level,
+          revealed_count: contacts.length,
+        });
+        return jsonResponse({ ok: true, data: {
+          fabric_id: fabricId,
+          kind: "external",
+          source_url: signal.source_url,
+          actor_name: signal.actor_name,
+          product_name: signal.product_name,
+          contact_policy: policy,
+          contacts,
+          note: policy.level === "C0"
+            ? "Le signal peut être utilisé pour la découverte, mais WAOUH ne révèle ni ne sollicite automatiquement ce contact."
+            : policy.level === "C1"
+              ? "Coordonnée professionnelle publique : l’utilisateur peut initier lui-même le contact."
+              : "Contact utilisable selon le consentement et les règles du canal.",
+        } });
+      }
+
+      case "nexus.contact.send": {
+        const fabricId = asString(payload.fabric_id, "fabric_id", 5, 200);
+        if (!fabricId.startsWith("external:")) throw new ApiError(422, "external_signal_required");
+        if (payload.confirmed !== true) throw new ApiError(422, "explicit_confirmation_required");
+        const signalId = uuid(fabricId.slice("external:".length), "signal_id");
+        const signal = await queryOne<any>(
+          sb.from("waouh_external_commerce_signals").select("*").eq("id", signalId).maybeSingle(),
+          "nexus_signal_not_found",
+        );
+        const signalPolicy = contactabilityPolicy(signal.contactability_level);
+        if (!signalPolicy.can_auto_contact || !["C3","C4"].includes(signalPolicy.level)) {
+          throw new ApiError(403, "automated_contact_not_permitted");
+        }
+        const message = asString(payload.message, "message", 5, 1000);
+        if (!signal.entity_id) throw new ApiError(404, "contact_not_found");
+        const { data: contacts, error: contactsError } = await sb.from("waouh_entity_contacts")
+          .select("*").eq("entity_id", signal.entity_id)
+          .in("channel", ["whatsapp","phone"])
+          .in("contactability_level", ["C3","C4"])
+          .order("contactability_level", { ascending: false }).limit(5);
+        if (contactsError) throw new ApiError(500, "nexus_contacts_failed", contactsError.message);
+        const target = (contacts ?? []).find((contact: any) => !!contact.value_encrypted);
+        if (!target) throw new ApiError(404, "contact_not_found");
+        const clear = await decryptPhone(target.value_encrypted);
+        const e164 = normalizeE164(clear);
+        if (!e164) throw new ApiError(422, "invalid_contact_phone");
+        const toPhone = e164.replace(/\D/g, "");
+        const dedupeKey = `nexus-discovery:${ownerId}:${signalId}:${await sha256Hex(message)}`;
+        const { error: queueError } = await sb.rpc("waouh_enqueue_outbound_v2", {
+          p_to_phone: toPhone,
+          p_to_user_id: null,
+          p_template: "nexus_discovery_outreach",
+          p_payload: {
+            text: message,
+            actions: [],
+            signal_id: signalId,
+            source_key: signal.source_key,
+            initiated_by_auth_user: ownerId,
+          },
+          p_web_session_id: null,
+          p_image_url: null,
+          p_channel: "whatsapp",
+          p_dedupe_key: dedupeKey,
+          p_event_type: "nexus_discovery_outreach",
+        });
+        if (queueError) throw new ApiError(500, "nexus_contact_queue_failed", queueError.message);
+        fetch(`${supabaseUrl}/functions/v1/waouh-outbound-dispatch`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ limit: 20 }),
+        }).catch(() => {});
+        await audit(sb, ownerId, "nexus.contact.queued", "commerce_signal", signalId, {
+          channel: "whatsapp",
+          contactability: signal.contactability_level,
+          phone_last4: target.value_last4,
+        });
+        return jsonResponse({ ok: true, data: {
+          queued: true,
+          channel: "whatsapp",
+          contactability_level: signal.contactability_level,
+          phone_last4: target.value_last4,
+        } }, 202);
+      }
+
       case "nexus.sources": {
         const [providers, articleSources, buyerSources, radar] = await Promise.all([
           sb.from("waouh_radar_api_configs")
