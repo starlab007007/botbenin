@@ -1,5 +1,6 @@
 import { providerPhone } from "./phone.ts";
 import { segmentSms } from "./render-sms.ts";
+import { telRuntimeSecret } from "./runtime-secret.ts";
 import type {
   ProviderSendResult,
   TelChannel,
@@ -160,11 +161,11 @@ export function infobipRcsRequest(
 }
 
 async function postInfobip(path: string, body: unknown) {
-  const baseUrl = (Deno.env.get("WAOUH_TEL_INFOBIP_BASE_URL") || "").replace(
+  const baseUrl = (await telRuntimeSecret("infobip_base_url")).replace(
     /\/$/,
     "",
   );
-  const apiKey = Deno.env.get("WAOUH_TEL_INFOBIP_API_KEY") || "";
+  const apiKey = await telRuntimeSecret("infobip_api_key");
   if (!/^https:\/\//i.test(baseUrl) || !apiKey) {
     throw new Error("infobip_credentials_not_configured");
   }
