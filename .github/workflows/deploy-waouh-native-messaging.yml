@@ -225,7 +225,11 @@ jobs:
           # without modifying package.json or package-lock.json.
           npm install --no-save --package-lock=false --legacy-peer-deps vite@5.4.1 vitest@2.1.9
           cat > /tmp/vitest-native.config.mjs <<'EOF'
-          export default { test: { environment: "node" } };
+          import { resolve } from "node:path";
+          export default {
+            resolve: { alias: { "@": resolve(process.cwd(), "src") } },
+            test: { environment: "node" },
+          };
           EOF
           npx vitest run src/lib/waouh/__tests__/native-messaging-settings.test.ts --config /tmp/vitest-native.config.mjs
           npx vitest run src/lib/waouh/__tests__/nexus.test.ts src/components/waouh/__tests__/agentic-contracts.test.tsx --config /tmp/vitest-native.config.mjs
