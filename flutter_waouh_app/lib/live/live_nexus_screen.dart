@@ -30,6 +30,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
 
   late final LiveNexusService service;
   bool findSellers = true;
+  bool smartMode = true;
   bool busy = false;
   String shareOrigin = 'whatsapp';
   String? shareImageUrl;
@@ -78,13 +79,30 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       final value = await service.search(
         query: text,
         findSellers: findSellers,
+        smartMode: smartMode,
         city: city.text.trim(),
         budgetMax: maxBudget,
       );
       if (!mounted) return;
-      setState(() => discovery = value);
+      setState(() {
+        discovery = value;
+        findSellers = value.findSellers;
+        final plan = value.intelligence;
+        if (smartMode &&
+            plan?.city != null &&
+            plan!.city!.trim().isNotEmpty &&
+            city.text.trim() == 'Cotonou') {
+          city.text = plan.city!;
+        }
+        if (smartMode &&
+            value.findSellers &&
+            budget.text.trim().isEmpty &&
+            plan?.budgetMax != null) {
+          budget.text = plan!.budgetMax!.round().toString();
+        }
+      });
       if (value.results.isEmpty) {
-        notice(findSellers
+        notice(value.findSellers
             ? 'Aucun vendeur suffisamment proche pour le moment.'
             : 'Aucun acheteur suffisamment proche pour le moment.');
       }
@@ -337,28 +355,74 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
 
   Widget buildSearch() {
     final results = discovery?.results ?? const <NexusDiscoveryItem>[];
+    final resolvedFindSellers = discovery?.findSellers ?? findSellers;
     return ListView(
       padding: const EdgeInsets.fromLTRB(14, 8, 14, 120),
       children: [
+        Container(
+          decoration: BoxDecoration(
+            color: smartMode
+                ? const Color(0xFFEAF8F4)
+                : const Color(0xFFF7F8F9),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: smartMode
+                  ? const Color(0xFF8FD3C2)
+                  : Colors.black12,
+            ),
+          ),
+          child: SwitchListTile.adaptive(
+            value: smartMode,
+            onChanged: busy
+                ? null
+                : (value) => setState(() {
+                      smartMode = value;
+                      discovery = null;
+                    }),
+            secondary: Icon(
+              Icons.auto_awesome_rounded,
+              color: smartMode
+                  ? const Color(0xFF08745D)
+                  : Colors.blueGrey,
+            ),
+            title: const Text(
+              'Mode IA automatique',
+              style: TextStyle(fontWeight: FontWeight.w900),
+            ),
+            subtitle: const Text(
+              'WAOUH comprend si vous voulez acheter ou vendre.',
+              style: TextStyle(fontSize: 11),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
               child: _ModeButton(
-                selected: findSellers,
+                selected: !smartMode && findSellers,
                 icon: Icons.storefront_outlined,
-                title: 'Trouver vendeurs',
-                subtitle: 'Acheteur → offre',
-                onTap: () => setState(() => findSellers = true),
+                title: 'Acheter',
+                subtitle: 'Trouver vendeurs',
+                onTap: () => setState(() {
+                  smartMode = false;
+                  findSellers = true;
+                  discovery = null;
+                }),
               ),
             ),
             const SizedBox(width: 8),
             Expanded(
               child: _ModeButton(
-                selected: !findSellers,
+                selected: !smartMode && !findSellers,
                 icon: Icons.groups_2_outlined,
-                title: 'Trouver acheteurs',
-                subtitle: 'Vendeur → demande',
-                onTap: () => setState(() => findSellers = false),
+                title: 'Vendre',
+                subtitle: 'Trouver acheteurs',
+                onTap: () => setState(() {
+                  smartMode = false;
+                  findSellers = false;
+                  discovery = null;
+                }),
               ),
             ),
           ],
@@ -371,9 +435,11 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
           textInputAction: TextInputAction.search,
           onSubmitted: (_) => runSearch(),
           decoration: InputDecoration(
-            hintText: findSellers
-                ? 'Ex. Samsung S25 256 Go neuf'
-                : 'Ex. acheteur pour 10 tonnes de soja',
+            hintText: smartMode
+                ? 'Ex. Je veux un S25 fiable à Cotonou / Je vends 10 tonnes de soja'
+                : findSellers
+                    ? 'Ex. Samsung S25 256 Go neuf'
+                    : 'Ex. acheteur pour 10 tonnes de soja',
             prefixIcon: const Icon(Icons.auto_awesome_rounded),
           ),
         ),
@@ -389,7 +455,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
                 ),
               ),
             ),
-            if (findSellers) ...[
+            if (findSellers || smartMode) ...[
               const SizedBox(width: 8),
               Expanded(
                 child: TextField(
@@ -428,22 +494,33 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
         FilledButton.icon(
           onPressed: busy ? null : runSearch,
           icon: Icon(
-            findSellers
-                ? Icons.travel_explore_rounded
-                : Icons.person_search_rounded,
+            smartMode
+                ? Icons.auto_awesome_rounded
+                : findSellers
+                    ? Icons.travel_explore_rounded
+                    : Icons.person_search_rounded,
           ),
           label: Text(
-            findSellers
-                ? 'Trouver les vendeurs partout'
-                : 'Trouver les acheteurs partout',
+            smartMode
+                ? 'Comprendre et chercher partout'
+                : findSellers
+                    ? 'Trouver les vendeurs partout'
+                    : 'Trouver les acheteurs partout',
           ),
         ),
-        if (findSellers && query.text.trim().isNotEmpty) ...[
+        if (discovery?.intelligence != null) ...[
+          const SizedBox(height: 10),
+          _SmartPlanCard(
+            plan: discovery!.intelligence!,
+            findSellers: resolvedFindSellers,
+          ),
+        ],
+        if (resolvedFindSellers && query.text.trim().isNotEmpty) ...[
           const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: busy ? null : startBuyerAutopilot,
             icon: const Icon(Icons.smart_toy_outlined),
-            label: const Text('Muse : acheter pour moi'),
+            label: const Text('Muse : poursuivre cette recherche'),
           ),
         ],
         if ((discovery?.sourceMix ?? const <String, int>{}).isNotEmpty) ...[
@@ -475,18 +552,28 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
                   : <String, dynamic>{};
               final configured = state['configured'] == true;
               final inserted = (state['inserted'] as num?)?.round() ?? 0;
+              final reason = state['reason']?.toString();
+              final skipped = reason == 'not_selected_by_ai_plan';
               return Chip(
                 avatar: Icon(
-                  configured ? Icons.wifi_rounded : Icons.wifi_off_rounded,
+                  skipped
+                      ? Icons.remove_circle_outline_rounded
+                      : configured
+                          ? Icons.wifi_rounded
+                          : Icons.wifi_off_rounded,
                   size: 15,
-                  color: configured
-                      ? const Color(0xFF08745D)
-                      : Colors.blueGrey,
+                  color: skipped
+                      ? Colors.blueGrey
+                      : configured
+                          ? const Color(0xFF08745D)
+                          : Colors.blueGrey,
                 ),
                 label: Text(
-                  configured
-                      ? sourceLabel(entry.key) + ' +' + inserted.toString()
-                      : sourceLabel(entry.key) + ' · non configuré',
+                  skipped
+                      ? sourceLabel(entry.key) + ' · non nécessaire'
+                      : configured
+                          ? sourceLabel(entry.key) + ' +' + inserted.toString()
+                          : sourceLabel(entry.key) + ' · non configuré',
                   style: const TextStyle(fontSize: 10.5),
                 ),
               );
@@ -496,8 +583,15 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
         if (results.isNotEmpty) ...[
           const SizedBox(height: 14),
           Text(
-            findSellers ? 'Meilleurs vendeurs' : 'Acheteurs compatibles',
+            resolvedFindSellers
+                ? 'Vendeurs et offres compatibles'
+                : 'Acheteurs et demandes compatibles',
             style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+          ),
+          const SizedBox(height: 3),
+          const Text(
+            'Classés par pertinence, confiance, prix, proximité, fraîcheur et contact.',
+            style: TextStyle(fontSize: 11, color: Colors.blueGrey),
           ),
           const SizedBox(height: 8),
           for (final item in results)
@@ -767,6 +861,105 @@ class _Tabs extends StatelessWidget {
             Tab(icon: Icon(Icons.share_rounded), text: 'Partager'),
             Tab(icon: Icon(Icons.explore_outlined), text: 'Scout'),
             Tab(icon: Icon(Icons.hub_outlined), text: 'Sources'),
+          ],
+        ),
+      );
+}
+
+class _SmartPlanCard extends StatelessWidget {
+  const _SmartPlanCard({
+    required this.plan,
+    required this.findSellers,
+  });
+
+  final NexusSmartDiscoveryPlan plan;
+  final bool findSellers;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF4FBF8),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFB9E2D7)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.psychology_alt_outlined,
+                  color: Color(0xFF08745D),
+                  size: 20,
+                ),
+                const SizedBox(width: 7),
+                const Expanded(
+                  child: Text(
+                    'Plan IA NEXUS',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+                _Pill(
+                  'IA ' + (plan.confidence * 100).round().toString() + '%',
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              findSellers
+                  ? 'Acheteur → vendeurs'
+                  : 'Vendeur → acheteurs',
+              style: const TextStyle(
+                color: Color(0xFF08745D),
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            if (plan.normalizedQuery.isNotEmpty) ...[
+              const SizedBox(height: 3),
+              Text(
+                plan.normalizedQuery,
+                style: const TextStyle(fontSize: 12),
+              ),
+            ],
+            if (plan.priorities.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 5,
+                runSpacing: 5,
+                children: plan.priorities
+                    .take(5)
+                    .map((item) => _Pill(item.replaceAll('_', ' ')))
+                    .toList(growable: false),
+              ),
+            ],
+            if (plan.sourceFamilies.isNotEmpty) ...[
+              const SizedBox(height: 7),
+              Text(
+                'Sources : ' +
+                    plan.sourceFamilies.take(7).join(' · ').replaceAll('_', ' '),
+                style: const TextStyle(fontSize: 10.5, color: Colors.blueGrey),
+              ),
+            ],
+            if (plan.nextActions.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              for (var i = 0; i < plan.nextActions.take(3).length; i++)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Text(
+                    (i + 1).toString() + '. ' + plan.nextActions[i],
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                ),
+            ],
+            if (plan.missing.isNotEmpty) ...[
+              const SizedBox(height: 5),
+              Text(
+                'À préciser si utile : ' + plan.missing.join(' · '),
+                style: const TextStyle(fontSize: 10.5, color: Colors.blueGrey),
+              ),
+            ],
           ],
         ),
       );
