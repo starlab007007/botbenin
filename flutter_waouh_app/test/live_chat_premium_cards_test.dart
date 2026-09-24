@@ -174,6 +174,63 @@ void main() {
     expect(selectedPayload, 'acheter');
   });
 
+  testWidgets(
+      'Signal Fabric action-null card uses Contact Layer and no legacy interest',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(430, 980));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final message = LiveMessage(
+      id: 'signal-fabric-buyer',
+      text: 'NEXUS a trouvé une demande acheteur compatible.',
+      createdAt: DateTime.utc(2026, 9, 24, 20),
+      direction: 'out',
+      meta: const {
+        'results': [
+          {
+            'index': 1,
+            'id': 'buyer-profile-1',
+            'fabric_id': 'buyer:11111111-1111-4111-8111-111111111111',
+            'title': 'Recherche 10 tonnes de soja',
+            'intent': 'BUY',
+            'actor_type': 'buyer',
+            'city': 'Parakou',
+            'contactability_level': 'C2',
+            'total_score': 94,
+            'trust_score': 82,
+            'price_score': 91,
+            'reasons': [
+              'Besoin très compatible',
+              'Même zone',
+              'Demande récente',
+            ],
+            'action': null,
+          },
+        ],
+      },
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: LiveSmartTimeline(
+            messages: [message],
+            onPayload: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(ErrorWidget), findsNothing);
+    expect(find.text('👥 Opportunité acheteur'), findsOneWidget);
+    expect(find.text('Match 94%'), findsOneWidget);
+    expect(find.textContaining('Contact privé protégé'), findsOneWidget);
+    expect(find.text('Transmettre via WAOUH'), findsOneWidget);
+    expect(find.text('Je suis intéressé'), findsNothing);
+  });
+
   testWidgets('an invalid temporary image never replaces the timeline',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(430, 850));
