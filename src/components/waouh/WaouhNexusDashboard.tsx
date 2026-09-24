@@ -90,7 +90,7 @@ export function WaouhNexusDashboard({ onAsk }: { onAsk?: (prompt: string) => voi
   const marketText = useMemo(() => {
     const market = searchResult?.market;
     if (!market || market.sample_count === 0) return null;
-    return \`\${market.sample_count} offres comparées · médiane \${moneyXof(market.median)}\`;
+    return `${market.sample_count} offres comparées · médiane ${moneyXof(market.median)}`;
   }, [searchResult]);
 
   const runSearch = async () => {
@@ -139,7 +139,7 @@ export function WaouhNexusDashboard({ onAsk }: { onAsk?: (prompt: string) => voi
   const contactSeller = async (index: number) => {
     const item = searchResult?.results[index];
     if (!item) return;
-    const key = \`interest:\${item.article_id ?? item.catalog_id}\`;
+    const key = `interest:${item.article_id ?? item.catalog_id}`;
     setBusy(key);
     try {
       await expressNexusInterest(item);
@@ -147,7 +147,7 @@ export function WaouhNexusDashboard({ onAsk }: { onAsk?: (prompt: string) => voi
         title: "Vendeur contacté",
         description: "Votre intérêt est enregistré et WAOUH a lancé le parcours de mise en relation.",
       });
-      if (onAsk) onAsk(\`Je veux négocier \${item.title}\${item.price ? \` affiché à \${moneyXof(item.price)}\` : ""}. Conseille-moi une offre raisonnable.\`);
+      if (onAsk) onAsk(`Je veux négocier ${item.title}${item.price ? ` affiché à ${moneyXof(item.price)}` : ""}. Conseille-moi une offre raisonnable.`);
     } catch (error) {
       toast({ title: "Contact impossible", description: err(error), variant: "destructive" });
     } finally {
@@ -171,12 +171,12 @@ export function WaouhNexusDashboard({ onAsk }: { onAsk?: (prompt: string) => voi
   };
 
   const notifyBuyers = async (articleId: string) => {
-    setBusy(\`notify:\${articleId}\`);
+    setBusy(`notify:${articleId}`);
     try {
       const result = await notifyMatchingBuyers(articleId);
       toast({
         title: "Acheteurs compatibles notifiés",
-        description: \`\${result.notified} profil(s) actif(s) ciblé(s).\`,
+        description: `${result.notified} profil(s) actif(s) ciblé(s).`,
       });
     } catch (error) {
       toast({ title: "Notification impossible", description: err(error), variant: "destructive" });
@@ -298,7 +298,7 @@ export function WaouhNexusDashboard({ onAsk }: { onAsk?: (prompt: string) => voi
               <div className="grid gap-3 lg:grid-cols-3">
                 {searchResult.results.map((item, index) => {
                   const image = item.photos?.find((url) => /^https?:\\/\\//i.test(url));
-                  const key = item.article_id ?? item.catalog_id ?? \`\${index}\`;
+                  const key = item.article_id ?? item.catalog_id ?? `${index}`;
                   return (
                     <Card key={key} className="overflow-hidden">
                       {image && <img src={image} alt="" className="h-36 w-full object-cover" loading="lazy" />}
@@ -324,16 +324,16 @@ export function WaouhNexusDashboard({ onAsk }: { onAsk?: (prompt: string) => voi
                         <div className="grid grid-cols-2 gap-2">
                           <Button
                             size="sm"
-                            disabled={busy === \`interest:\${key}\`}
+                            disabled={busy === `interest:${key}`}
                             onClick={() => void contactSeller(index)}
                           >
-                            {busy === \`interest:\${key}\` ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Zap className="mr-1 h-3.5 w-3.5" />}
+                            {busy === `interest:${key}` ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Zap className="mr-1 h-3.5 w-3.5" />}
                             Intéressé
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => onAsk?.(\`Analyse \${item.title} à \${moneyXof(item.price, item.currency)}. Est-ce un bon prix et que dois-je vérifier avant de négocier ?\`)}
+                            onClick={() => onAsk?.(`Analyse ${item.title} à ${moneyXof(item.price, item.currency)}. Est-ce un bon prix et que dois-je vérifier avant de négocier ?`)}
                           >
                             <BrainCircuit className="mr-1 h-3.5 w-3.5" />Conseil IA
                           </Button>
@@ -376,14 +376,14 @@ export function WaouhNexusDashboard({ onAsk }: { onAsk?: (prompt: string) => voi
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <h4 className="font-semibold">{group.article.title}</h4>
-                        <p className="text-sm text-muted-foreground">{moneyXof(group.article.price, group.article.currency)}{group.article.city ? \` · \${group.article.city}\` : ""}</p>
+                        <p className="text-sm text-muted-foreground">{moneyXof(group.article.price, group.article.currency)}{group.article.city ? ` · ${group.article.city}` : ""}</p>
                       </div>
                       <Button
                         size="sm"
-                        disabled={busy === \`notify:\${group.article.id}\` || group.matched_count === 0}
+                        disabled={busy === `notify:${group.article.id}` || group.matched_count === 0}
                         onClick={() => void notifyBuyers(group.article.id)}
                       >
-                        {busy === \`notify:\${group.article.id}\` ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Target className="mr-1 h-3.5 w-3.5" />}
+                        {busy === `notify:${group.article.id}` ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Target className="mr-1 h-3.5 w-3.5" />}
                         Notifier les compatibles
                       </Button>
                     </div>
@@ -394,7 +394,7 @@ export function WaouhNexusDashboard({ onAsk }: { onAsk?: (prompt: string) => voi
                             <div>
                               <div className="text-sm font-medium">{opportunity.query}</div>
                               <div className="mt-1 text-xs text-muted-foreground">
-                                {opportunity.budget_max ? \`Budget max \${moneyXof(opportunity.budget_max)} · \` : ""}
+                                {opportunity.budget_max ? `Budget max ${moneyXof(opportunity.budget_max)} · ` : ""}
                                 {nexusSourceLabel(opportunity.source)}
                               </div>
                             </div>
