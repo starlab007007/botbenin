@@ -14,7 +14,7 @@ import { WaouhCityBadge } from "./WaouhCityBadge";
 import { WaouhTransactionCard } from "./WaouhTransactionCard";
 import { WaouhAuthGate } from "./WaouhAuthGate";
 import { WaouhPaymentDialog } from "./WaouhPaymentDialog";
-import { WaouhQuickActions, type QuickAction } from "./WaouhQuickActions";
+import type { QuickAction } from "./WaouhQuickActions";
 import { WaouhSellWizard } from "./WaouhSellWizard";
 import { ChatImage } from "@/app-mobile/components/ChatImage";
 import { WaouhProductResults, compactResultsText, type WaouhResultCard } from "@/components/waouh/WaouhProductCard";
