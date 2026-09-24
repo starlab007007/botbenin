@@ -9,7 +9,15 @@ on:
       - "supabase/functions/_shared/waouh-tel/**"
       - "supabase/functions/waouh-tel-*/**"
       - "supabase/functions/waouh-native-messaging-settings/**"
-      - "supabase/functions/waouh-webhook/index.ts"\n      - "supabase/functions/waouh-agentic-core/**"\n      - "supabase/migrations/*waouh_agentic_core*.sql"\n      - "supabase/migrations/*secure_waouh_sessions_and_media*.sql"\n      - "src/components/waouh/WaouhAgentCenter.tsx"\n      - "src/components/waouh/WaouhAgentBlocks.tsx"\n      - "src/lib/waouh/agenticClient.ts"\n      - "src/lib/waouh/agenticContracts.ts"\n      - "src/pages/waouh/WaouhMusePage.tsx"
+      - "supabase/functions/waouh-webhook/index.ts"
+      - "supabase/functions/waouh-agentic-core/**"
+      - "supabase/migrations/*waouh_agentic_core*.sql"
+      - "supabase/migrations/*secure_waouh_sessions_and_media*.sql"
+      - "src/components/waouh/WaouhAgentCenter.tsx"
+      - "src/components/waouh/WaouhAgentBlocks.tsx"
+      - "src/lib/waouh/agenticClient.ts"
+      - "src/lib/waouh/agenticContracts.ts"
+      - "src/pages/waouh/WaouhMusePage.tsx"
       - "supabase/migrations/*waouh_native_messaging*.sql"
       - "src/App.tsx"
       - "src/hooks/useAdminRole.ts"
@@ -27,7 +35,15 @@ on:
       - "supabase/functions/_shared/waouh-tel/**"
       - "supabase/functions/waouh-tel-*/**"
       - "supabase/functions/waouh-native-messaging-settings/**"
-      - "supabase/functions/waouh-webhook/index.ts"\n      - "supabase/functions/waouh-agentic-core/**"\n      - "supabase/migrations/*waouh_agentic_core*.sql"\n      - "supabase/migrations/*secure_waouh_sessions_and_media*.sql"\n      - "src/components/waouh/WaouhAgentCenter.tsx"\n      - "src/components/waouh/WaouhAgentBlocks.tsx"\n      - "src/lib/waouh/agenticClient.ts"\n      - "src/lib/waouh/agenticContracts.ts"\n      - "src/pages/waouh/WaouhMusePage.tsx"
+      - "supabase/functions/waouh-webhook/index.ts"
+      - "supabase/functions/waouh-agentic-core/**"
+      - "supabase/migrations/*waouh_agentic_core*.sql"
+      - "supabase/migrations/*secure_waouh_sessions_and_media*.sql"
+      - "src/components/waouh/WaouhAgentCenter.tsx"
+      - "src/components/waouh/WaouhAgentBlocks.tsx"
+      - "src/lib/waouh/agenticClient.ts"
+      - "src/lib/waouh/agenticContracts.ts"
+      - "src/pages/waouh/WaouhMusePage.tsx"
       - "supabase/migrations/*waouh_native_messaging*.sql"
       - "src/App.tsx"
       - "src/hooks/useAdminRole.ts"
@@ -97,6 +113,7 @@ jobs:
             waouh-tel-room
             waouh-native-messaging-settings
             waouh-webhook
+            waouh-agentic-core
           )
           for function_name in "${required_functions[@]}"; do
             test -f "supabase/functions/${function_name}/index.ts" || {
@@ -137,7 +154,7 @@ jobs:
               for path in Path('supabase/functions').iterdir()
               if path.is_dir() and path.name.startswith('waouh-tel-')
           )
-          functions.extend(['waouh-native-messaging-settings', 'waouh-webhook'])
+          functions.extend(['waouh-native-messaging-settings', 'waouh-webhook', 'waouh-agentic-core'])
 
           errors = []
           function_config = config.get('functions', {})
@@ -166,7 +183,8 @@ jobs:
               \( -path '*/waouh-tel-*/*' -o -path '*/waouh-native-messaging-settings/*' \) \
               -print | sort
           )
-          entrypoints+=(supabase/functions/waouh-webhook/index.ts)\n          entrypoints+=(supabase/functions/waouh-agentic-core/index.ts)
+          entrypoints+=(supabase/functions/waouh-webhook/index.ts)
+          entrypoints+=(supabase/functions/waouh-agentic-core/index.ts)
           if [ "${#entrypoints[@]}" -eq 0 ]; then
             echo '::error::Aucun point d’entrée Native Messaging à vérifier.'
             exit 1
@@ -202,9 +220,9 @@ jobs:
           import sys
           from pglast import parse_sql
 
-          migrations = sorted(Path('supabase/migrations').glob('*waouh_native_messaging*.sql'))
+          migrations = sorted(set(Path('supabase/migrations').glob('*waouh_native_messaging*.sql')) | set(Path('supabase/migrations').glob('*waouh_agentic_core*.sql')) | set(Path('supabase/migrations').glob('*secure_waouh_sessions_and_media*.sql')))
           if not migrations:
-              print('::error::Migration WAOUH Native Messaging introuvable.')
+              print('::error::Migrations WAOUH Muse/Native Messaging introuvables.')
               sys.exit(1)
 
           forbidden = re.compile(
@@ -319,7 +337,8 @@ jobs:
               \( -name 'waouh-tel-*' -o -name 'waouh-native-messaging-settings' \) \
               -printf '%f\n' | sort
           )
-          functions+=(waouh-webhook)\n          functions+=(waouh-agentic-core)
+          functions+=(waouh-webhook)
+          functions+=(waouh-agentic-core)
           if [ "${#functions[@]}" -eq 0 ]; then
             echo '::error::Aucune Edge Function Native Messaging à déployer.'
             exit 1
