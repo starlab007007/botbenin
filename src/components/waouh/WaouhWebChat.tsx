@@ -657,8 +657,8 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           <div className="flex items-center gap-2 min-w-0">
             <MessageCircle className="w-5 h-5 shrink-0" />
             <div className="min-w-0">
-              <div className="font-semibold leading-tight truncate">WAOUH</div>
-              <div className="text-xs opacity-90 truncate">Achetez · Vendez · Négociez · Payez</div>
+              <div className="font-semibold leading-tight truncate">WAOUH Commerce Agent</div>
+              <div className="text-xs opacity-90 truncate">Muse · NEXUS · Signal Fabric</div>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
