@@ -190,7 +190,9 @@ export function WaouhGlobalDiscoveryPanel() {
       });
       toast({
         title: "Contact WAOUH mis en file",
-        description: `${sent.channel} · contact …${sent.phone_last4 ?? ""}`,
+        description: sent.blind
+          ? "Proposition transmise dans WAOUH sans révéler les coordonnées privées."
+          : `${sent.channel} · contact …${sent.phone_last4 ?? ""}`,
       });
     } catch (error) {
       toast({ title: "Envoi non autorisé ou indisponible", description: errorText(error), variant: "destructive" });
@@ -334,11 +336,12 @@ export function WaouhGlobalDiscoveryPanel() {
                     </Button>
                   ))}
                 </div>
-                {contact.contact_policy.can_auto_contact && (
+                {(contact.contact_policy.can_auto_contact || contact.contact_policy.can_blind_message) && (
                   <div className="mt-3 space-y-2">
                     <Textarea value={contactMessage} onChange={(event) => setContactMessage(event.target.value)} rows={3} />
                     <Button size="sm" disabled={busy || !contactMessage.trim()} onClick={() => void sendWithWaouh()}>
-                      <Send className="mr-1 h-3.5 w-3.5" />WAOUH contacte maintenant
+                      <Send className="mr-1 h-3.5 w-3.5" />
+                      {contact.contact_policy.can_blind_message ? "Transmettre sans révéler les contacts" : "WAOUH contacte maintenant"}
                     </Button>
                   </div>
                 )}
