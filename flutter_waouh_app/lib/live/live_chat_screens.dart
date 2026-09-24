@@ -624,7 +624,9 @@ class _LiveConversationScreenState extends State<LiveConversationScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
       appBar: const LiveHeader(
-          title: 'Discussion', subtitle: 'Conversation produit', back: true),
+          title: 'WAOUH One',
+          subtitle: 'Conversation directe · Contact protégé',
+          back: true),
       body: Column(children: [
         Expanded(
             child: StreamBuilder<List<LiveMessage>>(
@@ -637,21 +639,40 @@ class _LiveConversationScreenState extends State<LiveConversationScreen> {
                     emptyMessage: 'Commencez la discussion.'))),
         SafeArea(
             top: false,
-            child: Row(children: [
-              Expanded(
-                  child: TextField(
-                      controller: composer,
-                      focusNode: focus,
-                      minLines: 1,
-                      maxLines: 4,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _send(),
-                      decoration:
-                          const InputDecoration(hintText: 'Votre réponse...'))),
-              IconButton(
-                  tooltip: 'Envoyer',
-                  onPressed: _send,
-                  icon: const Icon(Icons.send_rounded))
-            ])),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                border: Border(top: BorderSide(color: Color(0xFFE1E9E6))),
+              ),
+              padding: const EdgeInsets.fromLTRB(8, 7, 8, 9),
+              child: Row(children: [
+                Expanded(
+                    child: TextField(
+                        controller: composer,
+                        focusNode: focus,
+                        minLines: 1,
+                        maxLines: 4,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _send(),
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: const Color(0xFFF5F8F7),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: BorderSide.none,
+                          ),
+                          hintText: 'Votre réponse…',
+                        ))),
+                const SizedBox(width: 6),
+                FilledButton(
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size(48, 48),
+                      padding: EdgeInsets.zero,
+                      backgroundColor: const Color(0xFF08745D),
+                    ),
+                    onPressed: _send,
+                    child: const Icon(Icons.send_rounded))
+              ]),
+            )),
       ]));
 }
