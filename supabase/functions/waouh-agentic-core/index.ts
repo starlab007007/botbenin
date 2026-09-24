@@ -1736,6 +1736,7 @@ Indice utilisateur: ${hint ?? "aucun"}`,
           "nexus_signal_not_found",
         );
         const policy = contactabilityPolicy(signal.contactability_level);
+        const canBlindMessage = policy.level === "C2" && !!signal.submitted_by && signal.submitted_by !== ownerId;
         const contacts: any[] = [];
         if (policy.can_reveal && signal.entity_id) {
           const { data, error } = await sb.from("waouh_entity_contacts").select("*")
@@ -1772,13 +1773,15 @@ Indice utilisateur: ${hint ?? "aucun"}`,
           source_url: signal.source_url,
           actor_name: signal.actor_name,
           product_name: signal.product_name,
-          contact_policy: policy,
+          contact_policy: { ...policy, can_blind_message: canBlindMessage },
           contacts,
           note: policy.level === "C0"
             ? "Le signal peut être utilisé pour la découverte, mais WAOUH ne révèle ni ne sollicite automatiquement ce contact."
             : policy.level === "C1"
               ? "Coordonnée professionnelle publique : l’utilisateur peut initier lui-même le contact."
-              : "Contact utilisable selon le consentement et les règles du canal.",
+              : canBlindMessage
+                ? "WAOUH peut transmettre une proposition sans révéler les coordonnées privées de l’acheteur."
+                : "Contact utilisable uniquement dans son contexte autorisé.",
         } });
       }
 
@@ -1792,10 +1795,59 @@ Indice utilisateur: ${hint ?? "aucun"}`,
           "nexus_signal_not_found",
         );
         const signalPolicy = contactabilityPolicy(signal.contactability_level);
+        const message = asString(payload.message, "message", 5, 1000);
+
+        if (signalPolicy.level === "C2") {
+          if (!signal.submitted_by || signal.submitted_by === ownerId) {
+            throw new ApiError(403, "blind_contact_not_available");
+          }
+          const approval = await queryOne<any>(
+            sb.from("waouh_agent_approvals").insert({
+              owner_id: signal.submitted_by,
+              action_type: "send_message",
+              action_summary: "Un utilisateur WAOUH souhaite répondre à votre demande commerciale.",
+              context: {
+                operation: "nexus.blind_message",
+                signal_id: signalId,
+                from_auth_user: ownerId,
+                message,
+                product_name: signal.product_name,
+                source_key: signal.source_key,
+              },
+              status: "pending",
+              expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            }).select("*").single(),
+            "nexus_blind_approval_create_failed",
+          );
+          await enqueue(
+            sb,
+            signal.submitted_by,
+            "nexus.blind_message_requested",
+            "approval",
+            approval.id,
+            { approval_id: approval.id, signal_id: signalId },
+            `nexus.blind:${signalId}:${ownerId}:${approval.id}`,
+          );
+          await audit(sb, ownerId, "nexus.blind_message.sent", "commerce_signal", signalId, {
+            recipient_auth_user: signal.submitted_by,
+            approval_id: approval.id,
+          });
+          await audit(sb, signal.submitted_by, "nexus.blind_message.received", "approval", approval.id, {
+            signal_id: signalId,
+          });
+          return jsonResponse({ ok: true, data: {
+            queued: true,
+            blind: true,
+            approval_id: approval.id,
+            channel: "waouh",
+            contactability_level: "C2",
+            phone_last4: null,
+          } }, 202);
+        }
+
         if (!signalPolicy.can_auto_contact || !["C3","C4"].includes(signalPolicy.level)) {
           throw new ApiError(403, "automated_contact_not_permitted");
         }
-        const message = asString(payload.message, "message", 5, 1000);
         if (!signal.entity_id) throw new ApiError(404, "contact_not_found");
         const { data: contacts, error: contactsError } = await sb.from("waouh_entity_contacts")
           .select("*").eq("entity_id", signal.entity_id)
