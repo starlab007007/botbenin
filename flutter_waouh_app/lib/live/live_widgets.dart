@@ -1653,7 +1653,13 @@ class _PremiumProductCard extends StatelessWidget {
   final bool topPick;
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) {
+    final hasIntegratedInterest = product.actions.any(
+      (action) =>
+          liveCommerceActionKind(action.payload) ==
+          LiveCommerceActionKind.interest,
+    );
+    return Container(
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
             color: Colors.white,
@@ -1928,7 +1934,7 @@ class _PremiumProductCard extends StatelessWidget {
                     );
                   }).toList(),
                 ),
-              if (product.fabricId != null) ...[
+              if (product.fabricId != null && !hasIntegratedInterest) ...[
                 const SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,
@@ -1979,6 +1985,7 @@ class _PremiumProductCard extends StatelessWidget {
           ),
         ]),
       );
+  }
 }
 
 
