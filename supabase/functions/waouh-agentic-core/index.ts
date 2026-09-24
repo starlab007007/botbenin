@@ -953,7 +953,7 @@ Deno.serve(async (req: Request) => {
             status: "active",
             origin: String(row.source ?? "partner"),
             source_channel: String(row.source ?? "partner"),
-            updated_at: new Date().toISOString(),
+            updated_at: row.updated_at ?? null,
             seller: { display_name: row.vendeur_nom ?? "Partenaire WAOUH", is_verified: row.source === "partner" },
           };
           const scores = rankArticle({ query: queryText, budgetMax, budgetMin, city: requestedCity, article, weights });
