@@ -1,0 +1,352 @@
+name: Validate and deploy WAOUH Native Messaging
+
+on:
+  pull_request:
+    branches:
+      - prod
+    paths:
+      - "supabase/config.toml"
+      - "supabase/functions/_shared/waouh-tel/**"
+      - "supabase/functions/waouh-tel-*/**"
+      - "supabase/functions/waouh-native-messaging-settings/**"
+      - "supabase/functions/waouh-webhook/index.ts"
+      - "supabase/migrations/*waouh_native_messaging*.sql"
+      - "src/App.tsx"
+      - "src/hooks/useAdminRole.ts"
+      - "src/lib/waouh/nativeMessagingSettings.ts"
+      - "src/lib/waouh/__tests__/native-messaging-settings.test.ts"
+      - "src/pages/admin/AdminWaouhNativeMessagingPage.tsx"
+      - "src/pages/waouh/WaouhNativeMessagingPublicPage.tsx"
+      - "src/pages/waouh/WaouhPage.tsx"
+      - ".github/workflows/deploy-waouh-native-messaging.yml"
+  push:
+    branches:
+      - prod
+    paths:
+      - "supabase/config.toml"
+      - "supabase/functions/_shared/waouh-tel/**"
+      - "supabase/functions/waouh-tel-*/**"
+      - "supabase/functions/waouh-native-messaging-settings/**"
+      - "supabase/functions/waouh-webhook/index.ts"
+      - "supabase/migrations/*waouh_native_messaging*.sql"
+      - "src/App.tsx"
+      - "src/hooks/useAdminRole.ts"
+      - "src/lib/waouh/nativeMessagingSettings.ts"
+      - "src/lib/waouh/__tests__/native-messaging-settings.test.ts"
+      - "src/pages/admin/AdminWaouhNativeMessagingPage.tsx"
+      - "src/pages/waouh/WaouhNativeMessagingPublicPage.tsx"
+      - "src/pages/waouh/WaouhPage.tsx"
+      - ".github/workflows/deploy-waouh-native-messaging.yml"
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Déployer la migration et les Edge Functions après validation"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: waouh-native-messaging-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SUPABASE_CLI_VERSION: "2.117.0"
+
+jobs:
+  validate:
+    name: Validate Native Messaging
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install web dependencies
+        run: |
+          npm ci --legacy-peer-deps --no-audit --no-fund || \
+            npm install --legacy-peer-deps --no-audit --no-fund
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Inventory Native Messaging sources
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -d supabase/functions/_shared/waouh-tel
+
+          required_functions=(
+            waouh-tel-ingress
+            waouh-tel-dispatch
+            waouh-tel-receipts
+            waouh-tel-open-messages
+            waouh-tel-invite
+            waouh-tel-command
+            waouh-tel-room
+            waouh-native-messaging-settings
+            waouh-webhook
+          )
+          for function_name in "${required_functions[@]}"; do
+            test -f "supabase/functions/${function_name}/index.ts" || {
+              echo "::error::Edge Function requise manquante : ${function_name}."
+              exit 1
+            }
+          done
+
+          mapfile -t tel_functions < <(
+            find supabase/functions -mindepth 1 -maxdepth 1 -type d -name 'waouh-tel-*' -printf '%f\n' | sort
+          )
+          if [ "${#tel_functions[@]}" -eq 0 ]; then
+            echo '::error::Aucune Edge Function waouh-tel-* trouvée.'
+            exit 1
+          fi
+
+          for function_name in "${tel_functions[@]}" waouh-native-messaging-settings waouh-webhook; do
+            test -f "supabase/functions/${function_name}/index.ts" || {
+              echo "::error::Point d'entrée manquant pour ${function_name}."
+              exit 1
+            }
+            echo "✅ Source trouvée : ${function_name}"
+          done
+
+      - name: Validate verify-jwt configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+          import tomllib
+
+          config_path = Path('supabase/config.toml')
+          config = tomllib.loads(config_path.read_text(encoding='utf-8'))
+          functions = sorted(
+              path.name
+              for path in Path('supabase/functions').iterdir()
+              if path.is_dir() and path.name.startswith('waouh-tel-')
+          )
+          functions.extend(['waouh-native-messaging-settings', 'waouh-webhook'])
+
+          errors = []
+          function_config = config.get('functions', {})
+          for name in functions:
+              settings = function_config.get(name)
+              if not isinstance(settings, dict):
+                  errors.append(f'{name}: section [functions.{name}] absente')
+                  continue
+              if not isinstance(settings.get('verify_jwt'), bool):
+                  errors.append(f'{name}: verify_jwt doit être explicitement true ou false')
+                  continue
+              print(f"✅ {name}: verify_jwt={str(settings['verify_jwt']).lower()}")
+
+          if errors:
+              for error in errors:
+                  print(f'::error::{error}')
+              sys.exit(1)
+          PY
+
+      - name: Type-check Native Messaging Edge Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t entrypoints < <(
+            find supabase/functions -mindepth 2 -maxdepth 2 -type f -name index.ts \
+              \( -path '*/waouh-tel-*/*' -o -path '*/waouh-native-messaging-settings/*' \) \
+              -print | sort
+          )
+          entrypoints+=(supabase/functions/waouh-webhook/index.ts)
+          if [ "${#entrypoints[@]}" -eq 0 ]; then
+            echo '::error::Aucun point d’entrée Native Messaging à vérifier.'
+            exit 1
+          fi
+          deno check --no-config "${entrypoints[@]}"
+          echo "✅ ${#entrypoints[@]} Edge Function(s) validée(s) par Deno"
+
+      - name: Test Native Messaging transport contracts
+        run: deno test --no-config supabase/functions/_shared/waouh-tel/waouh_tel_pure_test.ts
+
+      - name: Validate Native Messaging web integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx vitest run src/lib/waouh/__tests__/native-messaging-settings.test.ts --maxWorkers=1
+          npx eslint \
+            src/hooks/useAdminRole.ts \
+            src/lib/waouh/nativeMessagingSettings.ts \
+            src/lib/waouh/__tests__/native-messaging-settings.test.ts \
+            src/pages/admin/AdminWaouhNativeMessagingPage.tsx \
+            src/pages/waouh/WaouhNativeMessagingPublicPage.tsx
+          npx tsc --noEmit
+          npm run build
+
+      - name: Validate Native Messaging migration without applying it
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --no-input 'pglast==8.4'
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          import sys
+          from pglast import parse_sql
+
+          migrations = sorted(Path('supabase/migrations').glob('*waouh_native_messaging*.sql'))
+          if not migrations:
+              print('::error::Migration WAOUH Native Messaging introuvable.')
+              sys.exit(1)
+
+          forbidden = re.compile(
+              r'\b(?:drop\s+database|drop\s+schema|truncate\s+table|alter\s+system|copy\b[\s\S]*?\bprogram)\b',
+              re.IGNORECASE,
+          )
+          for path in migrations:
+              sql = path.read_text(encoding='utf-8')
+              sanitized = re.sub(r'/\*.*?\*/|--[^\r\n]*', ' ', sql, flags=re.DOTALL)
+              if forbidden.search(sanitized):
+                  print(f'::error file={path}::Instruction SQL destructive interdite.')
+                  sys.exit(1)
+              try:
+                  statements = parse_sql(sql)
+              except Exception as exc:
+                  print(f'::error file={path}::SQL invalide : {exc}')
+                  sys.exit(1)
+              if not statements:
+                  print(f'::error file={path}::Migration SQL vide.')
+                  sys.exit(1)
+              print(f'✅ {path}: {len(statements)} instruction(s) analysée(s), aucune exécutée')
+          PY
+
+  deploy:
+    name: Deploy Native Messaging to production
+    needs: validate
+    if: >-
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.deploy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF || secrets.SUPABASE_PROJECT_REF }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Check deployment credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -n "${SUPABASE_ACCESS_TOKEN:-}" ] || missing+=(SUPABASE_ACCESS_TOKEN)
+          [ -n "${SUPABASE_DB_PASSWORD:-}" ] || missing+=(SUPABASE_DB_PASSWORD)
+
+          if [ -z "${SUPABASE_PROJECT_REF:-}" ]; then
+            SUPABASE_PROJECT_REF=$(python - <<'PY'
+          import tomllib
+
+          with open('supabase/config.toml', 'rb') as config_file:
+              print(tomllib.load(config_file).get('project_id', ''))
+          PY
+            )
+            if [ -n "$SUPABASE_PROJECT_REF" ]; then
+              echo "SUPABASE_PROJECT_REF=$SUPABASE_PROJECT_REF" >> "$GITHUB_ENV"
+              echo 'ℹ️ SUPABASE_PROJECT_REF chargé depuis supabase/config.toml.'
+            fi
+          fi
+          [ -n "${SUPABASE_PROJECT_REF:-}" ] || missing+=(SUPABASE_PROJECT_REF)
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Déploiement annulé : secret/variable GitHub manquant(e) : ${missing[*]}."
+            echo 'Ajoutez SUPABASE_ACCESS_TOKEN et SUPABASE_DB_PASSWORD aux secrets de l’environnement production. SUPABASE_PROJECT_REF peut être une variable GitHub; sinon project_id de supabase/config.toml est utilisé.'
+            exit 1
+          fi
+          echo '✅ Identifiants Supabase présents; aucune valeur secrète ne sera affichée.'
+
+      - name: Link production project
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase link \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --password "$SUPABASE_DB_PASSWORD"
+          echo '✅ Projet Supabase de production lié.'
+
+      - name: Preview pending database migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '🔎 Simulation non destructive des migrations distantes...'
+          supabase db push \
+            --linked \
+            --password "$SUPABASE_DB_PASSWORD" \
+            --dry-run
+          echo '✅ Simulation terminée; aucune migration appliquée pendant cette étape.'
+
+      - name: Apply pending database migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db push \
+            --linked \
+            --password "$SUPABASE_DB_PASSWORD" \
+            --yes
+          echo '✅ Migrations Supabase de production appliquées.'
+
+      - name: Deploy Native Messaging Edge Functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t functions < <(
+            find supabase/functions -mindepth 1 -maxdepth 1 -type d \
+              \( -name 'waouh-tel-*' -o -name 'waouh-native-messaging-settings' \) \
+              -printf '%f\n' | sort
+          )
+          functions+=(waouh-webhook)
+          if [ "${#functions[@]}" -eq 0 ]; then
+            echo '::error::Aucune Edge Function Native Messaging à déployer.'
+            exit 1
+          fi
+
+          for function_name in "${functions[@]}"; do
+            verify_jwt=$(python - "$function_name" <<'PY'
+          import sys
+          import tomllib
+
+          with open('supabase/config.toml', 'rb') as config_file:
+              config = tomllib.load(config_file)
+          value = config['functions'][sys.argv[1]]['verify_jwt']
+          print('true' if value else 'false')
+          PY
+            )
+
+            deploy_args=(
+              functions deploy "$function_name"
+              --project-ref "$SUPABASE_PROJECT_REF"
+              --use-api
+            )
+            if [ "$verify_jwt" = 'false' ]; then
+              deploy_args+=(--no-verify-jwt)
+            fi
+
+            echo "🚀 Déploiement ${function_name} (verify_jwt=${verify_jwt})..."
+            supabase "${deploy_args[@]}"
+          done
+          echo "✅ ${#functions[@]} Edge Function(s) Native Messaging déployée(s)."
