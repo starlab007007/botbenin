@@ -46,7 +46,7 @@ const sourceLabel = (key?: string | null) => {
     sms_rcs: "SMS/RCS",
     ussd: "USSD",
   };
-  return labels[value] ?? value || "Source";
+  return labels[value] ?? (value || "Source");
 };
 
 const stateLabel = (source: NexusDiscoverySource) => {
