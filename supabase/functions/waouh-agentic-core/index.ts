@@ -1682,20 +1682,60 @@ Indice utilisateur: ${hint ?? "aucun"}`,
           ["share_to_waouh","b2b_rfq"] as const,
           "share_to_waouh",
         );
-        const rawText = asString(payload.raw_text, "raw_text", 2, 20_000);
         const originSurface = optionalString(payload.origin_surface, "origin_surface", 80);
         const sourceUrl = safeUrl(payload.source_url, "source_url");
+        const imageUrl = safeUrl(payload.image_url, "image_url");
+        let rawText = optionalString(payload.raw_text, "raw_text", 20_000) ?? "";
+        let visualExtraction: Record<string, unknown> | null = null;
+
+        if (imageUrl) {
+          const imageHost = new URL(imageUrl).hostname;
+          const storageHost = new URL(supabaseUrl).hostname;
+          if (imageHost !== storageHost) throw new ApiError(422, "untrusted_image_host");
+          try {
+            const visualRaw = await visionCompletion({
+              imageUrl,
+              jsonMode: true,
+              temperature: 0.05,
+              prompt: `Analyse cette capture/photo comme un signal commercial au Bénin.
+Retourne uniquement JSON:
+{transcription,intent,actor_name,actor_handle,product_name,category,brand,model,condition,quantity,unit,price_min,price_max,city,phones,emails,availability,confidence}.
+- intent parmi BUY, SELL, ANNOUNCE, RFQ, UNKNOWN.
+- Extrais seulement les coordonnées réellement visibles.
+- Montants numériques en FCFA quand identifiable.
+- N'invente rien.`,
+            });
+            visualExtraction = JSON.parse(visualRaw);
+            const transcription = typeof visualExtraction?.transcription === "string" ? visualExtraction.transcription : "";
+            rawText = [rawText, transcription, JSON.stringify(visualExtraction)].filter(Boolean).join("\n").slice(0, 20_000);
+          } catch (error) {
+            console.warn("[waouh-global-discovery] visual share fallback", error instanceof Error ? error.message : error);
+            if (!rawText && !sourceUrl) throw new ApiError(502, "shared_image_analysis_failed");
+          }
+        }
+
+        if (!rawText && !sourceUrl) throw new ApiError(422, "signal_content_required");
+        const visualPhones = Array.isArray(visualExtraction?.phones)
+          ? visualExtraction!.phones.filter((v): v is string => typeof v === "string")
+          : [];
+        const visualEmails = Array.isArray(visualExtraction?.emails)
+          ? visualExtraction!.emails.filter((v): v is string => typeof v === "string")
+          : [];
         const signalInput: JsonObject = {
           ...payload,
           source_key: sourceKey,
           raw_text: rawText,
           source_url: sourceUrl,
+          contact_phones: [...stringArray(payload.contact_phones, "contact_phones", 5), ...visualPhones].slice(0, 5),
+          contact_emails: [...stringArray(payload.contact_emails, "contact_emails", 5), ...visualEmails].slice(0, 5),
           contact_consent_basis: sourceKey === "b2b_rfq" ? "initiated" : "shared_by_user",
           public_business: false,
           evidence: {
             ...jsonObject(payload.evidence, "evidence"),
             origin_surface: originSurface,
             user_shared: true,
+            image_url: imageUrl,
+            visual_extraction: visualExtraction,
           },
         };
         const result = await ingestCommerceSignal(
