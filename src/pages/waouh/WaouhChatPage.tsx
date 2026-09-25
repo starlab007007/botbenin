@@ -48,10 +48,10 @@ function getSessionId() {
 }
 
 const QUICK_ACTIONS = [
-  { icon: ShoppingBag, title: "Vendre", desc: "Décrivez l’offre, Muse cherche des acheteurs." },
+  { icon: ShoppingBag, title: "Vendre", desc: "Décrivez l’offre, votre Avatar cherche des acheteurs." },
   { icon: Search, title: "Acheter", desc: "Décrivez le besoin, NEXUS cherche les vendeurs." },
   { icon: Handshake, title: "Négocier", desc: "La Deal Room garde un seul fil par opportunité." },
-  { icon: BrainCircuit, title: "Muse", desc: "Un seul assistant pilote tout le parcours." },
+  { icon: BrainCircuit, title: "Avatar", desc: "Votre assistant personnel pilote tout le parcours." },
 ];
 
 const EXAMPLES = [
@@ -246,7 +246,7 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
               <button
                 type="button"
                 className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl px-1 py-1 text-left transition hover:bg-slate-50"
-                aria-label="Ouvrir l’activité de Muse"
+                aria-label="Ouvrir l’activité de l’Avatar"
               >
                 <WaouhMuseAvatar
                   mode={resolvedDealState?.active ? (resolvedDealState.role === "seller" ? "seller" : "buyer") : agentState.mode}
@@ -262,7 +262,7 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
                   </div>
                   <div className="truncate text-[10px] font-semibold text-slate-500">
                     {resolvedDealState?.active
-                      ? resolvedDealState.closed ? "Deal conclu" : "Deal Room · Muse accompagne"
+                      ? resolvedDealState.closed ? "Deal conclu" : "Deal Room · Avatar accompagne"
                       : PRESENCE_PHASE_LABEL[agentState.phase]}
                   </div>
                 </div>
