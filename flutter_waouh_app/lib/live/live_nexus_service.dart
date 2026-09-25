@@ -36,6 +36,9 @@ class NexusScore {
     required this.relevance,
     required this.trust,
     required this.contactability,
+    this.price = 0,
+    this.location = 0,
+    this.freshness = 0,
     this.reasons = const [],
   });
 
@@ -43,6 +46,9 @@ class NexusScore {
   final double relevance;
   final double trust;
   final double contactability;
+  final double price;
+  final double location;
+  final double freshness;
   final List<String> reasons;
 
   factory NexusScore.fromJson(Map<String, dynamic> json) => NexusScore(
@@ -50,6 +56,9 @@ class NexusScore {
         relevance: _number(json['relevance_score']),
         trust: _number(json['trust_score']),
         contactability: _number(json['contactability_score']),
+        price: _number(json['price_score']),
+        location: _number(json['location_score']),
+        freshness: _number(json['freshness_score']),
         reasons: _list(json['reasons'])
             .map(_text)
             .where((value) => value.trim().isNotEmpty)
@@ -100,6 +109,11 @@ class NexusDiscoveryItem {
     this.priceMax,
     this.currency = 'XOF',
     this.sourceUrl,
+    this.articleId,
+    this.catalogId,
+    this.sellerUserId,
+    this.buyerUserId,
+    this.evidence = const <String, dynamic>{},
   });
 
   final String fabricId;
@@ -113,12 +127,133 @@ class NexusDiscoveryItem {
   final double? priceMax;
   final String currency;
   final String? sourceUrl;
+  final String? articleId;
+  final String? catalogId;
+  final String? sellerUserId;
+  final String? buyerUserId;
+  final Map<String, dynamic> evidence;
   final NexusScore scores;
   final NexusContactPolicy contactPolicy;
+
+  bool get internalArticle =>
+      articleId?.trim().isNotEmpty == true &&
+      sellerUserId?.trim().isNotEmpty == true;
+
+  String? _evidenceText(List<String> keys) {
+    for (final key in keys) {
+      final value = evidence[key];
+      if (value == null) continue;
+      final text = value.toString().trim();
+      if (text.isNotEmpty && text != 'null') return text;
+    }
+    return null;
+  }
+
+  List<String> get photoUrls {
+    final out = <String>{};
+    final photos = evidence['photos'];
+    if (photos is List) {
+      for (final value in photos) {
+        final text = value?.toString().trim() ?? '';
+        if (text.startsWith('http://') || text.startsWith('https://')) {
+          out.add(text);
+        }
+      }
+    }
+    for (final key in ['image_url', 'photo', 'thumbnail']) {
+      final text = evidence[key]?.toString().trim() ?? '';
+      if (text.startsWith('http://') || text.startsWith('https://')) {
+        out.add(text);
+      }
+    }
+    return out.take(4).toList(growable: false);
+  }
+
+  String get detailsSummary =>
+      _evidenceText(['details', 'description', 'summary', 'raw_text']) ??
+      [
+        if (category?.trim().isNotEmpty == true) 'Catégorie : $category',
+        if (city?.trim().isNotEmpty == true) 'Zone : $city',
+        if (_evidenceText(['condition', 'etat']) != null)
+          'État : ${_evidenceText(['condition', 'etat'])}',
+      ].where((value) => value.trim().isNotEmpty).join(' · ').trim();
+
+  String get marketSummary {
+    final explicit = _evidenceText([
+      'market_comparison',
+      'market_line',
+      'marche_reel',
+      'market_analysis',
+    ]);
+    if (explicit != null) return explicit;
+    final facts = <String>[
+      if (priceMin != null || priceMax != null)
+        'prix observé ${priceMin != null && priceMax != null && priceMin != priceMax ? '${priceMin!.round()}–${priceMax!.round()}' : (priceMin ?? priceMax)!.round()} FCFA',
+      if (scores.price > 0) 'score prix ${scores.price.round()}%',
+      if (scores.contactability > 0)
+        'contactabilité ${scores.contactability.round()}%',
+      'source $sourceLabel',
+    ];
+    return facts.join(' · ');
+  }
+
+  String get comparativeSummary {
+    final explicit = _evidenceText([
+      'comparative_analysis',
+      'analyse_comparative',
+      'deal_label',
+    ]);
+    if (explicit != null) return explicit;
+    final facts = <String>[
+      if (scores.total > 0) 'match ${scores.total.round()}%',
+      if (scores.relevance > 0) 'pertinence ${scores.relevance.round()}%',
+      if (scores.trust > 0) 'confiance ${scores.trust.round()}%',
+      'contact ${contactPolicy.level}',
+    ];
+    return 'Signal Fabric · ${facts.join(' · ')}';
+  }
+
+  String get recommendationSummary {
+    final explicit = _evidenceText([
+      'recommendation',
+      'recommandation',
+      'advice',
+      'conseil',
+      'ai_note',
+    ]);
+    if (explicit != null) return explicit;
+    if (scores.reasons.isNotEmpty) return scores.reasons.take(3).join(' · ');
+    final facts = <String>[
+      if (scores.trust >= 70) 'Confiance élevée',
+      if (scores.price >= 70) 'Prix cohérent avec les signaux disponibles',
+      if (contactPolicy.canBlindMessage || contactPolicy.canAutoContact)
+        'Mise en relation médiée possible',
+    ];
+    return facts.isEmpty
+        ? 'Vérifier disponibilité, état et conditions avant l’accord.'
+        : facts.join(' · ');
+  }
+
+  String get sourceLabel {
+    final key = sourceKey.toLowerCase();
+    if (key.contains('partner')) return 'Partenaire';
+    if (key.contains('radar')) return 'Radar';
+    if (key.contains('whatsapp')) return 'WhatsApp';
+    if (key.contains('facebook')) return 'Facebook';
+    if (key.contains('google')) return 'Google';
+    if (key.contains('status')) return 'Statut';
+    if (key.contains('agent')) return 'Agent IA';
+    return 'NEXUS';
+  }
 
   factory NexusDiscoveryItem.fromJson(Map<String, dynamic> json) {
     final minRaw = json['price_min'];
     final maxRaw = json['price_max'];
+    final evidence = _map(json['evidence']);
+    String? optionalId(dynamic value) {
+      final text = _text(value).trim();
+      return text.isEmpty || text == 'null' ? null : text;
+    }
     return NexusDiscoveryItem(
       fabricId: _text(json['fabric_id']),
       sourceKey: _text(json['source_key'], 'waouh_app'),
@@ -134,6 +269,22 @@ class NexusDiscoveryItem {
       priceMax: maxRaw == null ? null : _number(maxRaw),
       currency: _text(json['currency'], 'XOF'),
       sourceUrl: json['source_url'] == null ? null : _text(json['source_url']),
+      articleId: optionalId(
+        json['article_id'] ??
+            evidence['article_id'] ??
+            (json['source_key'] == 'waouh_app' ? json['source_record_id'] : null),
+      ),
+      catalogId: optionalId(json['catalog_id'] ?? evidence['catalog_id']),
+      sellerUserId: optionalId(
+        json['seller_user_id'] ??
+            evidence['seller_user_id'] ??
+            evidence['owner_user_id'] ??
+            evidence['user_id'],
+      ),
+      buyerUserId: optionalId(
+        json['buyer_user_id'] ?? evidence['buyer_user_id'],
+      ),
+      evidence: evidence,
       scores: NexusScore.fromJson(_map(json['scores'])),
       contactPolicy:
           NexusContactPolicy.fromJson(_map(json['contact_policy'])),

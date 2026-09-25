@@ -37,7 +37,7 @@ export const WaouhDealPaymentDialog: React.FC<{
         <DialogHeader>
           <DialogTitle>💵 Confirmer le paiement</DialogTitle>
           <DialogDescription>
-            Le livreur WAOUH vous a remis le colis{amount ? ` (${amount.toLocaleString("fr-FR")} FCFA)` : ""}. Indiquez le moyen utilisé pour régler la course.
+            L’article ou la prestation a été remis{amount ? ` (${amount.toLocaleString("fr-FR")} FCFA)` : ""}. Confirmez le moyen réellement utilisé pour le paiement.
           </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 gap-3 py-2">
@@ -50,7 +50,7 @@ export const WaouhDealPaymentDialog: React.FC<{
             {loading === "cash" ? <Loader2 className="w-5 h-5 animate-spin" /> : <Banknote className="w-5 h-5 text-emerald-600" />}
             <div className="text-left">
               <div className="font-semibold">Espèces</div>
-              <div className="text-xs text-muted-foreground">J'ai payé le livreur en cash</div>
+              <div className="text-xs text-muted-foreground">Paiement effectué en espèces à la remise</div>
             </div>
           </Button>
           <Button
@@ -62,7 +62,7 @@ export const WaouhDealPaymentDialog: React.FC<{
             {loading === "mobile_money" ? <Loader2 className="w-5 h-5 animate-spin" /> : <Smartphone className="w-5 h-5 text-amber-600" />}
             <div className="text-left">
               <div className="font-semibold">Mobile Money</div>
-              <div className="text-xs text-muted-foreground">MTN / Moov / Orange Money</div>
+              <div className="text-xs text-muted-foreground">Mobile Money utilisé lors de la remise / livraison</div>
             </div>
           </Button>
         </div>

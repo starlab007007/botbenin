@@ -75,7 +75,7 @@ const navigationSections: NavigationSection[] = [
   {
     title: 'Agents IA',
     items: [
-      { label: 'Muse', to: '/app/muse', icon: BrainCircuit, accent: 'ai' },
+      { label: 'Avatar', to: '/app/avatar', icon: Sparkles, accent: 'ai' },
       { label: 'Missions & veille', to: '/app/missions', icon: Workflow, accent: 'ai' },
       { label: 'Bots', to: '/app/bots', icon: Bot, brick: 'bots', accent: 'ai' },
       { label: 'Agents IA', to: '/app/agents', icon: Sparkles, brick: 'agents', accent: 'ai' },
@@ -139,12 +139,12 @@ const routeContext = (pathname: string) => {
       prompt: 'Ouvrir les missions',
     };
   }
-  if (pathname.startsWith('/app/muse')) {
+  if (pathname.startsWith('/app/avatar') || pathname.startsWith('/app/muse')) {
     return {
       eyebrow: 'Intelligence commerciale',
-      title: 'WAOUH Muse',
-      description: 'Acheter, vendre, rechercher, comparer et piloter des missions avec NEXUS.',
-      prompt: 'Ouvrir Muse',
+      title: 'WAOUH Avatar',
+      description: 'Votre Avatar recherche, compare, contacte sous contrôle et conduit les deals avec NEXUS.',
+      prompt: 'Ouvrir mon Avatar',
     };
   }
   if (pathname.startsWith('/app/chat')) {
