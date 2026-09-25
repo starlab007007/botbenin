@@ -418,9 +418,38 @@ Deno.serve(async (req) => {
         console.log("[neg-router] deal déjà créé en parallèle, court-circuit", { neg_id: neg.id });
         return new Response(JSON.stringify({
           ok: true,
-          reply: "✅ Accord déjà enregistré. Un livreur WAOUH est en route.",
+          reply: "✅ Accord déjà enregistré. WAOUH poursuit le parcours de livraison.",
           intent: "deal_already_accepted",
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      if (dealErr) {
+        const reason = String((dealErr as any)?.message || "");
+        const unavailable = /article_(?:reserved|sold)/i.test(reason);
+        if (unavailable) {
+          await sb.from("waouh_negotiations").update({
+            state: "closed",
+            closed_at: new Date().toISOString(),
+          }).eq("id", neg.id);
+          await bindThreadState(sb, activeThreadId, {
+            status: "waiting_availability",
+            negotiation_id: neg.id,
+          });
+          return new Response(JSON.stringify({
+            ok: false,
+            code: "article_unavailable",
+            reply: "⏳ Cet article vient d’être réservé par un autre acheteur. Votre Deal Room reste dans l’historique et WAOUH pourra vous reproposer une alternative.",
+            intent: "article_unavailable",
+            workflow_state: "waiting_availability",
+            negotiation_id: neg.id,
+            thread_id: activeThreadId,
+            article_id: neg.article_id,
+            actions: [],
+          }), {
+            status: 409,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        throw dealErr;
       }
 
       // Réserver l'article pendant le paiement. Il ne devient vendu qu'après
