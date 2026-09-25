@@ -356,6 +356,36 @@ export default function RadarApiConfigPanel() {
     await load();
   };
 
+  const collectNow = async (provider: ProviderId) => {
+    const d = draft[provider];
+    const query = String(d?.values?.default_query || "commerce").trim() || "commerce";
+    const city = String(d?.values?.city || "").trim() || undefined;
+    setBusy(`${provider}:collect`);
+    try {
+      const result = await syncNexusSource({
+        provider,
+        query,
+        city,
+        mode: "find_sellers",
+        limit: 15,
+      });
+      if (result.push_mode) {
+        toast.success(provider === "whatsapp_groups"
+          ? `Collecte temps réel active · ${result.active_group_count ?? 0} groupe(s) autorisé(s)`
+          : "Canal entrant actif : collecte à la réception");
+      } else if (!result.configured) {
+        toast.error(result.reason || "Connecteur à configurer");
+      } else {
+        toast.success(`${result.inserted ?? 0} signal(aux) intégré(s) dans NEXUS`);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Collecte NEXUS impossible");
+    } finally {
+      setBusy(null);
+      await load();
+    }
+  };
+
   return (
     <Card className="p-4 border-cyan-500/25">
       <div className="flex items-start justify-between gap-3 flex-wrap">
