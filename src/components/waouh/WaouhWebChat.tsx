@@ -695,7 +695,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         />
       )}
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2 waouh-chat-bg min-h-0">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-1.5 sm:space-y-2 waouh-chat-bg min-h-0">
         {hasMore && (
           <div ref={topSentinelRef} className="flex items-center justify-center py-2 text-xs text-muted-foreground">
             {loadingOlder ? <Loader2 className="w-3 h-3 animate-spin" /> : "↑ Charger plus d'historique"}
@@ -740,10 +740,10 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                 className={cn(
                   "chat-bubble min-w-0",
                   m.direction === "in"
-                    ? "chat-bubble-out max-w-[82%]"
+                    ? "chat-bubble-out max-w-[90%] sm:max-w-[86%]"
                     : rich.results.length > 0 || rich.blocks.length > 0
                       ? "chat-bubble-in waouh-bot-bubble w-full max-w-[860px] rounded-3xl border-slate-200 bg-white/95 p-3 shadow-sm"
-                      : "chat-bubble-in waouh-bot-bubble max-w-[88%] rounded-3xl border-slate-200 bg-white/95 shadow-sm"
+                      : "chat-bubble-in waouh-bot-bubble max-w-[92%] sm:max-w-[88%] rounded-3xl border-slate-200 bg-white/95 shadow-sm"
                 )}
               >
                 {m.direction === "out" && (
@@ -763,7 +763,8 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                         caption={a.caption || undefined}
                         gallery={m.attachments!.map((x) => ({ url: x.url, caption: x.caption || undefined }))}
                         index={i}
-                        className="aspect-square border border-border"
+                        className={cn("border border-border", m.attachments.length === 1 ? "max-h-[64dvh] bg-black/[0.03]" : "aspect-square")}
+                        imgClassName={m.attachments.length === 1 ? "max-h-[64dvh] object-contain" : "object-cover"}
                       />
                     ))}
                   </div>
@@ -894,7 +895,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
 
       <form
         onSubmit={(e) => { e.preventDefault(); send(); }}
-        className="flex items-end gap-2 p-2 border-t bg-background shrink-0"
+        className="flex items-end gap-2 p-1.5 sm:p-2 border-t bg-background shrink-0"
       >
         <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFiles(e.target.files)} />
         <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
