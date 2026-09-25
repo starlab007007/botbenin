@@ -11,6 +11,7 @@ import 'brand_mark.dart';
 import 'live_models.dart';
 import 'live_theme.dart';
 import 'live_nexus_service.dart';
+import 'live_product_intelligence.dart';
 import 'live_commerce_workflow.dart';
 import 'live_commerce_agent_ui.dart';
 import 'live_thread_flow.dart';
@@ -1981,35 +1982,7 @@ class _PremiumProductCard extends StatelessWidget {
                 ]),
               ],
               const SizedBox(height: 9),
-              _PremiumInformationPanel(
-                  icon: Icons.description_outlined,
-                  title: 'Détails',
-                  text: product.displayDetails),
-              const SizedBox(height: 9),
-              _PremiumInformationPanel(
-                  icon: Icons.bar_chart_rounded,
-                  title: 'Marché réel',
-                  text: product.displayMarketComparison,
-                  accent: const Color(0xFF08745D),
-                  background: const Color(0xFFEAF8F2)),
-              const SizedBox(height: 8),
-              _PremiumInformationPanel(
-                  icon: Icons.compare_arrows_rounded,
-                  title: 'Analyse comparative',
-                  text: product.displayComparativeAnalysis,
-                  accent: const Color(0xFF42658B),
-                  background: const Color(0xFFF1F5FB)),
-              const SizedBox(height: 8),
-              _PremiumInformationPanel(
-                  icon: Icons.lightbulb_outline_rounded,
-                  title: product.reasons.isNotEmpty
-                      ? 'Pourquoi WAOUH le recommande'
-                      : 'Recommandation WAOUH',
-                  text: product.reasons.isNotEmpty
-                      ? product.reasons.join(' · ')
-                      : product.displayRecommendation,
-                  accent: const Color(0xFF8B6500),
-                  background: const Color(0xFFFFF8E6)),
+              _PremiumProductIntelligencePanels(product: product),
               const SizedBox(height: 9),
               Row(children: [
                 Icon(
@@ -2465,6 +2438,171 @@ String _watchProductPayload(_PremiumProduct product) {
     if (product.images.isNotEmpty) 'image_url': product.images.first.url,
   };
   return 'waouh:watch?${Uri(queryParameters: params).query}';
+}
+
+class _PremiumProductIntelligencePanels extends StatefulWidget {
+  const _PremiumProductIntelligencePanels({required this.product});
+  final _PremiumProduct product;
+
+  @override
+  State<_PremiumProductIntelligencePanels> createState() =>
+      _PremiumProductIntelligencePanelsState();
+}
+
+class _PremiumProductIntelligencePanelsState
+    extends State<_PremiumProductIntelligencePanels> {
+  static final Map<String, Future<LiveProductIntelligence?>>
+      _requestCache = <String, Future<LiveProductIntelligence?>>{};
+
+  Future<LiveProductIntelligence?>? _future;
+
+  bool get _hasInternalArticleId {
+    final id = widget.product.id?.trim() ?? '';
+    return RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+    ).hasMatch(id);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _bind();
+  }
+
+  @override
+  void didUpdateWidget(covariant _PremiumProductIntelligencePanels oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.product.id != widget.product.id) _bind();
+  }
+
+  void _bind() {
+    final id = widget.product.id?.trim() ?? '';
+    if (!_hasInternalArticleId || id.isEmpty) {
+      _future = null;
+      return;
+    }
+    _future = _requestCache.putIfAbsent(
+      id,
+      () => LiveProductIntelligenceService(legacy.supabase).load(id),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_future == null) {
+      return _PremiumIntelligenceBody(
+        product: widget.product,
+        intelligence: null,
+      );
+    }
+
+    return FutureBuilder<LiveProductIntelligence?>(
+      future: _future,
+      builder: (_, snapshot) => _PremiumIntelligenceBody(
+        product: widget.product,
+        intelligence: snapshot.data,
+        loading: snapshot.connectionState == ConnectionState.waiting,
+      ),
+    );
+  }
+}
+
+class _PremiumIntelligenceBody extends StatelessWidget {
+  const _PremiumIntelligenceBody({
+    required this.product,
+    required this.intelligence,
+    this.loading = false,
+  });
+
+  final _PremiumProduct product;
+  final LiveProductIntelligence? intelligence;
+  final bool loading;
+
+  String _value(String remote, String fallback) =>
+      remote.trim().isEmpty ? fallback : remote.trim();
+
+  @override
+  Widget build(BuildContext context) {
+    final value = intelligence;
+    final details = _value(value?.details ?? '', product.displayDetails);
+    final market =
+        _value(value?.market ?? '', product.displayMarketComparison);
+    final comparison =
+        _value(value?.comparison ?? '', product.displayComparativeAnalysis);
+    final recommendation = _value(
+      value?.recommendation ?? '',
+      product.reasons.isNotEmpty
+          ? product.reasons.join(' · ')
+          : product.displayRecommendation,
+    );
+
+    return Column(
+      children: [
+        _PremiumInformationPanel(
+          icon: Icons.description_outlined,
+          title: 'Détails',
+          text: details,
+        ),
+        const SizedBox(height: 9),
+        _PremiumInformationPanel(
+          icon: Icons.bar_chart_rounded,
+          title: 'Marché réel',
+          text: market,
+          accent: const Color(0xFF08745D),
+          background: const Color(0xFFEAF8F2),
+        ),
+        const SizedBox(height: 8),
+        _PremiumInformationPanel(
+          icon: Icons.compare_arrows_rounded,
+          title: 'Analyse comparative',
+          text: comparison,
+          accent: const Color(0xFF42658B),
+          background: const Color(0xFFF1F5FB),
+        ),
+        const SizedBox(height: 8),
+        _PremiumInformationPanel(
+          icon: Icons.lightbulb_outline_rounded,
+          title: 'Pourquoi WAOUH le recommande',
+          text: recommendation,
+          accent: const Color(0xFF8B6500),
+          background: const Color(0xFFFFF8E6),
+        ),
+        if (loading || value != null) ...[
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              if (loading)
+                const SizedBox.square(
+                  dimension: 11,
+                  child: CircularProgressIndicator(strokeWidth: 1.5),
+                )
+              else
+                const Icon(
+                  Icons.verified_outlined,
+                  size: 13,
+                  color: Color(0xFF60746E),
+                ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  loading
+                      ? 'Avatar analyse les sources WAOUH…'
+                      : 'Analyse réelle · ${value!.sampleCount} référence(s) · ${value.sources.join(' · ')}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF71877E),
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
 }
 
 class _PremiumInformationPanel extends StatelessWidget {
