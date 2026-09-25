@@ -46,6 +46,10 @@ export interface WaouhResultCard {
   source?: "partner" | "waouh" | "radar" | "chat" | string;
   badge?: string | null;
   market_line?: string | null;
+  market_comparison?: string | null;
+  comparative_analysis?: string | null;
+  recommendation?: string | null;
+  intelligence_provenance?: Record<string, unknown> | null;
   photos?: string[] | null;
   /**
    * undefined = générer automatiquement « intéressé N ».
@@ -109,6 +113,41 @@ const isBuyerOpportunity = (result: WaouhResultCard): boolean => {
   const intent = String(result.intent || (result.evidence as any)?.intent || "").toUpperCase();
   const actor = String(result.actor_type || (result.evidence as any)?.actor_type || "").toLowerCase();
   return intent === "BUY" || intent === "RFQ" || actor === "buyer";
+};
+
+const marketIntelligence = (result: WaouhResultCard) => {
+  const score = metric(result, "total_score");
+  const trust = metric(result, "trust_score");
+  const price = metric(result, "price_score");
+  const location = metric(result, "location_score");
+  const freshness = metric(result, "freshness_score");
+  const level = contactLevel(result);
+  const reasons = resultReasons(result);
+  const intelligence = marketIntelligence(result);
+  const source = String(result.source || (result.intelligence_provenance as any)?.source || "NEXUS");
+
+  return {
+    market:
+      result.market_comparison ||
+      result.market_line ||
+      [
+        price != null ? `score prix ${Math.round(price)}%` : null,
+        location != null ? `zone ${Math.round(location)}%` : null,
+        freshness != null ? `fraîcheur ${Math.round(freshness)}%` : null,
+        `source ${source}`,
+      ].filter(Boolean).join(" · "),
+    comparison:
+      result.comparative_analysis ||
+      [
+        score != null ? `match ${Math.round(score)}%` : null,
+        trust != null ? `confiance ${Math.round(trust)}%` : null,
+        level ? `contact ${level}` : null,
+      ].filter(Boolean).join(" · "),
+    recommendation:
+      result.recommendation ||
+      reasons.join(" · ") ||
+      "Vérifier disponibilité, état et conditions avant de confirmer.",
+  };
 };
 
 function priceLabel(r: WaouhResultCard): string {
@@ -347,14 +386,22 @@ export function WaouhProductCard({
           </div>
         )}
 
-        {reasons.length > 0 && (
+        <div className="grid gap-1.5 sm:grid-cols-3">
           <div className="rounded-xl border border-emerald-100 bg-emerald-50/55 px-2.5 py-2">
-            <div className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-emerald-800">
+            <div className="mb-1 text-[9px] font-black uppercase tracking-wide text-emerald-800">Marché réel</div>
+            <div className="text-[10px] leading-snug text-emerald-950">{intelligence.market || "Signal marché en cours d’enrichissement."}</div>
+          </div>
+          <div className="rounded-xl border border-blue-100 bg-blue-50/55 px-2.5 py-2">
+            <div className="mb-1 text-[9px] font-black uppercase tracking-wide text-blue-800">Analyse comparative</div>
+            <div className="text-[10px] leading-snug text-blue-950">{intelligence.comparison || "Signal comparatif en cours d’enrichissement."}</div>
+          </div>
+          <div className="rounded-xl border border-amber-100 bg-amber-50/65 px-2.5 py-2">
+            <div className="mb-1 flex items-center gap-1 text-[9px] font-black uppercase tracking-wide text-amber-800">
               <Bot className="h-3 w-3" /> Pourquoi WAOUH le recommande
             </div>
-            <div className="text-[11px] leading-snug text-emerald-950">{reasons.join(" · ")}</div>
+            <div className="text-[10px] leading-snug text-amber-950">{intelligence.recommendation}</div>
           </div>
-        )}
+        </div>
 
         <div className="flex flex-wrap gap-1 text-[11px] text-muted-foreground">
           {(result.city || result.quartier) && (
@@ -390,7 +437,7 @@ export function WaouhProductCard({
                   : level === "C2"
                     ? "Transmettre mon intérêt via WAOUH"
                     : level === "C3" || level === "C4"
-                      ? "Laisser Muse poursuivre"
+                      ? "Laisser l’Avatar poursuivre"
                       : "Je suis intéressé"}
               </Button>
             )}
