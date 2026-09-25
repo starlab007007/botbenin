@@ -2799,15 +2799,20 @@ Retourne uniquement JSON:
       }
 
       case "nexus.sources": {
-        const [providers, articleSources, buyerSources, radar, registry, fabricRows] = await Promise.all([
+        const [
+          providers, articleSources, buyerSources, radar, registry, fabricRows,
+          telSettings, telRuntime,
+        ] = await Promise.all([
           sb.from("waouh_radar_api_configs")
-            .select("provider,active,daily_quota,usage_today,last_test_at,last_test_status")
+            .select("provider,source_key,label,auth_mode,active,daily_quota,usage_today,last_test_at,last_test_status,last_sync_at,last_sync_status")
             .order("provider"),
           sb.from("waouh_articles").select("source_channel,status").eq("status", "active").limit(2000),
           sb.from("waouh_buyer_profiles").select("source_channel,is_active").eq("is_active", true).limit(3000),
           sb.from("waouh_radar_signals").select("source_type,intent,contact_phone,status").limit(3000),
           sb.from("waouh_discovery_sources").select("*").order("family").order("label"),
           sb.from("waouh_signal_fabric").select("source_key,intent,contactability_level").limit(5000),
+          sb.from("waouh_tel_settings").select("enabled,provider,sms_enabled,rcs_enabled").eq("key","default").maybeSingle(),
+          sb.rpc("waouh_tel_runtime_readiness"),
         ]);
         for (const result of [providers, articleSources, buyerSources, radar, registry, fabricRows]) {
           if ((result as any).error) throw new ApiError(500, "nexus_sources_failed", (result as any).error.message);
@@ -2818,25 +2823,50 @@ Retourne uniquement JSON:
           return acc;
         }, {});
         const providerMap = new Map((providers.data ?? []).map((row: any) => [String(row.provider), row]));
-        const serpReady = await getRadarApiKey(sb as any, "serpapi", "SERPAPI_KEY");
-        const apifyReady = await getRadarApiKey(sb as any, "apify", "APIFY_TOKEN");
-        const googlePlacesReady = !!(Deno.env.get("GOOGLE_PLACES_API_KEY") || Deno.env.get("GOOGLE_MAPS_API_KEY"));
+        const sourceProviderMap = new Map((providers.data ?? []).map((row: any) => [String(row.source_key ?? row.provider), row]));
+        const envByProvider: Record<string, string | undefined> = {
+          serpapi: "SERPAPI_KEY",
+          apify: "APIFY_TOKEN",
+          google_places: "GOOGLE_PLACES_API_KEY",
+        };
+        const readyEntries = await Promise.all(
+          (providers.data ?? []).map(async (row: any) => {
+            const provider = String(row.provider);
+            const state = await getRadarApiKey(sb as any, provider, envByProvider[provider]);
+            let ok = state.ok;
+            let reason = state.reason ?? null;
+            if (provider === "whatsapp_groups") {
+              ok = row.active === true && !!Deno.env.get("WAHA_BASE_URL");
+              reason = ok ? null : "waha_not_configured_or_disabled";
+            }
+            if (provider === "sms_rcs") {
+              ok = telSettings.data?.enabled === true && telRuntime.data?.runtime_ready === true;
+              reason = ok ? null : "native_sms_rcs_not_ready";
+            }
+            return [provider, { ok, reason }] as const;
+          }),
+        );
+        const readiness = new Map(readyEntries);
         const sourceRegistry = (registry.data ?? []).map((row: any) => {
           let effectiveState = row.operational_state;
           let configured = ["live","ingest_only"].includes(row.operational_state);
           let reason: string | null = null;
-          if (row.source_key === "serpapi") {
-            configured = serpReady.ok;
-            effectiveState = serpReady.ok ? "live" : "requires_config";
-            reason = serpReady.ok ? null : (serpReady.reason ?? "not_configured");
-          } else if (row.source_key === "apify") {
-            configured = apifyReady.ok;
-            effectiveState = apifyReady.ok ? "live" : "requires_config";
-            reason = apifyReady.ok ? null : (apifyReady.reason ?? "not_configured");
-          } else if (row.source_key === "google_places") {
-            configured = googlePlacesReady;
-            effectiveState = googlePlacesReady ? "live" : "requires_config";
-            reason = googlePlacesReady ? null : "google_places_key_missing";
+          const providerRow = sourceProviderMap.get(String(row.source_key));
+          if (providerRow) {
+            const state = readiness.get(String(providerRow.provider));
+            configured = state?.ok === true;
+            effectiveState = configured ? "live" : "requires_config";
+            reason = configured ? null : (state?.reason ?? "not_configured");
+          } else if (row.source_key === "web_social") {
+            const serp = readiness.get("serpapi")?.ok === true;
+            const apify = readiness.get("apify")?.ok === true;
+            configured = serp || apify;
+            effectiveState = configured ? "live" : "requires_config";
+            reason = configured ? null : "serpapi_or_apify_required";
+          } else if (row.source_key === "sms_rcs") {
+            configured = telSettings.data?.enabled === true && telRuntime.data?.runtime_ready === true;
+            effectiveState = configured ? "live" : "requires_config";
+            reason = configured ? null : "native_sms_rcs_not_ready";
           }
           return {
             source_key: row.source_key,
@@ -2858,12 +2888,18 @@ Retourne uniquement JSON:
         return jsonResponse({ ok: true, data: {
           providers: (providers.data ?? []).map((row: any) => ({
             provider: row.provider,
+            source_key: row.source_key,
+            label: row.label,
+            auth_mode: row.auth_mode,
             active: row.active,
             daily_quota: row.daily_quota,
             usage_today: row.usage_today,
             last_test_at: row.last_test_at,
             last_test_status: row.last_test_status,
-            configured: row.provider === "serpapi" ? serpReady.ok : row.provider === "apify" ? apifyReady.ok : row.active,
+            last_sync_at: row.last_sync_at,
+            last_sync_status: row.last_sync_status,
+            configured: readiness.get(String(row.provider))?.ok === true,
+            reason: readiness.get(String(row.provider))?.reason ?? null,
           })),
           registry: sourceRegistry,
           fabric: {
@@ -2879,7 +2915,11 @@ Retourne uniquement JSON:
             intents: countBy(radar.data, "intent"),
             contacts_ready: (radar.data ?? []).filter((row: any) => !!row.contact_phone).length,
           },
-          google_places: { configured: googlePlacesReady },
+          google_places: { configured: readiness.get("google_places")?.ok === true },
+          sms_rcs: {
+            configured: telSettings.data?.enabled === true && telRuntime.data?.runtime_ready === true,
+            settings: telSettings.data ?? null,
+          },
           source_provider_map: Object.fromEntries(providerMap),
         } });
       }
