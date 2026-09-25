@@ -100,6 +100,9 @@ class NexusDiscoveryItem {
     this.priceMax,
     this.currency = 'XOF',
     this.sourceUrl,
+    this.photos = const [],
+    this.contactDetected = false,
+    this.whatsappDetected = false,
   });
 
   final String fabricId;
@@ -113,12 +116,30 @@ class NexusDiscoveryItem {
   final double? priceMax;
   final String currency;
   final String? sourceUrl;
+  final List<String> photos;
+  final bool contactDetected;
+  final bool whatsappDetected;
   final NexusScore scores;
   final NexusContactPolicy contactPolicy;
 
   factory NexusDiscoveryItem.fromJson(Map<String, dynamic> json) {
     final minRaw = json['price_min'];
     final maxRaw = json['price_max'];
+    final evidence = _map(json['evidence']);
+    final hints = _map(evidence['contact_hints']);
+    final rawPhotos = _list(evidence['photos']);
+    final photos = <String>{
+      ...rawPhotos.map(_text).where((value) => value.startsWith('http')),
+      if (_text(evidence['image_url']).startsWith('http'))
+        _text(evidence['image_url']),
+      if (_text(evidence['thumbnail']).startsWith('http'))
+        _text(evidence['thumbnail']),
+    }.toList(growable: false);
+    final whatsappDetected =
+        _number(hints['whatsapp_verified_count']) > 0;
+    final contactDetected = whatsappDetected ||
+        _number(hints['phone_count']) > 0 ||
+        _text(evidence['contact_last4']).isNotEmpty;
     return NexusDiscoveryItem(
       fabricId: _text(json['fabric_id']),
       sourceKey: _text(json['source_key'], 'waouh_app'),
@@ -134,6 +155,9 @@ class NexusDiscoveryItem {
       priceMax: maxRaw == null ? null : _number(maxRaw),
       currency: _text(json['currency'], 'XOF'),
       sourceUrl: json['source_url'] == null ? null : _text(json['source_url']),
+      photos: photos,
+      contactDetected: contactDetected,
+      whatsappDetected: whatsappDetected,
       scores: NexusScore.fromJson(_map(json['scores'])),
       contactPolicy:
           NexusContactPolicy.fromJson(_map(json['contact_policy'])),
