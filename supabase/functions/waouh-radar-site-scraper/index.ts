@@ -5,6 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getRadarApiKey, incrementRadarUsage, markRadarProviderSync } from "../_shared/radar-api-config.ts";
+import { normalizeE164 } from "../_shared/waouh-tel/phone.ts";
 
 function sourceDue(source: any, now = Date.now()) {
   if (!source?.last_scan_at) return true;
@@ -17,7 +19,7 @@ function sourceDue(source: any, now = Date.now()) {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
-const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY") || "";
+let FIRECRAWL_API_KEY = "";
 
 async function firecrawlScrape(url: string): Promise<{ markdown?: string; links?: string[] }> {
   const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
@@ -38,7 +40,7 @@ async function aiExtractListings(markdown: string): Promise<any[]> {
     body: JSON.stringify({
       model: "google/gemini-2.5-flash-lite",
       messages: [
-        { role: "system", content: "Analyse une page d'annonces (Bénin). Retourne JSON {items: [{intent: SELL|BUY, title, price (number FCFA, null si absent), category, city, contact_phone (229XXXXXXXX si visible), url, confidence (0-1)}...]}. Maximum 20 items. Ignore tout ce qui n'est pas une annonce de vente/recherche." },
+        { role: "system", content: "Analyse une page publique d'annonces, achats, ventes ou services au Bénin. Retourne JSON {items: [{intent: SELL|BUY|ANNOUNCE, title, price (number FCFA, null si absent), category, city, contact_phone (+22901XXXXXXXX si visible), whatsapp_phone (+22901XXXXXXXX seulement si explicitement indiqué WhatsApp/wa.me), photo_urls: [URL publiques], url, confidence (0-1)}...]}. Maximum 20 items. N'invente jamais un contact ni une photo." },
         { role: "user", content: markdown.slice(0, 8000) },
       ],
       response_format: { type: "json_object" },
@@ -53,15 +55,16 @@ async function aiExtractListings(markdown: string): Promise<any[]> {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (!FIRECRAWL_API_KEY) {
-    return new Response(JSON.stringify({ ok: false, error: "FIRECRAWL_API_KEY missing" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   try {
+    const key = await getRadarApiKey(sb, "firecrawl", "FIRECRAWL_API_KEY");
+    if (!key.ok || !key.key) {
+      return new Response(JSON.stringify({ ok: false, skipped: true, reason: key.reason || "firecrawl_not_ready" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    FIRECRAWL_API_KEY = key.key;
     const { data: sources } = await sb
       .from("waouh_radar_sources")
       .select("*")
@@ -84,6 +87,7 @@ Deno.serve(async (req) => {
       try {
         console.log(`[site-scraper] scraping ${src.identifier}`);
         const { markdown } = await firecrawlScrape(src.identifier);
+        await incrementRadarUsage(sb, key.configId, 1);
         if (!markdown) {
           srcError = "no markdown";
         } else {
@@ -93,19 +97,29 @@ Deno.serve(async (req) => {
           for (const it of items.slice(0, 20)) {
             if (!it || (it.confidence ?? 0) < 0.4) continue;
             const url = it.url || `${src.identifier}#${encodeURIComponent((it.title || "").slice(0, 60))}`;
+            const normalizedPhone = normalizeE164(it.whatsapp_phone || it.contact_phone);
+            const photoUrls = (Array.isArray(it.photo_urls) ? it.photo_urls : [])
+              .map((value: unknown) => String(value || "").trim())
+              .filter((value: string) => /^https?:\/\//i.test(value))
+              .slice(0, 8);
             // Idempotence via unique index (source_type, raw_url)
             const { error: insErr } = await sb.from("waouh_radar_signals").insert({
               source_id: src.id,
               source_type: "site",
               raw_text: `${it.title || ""}\nPrix: ${it.price ?? "?"}\nVille: ${it.city ?? "?"}`,
               raw_url: url,
-              raw_payload: it,
+              raw_payload: { ...it, normalized_phone: normalizedPhone, photos: photoUrls },
               intent: it.intent || "UNKNOWN",
-              product: it,
+              product: {
+                ...it,
+                photos: photoUrls,
+                image_url: photoUrls[0] ?? null,
+                whatsapp_detected: !!it.whatsapp_phone,
+              },
               category: it.category,
               price: it.price ?? null,
               city: it.city,
-              contact_phone: it.contact_phone,
+              contact_phone: normalizedPhone,
               confidence: it.confidence,
               status: "extracted",
             });
@@ -135,6 +149,12 @@ Deno.serve(async (req) => {
       }).catch(console.error);
     }
 
+    await markRadarProviderSync(
+      sb,
+      "firecrawl",
+      total > 0 ? "ok" : "skipped",
+      `${total} signaux · ${dueSources.length} site(s) parcouru(s)`,
+    );
     return new Response(JSON.stringify({ ok: true, sources: sources.length, due: dueSources.length, signals: total, perSource }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
