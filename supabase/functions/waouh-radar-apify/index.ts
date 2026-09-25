@@ -5,7 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { getRadarApiKey, incrementRadarUsage } from "../_shared/radar-api-config.ts";
+import { getRadarApiKey, incrementRadarUsage, markRadarProviderSync } from "../_shared/radar-api-config.ts";
+import { normalizeE164 } from "../_shared/waouh-tel/phone.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -14,7 +15,7 @@ let APIFY_TOKEN = "";
 let APIFY_CFG_ID: string | undefined;
 
 // Apify REST: actorId format is `username~actor-name` in URLs
-const ACTORS = {
+const DEFAULT_ACTORS = {
   fb_marketplace: "apify~facebook-marketplace-scraper",
   fb_group: "apify~facebook-groups-scraper",
 };
@@ -28,6 +29,20 @@ async function runActor(actor: string, input: any) {
   });
   if (!r.ok) throw new Error(`Apify ${actor} ${r.status}: ${await r.text()}`);
   return await r.json();
+}
+
+function itemPhotos(item: any): string[] {
+  const raw = [
+    item?.image, item?.imageUrl, item?.thumbnail, item?.full_picture,
+    ...(Array.isArray(item?.images) ? item.images : []),
+    ...(Array.isArray(item?.photos) ? item.photos : []),
+  ];
+  const out = new Set<string>();
+  for (const value of raw) {
+    const url = typeof value === "string" ? value : value?.url || value?.src;
+    if (typeof url === "string" && /^https?:\/\//i.test(url)) out.add(url);
+  }
+  return [...out].slice(0, 8);
 }
 
 async function aiExtract(text: string): Promise<any> {
@@ -60,6 +75,11 @@ Deno.serve(async (req) => {
     }
     APIFY_TOKEN = keyRes.key!;
     APIFY_CFG_ID = keyRes.configId;
+    const providerExtra = keyRes.config?.extra_config || {};
+    const actors = {
+      fb_marketplace: String((providerExtra as any).fb_marketplace_actor || DEFAULT_ACTORS.fb_marketplace),
+      fb_group: String((providerExtra as any).fb_group_actor || DEFAULT_ACTORS.fb_group),
+    };
 
     // Get active sources
     const { data: sources } = await sb.from("waouh_radar_sources").select("*").eq("active", true).in("type", ["fb_marketplace", "fb_group"]);
@@ -73,7 +93,7 @@ Deno.serve(async (req) => {
       let srcCount = 0;
       let srcError: string | null = null;
       try {
-        const actor = ACTORS[src.type as "fb_marketplace" | "fb_group"];
+        const actor = actors[src.type as "fb_marketplace" | "fb_group"];
         const input = src.type === "fb_marketplace"
           ? { search: src.identifier, country: "BJ", maxItems: 30 }
           : { startUrls: [{ url: src.identifier }], maxPosts: 30 };
@@ -94,6 +114,10 @@ Deno.serve(async (req) => {
           const ext = await aiExtract(text);
           if (!ext || (ext.confidence ?? 0) < 0.4) continue;
 
+          const photos = itemPhotos(it);
+          const phone = normalizeE164(
+            ext.contact_phone ?? it.phone ?? it.sellerPhone ?? it.user?.phone,
+          );
           await sb.from("waouh_radar_signals").insert({
             source_id: src.id,
             source_type: src.type,
@@ -101,12 +125,17 @@ Deno.serve(async (req) => {
             raw_url: url,
             raw_payload: it,
             intent: ext.intent || "UNKNOWN",
-            product: ext,
+            product: {
+              ...ext,
+              title: ext.title || it.title || null,
+              photos,
+              image_url: photos[0] ?? null,
+            },
             category: ext.category,
             price: ext.price,
             city: ext.city,
-            contact_phone: ext.contact_phone,
-            contact_handle: ext.contact_handle || it.user?.name,
+            contact_phone: phone,
+            contact_handle: ext.contact_handle || it.user?.name || it.seller?.name,
             confidence: ext.confidence,
             status: "extracted",
           });
@@ -131,6 +160,7 @@ Deno.serve(async (req) => {
       }).catch(console.error);
     }
 
+    await markRadarProviderSync(sb, "apify", total > 0 ? "ok" : "skipped", `${total} signaux · ${sources.length} sources`);
     return new Response(JSON.stringify({ ok: true, sources: sources.length, signals: total, perSource }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
