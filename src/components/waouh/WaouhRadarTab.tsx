@@ -80,6 +80,16 @@ export default function WaouhRadarTab() {
     load();
   };
 
+  const updateSourceFrequency = async (id: string, minutes: number) => {
+    const scan_freq_min = Math.max(5, Math.min(1440, Math.round(minutes || 60)));
+    const { error } = await supabase.from("waouh_radar_sources").update({ scan_freq_min }).eq("id", id);
+    if (error) toast.error(error.message);
+    else {
+      setSources((prev) => prev.map((item) => item.id === id ? { ...item, scan_freq_min } : item));
+      toast.success("Fréquence mise à jour");
+    }
+  };
+
   const deleteSource = async (id: string) => {
     if (!confirm("Supprimer cette source ?")) return;
     await supabase.from("waouh_radar_sources").delete().eq("id", id);
@@ -230,7 +240,17 @@ export default function WaouhRadarTab() {
                 <div className="flex items-center gap-2"><Badge>{s.type}</Badge><span className="font-medium text-sm">{s.label || s.identifier}</span></div>
                 <div className="text-xs text-muted-foreground">{s.identifier} · scan {s.scan_freq_min}min · last: {s.last_scan_at ? new Date(s.last_scan_at).toLocaleString("fr-FR") : "jamais"} · {s.last_signal_count} signaux</div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={5}
+                  max={1440}
+                  className="w-24 h-8 text-xs"
+                  defaultValue={s.scan_freq_min}
+                  title="Fréquence en minutes"
+                  onBlur={(e) => void updateSourceFrequency(s.id, Number(e.target.value))}
+                />
+                <span className="text-[10px] text-muted-foreground">min</span>
                 <Switch checked={s.active} onCheckedChange={(v) => toggleSource(s.id, v)} />
                 <Button variant="ghost" size="icon" onClick={() => deleteSource(s.id)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
               </div>
