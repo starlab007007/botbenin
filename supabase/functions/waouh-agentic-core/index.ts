@@ -839,6 +839,11 @@ async function ingestCommerceSignal(
     ...extractWhatsappPhones(rawTextInput, sourceUrl, ...hints.urls),
   ])];
   const contactPhones = [...new Set([...explicitPhones, ...hints.phones])];
+  const normalizedContactPhones = [...new Set(
+    contactPhones
+      .map((phone) => normalizeE164(phone))
+      .filter((phone): phone is string => !!phone),
+  )];
   const contactEmails = [...new Set([...explicitEmails, ...hints.emails])];
   const photos = publicPhotoUrls(
     input.photo_urls ?? input.photos ?? input.image_urls ?? input.image_url,
@@ -920,14 +925,46 @@ async function ingestCommerceSignal(
       ? pickEnum(input.availability, "availability", ["available","low_stock","out_of_stock","unknown"] as const)
       : extraction.availability,
     raw_text: redactPublicContacts(rawTextInput).slice(0, 20_000) || null,
+    primary_photo_url: photos[0] ?? null,
+    photo_urls: photos,
+    contact_phone_last4:
+      normalizedContactPhones.length > 0
+        ? phoneLast4(normalizedContactPhones[0])
+        : null,
+    whatsapp_phone_last4:
+      whatsappPhones.length > 0
+        ? phoneLast4(whatsappPhones[0])
+        : null,
+    has_whatsapp:
+      whatsappPhones.length > 0 ||
+      sourceKey === "whatsapp" ||
+      sourceKey === "whatsapp_groups",
+    contact_summary: {
+      phone_count: normalizedContactPhones.length,
+      whatsapp_count: whatsappPhones.length,
+      email_count: contactEmails.length,
+      public_business: isPublicBusiness,
+      source_key: sourceKey,
+      benin_e164: normalizedContactPhones.some((phone) => /^\+22901\d{8}$/.test(phone)),
+    },
     evidence: {
       ...(jsonObject(input.evidence, "evidence")),
       contact_hints: {
-        phone_count: contactPhones.length,
+        phone_count: normalizedContactPhones.length,
         whatsapp_verified_count: whatsappPhones.length,
         email_count: contactEmails.length,
       },
       ...(photos.length ? { photos } : {}),
+      ...(photos[0] ? { primary_photo_url: photos[0] } : {}),
+      ...(normalizedContactPhones[0]
+        ? { contact_phone_last4: phoneLast4(normalizedContactPhones[0]) }
+        : {}),
+      ...(whatsappPhones[0]
+        ? {
+            whatsapp_detected: true,
+            whatsapp_phone_last4: phoneLast4(whatsappPhones[0]),
+          }
+        : {}),
     },
     ai_extraction: extraction,
     confidence: Math.max(0, Math.min(1, Number(input.confidence ?? extraction.confidence ?? 0.5))),
