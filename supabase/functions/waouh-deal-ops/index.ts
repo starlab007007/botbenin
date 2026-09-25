@@ -435,7 +435,7 @@ async function handleStatus(sb: any, body: any) {
   return json({ success: true, ok: true, deal_id, status, workflow_state: status });
 }
 
-async function handleUpdateEtaasync function handleUpdateEta(sb: any, body: any) {
+async function handleUpdateEta(sb: any, body: any) {
   const { deal_id, eta_minutes } = body;
   if (!deal_id || !eta_minutes) return json({ error: "deal_id & eta_minutes required" }, 400);
   const { data: deal } = await sb.from("waouh_deals").select("*").eq("id", deal_id).maybeSingle();
