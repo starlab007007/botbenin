@@ -329,7 +329,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
         backgroundColor: WaouhPalette.pearl,
         appBar: const LiveHeader(
           title: 'WAOUH NEXUS',
-          subtitle: 'Le moteur de découverte de Muse',
+          subtitle: 'Le moteur de découverte de votre Avatar',
           back: true,
         ),
         body: auth.signedIn
@@ -527,7 +527,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
           OutlinedButton.icon(
             onPressed: busy ? null : startBuyerAutopilot,
             icon: const Icon(Icons.smart_toy_outlined),
-            label: const Text('Muse : poursuivre cette recherche'),
+            label: const Text('Avatar : poursuivre la recherche'),
           ),
         ],
         if ((discovery?.sourceMix ?? const <String, int>{}).isNotEmpty) ...[
