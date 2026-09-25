@@ -52,7 +52,7 @@ async function aiExtract(text: string): Promise<any> {
     body: JSON.stringify({
       model: "google/gemini-2.5-flash-lite",
       messages: [
-        { role: "system", content: "Analyse un post Facebook (vente/achat au Bénin) et retourne JSON {intent: SELL|BUY|UNKNOWN, title, price (number FCFA, null si absent), category, city, contact_phone (229XXXXXXXX si visible), contact_handle (nom auteur), confidence (0-1)}." },
+        { role: "system", content: "Analyse un post Facebook (vente/achat au Bénin) et retourne JSON {intent: SELL|BUY|UNKNOWN, title, price (number FCFA, null si absent), category, city, contact_phone (+22901XXXXXXXX si visible), contact_handle (nom auteur), confidence (0-1)}." },
         { role: "user", content: text.slice(0, 2000) },
       ],
       response_format: { type: "json_object" },
