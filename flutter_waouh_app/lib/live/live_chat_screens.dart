@@ -385,6 +385,7 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
   Widget build(BuildContext context) {
     final controller = context.watch<LiveWaouhController>();
     return Scaffold(
+      backgroundColor: const Color(0xFFF6F9FF),
       appBar: LiveHeader(
         title: 'WAOUH One',
         subtitle: 'Un chat · Muse + NEXUS + Signal + Contact',
@@ -460,7 +461,7 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
           Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              color: const Color(0xFFFFF7E6),
+              color: const Color(0xFFFFF8EE),
               child: Row(children: [
                 const Icon(Icons.link_rounded,
                     size: 18, color: legacy.WaouhColors.orange),
@@ -479,51 +480,88 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
             items: attachments,
             onRemove: (item) => setState(() => attachments.remove(item))),
         SafeArea(
-            top: false,
-            child: Container(
-                padding: const EdgeInsets.fromLTRB(8, 6, 8, 9),
-                color: Colors.white,
-                child: Row(children: [
-                  PopupMenuButton<ImageSource>(
-                      tooltip: 'Ajouter',
-                      icon: const Icon(Icons.add_circle_outline_rounded),
-                      onSelected: _attach,
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(
-                          value: ImageSource.camera,
-                          child: ListTile(
-                            dense: true,
-                            leading: Icon(Icons.camera_alt_outlined),
-                            title: Text('Prendre une photo'),
-                          ),
-                        ),
-                        PopupMenuItem(
-                          value: ImageSource.gallery,
-                          child: ListTile(
-                            dense: true,
-                            leading: Icon(Icons.photo_library_outlined),
-                            title: Text('Choisir une photo'),
-                          ),
-                        ),
-                      ]),
-                  Expanded(
-                      child: TextField(
-                          controller: composer,
-                          focusNode: composerFocus,
-                          minLines: 1,
-                          maxLines: 4,
-                          textInputAction: TextInputAction.send,
-                          onSubmitted: (_) => _send(),
-                          decoration: const InputDecoration(
-                              hintText: 'Que voulez-vous acheter ou vendre ?'))),
-                  const SizedBox(width: 6),
-                  FilledButton(
-                      style: FilledButton.styleFrom(
-                          minimumSize: const Size(46, 46),
-                          padding: EdgeInsets.zero),
-                      onPressed: _send,
-                      child: const Icon(Icons.send_rounded)),
-                ]))),
+          top: false,
+          minimum: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(7, 7, 7, 7),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0xFFE2EAF6)),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF456795).withValues(alpha: .10),
+                  blurRadius: 26,
+                  offset: const Offset(0, 10),
+                  spreadRadius: -8,
+                ),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                PopupMenuButton<ImageSource>(
+                  tooltip: 'Ajouter',
+                  icon: const Icon(
+                    Icons.add_circle_rounded,
+                    color: Color(0xFF4F7FFF),
+                  ),
+                  onSelected: _attach,
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: ImageSource.camera,
+                      child: ListTile(
+                        dense: true,
+                        leading: Icon(Icons.camera_alt_outlined),
+                        title: Text('Photo'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: ImageSource.gallery,
+                      child: ListTile(
+                        dense: true,
+                        leading: Icon(Icons.photo_library_outlined),
+                        title: Text('Galerie'),
+                      ),
+                    ),
+                  ],
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: composer,
+                    focusNode: composerFocus,
+                    minLines: 1,
+                    maxLines: 4,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _send(),
+                    decoration: const InputDecoration(
+                      hintText: 'Écrire à WAOUH…',
+                      filled: false,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 5),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(44, 44),
+                    maximumSize: const Size(44, 44),
+                    padding: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                  ),
+                  onPressed: _send,
+                  child: const Icon(Icons.arrow_upward_rounded, size: 20),
+                ),
+              ],
+            ),
+          ),
+        ),
       ]),
     );
   }
