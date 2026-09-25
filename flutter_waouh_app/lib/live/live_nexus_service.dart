@@ -242,6 +242,97 @@ class NexusDiscoveryResponse {
   }
 }
 
+class NexusSearchItem {
+  const NexusSearchItem({
+    required this.title,
+    required this.scores,
+    this.articleId,
+    this.catalogId,
+    this.description,
+    this.category,
+    this.brand,
+    this.model,
+    this.condition,
+    this.price,
+    this.currency = 'XOF',
+    this.city,
+    this.photos = const [],
+    this.source,
+    this.badges = const [],
+    this.advice = '',
+  });
+
+  final String? articleId;
+  final String? catalogId;
+  final String title;
+  final String? description;
+  final String? category;
+  final String? brand;
+  final String? model;
+  final String? condition;
+  final double? price;
+  final String currency;
+  final String? city;
+  final List<String> photos;
+  final String? source;
+  final NexusScore scores;
+  final List<String> badges;
+  final String advice;
+
+  factory NexusSearchItem.fromJson(Map<String, dynamic> json) =>
+      NexusSearchItem(
+        articleId: json['article_id'] == null ? null : _text(json['article_id']),
+        catalogId: json['catalog_id'] == null ? null : _text(json['catalog_id']),
+        title: _text(json['title'], 'Opportunité WAOUH'),
+        description:
+            json['description'] == null ? null : _text(json['description']),
+        category: json['category'] == null ? null : _text(json['category']),
+        brand: json['brand'] == null ? null : _text(json['brand']),
+        model: json['model'] == null ? null : _text(json['model']),
+        condition:
+            json['condition'] == null ? null : _text(json['condition']),
+        price: json['price'] == null ? null : _number(json['price']),
+        currency: _text(json['currency'], 'XOF'),
+        city: json['city'] == null ? null : _text(json['city']),
+        photos: _list(json['photos'])
+            .map(_text)
+            .where((value) => value.trim().isNotEmpty)
+            .toList(growable: false),
+        source: json['source'] == null ? null : _text(json['source']),
+        scores: NexusScore.fromJson(_map(json['scores'])),
+        badges: _list(json['badges'])
+            .map(_text)
+            .where((value) => value.trim().isNotEmpty)
+            .toList(growable: false),
+        advice: _text(json['advice']),
+      );
+}
+
+class NexusSearchResponse {
+  const NexusSearchResponse({
+    required this.query,
+    required this.results,
+    this.market = const <String, dynamic>{},
+    this.explanation,
+  });
+
+  final String query;
+  final List<NexusSearchItem> results;
+  final Map<String, dynamic> market;
+  final String? explanation;
+
+  factory NexusSearchResponse.fromJson(Map<String, dynamic> json) =>
+      NexusSearchResponse(
+        query: _text(json['query']),
+        results: _list(json['results'])
+            .map((value) => NexusSearchItem.fromJson(_map(value)))
+            .toList(growable: false),
+        market: _map(json['market']),
+        explanation:
+            json['explanation'] == null ? null : _text(json['explanation']),
+      );
+}
+
 class NexusSourceInfo {
   const NexusSourceInfo({
     required this.key,
@@ -521,6 +612,25 @@ class LiveNexusService {
       'refresh_external': refreshExternal,
     });
     return NexusDiscoveryResponse.fromJson(data);
+  }
+
+  Future<NexusSearchResponse> searchCatalog({
+    required String query,
+    String? city,
+    double? budgetMax,
+    double? budgetMin,
+    int limit = 18,
+    bool persistIntent = true,
+  }) async {
+    final data = await _invoke('nexus.search', {
+      'query': query.trim(),
+      if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
+      if (budgetMax != null) 'budget_max': budgetMax,
+      if (budgetMin != null) 'budget_min': budgetMin,
+      'limit': limit,
+      'persist_intent': persistIntent,
+    });
+    return NexusSearchResponse.fromJson(data);
   }
 
   Future<List<NexusSourceInfo>> sources() async {
