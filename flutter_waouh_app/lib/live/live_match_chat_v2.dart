@@ -33,7 +33,6 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
   LiveMatch? _match;
   LiveMatch? _pendingSeed;
   Stream<List<LiveMessage>>? _messageStream;
-  Object? _resolveError;
   int _automaticResolveCycles = 0;
   bool _resolving = false;
   Timer? _resolveRetryTimer;
@@ -148,7 +147,6 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
     unawaited(_controller.markMatchRead(found));
     setState(() {
       _resolving = false;
-      _resolveError = null;
       _automaticResolveCycles = 0;
       _pendingSeed = null;
       _match = found;
@@ -182,7 +180,6 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
     if (mounted) {
       setState(() {
         _resolving = true;
-        _resolveError = null;
       });
     }
 
@@ -205,7 +202,6 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
       if (!mounted) return;
       setState(() {
         _resolving = false;
-        _resolveError = error;
       });
       if (seed != null) {
         final cycle = _automaticResolveCycles;
