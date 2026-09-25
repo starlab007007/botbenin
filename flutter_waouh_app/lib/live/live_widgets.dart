@@ -2336,7 +2336,7 @@ class _PremiumNexusContactSheetState
                 Text(
                   contact.policy.canBlindMessage
                       ? 'WAOUH transmet sans révéler les coordonnées'
-                      : 'Message que Muse peut transmettre',
+                      : 'Message que votre Avatar peut transmettre',
                   style: const TextStyle(
                     fontWeight: FontWeight.w900,
                     fontSize: 12,
