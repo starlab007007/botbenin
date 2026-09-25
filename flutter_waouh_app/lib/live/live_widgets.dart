@@ -1004,17 +1004,50 @@ class _PremiumProduct {
         : known.join(' · ');
   }
 
-  String get displayMarketComparison =>
-      marketComparison ??
-      'Prix de produits similaires non communiqué par le service de recherche.';
+  String get displayMarketComparison {
+    if (marketComparison?.trim().isNotEmpty == true) return marketComparison!;
+    final facts = <String>[
+      if (priceScore != null) 'score prix ${priceScore!.round()}%',
+      if (score != null) 'match global ${score!.round()}%',
+      if (source?.trim().isNotEmpty == true) 'source $source',
+    ];
+    return facts.isEmpty
+        ? 'NEXUS n’a pas encore un échantillon prix suffisant pour cette offre.'
+        : 'Lecture NEXUS · ${facts.join(' · ')}';
+  }
 
-  String get displayComparativeAnalysis =>
-      comparativeAnalysis ??
-      'Données de marché insuffisantes pour comparer objectivement ce prix.';
+  String get displayComparativeAnalysis {
+    if (comparativeAnalysis?.trim().isNotEmpty == true) {
+      return comparativeAnalysis!;
+    }
+    final facts = <String>[
+      if (score != null) 'pertinence ${score!.round()}%',
+      if (trustScore != null) 'confiance ${trustScore!.round()}%',
+      if (priceScore != null) 'prix ${priceScore!.round()}%',
+      if (contactability?.trim().isNotEmpty == true)
+        'contact $contactability',
+    ];
+    if (facts.isEmpty) {
+      return 'Signal encore insuffisant pour classer cette opportunité.';
+    }
+    return 'Signal Fabric · ${facts.join(' · ')}';
+  }
 
-  String get displayRecommendation =>
-      recommendation ??
-      'Vérifiez l’état, les accessoires, la disponibilité et le vendeur avant de confirmer.';
+  String get displayRecommendation {
+    if (recommendation?.trim().isNotEmpty == true) return recommendation!;
+    if (reasons.isNotEmpty) return reasons.join(' · ');
+    final facts = <String>[
+      if (trustScore != null && trustScore! >= 70) 'Confiance élevée',
+      if (priceScore != null && priceScore! >= 70) 'Prix compétitif',
+      if (contactability == 'C2' ||
+          contactability == 'C3' ||
+          contactability == 'C4')
+        'Contact médié possible',
+    ];
+    return facts.isEmpty
+        ? 'L’Avatar recommande de vérifier disponibilité, état et conditions avant l’accord.'
+        : facts.join(' · ');
+  }
 }
 
 List<_SmartMessageAction> _premiumExplicitActions(dynamic value) {
@@ -1355,7 +1388,11 @@ List<_PremiumProduct> _premiumProducts(LiveMessage message) {
       final marketMax = row['market_price_max'] ?? row['prix_marche_max'];
       final marketMedian = row['market_price_median'] ?? row['median_price'];
       final directMarket = _premiumString(
-        row['market_comparison'] ?? row['market'] ?? row['marche_reel'],
+        row['market_comparison'] ??
+            row['market'] ??
+            row['marche_reel'] ??
+            row['market_line'] ??
+            evidenceMap['market_line'],
       );
       final marketComparison = directMarket ??
           (marketMin == null && marketMax == null && marketMedian == null
@@ -1446,7 +1483,11 @@ List<_PremiumProduct> _premiumProducts(LiveMessage message) {
             ) ??
             automaticComparison,
         details: _premiumString(
-          row['details'] ?? row['description'],
+          row['details'] ??
+              row['description'] ??
+              row['raw_text'] ??
+              evidenceMap['description'] ??
+              evidenceMap['raw_text'],
         ),
         recommendation: _premiumString(
               row['recommendation'] ??
@@ -1455,8 +1496,10 @@ List<_PremiumProduct> _premiumProducts(LiveMessage message) {
                   row['advice'] ??
                   row['conseil'],
             ) ??
-            _premiumAutomaticRecommendation(
-                priceText, marketComparison, availability),
+            (reasons.isNotEmpty
+                ? reasons.join(' · ')
+                : _premiumAutomaticRecommendation(
+                    priceText, marketComparison, availability)),
         rating: _premiumString(row['rating'] ?? row['note'] ?? row['score']),
         sellerLabel: _premiumString(
           row['seller_label'] ??
