@@ -765,6 +765,45 @@ async function resolveCommerceEntity(
   return entity;
 }
 
+function extractWhatsappPhones(...values: unknown[]): string[] {
+  const found = new Set<string>();
+  for (const value of values) {
+    const text = String(value ?? "");
+    const patterns = [
+      /(?:https?:\/\/)?wa\.me\/(\d{8,15})/gi,
+      /api\.whatsapp\.com\/send\?[^\s"'<>]*?phone=(\d{8,15})/gi,
+      /whatsapp[^\d+]{0,20}(\+?\d[\d\s().-]{7,20})/gi,
+    ];
+    for (const pattern of patterns) {
+      for (const match of text.matchAll(pattern)) {
+        const normalized = normalizeE164(match[1]);
+        if (normalized) found.add(normalized);
+      }
+    }
+  }
+  return [...found].slice(0, 5);
+}
+
+function publicPhotoUrls(value: unknown): string[] {
+  const values = Array.isArray(value) ? value : value == null ? [] : [value];
+  const out = new Set<string>();
+  for (const item of values) {
+    const raw = typeof item === "string"
+      ? item
+      : item && typeof item === "object"
+        ? String((item as any).url ?? (item as any).src ?? (item as any).image_url ?? "")
+        : "";
+    if (!raw.trim()) continue;
+    try {
+      const url = new URL(raw.trim());
+      if (["https:","http:"].includes(url.protocol)) out.add(url.toString());
+    } catch {
+      // Ignore malformed/non-public media references.
+    }
+  }
+  return [...out].slice(0, 12);
+}
+
 async function ingestCommerceSignal(
   sb: SupabaseClient,
   ownerId: string | null,
@@ -789,8 +828,21 @@ async function ingestCommerceSignal(
   const hints = extractPublicContactHints(rawTextInput);
   const explicitPhones = stringArray(input.contact_phones, "contact_phones", 5);
   const explicitEmails = stringArray(input.contact_emails, "contact_emails", 5);
+  const explicitWhatsapp = [
+    ...stringArray(input.whatsapp_phones, "whatsapp_phones", 5),
+    ...stringArray(input.contact_whatsapp == null ? [] : [input.contact_whatsapp], "contact_whatsapp", 5),
+  ];
+  const whatsappPhones = [...new Set([
+    ...explicitWhatsapp
+      .map((phone) => normalizeE164(phone))
+      .filter((phone): phone is string => !!phone),
+    ...extractWhatsappPhones(rawTextInput, sourceUrl, ...hints.urls),
+  ])];
   const contactPhones = [...new Set([...explicitPhones, ...hints.phones])];
   const contactEmails = [...new Set([...explicitEmails, ...hints.emails])];
+  const photos = publicPhotoUrls(
+    input.photo_urls ?? input.photos ?? input.image_urls ?? input.image_url,
+  );
 
   const consentBasis = pickEnum(
     input.contact_consent_basis,
@@ -820,6 +872,7 @@ async function ingestCommerceSignal(
     actorHandle,
     city: optionalString(input.city, "city", 120) ?? extraction.city,
     contactPhones,
+    whatsappPhones,
     contactEmails,
     contactability,
     consentBasis,
@@ -871,8 +924,10 @@ async function ingestCommerceSignal(
       ...(jsonObject(input.evidence, "evidence")),
       contact_hints: {
         phone_count: contactPhones.length,
+        whatsapp_verified_count: whatsappPhones.length,
         email_count: contactEmails.length,
       },
+      ...(photos.length ? { photos } : {}),
     },
     ai_extraction: extraction,
     confidence: Math.max(0, Math.min(1, Number(input.confidence ?? extraction.confidence ?? 0.5))),
