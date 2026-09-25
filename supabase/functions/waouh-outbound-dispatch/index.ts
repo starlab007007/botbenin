@@ -150,12 +150,26 @@ Deno.serve(async (req) => {
     // Lease recovery: a worker may crash after claiming pending→sending.
     // Requeue stale claims so one transient crash never blocks a notification forever.
     const leaseCutoff = new Date(Date.now() - 10 * 60_000).toISOString();
+    const leaseHistoryCutoff = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
     try {
+      // Recent worker crash: safe to retry.
       await sb.from("waouh_outbound_queue").update({
         status: "pending",
         next_attempt_at: nowIso,
         last_error: "lease_timeout_recovered",
-      }).eq("status", "sending").lt("updated_at", leaseCutoff);
+      })
+        .eq("status", "sending")
+        .lt("updated_at", leaseCutoff)
+        .gte("updated_at", leaseHistoryCutoff);
+
+      // Historical stuck rows must never be replayed to customers.
+      await sb.from("waouh_outbound_queue").update({
+        status: "failed",
+        next_attempt_at: null,
+        last_error: "lease_expired_no_replay",
+      })
+        .eq("status", "sending")
+        .lt("updated_at", leaseHistoryCutoff);
     } catch (e) {
       console.warn("[waouh-outbound-dispatch] lease recovery failed", e);
     }
