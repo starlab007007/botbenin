@@ -35,7 +35,7 @@ export default function WaouhAvatarPage({ embedded = false }: WaouhAvatarPagePro
     ? localStorage.getItem("waouh_avatar_name") || "Avatar WAOUH"
     : "Avatar WAOUH";
 
-  const askAvatar = (prompt: string) => {
+  const askAvatarChat = (prompt: string) => {
     setSection("chat");
     window.setTimeout(() => {
       void chatRef.current?.prefillAndSend(prompt);
@@ -216,7 +216,7 @@ export default function WaouhAvatarPage({ embedded = false }: WaouhAvatarPagePro
 
           <TabsContent value="missions" className="mt-0">
             <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm">
-              <WaouhNexusDashboard onAsk={askAvatar} />
+              <WaouhNexusDashboard onAsk={askAvatarChat} />
             </div>
           </TabsContent>
 
