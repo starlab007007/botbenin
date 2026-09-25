@@ -315,17 +315,15 @@ export default function WaouhRadarTab() {
               <Button onClick={addSource}><Plus className="w-4 h-4 mr-1" /> Ajouter</Button>
             </div>
             {newSrc.type === "apify_actor" && (
-              <div className="mt-2 grid md:grid-cols-2 gap-2">
-                <Input
-                  value={newSrc.identifier}
-                  onChange={(e) => setNewSrc({ ...newSrc, identifier: e.target.value })}
-                  placeholder="Actor ID : username~actor-name"
-                />
+              <div className="mt-2">
                 <Input
                   value={newSrc.actor_input_json}
                   onChange={(e) => setNewSrc({ ...newSrc, actor_input_json: e.target.value })}
                   placeholder={'Input JSON optionnel, ex. {"startUrls":[{"url":"https://..."}],"maxItems":30}'}
                 />
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  Dans « Identifiant », indiquez l’Actor Apify au format username~actor-name.
+                </p>
               </div>
             )}
             <p className="text-[11px] text-muted-foreground mt-2">
