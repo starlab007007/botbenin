@@ -10,6 +10,12 @@ enum LiveCommerceActionKind {
   accept,
   counter,
   reject,
+  paymentMobile,
+  paymentDelivery,
+  sellerConfirm,
+  confirmPaymentCash,
+  confirmPaymentMobile,
+  cancelDeal,
   unknown,
 }
 
@@ -65,10 +71,39 @@ Map<String, String> liveCommerceQuery(String payload) {
 }
 
 LiveCommerceActionKind liveCommerceActionKind(String payload) {
-  var command = _foldCommerce(liveCommerceRawCommand(payload));
+  final rawCommand = liveCommerceRawCommand(payload);
+  final query = liveCommerceQuery(payload);
+  var command = _foldCommerce(rawCommand);
   if (command.startsWith('waouh:')) command = command.substring(6);
   final colonAt = command.indexOf(':');
   if (colonAt >= 0) command = command.substring(0, colonAt);
+
+  if (<String>{'payer-mobile', 'payment-preference-mobile', 'payment-mobile'}
+      .contains(command)) {
+    return LiveCommerceActionKind.paymentMobile;
+  }
+  if (<String>{'paiement-livraison', 'payment-preference-cod', 'payment-delivery'}
+      .contains(command)) {
+    return LiveCommerceActionKind.paymentDelivery;
+  }
+  if (<String>{'confirmer-disponibilite', 'seller-confirm', 'seller-confirm-available'}
+      .contains(command)) {
+    return LiveCommerceActionKind.sellerConfirm;
+  }
+  if (<String>{'confirmer-paiement-cash', 'confirm-payment-cash'}
+      .contains(command)) {
+    return LiveCommerceActionKind.confirmPaymentCash;
+  }
+  if (<String>{'confirmer-paiement-mobile', 'confirm-payment-mobile'}
+      .contains(command)) {
+    return LiveCommerceActionKind.confirmPaymentMobile;
+  }
+  if (<String>{'cancel-deal', 'deal-cancel'}.contains(command) ||
+      (command == 'annuler' &&
+          (query['deal_id']?.trim().isNotEmpty == true ||
+              liveCommerceLegacyReference(payload) != null))) {
+    return LiveCommerceActionKind.cancelDeal;
+  }
 
   if (command == 'interest' ||
       command == 'interested' ||
@@ -121,6 +156,18 @@ String liveCommerceOutboundText(String payload) {
       return 'NON';
     case LiveCommerceActionKind.counter:
       return 'Je propose';
+    case LiveCommerceActionKind.paymentMobile:
+      return 'Paiement Mobile Money à la livraison';
+    case LiveCommerceActionKind.paymentDelivery:
+      return 'Paiement cash à la livraison';
+    case LiveCommerceActionKind.sellerConfirm:
+      return 'Article disponible';
+    case LiveCommerceActionKind.confirmPaymentCash:
+      return 'Paiement cash confirmé';
+    case LiveCommerceActionKind.confirmPaymentMobile:
+      return 'Paiement Mobile Money confirmé';
+    case LiveCommerceActionKind.cancelDeal:
+      return 'Annuler le deal';
     case LiveCommerceActionKind.interest:
     case LiveCommerceActionKind.unknown:
       return liveCommerceRawCommand(payload);
@@ -135,6 +182,12 @@ String liveCanonicalWorkflowPayload(
     LiveCommerceActionKind.accept => 'accept',
     LiveCommerceActionKind.counter => 'counter',
     LiveCommerceActionKind.reject => 'reject',
+    LiveCommerceActionKind.paymentMobile => 'payment_preference_mobile',
+    LiveCommerceActionKind.paymentDelivery => 'payment_preference_cod',
+    LiveCommerceActionKind.sellerConfirm => 'seller_confirm_available',
+    LiveCommerceActionKind.confirmPaymentCash => 'confirm_payment_cash',
+    LiveCommerceActionKind.confirmPaymentMobile => 'confirm_payment_mobile',
+    LiveCommerceActionKind.cancelDeal => 'cancel_deal',
     LiveCommerceActionKind.interest => 'interest',
     LiveCommerceActionKind.unknown => 'unknown',
   };
