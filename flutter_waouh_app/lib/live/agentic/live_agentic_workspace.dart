@@ -241,7 +241,7 @@ class _MissionsTab extends StatelessWidget {
       return const _EmptyState(
         icon: Icons.search_rounded,
         title: 'Aucune mission',
-        message: 'Créez une mission depuis Muse.',
+        message: 'Créez une mission depuis votre Avatar.',
       );
     }
     return ListView.separated(

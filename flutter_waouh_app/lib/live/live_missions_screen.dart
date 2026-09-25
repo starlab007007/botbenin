@@ -101,7 +101,7 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen> {
                     approvals: agentic.pendingApprovalCount,
                     onMission: _newMission,
                     onWatch: _newWatch,
-                    onMuse: () => context.push('/app/muse'),
+                    onMuse: () => context.push('/app/avatar'),
                   ),
                 ),
                 Expanded(
@@ -194,13 +194,13 @@ class _MissionHero extends StatelessWidget {
                   ),
                 ),
                 IconButton.filledTonal(
-                  tooltip: 'Muse',
+                  tooltip: 'Avatar',
                   style: IconButton.styleFrom(
                     backgroundColor: Colors.white70,
                     foregroundColor: WaouhPalette.blue,
                   ),
                   onPressed: onMuse,
-                  icon: const Icon(Icons.psychology_alt_rounded, size: 20),
+                  icon: const Icon(Icons.face_retouching_natural_rounded, size: 20),
                 ),
               ],
             ),

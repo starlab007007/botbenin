@@ -1990,7 +1990,7 @@ class _PremiumProductCard extends StatelessWidget {
                                             ? 'Transmettre via WAOUH'
                                             : product.contactability == 'C3' ||
                                                     product.contactability == 'C4'
-                                                ? 'Laisser Muse poursuivre'
+                                                ? 'Laisser l’Avatar poursuivre'
                                                 : action.label
                                     : action.label,
                                 style: const TextStyle(
@@ -2032,7 +2032,7 @@ class _PremiumProductCard extends StatelessWidget {
                           ? 'Transmettre via WAOUH'
                           : product.contactability == 'C3' ||
                                   product.contactability == 'C4'
-                              ? 'Laisser Muse poursuivre'
+                              ? 'Laisser l’Avatar poursuivre'
                               : product.contactability == 'C1'
                                   ? 'Contacter'
                                   : 'Voir possibilité de contact',
@@ -2336,7 +2336,7 @@ class _PremiumNexusContactSheetState
                 Text(
                   contact.policy.canBlindMessage
                       ? 'WAOUH transmet sans révéler les coordonnées'
-                      : 'Message que Muse peut transmettre',
+                      : 'Message que votre Avatar peut transmettre',
                   style: const TextStyle(
                     fontWeight: FontWeight.w900,
                     fontSize: 12,

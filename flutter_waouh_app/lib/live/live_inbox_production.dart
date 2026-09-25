@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
+import 'avatar/live_avatar_controller.dart';
 import 'brand_mark.dart';
 import 'live_controller.dart';
 import 'live_guest_action_gate.dart';
@@ -96,6 +97,7 @@ class _LiveInboxProductionScreenState extends State<LiveInboxProductionScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<legacy.AuthController>();
+    final avatar = context.watch<LiveAvatarController>();
     final controller = context.read<LiveWaouhController>();
     final fullName = auth.profile?.fullName?.trim().isNotEmpty == true
         ? auth.profile!.fullName!
@@ -138,7 +140,8 @@ class _LiveInboxProductionScreenState extends State<LiveInboxProductionScreen> {
                     missionCount: controller.agentic.activeMissionCount,
                     watchCount: controller.agentic.activeWatchCount,
                     approvalCount: controller.agentic.pendingApprovalCount,
-                    onMuse: () => context.push('/app/muse'),
+                    avatarName: avatar.name,
+                    onAvatar: () => context.push('/app/avatar'),
                     onMissions: () => context.push('/app/missions'),
                   ),
                 ),
@@ -169,14 +172,16 @@ class _IntelligenceQuickAccess extends StatelessWidget {
     required this.missionCount,
     required this.watchCount,
     required this.approvalCount,
-    required this.onMuse,
+    required this.avatarName,
+    required this.onAvatar,
     required this.onMissions,
   });
 
   final int missionCount;
   final int watchCount;
   final int approvalCount;
-  final VoidCallback onMuse;
+  final String avatarName;
+  final VoidCallback onAvatar;
   final VoidCallback onMissions;
 
   @override
@@ -186,11 +191,11 @@ class _IntelligenceQuickAccess extends StatelessWidget {
           children: [
             Expanded(
               child: _QuickIntelligenceCard(
-                icon: Icons.psychology_alt_rounded,
-                title: 'Muse',
-                subtitle: 'Acheter · vendre',
+                icon: Icons.face_retouching_natural_rounded,
+                title: avatarName,
+                subtitle: 'Votre Avatar · acheter · vendre',
                 accent: WaouhPalette.blue,
-                onTap: onMuse,
+                onTap: onAvatar,
               ),
             ),
             const SizedBox(width: 8),

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import 'avatar/live_avatar_controller.dart';
+import 'avatar/live_avatar_widgets.dart';
 import 'live_models.dart';
 
 enum LiveMuseMode { buyer, seller, neutral }
@@ -87,7 +90,7 @@ String _phaseLabel(LiveMusePhase phase) {
     case LiveMusePhase.searching: return 'NEXUS cherche';
     case LiveMusePhase.comparing: return 'Signal Fabric compare';
     case LiveMusePhase.contacting: return 'Prépare le contact';
-    case LiveMusePhase.negotiating: return 'Muse négocie';
+    case LiveMusePhase.negotiating: return 'Votre Avatar négocie';
     case LiveMusePhase.success: return 'Objectif atteint';
     case LiveMusePhase.idle: return 'Prêt';
   }
@@ -105,7 +108,7 @@ String _phaseDetail(LiveMusePhase phase) {
   }
 }
 
-class LiveMuseAvatar extends StatefulWidget {
+class LiveMuseAvatar extends StatelessWidget {
   const LiveMuseAvatar({
     super.key,
     this.mode = LiveMuseMode.neutral,
@@ -117,109 +120,26 @@ class LiveMuseAvatar extends StatefulWidget {
   final LiveMusePhase phase;
   final double size;
 
-  @override
-  State<LiveMuseAvatar> createState() => _LiveMuseAvatarState();
-}
-
-class _LiveMuseAvatarState extends State<LiveMuseAvatar> with SingleTickerProviderStateMixin {
-  late final AnimationController controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1100),
-  );
-
-  bool get active => const {
-    LiveMusePhase.searching,
-    LiveMusePhase.comparing,
-    LiveMusePhase.contacting,
-    LiveMusePhase.negotiating,
-  }.contains(widget.phase);
-
-  Color get tone => widget.mode == LiveMuseMode.seller
-      ? const Color(0xFF8B6500)
-      : widget.mode == LiveMuseMode.buyer
-          ? const Color(0xFF2368FF)
-          : const Color(0xFF08745D);
-
-  IconData get modeIcon => widget.mode == LiveMuseMode.seller
-      ? Icons.shopping_bag_outlined
-      : widget.mode == LiveMuseMode.buyer
-          ? Icons.search_rounded
-          : Icons.auto_awesome_rounded;
+  LiveAvatarPresenceState get presence => switch (phase) {
+        LiveMusePhase.listening => LiveAvatarPresenceState.listening,
+        LiveMusePhase.searching => LiveAvatarPresenceState.searching,
+        LiveMusePhase.comparing => LiveAvatarPresenceState.comparing,
+        LiveMusePhase.contacting => LiveAvatarPresenceState.found,
+        LiveMusePhase.negotiating => LiveAvatarPresenceState.negotiating,
+        LiveMusePhase.success => LiveAvatarPresenceState.done,
+        LiveMusePhase.idle => LiveAvatarPresenceState.idle,
+      };
 
   @override
-  void initState() {
-    super.initState();
-    if (active) controller.repeat(reverse: true);
+  Widget build(BuildContext context) {
+    final avatar = context.watch<LiveAvatarController>();
+    return LiveAvatarVisual(
+      preset: avatar.profile.preset,
+      state: presence,
+      size: size,
+      showStatusBadge: true,
+    );
   }
-
-  @override
-  void didUpdateWidget(covariant LiveMuseAvatar oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (active && !controller.isAnimating) controller.repeat(reverse: true);
-    if (!active && controller.isAnimating) {
-      controller.stop();
-      controller.value = 0;
-    }
-  }
-
-  @override
-  void dispose() {
-    controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: controller,
-    builder: (_, __) => Transform.scale(
-      scale: active ? 1 + controller.value * .05 : 1,
-      child: SizedBox(
-        width: widget.size,
-        height: widget.size,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [
-                    tone.withValues(alpha: .13),
-                    Colors.white,
-                    const Color(0xFFE9F8F2),
-                  ]),
-                  borderRadius: BorderRadius.circular(widget.size * .34),
-                  border: Border.all(color: tone.withValues(alpha: .25)),
-                  boxShadow: [
-                    BoxShadow(color: tone.withValues(alpha: .09), blurRadius: 12, offset: const Offset(0, 4)),
-                  ],
-                ),
-                child: Icon(Icons.smart_toy_outlined, color: tone, size: widget.size * .46),
-              ),
-            ),
-            Positioned(
-              right: -1,
-              bottom: -1,
-              child: Container(
-                width: widget.size * .36,
-                height: widget.size * .36,
-                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                child: Icon(modeIcon, color: tone, size: widget.size * .2),
-              ),
-            ),
-            Positioned(
-              left: widget.size * .16,
-              top: widget.size * .14,
-              child: Container(
-                width: widget.size * .09,
-                height: widget.size * .09,
-                decoration: const BoxDecoration(color: Color(0xFF1DBB82), shape: BoxShape.circle),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
 }
 
 class LiveContactabilityBadge extends StatelessWidget {
@@ -266,6 +186,7 @@ class LiveCommerceAgentBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final avatar = context.watch<LiveAvatarController>();
     LiveMessage? userMessage;
     LiveMessage? assistantMessage;
     for (final message in messages.reversed) {
@@ -292,10 +213,10 @@ class LiveCommerceAgentBar extends StatelessWidget {
       if (source.isNotEmpty) sources.add(source);
     }
     final role = mode == LiveMuseMode.buyer
-        ? 'Muse acheteur'
+        ? '${avatar.name} · achat'
         : mode == LiveMuseMode.seller
-            ? 'Muse vendeur'
-            : 'Muse commerce';
+            ? '${avatar.name} · vente'
+            : '${avatar.name} · Avatar';
 
     return Material(
       color: Colors.transparent,
@@ -420,6 +341,7 @@ class LiveUnifiedIntelligenceSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final avatar = context.watch<LiveAvatarController>();
     LiveMessage? userMessage;
     LiveMessage? assistantMessage;
     for (final message in messages.reversed) {
@@ -463,20 +385,20 @@ class LiveUnifiedIntelligenceSheet extends StatelessWidget {
               children: [
                 LiveMuseAvatar(mode: mode, phase: phase, size: 48),
                 const SizedBox(width: 10),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'WAOUH One',
-                        style: TextStyle(
+                        avatar.name,
+                        style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w900,
                           color: Color(0xFF102D27),
                         ),
                       ),
-                      Text(
-                        'Un assistant · Muse + NEXUS + Signal + Contact',
+                      const Text(
+                        'Votre Avatar · NEXUS + Signal + Contact',
                         style: TextStyle(
                           fontSize: 10.8,
                           fontWeight: FontWeight.w700,
@@ -512,7 +434,7 @@ class LiveUnifiedIntelligenceSheet extends StatelessWidget {
                 const SizedBox(height: 10),
                 _UnifiedLayerCard(
                   icon: Icons.psychology_alt_outlined,
-                  title: 'Muse',
+                  title: avatar.name,
                   subtitle:
                       'Comprend votre objectif, garde le contexte et prépare les prochaines actions.',
                   active: phase != LiveMusePhase.idle,

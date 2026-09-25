@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../main.dart' as legacy;
+import 'avatar/live_avatar_controller.dart';
 import 'live_controller.dart';
 import 'live_nexus_service.dart';
 import 'live_widgets.dart';
@@ -181,8 +182,12 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       );
       if (!mounted) return;
       notice(
-        'Mission + veille créées. Muse continuera la recherche.',
+        'Mission + veille créées. Votre Avatar continuera la recherche.',
         success: true,
+      );
+      context.read<LiveAvatarController>().showState(
+        LiveAvatarPresenceState.watching,
+        duration: const Duration(seconds: 4),
       );
       final userId = legacy.supabase.auth.currentUser?.id;
       if (userId != null && mounted) {
@@ -324,7 +329,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
         backgroundColor: WaouhPalette.pearl,
         appBar: const LiveHeader(
           title: 'WAOUH NEXUS',
-          subtitle: 'Le moteur de découverte de Muse',
+          subtitle: 'Le moteur de découverte de votre Avatar',
           back: true,
         ),
         body: auth.signedIn
@@ -522,7 +527,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
           OutlinedButton.icon(
             onPressed: busy ? null : startBuyerAutopilot,
             icon: const Icon(Icons.smart_toy_outlined),
-            label: const Text('Muse : poursuivre cette recherche'),
+            label: const Text('Avatar : poursuivre la recherche'),
           ),
         ],
         if ((discovery?.sourceMix ?? const <String, int>{}).isNotEmpty) ...[

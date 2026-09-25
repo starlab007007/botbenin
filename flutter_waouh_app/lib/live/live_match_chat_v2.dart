@@ -495,7 +495,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                       emptyMessage: pendingThread
                           ? 'Deal Room ouverte. WAOUH synchronise le fil exact.'
                           : match.isSearch
-                              ? 'Poursuivez cette recherche avec Muse.'
+                              ? 'Poursuivez cette recherche avec votre Avatar.'
                               : 'Commencez la discussion sur ce produit.',
                       padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
                     ),

@@ -3,7 +3,10 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
+import 'avatar/live_avatar_controller.dart';
+import 'avatar/live_avatar_widgets.dart';
 import 'live_auth_screens.dart';
+import 'live_avatar_screen.dart';
 import 'live_controller.dart';
 import 'live_controller_v2.dart';
 import 'live_inbox_screen_v2.dart';
@@ -11,8 +14,6 @@ import 'live_legacy_screens.dart';
 import 'live_match_chat_v2.dart';
 import 'live_models.dart';
 import 'live_missions_screen.dart';
-import 'live_muse_screen.dart';
-import 'live_muse_missions_hub_screen.dart';
 import 'live_nexus_screen.dart';
 import 'live_notifications_screen_v2.dart';
 import 'live_offline_banner.dart';
@@ -35,6 +36,7 @@ class LiveWaouhApp extends StatelessWidget {
   Widget build(BuildContext context) => MultiProvider(
     providers: [
       ChangeNotifierProvider(create: (_) => legacy.AuthController()),
+      ChangeNotifierProvider(create: (_) => LiveAvatarController()..load()),
       ChangeNotifierProxyProvider<legacy.AuthController, LiveWaouhController>(
         create: (context) => LiveWaouhControllerV2(context.read<legacy.AuthController>()),
         update: (_, auth, previous) => previous ?? LiveWaouhControllerV2(auth),
@@ -66,7 +68,7 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
   initialLocation: '/app/chat',
   refreshListenable: auth,
   redirect: (_, state) {
-    const guarded = ['/app/notifications', '/app/bots', '/app/whatsapp', '/app/command', '/app/muse', '/app/missions', '/app/nexus', '/app/partner', '/app/profile'];
+    const guarded = ['/app/notifications', '/app/bots', '/app/whatsapp', '/app/avatar', '/app/command', '/app/muse', '/app/missions', '/app/nexus', '/app/partner', '/app/profile'];
     final path = state.uri.path;
     if (!auth.signedIn && guarded.any(path.startsWith)) return '/app/auth?next=${Uri.encodeComponent(path)}';
     if (auth.signedIn && path.startsWith('/app/auth')) return state.uri.queryParameters['next'] ?? '/app/chat';
@@ -87,11 +89,12 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
         GoRoute(path: '/app/notifications', builder: (_, __) => const LiveNotificationsScreenV2()),
         GoRoute(path: '/app/bots', builder: (_, __) => const LiveBotsScreen()),
         GoRoute(path: '/app/whatsapp', builder: (_, __) => const LiveWhatsAppIaScreen()),
-        GoRoute(path: '/app/command', builder: (_, __) => const LiveMuseMissionsHubScreen()),
-        GoRoute(path: '/app/muse', builder: (_, __) => const LiveMuseScreen()),
+        GoRoute(path: '/app/avatar', builder: (_, __) => const LiveAvatarScreen()),
+        GoRoute(path: '/app/command', redirect: (_, __) => '/app/avatar'),
+        GoRoute(path: '/app/muse', redirect: (_, __) => '/app/avatar'),
         GoRoute(path: '/app/missions', builder: (_, __) => const LiveMissionsScreen()),
         GoRoute(path: '/app/nexus', builder: (_, __) => const LiveNexusScreen()),
-        GoRoute(path: '/app/diffusion', redirect: (_, __) => '/app/command'),
+        GoRoute(path: '/app/diffusion', redirect: (_, __) => '/app/avatar'),
         GoRoute(path: '/app/partner', redirect: (_, __) => '/app/partner/businesses'),
         GoRoute(path: '/app/partner/businesses', builder: (_, __) => const LivePartnerBusinessesScreenV3()),
         GoRoute(path: '/app/partner/businesses/:businessId/products', builder: (_, state) => LivePartnerProductsScreenV2(businessId: state.pathParameters['businessId']!)),
@@ -109,7 +112,8 @@ class LiveShell extends StatelessWidget {
   int get _index {
     if (path.startsWith('/app/bots')) return 1;
     if (path.startsWith('/app/whatsapp')) return 2;
-    if (path.startsWith('/app/command') ||
+    if (path.startsWith('/app/avatar') ||
+        path.startsWith('/app/command') ||
         path.startsWith('/app/muse') ||
         path.startsWith('/app/missions') ||
         path.startsWith('/app/nexus')) return 3;
@@ -120,8 +124,32 @@ class LiveShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final focused = path.startsWith('/app/chat/') || path.startsWith('/app/profile') || path.startsWith('/app/partner/businesses/');
+    final waouh = context.watch<LiveWaouhController>();
+    final showAvatarDock = !path.startsWith('/app/avatar');
     return Scaffold(
-      body: Column(children: [const LiveOfflineBanner(), Expanded(child: child)]),
+      body: Column(
+        children: [
+          const LiveOfflineBanner(),
+          Expanded(
+            child: Stack(
+              children: [
+                Positioned.fill(child: child),
+                if (showAvatarDock)
+                  Positioned(
+                    right: 12,
+                    bottom: focused ? 86 : 12,
+                    child: LiveAvatarDock(
+                      compact: focused,
+                      missionCount: waouh.agentic.activeMissionCount,
+                      watchCount: waouh.agentic.activeWatchCount,
+                      approvalCount: waouh.agentic.pendingApprovalCount,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
       bottomNavigationBar: focused
           ? null
           : SafeArea(
@@ -149,7 +177,7 @@ class LiveShell extends StatelessWidget {
                         context.go(switch (index) {
                       1 => '/app/bots',
                       2 => '/app/whatsapp',
-                      3 => '/app/command',
+                      3 => '/app/avatar',
                       4 => '/app/partner',
                       _ => '/app/chat',
                     }),
@@ -170,9 +198,9 @@ class LiveShell extends StatelessWidget {
                         label: 'IA',
                       ),
                       NavigationDestination(
-                        icon: Icon(Icons.psychology_alt_outlined),
-                        selectedIcon: Icon(Icons.psychology_alt_rounded),
-                        label: 'Muse',
+                        icon: Icon(Icons.account_circle_outlined),
+                        selectedIcon: Icon(Icons.account_circle_rounded),
+                        label: 'Avatar',
                       ),
                       NavigationDestination(
                         icon: Icon(Icons.storefront_outlined),

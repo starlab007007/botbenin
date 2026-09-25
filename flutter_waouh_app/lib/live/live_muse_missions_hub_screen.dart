@@ -32,7 +32,7 @@ class _LiveMuseMissionsHubScreenState extends State<LiveMuseMissionsHubScreen> {
     }
   }
 
-  void _openMuse() => context.push('/app/muse');
+  void _openMuse() => context.push('/app/avatar');
   void _openMissions() => context.push('/app/missions');
 
   @override
@@ -144,7 +144,7 @@ class _LiveMuseMissionsHubScreenState extends State<LiveMuseMissionsHubScreen> {
                             Expanded(
                               child: _FeatureCard(
                                 icon: Icons.psychology_alt_rounded,
-                                title: 'WAOUH Muse',
+                                title: 'WAOUH Avatar',
                                 subtitle: 'Objectif → recherche → action',
                                 badge: 'AI',
                                 accent: WaouhPalette.blue,
@@ -170,7 +170,7 @@ class _LiveMuseMissionsHubScreenState extends State<LiveMuseMissionsHubScreen> {
                           children: [
                             _FeatureCard(
                               icon: Icons.psychology_alt_rounded,
-                              title: 'WAOUH Muse',
+                              title: 'WAOUH Avatar',
                               subtitle: 'Objectif → recherche → action',
                               badge: 'AI',
                               accent: WaouhPalette.blue,
@@ -311,7 +311,7 @@ class _TopLine extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           IconButton.filledTonal(
-            tooltip: 'Muse',
+            tooltip: 'Avatar',
             style: IconButton.styleFrom(
               backgroundColor: const Color(0xFFF1F6FF),
               foregroundColor: WaouhPalette.blue,
@@ -392,7 +392,7 @@ class _AirHero extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Muse comprend votre objectif.',
+                                'Votre Avatar comprend votre objectif.',
                                 style:
                                     Theme.of(context).textTheme.headlineMedium,
                               ),
@@ -429,7 +429,7 @@ class _AirHero extends StatelessWidget {
                     FilledButton.icon(
                       onPressed: onMuse,
                       icon: const Icon(Icons.mic_none_rounded, size: 19),
-                      label: const Text('Parler à Muse'),
+                      label: const Text('Parler à l’Avatar'),
                       style: FilledButton.styleFrom(
                         minimumSize: const Size.fromHeight(48),
                         backgroundColor: WaouhPalette.blue,
