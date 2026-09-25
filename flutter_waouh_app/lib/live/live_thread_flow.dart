@@ -530,6 +530,15 @@ bool liveIsProvisionalInterestedMatch(LiveMatch match) =>
     match.threadId?.trim().isNotEmpty != true &&
     match.key.startsWith('pending_interest_');
 
+/// Correlation exacte conservée dans la clé locale d'une Deal Room provisoire.
+/// Les UUID/idempotency keys utilisés par WAOUH ne sont pas modifiés par
+/// _safePendingKey, ce qui permet de rattacher un événement Realtime au clic.
+String liveProvisionalInterestCorrelation(LiveMatch match) {
+  const prefix = 'pending_interest_';
+  if (!match.key.startsWith(prefix)) return '';
+  return match.key.substring(prefix.length).trim();
+}
+
 /// Une fenêtre « Intéressé » doit être rendue immédiatement dès qu'elle
 /// possède une identité locale déterministe. Le thread distant reste
 /// autoritaire pour les messages temps réel, mais ne doit jamais bloquer
