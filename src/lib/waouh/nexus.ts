@@ -390,6 +390,35 @@ export async function ingestSharedCommerceSignal(input: {
   });
 }
 
+export type NexusSourceSyncProvider =
+  | "serpapi"
+  | "apify"
+  | "firecrawl"
+  | "google_places"
+  | "facebook_business"
+  | "instagram_business"
+  | "telegram_public"
+  | "tiktok_connected"
+  | "whatsapp_groups"
+  | "sms_rcs";
+
+export async function syncNexusSource(input: {
+  provider: NexusSourceSyncProvider;
+  query?: string;
+  city?: string;
+  mode?: "find_sellers" | "find_buyers";
+  limit?: number;
+}) {
+  return invokeWaouhAgentic<{
+    provider: NexusSourceSyncProvider;
+    configured: boolean;
+    inserted: number;
+    push_mode?: boolean;
+    active_group_count?: number;
+    reason?: string | null;
+  }>("nexus.source.sync", input);
+}
+
 export async function searchGooglePlacesWithNexus(input: { query: string; city?: string; limit?: number }) {
   return invokeWaouhAgentic<{
     configured: boolean;
