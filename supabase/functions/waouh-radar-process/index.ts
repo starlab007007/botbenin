@@ -26,6 +26,17 @@ function normalizeBeninPhone(value: string | null | undefined) {
   return last8.length === 8 ? `22901${last8}` : null;
 }
 
+function sourceChannelForSignal(sig: any) {
+  const source = String(sig?.source_type || "").toLowerCase();
+  if (source === "wa_group") return "whatsapp_groups";
+  if (["fb_marketplace","fb_group","fb_page"].includes(source)) return "apify";
+  if (["telegram","telegram_channel"].includes(source)) return "telegram_public";
+  if (source === "instagram_business") return "instagram_business";
+  if (source === "tiktok") return "tiktok_connected";
+  if (source === "google_places") return "google_places";
+  return "radar_ia";
+}
+
 function normalizeCategory(value: string | null | undefined) {
   const v = String(value || "").toLowerCase();
   if (/t[ée]l[ée]phone|smartphone|iphone|android/.test(v)) return "smartphone";
@@ -86,7 +97,7 @@ async function promoteSignal(sb: any, sig: any, phone: string | null) {
       status: "active",
       origin: "radar",
       origin_signal_id: sig.id,
-      source_channel: "radar_ia",
+      source_channel: sourceChannelForSignal(sig),
       contact_whatsapp: phone ?? sig.contact_phone ?? null,
     }).select("id").single();
     if (error) console.warn("[radar-process] promote article", error);
@@ -114,7 +125,7 @@ async function promoteSignal(sb: any, sig: any, phone: string | null) {
       is_active: true,
       origin: "radar",
       origin_signal_id: sig.id,
-      source_channel: "radar_ia",
+      source_channel: sourceChannelForSignal(sig),
       contact_whatsapp: phone ?? sig.contact_phone ?? null,
     }).select("id").single();
     if (error) console.warn("[radar-process] promote buyer", error);
