@@ -30,6 +30,11 @@ export type MatchChatMeta = {
   seed_text?: string | null;
   buyer_profile_id?: string | null;
   counterpart_user_id?: string | null;
+  thread_id?: string | null;
+  negotiation_id?: string | null;
+  deal_id?: string | null;
+  buyer_user_id?: string | null;
+  seller_user_id?: string | null;
   title: string;
   price: number | null;
   city?: string | null;
@@ -494,16 +499,48 @@ export function WaouhMatchChatWindow({
   }, [active, match.notification_id, (match.notification_ids || []).join(",")]);
 
 
-  const send = async () => {
-    const text = input.trim();
+  const latestCommerceScope = useMemo(() => {
+    const scope: Record<string, string | null> = {
+      thread_id: match.thread_id ?? null,
+      negotiation_id: match.negotiation_id ?? null,
+      deal_id: match.deal_id ?? null,
+      buyer_user_id: match.buyer_user_id ?? null,
+      seller_user_id: match.seller_user_id ?? null,
+    };
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message: any = messages[index] || {};
+      const meta: any = message.meta || {};
+      const product = Array.isArray(meta.products) ? meta.products[0] : Array.isArray(meta.results) ? meta.results[0] : null;
+      for (const key of ["thread_id", "negotiation_id", "deal_id", "buyer_user_id", "seller_user_id"]) {
+        if (!scope[key]) {
+          const value = meta?.[key] ?? product?.[key] ?? message?.[key] ?? null;
+          if (value) scope[key] = String(value);
+        }
+      }
+    }
+    return scope;
+  }, [
+    messages,
+    match.thread_id,
+    match.negotiation_id,
+    match.deal_id,
+    match.buyer_user_id,
+    match.seller_user_id,
+  ]);
+
+  const sendMessage = async (
+    overrideText?: string,
+    overrideMeta: Record<string, unknown> = {}
+  ) => {
+    const text = (overrideText ?? input).trim();
     if (!text || sending || closed) return;
     setSending(true);
     const tempId = `temp-in-${crypto.randomUUID()}`;
     const now = new Date().toISOString();
     setMessages((prev) => [...prev, { id: tempId, direction: "in", text, created_at: now }]);
-    setInput("");
+    if (overrideText == null) setInput("");
     try {
-      // Product context travels via meta only — never pollute the message body
+      // Product + Deal Graph scope travels via metadata; visible text stays human-readable.
       const invokeP = supabase.functions.invoke("waouh-channel-in", {
         headers: { "x-waouh-session": sessionId },
         body: {
@@ -516,9 +553,15 @@ export function WaouhMatchChatWindow({
             article_id: match.article_id,
             buyer_profile_id: match.buyer_profile_id ?? null,
             counterpart_user_id: match.counterpart_user_id ?? null,
+            buyer_user_id: latestCommerceScope.buyer_user_id ?? null,
+            seller_user_id: latestCommerceScope.seller_user_id ?? null,
+            thread_id: latestCommerceScope.thread_id ?? null,
+            negotiation_id: latestCommerceScope.negotiation_id ?? null,
+            deal_id: latestCommerceScope.deal_id ?? null,
             role: match.kind,
             product_title: match.title,
             correlation_id: correlationId,
+            ...overrideMeta,
           },
         },
       });
@@ -536,6 +579,10 @@ export function WaouhMatchChatWindow({
         message_id: realId ?? null,
         intent: (data as any)?.intent ?? null,
         session_id: sessionId,
+        payload: {
+          thread_id: (data as any)?.thread_id ?? latestCommerceScope.thread_id ?? null,
+          deal_id: (data as any)?.deal_id ?? latestCommerceScope.deal_id ?? null,
+        },
       });
       setMessages((prev) => reconcileChatResponse(prev, data, { id: tempId, direction: "in", text, created_at: now }));
       window.dispatchEvent(
@@ -543,13 +590,15 @@ export function WaouhMatchChatWindow({
       );
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
-      setInput(text);
+      if (overrideText == null) setInput(text);
       toast.error("Message non envoyé, réessayez");
     } finally {
       setSending(false);
       setTimeout(() => textareaRef.current?.focus(), 30);
     }
   };
+
+  const send = () => { void sendMessage(); };
 
   const Icon = match.kind === "buyer" ? Target : ShoppingBag;
   const matchLabel = formatMatchLabel({
@@ -806,6 +855,44 @@ export function WaouhMatchChatWindow({
             )}
             {rich.text && <div className="whitespace-pre-wrap">{rich.text}</div>}
             {rich.blocks.length > 0 && <WaouhAgentBlocks blocks={rich.blocks} onAction={authUserId ? handleAgentAction : undefined} busy={!!agentAction} />}
+            {m.direction === "out" && Array.isArray(m.meta?.actions) && m.meta.actions.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {(m.meta.actions as Array<{ id?: string; label?: string }>).slice(0, 4).map((action, index) => {
+                  const actionId = String(action.id || "").trim();
+                  const label = String(action.label || actionId || "Choisir").trim();
+                  return (
+                    <Button
+                      key={`${actionId}-${index}`}
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      className="h-7 rounded-xl text-xs"
+                      disabled={sending || !actionId}
+                      onClick={() => {
+                        if (/contre-proposition|counter/i.test(actionId)) {
+                          setInput("Je propose ");
+                          setTimeout(() => textareaRef.current?.focus(), 0);
+                          return;
+                        }
+                        const visibleText = /accepter|^oui/i.test(actionId)
+                          ? "OUI"
+                          : /refuser|^non/i.test(actionId)
+                            ? "NON"
+                            : actionId;
+                        void sendMessage(visibleText, {
+                          button_payload: actionId,
+                          thread_id: m.meta?.thread_id ?? latestCommerceScope.thread_id ?? null,
+                          negotiation_id: m.meta?.negotiation_id ?? latestCommerceScope.negotiation_id ?? null,
+                          deal_id: m.meta?.deal_id ?? latestCommerceScope.deal_id ?? null,
+                        });
+                      }}
+                    >
+                      {label}
+                    </Button>
+                  );
+                })}
+              </div>
+            )}
             </div>
           </div>
         ); })}
