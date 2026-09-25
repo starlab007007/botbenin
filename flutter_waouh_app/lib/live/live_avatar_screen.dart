@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'avatar/live_avatar_controller.dart';
 import 'avatar/live_avatar_widgets.dart';
+import 'live_controller.dart';
 import 'live_theme.dart';
 import 'live_widgets.dart';
 
