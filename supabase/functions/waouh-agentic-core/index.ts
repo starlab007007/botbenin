@@ -2422,7 +2422,12 @@ Retourne uniquement JSON:
               : skipped,
             usePublicWeb
               ? refreshSerpApi(sb, ownerId, mode, semanticQuery, city, Math.min(limit, 12))
-              : Promise.resolve({ ...(await skipped), surfaces: {} }),
+              : Promise.resolve({
+                  configured: true,
+                  inserted: 0,
+                  reason: "not_selected_by_ai_plan",
+                  surfaces: {} as Record<string, number>,
+                }),
             useSocial
               ? refreshFacebookBusiness(sb, ownerId, semanticQuery, Math.min(limit, 8))
               : skipped,
