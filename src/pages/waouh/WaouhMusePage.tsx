@@ -45,7 +45,7 @@ export default function WaouhMusePage({ embedded = false }: WaouhMusePageProps) 
   return (
     <main
       className={cn(
-        "waouh-muse-page bg-[radial-gradient(circle_at_75%_0%,rgba(16,185,129,0.08),transparent_34%),linear-gradient(180deg,#f8fbfa_0%,#ffffff_45%)]",
+        "waouh-avatar-page bg-[radial-gradient(circle_at_75%_0%,rgba(16,185,129,0.08),transparent_34%),linear-gradient(180deg,#f8fbfa_0%,#ffffff_45%)]",
         embedded ? "h-full min-h-0 overflow-y-auto" : "min-h-screen"
       )}
     >
