@@ -360,3 +360,5 @@ verify_jwt = false
 
 [functions.waouh-tel-room]
 verify_jwt = false
+[functions.waouh-product-intelligence]
+verify_jwt = true
