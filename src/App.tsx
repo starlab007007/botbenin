@@ -98,6 +98,7 @@ const WaouhPage = lazy(() => import("./pages/waouh/WaouhPage"));
 const WaouhDemoPage = lazy(() => import("./pages/waouh/WaouhDemoPage"));
 const WaouhNativeMessagingPublicPage = lazy(() => import("./pages/waouh/WaouhNativeMessagingPublicPage"));
 const WaouhMusePage = lazy(() => import("./pages/waouh/WaouhMusePage"));
+const WaouhAvatarPage = lazy(() => import("./pages/waouh/WaouhAvatarPage"));
 const WaouhMissionsPage = lazy(() => import("./pages/waouh/WaouhMissionsPage"));
 
 const WaouhRadarPage = lazy(() => import("./pages/admin/WaouhRadarPage"));
@@ -336,8 +337,8 @@ const AppContent = () => {
                    <Route path="/yovo-gallery" element={<YovoGallery />} />
                    <Route path="/waouh-chat" element={<Navigate to="/app/chat" replace />} />
                    <Route path="/waouh/messages" element={<WaouhNativeMessagingPublicPage />} />
-                   <Route path="/waouh/muse" element={<Navigate to="/app/muse" replace />} />
-                   <Route path="/waouh/nexus" element={<Navigate to="/app/muse" replace />} />
+                   <Route path="/waouh/muse" element={<Navigate to="/app/avatar" replace />} />
+                   <Route path="/waouh/nexus" element={<Navigate to="/app/avatar" replace />} />
 
                   {/* WaouhApp — Mobile shell (Capacitor + web preview) */}
                   <Route path="/app/auth" element={<MobileAuthHome />} />
@@ -347,7 +348,8 @@ const AppContent = () => {
                     <Route index element={<Navigate to="/app/chat" replace />} />
                     <Route path="chat" element={<MobileConversations />} />
                     <Route path="chat/waouh" element={<MobileWaouhChat />} />
-                    <Route path="muse" element={<WaouhMusePage embedded />} />
+                    <Route path="avatar" element={<WaouhAvatarPage embedded />} />
+                     <Route path="muse" element={<Navigate to="/app/avatar" replace />} />
                     <Route path="missions" element={<WaouhMissionsPage />} />
                     <Route path="conversations" element={<Navigate to="/app/chat" replace />} />
                   </Route>
