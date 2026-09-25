@@ -94,7 +94,7 @@ export function WaouhUnifiedIntelligenceDock({
               </Badge>
             </div>
             <div className="mt-0.5 text-[10px] font-semibold text-slate-500">
-              Un seul assistant · Muse + NEXUS + Signal + Contact
+              Un seul assistant · Avatar + NEXUS + Signal + Contact
             </div>
           </div>
         </div>
@@ -125,13 +125,13 @@ export function WaouhUnifiedIntelligenceDock({
         >
           <div className="text-[10px] font-semibold text-slate-700">
             {dealActive
-              ? deal?.closed ? "Mission conclue." : "Muse accompagne la négociation sans décider à votre place."
+              ? deal?.closed ? "Mission conclue." : "Avatar accompagne la négociation sans décider à votre place."
               : state.phase === "idle" ? "En attente de votre objectif." : PHASE_LABEL[state.phase]}
           </div>
           <Button asChild size="sm" variant="outline" className="mt-2 h-8 w-full rounded-xl text-[10px] font-black">
             <Link to="/waouh/muse">
               <BrainCircuit className="mr-1.5 h-3.5 w-3.5" />
-              Ouvrir Muse complet
+              Ouvrir l’Avatar
               <ArrowRight className="ml-auto h-3.5 w-3.5" />
             </Link>
           </Button>
