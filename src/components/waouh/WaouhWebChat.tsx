@@ -680,7 +680,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
             <MessageCircle className="w-5 h-5 shrink-0" />
             <div className="min-w-0">
               <div className="font-semibold leading-tight truncate">WAOUH Commerce Agent</div>
-              <div className="text-xs opacity-90 truncate">Muse · NEXUS · Signal Fabric</div>
+              <div className="text-xs opacity-90 truncate">Avatar · NEXUS · Signal Fabric</div>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -716,7 +716,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           <div className="mx-auto my-3 max-w-xl rounded-3xl border border-emerald-100 bg-gradient-to-br from-white via-emerald-50/60 to-cyan-50/60 p-5 text-center shadow-sm">
             <div className="text-base font-black text-emerald-950">Que voulez-vous acheter ou vendre ?</div>
             <div className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-muted-foreground">
-              Parlez naturellement. Muse comprend l’objectif, NEXUS cherche le marché, Signal Fabric compare et WAOUH protège le contact.
+              Parlez naturellement. Votre Avatar comprend l’objectif, NEXUS cherche le marché, Signal Fabric compare et WAOUH protège le contact.
             </div>
             <div className="mt-3 flex flex-wrap justify-center gap-2 text-[11px]">
               <button type="button" onClick={() => { setInput("Je cherche "); inputRef.current?.focus(); }} className="rounded-full border bg-white px-3 py-1.5 font-bold text-cyan-800 shadow-sm hover:bg-cyan-50">Acheter</button>
@@ -875,7 +875,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
             <WaouhMuseAvatar mode={commerceAgent.mode} phase="searching" size="sm" className="hidden sm:block" />
             <div className="max-w-[90%] rounded-3xl border border-cyan-100 bg-gradient-to-r from-cyan-50 to-emerald-50 px-3.5 py-2.5 text-xs text-slate-700 shadow-sm">
               <div className="flex items-center gap-2 font-black text-cyan-950">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Muse orchestre la recherche
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Votre Avatar orchestre la recherche
               </div>
               <div className="mt-1 text-[10px] font-semibold text-slate-500">NEXUS découvre · Signal Fabric classe · Contact Layer vérifie</div>
             </div>

@@ -9,7 +9,7 @@ export function contactabilityPresentation(level?: string | null) {
   const normalized = String(level || "").toUpperCase() as ContactabilityLevel;
   switch (normalized) {
     case "C4":
-      return { level: normalized, label: "Agent connecté", detail: "Muse peut poursuivre selon vos règles.", tone: "emerald" as const };
+      return { level: normalized, label: "Agent connecté", detail: "L’Avatar peut poursuivre selon vos règles.", tone: "emerald" as const };
     case "C3":
       return { level: normalized, label: "Contact autorisé", detail: "Contact possible avec consentement.", tone: "emerald" as const };
     case "C2":
@@ -56,7 +56,7 @@ const PHASE_LABEL: Record<WaouhMusePhase, string> = {
   searching: "NEXUS cherche",
   comparing: "Signal Fabric compare",
   contacting: "Prépare le contact",
-  negotiating: "Muse négocie",
+  negotiating: "L’Avatar négocie",
   success: "Objectif atteint",
 };
 
@@ -67,7 +67,7 @@ const PHASE_DETAIL: Record<WaouhMusePhase, string> = {
   comparing: "Les signaux sont classés par pertinence, confiance, prix, proximité et fraîcheur.",
   contacting: "Le Contact Layer applique les permissions C0–C4 avant toute action.",
   negotiating: "Une seule négociation active est suivie avec votre contrôle.",
-  success: "Muse peut conserver la veille si vous souhaitez continuer à surveiller le marché.",
+  success: "L’Avatar peut conserver la veille si vous souhaitez continuer à surveiller le marché.",
 };
 
 const STEP_ORDER: WaouhMusePhase[] = ["listening", "searching", "comparing", "contacting"];
@@ -102,7 +102,7 @@ export function WaouhCommerceAgentBar({
   className?: string;
 }) {
   const uniqueSources = [...new Set(sources.filter(Boolean))].slice(0, 5);
-  const roleLabel = mode === "buyer" ? "Muse acheteur" : mode === "seller" ? "Muse vendeur" : "Muse commerce";
+  const roleLabel = mode === "buyer" ? "Avatar acheteur" : mode === "seller" ? "Avatar vendeur" : "Avatar commerce";
 
   return (
     <section
@@ -111,7 +111,7 @@ export function WaouhCommerceAgentBar({
         compact ? "px-3 py-2" : "px-3 py-2.5 sm:px-4",
         className
       )}
-      aria-label="État de WAOUH Muse"
+      aria-label="État de l’Avatar WAOUH"
     >
       <div className="flex items-center gap-2.5">
         <WaouhMuseAvatar mode={mode} phase={phase} size={compact ? "sm" : "md"} />
