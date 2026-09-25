@@ -234,14 +234,20 @@ function ProductIntelligencePanels({ result }: { result: WaouhResultCard }) {
       : "Comparaison non calculable : données vérifiées insuffisantes.";
   }
 
+  const explicitRecommendation = String(
+    raw.recommendation || raw.recommandation || raw.ai_note || raw.advice || ""
+  ).trim();
+  const measuredRecommendation = [
+    score != null ? `Pertinence ${Math.round(score)}/100` : null,
+    trust != null ? `confiance ${Math.round(trust)}/100` : null,
+  ].filter(Boolean);
   const recommendation =
     reasons.length > 0
       ? reasons.join(" · ")
-      : String(raw.recommendation || raw.recommandation || raw.ai_note || raw.advice || "").trim() ||
-        ([score != null ? `Pertinence ${Math.round(score)}/100` : null, trust != null ? `confiance ${Math.round(trust)}/100` : null]
-          .filter(Boolean)
-          .concat("décision à confirmer par vous")
-          .join(" · "));
+      : explicitRecommendation ||
+        (measuredRecommendation.length
+          ? `${measuredRecommendation.join(" · ")} · décision à confirmer par vous`
+          : "Aucune recommandation fiable sans données supplémentaires.");
 
   const sources = new Set<string>();
   if (result.fabric_id) sources.add("Signal Fabric");
