@@ -18,6 +18,10 @@ import {
   Users,
   ExternalLink,
   Bot,
+  FileText,
+  BarChart3,
+  Scale,
+  Lightbulb,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -174,16 +178,122 @@ function openDedicatedWindowFromResult(result: WaouhResultCard) {
   }, 120);
 }
 
+
+function ProductIntelligencePanels({ result }: { result: WaouhResultCard }) {
+  const raw = result as WaouhResultCard & Record<string, any>;
+  const reasons = resultReasons(result);
+  const price = Number(result.price ?? result.price_min ?? result.price_max);
+  const marketMin = Number(raw.market_price_min ?? raw.prix_marche_min);
+  const marketMax = Number(raw.market_price_max ?? raw.prix_marche_max);
+  const marketMedian = Number(raw.market_price_median ?? raw.median_price);
+  const score = metric(result, "total_score");
+  const trust = metric(result, "trust_score");
+  const priceScore = metric(result, "price_score");
+
+  const detailParts = [
+    raw.details || raw.description || raw.subtitle || null,
+    result.condition ? `État : ${result.condition}` : null,
+    raw.category ? `Catégorie : ${raw.category}` : null,
+    raw.availability ? `Disponibilité : ${raw.availability}` : null,
+  ].filter(Boolean);
+  const details = detailParts.length
+    ? detailParts.join(" · ")
+    : "Non renseigné par la source vérifiée.";
+
+  const range =
+    Number.isFinite(marketMin) && Number.isFinite(marketMax)
+      ? `${fmt(marketMin)} – ${fmt(marketMax)}`
+      : Number.isFinite(marketMedian)
+        ? `Médiane : ${fmt(marketMedian)}`
+        : "";
+  const market =
+    String(raw.market_comparison || raw.market_line || raw.market || "").trim() ||
+    range ||
+    (priceScore != null
+      ? `Signal prix NEXUS / Signal Fabric : ${Math.round(priceScore)}/100. Aucune fourchette supplémentaire vérifiée.`
+      : "Aucune référence de prix vérifiée disponible dans les sources interrogées.");
+
+  let comparison = String(raw.comparative_analysis || raw.market_analysis || raw.analyse_comparative || "").trim();
+  if (!comparison && Number.isFinite(price) && (Number.isFinite(marketMedian) || (Number.isFinite(marketMin) && Number.isFinite(marketMax)))) {
+    const median = Number.isFinite(marketMedian) ? marketMedian : (marketMin + marketMax) / 2;
+    const diff = Math.round(((price - median) / median) * 100);
+    comparison = diff === 0
+      ? "Prix aligné sur la référence de marché vérifiée."
+      : diff < 0
+        ? `Prix ${Math.abs(diff)} % sous la référence de marché.`
+        : `Prix ${diff} % au-dessus de la référence de marché.`;
+  }
+  if (!comparison) {
+    const metrics = [
+      score != null ? `match ${Math.round(score)}/100` : null,
+      trust != null ? `confiance ${Math.round(trust)}/100` : null,
+      priceScore != null ? `prix ${Math.round(priceScore)}/100` : null,
+    ].filter(Boolean);
+    comparison = metrics.length
+      ? `Signaux mesurés : ${metrics.join(" · ")}.`
+      : "Comparaison non calculable : données vérifiées insuffisantes.";
+  }
+
+  const recommendation =
+    reasons.length > 0
+      ? reasons.join(" · ")
+      : String(raw.recommendation || raw.recommandation || raw.ai_note || raw.advice || "").trim() ||
+        ([score != null ? `Pertinence ${Math.round(score)}/100` : null, trust != null ? `confiance ${Math.round(trust)}/100` : null]
+          .filter(Boolean)
+          .concat("décision à confirmer par vous")
+          .join(" · "));
+
+  const sources = new Set<string>();
+  if (result.fabric_id) sources.add("Signal Fabric");
+  if (score != null || trust != null || priceScore != null) sources.add("NEXUS");
+  const source = String(result.source || "").toLowerCase();
+  if (source.includes("radar")) sources.add("Radar");
+  else if (source.includes("partner") || source.includes("partenaire")) sources.add("Partenaire");
+  else if (source.includes("agent")) sources.add("Agents IA");
+  else if (result.source) sources.add(String(result.source));
+
+  const Panel = ({ icon: Icon, title, text, tone }: { icon: any; title: string; text: string; tone: string }) => (
+    <div className={cn("rounded-xl border px-2.5 py-2.5", tone)}>
+      <div className="flex items-start gap-2">
+        <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+        <div className="min-w-0 text-[11px] leading-snug">
+          <span className="font-black">{title} : </span>
+          <span>{text}</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-1.5">
+      <Panel icon={FileText} title="Détails" text={details} tone="border-slate-200 bg-slate-50 text-slate-700" />
+      <Panel icon={BarChart3} title="Marché réel" text={market} tone="border-emerald-100 bg-emerald-50/70 text-emerald-900" />
+      <Panel icon={Scale} title="Analyse comparative" text={comparison} tone="border-blue-100 bg-blue-50/70 text-blue-900" />
+      <Panel icon={Lightbulb} title="Pourquoi WAOUH le recommande" text={recommendation} tone="border-amber-100 bg-amber-50/80 text-amber-900" />
+      {sources.size > 0 && (
+        <div className="flex flex-wrap gap-1 pt-0.5">
+          <span className="rounded-full bg-blue-50 px-2 py-1 text-[9px] font-black text-blue-700">IA vérifiable</span>
+          {[...sources].map((item) => (
+            <span key={item} className="rounded-full bg-slate-100 px-2 py-1 text-[9px] font-bold text-slate-600">{item}</span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function WaouhProductCard({
   result,
   onAction,
   compact,
+  journey = false,
   topPick = false,
 }: {
   result: WaouhResultCard;
   onAction?: (text: string) => void;
   compact?: boolean;
   topPick?: boolean;
+  journey?: boolean;
 }) {
   const photos = normalizeResultCards([result])[0]?.photos || [];
   const [cur, setCur] = useState(0);
@@ -230,7 +340,7 @@ export function WaouhProductCard({
 
   const handleInterest = () => {
     if (!interestAction || !onAction) return;
-    openDedicatedWindowFromResult(result);
+    if (!journey) openDedicatedWindowFromResult(result);
     onAction(interestAction);
   };
 
@@ -373,9 +483,7 @@ export function WaouhProductCard({
           {result.badge && <span className="rounded bg-muted px-1.5 py-0.5">{result.badge}</span>}
         </div>
 
-        {result.market_line && (
-          <p className="text-[11px] leading-snug text-muted-foreground line-clamp-3">{result.market_line}</p>
-        )}
+        <ProductIntelligencePanels result={result} />
 
         {onAction && (
           <div className="mt-1 space-y-1.5">
@@ -390,7 +498,7 @@ export function WaouhProductCard({
                   : level === "C2"
                     ? "Transmettre mon intérêt via WAOUH"
                     : level === "C3" || level === "C4"
-                      ? "Laisser Muse poursuivre"
+                      ? "Laisser l’Avatar poursuivre"
                       : "Je suis intéressé"}
               </Button>
             )}
@@ -449,10 +557,12 @@ export function WaouhProductResults({
   results,
   onAction,
   compact,
+  journey = false,
 }: {
   results: WaouhResultCard[];
   onAction?: (text: string) => void;
   compact?: boolean;
+  journey?: boolean;
 }) {
   const normalized = normalizeResultCards(results);
   const scored = normalized
@@ -496,7 +606,7 @@ export function WaouhProductResults({
             </span>
             <span className="text-[10px] text-muted-foreground">Signal Fabric · classement intelligent</span>
           </div>
-          <WaouhProductCard result={top} onAction={top.source === "catalogue" ? undefined : onAction} compact={compact} topPick />
+          <WaouhProductCard result={top} onAction={top.source === "catalogue" ? undefined : onAction} compact={compact} topPick journey={journey} />
         </div>
       )}
       {remaining.length > 0 && <div className="mb-2 flex items-center justify-between gap-2">
@@ -508,7 +618,7 @@ export function WaouhProductResults({
       </div>}
       <div ref={rail} onScroll={updatePosition} className="flex min-w-0 gap-3 overflow-x-auto overscroll-x-contain snap-x snap-mandatory pb-2">
         {remaining.map((r, i) => <div key={`${r.id}-${r.index}`} role="group" aria-label={`${i + 2} sur ${normalized.length}`} className={cn("min-w-0 shrink-0 snap-start", "w-[calc(100%-1rem)] sm:w-[260px]")}>
-          <WaouhProductCard result={r} onAction={r.source === 'catalogue' ? undefined : onAction} compact={compact} />
+          <WaouhProductCard result={r} onAction={r.source === 'catalogue' ? undefined : onAction} compact={compact} journey={journey} />
         </div>)}
       </div>
     </section>
