@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'live_ia_premium_ui.dart';
+
 class WhatsAppSheetFrame extends StatelessWidget {
   const WhatsAppSheetFrame({
     super.key,
@@ -26,7 +28,7 @@ class WhatsAppSheetFrame extends StatelessWidget {
               width: 44,
               height: 5,
               decoration: BoxDecoration(
-                color: const Color(0xFFC9D8D2),
+                color: Color(0xFFD8E2F1),
                 borderRadius: BorderRadius.circular(99),
               ),
             ),
