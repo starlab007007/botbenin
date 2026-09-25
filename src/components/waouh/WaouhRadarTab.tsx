@@ -245,6 +245,12 @@ export default function WaouhRadarTab() {
                     <Badge variant="outline" className="text-[10px]">{s.source_type}</Badge>
                     <Badge variant="outline" className="text-[10px]">conf {(s.confidence * 100).toFixed(0)}%</Badge>
                     <Badge variant="outline" className="text-[10px]">{s.status}</Badge>
+                    {(s.product?.whatsapp_detected || s.source_type === "wa_group") && (
+                      <Badge variant="outline" className="text-[10px] text-emerald-700 border-emerald-300">WhatsApp détecté</Badge>
+                    )}
+                    {signalPhoto(s) && (
+                      <Badge variant="outline" className="text-[10px]">Photo</Badge>
+                    )}
                     {(s.promoted_article_id || s.promoted_buyer_profile_id) && (
                       <Badge className="bg-emerald-500/20 text-emerald-700 border-emerald-500/40 text-[10px]">Promu</Badge>
                     )}
