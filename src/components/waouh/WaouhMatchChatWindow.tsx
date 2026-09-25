@@ -708,7 +708,7 @@ export function WaouhMatchChatWindow({
                 <Sparkles className="h-2.5 w-2.5" /> WAOUH Deal Room
               </span>
               <span className="text-[10px] font-bold text-emerald-900">
-                {match.kind === "buyer" ? "Muse négocie côté acheteur" : "Muse accompagne la vente"}
+                {match.kind === "buyer" ? "L’Avatar négocie côté acheteur" : "L’Avatar accompagne la vente"}
               </span>
               {dealContactLevel && <WaouhContactabilityBadge level={dealContactLevel} showCode />}
               {closed && (

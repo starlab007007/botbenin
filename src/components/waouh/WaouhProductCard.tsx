@@ -18,6 +18,10 @@ import {
   Users,
   ExternalLink,
   Bot,
+  FileText,
+  BarChart3,
+  Scale,
+  Lightbulb,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +30,8 @@ import { isImageReady, preloadImage, prefetchNeighbours } from "@/components/wao
 import { cn } from "@/lib/utils";
 import { WaouhContactabilityBadge } from "./WaouhCommerceAgentBar";
 import { WaouhNexusContactSheet } from "./WaouhNexusContactSheet";
+import { supabase } from "@/integrations/supabase/client";
+import { searchNexus, nexusSourceLabel } from "@/lib/waouh/nexus";
 
 /**
  * Fiche produit d'un résultat de recherche WAOUH.
@@ -70,6 +76,113 @@ export interface WaouhResultCard {
   scores?: Record<string, unknown> | null;
   reasons?: string[] | null;
   evidence?: Record<string, unknown> | null;
+}
+
+type MarketIntelligence = {
+  details: string;
+  market: string;
+  comparison: string;
+  recommendation: string;
+  sources: string[];
+  confidence: number;
+};
+
+const marketCache = new Map<string, Promise<MarketIntelligence>>();
+
+const compactNumber = (value: unknown): number | null => {
+  if (value == null || value === "") return null;
+  const n = typeof value === "number" ? value : Number(String(value).replace(/[^0-9.,-]/g, "").replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+};
+
+const marketFmt = (value: number | null) =>
+  value == null ? "?" : new Intl.NumberFormat("fr-FR").format(Math.round(value)) + " FCFA";
+
+async function loadMarketIntelligence(result: WaouhResultCard): Promise<MarketIntelligence> {
+  const offeredPrice = compactNumber(result.price ?? result.price_min ?? result.price_max);
+  const [priceAttempt, nexusAttempt] = await Promise.allSettled([
+    supabase.functions.invoke("waouh-price-compare", {
+      body: {
+        article_id: /^[0-9a-f-]{36}$/i.test(result.id || "") ? result.id : undefined,
+        query: result.title,
+        offered_price: offeredPrice,
+        city: result.city || undefined,
+        fast_mode: true,
+      },
+    }),
+    searchNexus({
+      query: result.title,
+      budget_max: offeredPrice ?? undefined,
+      city: result.city || undefined,
+      limit: 10,
+      persist_intent: false,
+    }),
+  ]);
+
+  const priceData = priceAttempt.status === "fulfilled" && !priceAttempt.value.error
+    ? (priceAttempt.value.data || {})
+    : {};
+  const stats = priceData?.stats && typeof priceData.stats === "object" ? priceData.stats : {};
+  const min = compactNumber(priceData?.min ?? stats?.p25 ?? stats?.min);
+  const median = compactNumber(priceData?.median ?? stats?.median);
+  const max = compactNumber(priceData?.max ?? stats?.p75 ?? stats?.max);
+  const sample = compactNumber(stats?.n ?? stats?.sample_count) ?? 0;
+  const verdict = priceData?.verdict && typeof priceData.verdict === "object" ? priceData.verdict : {};
+  const advice = String(verdict?.advice || "").trim();
+  const label = String(verdict?.label || verdict?.classification || "").trim();
+
+  const nexus = nexusAttempt.status === "fulfilled" ? nexusAttempt.value : null;
+  const nexusReasons = (nexus?.results || [])
+    .flatMap((item) => item.scores?.reasons || [])
+    .filter((value): value is string => typeof value === "string" && !!value.trim())
+    .slice(0, 3);
+  const sourceSet = new Set<string>();
+  for (const item of nexus?.results || []) sourceSet.add(nexusSourceLabel(item.source));
+  if (Array.isArray(priceData?.sources)) {
+    for (const row of priceData.sources) {
+      const source = row && typeof row === "object" ? String((row as any).source || "").trim() : "";
+      if (source) sourceSet.add(source);
+    }
+  }
+  if (result.source) sourceSet.add(nexusSourceLabel(result.source));
+
+  const market = min == null && max == null && median == null
+    ? "Analyse active · aucune fourchette suffisamment fiable pour le moment."
+    : [
+        min != null || max != null ? `${marketFmt(min)} – ${marketFmt(max)}` : "",
+        median != null ? `médiane ${marketFmt(median)}` : "",
+        sample > 0 ? `échantillon ${Math.round(sample)}` : "",
+      ].filter(Boolean).join(" · ");
+
+  let comparison = "Comparaison en cours avec les offres et signaux disponibles.";
+  if (offeredPrice != null && median != null && median > 0) {
+    const delta = ((offeredPrice - median) / median) * 100;
+    const abs = Math.abs(delta).toFixed(0);
+    comparison = delta < -3
+      ? `Prix environ ${abs}% sous la médiane observée.`
+      : delta > 3
+        ? `Prix environ ${abs}% au-dessus de la médiane observée.`
+        : "Prix proche de la médiane observée.";
+    if (label) comparison += ` · ${label}`;
+  } else if (label) comparison = label;
+
+  const details = [
+    result.condition ? `État : ${result.condition}` : "",
+    result.city ? `Zone : ${result.city}` : "",
+    result.quartier ? `Quartier : ${result.quartier}` : "",
+    result.distance_km != null ? `Distance : ${result.distance_km} km` : "",
+  ].filter(Boolean).join(" · ") || "Informations consolidées depuis l’annonce et les signaux WAOUH disponibles.";
+
+  const recommendation = [advice, ...nexusReasons, ...resultReasons(result)]
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(" · ") || "Confirmer disponibilité, état et conditions avant accord.";
+
+  const confidence = Math.min(1, Math.max(.3,
+    (nexus?.results?.length ? .72 : .35) + (sample > 2 ? .14 : 0) + (sourceSet.size > 1 ? .08 : 0)
+  ));
+
+  return { details, market, comparison, recommendation, sources: [...sourceSet], confidence };
 }
 
 type OpenDetail = {
@@ -174,6 +287,36 @@ function openDedicatedWindowFromResult(result: WaouhResultCard) {
   }, 120);
 }
 
+function InsightPanel({
+  icon: Icon,
+  title,
+  text,
+  tone,
+}: {
+  icon: typeof FileText;
+  title: string;
+  text: string;
+  tone: "slate" | "emerald" | "blue" | "amber";
+}) {
+  const styles = {
+    slate: "border-slate-200 bg-slate-50 text-slate-700",
+    emerald: "border-emerald-100 bg-emerald-50/70 text-emerald-800",
+    blue: "border-blue-100 bg-blue-50/70 text-blue-800",
+    amber: "border-amber-100 bg-amber-50/70 text-amber-800",
+  }[tone];
+  return (
+    <div className={cn("rounded-xl border px-2.5 py-2", styles)}>
+      <div className="flex items-start gap-2">
+        <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <div className="min-w-0 text-[11px] leading-snug">
+          <span className="font-black">{title} : </span>
+          <span className="font-medium">{text}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function WaouhProductCard({
   result,
   onAction,
@@ -192,6 +335,7 @@ export function WaouhProductCard({
   const [ready, setReady] = useState<boolean>(() => isImageReady(photos[0]));
   const [asking, setAsking] = useState(false);
   const [question, setQuestion] = useState("");
+  const [marketIntel, setMarketIntel] = useState<MarketIntelligence | null>(null);
   const gallery = photos.map((url) => ({ url, caption: result.title }));
   const interestAction = result.action === null ? null : (result.action || defaultInterestAction(result));
   const opportunity = isBuyerOpportunity(result);
@@ -200,6 +344,16 @@ export function WaouhProductCard({
   const trust = metric(result, "trust_score");
   const priceFit = metric(result, "price_score");
   const reasons = resultReasons(result);
+
+  useEffect(() => {
+    let alive = true;
+    setMarketIntel(null);
+    const key = [result.id, result.title, result.city || "", result.price ?? result.price_min ?? result.price_max ?? ""].join("|");
+    const promise = marketCache.get(key) || loadMarketIntelligence(result);
+    marketCache.set(key, promise);
+    promise.then((value) => { if (alive) setMarketIntel(value); }).catch(() => {});
+    return () => { alive = false; };
+  }, [result.id, result.title, result.city, result.price, result.price_min, result.price_max]);
 
   useEffect(() => {
     setFailed(false);
@@ -347,14 +501,21 @@ export function WaouhProductCard({
           </div>
         )}
 
-        {reasons.length > 0 && (
-          <div className="rounded-xl border border-emerald-100 bg-emerald-50/55 px-2.5 py-2">
-            <div className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-emerald-800">
-              <Bot className="h-3 w-3" /> Pourquoi WAOUH le recommande
+        <div className="space-y-1.5">
+          <InsightPanel icon={FileText} title="Détails" text={marketIntel?.details || [
+            result.condition ? `État : ${result.condition}` : "",
+            result.city ? `Zone : ${result.city}` : "",
+          ].filter(Boolean).join(" · ") || "Analyse des informations de l’annonce en cours."} tone="slate" />
+          <InsightPanel icon={BarChart3} title="Marché réel" text={marketIntel?.market || result.market_line || "Analyse des données marché WAOUH en cours."} tone="emerald" />
+          <InsightPanel icon={Scale} title="Analyse comparative" text={marketIntel?.comparison || "Comparaison intelligente en cours."} tone="blue" />
+          <InsightPanel icon={Lightbulb} title="Pourquoi WAOUH le recommande" text={marketIntel?.recommendation || (reasons.length ? reasons.join(" · ") : "Qualification en cours par les moteurs WAOUH.")} tone="amber" />
+          {marketIntel && (
+            <div className="flex items-center gap-1.5 px-1 text-[9px] font-bold text-slate-500">
+              <Sparkles className="h-3 w-3 text-blue-600" />
+              IA marché {Math.round(marketIntel.confidence * 100)}% · {marketIntel.sources.length ? marketIntel.sources.slice(0, 4).join(" · ") : "WAOUH"}
             </div>
-            <div className="text-[11px] leading-snug text-emerald-950">{reasons.join(" · ")}</div>
-          </div>
-        )}
+          )}
+        </div>
 
         <div className="flex flex-wrap gap-1 text-[11px] text-muted-foreground">
           {(result.city || result.quartier) && (
@@ -390,7 +551,7 @@ export function WaouhProductCard({
                   : level === "C2"
                     ? "Transmettre mon intérêt via WAOUH"
                     : level === "C3" || level === "C4"
-                      ? "Laisser Muse poursuivre"
+                      ? "Laisser l’Avatar poursuivre"
                       : "Je suis intéressé"}
               </Button>
             )}
