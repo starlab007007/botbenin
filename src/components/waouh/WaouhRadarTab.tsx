@@ -42,7 +42,7 @@ export default function WaouhRadarTab() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [newSrc, setNewSrc] = useState({ type: "fb_marketplace", identifier: "", label: "" });
+  const [newSrc, setNewSrc] = useState({ type: "fb_marketplace", identifier: "", label: "", scan_freq_min: 60 });
 
   const load = async () => {
     setLoading(true);
@@ -72,7 +72,7 @@ export default function WaouhRadarTab() {
     if (!newSrc.identifier) return toast.error("Identifiant requis");
     const { error } = await supabase.from("waouh_radar_sources").insert(newSrc);
     if (error) toast.error(error.message);
-    else { toast.success("Source ajoutée"); setNewSrc({ type: "fb_marketplace", identifier: "", label: "" }); load(); }
+    else { toast.success("Source ajoutée"); setNewSrc({ type: "fb_marketplace", identifier: "", label: "", scan_freq_min: 60 }); load(); }
   };
 
   const toggleSource = async (id: string, active: boolean) => {
@@ -121,6 +121,7 @@ export default function WaouhRadarTab() {
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={() => triggerScan("waouh-serpapi-scout")}>SerpAPI</Button>
           <Button variant="outline" size="sm" onClick={() => triggerScan("waouh-radar-apify")}>Apify</Button>
+          <Button variant="outline" size="sm" onClick={() => triggerScan("waouh-radar-site-scraper")}>Sites Web</Button>
           <Button variant="outline" size="sm" onClick={() => triggerScan("waouh-radar-process")}>Process queue</Button>
           <Button variant="outline" size="icon" onClick={load}><RefreshCw className="w-4 h-4" /></Button>
         </div>
@@ -190,7 +191,7 @@ export default function WaouhRadarTab() {
         <TabsContent value="sources" className="space-y-3">
           <Card className="p-4">
             <div className="font-medium mb-3 flex items-center gap-2"><Plus className="w-4 h-4" /> Ajouter une source</div>
-            <div className="grid sm:grid-cols-4 gap-2">
+            <div className="grid sm:grid-cols-5 gap-2">
               <Select value={newSrc.type} onValueChange={(v) => setNewSrc({ ...newSrc, type: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -211,6 +212,14 @@ export default function WaouhRadarTab() {
               </Select>
               <Input placeholder="URL, Page ID, @canal, -100..., group@g.us, requête…" value={newSrc.identifier} onChange={(e) => setNewSrc({ ...newSrc, identifier: e.target.value })} />
               <Input placeholder="Label" value={newSrc.label} onChange={(e) => setNewSrc({ ...newSrc, label: e.target.value })} />
+              <Input
+                type="number"
+                min={5}
+                max={1440}
+                title="Fréquence de collecte en minutes"
+                value={newSrc.scan_freq_min}
+                onChange={(e) => setNewSrc({ ...newSrc, scan_freq_min: Math.max(5, Number(e.target.value || 60)) })}
+              />
               <Button onClick={addSource}><Plus className="w-4 h-4 mr-1" /> Ajouter</Button>
             </div>
           </Card>
