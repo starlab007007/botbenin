@@ -3046,7 +3046,13 @@ Retourne uniquement JSON:
             let ok = state.ok;
             let reason = state.reason ?? null;
             if (provider === "whatsapp_groups") {
-              ok = row.active === true && !!Deno.env.get("WAHA_BASE_URL");
+              const wahaBase = String(Deno.env.get("WAHA_BASE_URL") || "").trim();
+              const wahaKey = String(
+                Deno.env.get("WAHA_API_KEY_PLAIN") ||
+                Deno.env.get("WAHA_API_KEY") ||
+                "",
+              ).trim();
+              ok = row.active === true && !!wahaBase && !!wahaKey;
               reason = ok ? null : "waha_not_configured_or_disabled";
             }
             if (provider === "sms_rcs") {
@@ -3061,18 +3067,35 @@ Retourne uniquement JSON:
           let effectiveState = row.operational_state;
           let configured = ["live","ingest_only"].includes(row.operational_state);
           let reason: string | null = null;
-          const providerRow = sourceProviderMap.get(String(row.source_key));
-          if (providerRow) {
+          const sourceKey = String(row.source_key);
+          const providerRow = sourceProviderMap.get(sourceKey);
+          const serpReady = readiness.get("serpapi")?.ok === true;
+          const apifyReady = readiness.get("apify")?.ok === true;
+          const firecrawlReady = readiness.get("firecrawl")?.ok === true;
+          const compositePublicSources = new Set([
+            "web_social",
+            "facebook_public",
+            "instagram_public",
+            "tiktok_public",
+            "linkedin_public",
+            "youtube_public",
+            "x_public",
+          ]);
+          if (compositePublicSources.has(sourceKey)) {
+            configured = sourceKey === "web_social"
+              ? serpReady || apifyReady || firecrawlReady
+              : serpReady || apifyReady || firecrawlReady;
+            effectiveState = configured ? "live" : "requires_config";
+            reason = configured ? null : "serpapi_apify_or_firecrawl_required";
+          } else if (sourceKey === "rss_public") {
+            configured = firecrawlReady;
+            effectiveState = configured ? "live" : "requires_config";
+            reason = configured ? null : "firecrawl_required";
+          } else if (providerRow) {
             const state = readiness.get(String(providerRow.provider));
             configured = state?.ok === true;
             effectiveState = configured ? "live" : "requires_config";
             reason = configured ? null : (state?.reason ?? "not_configured");
-          } else if (row.source_key === "web_social") {
-            const serp = readiness.get("serpapi")?.ok === true;
-            const apify = readiness.get("apify")?.ok === true;
-            configured = serp || apify;
-            effectiveState = configured ? "live" : "requires_config";
-            reason = configured ? null : "serpapi_or_apify_required";
           } else if (row.source_key === "sms_rcs") {
             configured = telSettings.data?.enabled === true && telRuntime.data?.runtime_ready === true;
             effectiveState = configured ? "live" : "requires_config";
