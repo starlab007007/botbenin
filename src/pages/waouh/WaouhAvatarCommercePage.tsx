@@ -13,7 +13,7 @@ import {
   MapPin,
   Radar,
   Search,
-  Sell,
+  Tag,
   ShoppingBag,
   Sparkles,
   Store,
@@ -50,7 +50,7 @@ const modeConfig: Record<Mode, {
     title: "Vendre",
     subtitle: "Votre Avatar publie puis cherche les acheteurs compatibles",
     placeholder: "Ex. Je vends 10 tonnes de soja à Parakou",
-    icon: Sell,
+    icon: Tag,
   },
   ask: {
     title: "Demander",
