@@ -14,6 +14,8 @@ import 'smart_agent_catalog.dart';
 import 'smart_document_picker.dart';
 import 'smart_studio_service.dart';
 
+import '../live_ia_premium_ui.dart';
+
 enum _StudioMode {
   line,
   agent,
@@ -37,13 +39,13 @@ class SmartStudioWizardSheet extends StatefulWidget {
 }
 
 class _SmartStudioWizardSheetState extends State<SmartStudioWizardSheet> {
-  static const _primary = Color(0xFF0B7F72);
-  static const _primaryDark = Color(0xFF075F57);
-  static const _mint = Color(0xFFDFF5F0);
-  static const _background = Color(0xFFF4FAF8);
-  static const _line = Color(0xFFDCEBE7);
-  static const _ink = Color(0xFF17211F);
-  static const _muted = Color(0xFF667874);
+  static const _primary = WaouhIaPalette.primary;
+  static const _primaryDark = WaouhIaPalette.primaryDeep;
+  static const _mint = WaouhIaPalette.primarySoft;
+  static const _background = WaouhIaPalette.canvas;
+  static const _line = WaouhIaPalette.line;
+  static const _ink = WaouhIaPalette.ink;
+  static const _muted = WaouhIaPalette.muted;
 
   final WhatsAppIaStudioV20Service _base = WhatsAppIaStudioV20Service();
 
@@ -2340,12 +2342,12 @@ class _SmartHeader extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFDFF5F0),
+                  color: WaouhIaPalette.primarySoft,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: const Icon(
                   Icons.auto_awesome_rounded,
-                  color: Color(0xFF0B7F72),
+                  color: WaouhIaPalette.primary,
                 ),
               ),
               const SizedBox(width: 10),
@@ -2358,7 +2360,7 @@ class _SmartHeader extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: Color(0xFF17211F),
+                        color: WaouhIaPalette.ink,
                         fontSize: 17,
                         fontWeight: FontWeight.w900,
                       ),
@@ -2368,7 +2370,7 @@ class _SmartHeader extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: Color(0xFF667874),
+                        color: WaouhIaPalette.muted,
                         fontSize: 10.5,
                         fontWeight: FontWeight.w600,
                       ),
@@ -2394,7 +2396,7 @@ class _SmartHeader extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: active
-                        ? const Color(0xFF0B7F72)
+                        ? WaouhIaPalette.primary
                         : const Color(0xFFE0EBE8),
                     borderRadius: BorderRadius.circular(99),
                   ),
@@ -2428,12 +2430,12 @@ class _StepIntro extends StatelessWidget {
           width: 43,
           height: 43,
           decoration: BoxDecoration(
-            color: const Color(0xFFDFF5F0),
+            color: WaouhIaPalette.primarySoft,
             borderRadius: BorderRadius.circular(14),
           ),
           child: Icon(
             icon,
-            color: const Color(0xFF0B7F72),
+            color: WaouhIaPalette.primary,
           ),
         ),
         const SizedBox(width: 11),
@@ -2444,7 +2446,7 @@ class _StepIntro extends StatelessWidget {
               Text(
                 title,
                 style: const TextStyle(
-                  color: Color(0xFF17211F),
+                  color: WaouhIaPalette.ink,
                   fontSize: 19,
                   fontWeight: FontWeight.w900,
                   letterSpacing: -0.4,
@@ -2454,7 +2456,7 @@ class _StepIntro extends StatelessWidget {
               Text(
                 message,
                 style: const TextStyle(
-                  color: Color(0xFF667874),
+                  color: WaouhIaPalette.muted,
                   fontSize: 12.5,
                   height: 1.35,
                 ),
@@ -2486,7 +2488,7 @@ class _MainButton extends StatelessWidget {
       onPressed: busy ? null : onPressed,
       style: FilledButton.styleFrom(
         minimumSize: const Size.fromHeight(53),
-        backgroundColor: const Color(0xFF0B7F72),
+        backgroundColor: WaouhIaPalette.primary,
         foregroundColor: Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(17),
@@ -2537,7 +2539,7 @@ class _CurrentStepGuide extends StatelessWidget {
             height: 28,
             alignment: Alignment.center,
             decoration: const BoxDecoration(
-              color: Color(0xFF0B7F72),
+              color: WaouhIaPalette.primary,
               shape: BoxShape.circle,
             ),
             child: Text(
@@ -2556,7 +2558,7 @@ class _CurrentStepGuide extends StatelessWidget {
                 Text(
                   'Étape ${safeStep + 1} sur ${titles.length} · ${titles[safeStep]}',
                   style: const TextStyle(
-                    color: Color(0xFF17211F),
+                    color: WaouhIaPalette.ink,
                     fontSize: 12,
                     fontWeight: FontWeight.w900,
                   ),
@@ -2565,7 +2567,7 @@ class _CurrentStepGuide extends StatelessWidget {
                   Text(
                     'Ensuite : $next',
                     style: const TextStyle(
-                      color: Color(0xFF667874),
+                      color: WaouhIaPalette.muted,
                       fontSize: 10.5,
                     ),
                   ),
@@ -2631,7 +2633,7 @@ class _LineNavigationButtons extends StatelessWidget {
             onPressed: busy ? null : onNext,
             style: FilledButton.styleFrom(
               minimumSize: const Size.fromHeight(53),
-              backgroundColor: const Color(0xFF0B7F72),
+              backgroundColor: WaouhIaPalette.primary,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 14),
               shape: RoundedRectangleBorder(
@@ -2708,7 +2710,7 @@ class _NavigationButtons extends StatelessWidget {
           child: FilledButton.icon(
             onPressed: onNext,
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF0B7F72),
+              backgroundColor: WaouhIaPalette.primary,
             ),
             icon: const Icon(Icons.arrow_forward_rounded),
             label: const Text('Continuer'),
@@ -2733,7 +2735,7 @@ class _SourceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? const Color(0xFFDFF5F0) : Colors.white,
+      color: selected ? WaouhIaPalette.primarySoft : Colors.white,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: onTap,
@@ -2744,7 +2746,7 @@ class _SourceCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color:
-                  selected ? const Color(0xFF0B7F72) : const Color(0xFFDCEBE7),
+                  selected ? WaouhIaPalette.primary : WaouhIaPalette.line,
               width: selected ? 1.5 : 1,
             ),
           ),
@@ -2759,7 +2761,7 @@ class _SourceCard extends StatelessWidget {
                 ),
                 child: Icon(
                   definition.icon,
-                  color: const Color(0xFF0B7F72),
+                  color: WaouhIaPalette.primary,
                 ),
               ),
               const SizedBox(width: 11),
@@ -2770,7 +2772,7 @@ class _SourceCard extends StatelessWidget {
                     Text(
                       definition.label,
                       style: const TextStyle(
-                        color: Color(0xFF17211F),
+                        color: WaouhIaPalette.ink,
                         fontSize: 14,
                         fontWeight: FontWeight.w900,
                       ),
@@ -2779,7 +2781,7 @@ class _SourceCard extends StatelessWidget {
                     Text(
                       definition.description,
                       style: const TextStyle(
-                        color: Color(0xFF667874),
+                        color: WaouhIaPalette.muted,
                         fontSize: 11.5,
                         height: 1.3,
                       ),
@@ -2792,7 +2794,7 @@ class _SourceCard extends StatelessWidget {
                     ? Icons.check_circle_rounded
                     : Icons.chevron_right_rounded,
                 color: selected
-                    ? const Color(0xFF0B7F72)
+                    ? WaouhIaPalette.primary
                     : const Color(0xFF8A9A96),
               ),
             ],
@@ -2821,7 +2823,7 @@ class _MethodCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? const Color(0xFFDFF5F0) : Colors.white,
+      color: selected ? WaouhIaPalette.primarySoft : Colors.white,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
         onTap: onTap,
@@ -2833,7 +2835,7 @@ class _MethodCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
               color:
-                  selected ? const Color(0xFF0B7F72) : const Color(0xFFDCEBE7),
+                  selected ? WaouhIaPalette.primary : WaouhIaPalette.line,
             ),
           ),
           child: Column(
@@ -2841,7 +2843,7 @@ class _MethodCard extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                color: const Color(0xFF0B7F72),
+                color: WaouhIaPalette.primary,
                 size: 27,
               ),
               const SizedBox(height: 6),
@@ -2855,7 +2857,7 @@ class _MethodCard extends StatelessWidget {
                 subtitle,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  color: Color(0xFF667874),
+                  color: WaouhIaPalette.muted,
                   fontSize: 10.5,
                 ),
               ),
@@ -2893,7 +2895,7 @@ class _QrOrPlaceholder extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(19),
-        border: Border.all(color: const Color(0xFFDCEBE7)),
+        border: Border.all(color: WaouhIaPalette.line),
       ),
       child: Column(
         children: [
@@ -2922,7 +2924,7 @@ class _QrOrPlaceholder extends StatelessWidget {
                 ? 'Générez le QR pour commencer.'
                 : 'Scannez ce QR depuis WhatsApp.',
             style: const TextStyle(
-              color: Color(0xFF667874),
+              color: WaouhIaPalette.muted,
               fontSize: 12,
             ),
           ),
@@ -2949,20 +2951,20 @@ class _PairCodePanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(19),
-        border: Border.all(color: const Color(0xFFDCEBE7)),
+        border: Border.all(color: WaouhIaPalette.line),
       ),
       child: Column(
         children: [
           const Icon(
             Icons.pin_outlined,
             size: 40,
-            color: Color(0xFF0B7F72),
+            color: WaouhIaPalette.primary,
           ),
           const SizedBox(height: 8),
           Text(
             value?.isNotEmpty == true ? value! : '---- ----',
             style: const TextStyle(
-              color: Color(0xFF17211F),
+              color: WaouhIaPalette.ink,
               fontSize: 30,
               fontWeight: FontWeight.w900,
               letterSpacing: 4,
@@ -2972,7 +2974,7 @@ class _PairCodePanel extends StatelessWidget {
           Text(
             'Numéro : $phone',
             style: const TextStyle(
-              color: Color(0xFF667874),
+              color: WaouhIaPalette.muted,
               fontSize: 12,
             ),
           ),
@@ -3015,14 +3017,14 @@ class _RecommendationCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: const Color(0xFFDFF5F0),
+        color: WaouhIaPalette.primarySoft,
         borderRadius: BorderRadius.circular(17),
       ),
       child: Row(
         children: [
           const Icon(
             Icons.auto_awesome_rounded,
-            color: Color(0xFF0B7F72),
+            color: WaouhIaPalette.primary,
           ),
           const SizedBox(width: 9),
           Expanded(
@@ -3040,7 +3042,7 @@ class _RecommendationCard extends StatelessWidget {
                       Text(
                         '${item.template.emoji} ${item.template.label} · ${(item.confidence * 100).round()} %',
                         style: const TextStyle(
-                          color: Color(0xFF075F57),
+                          color: WaouhIaPalette.primaryDeep,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -3075,7 +3077,7 @@ class _TemplatePrompts extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: const Color(0xFFDFF5F0),
+        color: WaouhIaPalette.primarySoft,
         borderRadius: BorderRadius.circular(17),
       ),
       child: Column(
@@ -3084,7 +3086,7 @@ class _TemplatePrompts extends StatelessWidget {
           Text(
             '${template.emoji} Données recommandées pour ${template.label}',
             style: const TextStyle(
-              color: Color(0xFF075F57),
+              color: WaouhIaPalette.primaryDeep,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -3128,7 +3130,7 @@ class _DocumentRow extends StatelessWidget {
       contentPadding: const EdgeInsets.symmetric(horizontal: 5),
       leading: const Icon(
         Icons.description_outlined,
-        color: Color(0xFF0B7F72),
+        color: WaouhIaPalette.primary,
       ),
       title: Text(
         document.name,
@@ -3166,7 +3168,7 @@ class _ProductRow extends StatelessWidget {
             : product.kind == 'presentation'
                 ? Icons.slideshow_outlined
                 : Icons.inventory_2_outlined,
-        color: const Color(0xFF0B7F72),
+        color: WaouhIaPalette.primary,
       ),
       title: Text(
         product.name,
@@ -3209,7 +3211,7 @@ class _SessionChoice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? const Color(0xFFDFF5F0) : Colors.white,
+      color: selected ? WaouhIaPalette.primarySoft : Colors.white,
       borderRadius: BorderRadius.circular(17),
       child: InkWell(
         onTap: onTap,
@@ -3220,14 +3222,14 @@ class _SessionChoice extends StatelessWidget {
             borderRadius: BorderRadius.circular(17),
             border: Border.all(
               color:
-                  selected ? const Color(0xFF0B7F72) : const Color(0xFFDCEBE7),
+                  selected ? WaouhIaPalette.primary : WaouhIaPalette.line,
             ),
           ),
           child: Row(
             children: [
               const Icon(
                 Icons.check_circle_rounded,
-                color: Color(0xFF0B7F72),
+                color: WaouhIaPalette.primary,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -3241,7 +3243,7 @@ class _SessionChoice extends StatelessWidget {
               if (selected)
                 const Icon(
                   Icons.radio_button_checked_rounded,
-                  color: Color(0xFF0B7F72),
+                  color: WaouhIaPalette.primary,
                 ),
             ],
           ),
@@ -3267,13 +3269,13 @@ class _SectionTitle extends StatelessWidget {
         Icon(
           icon,
           size: 19,
-          color: const Color(0xFF0B7F72),
+          color: WaouhIaPalette.primary,
         ),
         const SizedBox(width: 7),
         Text(
           title,
           style: const TextStyle(
-            color: Color(0xFF17211F),
+            color: WaouhIaPalette.ink,
             fontSize: 14,
             fontWeight: FontWeight.w900,
           ),
@@ -3319,14 +3321,14 @@ class _SmartInfo extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: const Color(0xFFDCEBE7)),
+        border: Border.all(color: WaouhIaPalette.line),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
             icon,
-            color: const Color(0xFF0B7F72),
+            color: WaouhIaPalette.primary,
           ),
           const SizedBox(width: 9),
           Expanded(
@@ -3342,7 +3344,7 @@ class _SmartInfo extends StatelessWidget {
                 Text(
                   text,
                   style: const TextStyle(
-                    color: Color(0xFF667874),
+                    color: WaouhIaPalette.muted,
                     fontSize: 11.5,
                     height: 1.35,
                   ),
@@ -3375,13 +3377,13 @@ class _SuccessHero extends StatelessWidget {
           width: 86,
           height: 86,
           decoration: const BoxDecoration(
-            color: Color(0xFFDFF5F0),
+            color: WaouhIaPalette.primarySoft,
             shape: BoxShape.circle,
           ),
           child: Icon(
             icon,
             size: 49,
-            color: const Color(0xFF0B7F72),
+            color: WaouhIaPalette.primary,
           ),
         ),
         const SizedBox(height: 14),
@@ -3389,7 +3391,7 @@ class _SuccessHero extends StatelessWidget {
           title,
           textAlign: TextAlign.center,
           style: const TextStyle(
-            color: Color(0xFF17211F),
+            color: WaouhIaPalette.ink,
             fontSize: 23,
             fontWeight: FontWeight.w900,
           ),
@@ -3399,7 +3401,7 @@ class _SuccessHero extends StatelessWidget {
           message,
           textAlign: TextAlign.center,
           style: const TextStyle(
-            color: Color(0xFF667874),
+            color: WaouhIaPalette.muted,
             height: 1.4,
           ),
         ),
@@ -3429,7 +3431,7 @@ class _TestEmptyState extends StatelessWidget {
               'Testez une question réelle : prix, disponibilité, procédure, rendez-vous ou service.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Color(0xFF667874),
+                color: WaouhIaPalette.muted,
                 height: 1.4,
               ),
             ),
@@ -3461,7 +3463,7 @@ class _TypingMessage extends StatelessWidget {
       child: Text(
         'Le moteur IA analyse les données…',
         style: TextStyle(
-          color: Color(0xFF667874),
+          color: WaouhIaPalette.muted,
           fontSize: 12,
           fontStyle: FontStyle.italic,
         ),

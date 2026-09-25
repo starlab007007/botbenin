@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../live_ia_premium_ui.dart';
 
 class StudioAuthenticationSheet extends StatefulWidget {
   const StudioAuthenticationSheet({
@@ -13,11 +14,11 @@ class StudioAuthenticationSheet extends StatefulWidget {
 
 class _StudioAuthenticationSheetState extends State<StudioAuthenticationSheet>
     with SingleTickerProviderStateMixin {
-  static const _primary = Color(0xFF0B7F72);
-  static const _background = Color(0xFFF4FAF8);
-  static const _line = Color(0xFFDCEBE7);
-  static const _ink = Color(0xFF17211F);
-  static const _muted = Color(0xFF667874);
+  static const _primary = WaouhIaPalette.primary;
+  static const _background = WaouhIaPalette.canvas;
+  static const _line = WaouhIaPalette.line;
+  static const _ink = WaouhIaPalette.ink;
+  static const _muted = WaouhIaPalette.muted;
 
   late final TabController _tabs = TabController(length: 2, vsync: this);
 
@@ -240,7 +241,7 @@ class _StudioAuthenticationSheetState extends State<StudioAuthenticationSheet>
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: const Color(0xFFDFF5F0),
+              color: WaouhIaPalette.primarySoft,
               borderRadius: BorderRadius.circular(14),
             ),
             child: const Icon(

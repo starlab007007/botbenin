@@ -43,22 +43,28 @@ String waouhIaReadableError(String raw) {
 }
 
 class WaouhIaPalette {
-  static const primary = Color(0xFF087A69);
-  static const primaryDeep = Color(0xFF045D52);
-  static const primarySoft = Color(0xFFE6F8F2);
-  static const mint = Color(0xFFCEF5E5);
-  static const canvas = Color(0xFFF7FAF9);
+  // WAOUH AIR for the entire IA area. Semantic roles are preserved so
+  // business status colors keep their meaning while the shell becomes
+  // consistent with the rest of the application.
+  static const primary = Color(0xFF4F7FFF);
+  static const primaryDeep = Color(0xFF315BD8);
+  static const primarySoft = Color(0xFFEEF4FF);
+  static const mint = Color(0xFFEAFBF8);
+  static const canvas = Color(0xFFF6F9FF);
   static const surface = Color(0xFFFFFFFF);
-  static const ink = Color(0xFF102A25);
-  static const muted = Color(0xFF6F817C);
-  static const line = Color(0xFFE1E9E6);
-  static const success = Color(0xFF159B65);
-  static const warning = Color(0xFFE8A121);
-  static const danger = Color(0xFFC65353);
-  static const info = Color(0xFF2F6BFF);
-  static const purple = Color(0xFF7B56D8);
-  static const amber = Color(0xFFE69716);
-  static const teal = Color(0xFF087A69);
+  static const ink = Color(0xFF10213D);
+  static const muted = Color(0xFF6C7C9B);
+  static const line = Color(0xFFE2EAF6);
+  static const success = Color(0xFF19B6A4);
+  static const warning = Color(0xFFF4A340);
+  static const danger = Color(0xFFEF6673);
+  static const info = Color(0xFF4F7FFF);
+  static const purple = Color(0xFF8B7CFF);
+  static const amber = Color(0xFFF0A44A);
+  static const teal = Color(0xFF19B6A4);
+  static const cyan = Color(0xFF55DDF2);
+  static const lavender = Color(0xFFF3F0FF);
+  static const ice = Color(0xFFF8FBFF);
 }
 
 class WaouhIaSpacing {
@@ -94,15 +100,17 @@ class WaouhIaThemeScope extends StatelessWidget {
         colorScheme: scheme,
         scaffoldBackgroundColor: WaouhIaPalette.canvas,
         appBarTheme: base.appBarTheme.copyWith(
-          backgroundColor: WaouhIaPalette.surface,
+          backgroundColor: Colors.transparent,
           foregroundColor: WaouhIaPalette.ink,
           surfaceTintColor: Colors.transparent,
           elevation: 0,
+          scrolledUnderElevation: 0,
           centerTitle: false,
           titleTextStyle: const TextStyle(
             color: WaouhIaPalette.ink,
-            fontSize: 20,
-            fontWeight: FontWeight.w900,
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.2,
           ),
         ),
         cardTheme: base.cardTheme.copyWith(
@@ -116,10 +124,10 @@ class WaouhIaThemeScope extends StatelessWidget {
         ),
         inputDecorationTheme: base.inputDecorationTheme.copyWith(
           filled: true,
-          fillColor: WaouhIaPalette.surface,
+          fillColor: const Color(0xFFF8FAFF),
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 16,
-            vertical: 17,
+            vertical: 14,
           ),
           hintStyle: const TextStyle(color: WaouhIaPalette.muted),
           labelStyle: const TextStyle(
@@ -134,7 +142,7 @@ class WaouhIaThemeScope extends StatelessWidget {
             borderRadius: BorderRadius.circular(18),
             borderSide: const BorderSide(
               color: WaouhIaPalette.primary,
-              width: 1.7,
+              width: 1.4,
             ),
           ),
           errorBorder: OutlineInputBorder(
@@ -146,14 +154,14 @@ class WaouhIaThemeScope extends StatelessWidget {
           style: FilledButton.styleFrom(
             backgroundColor: WaouhIaPalette.primary,
             foregroundColor: Colors.white,
-            minimumSize: const Size.fromHeight(52),
+            minimumSize: const Size.fromHeight(46),
             padding: const EdgeInsets.symmetric(horizontal: 18),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(17),
             ),
             textStyle: const TextStyle(
-              fontSize: 15.5,
-              fontWeight: FontWeight.w800,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
@@ -162,7 +170,7 @@ class WaouhIaThemeScope extends StatelessWidget {
             foregroundColor: WaouhIaPalette.primary,
             minimumSize: const Size.fromHeight(48),
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            side: const BorderSide(color: Color(0xFFC9E7DC)),
+            side: const BorderSide(color: WaouhIaPalette.line),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(17),
             ),
@@ -173,12 +181,12 @@ class WaouhIaThemeScope extends StatelessWidget {
           thumbColor: WidgetStateProperty.resolveWith(
             (states) => states.contains(WidgetState.selected)
                 ? WaouhIaPalette.primary
-                : const Color(0xFF87958F),
+                : const Color(0xFF91A0BA),
           ),
           trackColor: WidgetStateProperty.resolveWith(
             (states) => states.contains(WidgetState.selected)
-                ? WaouhIaPalette.mint
-                : const Color(0xFFE5EBE8),
+                ? const Color(0xFFDCE7FF)
+                : const Color(0xFFE8EDF5),
           ),
         ),
         dividerColor: WaouhIaPalette.line,
@@ -226,10 +234,10 @@ class WaouhIaScreenTitle extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     color: WaouhIaPalette.ink,
-                    fontSize: 28,
-                    height: 1.05,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.5,
+                    fontSize: 26,
+                    height: 1.08,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.55,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -239,7 +247,7 @@ class WaouhIaScreenTitle extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: WaouhIaPalette.muted,
-                    fontSize: 14.5,
+                    fontSize: 12.5,
                     height: 1.3,
                     fontWeight: FontWeight.w600,
                   ),
@@ -285,9 +293,10 @@ class WaouhIaSurface extends StatelessWidget {
         border: Border.all(color: borderColor),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x080B332B),
-            blurRadius: 20,
-            offset: Offset(0, 9),
+            color: Color(0x1452709F),
+            blurRadius: 28,
+            offset: Offset(0, 12),
+            spreadRadius: -9,
           ),
         ],
       ),
@@ -334,9 +343,9 @@ class WaouhIaSectionHeader extends StatelessWidget {
                 title,
                 style: const TextStyle(
                   color: WaouhIaPalette.ink,
-                  fontSize: 21,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.2,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.25,
                 ),
               ),
               if (subtitle != null) ...[
@@ -345,8 +354,9 @@ class WaouhIaSectionHeader extends StatelessWidget {
                   subtitle!,
                   style: const TextStyle(
                     color: WaouhIaPalette.muted,
-                    fontSize: 13.5,
+                    fontSize: 11.5,
                     height: 1.25,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],

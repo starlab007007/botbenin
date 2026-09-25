@@ -19,6 +19,8 @@ import 'studio_catalog_manager.dart';
 import 'studio_catalog_media_picker.dart';
 import 'studio_product_image_picker.dart';
 
+import '../live_ia_premium_ui.dart';
+
 class LiveWhatsAppIaNativeScreen extends StatefulWidget {
   const LiveWhatsAppIaNativeScreen({super.key});
 
@@ -29,13 +31,13 @@ class LiveWhatsAppIaNativeScreen extends StatefulWidget {
 
 class _LiveWhatsAppIaNativeScreenState
     extends State<LiveWhatsAppIaNativeScreen> {
-  static const _background = Color(0xFFF4FAF8);
-  static const _primary = Color(0xFF0B7F72);
-  static const _primaryDark = Color(0xFF075F57);
-  static const _mint = Color(0xFFDFF5F0);
-  static const _line = Color(0xFFDCEBE7);
-  static const _ink = Color(0xFF17211F);
-  static const _muted = Color(0xFF667874);
+  static const _background = WaouhIaPalette.canvas;
+  static const _primary = WaouhIaPalette.primary;
+  static const _primaryDark = WaouhIaPalette.primaryDeep;
+  static const _mint = WaouhIaPalette.primarySoft;
+  static const _line = WaouhIaPalette.line;
+  static const _ink = WaouhIaPalette.ink;
+  static const _muted = WaouhIaPalette.muted;
   static const _danger = Color(0xFFB5473C);
 
   final WhatsAppIaStudioV20Service _service = WhatsAppIaStudioV20Service();
@@ -2401,11 +2403,11 @@ class _SessionManagerSheet extends StatefulWidget {
 }
 
 class _SessionManagerSheetState extends State<_SessionManagerSheet> {
-  static const _primary = Color(0xFF0B7F72);
-  static const _background = Color(0xFFF4FAF8);
-  static const _line = Color(0xFFDCEBE7);
-  static const _ink = Color(0xFF17211F);
-  static const _muted = Color(0xFF667874);
+  static const _primary = WaouhIaPalette.primary;
+  static const _background = WaouhIaPalette.canvas;
+  static const _line = WaouhIaPalette.line;
+  static const _ink = WaouhIaPalette.ink;
+  static const _muted = WaouhIaPalette.muted;
   static const _danger = Color(0xFFB5473C);
 
   final _phone = TextEditingController();
@@ -2648,7 +2650,7 @@ class _SessionManagerSheetState extends State<_SessionManagerSheet> {
               const LinearProgressIndicator(
                 minHeight: 3,
                 color: _primary,
-                backgroundColor: Color(0xFFDFF5F0),
+                backgroundColor: WaouhIaPalette.primarySoft,
               ),
             if (_error != null) _sheetError(_error!),
             Expanded(
@@ -2980,7 +2982,7 @@ class _AgentEditSheetState extends State<_AgentEditSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
       child: Material(
-        color: const Color(0xFFF4FAF8),
+        color: WaouhIaPalette.canvas,
         borderRadius: const BorderRadius.vertical(
           top: Radius.circular(28),
         ),
@@ -3053,7 +3055,7 @@ class _AgentEditSheetState extends State<_AgentEditSheet> {
               },
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(52),
-                backgroundColor: const Color(0xFF0B7F72),
+                backgroundColor: WaouhIaPalette.primary,
               ),
               icon: const Icon(Icons.save_outlined),
               label: const Text('Enregistrer'),
@@ -3173,7 +3175,7 @@ class _AgentTestSheetState extends State<_AgentTestSheet> {
     return FractionallySizedBox(
       heightFactor: 0.92,
       child: Material(
-        color: const Color(0xFFF4FAF8),
+        color: WaouhIaPalette.canvas,
         borderRadius: const BorderRadius.vertical(
           top: Radius.circular(28),
         ),
@@ -3203,7 +3205,7 @@ class _AgentTestSheetState extends State<_AgentTestSheet> {
                           'Posez une question comme un client.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            color: Color(0xFF667874),
+                            color: WaouhIaPalette.muted,
                           ),
                         ),
                       )
@@ -3217,7 +3219,7 @@ class _AgentTestSheetState extends State<_AgentTestSheet> {
                               child: Text(
                                 'Le moteur IA analyse…',
                                 style: TextStyle(
-                                  color: Color(0xFF667874),
+                                  color: WaouhIaPalette.muted,
                                   fontStyle: FontStyle.italic,
                                 ),
                               ),
@@ -3288,7 +3290,7 @@ class _AgentTestSheetState extends State<_AgentTestSheet> {
                       onPressed: _busy ? null : _send,
                       style: FilledButton.styleFrom(
                         padding: EdgeInsets.zero,
-                        backgroundColor: const Color(0xFF0B7F72),
+                        backgroundColor: WaouhIaPalette.primary,
                       ),
                       child: const Icon(Icons.send_rounded),
                     ),
@@ -3545,7 +3547,7 @@ class _AgentShareSheetState extends State<_AgentShareSheet> {
     return FractionallySizedBox(
       heightFactor: 0.92,
       child: Material(
-        color: const Color(0xFFF4FAF8),
+        color: WaouhIaPalette.canvas,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -3590,7 +3592,7 @@ class _AgentShareSheetState extends State<_AgentShareSheet> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: const Color(0xFFDCEBE7)),
+            border: Border.all(color: WaouhIaPalette.line),
           ),
           child: Row(
             children: [
@@ -3606,7 +3608,7 @@ class _AgentShareSheetState extends State<_AgentShareSheet> {
                     SizedBox(height: 4),
                     Text(
                       'Désactivez-le à tout moment sans supprimer l’agent.',
-                      style: TextStyle(color: Color(0xFF667874)),
+                      style: TextStyle(color: WaouhIaPalette.muted),
                     ),
                   ],
                 ),
@@ -3624,7 +3626,7 @@ class _AgentShareSheetState extends State<_AgentShareSheet> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: const Color(0xFFDCEBE7)),
+            border: Border.all(color: WaouhIaPalette.line),
           ),
           child: Column(
             children: [
@@ -3672,7 +3674,7 @@ class _AgentShareSheetState extends State<_AgentShareSheet> {
                 share.publicUrl,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  color: Color(0xFF0B7F72),
+                  color: WaouhIaPalette.primary,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -3741,7 +3743,7 @@ class _AgentShareSheetState extends State<_AgentShareSheet> {
           child: const Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.verified_user_outlined, color: Color(0xFF0B7F72)),
+              Icon(Icons.verified_user_outlined, color: WaouhIaPalette.primary),
               SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -3761,18 +3763,18 @@ class _AgentShareSheetState extends State<_AgentShareSheet> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFDCEBE7)),
+        border: Border.all(color: WaouhIaPalette.line),
       ),
       child: Column(
         children: [
-          Icon(icon, color: const Color(0xFF0B7F72), size: 20),
+          Icon(icon, color: WaouhIaPalette.primary, size: 20),
           const SizedBox(height: 5),
           Text('$value',
               style:
                   const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
           Text(label,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 10.5, color: Color(0xFF667874))),
+              style: const TextStyle(fontSize: 10.5, color: WaouhIaPalette.muted)),
         ],
       ),
     );
@@ -3904,7 +3906,7 @@ class _ProductEditorSheetState extends State<_ProductEditorSheet> {
     return FractionallySizedBox(
       heightFactor: 0.94,
       child: Material(
-        color: const Color(0xFFF4FAF8),
+        color: WaouhIaPalette.canvas,
         borderRadius: const BorderRadius.vertical(
           top: Radius.circular(28),
         ),
@@ -3943,7 +3945,7 @@ class _ProductEditorSheetState extends State<_ProductEditorSheet> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(18),
                           border: Border.all(
-                            color: const Color(0xFFDCEBE7),
+                            color: WaouhIaPalette.line,
                           ),
                         ),
                         child: _image != null
@@ -4038,7 +4040,7 @@ class _ProductEditorSheetState extends State<_ProductEditorSheet> {
                       onPressed: _submit,
                       style: FilledButton.styleFrom(
                         minimumSize: const Size.fromHeight(52),
-                        backgroundColor: const Color(0xFF0B7F72),
+                        backgroundColor: WaouhIaPalette.primary,
                       ),
                       icon: const Icon(
                         Icons.save_outlined,
@@ -4062,13 +4064,13 @@ class _ProductEditorSheetState extends State<_ProductEditorSheet> {
         Icon(
           Icons.add_a_photo_outlined,
           size: 38,
-          color: Color(0xFF0B7F72),
+          color: WaouhIaPalette.primary,
         ),
         SizedBox(height: 7),
         Text(
           'Ajouter ou remplacer la photo',
           style: TextStyle(
-            color: Color(0xFF667874),
+            color: WaouhIaPalette.muted,
           ),
         ),
       ],
@@ -4099,7 +4101,7 @@ class _CatalogAnalyzerSheetState extends State<_CatalogAnalyzerSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
       child: Material(
-        color: const Color(0xFFF4FAF8),
+        color: WaouhIaPalette.canvas,
         borderRadius: const BorderRadius.vertical(
           top: Radius.circular(28),
         ),
@@ -4144,7 +4146,7 @@ class _CatalogAnalyzerSheetState extends State<_CatalogAnalyzerSheet> {
               },
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(52),
-                backgroundColor: const Color(0xFF0B7F72),
+                backgroundColor: WaouhIaPalette.primary,
               ),
               icon: const Icon(
                 Icons.auto_awesome_rounded,
@@ -4179,7 +4181,7 @@ class _PartnerProductPickerSheetState
     return FractionallySizedBox(
       heightFactor: 0.9,
       child: Material(
-        color: const Color(0xFFF4FAF8),
+        color: WaouhIaPalette.canvas,
         borderRadius: const BorderRadius.vertical(
           top: Radius.circular(28),
         ),
@@ -4203,7 +4205,7 @@ class _PartnerProductPickerSheetState
 
                   return CheckboxListTile(
                     value: _selected.contains(product.id),
-                    activeColor: const Color(0xFF0B7F72),
+                    activeColor: WaouhIaPalette.primary,
                     title: Text(
                       product.name,
                       style: const TextStyle(
@@ -4249,7 +4251,7 @@ class _PartnerProductPickerSheetState
                       },
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(52),
-                  backgroundColor: const Color(0xFF0B7F72),
+                  backgroundColor: WaouhIaPalette.primary,
                 ),
                 icon: const Icon(Icons.link_rounded),
                 label: Text(
@@ -4279,12 +4281,12 @@ Widget _sheetHeader({
           width: 43,
           height: 43,
           decoration: BoxDecoration(
-            color: const Color(0xFFDFF5F0),
+            color: WaouhIaPalette.primarySoft,
             borderRadius: BorderRadius.circular(14),
           ),
           child: Icon(
             icon,
-            color: const Color(0xFF0B7F72),
+            color: WaouhIaPalette.primary,
           ),
         ),
         const SizedBox(width: 10),
@@ -4297,7 +4299,7 @@ Widget _sheetHeader({
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  color: Color(0xFF17211F),
+                  color: WaouhIaPalette.ink,
                   fontSize: 17,
                   fontWeight: FontWeight.w900,
                 ),
@@ -4308,7 +4310,7 @@ Widget _sheetHeader({
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  color: Color(0xFF667874),
+                  color: WaouhIaPalette.muted,
                   fontSize: 11,
                 ),
               ),

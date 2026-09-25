@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'smart_studio_service.dart';
 import 'studio_catalog_media_picker.dart';
 import 'studio_compat_service.dart';
+import '../live_ia_premium_ui.dart';
 
 class StudioCatalogManager extends StatefulWidget {
   const StudioCatalogManager({
@@ -28,11 +29,11 @@ class StudioCatalogManager extends StatefulWidget {
 }
 
 class _StudioCatalogManagerState extends State<StudioCatalogManager> {
-  static const _primary = Color(0xFF0B7F72);
-  static const _mint = Color(0xFFDFF5F0);
-  static const _line = Color(0xFFDCEBE7);
-  static const _ink = Color(0xFF17211F);
-  static const _muted = Color(0xFF667874);
+  static const _primary = WaouhIaPalette.primary;
+  static const _mint = WaouhIaPalette.primarySoft;
+  static const _line = WaouhIaPalette.line;
+  static const _ink = WaouhIaPalette.ink;
+  static const _muted = WaouhIaPalette.muted;
 
   String _kind = 'product';
   bool _loading = true;
@@ -396,7 +397,7 @@ class _StudioCatalogManagerState extends State<StudioCatalogManager> {
       useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => Material(
-        color: const Color(0xFFF4FAF8),
+        color: WaouhIaPalette.canvas,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         child: Padding(
           padding: const EdgeInsets.all(18),
@@ -657,7 +658,7 @@ class _CatalogCard extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(19),
-            border: Border.all(color: const Color(0xFFDCEBE7)),
+            border: Border.all(color: WaouhIaPalette.line),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -717,7 +718,7 @@ class _CatalogCard extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Color(0xFF17211F),
+                          color: WaouhIaPalette.ink,
                           fontWeight: FontWeight.w900,
                           fontSize: 13.5,
                           height: 1.15,
@@ -734,7 +735,7 @@ class _CatalogCard extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Color(0xFF0B7F72),
+                          color: WaouhIaPalette.primary,
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
                         ),
@@ -746,7 +747,7 @@ class _CatalogCard extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: Color(0xFF667874),
+                            color: WaouhIaPalette.muted,
                             fontSize: 10.5,
                           ),
                         ),
@@ -799,12 +800,12 @@ class _CatalogPlaceholder extends StatelessWidget {
     return DecoratedBox(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFFDFF5F0), Color(0xFFF4FAF8)],
+          colors: [WaouhIaPalette.primarySoft, WaouhIaPalette.canvas],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
       ),
-      child: Icon(icon, size: 44, color: const Color(0xFF0B7F72)),
+      child: Icon(icon, size: 44, color: WaouhIaPalette.primary),
     );
   }
 }
@@ -825,12 +826,12 @@ class _CatalogBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: const Color(0xFF0B7F72)),
+          Icon(icon, size: 12, color: WaouhIaPalette.primary),
           const SizedBox(width: 3),
           Text(
             label,
             style: const TextStyle(
-              color: Color(0xFF17211F),
+              color: WaouhIaPalette.ink,
               fontSize: 9.5,
               fontWeight: FontWeight.w900,
             ),
@@ -853,7 +854,7 @@ class StudioProfessionalChatText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final baseColor = isUser ? Colors.white : const Color(0xFF17211F);
+    final baseColor = isUser ? Colors.white : WaouhIaPalette.ink;
     final lines = text.replaceAll('\r\n', '\n').split('\n');
     final children = <Widget>[];
 
@@ -871,7 +872,7 @@ class StudioProfessionalChatText extends StatelessWidget {
             TextSpan(
               children: _inlineSpans(heading.group(2)!, baseColor),
               style: TextStyle(
-                color: isUser ? Colors.white : const Color(0xFF0B7F72),
+                color: isUser ? Colors.white : WaouhIaPalette.primary,
                 fontSize: heading.group(1)!.length == 1 ? 17 : 15,
                 height: 1.25,
                 fontWeight: FontWeight.w900,
@@ -1012,7 +1013,7 @@ class StudioChatMediaStrip extends StatelessWidget {
               decoration: BoxDecoration(
                 color: const Color(0xFFF0F5F3),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFDCEBE7)),
+                border: Border.all(color: WaouhIaPalette.line),
               ),
               child: Stack(
                 children: [
@@ -1050,7 +1051,7 @@ class StudioChatMediaStrip extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 10, vertical: 6),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0B7F72),
+                              color: WaouhIaPalette.primary,
                               borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
@@ -1088,7 +1089,7 @@ class StudioChatMediaStrip extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: const Color(0xFFF0F5F3),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: const Color(0xFFDCEBE7)),
+                      border: Border.all(color: WaouhIaPalette.line),
                     ),
                     child: _mediaPreview(item),
                   ),
@@ -1125,7 +1126,7 @@ class StudioChatMediaStrip extends StatelessWidget {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(icon, color: const Color(0xFF0B7F72), size: 40),
+        Icon(icon, color: WaouhIaPalette.primary, size: 40),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6),
           child: Text(
@@ -1174,7 +1175,7 @@ class StudioChatMediaStrip extends StatelessWidget {
             else ...[
               const Icon(
                 Icons.play_circle_fill_rounded,
-                color: Color(0xFF0B7F72),
+                color: WaouhIaPalette.primary,
                 size: 64,
               ),
               const SizedBox(height: 8),
@@ -1547,7 +1548,7 @@ class _CatalogEditorSheetState extends State<_CatalogEditorSheet> {
     return FractionallySizedBox(
       heightFactor: 0.96,
       child: Material(
-        color: const Color(0xFFF4FAF8),
+        color: WaouhIaPalette.canvas,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         clipBehavior: Clip.antiAlias,
         child: Padding(
@@ -1894,7 +1895,7 @@ class _CatalogEditorSheetState extends State<_CatalogEditorSheet> {
                       onPressed: _submit,
                       style: FilledButton.styleFrom(
                         minimumSize: const Size.fromHeight(52),
-                        backgroundColor: const Color(0xFF0B7F72),
+                        backgroundColor: WaouhIaPalette.primary,
                       ),
                       icon: const Icon(Icons.save_outlined),
                       label: const Text('Enregistrer'),
@@ -1967,7 +1968,7 @@ class _MediaEditorGrid extends StatelessWidget {
           decoration: BoxDecoration(
             color: const Color(0xFFF0F5F3),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFDCEBE7)),
+            border: Border.all(color: WaouhIaPalette.line),
           ),
           child: isVideo
               ? Column(
@@ -2071,7 +2072,7 @@ class _CatalogImportSheetState extends State<_CatalogImportSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
       child: Material(
-        color: const Color(0xFFF4FAF8),
+        color: WaouhIaPalette.canvas,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         child: ListView(
           shrinkWrap: true,
@@ -2130,7 +2131,7 @@ class _CatalogImportSheetState extends State<_CatalogImportSheet> {
               onPressed: _submit,
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(52),
-                backgroundColor: const Color(0xFF0B7F72),
+                backgroundColor: WaouhIaPalette.primary,
               ),
               icon: const Icon(Icons.auto_awesome_rounded),
               label: const Text('Analyser et importer'),
@@ -2163,7 +2164,7 @@ class _PartnerSyncSheetState extends State<_PartnerSyncSheet> {
     return FractionallySizedBox(
       heightFactor: 0.9,
       child: Material(
-        color: const Color(0xFFF4FAF8),
+        color: WaouhIaPalette.canvas,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         child: Column(
           children: [
@@ -2181,7 +2182,7 @@ class _PartnerSyncSheetState extends State<_PartnerSyncSheet> {
                     child: Text(
                       '${widget.products.length} produit(s) détecté(s) · ${_selected.length} sélectionné(s)',
                       style: const TextStyle(
-                        color: Color(0xFF667874),
+                        color: WaouhIaPalette.muted,
                         fontSize: 11.5,
                         fontWeight: FontWeight.w700,
                       ),
@@ -2213,17 +2214,17 @@ class _PartnerSyncSheetState extends State<_PartnerSyncSheet> {
                     margin: const EdgeInsets.only(bottom: 8),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
-                      side: const BorderSide(color: Color(0xFFDCEBE7)),
+                      side: const BorderSide(color: WaouhIaPalette.line),
                     ),
                     child: CheckboxListTile(
                       value: _selected.contains(product.id),
-                      activeColor: const Color(0xFF0B7F72),
+                      activeColor: WaouhIaPalette.primary,
                       secondary: Container(
                         width: 48,
                         height: 48,
                         clipBehavior: Clip.antiAlias,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFDFF5F0),
+                          color: WaouhIaPalette.primarySoft,
                           borderRadius: BorderRadius.circular(13),
                         ),
                         child: product.photoUrl?.isNotEmpty == true
@@ -2232,12 +2233,12 @@ class _PartnerSyncSheetState extends State<_PartnerSyncSheet> {
                                 fit: BoxFit.cover,
                                 errorBuilder: (_, __, ___) => const Icon(
                                   Icons.inventory_2_outlined,
-                                  color: Color(0xFF0B7F72),
+                                  color: WaouhIaPalette.primary,
                                 ),
                               )
                             : const Icon(
                                 Icons.inventory_2_outlined,
-                                color: Color(0xFF0B7F72),
+                                color: WaouhIaPalette.primary,
                               ),
                       ),
                       title: Text(
@@ -2273,7 +2274,7 @@ class _PartnerSyncSheetState extends State<_PartnerSyncSheet> {
                     Navigator.pop(context, Set<String>.from(_selected)),
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(52),
-                  backgroundColor: const Color(0xFF0B7F72),
+                  backgroundColor: WaouhIaPalette.primary,
                 ),
                 icon: const Icon(Icons.sync_rounded),
                 label: Text('Synchroniser ${_selected.length} produit(s)'),
@@ -2301,10 +2302,10 @@ Widget _header({
           width: 43,
           height: 43,
           decoration: BoxDecoration(
-            color: const Color(0xFFDFF5F0),
+            color: WaouhIaPalette.primarySoft,
             borderRadius: BorderRadius.circular(14),
           ),
-          child: Icon(icon, color: const Color(0xFF0B7F72)),
+          child: Icon(icon, color: WaouhIaPalette.primary),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -2315,7 +2316,7 @@ Widget _header({
               Text(
                 subtitle,
                 style:
-                    const TextStyle(color: Color(0xFF667874), fontSize: 11.5),
+                    const TextStyle(color: WaouhIaPalette.muted, fontSize: 11.5),
               ),
             ],
           ),
@@ -2384,7 +2385,7 @@ class StudioPremiumChatBubble extends StatelessWidget {
         margin: margin,
         padding: EdgeInsets.all(message.isUser ? 12 : 13),
         decoration: BoxDecoration(
-          color: message.isUser ? const Color(0xFF0B7F72) : Colors.white,
+          color: message.isUser ? WaouhIaPalette.primary : Colors.white,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(22),
             topRight: const Radius.circular(22),
@@ -2393,7 +2394,7 @@ class StudioPremiumChatBubble extends StatelessWidget {
           ),
           border: message.isUser
               ? null
-              : Border.all(color: const Color(0xFFDCEBE7)),
+              : Border.all(color: WaouhIaPalette.line),
           boxShadow: message.isUser
               ? const <BoxShadow>[]
               : const <BoxShadow>[
@@ -2458,7 +2459,7 @@ class StudioPremiumChatMessageContent extends StatelessWidget {
               child: const Icon(
                 Icons.auto_awesome_rounded,
                 size: 18,
-                color: Color(0xFF0B7F72),
+                color: WaouhIaPalette.primary,
               ),
             ),
             const SizedBox(width: 9),
@@ -2469,7 +2470,7 @@ class StudioPremiumChatMessageContent extends StatelessWidget {
                   Text(
                     'WAOUH IA',
                     style: TextStyle(
-                      color: Color(0xFF0B7F72),
+                      color: WaouhIaPalette.primary,
                       fontWeight: FontWeight.w900,
                       fontSize: 13,
                     ),
@@ -2477,7 +2478,7 @@ class StudioPremiumChatMessageContent extends StatelessWidget {
                   Text(
                     'Réponse intelligente',
                     style: TextStyle(
-                      color: Color(0xFF667874),
+                      color: WaouhIaPalette.muted,
                       fontSize: 10.5,
                     ),
                   ),
@@ -2495,7 +2496,7 @@ class StudioPremiumChatMessageContent extends StatelessWidget {
                 child: Text(
                   '${response.cards.length} résultat${response.cards.length > 1 ? 's' : ''}',
                   style: const TextStyle(
-                    color: Color(0xFF0B7F72),
+                    color: WaouhIaPalette.primary,
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
                   ),
@@ -2517,13 +2518,13 @@ class StudioPremiumChatMessageContent extends StatelessWidget {
               Icon(
                 Icons.grid_view_rounded,
                 size: 17,
-                color: Color(0xFF0B7F72),
+                color: WaouhIaPalette.primary,
               ),
               SizedBox(width: 6),
               Text(
                 'Sélection trouvée',
                 style: TextStyle(
-                  color: Color(0xFF17211F),
+                  color: WaouhIaPalette.ink,
                   fontWeight: FontWeight.w900,
                   fontSize: 13,
                 ),
@@ -2594,7 +2595,7 @@ class _StudioPremiumArticleCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFFF8FBFA),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFDCEBE7)),
+        border: Border.all(color: WaouhIaPalette.line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2612,7 +2613,7 @@ class _StudioPremiumArticleCard extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: Color(0xFF17211F),
+                    color: WaouhIaPalette.ink,
                     fontSize: 15,
                     height: 1.22,
                     fontWeight: FontWeight.w900,
@@ -2625,7 +2626,7 @@ class _StudioPremiumArticleCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: Color(0xFF667874),
+                      color: WaouhIaPalette.muted,
                       fontSize: 11.5,
                       height: 1.3,
                       fontWeight: FontWeight.w600,
@@ -2655,7 +2656,7 @@ class _StudioPremiumArticleCard extends StatelessWidget {
                             child: Text(
                               value,
                               style: const TextStyle(
-                                color: Color(0xFF0B7F72),
+                                color: WaouhIaPalette.primary,
                                 fontSize: 9.5,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -2698,7 +2699,7 @@ class _StudioPremiumArticleCard extends StatelessWidget {
               Container(
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Color(0xFFE2F4EF), Color(0xFFF4FAF8)],
+                    colors: [Color(0xFFE2F4EF), WaouhIaPalette.canvas],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -2748,7 +2749,7 @@ class _StudioPremiumArticleCard extends StatelessWidget {
                                 ? Icons.description_outlined
                                 : Icons.zoom_out_map_rounded,
                     size: 17,
-                    color: const Color(0xFF0B7F72),
+                    color: WaouhIaPalette.primary,
                   ),
                 ),
               ),

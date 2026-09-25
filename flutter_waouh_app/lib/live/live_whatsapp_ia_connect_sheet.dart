@@ -10,6 +10,8 @@ import 'live_whatsapp_ia_connect_service.dart';
 import 'live_whatsapp_ia_models.dart';
 import 'live_whatsapp_ia_repository.dart';
 
+import 'live_ia_premium_ui.dart';
+
 /// A guided WAHA connection sheet: state timeline, QR, eight-digit code and
 /// raw diagnostic only when the user requests it.
 Future<void> showNativeWhatsAppConnectionSheet(
@@ -188,7 +190,7 @@ class _NativeConnectionSheetState extends State<_NativeConnectionSheet> {
                   Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF0F6F3),
+                      color: WaouhIaPalette.primarySoft,
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Row(
@@ -221,8 +223,8 @@ class _NativeConnectionSheetState extends State<_NativeConnectionSheet> {
             constraints: const BoxConstraints(minHeight: 285),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFFF9FFFC),
-              border: Border.all(color: const Color(0xFFBEE6D4), width: 1.5),
+              color: WaouhIaPalette.ice,
+              border: Border.all(color: WaouhIaPalette.line, width: 1.5),
               borderRadius: BorderRadius.circular(22),
             ),
             child: _busy
@@ -277,7 +279,7 @@ class _NativeConnectionSheetState extends State<_NativeConnectionSheet> {
           const SizedBox(height: 8),
           const Text(
             'Saisissez le numéro international du compte à connecter.',
-            style: TextStyle(color: Color(0xFF6B8279), fontSize: 12.5),
+            style: TextStyle(color: WaouhIaPalette.muted, fontSize: 12.5),
           ),
           const SizedBox(height: 16),
           if (_pairCode == null)
@@ -298,7 +300,7 @@ class _NativeConnectionSheetState extends State<_NativeConnectionSheet> {
                 label: const Text('Obtenir le code'),
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(50),
-                  backgroundColor: const Color(0xFF08756A),
+                  backgroundColor: WaouhIaPalette.primary,
                 ),
               ),
             )
@@ -346,9 +348,9 @@ class _ConnectionTimeline extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: const Color(0xFFF5FAF8),
+        color: WaouhIaPalette.ice,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFDDEBE4)),
+        border: Border.all(color: WaouhIaPalette.line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -356,13 +358,13 @@ class _ConnectionTimeline extends StatelessWidget {
           Row(
             children: <Widget>[
               const Icon(Icons.sync_rounded,
-                  color: Color(0xFF08756A), size: 18),
+                  color: WaouhIaPalette.primary, size: 18),
               const SizedBox(width: 7),
               Expanded(
                 child: Text(
                   stage,
                   style: const TextStyle(
-                    color: Color(0xFF16231F),
+                    color: WaouhIaPalette.ink,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -370,7 +372,7 @@ class _ConnectionTimeline extends StatelessWidget {
               Text(
                 '${elapsedSeconds ~/ 60}:${(elapsedSeconds % 60).toString().padLeft(2, '0')}',
                 style:
-                    const TextStyle(color: Color(0xFF62756D), fontSize: 11.5),
+                    const TextStyle(color: WaouhIaPalette.muted, fontSize: 11.5),
               ),
             ],
           ),
@@ -388,8 +390,8 @@ class _ConnectionTimeline extends StatelessWidget {
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: complete
-                            ? const Color(0xFF08756A)
-                            : const Color(0xFFE4ECE8),
+                            ? WaouhIaPalette.primary
+                            : WaouhIaPalette.line,
                         shape: BoxShape.circle,
                       ),
                       child: complete && !active
@@ -412,7 +414,7 @@ class _ConnectionTimeline extends StatelessWidget {
                       maxLines: 2,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                          color: Color(0xFF62756D), fontSize: 9.5, height: 1.1),
+                          color: WaouhIaPalette.muted, fontSize: 9.5, height: 1.1),
                     ),
                   ],
                 ),
@@ -436,7 +438,7 @@ class _QrLoading extends StatelessWidget {
             const SizedBox(
               width: 38,
               height: 38,
-              child: CircularProgressIndicator(color: Color(0xFF08756A)),
+              child: CircularProgressIndicator(color: WaouhIaPalette.primary),
             ),
             const SizedBox(height: 14),
             Text(stage, style: const TextStyle(fontWeight: FontWeight.w900)),
@@ -444,7 +446,7 @@ class _QrLoading extends StatelessWidget {
             const Text(
               'La génération peut prendre quelques secondes.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFF62756D), fontSize: 12.5),
+              style: TextStyle(color: WaouhIaPalette.muted, fontSize: 12.5),
             ),
           ],
         ),
@@ -482,8 +484,8 @@ class _TabButton extends StatelessWidget {
                   icon,
                   size: 17,
                   color: active
-                      ? const Color(0xFF08756A)
-                      : const Color(0xFF6B8279),
+                      ? WaouhIaPalette.primary
+                      : WaouhIaPalette.muted,
                 ),
                 const SizedBox(width: 5),
                 Flexible(
@@ -493,8 +495,8 @@ class _TabButton extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 11.5,
                       color: active
-                          ? const Color(0xFF075E54)
-                          : const Color(0xFF6B8279),
+                          ? WaouhIaPalette.primaryDeep
+                          : WaouhIaPalette.muted,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -539,11 +541,11 @@ class _QrUnavailable extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             const Icon(Icons.qr_code_2_rounded,
-                size: 62, color: Color(0xFF6B8279)),
+                size: 62, color: WaouhIaPalette.muted),
             const SizedBox(height: 12),
             Text(message,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Color(0xFF6B8279), height: 1.3)),
+                style: const TextStyle(color: WaouhIaPalette.muted, height: 1.3)),
           ],
         ),
       );
@@ -557,7 +559,7 @@ class _StepBox extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: const Color(0xFFF5FAF8),
+          color: WaouhIaPalette.ice,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
@@ -592,20 +594,20 @@ class _PairCode extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFFEAF9F2),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFBEE6D4)),
+          border: Border.all(color: WaouhIaPalette.line),
         ),
         child: Column(
           children: <Widget>[
             const Text('Votre code à 8 chiffres',
                 style: TextStyle(
-                    color: Color(0xFF08756A), fontWeight: FontWeight.w900)),
+                    color: WaouhIaPalette.primary, fontWeight: FontWeight.w900)),
             const SizedBox(height: 10),
             SelectableText(value,
                 style: const TextStyle(
                     fontSize: 30,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 5,
-                    color: Color(0xFF075E54))),
+                    color: WaouhIaPalette.primaryDeep)),
             const SizedBox(height: 8),
             Text(
                 'Expire dans ${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}',
@@ -664,8 +666,8 @@ class _Success extends StatelessWidget {
             const SizedBox(height: 12),
             const Text('WhatsApp est connecté',
                 style: TextStyle(
-                    color: Color(0xFF08756A),
-                    fontWeight: FontWeight.w900,
+                    color: WaouhIaPalette.success,
+                    fontWeight: FontWeight.w800,
                     fontSize: 19)),
             const SizedBox(height: 6),
             Text(

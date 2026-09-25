@@ -17,10 +17,10 @@ import 'live_whatsapp_ia_models.dart';
 part 'live_whatsapp_ia_smart_agent_wizard.dart';
 part 'live_whatsapp_ia_agent_management.dart';
 
-const _agentGreen = Color(0xFF08756A);
-const _agentBright = Color(0xFF25D366);
-const _agentInk = Color(0xFF16231F);
-const _agentMuted = Color(0xFF62756D);
+const _agentGreen = WaouhIaPalette.primary;
+const _agentBright = WaouhIaPalette.cyan;
+const _agentInk = WaouhIaPalette.ink;
+const _agentMuted = WaouhIaPalette.muted;
 
 /// Represents one WAOUH AI Agent saved in Supabase.
 String? _studioSessionLabel(
