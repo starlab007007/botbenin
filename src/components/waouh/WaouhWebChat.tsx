@@ -823,7 +823,9 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                             window.open(a.url, "_blank");
                             return;
                           }
-                          const kw = /accept/i.test(a.id) ? "OUI"
+                          const isDealCommand = /^(?:payer-mobile|paiement-livraison|confirmer-disponibilite|confirmer-paiement-cash|confirmer-paiement-mobile|annuler):/i.test(a.id);
+                          const kw = isDealCommand ? a.id
+                            : /accept/i.test(a.id) ? "OUI"
                             : /refuse/i.test(a.id) ? "NON"
                             : /counter|negociat/i.test(a.id) ? "Je propose "
                             : a.id.startsWith("intéressé") ? a.id
