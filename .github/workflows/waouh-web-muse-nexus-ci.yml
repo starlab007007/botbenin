@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feat/waouh-web-flutter-nexus-final
+      - feat/waouh-avatar-deal-graph-e2e
       - prod
     paths:
       - "src/pages/waouh/**"
@@ -15,6 +16,12 @@ on:
       - "src/app-mobile/screens/ChatScreen.tsx"
       - "src/app-mobile/components/ChatRightPane.tsx"
       - "supabase/functions/waouh-agentic-core/**"
+      - "supabase/functions/waouh-radar-api-config/**"
+      - "supabase/functions/waouh-radar-apify/**"
+      - "supabase/functions/waouh-radar-wa-webhook/**"
+      - "supabase/functions/_shared/radar-api-config.ts"
+      - "supabase/functions/_shared/waouhContact.ts"
+      - "supabase/functions/_shared/waouh-tel/phone.ts"
       - "supabase/functions/waouh-channel-in/**"
       - "supabase/functions/waouh-negotiation-router/**"
       - "supabase/functions/waouh-deal-ops/**"
@@ -36,6 +43,12 @@ on:
       - "src/app-mobile/screens/ChatScreen.tsx"
       - "src/app-mobile/components/ChatRightPane.tsx"
       - "supabase/functions/waouh-agentic-core/**"
+      - "supabase/functions/waouh-radar-api-config/**"
+      - "supabase/functions/waouh-radar-apify/**"
+      - "supabase/functions/waouh-radar-wa-webhook/**"
+      - "supabase/functions/_shared/radar-api-config.ts"
+      - "supabase/functions/_shared/waouhContact.ts"
+      - "supabase/functions/_shared/waouh-tel/phone.ts"
       - "supabase/functions/waouh-channel-in/**"
       - "supabase/functions/waouh-negotiation-router/**"
       - "supabase/functions/waouh-deal-ops/**"
@@ -79,6 +92,12 @@ jobs:
 
       - name: Check NEXUS Edge Function
         run: deno check supabase/functions/waouh-agentic-core/index.ts
+
+      - name: Check NEXUS Admin Connectors
+        run: |
+          deno check supabase/functions/waouh-radar-api-config/index.ts
+          deno check supabase/functions/waouh-radar-apify/index.ts
+          deno check supabase/functions/waouh-radar-wa-webhook/index.ts
 
       - name: Check WAOUH Chat Channel
         run: deno check supabase/functions/waouh-channel-in/index.ts
