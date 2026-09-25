@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../live_models.dart';
+import '../live_session.dart';
 
 Map<String, dynamic> _map(dynamic value) {
   if (value is Map<String, dynamic>) return value;
@@ -121,12 +122,11 @@ class AvatarJourneySearchResult {
 }
 
 class LiveAvatarJourneyService {
-  LiveAvatarJourneyService(this.client);
+  LiveAvatarJourneyService(this.client, [LiveSessionStore? session])
+      : session = session ?? LiveSessionStore();
 
   final SupabaseClient client;
-
-  String get _sessionId =>
-      'avatar-${client.auth.currentUser?.id ?? 'guest'}';
+  final LiveSessionStore session;
 
   Future<AvatarJourneySearchResult> search({
     required String intent,
@@ -142,10 +142,10 @@ class LiveAvatarJourneyService {
     };
     final response = await client.functions.invoke(
       'waouh-channel-in-secure',
-      headers: {'x-waouh-session': _sessionId},
+      headers: {'x-waouh-session': await session.sessionId},
       body: <String, dynamic>{
         'channel': 'flutter_avatar',
-        'sessionId': _sessionId,
+        'sessionId': await session.sessionId,
         'text': prompt,
         'attachments': const [],
         'authUserId': client.auth.currentUser?.id,
@@ -195,10 +195,10 @@ class LiveAvatarJourneyService {
     }
     final response = await client.functions.invoke(
       'waouh-channel-in-secure',
-      headers: {'x-waouh-session': _sessionId},
+      headers: {'x-waouh-session': await session.sessionId},
       body: <String, dynamic>{
         'channel': 'flutter_avatar',
-        'sessionId': _sessionId,
+        'sessionId': await session.sessionId,
         'text': 'intéressé ${offer.index}',
         'attachments': const [],
         'authUserId': client.auth.currentUser?.id,
