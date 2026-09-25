@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { Activity, ArrowRight, BrainCircuit, Network, Radar, ShieldCheck, Sparkles, Target, Workflow } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -127,6 +128,13 @@ export function WaouhUnifiedIntelligenceDock({
               ? deal?.closed ? "Mission conclue." : "Muse accompagne la négociation sans décider à votre place."
               : state.phase === "idle" ? "En attente de votre objectif." : PHASE_LABEL[state.phase]}
           </div>
+          <Button asChild size="sm" variant="outline" className="mt-2 h-8 w-full rounded-xl text-[10px] font-black">
+            <Link to="/waouh/muse">
+              <BrainCircuit className="mr-1.5 h-3.5 w-3.5" />
+              Ouvrir Muse complet
+              <ArrowRight className="ml-auto h-3.5 w-3.5" />
+            </Link>
+          </Button>
         </Layer>
 
         <Layer
