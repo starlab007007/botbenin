@@ -40,11 +40,13 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
   late final LiveWaouhController _controller;
   bool _promotionScheduled = false;
   String? _promotedThreadId;
+  bool _lastOnline = true;
 
   @override
   void initState() {
     super.initState();
     _controller = context.read<LiveWaouhController>();
+    _lastOnline = _controller.isOnline;
     _controller.addListener(_onControllerChanged);
     final initial = widget.initial;
     if (initial != null &&
@@ -86,14 +88,51 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
 
   void _onControllerChanged() {
     final seed = _pendingSeed;
+    final online = _controller.isOnline;
+    final connectionReturned = online && !_lastOnline;
+    _lastOnline = online;
     if (!mounted || seed == null || _promotionScheduled) return;
+
     final resolved = _controller.preparedInterestedResolution(seed);
-    if (!liveCanPromoteInterestedMatch(seed: seed, resolved: resolved)) return;
-    _promotionScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _promotionScheduled = false;
-      if (!mounted || resolved == null) return;
-      _applyResolvedMatch(resolved);
+    if (liveCanPromoteInterestedMatch(seed: seed, resolved: resolved)) {
+      _promotionScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _promotionScheduled = false;
+        if (!mounted || resolved == null) return;
+        _applyResolvedMatch(resolved);
+      });
+      return;
+    }
+
+    // A network return should heal the Deal Room automatically. No alert and no
+    // user tap are required; Realtime remains primary and this is the fallback.
+    if (connectionReturned) {
+      _resolveRetryTimer?.cancel();
+      _resolveRetryTimer = null;
+      _scheduleSilentResolve(
+        delay: const Duration(milliseconds: 120),
+        repairSubmission: true,
+      );
+    } else if (online) {
+      _scheduleSilentResolve(delay: const Duration(seconds: 2));
+    }
+  }
+
+  void _scheduleSilentResolve({
+    Duration delay = const Duration(seconds: 3),
+    bool repairSubmission = false,
+  }) {
+    if (!mounted ||
+        _pendingSeed == null ||
+        _resolving ||
+        !_controller.isOnline ||
+        _resolveRetryTimer?.isActive == true) {
+      return;
+    }
+    _resolveRetryTimer = Timer(delay, () {
+      _resolveRetryTimer = null;
+      if (!mounted) return;
+      unawaited(_resolve(repairSubmission: repairSubmission));
     });
   }
 
@@ -168,15 +207,16 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
         _resolving = false;
         _resolveError = error;
       });
-      if (seed != null && _automaticResolveCycles < 2) {
-        final repairSubmission = _automaticResolveCycles == 0;
+      if (seed != null) {
+        final cycle = _automaticResolveCycles;
         _automaticResolveCycles += 1;
-        _resolveRetryTimer?.cancel();
-        _resolveRetryTimer = Timer(const Duration(seconds: 3), () {
-          if (mounted) {
-            unawaited(_resolve(repairSubmission: repairSubmission));
-          }
-        });
+        const backoffSeconds = <int>[2, 3, 5, 8, 13, 21, 30];
+        final delaySeconds = backoffSeconds[
+            cycle < backoffSeconds.length ? cycle : backoffSeconds.length - 1];
+        _scheduleSilentResolve(
+          delay: Duration(seconds: delaySeconds),
+          repairSubmission: cycle == 0,
+        );
       }
     }
   }
@@ -369,36 +409,14 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                     ),
                   ),
                   const SizedBox(height: 18),
-                  Text(
-                    _resolveError == null
-                        ? 'Préparation du chat…'
-                        : 'La discussion met plus de temps que prévu.',
+                  const Text(
+                    'Ouverture de la conversation…',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
-                  const SizedBox(height: 7),
-                  const Text(
-                    'WAOUH récupère le fil exact sans créer de doublon.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Color(0xFF667A73),
-                      height: 1.35,
-                    ),
-                  ),
-                  if (_resolveError != null) ...[
-                    const SizedBox(height: 14),
-                    FilledButton.icon(
-                      onPressed: () => _resolve(
-                        repairSubmission: true,
-                        replayAcceptedSubmission: true,
-                      ),
-                      icon: const Icon(Icons.refresh_rounded),
-                      label: const Text('Réessayer'),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -411,9 +429,8 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
     return Scaffold(
       appBar: LiveHeader(
         title: 'WAOUH One',
-        subtitle: pendingThread
-            ? 'Deal Room · synchronisation…'
-            : 'Deal Room · ${match.title}${match.city == null ? '' : ' · ${match.city}'}',
+        subtitle:
+            'Deal Room · ${match.title}${match.city == null ? '' : ' · ${match.city}'}',
         back: true,
         actions: pendingThread
             ? const <Widget>[]
@@ -430,42 +447,6 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
               ],
       ),
       body: Column(children: [
-        if (pendingThread && _resolving)
-          const LinearProgressIndicator(minHeight: 2),
-        if (pendingThread)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(10, 5, 8, 5),
-            color: const Color(0xFFE7F6F0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _resolving
-                        ? 'Envoi de votre intérêt et synchronisation du fil exact…'
-                        : _resolveError == null
-                            ? 'Discussion synchronisée.'
-                            : 'Mode provisoire actif : historique et messages restent disponibles pendant la confirmation du fil exact.',
-                    style: const TextStyle(
-                      color: Color(0xFF53698E),
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                if (_resolveError != null)
-                  TextButton(
-                    onPressed: _resolving
-                        ? null
-                        : () => _resolve(
-                              repairSubmission: true,
-                              replayAcceptedSubmission: true,
-                            ),
-                    child: const Text('Réessayer'),
-                  ),
-              ],
-            ),
-          ),
         Expanded(
           child: StreamBuilder<List<LiveMessage>>(
             stream: _messageStream,
@@ -492,11 +473,9 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                       messages: merged,
                       onPayload: _handlePayload,
                       showAssistantHint: waiting,
-                      emptyMessage: pendingThread
-                          ? 'Deal Room ouverte. WAOUH synchronise le fil exact.'
-                          : match.isSearch
-                              ? 'Poursuivez cette recherche avec votre Avatar.'
-                              : 'Commencez la discussion sur ce produit.',
+                      emptyMessage: match.isSearch
+                          ? 'Poursuivez cette recherche avec votre Avatar.'
+                          : 'Commencez la discussion sur ce produit.',
                       padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
                     ),
                   ),
