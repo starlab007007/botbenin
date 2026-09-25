@@ -94,7 +94,7 @@ export function WaouhUnifiedIntelligenceDock({
               </Badge>
             </div>
             <div className="mt-0.5 text-[10px] font-semibold text-slate-500">
-              Un seul assistant · Muse + NEXUS + Signal + Contact
+              Votre Avatar · NEXUS + Signal + Contact
             </div>
           </div>
         </div>
@@ -119,7 +119,7 @@ export function WaouhUnifiedIntelligenceDock({
       <div className={cn("flex-1 min-h-0 overflow-y-auto space-y-2.5", compact ? "p-3" : "p-4")}>
         <Layer
           icon={BrainCircuit}
-          title="Muse"
+          title="Avatar"
           subtitle="Comprend l’objectif, prépare les actions et garde le fil de la mission."
           active={state.phase !== "idle" || dealActive}
         >

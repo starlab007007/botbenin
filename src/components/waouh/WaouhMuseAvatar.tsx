@@ -28,7 +28,7 @@ export function WaouhMuseAvatar({
   const ModeIcon = mode === "buyer" ? Search : mode === "seller" ? ShoppingBag : Sparkles;
 
   return (
-    <div className={cn("relative shrink-0", box, className)} aria-label="Avatar WAOUH Muse">
+    <div className={cn("relative shrink-0", box, className)} aria-label="Avatar WAOUH">
       {active && (
         <>
           <span className="absolute inset-0 rounded-[36%] bg-cyan-400/25 motion-safe:animate-ping" />

@@ -7,6 +7,7 @@ import 'avatar/live_avatar_controller.dart';
 import 'avatar/live_avatar_widgets.dart';
 import 'live_auth_screens.dart';
 import 'live_avatar_screen.dart';
+import 'live_avatar_journey_screen.dart';
 import 'live_controller.dart';
 import 'live_controller_v2.dart';
 import 'live_inbox_screen_v2.dart';
@@ -90,6 +91,12 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
         GoRoute(path: '/app/bots', builder: (_, __) => const LiveBotsScreen()),
         GoRoute(path: '/app/whatsapp', builder: (_, __) => const LiveWhatsAppIaScreen()),
         GoRoute(path: '/app/avatar', builder: (_, __) => const LiveAvatarScreen()),
+        GoRoute(
+          path: '/app/avatar/journey/:mode',
+          builder: (_, state) => LiveAvatarJourneyScreen(
+            mode: LiveAvatarJourneyModeX.parse(state.pathParameters['mode']),
+          ),
+        ),
         GoRoute(path: '/app/command', redirect: (_, __) => '/app/avatar'),
         GoRoute(path: '/app/muse', redirect: (_, __) => '/app/avatar'),
         GoRoute(path: '/app/missions', builder: (_, __) => const LiveMissionsScreen()),
@@ -123,7 +130,7 @@ class LiveShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final focused = path.startsWith('/app/chat/') || path.startsWith('/app/profile') || path.startsWith('/app/partner/businesses/');
+    final focused = path.startsWith('/app/chat/') || path.startsWith('/app/avatar/journey/') || path.startsWith('/app/profile') || path.startsWith('/app/partner/businesses/');
     final waouh = context.watch<LiveWaouhController>();
     final showAvatarDock = !path.startsWith('/app/avatar');
     return Scaffold(

@@ -19,6 +19,8 @@ on:
       - "supabase/functions/waouh-negotiation-router/**"
       - "supabase/functions/waouh-deal-ops/**"
       - "supabase/functions/waouh-outbound-dispatch/**"
+      - "supabase/functions/waouh-price-compare/**"
+      - "supabase/functions/_shared/waouh-price.ts"
       - "supabase/migrations/**"
       - "supabase/functions/_shared/waouh-nexus.ts"
       - "supabase/functions/_shared/waouh-signal-fabric.ts"
@@ -40,6 +42,8 @@ on:
       - "supabase/functions/waouh-negotiation-router/**"
       - "supabase/functions/waouh-deal-ops/**"
       - "supabase/functions/waouh-outbound-dispatch/**"
+      - "supabase/functions/waouh-price-compare/**"
+      - "supabase/functions/_shared/waouh-price.ts"
       - "supabase/migrations/**"
       - "supabase/functions/_shared/waouh-nexus.ts"
       - "supabase/functions/_shared/waouh-signal-fabric.ts"
@@ -91,3 +95,6 @@ jobs:
 
       - name: Check WAOUH Outbound Dispatcher
         run: deno check supabase/functions/waouh-outbound-dispatch/index.ts
+
+      - name: Check WAOUH Market Intelligence
+        run: deno check supabase/functions/waouh-price-compare/index.ts

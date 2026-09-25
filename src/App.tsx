@@ -98,6 +98,7 @@ const WaouhPage = lazy(() => import("./pages/waouh/WaouhPage"));
 const WaouhDemoPage = lazy(() => import("./pages/waouh/WaouhDemoPage"));
 const WaouhNativeMessagingPublicPage = lazy(() => import("./pages/waouh/WaouhNativeMessagingPublicPage"));
 const WaouhMusePage = lazy(() => import("./pages/waouh/WaouhMusePage"));
+const WaouhAvatarJourneyPage = lazy(() => import("./pages/waouh/WaouhAvatarJourneyPage"));
 const WaouhMissionsPage = lazy(() => import("./pages/waouh/WaouhMissionsPage"));
 
 const WaouhRadarPage = lazy(() => import("./pages/admin/WaouhRadarPage"));
@@ -348,6 +349,8 @@ const AppContent = () => {
                     <Route path="chat" element={<MobileConversations />} />
                     <Route path="chat/waouh" element={<MobileWaouhChat />} />
                     <Route path="muse" element={<WaouhMusePage embedded />} />
+                    <Route path="avatar" element={<WaouhMusePage embedded />} />
+                    <Route path="avatar/journey/:mode" element={<WaouhAvatarJourneyPage />} />
                     <Route path="missions" element={<WaouhMissionsPage />} />
                     <Route path="conversations" element={<Navigate to="/app/chat" replace />} />
                   </Route>

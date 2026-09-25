@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -1794,7 +1795,87 @@ class _PremiumResultsGridState extends State<_PremiumResultsGrid> {
       });
 }
 
-class _PremiumProductCard extends StatelessWidget {
+class _PremiumMarketIntelligence {
+  const _PremiumMarketIntelligence({
+    this.details,
+    this.market,
+    this.comparative,
+    this.recommendation,
+    this.confidence,
+    this.evidenceCount = 0,
+    this.engines = const [],
+  });
+
+  final String? details;
+  final String? market;
+  final String? comparative;
+  final String? recommendation;
+  final String? confidence;
+  final int evidenceCount;
+  final List<String> engines;
+}
+
+final Map<String, Future<_PremiumMarketIntelligence?>>
+    _premiumMarketIntelligenceCache =
+    <String, Future<_PremiumMarketIntelligence?>>{};
+
+Future<_PremiumMarketIntelligence?> _loadPremiumMarketIntelligence(
+  _PremiumProduct product,
+) async {
+  if (product.isBuyerOpportunity) return null;
+  final source = (product.source ?? '').toLowerCase();
+  final articleId = (source == 'waouh' || source == 'chat') ? product.id : null;
+  final price = double.tryParse(
+    (product.price ?? '').replaceAll(RegExp(r'[^0-9.]'), ''),
+  );
+  final key = [
+    articleId ?? '',
+    product.title,
+    product.city ?? '',
+    product.category ?? '',
+    price?.round().toString() ?? '',
+  ].join('|').toLowerCase();
+
+  return _premiumMarketIntelligenceCache.putIfAbsent(key, () async {
+    try {
+      final response = await legacy.supabase.functions.invoke(
+        'waouh-price-compare',
+        body: <String, dynamic>{
+          if (articleId != null && articleId.isNotEmpty) 'article_id': articleId,
+          'query': product.title,
+          if (product.city?.trim().isNotEmpty == true) 'city': product.city,
+          if (product.category?.trim().isNotEmpty == true)
+            'category': product.category,
+          if (price != null && price > 0) 'offered_price': price,
+          'fast_mode': false,
+        },
+      );
+      final root = liveMap(response.data);
+      if (root['success'] != true) return null;
+      final intelligence = liveMap(root['intelligence']);
+      String? value(String key) {
+        final text = liveText(intelligence[key]).trim();
+        return text.isEmpty || text == 'null' ? null : text;
+      }
+      return _PremiumMarketIntelligence(
+        details: value('details'),
+        market: value('market_comparison'),
+        comparative: value('comparative_analysis'),
+        recommendation: value('recommendation'),
+        confidence: value('confidence'),
+        evidenceCount: int.tryParse(
+              liveText(intelligence['evidence_count']),
+            ) ??
+            0,
+        engines: liveStringList(intelligence['engines']),
+      );
+    } catch (_) {
+      return null;
+    }
+  });
+}
+
+class _PremiumProductCard extends StatefulWidget {
   const _PremiumProductCard({
     required this.product,
     required this.index,
@@ -1809,7 +1890,68 @@ class _PremiumProductCard extends StatelessWidget {
   final bool topPick;
 
   @override
+  State<_PremiumProductCard> createState() => _PremiumProductCardState();
+}
+
+class _PremiumProductCardState extends State<_PremiumProductCard> {
+  _PremiumMarketIntelligence? intelligence;
+  bool intelligenceLoading = false;
+
+  bool get _needsMarketIntelligence {
+    final product = widget.product;
+    return !product.isBuyerOpportunity &&
+        (product.marketComparison == null ||
+            product.comparativeAnalysis == null ||
+            product.recommendation == null ||
+            product.details == null);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (_needsMarketIntelligence) {
+      intelligenceLoading = true;
+      unawaited(_load());
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _PremiumProductCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.product.id != widget.product.id ||
+        oldWidget.product.title != widget.product.title ||
+        oldWidget.product.price != widget.product.price) {
+      intelligence = null;
+      if (_needsMarketIntelligence) {
+        intelligenceLoading = true;
+        unawaited(_load());
+      }
+    }
+  }
+
+  Future<void> _load() async {
+    final value = await _loadPremiumMarketIntelligence(widget.product);
+    if (!mounted) return;
+    setState(() {
+      intelligence = value;
+      intelligenceLoading = false;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final product = widget.product;
+    final index = widget.index;
+    final onPayload = widget.onPayload;
+    final actionsEnabled = widget.actionsEnabled;
+    final topPick = widget.topPick;
+    final detailsText = intelligence?.details ?? product.displayDetails;
+    final marketText = intelligence?.market ?? product.displayMarketComparison;
+    final comparativeText =
+        intelligence?.comparative ?? product.displayComparativeAnalysis;
+    final recommendationText = product.reasons.isNotEmpty
+        ? product.reasons.join(' · ')
+        : intelligence?.recommendation ?? product.displayRecommendation;
     final hasIntegratedInterest = product.actions.any(
       (action) =>
           liveCommerceActionKind(action.payload) ==
@@ -1984,19 +2126,19 @@ class _PremiumProductCard extends StatelessWidget {
               _PremiumInformationPanel(
                   icon: Icons.description_outlined,
                   title: 'Détails',
-                  text: product.displayDetails),
+                  text: detailsText),
               const SizedBox(height: 9),
               _PremiumInformationPanel(
                   icon: Icons.bar_chart_rounded,
                   title: 'Marché réel',
-                  text: product.displayMarketComparison,
+                  text: marketText,
                   accent: const Color(0xFF08745D),
                   background: const Color(0xFFEAF8F2)),
               const SizedBox(height: 8),
               _PremiumInformationPanel(
                   icon: Icons.compare_arrows_rounded,
                   title: 'Analyse comparative',
-                  text: product.displayComparativeAnalysis,
+                  text: comparativeText,
                   accent: const Color(0xFF42658B),
                   background: const Color(0xFFF1F5FB)),
               const SizedBox(height: 8),
@@ -2005,11 +2147,58 @@ class _PremiumProductCard extends StatelessWidget {
                   title: product.reasons.isNotEmpty
                       ? 'Pourquoi WAOUH le recommande'
                       : 'Recommandation WAOUH',
-                  text: product.reasons.isNotEmpty
-                      ? product.reasons.join(' · ')
-                      : product.displayRecommendation,
+                  text: recommendationText,
                   accent: const Color(0xFF8B6500),
                   background: const Color(0xFFFFF8E6)),
+              if (intelligenceLoading) ...[
+                const SizedBox(height: 7),
+                const Row(
+                  children: [
+                    SizedBox.square(
+                      dimension: 13,
+                      child: CircularProgressIndicator(strokeWidth: 1.7),
+                    ),
+                    SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        'Avatar analyse le marché réel…',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: WaouhPalette.muted,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ] else if (intelligence != null) ...[
+                const SizedBox(height: 7),
+                Wrap(
+                  spacing: 5,
+                  runSpacing: 5,
+                  children: [
+                    _PremiumBadge(
+                      '✨ IA marché · ${intelligence!.confidence ?? 'signal'}',
+                      const Color(0xFFEEF4FF),
+                      WaouhPalette.blue,
+                    ),
+                    if (intelligence!.evidenceCount > 0)
+                      _PremiumBadge(
+                        '${intelligence!.evidenceCount} preuves',
+                        const Color(0xFFF1F7F6),
+                        const Color(0xFF347A68),
+                      ),
+                    if (intelligence!.engines.isNotEmpty)
+                      _PremiumBadge(
+                        intelligence!.engines.take(3).join(' · '),
+                        const Color(0xFFF5F2FF),
+                        const Color(0xFF7462C9),
+                      ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 9),
               Row(children: [
                 Icon(
