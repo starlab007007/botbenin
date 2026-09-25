@@ -992,29 +992,81 @@ class _PremiumProduct {
   final String? role;
 
   String get displayDetails {
-    if (details != null) return details!;
+    if (details != null && details!.trim().isNotEmpty) return details!;
     final known = <String>[
-      if (subtitle != null) subtitle!,
+      if (subtitle != null && subtitle!.trim().isNotEmpty) subtitle!,
       if (condition != null) 'État : $condition',
       if (category != null) 'Catégorie : $category',
       if (availability != null) 'Disponibilité : $availability',
+      if (sellerLabel != null) 'Source vendeur : $sellerLabel',
     ];
     return known.isEmpty
-        ? 'Aucun détail supplémentaire fourni par cette annonce.'
+        ? 'Non renseigné par la source vérifiée.'
         : known.join(' · ');
   }
 
-  String get displayMarketComparison =>
-      marketComparison ??
-      'Prix de produits similaires non communiqué par le service de recherche.';
+  String get displayMarketComparison {
+    if (marketComparison != null && marketComparison!.trim().isNotEmpty) {
+      return marketComparison!;
+    }
+    if (priceScore != null) {
+      return 'Signal prix NEXUS / Signal Fabric : ${priceScore!.round()}/100. '
+          'Aucune fourchette de prix vérifiée supplémentaire n’est disponible.';
+    }
+    return 'Aucune référence de prix vérifiée disponible dans les sources interrogées.';
+  }
 
-  String get displayComparativeAnalysis =>
-      comparativeAnalysis ??
-      'Données de marché insuffisantes pour comparer objectivement ce prix.';
+  String get displayComparativeAnalysis {
+    if (comparativeAnalysis != null &&
+        comparativeAnalysis!.trim().isNotEmpty) {
+      return comparativeAnalysis!;
+    }
+    final metrics = <String>[
+      if (score != null) 'match ${score!.round()}/100',
+      if (trustScore != null) 'confiance ${trustScore!.round()}/100',
+      if (priceScore != null) 'prix ${priceScore!.round()}/100',
+    ];
+    return metrics.isEmpty
+        ? 'Comparaison non calculable : données vérifiées insuffisantes.'
+        : 'Signaux mesurés : ${metrics.join(' · ')}.';
+  }
 
-  String get displayRecommendation =>
-      recommendation ??
-      'Vérifiez l’état, les accessoires, la disponibilité et le vendeur avant de confirmer.';
+  String get displayRecommendation {
+    if (recommendation != null && recommendation!.trim().isNotEmpty) {
+      return recommendation!;
+    }
+    if (trustScore != null || score != null) {
+      final trust = trustScore?.round();
+      final match = score?.round();
+      return [
+        if (match != null) 'Pertinence $match/100',
+        if (trust != null) 'confiance $trust/100',
+        'décision à confirmer par vous',
+      ].join(' · ');
+    }
+    return 'Aucune recommandation fiable sans données supplémentaires.';
+  }
+
+  List<String> get intelligenceSources {
+    final values = <String>{};
+    if (fabricId != null && fabricId!.trim().isNotEmpty) {
+      values.add('Signal Fabric');
+    }
+    if (score != null || priceScore != null || trustScore != null) {
+      values.add('NEXUS');
+    }
+    final raw = (source ?? '').toLowerCase();
+    if (raw.contains('radar')) {
+      values.add('Radar');
+    } else if (raw.contains('partner') || raw.contains('partenaire')) {
+      values.add('Partenaire');
+    } else if (raw.contains('agent')) {
+      values.add('Agents IA');
+    } else if (source != null && source!.trim().isNotEmpty) {
+      values.add(source!.trim());
+    }
+    return values.toList(growable: false);
+  }
 }
 
 List<_SmartMessageAction> _premiumExplicitActions(dynamic value) {
@@ -2010,6 +2062,27 @@ class _PremiumProductCard extends StatelessWidget {
                       : product.displayRecommendation,
                   accent: const Color(0xFF8B6500),
                   background: const Color(0xFFFFF8E6)),
+              if (product.intelligenceSources.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 5,
+                  runSpacing: 5,
+                  children: [
+                    const _PremiumBadge(
+                      'IA vérifiable',
+                      Color(0xFFEAF2FF),
+                      Color(0xFF315BD8),
+                    ),
+                    ...product.intelligenceSources.map(
+                      (source) => _PremiumBadge(
+                        source,
+                        const Color(0xFFF4F7FC),
+                        const Color(0xFF526B94),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 9),
               Row(children: [
                 Icon(
