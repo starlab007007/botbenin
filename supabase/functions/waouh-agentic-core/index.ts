@@ -7,7 +7,13 @@ import {
 import { chatCompletion, visionCompletion } from "../_shared/agent-ai.ts";
 import { encryptPhone, decryptPhone, hashPhone, sha256Hex } from "../_shared/waouh-tel/crypto.ts";
 import { normalizeE164, phoneLast4 } from "../_shared/waouh-tel/phone.ts";
-import { getRadarApiKey, incrementRadarUsage } from "../_shared/radar-api-config.ts";
+import {
+  getRadarApiKey,
+  getRadarProviderConfig,
+  incrementRadarUsage,
+  markRadarProviderSync,
+} from "../_shared/radar-api-config.ts";
+import { rehostMedia } from "../_shared/waouhContact.ts";
 import {
   contactabilityPolicy,
   extractPublicContactHints,
@@ -604,15 +610,25 @@ async function resolveCommerceEntity(
     actorHandle?: string | null;
     city?: string | null;
     contactPhones?: string[];
+    whatsappPhones?: string[];
     contactEmails?: string[];
     contactability: Contactability;
     consentBasis: string;
     isPublicBusiness: boolean;
   },
 ) {
-  const normalizedPhones = (input.contactPhones ?? [])
-    .map((phone) => normalizeE164(phone))
-    .filter((phone): phone is string => !!phone);
+  const normalizedWhatsapp = [...new Set(
+    (input.whatsappPhones ?? [])
+      .map((phone) => normalizeE164(phone))
+      .filter((phone): phone is string => !!phone),
+  )];
+  const whatsappSet = new Set(normalizedWhatsapp);
+  const normalizedPhones = [...new Set([
+    ...(input.contactPhones ?? [])
+      .map((phone) => normalizeE164(phone))
+      .filter((phone): phone is string => !!phone),
+    ...normalizedWhatsapp,
+  ])];
   const phoneHashes: string[] = [];
   for (const phone of normalizedPhones) phoneHashes.push(await hashPhone(phone));
 
@@ -673,7 +689,8 @@ async function resolveCommerceEntity(
     const hash = phoneHashes[index];
     const encrypted = await encryptPhone(phone);
     const { data: existing, error: existingError } = await sb.from("waouh_entity_contacts")
-      .select("id").eq("entity_id", entity.id).eq("channel", input.sourceKey === "whatsapp" ? "whatsapp" : "phone")
+      .select("id").eq("entity_id", entity.id)
+      .eq("channel", whatsappSet.has(phone) || input.sourceKey === "whatsapp" || input.sourceKey === "whatsapp_groups" ? "whatsapp" : "phone")
       .eq("value_hash", hash).maybeSingle();
     if (existingError) throw new ApiError(500, "nexus_contact_lookup_failed", existingError.message);
     const values = {
@@ -693,7 +710,7 @@ async function resolveCommerceEntity(
     } else {
       const { error } = await sb.from("waouh_entity_contacts").insert({
         entity_id: entity.id,
-        channel: input.sourceKey === "whatsapp" ? "whatsapp" : "phone",
+        channel: whatsappSet.has(phone) || input.sourceKey === "whatsapp" || input.sourceKey === "whatsapp_groups" ? "whatsapp" : "phone",
         ...values,
       });
       if (error) throw new ApiError(500, "nexus_contact_create_failed", error.message);
