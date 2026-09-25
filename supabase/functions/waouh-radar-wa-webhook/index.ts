@@ -1,11 +1,15 @@
 // WAHA inbound webhook — capture messages from opt-in WhatsApp groups for radar analysis
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { normalizeE164 } from "../_shared/waouh-tel/phone.ts";
+import { rehostMedia } from "../_shared/waouhContact.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 const WAHA_WEBHOOK_TOKEN = Deno.env.get("WAHA_WEBHOOK_TOKEN") || "";
+const WAHA_BASE_URL = Deno.env.get("WAHA_BASE_URL") || "";
+const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY_PLAIN") || Deno.env.get("WAHA_API_KEY") || "";
 
 async function aiExtract(text: string): Promise<any> {
   const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -40,9 +44,9 @@ Deno.serve(async (req) => {
   try {
     const evt = await req.json();
     const payload = evt.payload || evt;
-    const from = payload.from || payload.author || "";
-    const groupId = payload.to || payload.chatId || "";
-    const body = payload.body || payload.text || "";
+    const from = payload.author || payload.participant || payload.from || "";
+    const groupId = payload.chatId || payload.to || payload.from || "";
+    const body = payload.body || payload.text || payload.caption || "";
     if (!body || !groupId.endsWith("@g.us")) {
       return new Response(JSON.stringify({ ok: true, skip: "not group msg" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -56,19 +60,37 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true, skip: "low confidence" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const phone = String(from).replace(/@.*/, "").replace(/\D/g, "");
+    const phone = normalizeE164(String(from).replace(/@.*/, ""));
+    const mediaUrl = String(
+      payload.mediaUrl ?? payload.media_url ?? payload.imageUrl ??
+      payload.image_url ?? payload._data?.deprecatedMms3Url ?? "",
+    ).trim();
+    let stablePhoto: string | null = null;
+    if (mediaUrl && /^https?:\/\//i.test(mediaUrl)) {
+      stablePhoto = await rehostMedia(sb, mediaUrl, payload.mimetype || "image/jpeg", {
+        wahaBaseUrl: WAHA_BASE_URL,
+        wahaApiKey: WAHA_API_KEY,
+      });
+    }
+    const photos = stablePhoto ? [stablePhoto] : [];
     await sb.from("waouh_radar_signals").insert({
       source_id: src.id,
       source_type: "wa_group",
       raw_text: body,
       raw_url: `wa://${groupId}/${payload.id || ""}`,
-      raw_payload: payload,
+      raw_payload: { ...payload, normalized_phone: phone, photos },
       intent: ext.intent || "UNKNOWN",
-      product: ext,
+      product: {
+        ...ext,
+        title: ext.title || null,
+        photos,
+        image_url: photos[0] ?? null,
+      },
       category: ext.category,
       price: ext.price,
       city: ext.city,
       contact_phone: phone,
+      contact_handle: payload.notifyName || payload.pushName || null,
       confidence: ext.confidence,
       status: "extracted",
     });
