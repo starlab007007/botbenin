@@ -6,22 +6,6 @@ class LiveIaFinalHubScreen extends StatelessWidget {
 
   static const modules = <_SmartModule>[
     _SmartModule(
-      title: 'WAOUH Muse',
-      subtitle: 'Agent autonome pour chercher, comparer, surveiller et relier offre ↔ demande.',
-      route: '/app/muse',
-      icon: Icons.psychology_alt_rounded,
-      accent: Color(0xFF08745D),
-      tags: ['Agent', 'NEXUS'],
-    ),
-    _SmartModule(
-      title: 'Missions & veille',
-      subtitle: 'Objectifs persistants, alertes, validations et suivi agentique.',
-      route: '/app/missions',
-      icon: Icons.route_rounded,
-      accent: Color(0xFF0F766E),
-      tags: ['Missions', 'Veilles'],
-    ),
-    _SmartModule(
       title: 'AprèsBac IA',
       subtitle: 'Orientation intelligente, séries, filières et établissements.',
       route: '/app/apresbac',
@@ -144,7 +128,7 @@ class LiveIaFinalHubScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 3),
                             const Text(
-                              'Des modules intelligents adaptés à chaque besoin.',
+                              'Vos outils IA spécialisés.',
                               style: TextStyle(
                                 color: Color(0xFFD1F5E6),
                                 fontWeight: FontWeight.w600,
