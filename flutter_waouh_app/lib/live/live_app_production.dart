@@ -387,8 +387,8 @@ class LiveProductionShell extends StatelessWidget {
                         label: 'IA',
                       ),
                       NavigationDestination(
-                        icon: Icon(Icons.face_retouching_natural_outlined),
-                        selectedIcon: Icon(Icons.face_retouching_natural_rounded),
+                        icon: Icon(Icons.account_circle_outlined),
+                        selectedIcon: Icon(Icons.account_circle_rounded),
                         label: 'Avatar',
                       ),
                       NavigationDestination(
