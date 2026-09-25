@@ -1505,6 +1505,7 @@ async function refreshApifyRadar(sb: SupabaseClient) {
       method: "POST",
       headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey, "Content-Type": "application/json" },
       body: JSON.stringify({ source: "nexus.global_discovery" }),
+      signal: AbortSignal.timeout(18000),
     });
     const data = await response.json().catch(() => ({}));
     const inserted = Number(data?.signals ?? 0);
@@ -2370,29 +2371,60 @@ Retourne uniquement JSON:
           const usePublicWeb = sourcePlan.size === 0 || [
             "web_public", "social_public", "directories", "b2b_rfq",
           ].some((family) => sourcePlan.has(family));
+          const useSocial = sourcePlan.size === 0 ||
+            sourcePlan.has("social_public") || sourcePlan.has("web_public");
 
-          if (useMaps) {
-            const places = await refreshGooglePlaces(sb, ownerId, semanticQuery, city, Math.min(limit, 10));
-            refresh.google_places = {
-              configured: places.configured,
-              inserted: places.inserted,
-              reason: places.reason ?? null,
-            };
-          } else {
-            refresh.google_places = { configured: true, inserted: 0, reason: "not_selected_by_ai_plan" };
-          }
+          const skipped = Promise.resolve({
+            configured: true,
+            inserted: 0,
+            reason: "not_selected_by_ai_plan",
+          });
+          const [
+            places,
+            serp,
+            facebook,
+            instagram,
+            telegram,
+            tiktok,
+            apify,
+          ] = await Promise.all([
+            useMaps
+              ? refreshGooglePlaces(sb, ownerId, semanticQuery, city, Math.min(limit, 10))
+              : skipped,
+            usePublicWeb
+              ? refreshSerpApi(sb, ownerId, mode, semanticQuery, city, Math.min(limit, 12))
+              : Promise.resolve({ ...(await skipped), surfaces: {} }),
+            useSocial
+              ? refreshFacebookBusiness(sb, ownerId, semanticQuery, Math.min(limit, 8))
+              : skipped,
+            useSocial
+              ? refreshInstagramBusiness(sb, ownerId, semanticQuery, Math.min(limit, 8))
+              : skipped,
+            useSocial
+              ? refreshTelegramPublic(sb, ownerId, semanticQuery, Math.min(limit, 12))
+              : skipped,
+            useSocial
+              ? refreshTikTokConnected(sb, ownerId, semanticQuery, Math.min(limit, 10))
+              : skipped,
+            useSocial ? refreshApifyRadar(sb) : skipped,
+          ]);
 
-          if (usePublicWeb) {
-            const serp = await refreshSerpApi(sb, ownerId, mode, semanticQuery, city, Math.min(limit, 12));
-            refresh.serpapi = {
-              configured: serp.configured,
-              inserted: serp.inserted,
-              reason: serp.reason ?? null,
-              surfaces: serp.surfaces ?? {},
-            };
-          } else {
-            refresh.serpapi = { configured: true, inserted: 0, reason: "not_selected_by_ai_plan", surfaces: {} };
-          }
+          refresh.google_places = {
+            configured: places.configured,
+            inserted: places.inserted,
+            reason: places.reason ?? null,
+          };
+          refresh.serpapi = {
+            configured: serp.configured,
+            inserted: serp.inserted,
+            reason: serp.reason ?? null,
+            surfaces: (serp as any).surfaces ?? {},
+          };
+          refresh.facebook_business = facebook;
+          refresh.instagram_business = instagram;
+          refresh.telegram_public = telegram;
+          refresh.tiktok_connected = tiktok;
+          refresh.apify = apify;
         }
 
         const results = await globalDiscoverySearch(sb, {
