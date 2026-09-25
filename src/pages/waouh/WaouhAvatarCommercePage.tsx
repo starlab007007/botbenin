@@ -49,6 +49,58 @@ const modeCopy: Record<Mode, { title: string; subtitle: string; cta: string; sel
   },
 };
 
+const evidenceText = (item: NexusDiscoveryResult, keys: string[]) => {
+  const evidence = (item.evidence || {}) as Record<string, unknown>;
+  for (const key of keys) {
+    const value = evidence[key];
+    if (value == null) continue;
+    const text = String(value).trim();
+    if (text && text !== "null") return text;
+  }
+  return "";
+};
+
+const evidencePhotos = (item: NexusDiscoveryResult) => {
+  const evidence = (item.evidence || {}) as Record<string, unknown>;
+  const values: unknown[] = [];
+  if (Array.isArray(evidence.photos)) values.push(...evidence.photos);
+  values.push(evidence.image_url, evidence.photo, evidence.thumbnail);
+  return [...new Set(values
+    .map((value) => String(value || "").trim())
+    .filter((value) => /^https?:\/\//i.test(value)))].slice(0, 4);
+};
+
+const avatarMarketIntelligence = (item: NexusDiscoveryResult) => {
+  const explicitMarket = evidenceText(item, ["market_comparison", "market_line", "marche_reel", "market_analysis"]);
+  const explicitComparison = evidenceText(item, ["comparative_analysis", "analyse_comparative", "deal_label"]);
+  const explicitRecommendation = evidenceText(item, ["recommendation", "recommandation", "advice", "conseil", "ai_note"]);
+  const details = evidenceText(item, ["details", "description", "summary", "raw_text"]);
+  const reasons = item.scores?.reasons || [];
+  const source = sourceLabel(item.source_key);
+  const priceFacts = [
+    item.price_min != null || item.price_max != null
+      ? `prix observé ${Math.round(item.price_min ?? item.price_max ?? 0)}${item.price_max != null && item.price_min != null && item.price_max !== item.price_min ? `–${Math.round(item.price_max)}` : ""} FCFA`
+      : null,
+    item.scores?.price_score != null ? `score prix ${Math.round(item.scores.price_score)}%` : null,
+    `source ${source}`,
+  ].filter(Boolean).join(" · ");
+  const comparison = [
+    item.scores?.total_score != null ? `match ${Math.round(item.scores.total_score)}%` : null,
+    item.scores?.relevance_score != null ? `pertinence ${Math.round(item.scores.relevance_score)}%` : null,
+    item.scores?.trust_score != null ? `confiance ${Math.round(item.scores.trust_score)}%` : null,
+    `contact ${item.contact_policy.level}`,
+  ].filter(Boolean).join(" · ");
+  return {
+    details: details || [item.category, item.city].filter(Boolean).join(" · ") || "Aucun détail complémentaire n’est fourni par la source.",
+    market: explicitMarket || priceFacts,
+    comparison: explicitComparison || `Signal Fabric · ${comparison}`,
+    recommendation:
+      explicitRecommendation ||
+      reasons.slice(0, 3).join(" · ") ||
+      "Vérifier disponibilité, état et conditions avant l’accord.",
+  };
+};
+
 const sourceLabel = (key?: string | null) => {
   const value = String(key || "").toLowerCase();
   if (value.includes("partner")) return "Partenaire";
@@ -263,8 +315,16 @@ export default function WaouhAvatarCommercePage() {
         <div className="space-y-3">
           {results.map((item, index) => {
             const reasons = item.scores?.reasons || [];
+            const intelligence = avatarMarketIntelligence(item);
+            const photos = evidencePhotos(item);
             return (
-              <article key={item.fabric_id} className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+              <article key={item.fabric_id} className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
+                {photos.length > 0 && (
+                  <div className="aspect-[16/9] w-full overflow-hidden bg-slate-100">
+                    <img src={photos[0]} alt={item.subject || "Opportunité WAOUH"} className="h-full w-full object-cover" loading="lazy" />
+                  </div>
+                )}
+                <div className="p-4">
                 <div className="flex items-start gap-3">
                   <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-blue-50 font-black text-blue-600">#{index + 1}</div>
                   <div className="min-w-0 flex-1">
@@ -278,25 +338,18 @@ export default function WaouhAvatarCommercePage() {
                   <div className="text-sm font-black text-blue-600">{Math.round(item.scores?.total_score || 0)}%</div>
                 </div>
 
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                  <div className="rounded-2xl bg-slate-50 p-3">
-                    <div className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Marché réel</div>
-                    <div className="mt-1 text-xs font-black text-slate-800">
-                      {item.price_min != null || item.price_max != null
-                        ? `${Math.round(item.price_min ?? item.price_max ?? 0)}${item.price_max && item.price_max !== item.price_min ? ` – ${Math.round(item.price_max)}` : ""} FCFA`
-                        : `Score prix ${Math.round(item.scores?.price_score || 0)}%`}
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {[
+                    ["Détails", intelligence.details, "bg-slate-50 text-slate-800"],
+                    ["Marché réel", intelligence.market, "bg-emerald-50/70 text-emerald-950"],
+                    ["Analyse comparative", intelligence.comparison, "bg-blue-50/70 text-blue-950"],
+                    ["Pourquoi WAOUH recommande", intelligence.recommendation, "bg-amber-50/80 text-amber-950"],
+                  ].map(([label, value, tone]) => (
+                    <div key={label} className={`rounded-2xl p-3 ${tone}`}>
+                      <div className="text-[9px] font-bold uppercase tracking-wide opacity-65">{label}</div>
+                      <div className="mt-1 text-xs font-bold leading-relaxed">{value}</div>
                     </div>
-                  </div>
-                  <div className="rounded-2xl bg-slate-50 p-3">
-                    <div className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Comparaison</div>
-                    <div className="mt-1 text-xs font-black text-slate-800">
-                      Confiance {Math.round(item.scores?.trust_score || 0)}% · Pertinence {Math.round(item.scores?.relevance_score || 0)}%
-                    </div>
-                  </div>
-                  <div className="rounded-2xl bg-slate-50 p-3">
-                    <div className="text-[9px] font-bold uppercase tracking-wide text-slate-400">Pourquoi recommandé</div>
-                    <div className="mt-1 text-xs font-black text-slate-800">{reasons.slice(0, 2).join(" · ") || "Signal compatible"}</div>
-                  </div>
+                  ))}
                 </div>
 
                 <div className="mt-3 flex items-center gap-2 rounded-2xl border border-blue-100 bg-blue-50/60 p-3 text-[10px] font-semibold text-slate-600">
@@ -318,6 +371,7 @@ export default function WaouhAvatarCommercePage() {
                   )}
                   {item.source_key === "waouh_app" ? "Intéressé · ouvrir le Deal Room" : "Laisser mon Avatar poursuivre"}
                 </Button>
+                </div>
               </article>
             );
           })}
