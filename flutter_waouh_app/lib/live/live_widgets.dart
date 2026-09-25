@@ -1000,21 +1000,23 @@ class _PremiumProduct {
       if (availability != null) 'Disponibilité : $availability',
     ];
     return known.isEmpty
-        ? 'Aucun détail supplémentaire fourni par cette annonce.'
+        ? 'Aucun détail vérifié supplémentaire n’est disponible.'
         : known.join(' · ');
   }
 
   String get displayMarketComparison =>
       marketComparison ??
-      'Prix de produits similaires non communiqué par le service de recherche.';
+      'Analyse NEXUS du marché en cours.';
 
   String get displayComparativeAnalysis =>
       comparativeAnalysis ??
-      'Données de marché insuffisantes pour comparer objectivement ce prix.';
+      'Comparaison en cours à partir des observations vérifiées.';
 
   String get displayRecommendation =>
       recommendation ??
-      'Vérifiez l’état, les accessoires, la disponibilité et le vendeur avant de confirmer.';
+      (reasons.isNotEmpty
+          ? reasons.join(' · ')
+          : 'WAOUH attend suffisamment de signaux vérifiés avant de recommander.');
 }
 
 List<_SmartMessageAction> _premiumExplicitActions(dynamic value) {
@@ -1981,35 +1983,7 @@ class _PremiumProductCard extends StatelessWidget {
                 ]),
               ],
               const SizedBox(height: 9),
-              _PremiumInformationPanel(
-                  icon: Icons.description_outlined,
-                  title: 'Détails',
-                  text: product.displayDetails),
-              const SizedBox(height: 9),
-              _PremiumInformationPanel(
-                  icon: Icons.bar_chart_rounded,
-                  title: 'Marché réel',
-                  text: product.displayMarketComparison,
-                  accent: const Color(0xFF08745D),
-                  background: const Color(0xFFEAF8F2)),
-              const SizedBox(height: 8),
-              _PremiumInformationPanel(
-                  icon: Icons.compare_arrows_rounded,
-                  title: 'Analyse comparative',
-                  text: product.displayComparativeAnalysis,
-                  accent: const Color(0xFF42658B),
-                  background: const Color(0xFFF1F5FB)),
-              const SizedBox(height: 8),
-              _PremiumInformationPanel(
-                  icon: Icons.lightbulb_outline_rounded,
-                  title: product.reasons.isNotEmpty
-                      ? 'Pourquoi WAOUH le recommande'
-                      : 'Recommandation WAOUH',
-                  text: product.reasons.isNotEmpty
-                      ? product.reasons.join(' · ')
-                      : product.displayRecommendation,
-                  accent: const Color(0xFF8B6500),
-                  background: const Color(0xFFFFF8E6)),
+              _PremiumProductIntelligence(product: product),
               const SizedBox(height: 9),
               Row(children: [
                 Icon(
@@ -2465,6 +2439,201 @@ String _watchProductPayload(_PremiumProduct product) {
     if (product.images.isNotEmpty) 'image_url': product.images.first.url,
   };
   return 'waouh:watch?${Uri(queryParameters: params).query}';
+}
+
+final Map<String, Future<Map<String, dynamic>?>> _premiumMarketIntelCache =
+    <String, Future<Map<String, dynamic>?>>{};
+
+Future<Map<String, dynamic>?> _premiumMarketIntel(
+  _PremiumProduct product,
+) {
+  final key =
+      '${product.title.toLowerCase().trim()}|${(product.city ?? '').toLowerCase().trim()}';
+  return _premiumMarketIntelCache.putIfAbsent(key, () async {
+    if (legacy.supabase.auth.currentUser == null) return null;
+    try {
+      return await LiveNexusService(legacy.supabase).marketHistory(
+        query: product.title,
+        city: product.city,
+        limit: 30,
+      );
+    } catch (_) {
+      return null;
+    }
+  });
+}
+
+class _PremiumProductIntelligence extends StatefulWidget {
+  const _PremiumProductIntelligence({required this.product});
+  final _PremiumProduct product;
+
+  @override
+  State<_PremiumProductIntelligence> createState() =>
+      _PremiumProductIntelligenceState();
+}
+
+class _PremiumProductIntelligenceState
+    extends State<_PremiumProductIntelligence> {
+  Map<String, dynamic>? _market;
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final product = widget.product;
+    final needsMarket = product.marketComparison == null ||
+        product.comparativeAnalysis == null ||
+        product.recommendation == null;
+    if (needsMarket) {
+      _loading = true;
+      _premiumMarketIntel(product).then((value) {
+        if (!mounted) return;
+        setState(() {
+          _market = value;
+          _loading = false;
+        });
+      });
+    }
+  }
+
+  Map<String, dynamic>? get _latestPoint {
+    final points = _market?['points'];
+    if (points is! List || points.isEmpty) return null;
+    for (final raw in points) {
+      if (raw is Map) return Map<String, dynamic>.from(raw);
+    }
+    return null;
+  }
+
+  double? _number(dynamic value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse('${value ?? ''}');
+  }
+
+  String _money(double value) => '${value.round()} FCFA';
+
+  String get _details {
+    final product = widget.product;
+    final facts = <String>[
+      if (product.details?.trim().isNotEmpty == true) product.details!.trim(),
+      if (product.condition?.trim().isNotEmpty == true)
+        'État : ${product.condition}',
+      if (product.availability?.trim().isNotEmpty == true)
+        'Disponibilité : ${product.availability}',
+      if (product.category?.trim().isNotEmpty == true)
+        'Catégorie : ${product.category}',
+      if (product.source?.trim().isNotEmpty == true)
+        'Source : ${product.source}',
+      if (product.city?.trim().isNotEmpty == true) 'Zone : ${product.city}',
+    ];
+    return facts.isEmpty
+        ? 'Aucun détail vérifié supplémentaire n’est disponible.'
+        : facts.toSet().join(' · ');
+  }
+
+  String get _marketText {
+    final product = widget.product;
+    if (product.marketComparison?.trim().isNotEmpty == true) {
+      return product.marketComparison!;
+    }
+    if (_loading) return 'NEXUS analyse les observations du marché…';
+    final point = _latestPoint;
+    if (point == null) {
+      return 'Aucun échantillon marché vérifié disponible pour cet article.';
+    }
+    final min = _number(point['min_amount']);
+    final median = _number(point['median_amount']);
+    final max = _number(point['max_amount']);
+    final samples = point['sample_count'];
+    final sourceMix = point['source_mix'];
+    final parts = <String>[
+      if (min != null && max != null)
+        'Fourchette ${_money(min)} – ${_money(max)}',
+      if (median != null) 'médiane ${_money(median)}',
+      if (samples != null) '$samples observation(s)',
+      if (sourceMix is Map && sourceMix.isNotEmpty)
+        'sources ${sourceMix.keys.take(3).join(', ')}',
+    ];
+    return parts.isEmpty
+        ? 'Aucun échantillon marché vérifié disponible pour cet article.'
+        : parts.join(' · ');
+  }
+
+  String get _comparative {
+    final product = widget.product;
+    if (product.comparativeAnalysis?.trim().isNotEmpty == true) {
+      return product.comparativeAnalysis!;
+    }
+    if (_loading) return 'Signal Fabric compare le prix et les signaux…';
+    final price = _premiumAmount(product.price);
+    final median = _number(_latestPoint?['median_amount']);
+    if (price == null || median == null || median <= 0) {
+      final score = product.priceScore;
+      return score != null
+          ? 'Score prix Signal Fabric : ${score.round()} / 100.'
+          : 'Comparaison objective impossible sans prix et médiane vérifiés.';
+    }
+    final delta = ((price - median) / median) * 100;
+    if (delta.abs() < 3) {
+      return 'Prix proche de la médiane observée (${delta.abs().toStringAsFixed(1)} % d’écart).';
+    }
+    return delta < 0
+        ? 'Prix ${delta.abs().toStringAsFixed(1)} % sous la médiane observée.'
+        : 'Prix ${delta.toStringAsFixed(1)} % au-dessus de la médiane observée.';
+  }
+
+  String get _recommendation {
+    final product = widget.product;
+    if (product.recommendation?.trim().isNotEmpty == true) {
+      return product.recommendation!;
+    }
+    if (product.reasons.isNotEmpty) return product.reasons.join(' · ');
+    final pieces = <String>[
+      if (product.score != null)
+        'Compatibilité ${product.score!.round()}%',
+      if (product.trustScore != null)
+        'Confiance ${product.trustScore!.round()}%',
+      if (product.contactability != null)
+        'Contact ${product.contactability}',
+    ];
+    if (pieces.isNotEmpty) return pieces.join(' · ');
+    return 'WAOUH attend davantage de signaux vérifiés avant de recommander cette opportunité.';
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          _PremiumInformationPanel(
+            icon: Icons.description_outlined,
+            title: 'Détails vérifiés',
+            text: _details,
+          ),
+          const SizedBox(height: 9),
+          _PremiumInformationPanel(
+            icon: Icons.bar_chart_rounded,
+            title: 'Marché réel',
+            text: _marketText,
+            accent: const Color(0xFF08745D),
+            background: const Color(0xFFEAF8F2),
+          ),
+          const SizedBox(height: 8),
+          _PremiumInformationPanel(
+            icon: Icons.compare_arrows_rounded,
+            title: 'Analyse comparative',
+            text: _comparative,
+            accent: const Color(0xFF42658B),
+            background: const Color(0xFFF1F5FB),
+          ),
+          const SizedBox(height: 8),
+          _PremiumInformationPanel(
+            icon: Icons.lightbulb_outline_rounded,
+            title: 'Pourquoi WAOUH le recommande',
+            text: _recommendation,
+            accent: const Color(0xFF8B6500),
+            background: const Color(0xFFFFF8E6),
+          ),
+        ],
+      );
 }
 
 class _PremiumInformationPanel extends StatelessWidget {

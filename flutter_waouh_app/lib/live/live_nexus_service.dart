@@ -100,6 +100,8 @@ class NexusDiscoveryItem {
     this.priceMax,
     this.currency = 'XOF',
     this.sourceUrl,
+    this.sourceRecordId,
+    this.evidence = const <String, dynamic>{},
   });
 
   final String fabricId;
@@ -113,7 +115,46 @@ class NexusDiscoveryItem {
   final double? priceMax;
   final String currency;
   final String? sourceUrl;
+  final String? sourceRecordId;
+  final Map<String, dynamic> evidence;
   final NexusScore scores;
+
+  String? get articleId {
+    final value = evidence['article_id'] ?? evidence['id'];
+    if (value != null && value.toString().trim().isNotEmpty) {
+      return value.toString().trim();
+    }
+    if (fabricId.startsWith('article:')) {
+      final candidate = fabricId.substring('article:'.length).trim();
+      return candidate.isEmpty ? null : candidate;
+    }
+    return null;
+  }
+
+  String? get sellerId {
+    final value = evidence['seller_id'] ?? evidence['seller_user_id'];
+    return value == null || value.toString().trim().isEmpty
+        ? null
+        : value.toString().trim();
+  }
+
+  String? get buyerId {
+    final value = evidence['user_id'] ?? evidence['buyer_user_id'];
+    return value == null || value.toString().trim().isEmpty
+        ? null
+        : value.toString().trim();
+  }
+
+  List<String> get photoUrls {
+    final raw = evidence['photos'] ?? evidence['images'];
+    if (raw is List) {
+      return raw
+          .map((item) => item?.toString().trim() ?? '')
+          .where((item) => item.isNotEmpty)
+          .toList(growable: false);
+    }
+    return const <String>[];
+  }
   final NexusContactPolicy contactPolicy;
 
   factory NexusDiscoveryItem.fromJson(Map<String, dynamic> json) {
@@ -134,6 +175,10 @@ class NexusDiscoveryItem {
       priceMax: maxRaw == null ? null : _number(maxRaw),
       currency: _text(json['currency'], 'XOF'),
       sourceUrl: json['source_url'] == null ? null : _text(json['source_url']),
+      sourceRecordId: json['source_record_id'] == null
+          ? null
+          : _text(json['source_record_id']),
+      evidence: _map(json['evidence']),
       scores: NexusScore.fromJson(_map(json['scores'])),
       contactPolicy:
           NexusContactPolicy.fromJson(_map(json['contact_policy'])),
@@ -522,6 +567,17 @@ class LiveNexusService {
     });
     return NexusDiscoveryResponse.fromJson(data);
   }
+
+  Future<Map<String, dynamic>> marketHistory({
+    required String query,
+    String? city,
+    int limit = 30,
+  }) =>
+      _invoke('nexus.market_history', {
+        'query': query.trim(),
+        if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
+        'limit': limit,
+      });
 
   Future<List<NexusSourceInfo>> sources() async {
     final data = await _invoke('nexus.sources');

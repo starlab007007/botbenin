@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowRight,
   BrainCircuit,
@@ -28,6 +28,7 @@ type WaouhMusePageProps = {
 
 export default function WaouhMusePage({ embedded = false }: WaouhMusePageProps) {
   const chatRef = useRef<WaouhWebChatHandle>(null);
+  const navigate = useNavigate();
   const [section, setSection] = useState("discover");
 
   const askMuse = (prompt: string) => {
@@ -37,11 +38,8 @@ export default function WaouhMusePage({ embedded = false }: WaouhMusePageProps) 
     }, 120);
   };
 
-  const buyWithMuse = () =>
-    askMuse("Je veux acheter. Aide-moi à préciser mon besoin, puis utilise NEXUS pour trouver et comparer les meilleurs vendeurs sans prendre de décision à ma place.");
-
-  const sellWithMuse = () =>
-    askMuse("Je veux vendre. Aide-moi à structurer mon offre, puis utilise NEXUS pour trouver et comparer les acheteurs les plus pertinents sans envoyer de message sans mon accord.");
+  const buyWithMuse = () => navigate("/app/avatar/commerce/buy");
+  const sellWithMuse = () => navigate("/app/avatar/commerce/sell");
 
   return (
     <main
@@ -58,8 +56,8 @@ export default function WaouhMusePage({ embedded = false }: WaouhMusePageProps) 
                 <BrainCircuit className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <div className="text-sm font-black text-slate-950">WAOUH Muse</div>
-                <div className="truncate text-[11px] font-semibold text-slate-500">Muse + NEXUS + Signal Fabric + Contact Layer</div>
+                <div className="text-sm font-black text-slate-950">WAOUH Avatar</div>
+                <div className="truncate text-[11px] font-semibold text-slate-500">Avatar + NEXUS + Signal Fabric + Contact Layer</div>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -82,7 +80,7 @@ export default function WaouhMusePage({ embedded = false }: WaouhMusePageProps) 
               <div className="min-w-0">
                 <div className="mb-3 flex flex-wrap items-center gap-2">
                   <Badge className="border-white/15 bg-white/12 text-white hover:bg-white/12">
-                    <BrainCircuit className="mr-1 h-3.5 w-3.5" /> WAOUH Muse
+                    <BrainCircuit className="mr-1 h-3.5 w-3.5" /> WAOUH Avatar
                   </Badge>
                   <Badge className="border-cyan-200/20 bg-cyan-200/10 text-cyan-50 hover:bg-cyan-200/10">
                     <Sparkles className="mr-1 h-3.5 w-3.5" /> NEXUS actif
@@ -93,7 +91,7 @@ export default function WaouhMusePage({ embedded = false }: WaouhMusePageProps) 
                 </div>
 
                 <h1 className="max-w-3xl text-2xl font-black leading-[1.08] tracking-[-0.035em] sm:text-3xl lg:text-[34px]">
-                  Un objectif. Muse organise. NEXUS trouve le marché.
+                  Un objectif. Votre Avatar organise. NEXUS trouve le marché.
                 </h1>
                 <p className="mt-3 max-w-2xl text-sm font-medium leading-relaxed text-emerald-50/85">
                   Achetez ou vendez avec une IA qui recherche, compare, surveille les opportunités et prépare le contact sous votre contrôle.
@@ -126,6 +124,15 @@ export default function WaouhMusePage({ embedded = false }: WaouhMusePageProps) 
                     <ArrowRight className="h-4 w-4 text-white/55 transition group-hover:translate-x-0.5" />
                   </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => navigate("/app/avatar/commerce/ask")}
+                  className="mt-2 inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-[11px] font-black text-white backdrop-blur transition hover:bg-white/15"
+                >
+                  <MessageSquareText className="h-4 w-4" />
+                  Demander à l’Avatar
+                  <ArrowRight className="ml-auto h-3.5 w-3.5 opacity-70" />
+                </button>
               </div>
 
               <div className="grid grid-cols-2 gap-2 rounded-[22px] border border-white/10 bg-black/10 p-2.5 backdrop-blur-sm">
@@ -150,7 +157,7 @@ export default function WaouhMusePage({ embedded = false }: WaouhMusePageProps) 
               <BrainCircuit className="h-4 w-4" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-[11px] font-black text-slate-950">Muse · conversation active</div>
+              <div className="text-[11px] font-black text-slate-950">Avatar · conversation active</div>
               <div className="truncate text-[9px] font-semibold text-slate-500">Immersive Chat V2 · NEXUS et Signal Fabric restent disponibles</div>
             </div>
             <Button size="sm" variant="ghost" className="h-8 rounded-xl text-[10px]" onClick={() => setSection("discover")}>
@@ -206,7 +213,7 @@ export default function WaouhMusePage({ embedded = false }: WaouhMusePageProps) 
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200/80 bg-white/80 px-3 py-2 text-[10px] font-semibold text-slate-500 shadow-sm">
             <span className="inline-flex items-center gap-1.5"><Handshake className="h-3.5 w-3.5 text-emerald-700" /> Toute action de contact ou de négociation reste sous votre contrôle.</span>
             <Button size="sm" variant="ghost" className="h-7 rounded-xl text-[10px]" onClick={() => setSection("chat")}>
-              Parler à Muse <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+              Parler à l’Avatar <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
             </Button>
           </div>
         )}

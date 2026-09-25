@@ -114,11 +114,8 @@ class _LiveAvatarScreenState extends State<LiveAvatarScreen> {
                     subtitle: 'Je trouve et compare',
                     accent: WaouhPalette.blue,
                     background: const Color(0xFFEAF3FF),
-                    onTap: () => _startGoal(
-                      'Je veux acheter. Aide-moi à préciser mon besoin puis cherche et compare les meilleures offres avec NEXUS.',
-                      intent: 'buy',
-                      state: LiveAvatarPresenceState.searching,
-                    ),
+                    onTap: () =>
+                        context.push('/app/avatar/commerce/buy'),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -129,11 +126,8 @@ class _LiveAvatarScreenState extends State<LiveAvatarScreen> {
                     subtitle: 'Je trouve des acheteurs',
                     accent: const Color(0xFFE18A27),
                     background: const Color(0xFFFFF2E2),
-                    onTap: () => _startGoal(
-                      'Je veux vendre. Aide-moi à structurer mon offre puis trouve les acheteurs les plus pertinents.',
-                      intent: 'sell',
-                      state: LiveAvatarPresenceState.searching,
-                    ),
+                    onTap: () =>
+                        context.push('/app/avatar/commerce/sell'),
                   ),
                 ),
               ],
@@ -162,11 +156,8 @@ class _LiveAvatarScreenState extends State<LiveAvatarScreen> {
                     subtitle: 'Parlez naturellement',
                     accent: const Color(0xFF8B7CFF),
                     background: const Color(0xFFF2EFFF),
-                    onTap: () => _startGoal(
-                      'Aide-moi. Commence par comprendre ce dont j’ai besoin puis propose la meilleure suite.',
-                      intent: 'assistant',
-                      state: LiveAvatarPresenceState.listening,
-                    ),
+                    onTap: () =>
+                        context.push('/app/avatar/commerce/ask'),
                   ),
                 ),
               ],

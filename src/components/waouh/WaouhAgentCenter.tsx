@@ -162,7 +162,7 @@ export function WaouhAgentCenter({ compact = false, standalone = false }: { comp
                 <h1 className="text-2xl font-black leading-[1.08] tracking-[-0.035em] sm:text-3xl">Vos objectifs continuent, même quand vous quittez le chat.</h1>
                 <p className="mt-3 max-w-2xl text-sm font-medium leading-relaxed text-emerald-50/85">Lancez des missions, surveillez prix et disponibilité, validez les actions sensibles et pilotez les règles vendeur depuis un seul centre.</p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <Button asChild size="sm" className="rounded-xl bg-white text-emerald-900 hover:bg-emerald-50"><Link to="/app/muse"><Sparkles className="mr-2 h-4 w-4" />Ouvrir Muse</Link></Button>
+                  <Button asChild size="sm" className="rounded-xl bg-white text-emerald-900 hover:bg-emerald-50"><Link to="/app/avatar"><Sparkles className="mr-2 h-4 w-4" />Ouvrir l’Avatar</Link></Button>
                   <Button asChild size="sm" variant="outline" className="rounded-xl border-white/20 bg-white/10 text-white hover:bg-white/15 hover:text-white"><Link to="/app/chat/waouh">Retour au chat</Link></Button>
                   {user && <Button size="sm" variant="ghost" disabled={loading} onClick={() => void refresh()} className="rounded-xl text-white hover:bg-white/10 hover:text-white"><RefreshCw className={loading ? "mr-2 h-4 w-4 animate-spin" : "mr-2 h-4 w-4"} />Actualiser</Button>}
                 </div>
