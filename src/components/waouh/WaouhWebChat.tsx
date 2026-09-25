@@ -498,7 +498,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       const effLat = locationOverride?.lat ?? geo.lat;
       const effLng = locationOverride?.lng ?? geo.lng;
       const effCity = (locationOverride?.city && locationOverride.city.trim()) || geo.city;
-      const { data, error } = await supabase.functions.invoke("waouh-channel-in", {
+      const { data, error } = await supabase.functions.invoke("waouh-channel-in-secure", {
         headers: { "x-waouh-session": sessionId },
         body: {
           channel: "web",
