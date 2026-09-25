@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'avatar/live_avatar_controller.dart';
+import 'avatar/live_avatar_widgets.dart';
 
 import 'live_commerce_workflow.dart';
-import 'live_commerce_agent_ui.dart';
 import 'live_models.dart';
 import 'live_widgets.dart';
 
@@ -162,42 +165,46 @@ class _AssistantHint extends StatelessWidget {
   final bool searching;
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 4, bottom: 12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: const Color(0xFFEFFFF7),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFCBEBDD)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              LiveMuseAvatar(
-                mode: searching ? LiveMuseMode.buyer : LiveMuseMode.neutral,
-                phase: searching
-                    ? LiveMusePhase.searching
-                    : LiveMusePhase.listening,
-                size: 30,
-              ),
-              const SizedBox(width: 9),
-              Flexible(
-                child: Text(
-                  searching
-                      ? 'Muse active NEXUS et compare les signaux…'
-                      : 'Muse traite l’étape en cours…',
-                  style: const TextStyle(
-                    color: Color(0xFF075E54),
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                  ),
+  Widget build(BuildContext context) {
+    final avatar = context.watch<LiveAvatarController>();
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF4F8FF),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFDCE7F8)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            LiveAvatarVisual(
+              preset: avatar.profile.preset,
+              state: searching
+                  ? LiveAvatarPresenceState.searching
+                  : LiveAvatarPresenceState.typing,
+              size: 34,
+              showStatusBadge: false,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                searching
+                    ? '${avatar.name} cherche et compare avec NEXUS…'
+                    : '${avatar.name} prépare sa réponse…',
+                style: const TextStyle(
+                  color: Color(0xFF315BD8),
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
-      );
+      ),
+    );
+  }
 }
 
 bool _isSearchRequest(List<LiveMessage> messages) {
