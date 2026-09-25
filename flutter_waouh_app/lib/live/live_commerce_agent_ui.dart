@@ -324,7 +324,7 @@ class LiveCommerceAgentBar extends StatelessWidget {
                 ),
               if (contact != null) LiveContactabilityBadge(level: contact),
             ]),
-            const SizedBox(height: 1),
+            const SizedBox(height: 3),
             Text(
               goal.isNotEmpty ? goal : _phaseDetail(phase),
               maxLines: 1,
@@ -1072,7 +1072,7 @@ class LiveDealRoomBanner extends StatelessWidget {
               const _AgentPill(text: 'WAOUH Deal Room', icon: Icons.auto_awesome_rounded, tone: Color(0xFF08745D)),
               if (contact != null) LiveContactabilityBadge(level: contact, showCode: true),
             ]),
-            const SizedBox(height: 3),
+            const SizedBox(height: 1),
             Text(match.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF15372F), fontSize: 12)),
             Text(
               [
@@ -1107,8 +1107,8 @@ class _DealFallback extends StatelessWidget {
   final LiveMuseMode mode;
   @override
   Widget build(BuildContext context) => Container(
-    width: 46,
-    height: 46,
+    width: 34,
+    height: 34,
     decoration: BoxDecoration(color: const Color(0xFFEAF8F2), borderRadius: BorderRadius.circular(11)),
     child: Icon(mode == LiveMuseMode.seller ? Icons.shopping_bag_outlined : Icons.shopping_cart_outlined, color: const Color(0xFF08745D)),
   );
