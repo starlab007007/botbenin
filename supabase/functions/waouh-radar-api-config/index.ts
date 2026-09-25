@@ -72,7 +72,7 @@ async function nativeProviderState(admin: any, provider: string) {
       .select("id", { count: "exact", head: true })
       .eq("type", "wa_group").eq("active", true);
     return {
-      configured: !!base,
+      configured: !!base && !!key,
       runtime: { base_url_ready: !!base, credential_ready: !!key, active_group_count: count ?? 0 },
     };
   }
@@ -85,6 +85,35 @@ async function nativeProviderState(admin: any, provider: string) {
     };
   }
   return { configured: false, runtime: null };
+}
+
+async function syncDiscoverySourceState(
+  admin: any,
+  provider: string,
+  config: any,
+) {
+  const sourceKey = String(config?.source_key || provider).trim();
+  if (!sourceKey) return;
+  let configured = !!config?.api_key;
+  if (provider === "whatsapp_groups" || provider === "sms_rcs") {
+    const native = await nativeProviderState(admin, provider);
+    configured = native.configured;
+  }
+  const active = config?.active === true;
+  const operationalState = !active
+    ? "disabled"
+    : configured
+      ? "live"
+      : "requires_config";
+  await admin.from("waouh_discovery_sources").update({
+    operational_state: operationalState,
+    metadata: {
+      provider,
+      configured,
+      active,
+      last_admin_sync_at: new Date().toISOString(),
+    },
+  }).eq("source_key", sourceKey);
 }
 
 async function testProvider(
@@ -225,6 +254,7 @@ Deno.serve(async (req) => {
       const { data, error } = await admin.from("waouh_radar_api_configs")
         .upsert(patch, { onConflict: "provider" }).select().single();
       if (error) throw error;
+      await syncDiscoverySourceState(admin, provider, data);
       const { api_key, ...safe } = data;
       return json({ ok: true, config: { ...safe, has_key: !!api_key } });
     }
@@ -241,6 +271,7 @@ Deno.serve(async (req) => {
         .update({ active: !!body.active, updated_by: userId })
         .eq("provider", provider).select().single();
       if (error) throw error;
+      await syncDiscoverySourceState(admin, provider, data);
       const { api_key, ...safe } = data;
       return json({ ok: true, config: { ...safe, has_key: !!api_key } });
     }
@@ -256,12 +287,13 @@ Deno.serve(async (req) => {
       }
       const extra = { ...safeExtra(cfg?.extra_config), ...safeExtra(body.extra_config) };
       const res = await testProvider(admin, provider, key, extra);
-      await admin.from("waouh_radar_api_configs").update({
+      const { data: updatedConfig } = await admin.from("waouh_radar_api_configs").update({
         last_test_at: new Date().toISOString(),
         last_test_status: res.ok ? "ok" : "ko",
         last_test_message: res.message,
         updated_by: userId,
-      }).eq("provider", provider);
+      }).eq("provider", provider).select("*").maybeSingle();
+      if (updatedConfig) await syncDiscoverySourceState(admin, provider, updatedConfig);
       return json(res);
     }
 
