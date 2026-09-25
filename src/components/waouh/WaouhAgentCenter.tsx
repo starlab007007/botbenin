@@ -144,8 +144,8 @@ export function WaouhAgentCenter({ compact = false, standalone = false }: { comp
   const pendingCount = data.approvals.filter((approval) => approval.status === "pending").length;
 
 
-  const activeMissionCount = data.missions.filter((mission) => ["active", "running", "paused"].includes(String(mission.status || "").toLowerCase())).length;
-  const activeWatchCount = data.watches.filter((watch) => watch.enabled !== false).length;
+  const activeMissionCount = data.missions.filter((mission) => !["completed", "cancelled", "failed"].includes(mission.status)).length;
+  const activeWatchCount = data.watches.filter((watch) => ["active", "paused", "triggered"].includes(watch.status)).length;
 
   if (standalone) {
     return (
@@ -169,15 +169,15 @@ export function WaouhAgentCenter({ compact = false, standalone = false }: { comp
               </div>
               <div className="grid grid-cols-2 gap-2 rounded-[22px] border border-white/10 bg-black/10 p-2.5 backdrop-blur-sm sm:grid-cols-4 lg:grid-cols-2">
                 {[
-                  ["Missions", activeMissionCount, Bot],
-                  ["Veilles", activeWatchCount, BellRing],
-                  ["À valider", pendingCount, ShieldCheck],
-                  ["Activité", data.activity.length, Activity],
-                ].map(([label, value, Icon]) => (
-                  <div key={String(label)} className="rounded-2xl border border-white/10 bg-white/[0.07] p-3">
+                  { label: "Missions", value: activeMissionCount, icon: Bot },
+                  { label: "Veilles", value: activeWatchCount, icon: BellRing },
+                  { label: "À valider", value: pendingCount, icon: ShieldCheck },
+                  { label: "Activité", value: data.activity.length, icon: Activity },
+                ].map(({ label, value, icon: Icon }) => (
+                  <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.07] p-3">
                     <Icon className="h-4 w-4 text-emerald-100" />
-                    <div className="mt-2 text-xl font-black">{Number(value)}</div>
-                    <div className="text-[9px] font-bold uppercase tracking-wide text-white/55">{String(label)}</div>
+                    <div className="mt-2 text-xl font-black">{value}</div>
+                    <div className="text-[9px] font-bold uppercase tracking-wide text-white/55">{label}</div>
                   </div>
                 ))}
               </div>
