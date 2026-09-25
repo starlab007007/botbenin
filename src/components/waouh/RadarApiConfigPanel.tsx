@@ -26,6 +26,7 @@ import { syncNexusSource } from "@/lib/waouh/nexus";
 type ProviderId =
   | "serpapi"
   | "apify"
+  | "firecrawl"
   | "google_places"
   | "facebook_business"
   | "instagram_business"
@@ -88,6 +89,7 @@ type ProviderMeta = {
 const ORDER: ProviderId[] = [
   "serpapi",
   "apify",
+  "firecrawl",
   "google_places",
   "facebook_business",
   "instagram_business",
@@ -119,6 +121,13 @@ const META: Record<ProviderId, ProviderMeta> = {
       { key: "fb_marketplace_actor", label: "Actor Marketplace (optionnel)", placeholder: "apify~facebook-marketplace-scraper" },
       { key: "fb_group_actor", label: "Actor groupes publics (optionnel)", placeholder: "apify~facebook-groups-scraper" },
     ],
+  },
+  firecrawl: {
+    label: "Firecrawl · Sites Web",
+    help: "Scrape les sites publics ajoutés dans Sources, puis extrait annonces, demandes, services, contacts publics et photos dans le Signal Fabric.",
+    secretLabel: "Clé API Firecrawl",
+    secretHelp: "Firecrawl · API key",
+    keyRequired: true,
   },
   google_places: {
     label: "Google Places / Maps",
@@ -394,8 +403,9 @@ export default function RadarApiConfigPanel() {
             NEXUS · Connecteurs & sources
           </h3>
           <p className="text-xs text-muted-foreground mt-1 max-w-3xl">
-            Un seul centre Admin pour SerpAPI, Apify, Maps, Facebook/Instagram Business,
-            Telegram, TikTok, WhatsApp et SMS/RCS. Les secrets restent côté serveur.
+            Un seul centre Admin pour SerpAPI, Apify, Firecrawl, Google Maps,
+            Facebook/Instagram Business, Telegram, TikTok, WhatsApp et SMS/RCS.
+            Les secrets restent côté serveur.
           </p>
         </div>
         <Button size="sm" variant="outline" onClick={load} disabled={loading}>
