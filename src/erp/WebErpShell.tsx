@@ -15,7 +15,6 @@ import {
   CircleDot,
   Command,
   Handshake,
-  Lightbulb,
   Megaphone,
   MessageSquareText,
   Package,
@@ -26,7 +25,6 @@ import {
   ShoppingCart,
   Sparkles,
   Store,
-  UserRound,
   UsersRound,
 } from 'lucide-react';
 
@@ -76,6 +74,7 @@ const navigationSections: NavigationSection[] = [
   {
     title: 'Agents IA',
     items: [
+      { label: 'Muse', to: '/app/muse', icon: BrainCircuit, accent: 'ai' },
       { label: 'Bots', to: '/app/bots', icon: Bot, brick: 'bots', accent: 'ai' },
       { label: 'Agents IA', to: '/app/agents', icon: Sparkles, brick: 'agents', accent: 'ai' },
       { label: 'Conversationnel', to: '/app/bots/new', icon: MessagesSquare, brick: 'conversational' },
@@ -128,6 +127,14 @@ const routeContext = (pathname: string) => {
       title: 'FA IA',
       description: 'Lecture contextuelle, quota journalier et codes d’accès.',
       prompt: 'Ouvrir une consultation FA IA',
+    };
+  }
+  if (pathname.startsWith('/app/muse')) {
+    return {
+      eyebrow: 'Intelligence commerciale',
+      title: 'WAOUH Muse',
+      description: 'Acheter, vendre, rechercher, comparer et piloter des missions avec NEXUS.',
+      prompt: 'Ouvrir Muse',
     };
   }
   if (pathname.startsWith('/app/chat')) {
@@ -212,42 +219,6 @@ const routeContext = (pathname: string) => {
   };
 };
 
-const contextualActions = (pathname: string) => {
-  if (pathname.startsWith('/app/chat')) {
-    return [
-      'Analyser les discussions prioritaires',
-      'Rechercher une opportunité à proximité',
-      'Préparer une vente ou une négociation',
-    ];
-  }
-  if (pathname.includes('/stock')) {
-    return [
-      'Identifier les produits critiques',
-      'Préparer un réapprovisionnement',
-      'Analyser la rotation du stock',
-    ];
-  }
-  if (pathname.includes('/bi/')) {
-    return [
-      'Expliquer les principaux indicateurs',
-      'Comparer deux périodes',
-      'Préparer un rapport de performance',
-    ];
-  }
-  if (pathname.startsWith('/app/partner')) {
-    return [
-      'Comparer les boutiques',
-      'Analyser les ventes récentes',
-      'Identifier les actions prioritaires',
-    ];
-  }
-  return [
-    'Résumer la situation actuelle',
-    'Identifier les priorités',
-    'Préparer une action avec WAOUH',
-  ];
-};
-
 /** URL is the single source of truth for the active brick. */
 const brickForLocation = (pathname: string, search: string): BrickId | null => {
   if (pathname === HOME_PATH) {
@@ -280,8 +251,6 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
     : location.pathname;
 
   const context = useMemo(() => routeContext(contextPath), [contextPath]);
-  const actions = useMemo(() => contextualActions(contextPath), [contextPath]);
-
   const displayName = profile?.full_name || user?.user_metadata?.full_name || 'Mon espace';
   const initials = displayName
     .split(/\s+/)
@@ -292,6 +261,10 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
 
   const openWaouh = () => {
     if (location.pathname !== HOME_PATH || location.search) navigate(HOME_PATH);
+  };
+
+  const openMuse = () => {
+    if (location.pathname !== '/app/muse') navigate('/app/muse');
   };
 
   const selectItem = (item: NavigationItem) => {
@@ -331,7 +304,9 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
                 const itemPath = item.to.split('?')[0];
                 const active = item.brick
                   ? item.brick === activeBrick
-                  : isHome && itemPath === HOME_PATH;
+                  : itemPath === HOME_PATH
+                    ? isHome
+                    : location.pathname === itemPath;
                 const badge = !item.brick && unreadChat > 0 ? unreadChat : 0;
 
                 return (
@@ -402,10 +377,10 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
             <Button
               type="button"
               className="waouh-erp-primary-action"
-              onClick={openWaouh}
+              onClick={openMuse}
             >
-              <Sparkles size={17} />
-              Discuter avec WAOUH
+              <BrainCircuit size={17} />
+              Ouvrir Muse
             </Button>
 
             <button
@@ -447,46 +422,6 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
             {!isHome && !activeBrick ? children : null}
           </main>
 
-
-
-          <aside className="waouh-erp-copilot" aria-label="Copilote contextuel WaouhApp">
-            <div className="waouh-erp-copilot__hero">
-              <div className="waouh-erp-copilot__icon"><Sparkles size={20} /></div>
-              <span>Copilote contextuel</span>
-              <h2>WAOUH comprend votre espace de travail</h2>
-              <p>
-                Utilisez le moteur conversationnel existant pour analyser, rechercher,
-                vendre, acheter ou négocier.
-              </p>
-              <Button type="button" onClick={openWaouh} className="w-full">
-                <MessageSquareText size={17} />
-                {context.prompt}
-              </Button>
-            </div>
-
-            <section className="waouh-erp-copilot__section">
-              <div className="waouh-erp-copilot__section-title">
-                <Lightbulb size={16} />
-                Suggestions dans ce contexte
-              </div>
-              <div className="waouh-erp-copilot__suggestions">
-                {actions.map((action) => (
-                  <button key={action} type="button" onClick={openWaouh}>
-                    <span>{action}</span>
-                    <ChevronRight size={15} />
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <section className="waouh-erp-copilot__section waouh-erp-copilot__status">
-              <div>
-                <strong>Architecture AI-native</strong>
-                <span>Chat, Bots, BI, Stock et Boutiques réunis dans le même shell Web.</span>
-              </div>
-              <UserRound size={20} />
-            </section>
-          </aside>
         </div>
       </section>
     </div>

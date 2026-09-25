@@ -26,12 +26,12 @@
 }
 
 .waouh-erp-sidebar {
-  width: 258px;
-  flex: 0 0 258px;
+  width: 244px;
+  flex: 0 0 244px;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  padding: 16px 14px;
+  padding: 14px 12px;
   background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
   border-right: 1px solid var(--erp-border);
   transition: width 180ms ease, flex-basis 180ms ease;
@@ -280,12 +280,12 @@
 }
 
 .waouh-erp-topbar {
-  min-height: 76px;
+  min-height: 64px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 12px 20px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--erp-border);
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(18px);
@@ -438,8 +438,8 @@
   min-height: 0;
   flex: 1;
   display: flex;
-  gap: 14px;
-  padding: 14px;
+  gap: 0;
+  padding: 10px;
   overflow: hidden;
 }
 
@@ -449,9 +449,11 @@
   flex: 1;
   overflow: hidden;
   border: 1px solid var(--erp-border);
-  border-radius: 20px;
-  background: var(--erp-surface);
-  box-shadow: var(--erp-shadow);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 80% 0%, rgba(8, 117, 106, 0.035), transparent 30%),
+    var(--erp-surface);
+  box-shadow: 0 22px 60px rgba(29, 55, 95, 0.075);
 }
 
 .waouh-erp-workspace > * {
@@ -668,4 +670,29 @@ button.waouh-erp-nav__item {
   text-transform: uppercase;
   color: hsl(var(--muted-foreground));
   opacity: .75;
+}
+
+
+/* WAOUH Web V2 — full-width workspace after removing the legacy right copilot rail. */
+.waouh-erp-body {
+  width: 100%;
+}
+
+.waouh-erp-workspace {
+  width: 100%;
+  max-width: none;
+}
+
+.waouh-erp-page-title h1 {
+  font-weight: 900;
+}
+
+.waouh-erp-primary-action {
+  padding-inline: 14px;
+}
+
+@media (min-width: 1511px) {
+  .waouh-erp-workspace {
+    min-width: 0;
+  }
 }
