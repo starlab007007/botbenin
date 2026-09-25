@@ -8,6 +8,14 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { getRadarApiKey, incrementRadarUsage, markRadarProviderSync } from "../_shared/radar-api-config.ts";
 import { normalizeE164 } from "../_shared/waouh-tel/phone.ts";
 
+function sourceDue(source: any, now = Date.now()) {
+  if (!source?.last_scan_at) return true;
+  const last = Date.parse(String(source.last_scan_at));
+  if (!Number.isFinite(last)) return true;
+  const minutes = Math.max(5, Number(source.scan_freq_min ?? 60));
+  return now - last >= minutes * 60000;
+}
+
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
@@ -87,9 +95,10 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true, message: "No active FB sources" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    const dueSources = sources.filter((source: any) => sourceDue(source));
     let total = 0;
     const perSource: any[] = [];
-    for (const src of sources) {
+    for (const src of dueSources) {
       let srcCount = 0;
       let srcError: string | null = null;
       try {
@@ -161,7 +170,7 @@ Deno.serve(async (req) => {
     }
 
     await markRadarProviderSync(sb, "apify", total > 0 ? "ok" : "skipped", `${total} signaux · ${sources.length} sources`);
-    return new Response(JSON.stringify({ ok: true, sources: sources.length, signals: total, perSource }), {
+    return new Response(JSON.stringify({ ok: true, sources: sources.length, due: dueSources.length, signals: total, perSource }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
