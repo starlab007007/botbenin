@@ -560,6 +560,17 @@ export default function RadarApiConfigPanel() {
                   {busy === `${cfg.provider}:test` ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <TestTube2 className="w-3.5 h-3.5 mr-1" />}
                   Tester
                 </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void collectNow(cfg.provider)}
+                  disabled={busy === `${cfg.provider}:collect` || (!cfg.configured && !meta.native)}
+                >
+                  {busy === `${cfg.provider}:collect`
+                    ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                    : <RefreshCw className="w-3.5 h-3.5 mr-1" />}
+                  {meta.native ? "État collecte" : "Collecter"}
+                </Button>
                 {!meta.native && (
                   <Button size="sm" variant="ghost" onClick={() => void resetQuota(cfg.provider)}>
                     <RotateCcw className="w-3.5 h-3.5 mr-1" /> Quota
