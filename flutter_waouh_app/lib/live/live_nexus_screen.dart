@@ -9,6 +9,7 @@ import '../main.dart' as legacy;
 import 'live_controller.dart';
 import 'live_nexus_service.dart';
 import 'live_widgets.dart';
+import 'live_theme.dart';
 
 class LiveNexusScreen extends StatefulWidget {
   const LiveNexusScreen({super.key});
@@ -320,6 +321,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
     return DefaultTabController(
       length: 4,
       child: Scaffold(
+        backgroundColor: WaouhPalette.pearl,
         appBar: const LiveHeader(
           title: 'WAOUH NEXUS',
           subtitle: 'Le moteur de découverte de Muse',
@@ -362,13 +364,13 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
         Container(
           decoration: BoxDecoration(
             color: smartMode
-                ? const Color(0xFFEAF8F4)
-                : const Color(0xFFF7F8F9),
+                ? const Color(0xFFF0F5FF)
+                : Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: smartMode
-                  ? const Color(0xFF8FD3C2)
-                  : Colors.black12,
+                  ? const Color(0xFFD6E3FF)
+                  : WaouhPalette.line,
             ),
           ),
           child: SwitchListTile.adaptive(
@@ -382,15 +384,15 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
             secondary: Icon(
               Icons.auto_awesome_rounded,
               color: smartMode
-                  ? const Color(0xFF08745D)
-                  : Colors.blueGrey,
+                  ? WaouhPalette.blue
+                  : WaouhPalette.muted,
             ),
             title: const Text(
-              'Mode IA automatique',
+              'Mode intelligent',
               style: TextStyle(fontWeight: FontWeight.w900),
             ),
             subtitle: const Text(
-              'WAOUH comprend si vous voulez acheter ou vendre.',
+              'WAOUH comprend votre intention.',
               style: TextStyle(fontSize: 11),
             ),
           ),
@@ -436,10 +438,10 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
           onSubmitted: (_) => runSearch(),
           decoration: InputDecoration(
             hintText: smartMode
-                ? 'Ex. Je veux un S25 fiable à Cotonou / Je vends 10 tonnes de soja'
+                ? 'Décrivez simplement votre besoin'
                 : findSellers
-                    ? 'Ex. Samsung S25 256 Go neuf'
-                    : 'Ex. acheteur pour 10 tonnes de soja',
+                    ? 'Que voulez-vous acheter ?'
+                    : 'Que voulez-vous vendre ?',
             prefixIcon: const Icon(Icons.auto_awesome_rounded),
           ),
         ),
@@ -802,17 +804,25 @@ class _Hero extends StatelessWidget {
         margin: const EdgeInsets.fromLTRB(14, 12, 14, 8),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF063D35), Color(0xFF0A7D68)],
-          ),
-          borderRadius: BorderRadius.circular(20),
+          gradient: WaouhGradients.airHero,
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: const Color(0xFFDDE7F7)),
+          boxShadow: WaouhShadows.card,
         ),
         child: Row(
           children: [
-            const Icon(
-              Icons.travel_explore_rounded,
-              color: Colors.white,
-              size: 30,
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                gradient: WaouhGradients.brand,
+                borderRadius: BorderRadius.circular(17),
+              ),
+              child: const Icon(
+                Icons.travel_explore_rounded,
+                color: Colors.white,
+                size: 25,
+              ),
             ),
             const SizedBox(width: 12),
             const Expanded(
@@ -820,27 +830,38 @@ class _Hero extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'NEXUS cherche partout',
+                    'NEXUS',
                     style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 17,
+                      color: WaouhPalette.ink,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
                     ),
                   ),
+                  SizedBox(height: 3),
                   Text(
-                    'Offre ↔ demande · prix · confiance · contact',
-                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                    'Trouver · comparer · contacter',
+                    style: TextStyle(
+                      color: WaouhPalette.muted,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),
             ),
-            Chip(
-              backgroundColor: Colors.white,
-              label: Text(
-                liveCount.toString() + ' live',
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white70,
+                borderRadius: BorderRadius.circular(99),
+                border: Border.all(color: const Color(0xFFDCE5F5)),
+              ),
+              child: Text(
+                '$liveCount live',
                 style: const TextStyle(
-                  color: Color(0xFF08745D),
-                  fontWeight: FontWeight.w900,
+                  color: WaouhPalette.blue,
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ),
@@ -851,16 +872,42 @@ class _Hero extends StatelessWidget {
 
 class _Tabs extends StatelessWidget {
   const _Tabs();
+
   @override
-  Widget build(BuildContext context) => const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 14),
-        child: TabBar(
+  Widget build(BuildContext context) => Container(
+        height: 44,
+        margin: const EdgeInsets.symmetric(horizontal: 14),
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0F4FB),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const TabBar(
           isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          dividerColor: Colors.transparent,
+          indicatorSize: TabBarIndicatorSize.tab,
+          indicator: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.all(Radius.circular(12)),
+            boxShadow: [
+              BoxShadow(
+                color: Color(0x1552709F),
+                blurRadius: 10,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          labelColor: WaouhPalette.blue,
+          unselectedLabelColor: WaouhPalette.muted,
+          labelStyle: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800),
+          unselectedLabelStyle:
+              TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600),
           tabs: [
-            Tab(icon: Icon(Icons.search_rounded), text: 'Chercher'),
-            Tab(icon: Icon(Icons.share_rounded), text: 'Partager'),
-            Tab(icon: Icon(Icons.explore_outlined), text: 'Scout'),
-            Tab(icon: Icon(Icons.hub_outlined), text: 'Sources'),
+            Tab(icon: Icon(Icons.search_rounded, size: 17), text: 'Chercher'),
+            Tab(icon: Icon(Icons.share_rounded, size: 17), text: 'Partager'),
+            Tab(icon: Icon(Icons.explore_outlined, size: 17), text: 'Scout'),
+            Tab(icon: Icon(Icons.hub_outlined, size: 17), text: 'Sources'),
           ],
         ),
       );
@@ -879,9 +926,9 @@ class _SmartPlanCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(13),
         decoration: BoxDecoration(
-          color: const Color(0xFFF4FBF8),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFB9E2D7)),
+          color: const Color(0xFFF4F7FF),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: WaouhPalette.line),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -890,37 +937,38 @@ class _SmartPlanCard extends StatelessWidget {
               children: [
                 const Icon(
                   Icons.psychology_alt_outlined,
-                  color: Color(0xFF08745D),
-                  size: 20,
+                  color: WaouhPalette.blue,
+                  size: 19,
                 ),
                 const SizedBox(width: 7),
                 const Expanded(
                   child: Text(
-                    'Plan IA NEXUS',
-                    style: TextStyle(fontWeight: FontWeight.w900),
+                    'Lecture NEXUS',
+                    style: TextStyle(
+                      color: WaouhPalette.ink,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
-                _Pill(
-                  'IA ' + (plan.confidence * 100).round().toString() + '%',
-                ),
+                _Pill('IA ' + (plan.confidence * 100).round().toString() + '%'),
               ],
             ),
             const SizedBox(height: 6),
             Text(
-              findSellers
-                  ? 'Acheteur → vendeurs'
-                  : 'Vendeur → acheteurs',
+              findSellers ? 'Acheter → vendeurs' : 'Vendre → acheteurs',
               style: const TextStyle(
-                color: Color(0xFF08745D),
-                fontSize: 11,
+                color: WaouhPalette.blue,
+                fontSize: 10.5,
                 fontWeight: FontWeight.w800,
               ),
             ),
             if (plan.normalizedQuery.isNotEmpty) ...[
-              const SizedBox(height: 3),
+              const SizedBox(height: 4),
               Text(
                 plan.normalizedQuery,
-                style: const TextStyle(fontSize: 12),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11.5),
               ),
             ],
             if (plan.priorities.isNotEmpty) ...[
@@ -929,35 +977,9 @@ class _SmartPlanCard extends StatelessWidget {
                 spacing: 5,
                 runSpacing: 5,
                 children: plan.priorities
-                    .take(5)
+                    .take(4)
                     .map((item) => _Pill(item.replaceAll('_', ' ')))
                     .toList(growable: false),
-              ),
-            ],
-            if (plan.sourceFamilies.isNotEmpty) ...[
-              const SizedBox(height: 7),
-              Text(
-                'Sources : ' +
-                    plan.sourceFamilies.take(7).join(' · ').replaceAll('_', ' '),
-                style: const TextStyle(fontSize: 10.5, color: Colors.blueGrey),
-              ),
-            ],
-            if (plan.nextActions.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              for (var i = 0; i < plan.nextActions.take(3).length; i++)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 3),
-                  child: Text(
-                    (i + 1).toString() + '. ' + plan.nextActions[i],
-                    style: const TextStyle(fontSize: 11),
-                  ),
-                ),
-            ],
-            if (plan.missing.isNotEmpty) ...[
-              const SizedBox(height: 5),
-              Text(
-                'À préciser si utile : ' + plan.missing.join(' · '),
-                style: const TextStyle(fontSize: 10.5, color: Colors.blueGrey),
               ),
             ],
           ],
@@ -982,30 +1004,60 @@ class _ModeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: selected ? const Color(0xFFE6F6F1) : Colors.white,
-        shape: RoundedRectangleBorder(
-          side: BorderSide(
-            color: selected ? const Color(0xFF08745D) : Colors.black12,
-          ),
-          borderRadius: BorderRadius.circular(14),
-        ),
+        color: selected ? const Color(0xFFEAF2FF) : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
-          borderRadius: BorderRadius.circular(14),
           onTap: onTap,
-          child: Padding(
+          child: Ink(
             padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: selected
+                    ? const Color(0xFFBFD1FF)
+                    : WaouhPalette.line,
+              ),
+              borderRadius: BorderRadius.circular(18),
+            ),
             child: Column(
               children: [
-                Icon(icon),
-                const SizedBox(height: 4),
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? WaouhPalette.blue.withValues(alpha: .10)
+                        : const Color(0xFFF4F7FC),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 19,
+                    color:
+                        selected ? WaouhPalette.blue : WaouhPalette.muted,
+                  ),
+                ),
+                const SizedBox(height: 6),
                 Text(
                   title,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
+                  style: TextStyle(
+                    color:
+                        selected ? WaouhPalette.blue : WaouhPalette.ink,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
+                const SizedBox(height: 1),
                 Text(
                   subtitle,
-                  style: const TextStyle(fontSize: 10, color: Colors.blueGrey),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 9.5,
+                    color: WaouhPalette.muted,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -1045,7 +1097,7 @@ class _DiscoveryCard extends StatelessWidget {
                   Text(
                     item.scores.total.round().toString() + '%',
                     style: const TextStyle(
-                      color: Color(0xFF08745D),
+                      color: WaouhPalette.blue,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
