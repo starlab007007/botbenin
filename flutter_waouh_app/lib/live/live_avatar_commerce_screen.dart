@@ -7,6 +7,7 @@ import 'avatar/live_avatar_controller.dart';
 import 'avatar/live_avatar_widgets.dart';
 import 'live_controller.dart';
 import 'live_nexus_service.dart';
+import 'live_models.dart';
 import 'live_thread_flow.dart';
 import 'live_theme.dart';
 import 'live_widgets.dart';
@@ -142,7 +143,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       await controller.sendMain(text: text, meta: meta);
       LiveMatch? match = controller.takePendingMeet();
       match ??= await controller.resolvePreparedInterestedMeet(seed);
-      if (match == null || match.threadId?.trim().isEmpty != false) {
+      if (match == null || (match.threadId ?? '').trim().isEmpty) {
         throw StateError(
           'Le Deal Room est encore en cours de création. Réessayez dans quelques secondes.',
         );
