@@ -2159,12 +2159,16 @@ class _PremiumProductCardState extends State<_PremiumProductCard> {
                       child: CircularProgressIndicator(strokeWidth: 1.7),
                     ),
                     SizedBox(width: 7),
-                    Text(
-                      'Avatar analyse le marché réel…',
-                      style: TextStyle(
-                        color: WaouhPalette.muted,
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w700,
+                    Expanded(
+                      child: Text(
+                        'Avatar analyse le marché réel…',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: WaouhPalette.muted,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],
