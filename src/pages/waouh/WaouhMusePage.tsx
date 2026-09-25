@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
   BrainCircuit,
@@ -29,8 +29,12 @@ type WaouhAvatarPageProps = {
 
 export default function WaouhAvatarPage({ embedded = false }: WaouhAvatarPageProps) {
   const chatRef = useRef<WaouhWebChatHandle>(null);
+  const [searchParams] = useSearchParams();
   const [section, setSection] = useState("discover");
-  const [commerceIntent, setCommerceIntent] = useState<"buy" | "sell" | "ask" | null>(null);
+  const initialIntent = searchParams.get("intent");
+  const [commerceIntent, setCommerceIntent] = useState<"buy" | "sell" | "ask" | null>(
+    initialIntent === "buy" || initialIntent === "sell" || initialIntent === "ask" ? initialIntent : null
+  );
   const avatarName = typeof window !== "undefined"
     ? localStorage.getItem("waouh_avatar_name") || "Avatar WAOUH"
     : "Avatar WAOUH";
