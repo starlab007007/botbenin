@@ -391,6 +391,10 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
         back: true,
         actions: [
           IconButton(
+              tooltip: 'Muse complet',
+              onPressed: () => context.push('/app/muse'),
+              icon: const Icon(Icons.psychology_alt_rounded)),
+          IconButton(
               tooltip: 'Nouvel objectif',
               onPressed: _newChat,
               icon: const Icon(Icons.add_comment_outlined)),
