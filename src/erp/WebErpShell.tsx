@@ -26,6 +26,7 @@ import {
   Sparkles,
   Store,
   UsersRound,
+  Workflow,
 } from 'lucide-react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -75,6 +76,7 @@ const navigationSections: NavigationSection[] = [
     title: 'Agents IA',
     items: [
       { label: 'Muse', to: '/app/muse', icon: BrainCircuit, accent: 'ai' },
+      { label: 'Missions & veille', to: '/app/missions', icon: Workflow, accent: 'ai' },
       { label: 'Bots', to: '/app/bots', icon: Bot, brick: 'bots', accent: 'ai' },
       { label: 'Agents IA', to: '/app/agents', icon: Sparkles, brick: 'agents', accent: 'ai' },
       { label: 'Conversationnel', to: '/app/bots/new', icon: MessagesSquare, brick: 'conversational' },
@@ -127,6 +129,14 @@ const routeContext = (pathname: string) => {
       title: 'FA IA',
       description: 'Lecture contextuelle, quota journalier et codes d’accès.',
       prompt: 'Ouvrir une consultation FA IA',
+    };
+  }
+  if (pathname.startsWith('/app/missions')) {
+    return {
+      eyebrow: 'Pilotage agentique',
+      title: 'WAOUH One · Missions & veille',
+      description: 'Objectifs persistants, veilles, validations, règles vendeur et activité.',
+      prompt: 'Ouvrir les missions',
     };
   }
   if (pathname.startsWith('/app/muse')) {
@@ -267,6 +277,10 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
     if (location.pathname !== '/app/muse') navigate('/app/muse');
   };
 
+  const openMissions = () => {
+    if (location.pathname !== '/app/missions') navigate('/app/missions');
+  };
+
   const selectItem = (item: NavigationItem) => {
     navigate(item.to);
   };
@@ -373,6 +387,16 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
               <span>Rechercher dans WaouhApp</span>
               <kbd><Command size={12} /> K</kbd>
             </button>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="waouh-erp-missions-action"
+              onClick={openMissions}
+            >
+              <Workflow size={17} />
+              <span>Missions & veille</span>
+            </Button>
 
             <Button
               type="button"

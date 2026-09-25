@@ -130,6 +130,17 @@ class _LiveInboxProductionScreenState extends State<LiveInboxProductionScreen> {
                 statusCount: newStatuses,
                 onChanged: (value) => _selectTab(value, statuses),
               ),
+              if (_tab == 0)
+                ListenableBuilder(
+                  listenable: controller.agentic,
+                  builder: (_, __) => _IntelligenceQuickAccess(
+                    missionCount: controller.agentic.activeMissionCount,
+                    watchCount: controller.agentic.activeWatchCount,
+                    approvalCount: controller.agentic.pendingApprovalCount,
+                    onMuse: () => context.push('/app/muse'),
+                    onMissions: () => context.push('/app/missions'),
+                  ),
+                ),
               Expanded(
                 child: switch (_tab) {
                   1 => const _ProductionStatusFeed(),
@@ -150,6 +161,173 @@ class _LiveInboxProductionScreenState extends State<LiveInboxProductionScreen> {
       },
     );
   }
+}
+
+class _IntelligenceQuickAccess extends StatelessWidget {
+  const _IntelligenceQuickAccess({
+    required this.missionCount,
+    required this.watchCount,
+    required this.approvalCount,
+    required this.onMuse,
+    required this.onMissions,
+  });
+
+  final int missionCount;
+  final int watchCount;
+  final int approvalCount;
+  final VoidCallback onMuse;
+  final VoidCallback onMissions;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(12, 7, 12, 8),
+        color: const Color(0xFFF8FBF9),
+        child: Row(
+          children: [
+            Expanded(
+              child: _QuickIntelligenceCard(
+                icon: Icons.psychology_alt_rounded,
+                title: 'WAOUH Muse',
+                subtitle: 'Acheter · vendre · NEXUS',
+                accent: const Color(0xFF08756A),
+                onTap: onMuse,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _QuickIntelligenceCard(
+                icon: Icons.route_rounded,
+                title: 'Missions & veille',
+                subtitle: approvalCount > 0
+                    ? '$missionCount mission(s) · $approvalCount à valider'
+                    : '$missionCount mission(s) · $watchCount veille(s)',
+                accent: const Color(0xFF2563EB),
+                badge: approvalCount > 0 ? approvalCount : null,
+                onTap: onMissions,
+              ),
+            ),
+          ],
+        ),
+      );
+}
+
+class _QuickIntelligenceCard extends StatelessWidget {
+  const _QuickIntelligenceCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.accent,
+    required this.onTap,
+    this.badge,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color accent;
+  final VoidCallback onTap;
+  final int? badge;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(17),
+          child: Ink(
+            padding: const EdgeInsets.fromLTRB(10, 9, 9, 9),
+            decoration: BoxDecoration(
+              border: Border.all(color: const Color(0xFFDCE9E4)),
+              borderRadius: BorderRadius.circular(17),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x0D0F3A30),
+                  blurRadius: 14,
+                  offset: Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: .10),
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                      child: Icon(icon, color: accent, size: 19),
+                    ),
+                    if ((badge ?? 0) > 0)
+                      Positioned(
+                        right: -5,
+                        top: -5,
+                        child: Container(
+                          constraints: const BoxConstraints(minWidth: 17),
+                          height: 17,
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE28A17),
+                            borderRadius: BorderRadius.circular(99),
+                            border: Border.all(color: Colors.white, width: 1.5),
+                          ),
+                          child: Text(
+                            '${badge!}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 8,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF16372F),
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF71827C),
+                          fontSize: 8.8,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: Color(0xFF8A9A95),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
 }
 
 class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {

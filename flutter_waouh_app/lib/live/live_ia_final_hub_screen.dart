@@ -14,6 +14,14 @@ class LiveIaFinalHubScreen extends StatelessWidget {
       tags: ['Agent', 'NEXUS'],
     ),
     _SmartModule(
+      title: 'Missions & veille',
+      subtitle: 'Objectifs persistants, alertes, validations et suivi agentique.',
+      route: '/app/missions',
+      icon: Icons.route_rounded,
+      accent: Color(0xFF0F766E),
+      tags: ['Missions', 'Veilles'],
+    ),
+    _SmartModule(
       title: 'AprèsBac IA',
       subtitle: 'Orientation intelligente, séries, filières et établissements.',
       route: '/app/apresbac',
