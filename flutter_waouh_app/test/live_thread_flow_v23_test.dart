@@ -105,6 +105,22 @@ void main() {
       expect(match.threadId, isNull);
       expect(liveIsProvisionalInterestedMatch(match), isTrue);
     });
+
+    test('conserve la corrélation exacte pour la promotion Realtime', () {
+      final match = liveBuildInterestedEntryMatch(
+        text: 'Intéressé',
+        requestMeta: const {
+          'idempotency_key': '4a2b5308-f2ca-4bcb-8536-c51291fa0e6c',
+        },
+        now: DateTime(2026, 9, 25, 22, 15),
+      );
+
+      expect(
+        liveProvisionalInterestCorrelation(match),
+        '4a2b5308-f2ca-4bcb-8536-c51291fa0e6c',
+      );
+      expect(match.threadId, isNull);
+    });
   });
 
   group('résolution autoritaire et isolation', () {
