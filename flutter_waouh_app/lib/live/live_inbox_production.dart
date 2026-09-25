@@ -17,6 +17,7 @@ import 'live_radar_service.dart';
 import 'live_radar_map_screen.dart';
 import 'live_status_screen.dart';
 import 'live_widgets.dart';
+import 'live_theme.dart';
 
 class LiveInboxProductionScreen extends StatefulWidget {
   const LiveInboxProductionScreen({super.key});
@@ -108,7 +109,7 @@ class _LiveInboxProductionScreenState extends State<LiveInboxProductionScreen> {
         final newStatuses =
             statuses.where((item) => !_seenStatusIds.contains(item.id)).length;
         return Scaffold(
-          backgroundColor: const Color(0xFFF8FBF9),
+          backgroundColor: WaouhPalette.pearl,
           appBar: _InboxAppBar(
             displayName: _displayName(fullName),
             imageUrl: auth.profile?.avatarUrl,
@@ -179,17 +180,16 @@ class _IntelligenceQuickAccess extends StatelessWidget {
   final VoidCallback onMissions;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(12, 7, 12, 8),
-        color: const Color(0xFFF8FBF9),
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(14, 4, 14, 7),
         child: Row(
           children: [
             Expanded(
               child: _QuickIntelligenceCard(
                 icon: Icons.psychology_alt_rounded,
-                title: 'WAOUH Muse',
-                subtitle: 'Acheter · vendre · NEXUS',
-                accent: const Color(0xFF08756A),
+                title: 'Muse',
+                subtitle: 'Acheter · vendre',
+                accent: WaouhPalette.blue,
                 onTap: onMuse,
               ),
             ),
@@ -197,11 +197,11 @@ class _IntelligenceQuickAccess extends StatelessWidget {
             Expanded(
               child: _QuickIntelligenceCard(
                 icon: Icons.route_rounded,
-                title: 'Missions & veille',
+                title: 'Missions',
                 subtitle: approvalCount > 0
-                    ? '$missionCount mission(s) · $approvalCount à valider'
+                    ? '$approvalCount à valider'
                     : '$missionCount mission(s) · $watchCount veille(s)',
-                accent: const Color(0xFF2563EB),
+                accent: const Color(0xFF7D6AE8),
                 badge: approvalCount > 0 ? approvalCount : null,
                 onTap: onMissions,
               ),
@@ -231,22 +231,15 @@ class _QuickIntelligenceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Material(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(17),
           child: Ink(
-            padding: const EdgeInsets.fromLTRB(10, 9, 9, 9),
+            padding: const EdgeInsets.fromLTRB(10, 9, 8, 9),
             decoration: BoxDecoration(
-              border: Border.all(color: const Color(0xFFDCE9E4)),
-              borderRadius: BorderRadius.circular(17),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x0D0F3A30),
-                  blurRadius: 14,
-                  offset: Offset(0, 5),
-                ),
-              ],
+              border: Border.all(color: WaouhPalette.line),
+              borderRadius: BorderRadius.circular(18),
             ),
             child: Row(
               children: [
@@ -254,11 +247,11 @@ class _QuickIntelligenceCard extends StatelessWidget {
                   clipBehavior: Clip.none,
                   children: [
                     Container(
-                      width: 34,
-                      height: 34,
+                      width: 36,
+                      height: 36,
                       decoration: BoxDecoration(
-                        color: accent.withValues(alpha: .10),
-                        borderRadius: BorderRadius.circular(11),
+                        color: accent.withValues(alpha: .09),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: Icon(icon, color: accent, size: 19),
                     ),
@@ -267,12 +260,12 @@ class _QuickIntelligenceCard extends StatelessWidget {
                         right: -5,
                         top: -5,
                         child: Container(
-                          constraints: const BoxConstraints(minWidth: 17),
-                          height: 17,
+                          constraints: const BoxConstraints(minWidth: 18),
+                          height: 18,
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE28A17),
+                            color: const Color(0xFFF3A03D),
                             borderRadius: BorderRadius.circular(99),
                             border: Border.all(color: Colors.white, width: 1.5),
                           ),
@@ -281,7 +274,7 @@ class _QuickIntelligenceCard extends StatelessWidget {
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 8,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
                         ),
@@ -299,9 +292,9 @@ class _QuickIntelligenceCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Color(0xFF16372F),
+                          color: WaouhPalette.ink,
                           fontSize: 11.5,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -310,7 +303,7 @@ class _QuickIntelligenceCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Color(0xFF71827C),
+                          color: WaouhPalette.muted,
                           fontSize: 8.8,
                           fontWeight: FontWeight.w600,
                         ),
@@ -320,8 +313,8 @@ class _QuickIntelligenceCard extends StatelessWidget {
                 ),
                 const Icon(
                   Icons.chevron_right_rounded,
-                  size: 18,
-                  color: Color(0xFF8A9A95),
+                  size: 17,
+                  color: Color(0xFFA0AEC2),
                 ),
               ],
             ),
@@ -350,13 +343,15 @@ class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback onNewChat;
 
   @override
-  Size get preferredSize => const Size.fromHeight(58);
+  Size get preferredSize => const Size.fromHeight(64);
 
   @override
   Widget build(BuildContext context) => AppBar(
-        toolbarHeight: 58,
+        toolbarHeight: 64,
         automaticallyImplyLeading: false,
-        leadingWidth: 52,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        leadingWidth: 58,
         leading: Center(
           child: _ProfileAvatar(
             name: displayName,
@@ -369,35 +364,27 @@ class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'WAOUH One',
+            Text(
+              'Bonjour, $displayName',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 18.5,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -.25,
+              style: const TextStyle(
+                color: WaouhPalette.ink,
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -.2,
               ),
             ),
-            const SizedBox(height: 1),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const _OnlineDot(),
-                const SizedBox(width: 5),
-                Flexible(
-                  child: Text(
-                    '$displayName · $onlineLabel',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xFFC9F6E3),
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
+            const SizedBox(height: 2),
+            Text(
+              onlineLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: WaouhPalette.muted,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
@@ -413,21 +400,36 @@ class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
               onTap: onNotifications,
             ),
           ),
-          IconButton(
+          IconButton.filledTonal(
             onPressed: onNewChat,
-            tooltip: 'Nouvel objectif',
-            visualDensity: VisualDensity.compact,
-            icon: const Icon(Icons.add_rounded, size: 25),
-          ),
-          const SizedBox(width: 2),
-        ],
-        flexibleSpace: const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF004F46), Color(0xFF08756A), Color(0xFF013E36)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+            tooltip: 'Nouveau',
+            style: IconButton.styleFrom(
+              backgroundColor: const Color(0xFFF0F5FF),
+              foregroundColor: WaouhPalette.blue,
             ),
+            icon: const Icon(Icons.add_rounded, size: 21),
+          ),
+          const SizedBox(width: 8),
+        ],
+        flexibleSpace: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFFFFFFFF),
+                Color(0xFFF8FBFF),
+                Color(0xFFF9F7FF),
+              ],
+            ),
+            border: const Border(
+              bottom: BorderSide(color: Color(0xFFE8EEF8)),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF52729F).withValues(alpha: .05),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
         ),
       );
@@ -439,6 +441,7 @@ class _SearchBar extends StatelessWidget {
     required this.tab,
     required this.onChanged,
   });
+
   final TextEditingController controller;
   final int tab;
   final VoidCallback onChanged;
@@ -446,57 +449,31 @@ class _SearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hint = switch (tab) {
-      1 => 'Rechercher un statut…',
-      2 => 'Rechercher dans le Radar…',
-      _ => 'Rechercher une discussion…',
+      1 => 'Rechercher un statut',
+      2 => 'Rechercher dans Radar',
+      _ => 'Rechercher',
     };
-    return Container(
-      color: const Color(0xFF08756A),
-      padding: const EdgeInsets.fromLTRB(14, 3, 14, 8),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 3),
       child: TextField(
         controller: controller,
         onChanged: (_) => onChanged(),
-        style: const TextStyle(color: Colors.white, fontSize: 15),
         decoration: InputDecoration(
           isDense: true,
           hintText: hint,
-          hintStyle: const TextStyle(color: Color(0xFFBEE1D8), fontSize: 15),
-          prefixIcon: const Icon(
-            Icons.search_rounded,
-            size: 21,
-            color: Color(0xFFD6F0E8),
-          ),
-          prefixIconConstraints:
-              const BoxConstraints(minWidth: 42, minHeight: 42),
+          prefixIcon: const Icon(Icons.search_rounded, size: 20),
           suffixIcon: controller.text.isEmpty
-              ? null
+              ? const Icon(Icons.mic_none_rounded, size: 19)
               : IconButton(
                   visualDensity: VisualDensity.compact,
-                  icon: const Icon(
-                    Icons.close_rounded,
-                    size: 20,
-                    color: Color(0xFFD6F0E8),
-                  ),
+                  icon: const Icon(Icons.close_rounded, size: 18),
                   onPressed: () {
                     controller.clear();
                     onChanged();
                   },
                 ),
-          filled: true,
-          fillColor: const Color(0xFF2A887D),
+          fillColor: Colors.white,
           contentPadding: const EdgeInsets.symmetric(vertical: 11),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Color(0xFFBFF7E4), width: 1.2),
-          ),
         ),
       ),
     );
@@ -509,20 +486,20 @@ class _InboxTabs extends StatelessWidget {
     required this.statusCount,
     required this.onChanged,
   });
+
   final int value;
   final int statusCount;
   final ValueChanged<int> onChanged;
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(14, 9, 14, 7),
+        padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
         child: Container(
-          height: 46,
-          clipBehavior: Clip.antiAlias,
+          height: 42,
+          padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: const Color(0xFF87A198)),
+            color: const Color(0xFFF0F4FB),
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Row(
             children: [
@@ -534,11 +511,6 @@ class _InboxTabs extends StatelessWidget {
                   onTap: () => onChanged(0),
                 ),
               ),
-              const VerticalDivider(
-                width: 1,
-                thickness: 1,
-                color: Color(0xFF87A198),
-              ),
               Expanded(
                 child: _InboxTabButton(
                   selected: value == 1,
@@ -547,11 +519,6 @@ class _InboxTabs extends StatelessWidget {
                   badge: statusCount,
                   onTap: () => onChanged(1),
                 ),
-              ),
-              const VerticalDivider(
-                width: 1,
-                thickness: 1,
-                color: Color(0xFF87A198),
               ),
               Expanded(
                 child: _InboxTabButton(
@@ -575,6 +542,7 @@ class _InboxTabButton extends StatelessWidget {
     required this.onTap,
     this.badge = 0,
   });
+
   final bool selected;
   final String label;
   final IconData icon;
@@ -583,7 +551,9 @@ class _InboxTabButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: selected ? const Color(0xFFD7F1E9) : Colors.white,
+        color: selected ? Colors.white : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
           child: Center(
@@ -594,11 +564,9 @@ class _InboxTabButton extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    selected ? Icons.check_rounded : icon,
-                    size: 17,
-                    color: selected
-                        ? const Color(0xFF08756A)
-                        : const Color(0xFF263530),
+                    icon,
+                    size: 16,
+                    color: selected ? WaouhPalette.blue : WaouhPalette.muted,
                   ),
                   const SizedBox(width: 5),
                   Flexible(
@@ -607,11 +575,11 @@ class _InboxTabButton extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w800,
-                        color: selected
-                            ? const Color(0xFF075E54)
-                            : const Color(0xFF263530),
+                        fontSize: 11.5,
+                        fontWeight:
+                            selected ? FontWeight.w800 : FontWeight.w600,
+                        color:
+                            selected ? WaouhPalette.blue : WaouhPalette.muted,
                       ),
                     ),
                   ),
@@ -703,7 +671,7 @@ class _ProductionDiscussionFeed extends StatelessWidget {
                             style: const TextStyle(
                               fontWeight: FontWeight.w900,
                               fontSize: 13,
-                              color: Color(0xFF667A73),
+                              color: WaouhPalette.muted,
                               letterSpacing: .25,
                             ),
                           ),
@@ -734,7 +702,7 @@ class _ProductionDiscussionFeed extends StatelessWidget {
                       ),
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size(0, 42),
-                        foregroundColor: const Color(0xFF075E54),
+                        foregroundColor: WaouhPalette.blue,
                       ),
                     ),
                   ],
@@ -766,6 +734,7 @@ class _WaouhAssistantCard extends StatelessWidget {
     required this.onBuy,
     required this.onNegotiate,
   });
+
   final VoidCallback onDiscuss;
   final VoidCallback onSell;
   final VoidCallback onBuy;
@@ -775,79 +744,64 @@ class _WaouhAssistantCard extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: const Color(0xFFEFFFF7),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: const Color(0xFFCBEBDD)),
+          gradient: WaouhGradients.airHero,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFFDDE7F7)),
+          boxShadow: WaouhShadows.card,
         ),
         child: Column(
           children: [
             Row(
               children: [
-                const BrandMark(size: 48, semanticLabel: 'WAOUH IA'),
+                Container(
+                  width: 48,
+                  height: 48,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white70,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE1E9F7)),
+                  ),
+                  child: const BrandMark(size: 30, semanticLabel: 'WAOUH IA'),
+                ),
                 const SizedBox(width: 10),
-                Expanded(
+                const Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'WAOUH One',
                         style: TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.w900),
+                          color: WaouhPalette.ink,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: const [
-                          _OnlineDot(),
-                          SizedBox(width: 6),
-                          Text(
-                            'En ligne',
-                            style: TextStyle(
-                              color: Color(0xFF08756A),
-                              fontWeight: FontWeight.w900,
-                              fontSize: 12.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Muse · NEXUS · Signal Fabric · Contact',
-                        maxLines: 2,
+                      SizedBox(height: 3),
+                      Text(
+                        'Parlez. Cherchez. Négociez.',
                         style: TextStyle(
-                          color: Color(0xFF667A73),
-                          fontSize: 12.2,
-                          height: 1.25,
-                          fontWeight: FontWeight.w700,
+                          color: WaouhPalette.muted,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                FilledButton.icon(
+                FilledButton(
                   onPressed: onDiscuss,
-                  icon: const Icon(Icons.chat_bubble_outline_rounded, size: 17),
-                  label: const Text('Discuter'),
                   style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF08756A),
-                    minimumSize: const Size(0, 42),
+                    minimumSize: const Size(0, 40),
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                   ),
+                  child: const Text('Ouvrir'),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 11),
             Row(
               children: [
-                Expanded(
-                  child: _AssistantQuickAction(
-                    label: 'Vendre',
-                    icon: Icons.sell_outlined,
-                    onTap: onSell,
-                  ),
-                ),
-                const SizedBox(width: 8),
                 Expanded(
                   child: _AssistantQuickAction(
                     label: 'Acheter',
@@ -855,7 +809,15 @@ class _WaouhAssistantCard extends StatelessWidget {
                     onTap: onBuy,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: _AssistantQuickAction(
+                    label: 'Vendre',
+                    icon: Icons.sell_outlined,
+                    onTap: onSell,
+                  ),
+                ),
+                const SizedBox(width: 7),
                 Expanded(
                   child: _AssistantQuickAction(
                     label: 'Négocier',
@@ -876,23 +838,33 @@ class _AssistantQuickAction extends StatelessWidget {
     required this.icon,
     required this.onTap,
   });
+
   final String label;
   final IconData icon;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => OutlinedButton.icon(
+  Widget build(BuildContext context) => OutlinedButton(
         onPressed: onTap,
-        icon: Icon(icon, size: 16),
-        label: FittedBox(fit: BoxFit.scaleDown, child: Text(label)),
         style: OutlinedButton.styleFrom(
-          foregroundColor: const Color(0xFF075E54),
-          side: const BorderSide(color: Color(0xFFBFE3D5)),
-          backgroundColor: Colors.white,
-          minimumSize: const Size(0, 42),
-          padding: const EdgeInsets.symmetric(horizontal: 7),
-          textStyle:
-              const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
+          backgroundColor: Colors.white70,
+          minimumSize: const Size(0, 40),
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          side: const BorderSide(color: Color(0xFFDDE6F5)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: WaouhPalette.blue),
+            const SizedBox(height: 2),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                style: const TextStyle(fontSize: 10.5),
+              ),
+            ),
+          ],
         ),
       );
 }
@@ -979,7 +951,7 @@ class _MatchTile extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: Color(0xFF667A73),
+                        color: WaouhPalette.muted,
                         fontSize: 12.5,
                       ),
                     ),
@@ -987,7 +959,7 @@ class _MatchTile extends StatelessWidget {
                     Text(
                       _compactTime(match.lastAt),
                       style: const TextStyle(
-                        color: Color(0xFF667A73),
+                        color: WaouhPalette.muted,
                         fontSize: 11.5,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1073,7 +1045,7 @@ class _DiscussionEmpty extends StatelessWidget {
                   ? 'Les discussions archivées apparaîtront ici.'
                   : 'Démarrez une recherche, une vente ou une négociation avec WAOUH.',
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF667A73), height: 1.35),
+              style: const TextStyle(color: WaouhPalette.muted, height: 1.35),
             ),
             if (!archived) ...[
               const SizedBox(height: 16),
@@ -1272,7 +1244,7 @@ class _StatusEmpty extends StatelessWidget {
                 const Text(
                   'Publiez une vente urgente, une recherche ou une promotion visible pendant 24 heures.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Color(0xFF667A73), height: 1.4),
+                  style: TextStyle(color: WaouhPalette.muted, height: 1.4),
                 ),
                 const SizedBox(height: 20),
                 SizedBox(
@@ -1383,7 +1355,7 @@ class _ProductionStatusCard extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            color: Color(0xFF667A73),
+                            color: WaouhPalette.muted,
                             fontSize: 12.5,
                           ),
                         ),
@@ -1409,7 +1381,7 @@ class _ProductionStatusCard extends StatelessWidget {
                               const Icon(
                                 Icons.location_on_outlined,
                                 size: 13,
-                                color: Color(0xFF667A73),
+                                color: WaouhPalette.muted,
                               ),
                               const SizedBox(width: 2),
                               ConstrainedBox(
@@ -1420,7 +1392,7 @@ class _ProductionStatusCard extends StatelessWidget {
                                   status.location!,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
-                                    color: Color(0xFF667A73),
+                                    color: WaouhPalette.muted,
                                     fontSize: 11.5,
                                   ),
                                 ),
@@ -2035,7 +2007,7 @@ class _RadarPausedBanner extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 11.5,
-                      color: Color(0xFF667A73),
+                      color: WaouhPalette.muted,
                     ),
                   ),
                 ],
@@ -2424,7 +2396,7 @@ class _RadarResultCard extends StatelessWidget {
                           const Icon(
                             Icons.location_on_outlined,
                             size: 13,
-                            color: Color(0xFF667A73),
+                            color: WaouhPalette.muted,
                           ),
                           const SizedBox(width: 3),
                           Expanded(
@@ -2434,7 +2406,7 @@ class _RadarResultCard extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 fontSize: 10.8,
-                                color: Color(0xFF667A73),
+                                color: WaouhPalette.muted,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -2506,7 +2478,7 @@ class _RadarEmpty extends StatelessWidget {
             const Text(
               'Élargissez vos filtres ou actualisez votre position pour lancer un nouveau scan.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFF667A73), height: 1.35),
+              style: TextStyle(color: WaouhPalette.muted, height: 1.35),
             ),
             const SizedBox(height: 18),
             Wrap(
@@ -3108,7 +3080,7 @@ class _RemoteImage extends StatelessWidget {
       return ColoredBox(
         color: const Color(0xFFE8F4EF),
         child: Center(
-          child: Icon(fallback, color: const Color(0xFF08756A), size: 28),
+          child: Icon(fallback, color: WaouhPalette.blue, size: 28),
         ),
       );
     return Image.network(
@@ -3117,7 +3089,7 @@ class _RemoteImage extends StatelessWidget {
       errorBuilder: (_, __, ___) => ColoredBox(
         color: const Color(0xFFE8F4EF),
         child: Center(
-          child: Icon(fallback, color: const Color(0xFF08756A), size: 28),
+          child: Icon(fallback, color: WaouhPalette.blue, size: 28),
         ),
       ),
     );
