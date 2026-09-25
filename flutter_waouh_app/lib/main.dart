@@ -50,74 +50,294 @@ class AppConstants {
 }
 
 class WaouhColors {
-  static const ink = Color(0xFF061411);
-  static const deep = Color(0xFF043C33);
-  static const green = Color(0xFF075E54);
-  static const jade = Color(0xFF0A7C5B);
-  static const neon = Color(0xFF24E58F);
-  static const mint = Color(0xFFDDFBEA);
+  // WAOUH AIR — light, spatial and AI-first. Semantic names are preserved so
+  // the business layer and existing widgets keep working unchanged.
+  static const ink = Color(0xFF10213D);
+  static const deep = Color(0xFF315BD8);
+  static const green = Color(0xFF3B82F6);
+  static const jade = Color(0xFF19B6A4);
+  static const neon = Color(0xFF55DDF2);
+  static const mint = Color(0xFFEAFBF8);
   static const paper = Color(0xFFFFFFFF);
-  static const pearl = Color(0xFFF7FAF8);
-  static const line = Color(0xFFD8E5DF);
-  static const muted = Color(0xFF60746E);
-  static const blue = Color(0xFF2F6BFF);
-  static const sky = Color(0xFFE8F0FF);
-  static const orange = Color(0xFFFF8A00);
-  static const amber = Color(0xFFFFF4DB);
-  static const red = Color(0xFFEF4444);
-  static const chat = Color(0xFFEFE9DF);
+  static const pearl = Color(0xFFF6F9FF);
+  static const line = Color(0xFFE2EAF6);
+  static const muted = Color(0xFF6C7C9B);
+  static const blue = Color(0xFF4F7FFF);
+  static const sky = Color(0xFFECF4FF);
+  static const orange = Color(0xFFF4A340);
+  static const amber = Color(0xFFFFF6E8);
+  static const red = Color(0xFFEF6673);
+  static const chat = Color(0xFFF4F8FF);
 }
 
 ThemeData buildWaouhTheme() {
+  const primary = WaouhColors.blue;
+  const surface = WaouhColors.paper;
   final scheme = ColorScheme.fromSeed(
-    seedColor: WaouhColors.green,
-    primary: WaouhColors.green,
-    secondary: WaouhColors.neon,
-    surface: WaouhColors.paper,
+    seedColor: primary,
+    brightness: Brightness.light,
+    primary: primary,
+    secondary: WaouhColors.jade,
+    surface: surface,
     error: WaouhColors.red,
   );
-  return ThemeData(
+
+  final base = ThemeData(
     useMaterial3: true,
+    brightness: Brightness.light,
     colorScheme: scheme,
     scaffoldBackgroundColor: WaouhColors.pearl,
     fontFamily: 'Roboto',
+    visualDensity: VisualDensity.standard,
+  );
+
+  final textTheme = base.textTheme.copyWith(
+    displayLarge: const TextStyle(
+      fontSize: 32,
+      height: 1.08,
+      fontWeight: FontWeight.w800,
+      letterSpacing: -0.8,
+      color: WaouhColors.ink,
+    ),
+    headlineLarge: const TextStyle(
+      fontSize: 27,
+      height: 1.12,
+      fontWeight: FontWeight.w800,
+      letterSpacing: -0.55,
+      color: WaouhColors.ink,
+    ),
+    headlineMedium: const TextStyle(
+      fontSize: 23,
+      height: 1.14,
+      fontWeight: FontWeight.w800,
+      letterSpacing: -0.35,
+      color: WaouhColors.ink,
+    ),
+    titleLarge: const TextStyle(
+      fontSize: 19,
+      height: 1.18,
+      fontWeight: FontWeight.w800,
+      letterSpacing: -0.15,
+      color: WaouhColors.ink,
+    ),
+    titleMedium: const TextStyle(
+      fontSize: 15.5,
+      height: 1.22,
+      fontWeight: FontWeight.w700,
+      color: WaouhColors.ink,
+    ),
+    titleSmall: const TextStyle(
+      fontSize: 13.5,
+      height: 1.2,
+      fontWeight: FontWeight.w700,
+      color: WaouhColors.ink,
+    ),
+    bodyLarge: const TextStyle(
+      fontSize: 15,
+      height: 1.42,
+      fontWeight: FontWeight.w400,
+      color: WaouhColors.ink,
+    ),
+    bodyMedium: const TextStyle(
+      fontSize: 13.5,
+      height: 1.38,
+      fontWeight: FontWeight.w400,
+      color: WaouhColors.ink,
+    ),
+    bodySmall: const TextStyle(
+      fontSize: 11.5,
+      height: 1.32,
+      fontWeight: FontWeight.w500,
+      color: WaouhColors.muted,
+    ),
+    labelLarge: const TextStyle(
+      fontSize: 14,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0,
+    ),
+    labelMedium: const TextStyle(
+      fontSize: 11.5,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0,
+    ),
+  );
+
+  return base.copyWith(
+    textTheme: textTheme,
     appBarTheme: const AppBarTheme(
       elevation: 0,
-      backgroundColor: WaouhColors.green,
-      foregroundColor: Colors.white,
+      scrolledUnderElevation: 0,
+      backgroundColor: Colors.transparent,
+      foregroundColor: WaouhColors.ink,
+      surfaceTintColor: Colors.transparent,
       centerTitle: false,
-      systemOverlayStyle: SystemUiOverlayStyle.light,
+      toolbarHeight: 64,
+      titleTextStyle: TextStyle(
+        color: WaouhColors.ink,
+        fontSize: 18,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.2,
+      ),
+      systemOverlayStyle: SystemUiOverlayStyle.dark,
+      iconTheme: IconThemeData(color: WaouhColors.ink, size: 22),
+      actionsIconTheme: IconThemeData(color: WaouhColors.ink, size: 22),
     ),
     cardTheme: CardThemeData(
       elevation: 0,
+      margin: EdgeInsets.zero,
       color: WaouhColors.paper,
+      surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(24),
         side: const BorderSide(color: WaouhColors.line),
       ),
     ),
+    navigationBarTheme: NavigationBarThemeData(
+      height: 68,
+      elevation: 0,
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      indicatorColor: WaouhColors.sky,
+      indicatorShape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      iconTheme: WidgetStateProperty.resolveWith((states) => IconThemeData(
+            size: 22,
+            color: states.contains(WidgetState.selected)
+                ? WaouhColors.blue
+                : WaouhColors.muted,
+          )),
+      labelTextStyle: WidgetStateProperty.resolveWith((states) => TextStyle(
+            fontSize: 10.5,
+            height: 1,
+            fontWeight: states.contains(WidgetState.selected)
+                ? FontWeight.w800
+                : FontWeight.w600,
+            color: states.contains(WidgetState.selected)
+                ? WaouhColors.blue
+                : WaouhColors.muted,
+          )),
+    ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        minimumSize: const Size.fromHeight(52),
+        backgroundColor: WaouhColors.blue,
+        foregroundColor: Colors.white,
+        minimumSize: const Size(44, 48),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+        textStyle: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 14,
+          letterSpacing: -0.05,
+        ),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: WaouhColors.ink,
+        minimumSize: const Size(44, 46),
+        side: const BorderSide(color: WaouhColors.line),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: WaouhColors.blue,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: Colors.white,
+      fillColor: const Color(0xFFF8FAFF),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 13),
+      hintStyle: const TextStyle(
+        color: Color(0xFF8E9BB5),
+        fontSize: 13.5,
+        fontWeight: FontWeight.w500,
+      ),
+      labelStyle: const TextStyle(
+        color: WaouhColors.muted,
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+      ),
+      prefixIconColor: WaouhColors.muted,
+      suffixIconColor: WaouhColors.muted,
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         borderSide: const BorderSide(color: WaouhColors.line),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         borderSide: const BorderSide(color: WaouhColors.line),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: WaouhColors.blue, width: 2),
+        borderRadius: BorderRadius.circular(18),
+        borderSide: const BorderSide(color: WaouhColors.blue, width: 1.4),
       ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: const BorderSide(color: WaouhColors.red),
+      ),
+    ),
+    chipTheme: ChipThemeData(
+      backgroundColor: const Color(0xFFF5F8FE),
+      selectedColor: WaouhColors.sky,
+      disabledColor: const Color(0xFFF4F5F8),
+      side: const BorderSide(color: WaouhColors.line),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      labelStyle: const TextStyle(
+        color: WaouhColors.ink,
+        fontSize: 11.5,
+        fontWeight: FontWeight.w700,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    ),
+    dividerTheme: const DividerThemeData(
+      color: WaouhColors.line,
+      thickness: 1,
+      space: 1,
+    ),
+    listTileTheme: const ListTileThemeData(
+      iconColor: WaouhColors.muted,
+      textColor: WaouhColors.ink,
+      contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+      minVerticalPadding: 8,
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+    ),
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      modalBackgroundColor: Colors.white,
+      showDragHandle: true,
+      dragHandleColor: Color(0xFFD9E3F2),
+    ),
+    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      elevation: 0,
+      backgroundColor: WaouhColors.blue,
+      foregroundColor: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(18)),
+      ),
+    ),
+    progressIndicatorTheme: const ProgressIndicatorThemeData(
+      color: WaouhColors.blue,
+      linearTrackColor: Color(0xFFEAF0FB),
+      circularTrackColor: Color(0xFFEAF0FB),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: WaouhColors.ink,
+      contentTextStyle: const TextStyle(color: Colors.white),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
   );
 }
