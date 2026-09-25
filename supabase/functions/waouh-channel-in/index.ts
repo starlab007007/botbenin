@@ -932,7 +932,7 @@ serve(async (req) => {
       }
     }
 
-    const lowerText = (text || "").toLowerCase();    const lowerText = (text || "").toLowerCase();
+    const lowerText = (text || "").toLowerCase();
     const shouldStayInCore = /(?:int[ée]ress[ée]|interesse)\s*(?:n[°o]?\s*)?(?:x|\d+)|\b(?:je\s+)?(?:cherche|vends)\b/i.test(lowerText);
 
     if (!openNeg && ambiguousNegotiation && !shouldStayInCore &&
