@@ -1546,6 +1546,44 @@ async function refreshApifyRadar(sb: SupabaseClient) {
   }
 }
 
+async function refreshFirecrawlSites(sb: SupabaseClient) {
+  const ready = await getRadarApiKey(sb as any, "firecrawl", "FIRECRAWL_API_KEY");
+  if (!ready.ok || !ready.key) {
+    return { configured: false, inserted: 0, reason: ready.reason ?? "firecrawl_not_ready" };
+  }
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  const url = Deno.env.get("SUPABASE_URL") || "";
+  if (!url || !serviceKey) return { configured: true, inserted: 0, reason: "server_not_configured" };
+  try {
+    const response = await fetch(`${url}/functions/v1/waouh-radar-site-scraper`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${serviceKey}`,
+        apikey: serviceKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ source: "nexus.global_discovery" }),
+      signal: AbortSignal.timeout(30000),
+    });
+    const data = await response.json().catch(() => ({}));
+    const inserted = Number(data?.signals ?? 0);
+    await markRadarProviderSync(
+      sb as any,
+      "firecrawl",
+      response.ok ? "ok" : "ko",
+      response.ok ? `${inserted} signaux sites Web` : String(data?.error || `HTTP ${response.status}`),
+    );
+    return {
+      configured: true,
+      inserted,
+      reason: response.ok ? null : (data?.error || `HTTP ${response.status}`),
+    };
+  } catch (error: any) {
+    await markRadarProviderSync(sb as any, "firecrawl", "ko", error?.message || String(error));
+    return { configured: true, inserted: 0, reason: error?.message || String(error) };
+  }
+}
+
 async function globalDiscoverySearch(
   sb: SupabaseClient,
   input: {
@@ -2383,41 +2421,8 @@ Retourne uniquement JSON:
           result = await refreshTelegramPublic(sb, ownerId, queryText, Math.min(limit, 30));
         } else if (provider === "tiktok_connected") {
           result = await refreshTikTokConnected(sb, ownerId, queryText, Math.min(limit, 20));
-        } else if (provider === "firecrawl") {
-          const serviceUrl = Deno.env.get("SUPABASE_URL") || "";
-          const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-          if (!serviceUrl || !serviceKey) {
-            result = { configured: false, inserted: 0, reason: "server_not_configured" };
-          } else {
-            try {
-              const response = await fetch(`${serviceUrl}/functions/v1/waouh-radar-site-scraper`, {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${serviceKey}`,
-                  apikey: serviceKey,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ source: "nexus.source.sync" }),
-                signal: AbortSignal.timeout(30000),
-              });
-              const data = await response.json().catch(() => ({}));
-              result = {
-                configured: true,
-                inserted: Number(data?.signals ?? 0),
-                reason: response.ok ? null : (data?.error || `HTTP ${response.status}`),
-                details: data,
-              };
-              await markRadarProviderSync(
-                sb as any,
-                "firecrawl",
-                response.ok ? "ok" : "ko",
-                response.ok ? `${Number(data?.signals ?? 0)} signaux sites Web` : String(result.reason),
-              );
-            } catch (error: any) {
-              result = { configured: true, inserted: 0, reason: error?.message || String(error) };
-              await markRadarProviderSync(sb as any, "firecrawl", "ko", String(result.reason));
-            }
-          }
+} else if (provider === "firecrawl") {
+          result = await refreshFirecrawlSites(sb);
         } else if (provider === "whatsapp_groups") {
           const { count } = await sb.from("waouh_radar_sources")
             .select("id", { count: "exact", head: true })
@@ -2523,6 +2528,7 @@ Retourne uniquement JSON:
           const [
             places,
             serp,
+            firecrawl,
             facebook,
             instagram,
             telegram,
@@ -2540,6 +2546,7 @@ Retourne uniquement JSON:
                   reason: "not_selected_by_ai_plan",
                   surfaces: {} as Record<string, number>,
                 }),
+            usePublicWeb ? refreshFirecrawlSites(sb) : skipped,
             useSocial
               ? refreshFacebookBusiness(sb, ownerId, semanticQuery, Math.min(limit, 8))
               : skipped,
@@ -2565,6 +2572,11 @@ Retourne uniquement JSON:
             inserted: serp.inserted,
             reason: serp.reason ?? null,
             surfaces: (serp as any).surfaces ?? {},
+          };
+          refresh.firecrawl = {
+            configured: firecrawl.configured,
+            inserted: firecrawl.inserted,
+            reason: firecrawl.reason ?? null,
           };
           refresh.facebook_business = facebook;
           refresh.instagram_business = instagram;
@@ -2973,6 +2985,7 @@ Retourne uniquement JSON:
         const envByProvider: Record<string, string | undefined> = {
           serpapi: "SERPAPI_KEY",
           apify: "APIFY_TOKEN",
+          firecrawl: "FIRECRAWL_API_KEY",
           google_places: "GOOGLE_PLACES_API_KEY",
         };
         const readyEntries = await Promise.all(
