@@ -11,6 +11,7 @@ import { Loader2, Plus, RefreshCw, Radar, Users, Activity, Trash2, ArrowUpRight,
 import { toast } from "sonner";
 import RadarApiConfigPanel from "./RadarApiConfigPanel";
 import RadarAutoControlPanel from "@/components/admin/RadarAutoControlPanel";
+import { syncNexusSource, type NexusSourceSyncProvider } from "@/lib/waouh/nexus";
 
 type Source = { id: string; type: string; identifier: string; label: string | null; active: boolean; scan_freq_min: number; last_scan_at: string | null; last_signal_count: number };
 type Signal = { id: string; source_type: string; intent: string; product: any; price: number | null; city: string | null; contact_phone: string | null; contact_handle: string | null; confidence: number; status: string; captured_at: string; raw_url: string | null; raw_text: string | null; raw_payload?: any; promoted_article_id: string | null; promoted_buyer_profile_id: string | null };
@@ -134,6 +135,45 @@ export default function WaouhRadarTab() {
     if (error) toast.error(error.message);
     else toast.success(`OK : ${JSON.stringify(data).slice(0, 80)}`);
     load();
+  };
+
+  const providerForSource = (type: string): NexusSourceSyncProvider | null => {
+    if (["fb_marketplace", "fb_group", "apify_actor"].includes(type)) return "apify";
+    if (type === "fb_page") return "facebook_business";
+    if (type === "instagram_business") return "instagram_business";
+    if (["telegram", "telegram_channel"].includes(type)) return "telegram_public";
+    if (type === "wa_group") return "whatsapp_groups";
+    if (type === "google_places") return "google_places";
+    if (type === "tiktok") return "tiktok_connected";
+    if (type === "web_search") return "serpapi";
+    if (["site", "web_social", "directory", "b2b_rfq", "rss", "linkedin_public", "youtube_public", "x_public"].includes(type)) return "firecrawl";
+    return null;
+  };
+
+  const collectSource = async (source: Source) => {
+    const provider = providerForSource(source.type);
+    if (!provider) return toast.error("Aucun collecteur NEXUS associé à cette source.");
+    setBusyId(source.id);
+    try {
+      const data = await syncNexusSource({
+        provider,
+        query:
+          provider === "serpapi" || provider === "google_places"
+            ? (source.label || source.identifier)
+            : undefined,
+        limit: 20,
+      });
+      toast.success(
+        data.push_mode
+          ? `Source temps réel prête${data.active_group_count != null ? ` · ${data.active_group_count} groupe(s)` : ""}`
+          : `${data.inserted ?? 0} signal(aux) collecté(s)`,
+      );
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Collecte NEXUS impossible");
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const promoteSignal = async (id: string) => {
@@ -305,6 +345,15 @@ export default function WaouhRadarTab() {
                   onBlur={(e) => void updateSourceFrequency(s.id, Number(e.target.value))}
                 />
                 <span className="text-[10px] text-muted-foreground">min</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!s.active || busyId === s.id || !providerForSource(s.type)}
+                  onClick={() => void collectSource(s)}
+                >
+                  {busyId === s.id ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1" />}
+                  Collecter
+                </Button>
                 <Switch checked={s.active} onCheckedChange={(v) => toggleSource(s.id, v)} />
                 <Button variant="ghost" size="icon" onClick={() => deleteSource(s.id)}><Trash2 className="w-4 h-4 text-red-500" /></Button>
               </div>
