@@ -358,6 +358,11 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
             detail.buyer_profile_id ?? existing?.buyer_profile_id ?? null,
           counterpart_user_id:
             counterpartForKey ?? existing?.counterpart_user_id ?? null,
+          thread_id: detail.thread_id ?? existing?.thread_id ?? null,
+          negotiation_id: detail.negotiation_id ?? existing?.negotiation_id ?? null,
+          deal_id: detail.deal_id ?? existing?.deal_id ?? null,
+          buyer_user_id: detail.buyer_user_id ?? existing?.buyer_user_id ?? null,
+          seller_user_id: detail.seller_user_id ?? detail.seller_id ?? existing?.seller_user_id ?? null,
           title: art?.title || detail.title || existing?.title || "Annonce",
           price: art?.price ?? detail.price ?? existing?.price ?? null,
           city: art?.city ?? detail.city ?? existing?.city ?? null,

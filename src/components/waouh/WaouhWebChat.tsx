@@ -479,7 +479,12 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     }
   };
 
-  const sendCore = async (text: string, atts: Att[], locationOverride?: { lat: number | null; lng: number | null; city: string } | null) => {
+  const sendCore = async (
+    text: string,
+    atts: Att[],
+    locationOverride?: { lat: number | null; lng: number | null; city: string } | null,
+    metaOverride: Record<string, unknown> = {}
+  ) => {
     if ((!text && atts.length === 0) || sendingRef.current) return;
     sendingRef.current = true;
     setSending(true);
@@ -493,7 +498,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       const effLat = locationOverride?.lat ?? geo.lat;
       const effLng = locationOverride?.lng ?? geo.lng;
       const effCity = (locationOverride?.city && locationOverride.city.trim()) || geo.city;
-      const { data, error } = await supabase.functions.invoke("waouh-channel-in", {
+      const { data, error } = await supabase.functions.invoke("waouh-channel-in-secure", {
         headers: { "x-waouh-session": sessionId },
         body: {
           channel: "web",
@@ -504,6 +509,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           lng: effLng,
           city: effCity,
           authUserId: user?.id ?? null,
+          ...(Object.keys(metaOverride).length > 0 ? { meta: metaOverride } : {}),
         },
       });
       assertChatResponse(data, error);
@@ -522,6 +528,11 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
             detail: {
               article_id: respArticleId,
               counterpart_user_id: respCounterpart,
+              thread_id: (data as any)?.thread_id ?? null,
+              negotiation_id: (data as any)?.negotiation_id ?? null,
+              deal_id: (data as any)?.deal_id ?? null,
+              buyer_user_id: (data as any)?.buyer_user_id ?? null,
+              seller_user_id: (data as any)?.seller_user_id ?? null,
               kind: "buyer",
               seed_text: (data as any)?.reply ?? null,
             },
@@ -823,13 +834,27 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                             window.open(a.url, "_blank");
                             return;
                           }
-                          const kw = /accept/i.test(a.id) ? "OUI"
+                          const isDealCommand = /^(?:payer-mobile|paiement-livraison|confirmer-disponibilite|confirmer-paiement-cash|confirmer-paiement-mobile|annuler):/i.test(a.id);
+                          const kw = isDealCommand ? a.label
+                            : /accept/i.test(a.id) ? "OUI"
                             : /refuse/i.test(a.id) ? "NON"
                             : /counter|negociat/i.test(a.id) ? "Je propose "
                             : a.id.startsWith("intéressé") ? a.id
                             : a.label;
-                          if (kw.endsWith(" ")) { setInput(kw); setTimeout(() => inputRef.current?.focus(), 0); }
-                          else void sendCore(kw, []).catch(() => {});
+                          if (kw.endsWith(" ")) {
+                            setInput(kw);
+                            setTimeout(() => inputRef.current?.focus(), 0);
+                          } else {
+                            void sendCore(kw, [], null, {
+                              button_payload: a.id,
+                              article_id: (m as any).meta?.article_id ?? null,
+                              thread_id: (m as any).meta?.thread_id ?? null,
+                              negotiation_id: (m as any).meta?.negotiation_id ?? null,
+                              deal_id: (m as any).meta?.deal_id ?? null,
+                              counterpart_user_id: (m as any).meta?.counterpart_user_id ?? null,
+                              role: (m as any).meta?.role ?? null,
+                            }).catch(() => {});
+                          }
                         }}
                       >{a.label}</Button>
                     ))}

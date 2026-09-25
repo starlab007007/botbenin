@@ -206,4 +206,58 @@ void main() {
     expect(local.outgoing, isTrue);
     expect(liveLatestActionableMessageIndex(<LiveMessage>[offer, local]), -1);
   });
+
+  test('les commandes Deal Graph restent distinctes de la négociation', () {
+    expect(
+      liveCommerceActionKind('payer-mobile:deal-1'),
+      LiveCommerceActionKind.paymentMobile,
+    );
+    expect(
+      liveCommerceActionKind('paiement-livraison:deal-1'),
+      LiveCommerceActionKind.paymentDelivery,
+    );
+    expect(
+      liveCommerceActionKind('confirmer-disponibilite:deal-1'),
+      LiveCommerceActionKind.sellerConfirm,
+    );
+    expect(
+      liveCommerceActionKind('confirmer-paiement-cash:deal-1'),
+      LiveCommerceActionKind.confirmPaymentCash,
+    );
+    expect(
+      liveCommerceActionKind('confirmer-paiement-mobile:deal-1'),
+      LiveCommerceActionKind.confirmPaymentMobile,
+    );
+    expect(
+      liveCommerceActionKind('annuler:deal-1'),
+      LiveCommerceActionKind.cancelDeal,
+    );
+  });
+
+  test('une commande Deal Graph conserve deal et thread dans le payload', () {
+    final payload = liveCanonicalWorkflowPayload(
+      LiveCommerceActionKind.paymentDelivery,
+      context: const <String, String>{
+        'deal_id': 'deal-1',
+        'thread_id': 'thread-1',
+        'article_id': 'article-1',
+        'buyer_user_id': 'buyer-1',
+        'seller_user_id': 'seller-1',
+      },
+    );
+    final query = liveCommerceQuery(payload);
+
+    expect(query['commerce_action'], 'payment_preference_cod');
+    expect(query['deal_id'], 'deal-1');
+    expect(query['thread_id'], 'thread-1');
+    expect(query['article_id'], 'article-1');
+    expect(query['buyer_user_id'], 'buyer-1');
+    expect(query['seller_user_id'], 'seller-1');
+    expect(liveCommerceOutboundText(payload), 'Paiement cash à la livraison');
+  });
+
+  test('awaiting_confirmation reste un état actif', () {
+    expect(liveCommerceStageIsTerminal('awaiting_confirmation'), isFalse);
+  });
+
 }

@@ -1,6 +1,11 @@
 // WAOUH Outbound Dispatch — envoie les messages WhatsApp en attente via WAHA
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-api-key",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 import { resolveRealPhoneE164, stripLegacyPaymentText, lidToPhoneInline } from "../_shared/waouh-format.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -141,6 +146,34 @@ Deno.serve(async (req) => {
     const { limit = 50 } = req.method === "POST" ? await req.json().catch(() => ({})) : {};
 
     const nowIso = new Date().toISOString();
+
+    // Lease recovery: a worker may crash after claiming pending→sending.
+    // Requeue stale claims so one transient crash never blocks a notification forever.
+    const leaseCutoff = new Date(Date.now() - 10 * 60_000).toISOString();
+    const leaseHistoryCutoff = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
+    try {
+      // Recent worker crash: safe to retry.
+      await sb.from("waouh_outbound_queue").update({
+        status: "pending",
+        next_attempt_at: nowIso,
+        last_error: "lease_timeout_recovered",
+      })
+        .eq("status", "sending")
+        .lt("updated_at", leaseCutoff)
+        .gte("updated_at", leaseHistoryCutoff);
+
+      // Historical stuck rows must never be replayed to customers.
+      await sb.from("waouh_outbound_queue").update({
+        status: "failed",
+        next_attempt_at: null,
+        last_error: "lease_expired_no_replay",
+      })
+        .eq("status", "sending")
+        .lt("updated_at", leaseHistoryCutoff);
+    } catch (e) {
+      console.warn("[waouh-outbound-dispatch] lease recovery failed", e);
+    }
+
     const { data: items, error } = await sb
       .from("waouh_outbound_queue")
       .select("*")

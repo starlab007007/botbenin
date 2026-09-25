@@ -16,6 +16,10 @@ on:
       - "src/app-mobile/components/ChatRightPane.tsx"
       - "supabase/functions/waouh-agentic-core/**"
       - "supabase/functions/waouh-channel-in/**"
+      - "supabase/functions/waouh-negotiation-router/**"
+      - "supabase/functions/waouh-deal-ops/**"
+      - "supabase/functions/waouh-outbound-dispatch/**"
+      - "supabase/migrations/**"
       - "supabase/functions/_shared/waouh-nexus.ts"
       - "supabase/functions/_shared/waouh-signal-fabric.ts"
       - ".github/workflows/waouh-web-muse-nexus-ci.yml"
@@ -33,6 +37,10 @@ on:
       - "src/app-mobile/components/ChatRightPane.tsx"
       - "supabase/functions/waouh-agentic-core/**"
       - "supabase/functions/waouh-channel-in/**"
+      - "supabase/functions/waouh-negotiation-router/**"
+      - "supabase/functions/waouh-deal-ops/**"
+      - "supabase/functions/waouh-outbound-dispatch/**"
+      - "supabase/migrations/**"
       - "supabase/functions/_shared/waouh-nexus.ts"
       - "supabase/functions/_shared/waouh-signal-fabric.ts"
   workflow_dispatch:
@@ -74,3 +82,12 @@ jobs:
 
       - name: Check WAOUH Chat Channel
         run: deno check supabase/functions/waouh-channel-in/index.ts
+
+      - name: Check WAOUH Negotiation Router
+        run: deno check supabase/functions/waouh-negotiation-router/index.ts
+
+      - name: Check WAOUH Deal Operations
+        run: deno check supabase/functions/waouh-deal-ops/index.ts
+
+      - name: Check WAOUH Outbound Dispatcher
+        run: deno check supabase/functions/waouh-outbound-dispatch/index.ts

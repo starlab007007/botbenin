@@ -395,6 +395,15 @@ Map<String, dynamic> liveCommercePayloadMeta(String payload) {
     if (kind == LiveCommerceActionKind.counter &&
         RegExp(r'^\d+$').hasMatch(legacyReference)) {
       result.putIfAbsent('suggested_price', () => legacyReference);
+    } else if (<LiveCommerceActionKind>{
+      LiveCommerceActionKind.paymentMobile,
+      LiveCommerceActionKind.paymentDelivery,
+      LiveCommerceActionKind.sellerConfirm,
+      LiveCommerceActionKind.confirmPaymentCash,
+      LiveCommerceActionKind.confirmPaymentMobile,
+      LiveCommerceActionKind.cancelDeal,
+    }.contains(kind)) {
+      result.putIfAbsent('deal_id', () => legacyReference);
     } else {
       result.putIfAbsent('negotiation_id', () => legacyReference);
     }
@@ -419,6 +428,40 @@ Map<String, dynamic> liveCommercePayloadMeta(String payload) {
       result['action'] = 'reject';
       result['intent'] = 'negotiation_reject';
       result['commerce_action'] = 'reject_offer';
+      break;
+    case LiveCommerceActionKind.paymentMobile:
+      result['action'] = 'payment_preference';
+      result['intent'] = 'payment_preference';
+      result['commerce_action'] = 'payment_preference_mobile';
+      result['payment_method'] = 'mobile_money';
+      break;
+    case LiveCommerceActionKind.paymentDelivery:
+      result['action'] = 'payment_preference';
+      result['intent'] = 'payment_preference';
+      result['commerce_action'] = 'payment_preference_cod';
+      result['payment_method'] = 'cash';
+      break;
+    case LiveCommerceActionKind.sellerConfirm:
+      result['action'] = 'seller_confirm';
+      result['intent'] = 'seller_availability_confirm';
+      result['commerce_action'] = 'seller_confirm_available';
+      break;
+    case LiveCommerceActionKind.confirmPaymentCash:
+      result['action'] = 'confirm_payment';
+      result['intent'] = 'payment_confirmation';
+      result['commerce_action'] = 'confirm_payment_cash';
+      result['payment_method'] = 'cash';
+      break;
+    case LiveCommerceActionKind.confirmPaymentMobile:
+      result['action'] = 'confirm_payment';
+      result['intent'] = 'payment_confirmation';
+      result['commerce_action'] = 'confirm_payment_mobile';
+      result['payment_method'] = 'mobile_money';
+      break;
+    case LiveCommerceActionKind.cancelDeal:
+      result['action'] = 'cancel_deal';
+      result['intent'] = 'deal_cancel';
+      result['commerce_action'] = 'cancel_deal';
       break;
     case LiveCommerceActionKind.unknown:
       break;
@@ -536,7 +579,13 @@ _SmartMessageAction _scopeMessageAction(
   final kind = liveCommerceActionKind(action.payload);
   if (kind != LiveCommerceActionKind.accept &&
       kind != LiveCommerceActionKind.counter &&
-      kind != LiveCommerceActionKind.reject) {
+      kind != LiveCommerceActionKind.reject &&
+      kind != LiveCommerceActionKind.paymentMobile &&
+      kind != LiveCommerceActionKind.paymentDelivery &&
+      kind != LiveCommerceActionKind.sellerConfirm &&
+      kind != LiveCommerceActionKind.confirmPaymentCash &&
+      kind != LiveCommerceActionKind.confirmPaymentMobile &&
+      kind != LiveCommerceActionKind.cancelDeal) {
     return action;
   }
   final context = <String, String>{...liveCommerceScopeFromMessage(message)};
@@ -545,6 +594,15 @@ _SmartMessageAction _scopeMessageAction(
     if (kind == LiveCommerceActionKind.counter &&
         RegExp(r'^\d+$').hasMatch(legacyReference)) {
       context.putIfAbsent('suggested_price', () => legacyReference);
+    } else if (<LiveCommerceActionKind>{
+      LiveCommerceActionKind.paymentMobile,
+      LiveCommerceActionKind.paymentDelivery,
+      LiveCommerceActionKind.sellerConfirm,
+      LiveCommerceActionKind.confirmPaymentCash,
+      LiveCommerceActionKind.confirmPaymentMobile,
+      LiveCommerceActionKind.cancelDeal,
+    }.contains(kind)) {
+      context.putIfAbsent('deal_id', () => legacyReference);
     } else {
       context.putIfAbsent('negotiation_id', () => legacyReference);
     }
@@ -985,6 +1043,15 @@ _SmartMessageAction _premiumScopedAction({
     if (legacyKind == LiveCommerceActionKind.counter &&
         RegExp(r'^\d+$').hasMatch(legacyReference)) {
       params.putIfAbsent('suggested_price', () => legacyReference);
+    } else if (<LiveCommerceActionKind>{
+      LiveCommerceActionKind.paymentMobile,
+      LiveCommerceActionKind.paymentDelivery,
+      LiveCommerceActionKind.sellerConfirm,
+      LiveCommerceActionKind.confirmPaymentCash,
+      LiveCommerceActionKind.confirmPaymentMobile,
+      LiveCommerceActionKind.cancelDeal,
+    }.contains(legacyKind)) {
+      params.putIfAbsent('deal_id', () => legacyReference);
     } else {
       params.putIfAbsent('negotiation_id', () => legacyReference);
     }
@@ -1082,7 +1149,13 @@ _SmartMessageAction _premiumScopedAction({
   }
   if (kind == LiveCommerceActionKind.accept ||
       kind == LiveCommerceActionKind.counter ||
-      kind == LiveCommerceActionKind.reject) {
+      kind == LiveCommerceActionKind.reject ||
+      kind == LiveCommerceActionKind.paymentMobile ||
+      kind == LiveCommerceActionKind.paymentDelivery ||
+      kind == LiveCommerceActionKind.sellerConfirm ||
+      kind == LiveCommerceActionKind.confirmPaymentCash ||
+      kind == LiveCommerceActionKind.confirmPaymentMobile ||
+      kind == LiveCommerceActionKind.cancelDeal) {
     return _SmartMessageAction(
       payload: liveCanonicalWorkflowPayload(kind, context: params),
       label: action.label,

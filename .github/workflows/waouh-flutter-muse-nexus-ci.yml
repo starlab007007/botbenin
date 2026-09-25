@@ -66,6 +66,7 @@ jobs:
           flutter test test/live_nexus_service_test.dart
           flutter test test/live_agentic_waouh_test.dart
           flutter test test/live_models_test.dart
+          flutter test test/live_commerce_workflow_test.dart
           flutter test test/live_chat_premium_cards_test.dart
 
       - name: Build optimized arm64 test APK

@@ -169,7 +169,7 @@ export default function WaouhChatScreen() {
         PushNotifications.addListener("registration", async (token) => {
           try {
             await supabase.functions.invoke("register-device-token", {
-              body: { token: token.value, platform: "android" },
+              body: { fcm_token: token.value, platform: "android" },
             });
           } catch (e) {
             console.debug("[push] register failed", e);

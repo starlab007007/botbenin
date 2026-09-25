@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -19,6 +21,7 @@ import 'live_offline_banner.dart';
 import 'live_partner_businesses_v3.dart';
 import 'live_partner_products_v2.dart';
 import 'live_profile_screen_v2.dart';
+import 'live_push_service.dart';
 import 'live_screens.dart';
 import 'live_whatsapp_auth.dart';
 import 'live_whatsapp_ia_native_screen.dart';
@@ -37,9 +40,13 @@ import 'waouh_bi_workspace_screen.dart';
 
 import 'live_ia_final_hub_screen.dart';
 
+LivePushService? _livePushService;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await legacy.initializeWaouhBackend();
+  _livePushService = LivePushService(legacy.supabase);
+  unawaited(_livePushService!.initialize());
   runApp(const LiveWaouhProductionApp());
 }
 
