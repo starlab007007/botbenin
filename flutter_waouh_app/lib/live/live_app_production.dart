@@ -9,6 +9,7 @@ import 'avatar/live_avatar_controller.dart';
 import 'avatar/live_avatar_widgets.dart';
 import 'live_auth_screens.dart';
 import 'live_avatar_screen.dart';
+import 'live_avatar_commerce_screen.dart';
 import 'live_controller.dart';
 import 'live_controller_v2.dart';
 import 'live_inbox_production.dart';
@@ -161,6 +162,12 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
             GoRoute(
               path: '/app/avatar',
               builder: (_, __) => const LiveAvatarScreen(),
+            ),
+            GoRoute(
+              path: '/app/avatar/commerce/:intent',
+              builder: (_, state) => LiveAvatarCommerceScreen(
+                intent: state.pathParameters['intent'] ?? 'buy',
+              ),
             ),
             GoRoute(
               path: '/app/muse',
