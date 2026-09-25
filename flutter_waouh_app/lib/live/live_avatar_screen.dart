@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 
 import 'avatar/live_avatar_controller.dart';
 import 'avatar/live_avatar_widgets.dart';
-import 'live_controller.dart';
 import 'live_theme.dart';
 import 'live_widgets.dart';
 
@@ -18,24 +17,6 @@ class LiveAvatarScreen extends StatefulWidget {
 class _LiveAvatarScreenState extends State<LiveAvatarScreen> {
   bool _editing = false;
 
-  void _startGoal(
-    String prompt, {
-    required String intent,
-    LiveAvatarPresenceState state = LiveAvatarPresenceState.thinking,
-  }) {
-    final avatar = context.read<LiveAvatarController>();
-    final waouh = context.read<LiveWaouhController>();
-    avatar.showState(state);
-    waouh.setComposerSeed(
-      prompt,
-      meta: <String, dynamic>{
-        'source': 'avatar_home',
-        'intent': intent,
-        'avatar_name': avatar.name,
-      },
-    );
-    context.go('/app/chat/waouh');
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -114,11 +95,7 @@ class _LiveAvatarScreenState extends State<LiveAvatarScreen> {
                     subtitle: 'Je trouve et compare',
                     accent: WaouhPalette.blue,
                     background: const Color(0xFFEAF3FF),
-                    onTap: () => _startGoal(
-                      'Je veux acheter. Aide-moi à préciser mon besoin puis cherche et compare les meilleures offres avec NEXUS.',
-                      intent: 'buy',
-                      state: LiveAvatarPresenceState.searching,
-                    ),
+                    onTap: () => context.push('/app/avatar/journey/buy'),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -129,11 +106,7 @@ class _LiveAvatarScreenState extends State<LiveAvatarScreen> {
                     subtitle: 'Je trouve des acheteurs',
                     accent: const Color(0xFFE18A27),
                     background: const Color(0xFFFFF2E2),
-                    onTap: () => _startGoal(
-                      'Je veux vendre. Aide-moi à structurer mon offre puis trouve les acheteurs les plus pertinents.',
-                      intent: 'sell',
-                      state: LiveAvatarPresenceState.searching,
-                    ),
+                    onTap: () => context.push('/app/avatar/journey/sell'),
                   ),
                 ),
               ],
@@ -162,11 +135,7 @@ class _LiveAvatarScreenState extends State<LiveAvatarScreen> {
                     subtitle: 'Parlez naturellement',
                     accent: const Color(0xFF8B7CFF),
                     background: const Color(0xFFF2EFFF),
-                    onTap: () => _startGoal(
-                      'Aide-moi. Commence par comprendre ce dont j’ai besoin puis propose la meilleure suite.',
-                      intent: 'assistant',
-                      state: LiveAvatarPresenceState.listening,
-                    ),
+                    onTap: () => context.push('/app/avatar/journey/ask'),
                   ),
                 ),
               ],
