@@ -151,7 +151,7 @@ export default function WaouhAvatarPage({ embedded = false }: { embedded?: boole
             fabric_id: offer.fabric_id ?? null,
             title: offer.title,
             price: offer.price ?? offer.price_min ?? offer.price_max ?? null,
-            city: offer.city ?? city.trim() || null,
+            city: offer.city ?? (city.trim() || null),
           },
         },
       });
