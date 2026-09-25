@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'live_models.dart';
 import 'live_session.dart';
+import 'live_thread_flow.dart';
 
 class LiveMatchHistoryResult {
   const LiveMatchHistoryResult({
@@ -126,6 +127,8 @@ class LiveMatchHistoryService {
   }) async {
     final sessionId = await session.sessionId;
     final threadId = match.threadId?.trim() ?? '';
+    final articleId = match.isSearch ? '' : match.articleId.trim();
+    final correlationId = liveProvisionalInterestCorrelation(match);
 
     if (threadId.isNotEmpty) {
       try {
@@ -174,7 +177,8 @@ class LiveMatchHistoryService {
         body: <String, dynamic>{
           'threadId': threadId.isEmpty ? null : threadId,
           'matchKey': match.key,
-          'articleId': match.articleId,
+          'articleId': articleId.isEmpty ? null : articleId,
+          if (correlationId.isNotEmpty) 'correlationId': correlationId,
           'sessionId': sessionId,
           'authUserId': authUserId,
           'role': match.role,
