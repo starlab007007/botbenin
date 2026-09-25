@@ -972,8 +972,11 @@ async function refreshGooglePlaces(
   city?: string | null,
   limit = 10,
 ) {
-  const apiKey = Deno.env.get("GOOGLE_PLACES_API_KEY") || Deno.env.get("GOOGLE_MAPS_API_KEY") || "";
-  if (!apiKey) return { configured: false, inserted: 0, results: [] as any[], reason: "google_places_key_missing" };
+  const key = await getRadarApiKey(sb as any, "google_places", "GOOGLE_PLACES_API_KEY");
+  if (!key.ok || !key.key) {
+    return { configured: false, inserted: 0, results: [] as any[], reason: key.reason ?? "google_places_key_missing" };
+  }
+  const apiKey = key.key;
   const textQuery = [query, city, "Bénin"].filter(Boolean).join(" ");
   const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
@@ -983,7 +986,7 @@ async function refreshGooglePlaces(
       "X-Goog-FieldMask": [
         "places.id","places.displayName","places.formattedAddress","places.location",
         "places.nationalPhoneNumber","places.internationalPhoneNumber","places.websiteUri",
-        "places.googleMapsUri","places.businessStatus","places.rating","places.userRatingCount","places.types",
+        "places.googleMapsUri","places.businessStatus","places.rating","places.userRatingCount","places.types","places.photos",
       ].join(","),
     },
     body: JSON.stringify({
@@ -994,7 +997,11 @@ async function refreshGooglePlaces(
     }),
   });
   const raw = await response.text();
-  if (!response.ok) return { configured: true, inserted: 0, results: [], reason: `google_places_${response.status}`, detail: raw.slice(0, 300) };
+  await incrementRadarUsage(sb as any, key.configId, 1);
+  if (!response.ok) {
+    await markRadarProviderSync(sb as any, "google_places", "ko", `HTTP ${response.status}`);
+    return { configured: true, inserted: 0, results: [], reason: `google_places_${response.status}`, detail: raw.slice(0, 300) };
+  }
   const data = JSON.parse(raw);
   const places = Array.isArray(data?.places) ? data.places : [];
   const saved: any[] = [];
@@ -1002,6 +1009,23 @@ async function refreshGooglePlaces(
     const actorName = place?.displayName?.text ?? null;
     if (!actorName || !place?.id) continue;
     const contactPhones = [place.internationalPhoneNumber, place.nationalPhoneNumber].filter(Boolean);
+    const photoUrls: string[] = [];
+    for (const photo of (Array.isArray(place.photos) ? place.photos : []).slice(0, 3)) {
+      const name = String(photo?.name ?? "").trim();
+      if (!name) continue;
+      try {
+        const photoResponse = await fetch(
+          `https://places.googleapis.com/v1/${name}/media?maxWidthPx=1200&skipHttpRedirect=true`,
+          { headers: { "X-Goog-Api-Key": apiKey } },
+        );
+        if (photoResponse.ok) {
+          const photoData = await photoResponse.json().catch(() => ({}));
+          if (typeof photoData?.photoUri === "string") photoUrls.push(photoData.photoUri);
+        }
+      } catch {
+        // A photo failure never blocks the place/business signal.
+      }
+    }
     const ingested = await ingestCommerceSignal(sb, ownerId, {
       source_key: "google_places",
       source_external_id: String(place.id),
@@ -1015,6 +1039,7 @@ async function refreshGooglePlaces(
       latitude: place?.location?.latitude ?? null,
       longitude: place?.location?.longitude ?? null,
       contact_phones: contactPhones,
+      photo_urls: photoUrls,
       contact_consent_basis: "public_business",
       public_business: true,
       confidence: 0.72,
@@ -1028,10 +1053,12 @@ async function refreshGooglePlaces(
         website_uri: place.websiteUri ?? null,
         google_maps_uri: place.googleMapsUri ?? null,
         types: place.types ?? [],
+        photo_count: photoUrls.length,
       },
     }, { expectedIntent: "ANNOUNCE", publicBusiness: true });
     saved.push(ingested.signal);
   }
+  await markRadarProviderSync(sb as any, "google_places", "ok", `${saved.length} signaux unifiés`);
   return { configured: true, inserted: saved.length, results: saved };
 }
 
