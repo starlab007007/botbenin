@@ -339,7 +339,7 @@ class _PrimaryCard extends StatelessWidget {
                     const Spacer(),
                     if (badge > 0)
                       Container(
-                        minWidth: 24,
+                        constraints: const BoxConstraints(minWidth: 24),
                         height: 24,
                         padding: const EdgeInsets.symmetric(horizontal: 7),
                         alignment: Alignment.center,
