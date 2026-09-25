@@ -1,12 +1,12 @@
 import { NavLink } from 'react-router-dom';
-import { MessageCircle, Bot, Smartphone, Megaphone, Store } from 'lucide-react';
+import { MessageCircle, Bot, Smartphone, CircleUserRound, Store } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const tabs = [
   { to: '/app/chat', icon: MessageCircle, label: 'Chat' },
   { to: '/app/bots', icon: Bot, label: 'Bots' },
   { to: '/app/whatsapp', icon: Smartphone, label: 'WhatsApp IA' },
-  { to: '/app/diffusion', icon: Megaphone, label: 'Diffusion' },
+  { to: '/app/avatar', icon: CircleUserRound, label: 'Avatar' },
   { to: '/app/partner', icon: Store, label: 'Partenaire' },
 ];
 
