@@ -48,23 +48,6 @@ class _LiveMuseScreenState extends State<LiveMuseScreen> {
     context.go('/app/chat/waouh');
   }
 
-  void openWorkspace() {
-    final controller = context.read<LiveWaouhController>().agentic;
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.white,
-      builder: (_) => FractionallySizedBox(
-        heightFactor: .92,
-        child: LiveAgenticWorkspace(
-          controller: controller,
-          onResumeMission: resumeMission,
-        ),
-      ),
-    );
-  }
-
   void talkToMuse() {
     final controller = context.read<LiveWaouhController>();
     controller.setComposerSeed(
@@ -138,7 +121,7 @@ class _LiveMuseScreenState extends State<LiveMuseScreen> {
                         title: 'Missions',
                         subtitle: agentic.activeMissionCount.toString() +
                             ' active(s)',
-                        onTap: openWorkspace,
+                        onTap: () => context.push('/app/missions'),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -148,7 +131,7 @@ class _LiveMuseScreenState extends State<LiveMuseScreen> {
                         title: 'Veilles',
                         subtitle: agentic.activeWatchCount.toString() +
                             ' active(s)',
-                        onTap: openWorkspace,
+                        onTap: () => context.push('/app/missions'),
                       ),
                     ),
                   ],
@@ -157,7 +140,7 @@ class _LiveMuseScreenState extends State<LiveMuseScreen> {
                 _StatusCard(
                   pendingApprovals: agentic.pendingApprovalCount,
                   activityCount: agentic.activity.length,
-                  onOpen: openWorkspace,
+                  onOpen: () => context.push('/app/missions'),
                 ),
                 const SizedBox(height: 14),
                 const _MusePrinciples(),
