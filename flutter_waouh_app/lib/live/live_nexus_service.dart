@@ -130,6 +130,101 @@ class NexusDiscoveryItem {
       articleId?.trim().isNotEmpty == true &&
       sellerUserId?.trim().isNotEmpty == true;
 
+  String? _evidenceText(List<String> keys) {
+    for (final key in keys) {
+      final value = evidence[key];
+      if (value == null) continue;
+      final text = value.toString().trim();
+      if (text.isNotEmpty && text != 'null') return text;
+    }
+    return null;
+  }
+
+  List<String> get photoUrls {
+    final out = <String>{};
+    final photos = evidence['photos'];
+    if (photos is List) {
+      for (final value in photos) {
+        final text = value?.toString().trim() ?? '';
+        if (text.startsWith('http://') || text.startsWith('https://')) {
+          out.add(text);
+        }
+      }
+    }
+    for (final key in ['image_url', 'photo', 'thumbnail']) {
+      final text = evidence[key]?.toString().trim() ?? '';
+      if (text.startsWith('http://') || text.startsWith('https://')) {
+        out.add(text);
+      }
+    }
+    return out.take(4).toList(growable: false);
+  }
+
+  String get detailsSummary =>
+      _evidenceText(['details', 'description', 'summary', 'raw_text']) ??
+      [
+        if (category?.trim().isNotEmpty == true) 'Catégorie : $category',
+        if (city?.trim().isNotEmpty == true) 'Zone : $city',
+        if (_evidenceText(['condition', 'etat']) != null)
+          'État : ${_evidenceText(['condition', 'etat'])}',
+      ].where((value) => value.trim().isNotEmpty).join(' · ').trim();
+
+  String get marketSummary {
+    final explicit = _evidenceText([
+      'market_comparison',
+      'market_line',
+      'marche_reel',
+      'market_analysis',
+    ]);
+    if (explicit != null) return explicit;
+    final facts = <String>[
+      if (priceMin != null || priceMax != null)
+        'prix observé ${priceMin != null && priceMax != null && priceMin != priceMax ? '${priceMin!.round()}–${priceMax!.round()}' : (priceMin ?? priceMax)!.round()} FCFA',
+      if (scores.price > 0) 'score prix ${scores.price.round()}%',
+      if (scores.contactability > 0)
+        'contactabilité ${scores.contactability.round()}%',
+      'source $sourceLabel',
+    ];
+    return facts.join(' · ');
+  }
+
+  String get comparativeSummary {
+    final explicit = _evidenceText([
+      'comparative_analysis',
+      'analyse_comparative',
+      'deal_label',
+    ]);
+    if (explicit != null) return explicit;
+    final facts = <String>[
+      if (scores.total > 0) 'match ${scores.total.round()}%',
+      if (scores.relevance > 0) 'pertinence ${scores.relevance.round()}%',
+      if (scores.trust > 0) 'confiance ${scores.trust.round()}%',
+      'contact ${contactPolicy.level}',
+    ];
+    return 'Signal Fabric · ${facts.join(' · ')}';
+  }
+
+  String get recommendationSummary {
+    final explicit = _evidenceText([
+      'recommendation',
+      'recommandation',
+      'advice',
+      'conseil',
+      'ai_note',
+    ]);
+    if (explicit != null) return explicit;
+    if (scores.reasons.isNotEmpty) return scores.reasons.take(3).join(' · ');
+    final facts = <String>[
+      if (scores.trust >= 70) 'Confiance élevée',
+      if (scores.price >= 70) 'Prix cohérent avec les signaux disponibles',
+      if (contactPolicy.canBlindMessage || contactPolicy.canAutoContact)
+        'Mise en relation médiée possible',
+    ];
+    return facts.isEmpty
+        ? 'Vérifier disponibilité, état et conditions avant l’accord.'
+        : facts.join(' · ');
+  }
+
   String get sourceLabel {
     final key = sourceKey.toLowerCase();
     if (key.contains('partner')) return 'Partenaire';
