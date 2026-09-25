@@ -93,27 +93,65 @@ async function syncDiscoverySourceState(
   config: any,
 ) {
   const sourceKey = String(config?.source_key || provider).trim();
-  if (!sourceKey) return;
-  let configured = !!config?.api_key;
-  if (provider === "whatsapp_groups" || provider === "sms_rcs") {
-    const native = await nativeProviderState(admin, provider);
-    configured = native.configured;
+  if (sourceKey) {
+    let configured = !!config?.api_key;
+    if (provider === "whatsapp_groups" || provider === "sms_rcs") {
+      const native = await nativeProviderState(admin, provider);
+      configured = native.configured;
+    }
+    const active = config?.active === true;
+    const operationalState = !active
+      ? "disabled"
+      : configured
+        ? "live"
+        : "requires_config";
+    await admin.from("waouh_discovery_sources").update({
+      operational_state: operationalState,
+      metadata: {
+        provider,
+        configured,
+        active,
+        last_admin_sync_at: new Date().toISOString(),
+      },
+    }).eq("source_key", sourceKey);
   }
-  const active = config?.active === true;
-  const operationalState = !active
-    ? "disabled"
-    : configured
-      ? "live"
-      : "requires_config";
+
+  // Public Web/social discovery is composite: SerpAPI, Apify and Firecrawl can
+  // independently keep these surfaces operational.
+  const { data: configs } = await admin.from("waouh_radar_api_configs")
+    .select("provider,active,api_key");
+  const ready = new Map(
+    (configs ?? []).map((row: any) => [
+      String(row.provider),
+      row.active === true && !!String(row.api_key || "").trim(),
+    ]),
+  );
+  const serp = ready.get("serpapi") === true;
+  const apify = ready.get("apify") === true;
+  const firecrawl = ready.get("firecrawl") === true;
+  const compositeState = serp || apify || firecrawl ? "live" : "requires_config";
   await admin.from("waouh_discovery_sources").update({
-    operational_state: operationalState,
+    operational_state: compositeState,
     metadata: {
-      provider,
-      configured,
-      active,
+      providers: { serpapi: serp, apify, firecrawl },
       last_admin_sync_at: new Date().toISOString(),
     },
-  }).eq("source_key", sourceKey);
+  }).in("source_key", [
+    "web_social",
+    "facebook_public",
+    "instagram_public",
+    "tiktok_public",
+    "linkedin_public",
+    "youtube_public",
+    "x_public",
+  ]);
+  await admin.from("waouh_discovery_sources").update({
+    operational_state: firecrawl ? "live" : "requires_config",
+    metadata: {
+      providers: { firecrawl },
+      last_admin_sync_at: new Date().toISOString(),
+    },
+  }).eq("source_key", "rss_public");
 }
 
 async function testProvider(
