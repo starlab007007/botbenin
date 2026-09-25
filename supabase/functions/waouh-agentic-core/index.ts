@@ -1102,10 +1102,13 @@ async function refreshGooglePlaces(
 function publicSourceKey(urlValue: string, mode: DiscoveryMode) {
   try {
     const host = new URL(urlValue).hostname.toLowerCase().replace(/^www\./, "");
-    if (host === "facebook.com" || host.endsWith(".facebook.com") || host === "fb.com") return "facebook_business";
-    if (host === "instagram.com" || host.endsWith(".instagram.com")) return "instagram_business";
-    if (host === "tiktok.com" || host.endsWith(".tiktok.com")) return "tiktok_connected";
+    if (host === "facebook.com" || host.endsWith(".facebook.com") || host === "fb.com") return "facebook_public";
+    if (host === "instagram.com" || host.endsWith(".instagram.com")) return "instagram_public";
+    if (host === "tiktok.com" || host.endsWith(".tiktok.com")) return "tiktok_public";
     if (host === "t.me" || host.endsWith(".telegram.me") || host.endsWith(".telegram.org")) return "telegram_public";
+    if (host === "linkedin.com" || host.endsWith(".linkedin.com")) return "linkedin_public";
+    if (host === "youtube.com" || host.endsWith(".youtube.com") || host === "youtu.be") return "youtube_public";
+    if (host === "x.com" || host.endsWith(".x.com") || host === "twitter.com" || host.endsWith(".twitter.com")) return "x_public";
     if (host === "monentreprise.bj" || host.endsWith(".cci.bj") || host.endsWith(".apiex.bj")) return "benin_directory";
     if (mode === "find_buyers" && (
       host.includes("marches-publics") || host.includes("appeloffres") || host.includes("tender") ||
@@ -1123,7 +1126,7 @@ function publicSearchProfiles(mode: DiscoveryMode, query: string, city?: string 
   const sellIntent = '("à vendre" OR vente OR prix OR disponible OR arrivage OR boutique OR fournisseur)';
   const buyIntent = '("je cherche" OR "besoin de" OR "qui vend" OR "cherche fournisseur" OR "demande de cotation" OR RFQ OR "appel d\'offres")';
   const intent = mode === "find_sellers" ? sellIntent : buyIntent;
-  const socialSites = "(site:facebook.com OR site:instagram.com OR site:tiktok.com OR site:t.me)";
+  const socialSites = "(site:facebook.com OR site:instagram.com OR site:tiktok.com OR site:t.me OR site:linkedin.com OR site:youtube.com OR site:x.com OR site:twitter.com)";
   const localBusinessSites = "(site:monentreprise.bj OR site:cci.bj OR site:apiex.bj OR site:.bj)";
   const commerceSites = "(site:jiji.bj OR site:afribaba.bj OR site:expat.com OR site:linkedin.com)";
   const b2bSites = "(site:marches-publics.bj OR site:armp.bj OR site:dgmp.bj OR site:linkedin.com OR site:.bj)";
