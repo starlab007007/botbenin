@@ -541,7 +541,7 @@ export function WaouhMatchChatWindow({
     if (overrideText == null) setInput("");
     try {
       // Product + Deal Graph scope travels via metadata; visible text stays human-readable.
-      const invokeP = supabase.functions.invoke("waouh-channel-in", {
+      const invokeP = supabase.functions.invoke("waouh-channel-in-secure", {
         headers: { "x-waouh-session": sessionId },
         body: {
           channel: "web",
