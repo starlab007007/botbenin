@@ -87,7 +87,7 @@ String _phaseLabel(LiveMusePhase phase) {
     case LiveMusePhase.searching: return 'NEXUS cherche';
     case LiveMusePhase.comparing: return 'Signal Fabric compare';
     case LiveMusePhase.contacting: return 'Prépare le contact';
-    case LiveMusePhase.negotiating: return 'Muse négocie';
+    case LiveMusePhase.negotiating: return 'Votre Avatar négocie';
     case LiveMusePhase.success: return 'Objectif atteint';
     case LiveMusePhase.idle: return 'Prêt';
   }
