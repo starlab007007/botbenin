@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feat/waouh-web-flutter-nexus-final
+      - feat/waouh-avatar-deal-graph-e2e
       - prod
     paths:
       - "flutter_waouh_app/**"
