@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'live_agentic_controller.dart';
 import 'live_agentic_models.dart';
+import '../live_theme.dart';
 
 class LiveAgenticSummaryBar extends StatelessWidget {
   const LiveAgenticSummaryBar({
@@ -17,7 +18,8 @@ class LiveAgenticSummaryBar extends StatelessWidget {
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: controller,
         builder: (context, _) => Material(
-          color: const Color(0xFFF4FBF7),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
           child: InkWell(
             onTap: () => _open(context),
             child: Padding(
@@ -27,7 +29,7 @@ class LiveAgenticSummaryBar extends StatelessWidget {
                   const Icon(
                     Icons.auto_awesome_rounded,
                     size: 19,
-                    color: Color(0xFF08745D),
+                    color: WaouhPalette.blue,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -44,7 +46,7 @@ class LiveAgenticSummaryBar extends StatelessWidget {
                             count: controller.activeWatchCount,
                           ),
                           _Counter(
-                            label: 'Accords',
+                            label: 'À valider',
                             count: controller.pendingApprovalCount,
                             alert: controller.pendingApprovalCount > 0,
                           ),
@@ -95,16 +97,16 @@ class _Counter extends StatelessWidget {
         margin: const EdgeInsets.only(right: 7),
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
         decoration: BoxDecoration(
-          color: alert ? const Color(0xFFFFF2D9) : Colors.white,
+          color: alert ? const Color(0xFFFFF3E2) : const Color(0xFFF3F7FF),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: alert ? const Color(0xFFD48A00) : const Color(0xFFCBE4D9),
+            color: alert ? const Color(0xFFF2D09A) : WaouhPalette.line,
           ),
         ),
         child: Text(
           '$label $count',
           style: TextStyle(
-            color: alert ? const Color(0xFF8C5700) : const Color(0xFF315D50),
+            color: alert ? const Color(0xFFD77D17) : WaouhPalette.blue,
             fontSize: 11.5,
             fontWeight: FontWeight.w800,
           ),
@@ -130,51 +132,72 @@ class LiveAgenticWorkspace extends StatelessWidget {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 12, 8, 4),
+              padding: const EdgeInsets.fromLTRB(16, 10, 8, 8),
               child: Row(
                 children: [
                   const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Centre agentique WAOUH',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF103A30),
-                          ),
-                        ),
-                        Text(
-                          'Suivez ce que l’agent prépare et gardez le contrôle.',
-                          style: TextStyle(
-                            color: Color(0xFF60776E),
-                            fontSize: 12.5,
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      'Suivi',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: WaouhPalette.ink,
+                      ),
                     ),
                   ),
                   if (!standalone)
-                    IconButton(
+                    IconButton.filledTonal(
                       tooltip: 'Fermer',
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(0xFFF1F5FC),
+                      ),
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close_rounded),
+                      icon: const Icon(Icons.close_rounded, size: 19),
                     ),
                 ],
               ),
             ),
-            const TabBar(
-              isScrollable: true,
-              tabAlignment: TabAlignment.start,
-              tabs: [
-                Tab(icon: Icon(Icons.flag_outlined), text: 'Missions'),
-                Tab(
-                    icon: Icon(Icons.notifications_active_outlined),
-                    text: 'Veilles'),
-                Tab(icon: Icon(Icons.verified_user_outlined), text: 'Validations'),
-                Tab(icon: Icon(Icons.history_rounded), text: 'Activité'),
-              ],
+            Container(
+              height: 44,
+              margin: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5FC),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const TabBar(
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                dividerColor: Colors.transparent,
+                indicatorSize: TabBarIndicatorSize.tab,
+                indicator: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.all(Radius.circular(12)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x1552709F),
+                      blurRadius: 10,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                labelColor: WaouhPalette.blue,
+                unselectedLabelColor: WaouhPalette.muted,
+                labelStyle: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                ),
+                unselectedLabelStyle: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                ),
+                tabs: [
+                  Tab(icon: Icon(Icons.flag_outlined, size: 17), text: 'Missions'),
+                  Tab(icon: Icon(Icons.notifications_active_outlined, size: 17), text: 'Veilles'),
+                  Tab(icon: Icon(Icons.verified_user_outlined, size: 17), text: 'Validations'),
+                  Tab(icon: Icon(Icons.history_rounded, size: 17), text: 'Activité'),
+                ],
+              ),
             ),
             Expanded(
               child: ListenableBuilder(
@@ -218,8 +241,7 @@ class _MissionsTab extends StatelessWidget {
       return const _EmptyState(
         icon: Icons.search_rounded,
         title: 'Aucune mission',
-        message:
-            'Écrivez « Je cherche… » dans le chat pour lancer une mission.',
+        message: 'Créez une mission depuis Muse.',
       );
     }
     return ListView.separated(
@@ -263,8 +285,8 @@ class _MissionCard extends StatelessWidget {
       elevation: 0,
       color: Colors.white,
       shape: RoundedRectangleBorder(
-        side: const BorderSide(color: Color(0xFFD5E8DF)),
-        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: WaouhPalette.line),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -386,7 +408,7 @@ class _WatchesTab extends StatelessWidget {
       return const _EmptyState(
         icon: Icons.notifications_none_rounded,
         title: 'Aucune veille',
-        message: 'Touchez « Suivre prix/stock » sur une carte produit.',
+        message: 'Activez une veille depuis une offre.',
       );
     }
     return ListView.separated(
@@ -403,19 +425,19 @@ class _WatchesTab extends StatelessWidget {
                   ? const Color(0xFFE3A42D)
                   : const Color(0xFFD5E8DF),
             ),
-            borderRadius: BorderRadius.circular(15),
+            borderRadius: BorderRadius.circular(20),
           ),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
             child: Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: const Color(0xFFE7F7F0),
+                  backgroundColor: const Color(0xFFF0F5FF),
                   child: Icon(
                     watch.targetReached
                         ? Icons.trending_down_rounded
                         : Icons.visibility_outlined,
-                    color: const Color(0xFF08745D),
+                    color: WaouhPalette.blue,
                   ),
                 ),
                 const SizedBox(width: 11),
@@ -471,8 +493,8 @@ class _ApprovalsTab extends StatelessWidget {
     if (controller.approvals.isEmpty) {
       return const _EmptyState(
         icon: Icons.verified_user_outlined,
-        title: 'Aucun accord en attente',
-        message: 'Les actions non financières sensibles apparaîtront ici.',
+        title: 'Rien à valider',
+        message: 'Les demandes sensibles apparaîtront ici.',
       );
     }
     return ListView.separated(
@@ -486,7 +508,7 @@ class _ApprovalsTab extends StatelessWidget {
           color: approval.pending ? const Color(0xFFFFFBF2) : Colors.white,
           shape: RoundedRectangleBorder(
             side: const BorderSide(color: Color(0xFFE9D7A9)),
-            borderRadius: BorderRadius.circular(15),
+            borderRadius: BorderRadius.circular(20),
           ),
           child: Padding(
             padding: const EdgeInsets.all(14),
@@ -506,7 +528,7 @@ class _ApprovalsTab extends StatelessWidget {
                       : _approvalLabel(approval.status),
                   color: approval.pending
                       ? const Color(0xFF9B6500)
-                      : const Color(0xFF60776E),
+                      : WaouhPalette.muted,
                 ),
                 if (approval.pending) ...[
                   const SizedBox(height: 10),
@@ -548,8 +570,8 @@ class _ActivityTab extends StatelessWidget {
     if (controller.activity.isEmpty) {
       return const _EmptyState(
         icon: Icons.history_rounded,
-        title: 'Journal vide',
-        message: 'Les recherches et décisions de WAOUH seront visibles ici.',
+        title: 'Aucune activité',
+        message: 'L’activité de WAOUH apparaîtra ici.',
       );
     }
     return ListView.builder(
@@ -562,9 +584,9 @@ class _ActivityTab extends StatelessWidget {
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 4),
             leading: CircleAvatar(
-              backgroundColor: const Color(0xFFEAF7F1),
+              backgroundColor: const Color(0xFFF0F5FF),
               child: Icon(_activityIcon(item.kind),
-                  color: const Color(0xFF08745D)),
+                  color: WaouhPalette.blue),
             ),
             title: Text(
               item.title,
@@ -621,7 +643,7 @@ class _EmptyState extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 48, color: const Color(0xFF6E9185)),
+              Icon(icon, size: 48, color: const Color(0xFF8A9AB6)),
               const SizedBox(height: 12),
               Text(
                 title,
