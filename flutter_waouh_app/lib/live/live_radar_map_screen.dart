@@ -15,6 +15,7 @@ import 'live_models.dart';
 import 'live_radar_models.dart';
 import 'live_radar_service.dart';
 import 'live_widgets.dart';
+import 'live_theme.dart';
 
 /// Carte Radar native : GPS réel, rayons 1/5/20/100 km et résultats Supabase.
 class LiveRadarMapScreen extends StatefulWidget {
@@ -183,7 +184,7 @@ class _LiveRadarMapScreenState extends State<LiveRadarMapScreen>
                 width: 42,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFC8D9D2),
+                  color: const Color(0xFFD8E2F1),
                   borderRadius: BorderRadius.circular(99),
                 ),
               ),
@@ -398,8 +399,9 @@ class _LiveRadarMapScreenState extends State<LiveRadarMapScreen>
                 'Portée ${liveRadarRadiusLabel(_filters.effectiveRadiusKm)}'),
             style: FilledButton.styleFrom(
               backgroundColor: Colors.white.withOpacity(.96),
-              foregroundColor: const Color(0xFF075E54),
-              elevation: 3,
+              foregroundColor: WaouhPalette.blue,
+              elevation: 0,
+              side: const BorderSide(color: WaouhPalette.line),
             ),
           ),
         ),
@@ -436,7 +438,7 @@ class _LiveRadarMapScreenState extends State<LiveRadarMapScreen>
           child: FilledButton.icon(
             onPressed: _loading ? null : () => _refresh(refreshLocation: true),
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF08756A),
+              backgroundColor: WaouhPalette.blue,
               foregroundColor: Colors.white,
               minimumSize: const Size(0, 44),
             ),
@@ -504,13 +506,8 @@ class _MapHeader extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(.96),
         borderRadius: BorderRadius.circular(20),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x2E003D33),
-            blurRadius: 18,
-            offset: Offset(0, 7),
-          ),
-        ],
+        border: Border.all(color: WaouhPalette.line),
+        boxShadow: WaouhShadows.card,
       ),
       child: Row(
         children: [
@@ -530,7 +527,7 @@ class _MapHeader extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: Color(0xFF08756A),
+                    color: WaouhPalette.blue,
                     fontSize: 12.5,
                     fontWeight: FontWeight.w800,
                   ),
@@ -596,17 +593,25 @@ class _MapActionButton extends StatelessWidget {
         children: [
           Material(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            elevation: 4,
-            child: Tooltip(
-              message: tooltip,
-              child: IconButton(
+            borderRadius: BorderRadius.circular(15),
+            elevation: 0,
+            shadowColor: Colors.transparent,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border.all(color: WaouhPalette.line),
+                borderRadius: BorderRadius.circular(15),
+                boxShadow: WaouhShadows.card,
+              ),
+              child: Tooltip(
+                message: tooltip,
+                child: IconButton(
                 onPressed: onPressed,
                 icon: Icon(
                   icon,
                   color: danger
                       ? const Color(0xFFE34A53)
                       : const Color(0xFF08756A),
+                ),
                 ),
               ),
             ),
@@ -707,9 +712,9 @@ class _CurrentLocationMarker extends StatelessWidget {
             width: 58,
             height: 58,
             decoration: BoxDecoration(
-              color: const Color(0x5521D49B),
+              color: const Color(0x334F7FFF),
               shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFF08756A), width: 2),
+              border: Border.all(color: WaouhPalette.blue, width: 2),
             ),
           ),
           const BrandMark(size: 40, semanticLabel: 'Votre position WAOUH'),
@@ -814,14 +819,15 @@ class _RadarResultsSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final live = snapshot?.backendMode == true;
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFFFBFDFC),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        border: Border.all(color: WaouhPalette.line),
         boxShadow: [
           BoxShadow(
-            color: Color(0x2800372F),
-            blurRadius: 18,
-            offset: Offset(0, -6),
+            color: const Color(0xFF496B9B).withValues(alpha: .10),
+            blurRadius: 28,
+            offset: const Offset(0, -8),
           ),
         ],
       ),
@@ -834,7 +840,7 @@ class _RadarResultsSheet extends StatelessWidget {
               width: 42,
               height: 4,
               decoration: BoxDecoration(
-                color: const Color(0xFFC8D9D2),
+                color: const Color(0xFFD8E2F1),
                 borderRadius: BorderRadius.circular(99),
               ),
             ),
@@ -851,7 +857,7 @@ class _RadarResultsSheet extends StatelessWidget {
               Text(
                 '$allCount',
                 style: const TextStyle(
-                  color: Color(0xFF08756A),
+                  color: WaouhPalette.blue,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -868,7 +874,7 @@ class _RadarResultsSheet extends StatelessWidget {
                         'Résultats locaux disponibles',
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Color(0xFF667A73), fontSize: 12),
+            style: const TextStyle(color: WaouhPalette.muted, fontSize: 12),
           ),
           const SizedBox(height: 14),
           if (error != null)
@@ -983,7 +989,7 @@ class _RadarListItem extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Color(0xFF08756A),
+                          color: WaouhPalette.blue,
                           fontWeight: FontWeight.w800,
                           fontSize: 12,
                         ),
@@ -994,7 +1000,7 @@ class _RadarListItem extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Color(0xFF667A73),
+                          color: WaouhPalette.muted,
                           fontSize: 11.5,
                         ),
                       ),
@@ -1031,7 +1037,7 @@ class _EmptyRadarState extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF667A73), height: 1.35),
+              style: const TextStyle(color: WaouhPalette.muted, height: 1.35),
             ),
             const SizedBox(height: 12),
             OutlinedButton.icon(
@@ -1201,7 +1207,7 @@ class _FallbackPhoto extends StatelessWidget {
           type == LiveRadarItemType.buy
               ? Icons.search_rounded
               : Icons.shopping_bag_outlined,
-          color: const Color(0xFF08756A),
+          color: WaouhPalette.blue,
           size: 40,
         ),
       );
@@ -1280,7 +1286,7 @@ class _RadarMapFiltersSheetState extends State<_RadarMapFiltersSheet> {
                     width: 42,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFC8D9D2),
+                      color: const Color(0xFFD8E2F1),
                       borderRadius: BorderRadius.circular(99),
                     ),
                   ),
