@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../live_ia_premium_ui.dart';
 
 class StudioCountryDialCode {
   const StudioCountryDialCode({
@@ -465,7 +466,7 @@ Future<StudioCountryDialCode?> showStudioCountryPicker(
     builder: (sheetContext) => FractionallySizedBox(
       heightFactor: 0.88,
       child: Material(
-        color: const Color(0xFFF4FAF8),
+        color: WaouhIaPalette.canvas,
         borderRadius: const BorderRadius.vertical(
           top: Radius.circular(28),
         ),
@@ -501,7 +502,7 @@ Future<StudioCountryDialCode?> showStudioCountryPicker(
                             Text(
                               'Tous les indicatifs internationaux',
                               style: TextStyle(
-                                color: Color(0xFF667874),
+                                color: WaouhIaPalette.muted,
                                 fontSize: 12,
                               ),
                             ),
@@ -568,7 +569,7 @@ Future<StudioCountryDialCode?> showStudioCountryPicker(
                                   Text(
                                     '+${item.dialCode}',
                                     style: const TextStyle(
-                                      color: Color(0xFF0B7F72),
+                                      color: WaouhIaPalette.primary,
                                       fontWeight: FontWeight.w900,
                                     ),
                                   ),
@@ -576,7 +577,7 @@ Future<StudioCountryDialCode?> showStudioCountryPicker(
                                     const SizedBox(width: 8),
                                     const Icon(
                                       Icons.check_circle_rounded,
-                                      color: Color(0xFF0B7F72),
+                                      color: WaouhIaPalette.primary,
                                     ),
                                   ],
                                 ],
@@ -641,7 +642,7 @@ class StudioInternationalPhoneField extends StatelessWidget {
                   minimumSize: const Size.fromHeight(57),
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   backgroundColor: Colors.white,
-                  side: const BorderSide(color: Color(0xFFDCEBE7)),
+                  side: const BorderSide(color: WaouhIaPalette.line),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
                   ),
@@ -656,7 +657,7 @@ class StudioInternationalPhoneField extends StatelessWidget {
                         '+${country.dialCode}',
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          color: Color(0xFF075F57),
+                          color: WaouhIaPalette.primaryDeep,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -696,7 +697,7 @@ class StudioInternationalPhoneField extends StatelessWidget {
           Text(
             helperText!,
             style: const TextStyle(
-              color: Color(0xFF667874),
+              color: WaouhIaPalette.muted,
               fontSize: 11,
             ),
           ),
