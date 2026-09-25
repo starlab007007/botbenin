@@ -20,7 +20,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
-  expressNexusInterest,
   globalNexusDiscovery,
   prepareNexusContact,
   sendNexusDiscoveryContact,
@@ -120,12 +119,37 @@ export default function WaouhAvatarCommercePage() {
       ).trim();
 
       if (articleId) {
-        await expressNexusInterest({ article_id: articleId, catalog_id: null } as any);
-        toast({
-          title: "Intérêt transmis",
-          description: "Le vendeur reçoit la notification. Votre Deal Room apparaîtra dans les discussions.",
-        });
+        const sellerUserId = String(
+          (evidence.seller_user_id as string | undefined) ||
+            (evidence.owner_user_id as string | undefined) ||
+            (evidence.user_id as string | undefined) ||
+            ""
+        ).trim();
+        const detail = {
+          article_id: articleId,
+          counterpart_user_id: sellerUserId || null,
+          seller_user_id: sellerUserId || null,
+          kind: "buyer",
+          title: item.subject || item.raw_text || "Annonce",
+          price: item.price_min ?? item.price_max ?? null,
+          city: item.city ?? null,
+          source: "avatar_commerce",
+        };
+        try {
+          const raw = localStorage.getItem("waouh_pending_open");
+          const items = raw ? JSON.parse(raw) : [];
+          const list = Array.isArray(items) ? items : [];
+          list.push(detail);
+          localStorage.setItem("waouh_pending_open", JSON.stringify(list.slice(-10)));
+        } catch {}
         navigate("/app/chat");
+        window.setTimeout(() => {
+          window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));
+        }, 60);
+        toast({
+          title: "Deal Room en préparation",
+          description: "Le vendeur reçoit la notification et WAOUH ouvre la discussion dédiée.",
+        });
         return;
       }
 
