@@ -19,6 +19,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { getWaouhSessionId } from "@/app-mobile/hooks/useWaouhIdentity";
 import {
   globalNexusDiscovery,
   prepareNexusContact,
@@ -177,14 +179,58 @@ export default function WaouhAvatarCommercePage() {
             (evidence.user_id as string | undefined) ||
             ""
         ).trim();
-        const detail = {
+        const title = item.subject || item.raw_text || "Annonce";
+        const price = item.price_min ?? item.price_max ?? null;
+        const sessionId = getWaouhSessionId();
+        const { data: authData } = await supabase.auth.getUser();
+        const text = `Je suis intéressé par « ${title} ».`;
+        const meta = {
+          source: "avatar_commerce",
+          origin_surface: "web_avatar_commerce",
+          action: "interested",
+          intent: "interested",
+          commerce_action: "interest",
+          thread_type: "product_meet",
           article_id: articleId,
-          counterpart_user_id: sellerUserId || null,
           seller_user_id: sellerUserId || null,
-          kind: "buyer",
-          title: item.subject || item.raw_text || "Annonce",
-          price: item.price_min ?? item.price_max ?? null,
+          counterpart_user_id: sellerUserId || null,
+          title,
           city: item.city ?? null,
+          price,
+          fabric_id: item.fabric_id,
+          contactability_level: item.contact_policy.level,
+          nexus_total_score: item.scores?.total_score ?? null,
+          nexus_trust_score: item.scores?.trust_score ?? null,
+          nexus_reasons: item.scores?.reasons ?? [],
+        };
+
+        const { data, error } = await supabase.functions.invoke("waouh-channel-in-secure", {
+          headers: { "x-waouh-session": sessionId },
+          body: {
+            channel: "web",
+            sessionId,
+            text,
+            authUserId: authData.user?.id ?? null,
+            meta,
+          },
+        });
+        if (error || data?.error) {
+          throw new Error(error?.message || data?.message || data?.error || "Impossible de créer le Deal Room.");
+        }
+
+        const detail = {
+          article_id: data?.article_id || articleId,
+          counterpart_user_id: data?.counterpart_user_id || sellerUserId || null,
+          seller_user_id: data?.seller_user_id || sellerUserId || null,
+          buyer_user_id: data?.buyer_user_id || null,
+          thread_id: data?.thread_id || null,
+          negotiation_id: data?.negotiation_id || null,
+          deal_id: data?.deal_id || null,
+          kind: "buyer",
+          title,
+          price,
+          city: item.city ?? null,
+          seed_text: data?.reply || text,
           source: "avatar_commerce",
         };
         try {
@@ -194,13 +240,14 @@ export default function WaouhAvatarCommercePage() {
           list.push(detail);
           localStorage.setItem("waouh_pending_open", JSON.stringify(list.slice(-10)));
         } catch {}
+
         navigate("/app/chat");
         window.setTimeout(() => {
           window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));
         }, 60);
         toast({
-          title: "Deal Room en préparation",
-          description: "Le vendeur reçoit la notification et WAOUH ouvre la discussion dédiée.",
+          title: "Deal Room ouvert",
+          description: "Le vendeur est notifié. Votre Avatar vous accompagne dans la négociation.",
         });
         return;
       }
