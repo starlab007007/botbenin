@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
 import 'live_auth_screens.dart';
-import 'live_broadcast_screen.dart';
 import 'live_controller.dart';
 import 'live_controller_v2.dart';
 import 'live_inbox_production.dart';
@@ -12,6 +11,7 @@ import 'live_match_chat_v2.dart';
 import 'live_models.dart';
 import 'live_missions_screen.dart';
 import 'live_muse_screen.dart';
+import 'live_muse_missions_hub_screen.dart';
 import 'live_nexus_screen.dart';
 import 'live_notifications_screen_v2.dart';
 import 'live_offline_banner.dart';
@@ -233,8 +233,12 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
               ),
             ),
             GoRoute(
+              path: '/app/command',
+              builder: (_, __) => const LiveMuseMissionsHubScreen(),
+            ),
+            GoRoute(
               path: '/app/diffusion',
-              builder: (_, __) => const LiveBroadcastScreen(),
+              redirect: (_, __) => '/app/command',
             ),
             GoRoute(
               path: '/app/partner',
@@ -287,7 +291,12 @@ class LiveProductionShell extends StatelessWidget {
         path.startsWith('/app/presence')) {
       return 2;
     }
-    if (path.startsWith('/app/diffusion')) return 3;
+    if (path.startsWith('/app/command') ||
+        path.startsWith('/app/muse') ||
+        path.startsWith('/app/missions') ||
+        path.startsWith('/app/nexus')) {
+      return 3;
+    }
     if (path.startsWith('/app/partner')) return 4;
     return 0;
   }
@@ -295,9 +304,6 @@ class LiveProductionShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final focused = path.startsWith('/app/chat/') ||
-        path.startsWith('/app/muse') ||
-        path.startsWith('/app/missions') ||
-        path.startsWith('/app/nexus') ||
         path.startsWith('/app/profile') ||
         path.startsWith('/app/partner/businesses/');
     return Scaffold(
@@ -314,7 +320,7 @@ class LiveProductionShell extends StatelessWidget {
               onDestinationSelected: (index) => context.go(switch (index) {
                 1 => '/app/ia',
                 2 => '/app/whatsapp/conversationnel',
-                3 => '/app/diffusion',
+                3 => '/app/command',
                 4 => '/app/partner',
                 _ => '/app/chat',
               }),
@@ -332,8 +338,9 @@ class LiveProductionShell extends StatelessWidget {
                   label: 'IA',
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.campaign_outlined),
-                  label: 'Diffusion',
+                  icon: Icon(Icons.auto_awesome_rounded),
+                  selectedIcon: Icon(Icons.psychology_alt_rounded),
+                  label: 'Muse',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.storefront_outlined),
