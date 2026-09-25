@@ -15,6 +15,7 @@ const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const PROVIDERS: Record<string, { keyRequired: boolean; label: string }> = {
   serpapi: { keyRequired: true, label: "SerpAPI / Web public" },
   apify: { keyRequired: true, label: "Apify / Web social public" },
+  firecrawl: { keyRequired: true, label: "Firecrawl / Sites Web" },
   google_places: { keyRequired: true, label: "Google Places / Maps" },
   facebook_business: { keyRequired: true, label: "Facebook Business / Pages" },
   instagram_business: { keyRequired: true, label: "Instagram Business" },
@@ -105,6 +106,20 @@ async function testProvider(
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(`HTTP ${r.status} ${JSON.stringify(data).slice(0, 200)}`);
       return { ok: true, message: `Compte ${data?.data?.username || data?.data?.id || "Apify"}`, latency_ms: Date.now() - t0 };
+    }
+    if (provider === "firecrawl") {
+      const r = await fetch("https://api.firecrawl.dev/v2/scrape", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: "https://example.com",
+          formats: ["markdown"],
+          onlyMainContent: true,
+        }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok || data?.success === false) throw new Error(data?.error || `HTTP ${r.status}`);
+      return { ok: true, message: "Firecrawl opérationnel", latency_ms: Date.now() - t0 };
     }
     if (provider === "google_places") {
       const r = await fetch("https://places.googleapis.com/v1/places:searchText", {
