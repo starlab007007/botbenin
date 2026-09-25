@@ -34,7 +34,7 @@ values
 ('instagram_business','instagram_business','Instagram Business','oauth_token',false,300,'{"account_ids":[]}'::jsonb,'https://developers.facebook.com/docs/instagram-platform/'),
 ('telegram_public','telegram_public','Telegram public / Bot','bot_token',false,500,'{"chat_ids":[]}'::jsonb,'https://core.telegram.org/bots/api'),
 ('tiktok_connected','tiktok_connected','TikTok connecté','oauth_token',false,200,'{}'::jsonb,'https://developers.tiktok.com/doc/display-api-overview/'),
-('whatsapp_groups','whatsapp','WhatsApp groupes autorisés','native',true,0,'{"source_type":"wa_group"}'::jsonb,null),
+('whatsapp_groups','whatsapp_groups','WhatsApp groupes autorisés','native',true,0,'{"source_type":"wa_group"}'::jsonb,null),
 ('sms_rcs','sms_rcs','SMS / RCS WAOUH','native_settings',false,0,'{}'::jsonb,null)
 on conflict (provider) do update set
   source_key=excluded.source_key,label=excluded.label,auth_mode=excluded.auth_mode,
