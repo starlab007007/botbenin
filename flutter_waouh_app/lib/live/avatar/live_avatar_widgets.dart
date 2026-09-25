@@ -322,13 +322,17 @@ class LiveAvatarDock extends StatelessWidget {
                 ? LiveAvatarPresenceState.watching
                 : avatar.state;
 
+    final proactive = avatar.profile.proactivity == 'Proactif';
+    final discreet = avatar.profile.proactivity == 'Discret';
     final peek = approvalCount > 0
         ? '$approvalCount à valider'
-        : missionCount > 0
-            ? '$missionCount mission(s)'
-            : watchCount > 0
-                ? '$watchCount veille(s)'
-                : null;
+        : discreet
+            ? null
+            : proactive && missionCount > 0
+                ? '$missionCount mission(s)'
+                : proactive && watchCount > 0
+                    ? '$watchCount veille(s)'
+                    : null;
 
     return Semantics(
       button: true,
