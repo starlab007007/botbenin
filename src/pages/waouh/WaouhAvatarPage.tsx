@@ -3,14 +3,13 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   BarChart3,
-  Bot,
   CheckCircle2,
   Handshake,
   Loader2,
   MapPin,
   RefreshCw,
   Search,
-  Sell,
+  Tag,
   ShieldCheck,
   ShoppingBag,
   Sparkles,
@@ -276,7 +275,7 @@ export default function WaouhAvatarPage() {
         <div className="grid grid-cols-3 rounded-2xl bg-slate-100 p-1">
           {([
             ["buy", ShoppingBag, "Acheter"],
-            ["sell", Sell, "Vendre"],
+            ["sell", Tag, "Vendre"],
             ["ask", Sparkles, "Demander"],
           ] as const).map(([value, Icon, label]) => (
             <button
