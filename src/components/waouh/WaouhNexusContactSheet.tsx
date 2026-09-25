@@ -110,7 +110,7 @@ export function WaouhNexusContactSheet({
     contactabilityLevel === "C2"
       ? "Transmettre via WAOUH"
       : contactabilityLevel === "C3" || contactabilityLevel === "C4"
-        ? "Laisser Muse poursuivre"
+        ? "Laisser l’Avatar poursuivre"
         : contactabilityLevel === "C1"
           ? "Contacter"
           : "Voir le contact";
@@ -149,7 +149,7 @@ export function WaouhNexusContactSheet({
           </div>
         ) : busy && !prepared ? (
           <div className="mt-6 flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Muse vérifie la politique de contact…
+            <Loader2 className="h-4 w-4 animate-spin" /> Votre Avatar vérifie la politique de contact…
           </div>
         ) : prepared ? (
           <div className="mt-5 space-y-4">
@@ -197,7 +197,7 @@ export function WaouhNexusContactSheet({
                 <div className="text-xs font-semibold">
                   {prepared.contact_policy.can_blind_message
                     ? "WAOUH transmet votre proposition sans révéler les coordonnées"
-                    : "Message que Muse peut transmettre"}
+                    : "Message que votre Avatar peut transmettre"}
                 </div>
                 <Textarea value={message} onChange={(event) => setMessage(event.target.value)} rows={3} />
                 <Button size="sm" disabled={busy || !message.trim()} onClick={() => void send()}>
