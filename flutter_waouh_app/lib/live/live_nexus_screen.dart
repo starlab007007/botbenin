@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../main.dart' as legacy;
+import 'avatar/live_avatar_controller.dart';
 import 'live_controller.dart';
 import 'live_nexus_service.dart';
 import 'live_widgets.dart';
@@ -181,8 +182,12 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
       );
       if (!mounted) return;
       notice(
-        'Mission + veille créées. Muse continuera la recherche.',
+        'Mission + veille créées. Votre Avatar continuera la recherche.',
         success: true,
+      );
+      context.read<LiveAvatarController>().showState(
+        LiveAvatarPresenceState.watching,
+        duration: const Duration(seconds: 4),
       );
       final userId = legacy.supabase.auth.currentUser?.id;
       if (userId != null && mounted) {
