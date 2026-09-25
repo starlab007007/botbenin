@@ -169,7 +169,7 @@ export default function WaouhAvatarPage({ embedded = false }: { embedded?: boole
         kind: "buyer",
         title: offer.title,
         price: offer.price ?? offer.price_min ?? offer.price_max ?? null,
-        city: offer.city ?? city || null,
+        city: offer.city ?? (city || null),
         photo: offer.photos?.[0] ?? null,
         source: "avatar_journey",
         thread_id: data.thread_id ?? null,
