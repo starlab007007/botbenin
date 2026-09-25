@@ -18,7 +18,7 @@ export function loadWaouhProductIntelligence(articleId: string) {
   const previous = cache.get(id);
   if (previous) return previous;
   const request = supabase.functions
-    .invoke("waouh-product-intelligence", { body: { article_id: id } })
+    .invoke("setup-test-accounts", { body: { article_id: id } })
     .then(({ data, error }) => {
       if (error || !data?.ok) return null;
       return data as WaouhProductIntelligence;
