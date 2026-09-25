@@ -1204,6 +1204,318 @@ async function refreshSerpApi(
   };
 }
 
+
+async function refreshFacebookBusiness(
+  sb: SupabaseClient,
+  ownerId: string,
+  query: string,
+  limit = 8,
+) {
+  const ready = await getRadarApiKey(sb as any, "facebook_business");
+  if (!ready.ok || !ready.key) {
+    return { configured: false, inserted: 0, results: [] as any[], reason: ready.reason ?? "facebook_not_ready" };
+  }
+  const cfg = ready.config?.extra_config ?? {};
+  let pageIds = Array.isArray((cfg as any).page_ids)
+    ? (cfg as any).page_ids.map((v: any) => String(v).trim()).filter(Boolean)
+    : [];
+  if (!pageIds.length) {
+    try {
+      const pagesRes = await fetch(
+        `https://graph.facebook.com/me/accounts?fields=id,name&limit=25&access_token=${encodeURIComponent(ready.key)}`,
+      );
+      const pagesData = await pagesRes.json().catch(() => ({}));
+      pageIds = Array.isArray(pagesData?.data)
+        ? pagesData.data.map((p: any) => String(p?.id ?? "")).filter(Boolean)
+        : [];
+    } catch {
+      // Admin can explicitly configure page_ids when account discovery is unavailable.
+    }
+  }
+  const saved: any[] = [];
+  for (const pageId of pageIds.slice(0, 10)) {
+    try {
+      const infoRes = await fetch(
+        `https://graph.facebook.com/${encodeURIComponent(pageId)}?fields=id,name,phone,website,link&access_token=${encodeURIComponent(ready.key)}`,
+      );
+      const page = await infoRes.json().catch(() => ({}));
+      const postsRes = await fetch(
+        `https://graph.facebook.com/${encodeURIComponent(pageId)}/posts?fields=id,message,permalink_url,full_picture,created_time&limit=${Math.min(limit, 12)}&access_token=${encodeURIComponent(ready.key)}`,
+      );
+      const posts = await postsRes.json().catch(() => ({}));
+      if (!postsRes.ok || posts?.error) continue;
+      for (const post of Array.isArray(posts?.data) ? posts.data : []) {
+        const raw = String(post?.message ?? "").trim();
+        if (!raw) continue;
+        const ingested = await ingestCommerceSignal(sb, ownerId, {
+          source_key: "facebook_business",
+          source_external_id: String(post.id),
+          source_url: post.permalink_url ?? page.link ?? null,
+          raw_text: raw,
+          actor_type: "business",
+          actor_name: page.name ?? null,
+          actor_handle: page.link ?? null,
+          product_name: query,
+          contact_phones: page.phone ? [page.phone] : [],
+          photo_urls: post.full_picture ? [post.full_picture] : [],
+          contact_consent_basis: page.phone ? "public_business" : "unknown",
+          public_business: !!page.phone,
+          observed_at: post.created_time ?? null,
+          confidence: 0.74,
+          evidence: { page_id: pageId, page_website: page.website ?? null, connector: "facebook_graph" },
+        }, { publicBusiness: !!page.phone });
+        saved.push(ingested.signal);
+      }
+    } catch {
+      // One inaccessible page must not fail the entire discovery cycle.
+    }
+  }
+  await incrementRadarUsage(sb as any, ready.configId, Math.max(1, pageIds.length));
+  await markRadarProviderSync(sb as any, "facebook_business", saved.length ? "ok" : "skipped", `${saved.length} publications unifiées`);
+  return {
+    configured: true,
+    inserted: saved.length,
+    results: saved,
+    reason: pageIds.length ? (saved.length ? null : "no_accessible_posts") : "no_authorized_pages",
+  };
+}
+
+async function refreshInstagramBusiness(
+  sb: SupabaseClient,
+  ownerId: string,
+  query: string,
+  limit = 8,
+) {
+  const ready = await getRadarApiKey(sb as any, "instagram_business");
+  if (!ready.ok || !ready.key) {
+    return { configured: false, inserted: 0, results: [] as any[], reason: ready.reason ?? "instagram_not_ready" };
+  }
+  const cfg = ready.config?.extra_config ?? {};
+  const accountIds = Array.isArray((cfg as any).account_ids)
+    ? (cfg as any).account_ids.map((v: any) => String(v).trim()).filter(Boolean)
+    : [];
+  const saved: any[] = [];
+  for (const accountId of accountIds.slice(0, 10)) {
+    try {
+      const userRes = await fetch(
+        `https://graph.facebook.com/${encodeURIComponent(accountId)}?fields=id,username,name,profile_picture_url&access_token=${encodeURIComponent(ready.key)}`,
+      );
+      const user = await userRes.json().catch(() => ({}));
+      const mediaRes = await fetch(
+        `https://graph.facebook.com/${encodeURIComponent(accountId)}/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp&limit=${Math.min(limit, 12)}&access_token=${encodeURIComponent(ready.key)}`,
+      );
+      const media = await mediaRes.json().catch(() => ({}));
+      if (!mediaRes.ok || media?.error) continue;
+      for (const item of Array.isArray(media?.data) ? media.data : []) {
+        const raw = String(item?.caption ?? "").trim();
+        if (!raw) continue;
+        const photo = item.thumbnail_url ?? item.media_url;
+        const ingested = await ingestCommerceSignal(sb, ownerId, {
+          source_key: "instagram_business",
+          source_external_id: String(item.id),
+          source_url: item.permalink ?? null,
+          raw_text: raw,
+          actor_type: "business",
+          actor_name: user.name ?? user.username ?? null,
+          actor_handle: user.username ? `@${user.username}` : null,
+          product_name: query,
+          photo_urls: photo ? [photo] : [],
+          contact_consent_basis: "unknown",
+          public_business: true,
+          observed_at: item.timestamp ?? null,
+          confidence: 0.70,
+          evidence: { account_id: accountId, media_type: item.media_type ?? null, connector: "instagram_graph" },
+        }, { publicBusiness: true });
+        saved.push(ingested.signal);
+      }
+    } catch {
+      // Continue with the next authorized account.
+    }
+  }
+  await incrementRadarUsage(sb as any, ready.configId, Math.max(1, accountIds.length));
+  await markRadarProviderSync(sb as any, "instagram_business", saved.length ? "ok" : "skipped", `${saved.length} médias unifiés`);
+  return {
+    configured: true,
+    inserted: saved.length,
+    results: saved,
+    reason: accountIds.length ? (saved.length ? null : "no_accessible_media") : "account_ids_required",
+  };
+}
+
+async function refreshTelegramPublic(
+  sb: SupabaseClient,
+  ownerId: string,
+  query: string,
+  limit = 12,
+) {
+  const ready = await getRadarApiKey(sb as any, "telegram_public");
+  if (!ready.ok || !ready.key) {
+    return { configured: false, inserted: 0, results: [] as any[], reason: ready.reason ?? "telegram_not_ready" };
+  }
+  const cfg = ready.config?.extra_config ?? {};
+  const allowed = new Set(
+    (Array.isArray((cfg as any).chat_ids) ? (cfg as any).chat_ids : [])
+      .map((v: any) => String(v).trim().replace(/^@/, ""))
+      .filter(Boolean),
+  );
+  if (!allowed.size) {
+    return { configured: true, inserted: 0, results: [], reason: "authorized_chat_ids_required" };
+  }
+  const offset = Number((cfg as any).last_update_id ?? 0);
+  const url = new URL(`https://api.telegram.org/bot${ready.key}/getUpdates`);
+  if (offset > 0) url.searchParams.set("offset", String(offset + 1));
+  url.searchParams.set("limit", String(Math.min(Math.max(limit, 1), 100)));
+  url.searchParams.set("timeout", "0");
+  const response = await fetch(url.toString());
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data?.ok !== true) {
+    await markRadarProviderSync(sb as any, "telegram_public", "ko", data?.description || `HTTP ${response.status}`);
+    return { configured: true, inserted: 0, results: [], reason: data?.description || "telegram_error" };
+  }
+  const saved: any[] = [];
+  let maxUpdateId = offset;
+  for (const update of Array.isArray(data?.result) ? data.result : []) {
+    maxUpdateId = Math.max(maxUpdateId, Number(update?.update_id ?? 0));
+    const message = update?.channel_post ?? update?.message ?? update?.edited_channel_post ?? null;
+    if (!message?.chat) continue;
+    const chatId = String(message.chat.id ?? "");
+    const chatUsername = String(message.chat.username ?? "");
+    if (!allowed.has(chatId) && !allowed.has(chatUsername)) continue;
+    const raw = String(message.text ?? message.caption ?? "").trim();
+    if (!raw) continue;
+
+    const photos = Array.isArray(message.photo) ? message.photo : [];
+    let photoUrl: string | null = null;
+    const bestPhoto = photos.length ? photos[photos.length - 1] : null;
+    if (bestPhoto?.file_id) {
+      try {
+        const fileRes = await fetch(`https://api.telegram.org/bot${ready.key}/getFile?file_id=${encodeURIComponent(bestPhoto.file_id)}`);
+        const fileData = await fileRes.json().catch(() => ({}));
+        if (fileData?.ok && fileData?.result?.file_path) {
+          const protectedUrl = `https://api.telegram.org/file/bot${ready.key}/${fileData.result.file_path}`;
+          photoUrl = await rehostMedia(sb as any, protectedUrl, "image/jpeg");
+        }
+      } catch {
+        // Text signal remains usable.
+      }
+    }
+    const username = String(message?.from?.username ?? message?.sender_chat?.username ?? chatUsername ?? "");
+    const publicUrl = chatUsername
+      ? `https://t.me/${chatUsername}/${message.message_id}`
+      : null;
+    const sharedPhone = message?.contact?.phone_number ? [String(message.contact.phone_number)] : [];
+    const ingested = await ingestCommerceSignal(sb, ownerId, {
+      source_key: "telegram_public",
+      source_external_id: `${chatId}:${message.message_id}`,
+      source_url: publicUrl,
+      raw_text: raw,
+      actor_type: "announcer",
+      actor_name: [message?.from?.first_name, message?.from?.last_name].filter(Boolean).join(" ") || message?.chat?.title || null,
+      actor_handle: username ? `@${username}` : null,
+      product_name: query,
+      contact_phones: sharedPhone,
+      photo_urls: photoUrl ? [photoUrl] : [],
+      contact_consent_basis: sharedPhone.length ? "shared_by_user" : "unknown",
+      observed_at: message.date ? new Date(Number(message.date) * 1000).toISOString() : null,
+      confidence: 0.67,
+      evidence: { telegram_chat_id: chatId, telegram_message_id: message.message_id, authorized_chat: true },
+    });
+    saved.push(ingested.signal);
+  }
+  if (maxUpdateId > offset && ready.config?.id) {
+    await sb.from("waouh_radar_api_configs").update({
+      extra_config: { ...cfg, last_update_id: maxUpdateId },
+    }).eq("id", ready.config.id);
+  }
+  await incrementRadarUsage(sb as any, ready.configId, 1);
+  await markRadarProviderSync(sb as any, "telegram_public", saved.length ? "ok" : "skipped", `${saved.length} messages autorisés unifiés`);
+  return { configured: true, inserted: saved.length, results: saved, reason: saved.length ? null : "no_new_authorized_messages" };
+}
+
+async function refreshTikTokConnected(
+  sb: SupabaseClient,
+  ownerId: string,
+  query: string,
+  limit = 10,
+) {
+  const ready = await getRadarApiKey(sb as any, "tiktok_connected");
+  if (!ready.ok || !ready.key) {
+    return { configured: false, inserted: 0, results: [] as any[], reason: ready.reason ?? "tiktok_not_ready" };
+  }
+  let displayName: string | null = null;
+  try {
+    const userRes = await fetch("https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,avatar_url", {
+      headers: { Authorization: `Bearer ${ready.key}` },
+    });
+    const userData = await userRes.json().catch(() => ({}));
+    displayName = userData?.data?.user?.display_name ?? null;
+  } catch {
+    // Video ingestion can continue.
+  }
+  const response = await fetch(
+    "https://open.tiktokapis.com/v2/video/list/?fields=id,title,video_description,duration,cover_image_url,share_url,create_time",
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${ready.key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ max_count: Math.min(Math.max(limit, 1), 20) }),
+    },
+  );
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data?.error?.code) {
+    const message = data?.error?.message || data?.error?.code || `HTTP ${response.status}`;
+    await markRadarProviderSync(sb as any, "tiktok_connected", "ko", String(message));
+    return { configured: true, inserted: 0, results: [], reason: String(message) };
+  }
+  const videos = Array.isArray(data?.data?.videos) ? data.data.videos : [];
+  const saved: any[] = [];
+  for (const video of videos) {
+    const raw = String(video.video_description ?? video.title ?? "").trim();
+    if (!raw || !video.id) continue;
+    const ingested = await ingestCommerceSignal(sb, ownerId, {
+      source_key: "tiktok_connected",
+      source_external_id: String(video.id),
+      source_url: video.share_url ?? null,
+      raw_text: raw,
+      actor_type: "announcer",
+      actor_name: displayName,
+      product_name: query,
+      photo_urls: video.cover_image_url ? [video.cover_image_url] : [],
+      contact_consent_basis: "unknown",
+      observed_at: video.create_time ? new Date(Number(video.create_time) * 1000).toISOString() : null,
+      confidence: 0.64,
+      evidence: { connector: "tiktok_display_api", duration: video.duration ?? null },
+    });
+    saved.push(ingested.signal);
+  }
+  await incrementRadarUsage(sb as any, ready.configId, 1);
+  await markRadarProviderSync(sb as any, "tiktok_connected", saved.length ? "ok" : "skipped", `${saved.length} vidéos unifiées`);
+  return { configured: true, inserted: saved.length, results: saved, reason: saved.length ? null : "no_commercial_video" };
+}
+
+async function refreshApifyRadar(sb: SupabaseClient) {
+  const ready = await getRadarApiKey(sb as any, "apify", "APIFY_TOKEN");
+  if (!ready.ok || !ready.key) {
+    return { configured: false, inserted: 0, reason: ready.reason ?? "apify_not_ready" };
+  }
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  const url = Deno.env.get("SUPABASE_URL") || "";
+  if (!url || !serviceKey) return { configured: true, inserted: 0, reason: "server_not_configured" };
+  try {
+    const response = await fetch(`${url}/functions/v1/waouh-radar-apify`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ source: "nexus.global_discovery" }),
+    });
+    const data = await response.json().catch(() => ({}));
+    const inserted = Number(data?.signals ?? 0);
+    await markRadarProviderSync(sb as any, "apify", response.ok ? "ok" : "ko", response.ok ? `${inserted} signaux Radar` : `HTTP ${response.status}`);
+    return { configured: true, inserted, reason: response.ok ? null : (data?.error || `HTTP ${response.status}`) };
+  } catch (error: any) {
+    await markRadarProviderSync(sb as any, "apify", "ko", error?.message || String(error));
+    return { configured: true, inserted: 0, reason: error?.message || String(error) };
+  }
+}
+
 async function globalDiscoverySearch(
   sb: SupabaseClient,
   input: {
