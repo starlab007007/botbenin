@@ -360,3 +360,7 @@ verify_jwt = false
 
 [functions.waouh-tel-room]
 verify_jwt = false
+
+# Runtime alias: setup-test-accounts currently serves waouh-product-intelligence.
+[functions.setup-test-accounts]
+verify_jwt = true

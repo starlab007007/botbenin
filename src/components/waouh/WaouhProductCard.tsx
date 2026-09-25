@@ -26,6 +26,7 @@ import { isImageReady, preloadImage, prefetchNeighbours } from "@/components/wao
 import { cn } from "@/lib/utils";
 import { WaouhContactabilityBadge } from "./WaouhCommerceAgentBar";
 import { WaouhNexusContactSheet } from "./WaouhNexusContactSheet";
+import { loadWaouhProductIntelligence, type WaouhProductIntelligence } from "@/lib/waouh/productIntelligence";
 
 /**
  * Fiche produit d'un résultat de recherche WAOUH.
@@ -200,6 +201,25 @@ export function WaouhProductCard({
   const trust = metric(result, "trust_score");
   const priceFit = metric(result, "price_score");
   const reasons = resultReasons(result);
+  const [intelligence, setIntelligence] = useState<WaouhProductIntelligence | null>(null);
+  const [intelligenceLoading, setIntelligenceLoading] = useState(false);
+
+  useEffect(() => {
+    const id = String(result.id || "").trim();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+    if (!isUuid) {
+      setIntelligence(null);
+      return;
+    }
+    let alive = true;
+    setIntelligenceLoading(true);
+    loadWaouhProductIntelligence(id).then((value) => {
+      if (!alive) return;
+      setIntelligence(value);
+      setIntelligenceLoading(false);
+    });
+    return () => { alive = false; };
+  }, [result.id]);
 
   useEffect(() => {
     setFailed(false);
@@ -347,7 +367,32 @@ export function WaouhProductCard({
           </div>
         )}
 
-        {reasons.length > 0 && (
+        {(intelligence || intelligenceLoading) && (
+          <div className="space-y-1.5">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-2.5 py-2">
+              <div className="text-[10px] font-black text-slate-700">Détails</div>
+              <div className="mt-0.5 text-[11px] leading-snug text-slate-600">{intelligence?.details.text || "Avatar analyse la fiche…"}</div>
+            </div>
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 px-2.5 py-2">
+              <div className="text-[10px] font-black text-emerald-800">Marché réel</div>
+              <div className="mt-0.5 text-[11px] leading-snug text-emerald-950">{intelligence?.market.text || "Analyse des sources WAOUH…"}</div>
+            </div>
+            <div className="rounded-xl border border-sky-100 bg-sky-50/60 px-2.5 py-2">
+              <div className="text-[10px] font-black text-sky-800">Analyse comparative</div>
+              <div className="mt-0.5 text-[11px] leading-snug text-sky-950">{intelligence?.comparison.text || "Comparaison en cours…"}</div>
+            </div>
+            <div className="rounded-xl border border-amber-100 bg-amber-50/60 px-2.5 py-2">
+              <div className="mb-0.5 flex items-center gap-1 text-[10px] font-black text-amber-800"><Bot className="h-3 w-3" /> Pourquoi WAOUH le recommande</div>
+              <div className="text-[11px] leading-snug text-amber-950">{intelligence?.recommendation.text || (reasons.length ? reasons.join(" · ") : "Avatar consolide les données du marché…")}</div>
+            </div>
+            {intelligence && (
+              <div className="text-[9px] font-semibold text-muted-foreground">
+                Analyse réelle · {intelligence.market.sample_count} référence(s){intelligence.market.source_mix?.length ? ` · ${intelligence.market.source_mix.join(" · ")}` : ""}
+              </div>
+            )}
+          </div>
+        )}
+        {!intelligence && !intelligenceLoading && reasons.length > 0 && (
           <div className="rounded-xl border border-emerald-100 bg-emerald-50/55 px-2.5 py-2">
             <div className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-emerald-800">
               <Bot className="h-3 w-3" /> Pourquoi WAOUH le recommande
@@ -390,7 +435,7 @@ export function WaouhProductCard({
                   : level === "C2"
                     ? "Transmettre mon intérêt via WAOUH"
                     : level === "C3" || level === "C4"
-                      ? "Laisser Muse poursuivre"
+                      ? "Laisser l’Avatar poursuivre"
                       : "Je suis intéressé"}
               </Button>
             )}

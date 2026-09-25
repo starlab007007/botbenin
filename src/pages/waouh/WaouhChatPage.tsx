@@ -67,7 +67,7 @@ const HelpContent = () => (
         <Sparkles className="h-4 w-4" /> Un seul WAOUH
       </div>
       <p className="mt-1 text-xs leading-relaxed text-slate-600">
-        Vous parlez à WAOUH. Muse comprend, NEXUS découvre, Signal Fabric classe, le Contact Layer protège et la Deal Room poursuit la négociation dans le même espace.
+        Vous parlez à WAOUH. Avatar comprend, NEXUS découvre, Signal Fabric classe, le Contact Layer protège et la Deal Room poursuit la négociation dans le même espace.
       </p>
     </div>
     <div className="grid grid-cols-2 gap-2">
