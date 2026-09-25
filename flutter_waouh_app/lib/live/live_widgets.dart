@@ -1387,6 +1387,12 @@ List<_PremiumProduct> _premiumProducts(LiveMessage message) {
       final marketMin = row['market_price_min'] ?? row['prix_marche_min'];
       final marketMax = row['market_price_max'] ?? row['prix_marche_max'];
       final marketMedian = row['market_price_median'] ?? row['median_price'];
+      final evidenceMap = row['evidence'] is Map
+          ? <String, dynamic>{
+              for (final entry in (row['evidence'] as Map).entries)
+                entry.key.toString(): entry.value,
+            }
+          : const <String, dynamic>{};
       final directMarket = _premiumString(
         row['market_comparison'] ??
             row['market'] ??
@@ -1440,12 +1446,6 @@ List<_PremiumProduct> _premiumProducts(LiveMessage message) {
       final scoreMap = row['scores'] is Map
           ? <String, dynamic>{
               for (final entry in (row['scores'] as Map).entries)
-                entry.key.toString(): entry.value,
-            }
-          : const <String, dynamic>{};
-      final evidenceMap = row['evidence'] is Map
-          ? <String, dynamic>{
-              for (final entry in (row['evidence'] as Map).entries)
                 entry.key.toString(): entry.value,
             }
           : const <String, dynamic>{};
