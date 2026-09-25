@@ -361,7 +361,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                     width: 64,
                     height: 64,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE7F6F0),
+                      color: const Color(0xFFF0F6FF),
                       borderRadius: BorderRadius.circular(22),
                     ),
                     child: const Center(
@@ -447,7 +447,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                             ? 'Discussion synchronisée.'
                             : 'Mode provisoire actif : historique et messages restent disponibles pendant la confirmation du fil exact.',
                     style: const TextStyle(
-                      color: Color(0xFF315E50),
+                      color: Color(0xFF53698E),
                       fontSize: 11.5,
                       fontWeight: FontWeight.w700,
                     ),
@@ -510,16 +510,31 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
             onRemove: (item) => setState(() => _attachments.remove(item))),
         SafeArea(
           top: false,
+          minimum: const EdgeInsets.fromLTRB(8, 0, 8, 8),
           child: Container(
-            decoration: const BoxDecoration(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
               color: Colors.white,
-              border: Border(top: BorderSide(color: Color(0xFFE1E9E6))),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0xFFE2EAF6)),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF456795).withValues(alpha: .10),
+                  blurRadius: 26,
+                  offset: const Offset(0, 10),
+                  spreadRadius: -8,
+                ),
+              ],
             ),
-            padding: const EdgeInsets.fromLTRB(8, 7, 8, 9),
-            child: Row(children: [
-              PopupMenuButton<ImageSource>(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                PopupMenuButton<ImageSource>(
                   tooltip: 'Ajouter',
-                  icon: const Icon(Icons.add_circle_outline_rounded),
+                  icon: const Icon(
+                    Icons.add_circle_rounded,
+                    color: Color(0xFF4F7FFF),
+                  ),
                   onSelected: _pick,
                   itemBuilder: (_) => const [
                     PopupMenuItem(
@@ -527,7 +542,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                       child: ListTile(
                         dense: true,
                         leading: Icon(Icons.camera_alt_outlined),
-                        title: Text('Prendre une photo'),
+                        title: Text('Photo'),
                       ),
                     ),
                     PopupMenuItem(
@@ -535,33 +550,49 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                       child: ListTile(
                         dense: true,
                         leading: Icon(Icons.photo_library_outlined),
-                        title: Text('Choisir une photo'),
+                        title: Text('Galerie'),
                       ),
                     ),
-                  ]),
-              Expanded(
+                  ],
+                ),
+                Expanded(
                   child: TextField(
-                      controller: _composer,
-                      focusNode: _focus,
-                      minLines: 1,
-                      maxLines: 4,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _send(),
-                      decoration: InputDecoration(
-                          filled: true,
-                          fillColor: const Color(0xFFF5F8F7),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            borderSide: BorderSide.none,
-                          ),
-                          hintText: match.role == 'seller'
-                              ? 'Répondre à l’acheteur…'
-                              : 'Répondre au vendeur…'))),
-              IconButton(
-                  tooltip: 'Envoyer',
+                    controller: _composer,
+                    focusNode: _focus,
+                    minLines: 1,
+                    maxLines: 4,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _send(),
+                    decoration: InputDecoration(
+                      hintText: match.role == 'seller'
+                          ? 'Répondre à l’acheteur…'
+                          : 'Répondre au vendeur…',
+                      filled: false,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 12,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 5),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(44, 44),
+                    maximumSize: const Size(44, 44),
+                    padding: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                  ),
                   onPressed: _send,
-                  icon: const Icon(Icons.send_rounded)),
-            ]),
+                  child: const Icon(Icons.arrow_upward_rounded, size: 20),
+                ),
+              ],
+            ),
           ),
         ),
       ]),
