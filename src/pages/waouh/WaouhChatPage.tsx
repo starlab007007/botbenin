@@ -236,7 +236,7 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
   if (isMobile) {
     return (
       <div className="fixed inset-0 flex flex-col overflow-hidden bg-[#f6f8f7]">
-        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-slate-200/80 bg-white/95 px-2.5 backdrop-blur-xl">
+        <header className="flex h-12 shrink-0 items-center gap-2 border-b border-slate-200/80 bg-white/95 px-2.5 backdrop-blur-xl">
           <button onClick={() => navigate("/")} className="rounded-xl p-2 hover:bg-slate-100" aria-label="Fermer WAOUH">
             <X className="h-5 w-5 text-slate-700" />
           </button>
@@ -295,15 +295,13 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
         </header>
 
         {matches.length > 0 && (
-          {matches.length > 0 && (
-            <WaouhChatTabs
-              matches={matches}
-              activeKey={activeKey}
-              onSelect={setActiveKey}
-              onClose={close}
-              sessionId={sessionId ?? ""}
-            />
-          )}
+          <WaouhChatTabs
+            matches={matches}
+            activeKey={activeKey}
+            onSelect={setActiveKey}
+            onClose={close}
+            sessionId={sessionId ?? ""}
+          />
         )}
 
         <main className="min-h-0 flex-1 overflow-hidden bg-white">
@@ -327,7 +325,7 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
       "flex flex-col overflow-hidden bg-[#f4f7f6]",
       embedded ? "h-full" : "h-[100dvh]"
     )}>
-      <header className="flex h-16 shrink-0 items-center gap-3 border-b border-slate-200/80 bg-white/90 px-3.5 backdrop-blur-xl">
+      <header className="flex h-14 shrink-0 items-center gap-2.5 border-b border-slate-200/80 bg-white/90 px-3.5 backdrop-blur-xl">
         <Button
           variant="ghost"
           size="icon"
@@ -362,7 +360,7 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
             <SheetTrigger asChild>
               <button
                 type="button"
-                className="group flex min-w-0 max-w-[620px] items-center gap-3 rounded-2xl border border-slate-200 bg-white/85 px-3 py-2 text-left shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50/45"
+                className="group flex min-w-0 max-w-[620px] items-center gap-2 rounded-xl border border-slate-200 bg-white/85 px-2.5 py-1.5 text-left shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50/45"
                 aria-label="Ouvrir l’activité de Muse et l’intelligence WAOUH"
               >
                 <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
@@ -432,10 +430,10 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 overflow-hidden p-2">
+      <div className="flex min-h-0 flex-1 overflow-hidden p-1.5">
         {railOpen && (
           <div
-            className="mr-2 flex h-full shrink-0 overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm"
+            className="mr-2 flex h-full shrink-0 overflow-hidden rounded-[18px] border border-slate-200 bg-white shadow-sm"
             style={{ width: railWidth }}
           >
             <WaouhChatSidebar
@@ -452,7 +450,7 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
           </div>
         )}
 
-        <main className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm">
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[18px] border border-slate-200 bg-white shadow-sm">
           <WaouhChatTabs
             matches={matches}
             activeKey={activeKey}
