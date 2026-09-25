@@ -6,6 +6,8 @@ import 'live_whatsapp_ia_message_sheet.dart';
 import 'live_whatsapp_ia_models.dart';
 import 'live_whatsapp_ia_repository.dart';
 
+import 'live_ia_premium_ui.dart';
+
 enum LiveWhatsAppSessionAction {
   connect,
   start,
@@ -90,7 +92,7 @@ class WhatsAppSheetFrame extends StatelessWidget {
               width: 44,
               height: 5,
               decoration: BoxDecoration(
-                color: const Color(0xFFC9D8D2),
+                color: Color(0xFFD8E2F1),
                 borderRadius: BorderRadius.circular(99),
               ),
             ),
@@ -151,7 +153,7 @@ class _CreateSheetState extends State<_CreateSheet> {
                   prefixIcon: Icon(Icons.label_outline_rounded))),
           const SizedBox(height: 9),
           const Text('Lettres, chiffres, tirets et underscores uniquement.',
-              style: TextStyle(color: Color(0xFF6B8279), fontSize: 12.5)),
+              style: TextStyle(color: WaouhIaPalette.muted, fontSize: 12.5)),
           const SizedBox(height: 18),
           Container(
               padding: const EdgeInsets.all(14),
@@ -247,20 +249,20 @@ class _ActionRow extends StatelessWidget {
                 border: Border.all(
                     color: danger
                         ? const Color(0xFFF1C1C1)
-                        : const Color(0xFFDFEBE6)),
+                        : WaouhIaPalette.line),
                 borderRadius: BorderRadius.circular(16)),
             child: Row(children: [
               Icon(icon,
                   color: danger
                       ? const Color(0xFFD94747)
-                      : const Color(0xFF08756A)),
+                      : WaouhIaPalette.primary),
               const SizedBox(width: 12),
               Expanded(
                   child: Text(title,
                       style: TextStyle(
                           fontWeight: FontWeight.w800,
                           color: danger ? const Color(0xFFD94747) : null))),
-              const Icon(Icons.chevron_right_rounded, color: Color(0xFF6B8279)),
+              const Icon(Icons.chevron_right_rounded, color: WaouhIaPalette.muted),
             ]),
           ),
         ),
