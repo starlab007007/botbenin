@@ -50,9 +50,9 @@ class _LiveAvatarVisualState extends State<LiveAvatarVisual>
   IconData get _face => switch (widget.preset) {
         LiveAvatarPreset.sky => Icons.face_rounded,
         LiveAvatarPreset.aura => Icons.auto_awesome_rounded,
-        LiveAvatarPreset.nova => Icons.face_retouching_natural_rounded,
+        LiveAvatarPreset.nova => Icons.account_circle_rounded,
         LiveAvatarPreset.orbit => Icons.blur_on_rounded,
-        LiveAvatarPreset.sol => Icons.sentiment_satisfied_alt_rounded,
+        LiveAvatarPreset.sol => Icons.sentiment_satisfied_rounded,
         LiveAvatarPreset.flux => Icons.bubble_chart_rounded,
       };
 
