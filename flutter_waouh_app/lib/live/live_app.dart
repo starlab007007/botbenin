@@ -7,6 +7,7 @@ import 'avatar/live_avatar_controller.dart';
 import 'avatar/live_avatar_widgets.dart';
 import 'live_auth_screens.dart';
 import 'live_avatar_screen.dart';
+import 'live_avatar_commerce_screen.dart';
 import 'live_controller.dart';
 import 'live_controller_v2.dart';
 import 'live_inbox_screen_v2.dart';
@@ -90,6 +91,9 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
         GoRoute(path: '/app/bots', builder: (_, __) => const LiveBotsScreen()),
         GoRoute(path: '/app/whatsapp', builder: (_, __) => const LiveWhatsAppIaScreen()),
         GoRoute(path: '/app/avatar', builder: (_, __) => const LiveAvatarScreen()),
+        GoRoute(path: '/app/avatar/acheter', builder: (_, __) => const LiveAvatarCommerceScreen(mode: LiveAvatarCommerceMode.buy)),
+        GoRoute(path: '/app/avatar/vendre', builder: (_, __) => const LiveAvatarCommerceScreen(mode: LiveAvatarCommerceMode.sell)),
+        GoRoute(path: '/app/avatar/demander', builder: (_, __) => const LiveAvatarCommerceScreen(mode: LiveAvatarCommerceMode.ask)),
         GoRoute(path: '/app/command', redirect: (_, __) => '/app/avatar'),
         GoRoute(path: '/app/muse', redirect: (_, __) => '/app/avatar'),
         GoRoute(path: '/app/missions', builder: (_, __) => const LiveMissionsScreen()),
