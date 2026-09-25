@@ -63,6 +63,27 @@ const stateLabel = (source: NexusDiscoverySource) => {
 
 const errorText = (error: unknown) => error instanceof Error ? error.message : "Erreur inattendue.";
 
+const resultPhotos = (result: NexusDiscoveryResult) => {
+  const evidence = (result.evidence || {}) as Record<string, any>;
+  const values = [
+    ...(Array.isArray(evidence.photos) ? evidence.photos : []),
+    evidence.image_url,
+    evidence.thumbnail,
+  ];
+  return values
+    .map((value) => typeof value === "string" ? value : value?.url)
+    .filter((value): value is string => typeof value === "string" && /^https?:\/\//i.test(value))
+    .slice(0, 4);
+};
+
+const resultContactHint = (result: NexusDiscoveryResult) => {
+  const evidence = (result.evidence || {}) as Record<string, any>;
+  const hints = evidence.contact_hints || {};
+  if (Number(hints.whatsapp_verified_count || 0) > 0) return "WhatsApp détecté";
+  if (Number(hints.phone_count || 0) > 0 || evidence.contact_last4) return "Contact détecté";
+  return null;
+};
+
 type SharedSignalState = Awaited<ReturnType<typeof ingestSharedCommerceSignal>>;
 type PreparedContactState = Awaited<ReturnType<typeof prepareNexusContact>> & { result: NexusDiscoveryResult };
 type PreparedContactItem = PreparedContactState["contacts"][number];
@@ -267,7 +288,7 @@ export function WaouhGlobalDiscoveryPanel() {
               WAOUH Global Discovery
             </div>
             <p className="mt-1 max-w-3xl text-xs text-muted-foreground">
-              Cherche l’offre pour la demande et la demande pour l’offre, à travers WAOUH, partenaires, Web public, Maps, signaux sociaux partagés, B2B et terrain.
+              Cherche l’offre pour la demande et la demande pour l’offre à travers WAOUH, partenaires, Google Maps, Web public, Facebook, Instagram, Telegram, TikTok, WhatsApp autorisé, SMS/RCS, B2B et terrain.
             </p>
           </div>
           <Badge variant="outline" className="gap-1">
@@ -408,10 +429,21 @@ export function WaouhGlobalDiscoveryPanel() {
             )}
 
             <div className="grid gap-2 lg:grid-cols-2">
-              {results.map((result) => (
+              {results.map((result) => {
+                const photos = resultPhotos(result);
+                const contactHint = resultContactHint(result);
+                return (
                 <div key={result.fabric_id} className="rounded-xl border bg-background p-3">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
+                    {photos[0] && (
+                      <img
+                        src={photos[0]}
+                        alt=""
+                        className="h-20 w-20 shrink-0 rounded-lg border object-cover"
+                        loading="lazy"
+                      />
+                    )}
+                    <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-semibold">{result.subject ?? result.category ?? "Signal commercial"}</div>
                       <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
                         <Badge variant="outline" className="h-5 px-1.5 text-[9px]">{sourceLabel(result.source_key)}</Badge>
@@ -437,6 +469,7 @@ export function WaouhGlobalDiscoveryPanel() {
                   <div className="mt-2 flex flex-wrap gap-1">
                     <Badge variant="secondary">confiance {Math.round(result.scores.trust_score)}%</Badge>
                     <Badge variant="outline">{result.contact_policy.level} · {result.contact_policy.label}</Badge>
+                    {contactHint && <Badge variant="secondary">{contactHint}</Badge>}
                     {result.scores.reasons.slice(0, 2).map((reason) => <Badge key={reason} variant="outline">{reason}</Badge>)}
                   </div>
 
@@ -452,7 +485,8 @@ export function WaouhGlobalDiscoveryPanel() {
                     </Button>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {contact && (
