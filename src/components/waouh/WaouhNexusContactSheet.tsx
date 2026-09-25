@@ -110,7 +110,7 @@ export function WaouhNexusContactSheet({
     contactabilityLevel === "C2"
       ? "Transmettre via WAOUH"
       : contactabilityLevel === "C3" || contactabilityLevel === "C4"
-        ? "Laisser Muse poursuivre"
+        ? "Laisser l’Avatar poursuivre"
         : contactabilityLevel === "C1"
           ? "Contacter"
           : "Voir le contact";
