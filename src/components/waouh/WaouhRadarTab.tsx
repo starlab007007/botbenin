@@ -13,10 +13,27 @@ import RadarApiConfigPanel from "./RadarApiConfigPanel";
 import RadarAutoControlPanel from "@/components/admin/RadarAutoControlPanel";
 
 type Source = { id: string; type: string; identifier: string; label: string | null; active: boolean; scan_freq_min: number; last_scan_at: string | null; last_signal_count: number };
-type Signal = { id: string; source_type: string; intent: string; product: any; price: number | null; city: string | null; contact_phone: string | null; contact_handle: string | null; confidence: number; status: string; captured_at: string; raw_url: string | null; raw_text: string | null; promoted_article_id: string | null; promoted_buyer_profile_id: string | null };
+type Signal = { id: string; source_type: string; intent: string; product: any; price: number | null; city: string | null; contact_phone: string | null; contact_handle: string | null; confidence: number; status: string; captured_at: string; raw_url: string | null; raw_text: string | null; raw_payload?: any; promoted_article_id: string | null; promoted_buyer_profile_id: string | null };
 type Profile = { id: string; contact_phone: string; display_name: string | null; role: string; categories: string[]; cities: string[]; signals_count: number; reliability_score: number; last_seen_at: string | null };
 
 const fmtPrice = (n: number | null) => n ? new Intl.NumberFormat("fr-FR").format(n) + " FCFA" : "—";
+
+const signalPhoto = (signal: Signal) => {
+  const candidates = [
+    ...(Array.isArray(signal.product?.photos) ? signal.product.photos : []),
+    signal.product?.image_url,
+    signal.product?.photo,
+    signal.raw_payload?.full_picture,
+    signal.raw_payload?.image,
+    signal.raw_payload?.thumbnail,
+    ...(Array.isArray(signal.raw_payload?.images) ? signal.raw_payload.images : []),
+  ];
+  for (const value of candidates) {
+    const url = typeof value === "string" ? value : value?.url || value?.src;
+    if (typeof url === "string" && /^https?:\/\//i.test(url)) return url;
+  }
+  return null;
+};
 
 export default function WaouhRadarTab() {
   const [tab, setTab] = useState("signals");
@@ -99,7 +116,7 @@ export default function WaouhRadarTab() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2"><Radar className="w-5 h-5 text-cyan-500" /> Radar IA</h2>
-          <p className="text-xs text-muted-foreground">Détection vendeurs/acheteurs (sites BJ, Facebook, WhatsApp) — promu vers la base unifiée WAOUH.</p>
+          <p className="text-xs text-muted-foreground">NEXUS collecte les sources publiques/autorisees : Web, Maps, Facebook, Instagram, Telegram, TikTok, WhatsApp et SMS/RCS — puis alimente la base unifiée.</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={() => triggerScan("waouh-serpapi-scout")}>SerpAPI</Button>
@@ -132,6 +149,14 @@ export default function WaouhRadarTab() {
           {signals.map((s) => (
             <Card key={s.id} className="p-3">
               <div className="flex items-start justify-between gap-3 flex-wrap">
+                {signalPhoto(s) && (
+                  <img
+                    src={signalPhoto(s)!}
+                    alt=""
+                    className="w-20 h-20 rounded-lg object-cover border shrink-0"
+                    loading="lazy"
+                  />
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <Badge variant={s.intent === "SELL" ? "default" : s.intent === "BUY" ? "secondary" : "outline"}>{s.intent}</Badge>
@@ -169,14 +194,22 @@ export default function WaouhRadarTab() {
               <Select value={newSrc.type} onValueChange={(v) => setNewSrc({ ...newSrc, type: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="fb_marketplace">FB Marketplace</SelectItem>
-                  <SelectItem value="fb_group">FB Groupe</SelectItem>
-                  <SelectItem value="fb_page">FB Page</SelectItem>
-                  <SelectItem value="wa_group">WhatsApp Groupe (id@g.us)</SelectItem>
+                  <SelectItem value="fb_marketplace">Facebook Marketplace public</SelectItem>
+                  <SelectItem value="fb_group">Facebook groupe public / autorisé</SelectItem>
+                  <SelectItem value="fb_page">Facebook Page / Business</SelectItem>
+                  <SelectItem value="instagram_business">Instagram Business</SelectItem>
+                  <SelectItem value="tiktok">TikTok connecté / public</SelectItem>
+                  <SelectItem value="wa_group">WhatsApp groupe autorisé (id@g.us)</SelectItem>
+                  <SelectItem value="telegram_channel">Telegram canal / groupe autorisé</SelectItem>
+                  <SelectItem value="google_places">Google Places / Maps</SelectItem>
+                  <SelectItem value="directory">Annuaire entreprise</SelectItem>
+                  <SelectItem value="b2b_rfq">B2B / RFQ / appel d’offres</SelectItem>
+                  <SelectItem value="rss">Flux RSS public</SelectItem>
+                  <SelectItem value="web_search">Recherche Web publique</SelectItem>
                   <SelectItem value="site">Site web</SelectItem>
                 </SelectContent>
               </Select>
-              <Input placeholder="Identifiant (URL, requête, group@g.us)" value={newSrc.identifier} onChange={(e) => setNewSrc({ ...newSrc, identifier: e.target.value })} />
+              <Input placeholder="URL, Page ID, @canal, -100..., group@g.us, requête…" value={newSrc.identifier} onChange={(e) => setNewSrc({ ...newSrc, identifier: e.target.value })} />
               <Input placeholder="Label" value={newSrc.label} onChange={(e) => setNewSrc({ ...newSrc, label: e.target.value })} />
               <Button onClick={addSource}><Plus className="w-4 h-4 mr-1" /> Ajouter</Button>
             </div>
