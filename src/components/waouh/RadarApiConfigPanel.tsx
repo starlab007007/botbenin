@@ -118,6 +118,13 @@ const META: Record<ProviderId, ProviderMeta> = {
       { key: "fb_group_actor", label: "Actor groupes publics (optionnel)", placeholder: "apify~facebook-groups-scraper" },
     ],
   },
+  firecrawl: {
+    label: "Firecrawl · Sites Web",
+    help: "Collecte des sites publics ajoutés dans Sources.",
+    secretLabel: "Clé Firecrawl",
+    secretHelp: "Configuration Firecrawl",
+    keyRequired: true,
+  },
   google_places: {
     label: "Google Places / Maps",
     help: "Entreprises, boutiques et services : téléphone public, site, carte, géolocalisation et photos.",
