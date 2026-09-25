@@ -645,6 +645,49 @@ class LiveWaouhController extends ChangeNotifier {
         interval: const Duration(seconds: 10),
       );
 
+  /// Dedicated Avatar Commerce journey entrypoint.
+  ///
+  /// Reuses the authoritative WAOUH engine without rendering the classic chat
+  /// shell. The caller owns the immersive journey UI while thread/deal state
+  /// remains server-side and deterministic.
+  Future<Map<String, dynamic>> runAvatarCommerceStep({
+    required String text,
+    required String intent,
+    Map<String, dynamic> meta = const {},
+  }) async {
+    final value = text.trim();
+    if (value.isEmpty) {
+      throw StateError('Décrivez votre objectif.');
+    }
+    final effectiveMeta = <String, dynamic>{
+      ...meta,
+      'source': 'avatar_commerce',
+      'avatar_flow': true,
+      'intent': intent,
+      'schema': 'waouh.message.v1',
+    };
+    final missionId = await agentic.ensureSynchronizedMissionForRequest(
+      value,
+      effectiveMeta,
+      online: isOnline && auth.signedIn,
+    );
+    if (missionId != null) effectiveMeta['mission_id'] = missionId;
+    effectiveMeta.putIfAbsent('idempotency_key', newIdempotencyKey);
+    final staleLocation = _positionAt == null ||
+        DateTime.now().difference(_positionAt!) > const Duration(minutes: 2);
+    if (staleLocation) await useDeviceLocation();
+    final response = await chat.sendMainMessage(
+      text: value,
+      attachments: const <LiveAttachment>[],
+      authUserId: auth.user?.id,
+      city: await session.city,
+      latitude: _position.latitude,
+      longitude: _position.longitude,
+      meta: effectiveMeta,
+    );
+    return Map<String, dynamic>.from(response);
+  }
+
   Future<void> sendMain({
     required String text,
     List<LiveAttachment> attachments = const [],
