@@ -141,6 +141,20 @@ Deno.serve(async (req) => {
     const { limit = 50 } = req.method === "POST" ? await req.json().catch(() => ({})) : {};
 
     const nowIso = new Date().toISOString();
+
+    // Lease recovery: a worker may crash after claiming pending→sending.
+    // Requeue stale claims so one transient crash never blocks a notification forever.
+    const leaseCutoff = new Date(Date.now() - 10 * 60_000).toISOString();
+    try {
+      await sb.from("waouh_outbound_queue").update({
+        status: "pending",
+        next_attempt_at: nowIso,
+        last_error: "lease_timeout_recovered",
+      }).eq("status", "sending").lt("updated_at", leaseCutoff);
+    } catch (e) {
+      console.warn("[waouh-outbound-dispatch] lease recovery failed", e);
+    }
+
     const { data: items, error } = await sb
       .from("waouh_outbound_queue")
       .select("*")
