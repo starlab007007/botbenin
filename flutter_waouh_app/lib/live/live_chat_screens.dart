@@ -173,6 +173,31 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
     await _send(payload);
   }
 
+  Future<void> _sendSmartPrompt(String value) async {
+    final normalized = value.trim().toLowerCase();
+    final assistantAction = normalized.startsWith('compare')
+        ? 'compare_options'
+        : (normalized.startsWith('prépare') || normalized.startsWith('prepare'))
+            ? 'negotiation_strategy'
+            : normalized.startsWith('continue')
+                ? 'continue_search'
+                : 'smart_prompt';
+    final previousMeta = pendingMeta;
+    pendingMeta = <String, dynamic>{
+      ...pendingMeta,
+      'source': 'flutter_smart_composer',
+      'action': 'assistant_prompt',
+      'assistant_prompt': true,
+      'assistant_action': assistantAction,
+    };
+    await _send(value);
+    // If authentication/navigation stopped the send before the optimistic
+    // message was created, do not leak smart-action metadata to the next turn.
+    if (pendingMeta['assistant_action'] == assistantAction) {
+      pendingMeta = previousMeta;
+    }
+  }
+
   Future<void> _send([String? payload]) async {
     if (!await requireLiveAuthentication(
       context,
@@ -422,11 +447,10 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
                       messages: messages,
                       busy: waiting,
                       onPrompt: (value) {
-                        composer.text = value;
-                        composer.selection = TextSelection.collapsed(
-                          offset: composer.text.length,
-                        );
-                        composerFocus.requestFocus();
+                        // Smart actions are real chat turns: one tap sends the
+                        // prompt with an explicit assistant intent and waits for
+                        // WAOUH's response instead of only prefilling composer.
+                        unawaited(_sendSmartPrompt(value));
                       },
                       onSell: _openSellForm,
                       onMuse: () => showLiveUnifiedIntelligenceSheet(
