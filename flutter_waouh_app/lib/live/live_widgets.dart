@@ -9,19 +9,22 @@ import 'package:url_launcher/url_launcher.dart';
 import '../main.dart' as legacy;
 import 'brand_mark.dart';
 import 'live_models.dart';
+import 'live_theme.dart';
 import 'live_nexus_service.dart';
 import 'live_commerce_workflow.dart';
 import 'live_commerce_agent_ui.dart';
 import 'live_thread_flow.dart';
 
 class LiveHeader extends StatelessWidget implements PreferredSizeWidget {
-  const LiveHeader(
-      {super.key,
-      required this.title,
-      this.subtitle,
-      this.actions = const [],
-      this.back = false,
-      this.leading});
+  const LiveHeader({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.actions = const [],
+    this.back = false,
+    this.leading,
+  });
+
   final String title;
   final String? subtitle;
   final List<Widget> actions;
@@ -29,48 +32,123 @@ class LiveHeader extends StatelessWidget implements PreferredSizeWidget {
   final Widget? leading;
 
   @override
-  Size get preferredSize => const Size.fromHeight(68);
+  Size get preferredSize => const Size.fromHeight(64);
 
   @override
   Widget build(BuildContext context) => AppBar(
-        toolbarHeight: 68,
+        toolbarHeight: 64,
         automaticallyImplyLeading: false,
+        backgroundColor: Colors.transparent,
+        foregroundColor: WaouhPalette.ink,
+        surfaceTintColor: Colors.transparent,
+        leadingWidth: back || leading != null ? 52 : 12,
         leading: leading ??
             (back
-                ? IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded, size: 22),
-                    visualDensity: VisualDensity.compact,
-                    onPressed: () => context.canPop()
-                        ? context.pop()
-                        : context.go('/app/chat'))
+                ? Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: IconButton.filledTonal(
+                      tooltip: 'Retour',
+                      style: IconButton.styleFrom(
+                        backgroundColor: const Color(0xFFF0F5FD),
+                        foregroundColor: WaouhPalette.ink,
+                        minimumSize: const Size(38, 38),
+                        maximumSize: const Size(38, 38),
+                      ),
+                      icon: const Icon(Icons.arrow_back_rounded, size: 20),
+                      onPressed: () => context.canPop()
+                          ? context.pop()
+                          : context.go('/app/chat'),
+                    ),
+                  )
                 : null),
-        title: Row(children: [
-          const BrandMark(size: 29),
-          const SizedBox(width: 8),
-          Expanded(
+        titleSpacing: back || leading != null ? 8 : 4,
+        title: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                gradient: WaouhGradients.airHero,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFDDE8F8)),
+                boxShadow: WaouhShadows.card,
+              ),
+              child: const BrandMark(size: 22),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
               child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                Text(title,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: 19, fontWeight: FontWeight.w900)),
-                if (subtitle != null)
-                  Text(subtitle!,
+                      color: WaouhPalette.ink,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.25,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 1),
+                    Text(
+                      subtitle!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                          color: Color(0xFFC9F6E3),
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700)),
-              ])),
-        ]),
-        actions: actions,
-        flexibleSpace: const DecoratedBox(
+                        color: WaouhPalette.muted,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -.05,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          ...actions.map(
+            (action) => Padding(
+              padding: const EdgeInsets.only(right: 2),
+              child: IconTheme(
+                data: const IconThemeData(
+                  color: WaouhPalette.ink,
+                  size: 21,
+                ),
+                child: action,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+        ],
+        flexibleSpace: DecoratedBox(
           decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [
-            legacy.WaouhColors.deep,
-            legacy.WaouhColors.green,
-            Color(0xFF031F1A)
-          ], begin: Alignment.topLeft, end: Alignment.bottomRight)),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFFFEFFFF),
+                Color(0xFFF8FBFF),
+                Color(0xFFF9F7FF),
+              ],
+            ),
+            border: const Border(
+              bottom: BorderSide(color: Color(0xFFE8EEF8)),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF5374A7).withValues(alpha: .055),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
         ),
       );
 }
@@ -109,7 +187,7 @@ class LiveMessageBubble extends StatelessWidget {
       bottomRight: Radius.circular(outgoing ? 5 : 19),
     );
     final bubbleColor =
-        outgoing ? const Color(0xFFDCF8C6) : const Color(0xFFF8FFFB);
+        outgoing ? const Color(0xFFEAF2FF) : const Color(0xFFFFFFFF);
 
     final screenWidth = MediaQuery.sizeOf(context).width;
     final bubbleWidth =
@@ -119,21 +197,26 @@ class LiveMessageBubble extends StatelessWidget {
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: bubbleWidth),
         child: Container(
-          margin: const EdgeInsets.only(bottom: 11),
+          margin: const EdgeInsets.only(bottom: 9),
           decoration: BoxDecoration(
             color: bubbleColor,
             borderRadius: radius,
-            border:
-                outgoing ? null : Border.all(color: const Color(0xFFD5EEE3)),
+            border: Border.all(
+              color: outgoing
+                  ? const Color(0xFFD4E2FF)
+                  : const Color(0xFFE4EBF5),
+            ),
             boxShadow: [
               BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.045),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2))
+                color: const Color(0xFF4F6F9D).withValues(alpha: .065),
+                blurRadius: 18,
+                offset: const Offset(0, 7),
+                spreadRadius: -7,
+              ),
             ],
           ),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 9, 10, 7),
+            padding: const EdgeInsets.fromLTRB(12, 10, 11, 8),
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               _senderHeader(outgoing),
