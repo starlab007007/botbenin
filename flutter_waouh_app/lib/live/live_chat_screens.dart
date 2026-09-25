@@ -6,6 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
+import 'avatar/live_avatar_controller.dart';
+import 'avatar/live_avatar_widgets.dart';
 import 'agentic/live_agentic_models.dart';
 import 'agentic/live_agentic_workspace.dart';
 import 'live_controller.dart';
@@ -384,17 +386,18 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<LiveWaouhController>();
+    final avatar = context.watch<LiveAvatarController>();
     return Scaffold(
       backgroundColor: const Color(0xFFF6F9FF),
       appBar: LiveHeader(
-        title: 'WAOUH One',
-        subtitle: 'Un chat · Muse + NEXUS + Signal + Contact',
+        title: '${avatar.name} · WAOUH',
+        subtitle: 'Votre Avatar · NEXUS + Signal + Contact',
         back: true,
         actions: [
           IconButton(
-              tooltip: 'Muse complet',
-              onPressed: () => context.push('/app/muse'),
-              icon: const Icon(Icons.psychology_alt_rounded)),
+              tooltip: 'Mon Avatar',
+              onPressed: () => context.push('/app/avatar'),
+              icon: const Icon(Icons.face_retouching_natural_rounded)),
           IconButton(
               tooltip: 'Nouvel objectif',
               onPressed: _newChat,
@@ -445,6 +448,12 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
                             : (position.errorMessage ??
                                 'Position GPS indisponible.'));
                       },
+                    ),
+                    LiveAvatarPresenceStrip(
+                      busy: waiting,
+                      missionCount: controller.agentic.activeMissionCount,
+                      watchCount: controller.agentic.activeWatchCount,
+                      approvalCount: controller.agentic.pendingApprovalCount,
                     ),
                     Expanded(
                       child: LiveSmartTimeline(
