@@ -517,15 +517,6 @@ export function WaouhProductCard({
           )}
         </div>
 
-        {reasons.length > 0 && (
-          <div className="rounded-xl border border-emerald-100 bg-emerald-50/55 px-2.5 py-2">
-            <div className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-emerald-800">
-              <Bot className="h-3 w-3" /> Pourquoi WAOUH le recommande
-            </div>
-            <div className="text-[11px] leading-snug text-emerald-950">{reasons.join(" · ")}</div>
-          </div>
-        )}
-
         <div className="flex flex-wrap gap-1 text-[11px] text-muted-foreground">
           {(result.city || result.quartier) && (
             <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5">
