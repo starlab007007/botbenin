@@ -82,7 +82,7 @@ export function WaouhEmbeddedWorkspace({
   return (
     <div className="flex h-full min-h-0 w-full overflow-hidden bg-[#f4f7f6]">
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white">
-        <div className="flex h-12 shrink-0 items-center gap-2 border-b border-slate-200/80 bg-white/95 px-3">
+        <div className="flex h-10 shrink-0 items-center gap-2 border-b border-slate-200/80 bg-white/95 px-2.5">
           <Sheet>
             <SheetTrigger asChild>
               <button
