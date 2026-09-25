@@ -292,10 +292,10 @@ class LiveCommerceAgentBar extends StatelessWidget {
       if (source.isNotEmpty) sources.add(source);
     }
     final role = mode == LiveMuseMode.buyer
-        ? 'Muse acheteur'
+        ? 'Avatar acheteur'
         : mode == LiveMuseMode.seller
-            ? 'Muse vendeur'
-            : 'Muse commerce';
+            ? 'Avatar vendeur'
+            : 'Avatar commerce';
 
     return Material(
       color: Colors.transparent,
@@ -476,7 +476,7 @@ class LiveUnifiedIntelligenceSheet extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        'Un assistant · Muse + NEXUS + Signal + Contact',
+                        'Votre Avatar · NEXUS + Signal + Contact',
                         style: TextStyle(
                           fontSize: 10.8,
                           fontWeight: FontWeight.w700,
@@ -512,7 +512,7 @@ class LiveUnifiedIntelligenceSheet extends StatelessWidget {
                 const SizedBox(height: 10),
                 _UnifiedLayerCard(
                   icon: Icons.psychology_alt_outlined,
-                  title: 'Muse',
+                  title: 'Avatar',
                   subtitle:
                       'Comprend votre objectif, garde le contexte et prépare les prochaines actions.',
                   active: phase != LiveMusePhase.idle,
