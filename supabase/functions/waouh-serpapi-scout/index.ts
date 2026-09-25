@@ -92,17 +92,25 @@ Deno.serve(async (req) => {
         if (ins) {
           inserted.push(ins);
           // Also push to radar_signals for matching
+          const normalizedPhone = normalizeE164(ext.seller_phone);
+          const thumbnail = typeof r.thumbnail === "string" && /^https?:\/\//i.test(r.thumbnail)
+            ? r.thumbnail
+            : null;
           await sb.from("waouh_radar_signals").insert({
             source_type: "serpapi",
             raw_text: text,
             raw_url: r.link,
             raw_payload: r,
             intent: "SELL",
-            product: ext,
+            product: {
+              ...ext,
+              photos: thumbnail ? [thumbnail] : [],
+              image_url: thumbnail,
+            },
             category: ext.category || cat,
             price: ext.price,
             city: ext.city,
-            contact_phone: ext.seller_phone,
+            contact_phone: normalizedPhone,
             confidence: ext.confidence,
             status: "extracted",
           });
