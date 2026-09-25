@@ -145,7 +145,7 @@ export function WaouhAvatarCommerceFlow({
         title: "Connexion requise",
         description: "Connectez-vous pour poursuivre une négociation ou conclure un deal.",
       });
-      window.location.href = `/app/auth?next=${encodeURIComponent(`/app/muse?intent=${intent}`)}`;
+      window.location.href = `/app/auth?next=${encodeURIComponent(`/app/avatar?intent=${intent}`)}`;
       return;
     }
 
