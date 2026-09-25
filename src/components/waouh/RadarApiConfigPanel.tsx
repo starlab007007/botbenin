@@ -106,6 +106,10 @@ const META: Record<ProviderId, ProviderMeta> = {
     secretLabel: "Clé API SerpAPI",
     secretHelp: "serpapi.com/manage-api-key",
     keyRequired: true,
+    fields: [
+      { key: "default_query", label: "Recherche par défaut", placeholder: "smartphone, véhicule, terrain, service" },
+      { key: "city", label: "Ville par défaut", placeholder: "Cotonou" },
+    ],
   },
   apify: {
     label: "Apify · Web social public",
@@ -131,6 +135,10 @@ const META: Record<ProviderId, ProviderMeta> = {
     secretLabel: "Clé Google Places API",
     secretHelp: "Google Cloud Console · Places API (New)",
     keyRequired: true,
+    fields: [
+      { key: "default_query", label: "Recherche par défaut", placeholder: "boutique téléphone, garage, plombier" },
+      { key: "city", label: "Ville par défaut", placeholder: "Cotonou" },
+    ],
   },
   facebook_business: {
     label: "Facebook Business / Pages",
