@@ -10,6 +10,8 @@ import 'live_controller_v2.dart';
 import 'live_inbox_production.dart';
 import 'live_match_chat_v2.dart';
 import 'live_models.dart';
+import 'live_muse_screen.dart';
+import 'live_nexus_screen.dart';
 import 'live_notifications_screen_v2.dart';
 import 'live_offline_banner.dart';
 import 'live_partner_businesses_v3.dart';
@@ -148,11 +150,11 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
             ),
             GoRoute(
               path: '/app/muse',
-              redirect: (_, __) => '/app/chat/waouh',
+              builder: (_, __) => const LiveMuseScreen(),
             ),
             GoRoute(
               path: '/app/nexus',
-              redirect: (_, __) => '/app/chat/waouh',
+              builder: (_, __) => const LiveNexusScreen(),
             ),
             GoRoute(
               path: '/app/bots',
