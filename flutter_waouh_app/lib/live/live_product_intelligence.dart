@@ -58,7 +58,7 @@ class LiveProductIntelligenceService {
     final normalized = articleId.trim();
     if (normalized.isEmpty) return null;
     final response = await client.functions.invoke(
-      'waouh-product-intelligence',
+      'setup-test-accounts',
       body: <String, dynamic>{'article_id': normalized},
     );
     final data = response.data;
