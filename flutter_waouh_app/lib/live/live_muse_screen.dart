@@ -52,7 +52,7 @@ class _LiveMuseScreenState extends State<LiveMuseScreen> {
   void talkToMuse() {
     final controller = context.read<LiveWaouhController>();
     controller.setComposerSeed(
-      'Muse, aide-moi à atteindre mon objectif. Pose-moi seulement les questions indispensables puis travaille avec NEXUS.',
+      'Avatar, aide-moi à atteindre mon objectif. Pose-moi seulement les questions indispensables puis travaille avec NEXUS.',
       meta: const <String, dynamic>{
         'source': 'muse_home',
         'intent': 'agentic_goal',
@@ -70,8 +70,8 @@ class _LiveMuseScreenState extends State<LiveMuseScreen> {
     return Scaffold(
       backgroundColor: WaouhPalette.pearl,
       appBar: const LiveHeader(
-        title: 'WAOUH Muse',
-        subtitle: 'Dites l’objectif · Muse + NEXUS s’en chargent',
+        title: 'WAOUH Avatar',
+        subtitle: 'Dites l’objectif · Avatar + NEXUS s’en chargent',
         back: true,
       ),
       body: auth.signedIn
@@ -90,7 +90,7 @@ class _LiveMuseScreenState extends State<LiveMuseScreen> {
                 const SizedBox(height: 12),
                 const _SectionTitle(
                   title: 'Que voulez-vous faire ?',
-                  subtitle: 'Muse + NEXUS',
+                  subtitle: 'Avatar + NEXUS',
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -107,7 +107,7 @@ class _LiveMuseScreenState extends State<LiveMuseScreen> {
                     Expanded(
                       child: _ActionCard(
                         icon: Icons.auto_awesome_rounded,
-                        title: 'Parler à Muse',
+                        title: 'Parler à l’Avatar',
                         subtitle: 'Créer un objectif',
                         onTap: talkToMuse,
                       ),
@@ -152,9 +152,9 @@ class _LiveMuseScreenState extends State<LiveMuseScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: FilledButton.icon(
-                  onPressed: () => context.go('/app/auth?next=/app/muse'),
+                  onPressed: () => context.go('/app/auth?next=/app/avatar'),
                   icon: const Icon(Icons.login_rounded),
-                  label: const Text('Se connecter pour activer Muse'),
+                  label: const Text('Se connecter pour activer Avatar'),
                 ),
               ),
             ),
@@ -216,7 +216,7 @@ class _MuseHero extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Acheter ou vendre avec Muse.',
+                            'Acheter ou vendre avec votre Avatar.',
                             style: Theme.of(context).textTheme.headlineMedium,
                           ),
                           const SizedBox(height: 6),
@@ -282,7 +282,7 @@ class _ArchitectureFlow extends StatelessWidget {
         children: const [
           Expanded(child: _FlowStep(icon: Icons.chat_bubble_outline_rounded, label: 'Objectif')),
           _FlowArrow(),
-          Expanded(child: _FlowStep(icon: Icons.psychology_alt_outlined, label: 'Muse')),
+          Expanded(child: _FlowStep(icon: Icons.psychology_alt_outlined, label: 'Avatar')),
           _FlowArrow(),
           Expanded(child: _FlowStep(icon: Icons.travel_explore_rounded, label: 'NEXUS')),
           _FlowArrow(),
