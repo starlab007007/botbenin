@@ -102,3 +102,36 @@ updated_at=now()
 from public.waouh_radar_api_configs c
 where c.source_key=s.source_key
   and c.provider not in ('whatsapp_groups','sms_rcs');
+
+
+-- Composite public Web/social surfaces remain live when any configured public
+-- collector can feed them.
+with ready as (
+  select
+    bool_or(provider='serpapi' and active and api_key is not null and length(api_key)>0) as serp,
+    bool_or(provider='apify' and active and api_key is not null and length(api_key)>0) as apify,
+    bool_or(provider='firecrawl' and active and api_key is not null and length(api_key)>0) as firecrawl
+  from public.waouh_radar_api_configs
+)
+update public.waouh_discovery_sources s
+set operational_state = case
+      when coalesce(r.serp,false) or coalesce(r.apify,false) or coalesce(r.firecrawl,false)
+        then 'live'
+      else 'requires_config'
+    end,
+    updated_at=now()
+from ready r
+where s.source_key in (
+  'web_social','facebook_public','instagram_public','tiktok_public',
+  'linkedin_public','youtube_public','x_public'
+);
+
+with ready as (
+  select bool_or(provider='firecrawl' and active and api_key is not null and length(api_key)>0) as firecrawl
+  from public.waouh_radar_api_configs
+)
+update public.waouh_discovery_sources s
+set operational_state = case when coalesce(r.firecrawl,false) then 'live' else 'requires_config' end,
+    updated_at=now()
+from ready r
+where s.source_key='rss_public';
