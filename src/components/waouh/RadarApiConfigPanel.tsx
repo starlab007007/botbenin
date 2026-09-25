@@ -21,10 +21,12 @@ import {
   TestTube2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { syncNexusSource } from "@/lib/waouh/nexus";
 
 type ProviderId =
   | "serpapi"
   | "apify"
+  | "firecrawl"
   | "google_places"
   | "facebook_business"
   | "instagram_business"
@@ -87,6 +89,7 @@ type ProviderMeta = {
 const ORDER: ProviderId[] = [
   "serpapi",
   "apify",
+  "firecrawl",
   "google_places",
   "facebook_business",
   "instagram_business",
