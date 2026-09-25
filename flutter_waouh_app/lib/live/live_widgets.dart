@@ -1853,30 +1853,33 @@ class _PremiumProductCardState extends State<_PremiumProductCard> {
   }
 
   Future<void> _load() async {
-    final product = widget.product;
-    final key = [
-      _articleId() ?? '',
-      product.title,
-      product.city ?? '',
-      product.price ?? '',
-    ].join('|');
-    final future = _cache.putIfAbsent(
-      key,
-      () => LiveMarketIntelligenceService(legacy.supabase).analyze(
-        articleId: _articleId(),
-        title: product.title,
-        offeredPrice: _priceNumber(product.price),
-        city: product.city,
-        category: product.category,
-        condition: product.condition,
-        availability: product.availability,
-      ),
-    );
     try {
+      final product = widget.product;
+      final key = [
+        _articleId() ?? '',
+        product.title,
+        product.city ?? '',
+        product.price ?? '',
+      ].join('|');
+      final future = _cache.putIfAbsent(
+        key,
+        () => LiveMarketIntelligenceService(legacy.supabase).analyze(
+          articleId: _articleId(),
+          title: product.title,
+          offeredPrice: _priceNumber(product.price),
+          city: product.city,
+          category: product.category,
+          condition: product.condition,
+          availability: product.availability,
+        ),
+      );
       final value = await future;
       if (!mounted) return;
       setState(() => _intelligence = value);
-    } catch (_) {}
+    } catch (_) {
+      // Enrichissement strictement fail-soft : tests, hors-ligne et ancienne
+      // initialisation gardent la carte d'origine entièrement utilisable.
+    }
   }
 
   @override
