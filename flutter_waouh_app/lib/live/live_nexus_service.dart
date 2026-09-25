@@ -100,6 +100,11 @@ class NexusDiscoveryItem {
     this.priceMax,
     this.currency = 'XOF',
     this.sourceUrl,
+    this.articleId,
+    this.catalogId,
+    this.sellerUserId,
+    this.buyerUserId,
+    this.evidence = const <String, dynamic>{},
   });
 
   final String fabricId;
@@ -113,12 +118,38 @@ class NexusDiscoveryItem {
   final double? priceMax;
   final String currency;
   final String? sourceUrl;
+  final String? articleId;
+  final String? catalogId;
+  final String? sellerUserId;
+  final String? buyerUserId;
+  final Map<String, dynamic> evidence;
   final NexusScore scores;
   final NexusContactPolicy contactPolicy;
+
+  bool get internalArticle =>
+      articleId?.trim().isNotEmpty == true &&
+      sellerUserId?.trim().isNotEmpty == true;
+
+  String get sourceLabel {
+    final key = sourceKey.toLowerCase();
+    if (key.contains('partner')) return 'Partenaire';
+    if (key.contains('radar')) return 'Radar';
+    if (key.contains('whatsapp')) return 'WhatsApp';
+    if (key.contains('facebook')) return 'Facebook';
+    if (key.contains('google')) return 'Google';
+    if (key.contains('status')) return 'Statut';
+    if (key.contains('agent')) return 'Agent IA';
+    return 'NEXUS';
+  }
 
   factory NexusDiscoveryItem.fromJson(Map<String, dynamic> json) {
     final minRaw = json['price_min'];
     final maxRaw = json['price_max'];
+    final evidence = _map(json['evidence']);
+    String? optionalId(dynamic value) {
+      final text = _text(value).trim();
+      return text.isEmpty || text == 'null' ? null : text;
+    }
     return NexusDiscoveryItem(
       fabricId: _text(json['fabric_id']),
       sourceKey: _text(json['source_key'], 'waouh_app'),
@@ -134,6 +165,22 @@ class NexusDiscoveryItem {
       priceMax: maxRaw == null ? null : _number(maxRaw),
       currency: _text(json['currency'], 'XOF'),
       sourceUrl: json['source_url'] == null ? null : _text(json['source_url']),
+      articleId: optionalId(
+        json['article_id'] ??
+            evidence['article_id'] ??
+            (json['source_key'] == 'waouh_app' ? json['source_record_id'] : null),
+      ),
+      catalogId: optionalId(json['catalog_id'] ?? evidence['catalog_id']),
+      sellerUserId: optionalId(
+        json['seller_user_id'] ??
+            evidence['seller_user_id'] ??
+            evidence['owner_user_id'] ??
+            evidence['user_id'],
+      ),
+      buyerUserId: optionalId(
+        json['buyer_user_id'] ?? evidence['buyer_user_id'],
+      ),
+      evidence: evidence,
       scores: NexusScore.fromJson(_map(json['scores'])),
       contactPolicy:
           NexusContactPolicy.fromJson(_map(json['contact_policy'])),
