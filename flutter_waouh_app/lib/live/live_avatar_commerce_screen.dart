@@ -557,6 +557,27 @@ class _OpportunityCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (item.photoUrls.isNotEmpty) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: AspectRatio(
+                  aspectRatio: 16 / 10,
+                  child: Image.network(
+                    item.photoUrls.first,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: const Color(0xFFF2F5FA),
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.image_not_supported_outlined,
+                        color: WaouhPalette.muted,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -643,6 +664,32 @@ class _OpportunityCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 10),
+            _InfoStrip(
+              icon: Icons.description_outlined,
+              text: item.detailsSummary.isEmpty
+                  ? 'Aucun détail complémentaire n’est fourni par la source.'
+                  : item.detailsSummary,
+              accent: const Color(0xFF61718D),
+            ),
+            const SizedBox(height: 7),
+            _InfoStrip(
+              icon: Icons.bar_chart_rounded,
+              text: item.marketSummary,
+              accent: const Color(0xFF159A69),
+            ),
+            const SizedBox(height: 7),
+            _InfoStrip(
+              icon: Icons.compare_arrows_rounded,
+              text: item.comparativeSummary,
+              accent: const Color(0xFF42658B),
+            ),
+            const SizedBox(height: 7),
+            _InfoStrip(
+              icon: Icons.auto_awesome_rounded,
+              text: item.recommendationSummary,
+              accent: const Color(0xFF8B6500),
+            ),
+            const SizedBox(height: 7),
             _InfoStrip(
               icon: item.internalArticle
                   ? Icons.lock_person_outlined
