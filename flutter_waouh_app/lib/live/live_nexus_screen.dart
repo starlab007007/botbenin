@@ -1091,6 +1091,19 @@ class _DiscoveryCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (item.photos.isNotEmpty) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    item.photos.first,
+                    width: double.infinity,
+                    height: 150,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  ),
+                ),
+                const SizedBox(height: 9),
+              ],
               Row(
                 children: [
                   Expanded(
@@ -1117,6 +1130,9 @@ class _DiscoveryCard extends StatelessWidget {
                   _Pill(item.intent),
                   if (item.city != null) _Pill(item.city!),
                   _Pill(item.contactPolicy.level),
+                  if (item.whatsappDetected) const _Pill('WhatsApp détecté'),
+                  if (item.contactDetected && !item.whatsappDetected)
+                    const _Pill('Contact détecté'),
                 ],
               ),
               if (item.priceMin != null || item.priceMax != null) ...[
