@@ -43,11 +43,17 @@ serve(async (req) => {
     const sessionId = clean(body?.sessionId ?? body?.session_id);
     const authUserId = clean(body?.authUserId ?? body?.auth_user_id);
     let requestedThreadId = clean(body?.threadId ?? body?.thread_id);
+    const matchKey = clean(body?.matchKey ?? body?.match_key);
+    const matchKeyCorrelation =
+      matchKey?.startsWith("pending_interest_") == true
+        ? clean(matchKey.slice("pending_interest_".length))
+        : null;
     const rawCorrelationId = clean(
       body?.correlationId ??
         body?.correlation_id ??
         body?.idempotency_key ??
-        body?.request_id,
+        body?.request_id ??
+        matchKeyCorrelation,
     );
     const correlationId =
       rawCorrelationId && /^[A-Za-z0-9_-]{8,160}$/.test(rawCorrelationId)
