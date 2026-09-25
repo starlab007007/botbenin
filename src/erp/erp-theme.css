@@ -360,6 +360,23 @@
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
+.waouh-erp-missions-action {
+  height: 40px;
+  gap: 7px;
+  border-radius: 12px;
+  border-color: #cfe5df !important;
+  background: linear-gradient(180deg, #ffffff, #f5fbf8) !important;
+  color: var(--erp-green-deep) !important;
+  font-size: 10px;
+  font-weight: 900;
+  box-shadow: 0 6px 16px rgba(8, 117, 106, 0.07);
+}
+
+.waouh-erp-missions-action:hover {
+  border-color: #9fd0c3 !important;
+  background: var(--erp-green-soft) !important;
+}
+
 .waouh-erp-primary-action {
   height: 40px;
   border-radius: 12px;
@@ -626,7 +643,8 @@
     flex-basis: 228px;
   }
 
-  .waouh-erp-primary-action span {
+  .waouh-erp-primary-action span,
+  .waouh-erp-missions-action span {
     display: none;
   }
 
