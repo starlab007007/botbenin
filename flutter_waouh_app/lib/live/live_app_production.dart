@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
 import 'live_auth_screens.dart';
-import 'live_broadcast_screen.dart';
 import 'live_controller.dart';
 import 'live_controller_v2.dart';
 import 'live_inbox_production.dart';
@@ -12,6 +11,7 @@ import 'live_match_chat_v2.dart';
 import 'live_models.dart';
 import 'live_missions_screen.dart';
 import 'live_muse_screen.dart';
+import 'live_muse_missions_hub_screen.dart';
 import 'live_nexus_screen.dart';
 import 'live_notifications_screen_v2.dart';
 import 'live_offline_banner.dart';
@@ -233,8 +233,12 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
               ),
             ),
             GoRoute(
+              path: '/app/waouh',
+              builder: (_, __) => const LiveMuseMissionsHubScreen(),
+            ),
+            GoRoute(
               path: '/app/diffusion',
-              builder: (_, __) => const LiveBroadcastScreen(),
+              redirect: (_, __) => '/app/waouh',
             ),
             GoRoute(
               path: '/app/partner',
@@ -287,7 +291,7 @@ class LiveProductionShell extends StatelessWidget {
         path.startsWith('/app/presence')) {
       return 2;
     }
-    if (path.startsWith('/app/diffusion')) return 3;
+    if (path.startsWith('/app/waouh') || path.startsWith('/app/diffusion')) return 3;
     if (path.startsWith('/app/partner')) return 4;
     return 0;
   }
@@ -314,7 +318,7 @@ class LiveProductionShell extends StatelessWidget {
               onDestinationSelected: (index) => context.go(switch (index) {
                 1 => '/app/ia',
                 2 => '/app/whatsapp/conversationnel',
-                3 => '/app/diffusion',
+                3 => '/app/waouh',
                 4 => '/app/partner',
                 _ => '/app/chat',
               }),
@@ -332,8 +336,8 @@ class LiveProductionShell extends StatelessWidget {
                   label: 'IA',
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.campaign_outlined),
-                  label: 'Diffusion',
+                  icon: Icon(Icons.auto_awesome_rounded),
+                  label: 'WAOUH',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.storefront_outlined),
