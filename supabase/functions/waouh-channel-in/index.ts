@@ -40,6 +40,43 @@ const WAOUH_BUSINESS_PHONE = normalizeBeninPhone(Deno.env.get("WAOUH_BUSINESS_PH
 
 type WaouhAction = { id: string; label: string };
 
+type DealCommand = {
+  action: "seller_confirm" | "payment_preference" | "cancel" | "payment";
+  dealId: string;
+  method?: "cash" | "mobile_money";
+};
+
+function parseDealCommand(text: string, meta: Record<string, any>): DealCommand | null {
+  const rawText = String(text || "").trim();
+  const buttonPayload = String(meta?.button_payload || "").trim();
+  const commerceAction = String(meta?.commerce_action || meta?.action || "").trim().toLowerCase();
+  const candidate = buttonPayload || rawText;
+  const commandMatch = candidate.match(/^([^:]+):([0-9a-f-]{8,})$/i);
+  const command = String(commandMatch?.[1] || commerceAction || "").trim().toLowerCase();
+  const dealId = String(meta?.deal_id || commandMatch?.[2] || "").trim();
+  if (!dealId) return null;
+
+  if (["seller_confirm_available", "seller_confirm", "confirmer-disponibilite"].includes(command)) {
+    return { action: "seller_confirm", dealId };
+  }
+  if (["payment_preference_mobile", "payment_mobile", "payer-mobile"].includes(command)) {
+    return { action: "payment_preference", dealId, method: "mobile_money" };
+  }
+  if (["payment_preference_cod", "payment_delivery", "paiement-livraison"].includes(command)) {
+    return { action: "payment_preference", dealId, method: "cash" };
+  }
+  if (["confirm_payment_cash", "confirmer-paiement-cash"].includes(command)) {
+    return { action: "payment", dealId, method: "cash" };
+  }
+  if (["confirm_payment_mobile", "confirmer-paiement-mobile"].includes(command)) {
+    return { action: "payment", dealId, method: "mobile_money" };
+  }
+  if (["cancel_deal", "cancel", "annuler"].includes(command)) {
+    return { action: "cancel", dealId };
+  }
+  return null;
+}
+
 function beninPhoneCandidates(value: string | null | undefined): string[] {
   const canon = normalizeBeninPhone(String(value || ""));
   const out = new Set<string>();
@@ -682,6 +719,7 @@ serve(async (req) => {
       web_session_id: sessionId, phone_number: phone,
       attachments,
       article_id: inboundArticleId,
+      thread_id: clientMeta?.thread_id ?? null,
       meta: { ...clientMeta, to_phone: toPhone || WAOUH_BUSINESS_PHONE, session: wahaSession },
     }).select("id").maybeSingle();
     const inboundMessageId: string | null = inboundRow?.id ?? null;
@@ -730,48 +768,157 @@ serve(async (req) => {
 
 
 
-    // Negotiation routing : si l'utilisateur a une négo ouverte, route vers negotiation-router.
-    // IMPORTANT : quand le message vient de WaouhMatchChatWindow (meta.article_id + meta.role),
-    // l'utilisateur web courant peut être un waouh_users DIFFÉRENT de celui qui possède la
-    // négociation (sessions multiples, auth_user_id non lié). On fait donc une lookup
-    // scoped par article_id + rôle, et on transmet le user_id réel de la négo à
-    // negotiation-router pour qu'il ne réponde jamais "Aucune négociation en cours".
+    // Negotiation + Deal Graph routing.
+    // A commercial decision is always scoped to one exact thread/deal. Article-only
+    // routing is allowed only when the counterpart is explicit or a single open
+    // negotiation exists for the actor.
     const metaArticleId: string | null = clientMeta?.article_id ?? null;
+    const metaThreadId: string | null = clientMeta?.thread_id ?? null;
+    const metaNegotiationId: string | null = clientMeta?.negotiation_id ?? null;
+    const metaCounterpartId: string | null =
+      clientMeta?.counterpart_user_id ?? clientMeta?.buyer_user_id ?? clientMeta?.buyer_profile_id ?? null;
     const metaRole: "buyer" | "seller" | null =
       clientMeta?.role === "seller" || clientMeta?.role === "buyer" ? clientMeta.role : null;
 
-    let openNeg: { id: string; buyer_user_id: string | null; seller_user_id: string | null } | null = null;
-
-    // 🔑 Multi-identités : une même personne peut avoir plusieurs lignes
-    // waouh_users (App + WA, LID + phone, doublons). On élargit la recherche
-    // à tous les siblings pour ne plus rater la négociation côté contre-offre.
     const siblingIds = await resolveSiblingUserIds(sb, user);
 
-    if (metaArticleId) {
-      const { data } = await sb
-        .from("waouh_negotiations")
-        .select("id, buyer_user_id, seller_user_id")
-        .eq("article_id", metaArticleId)
-        .in("state", ["proposed", "countered"])
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      openNeg = data as any;
+    // Deterministic post-agreement commands. These never pass through the LLM.
+    const dealCommand = parseDealCommand(text, clientMeta);
+    if (dealCommand) {
+      const dealBody: Record<string, any> = {
+        action: dealCommand.action,
+        deal_id: dealCommand.dealId,
+        actor_user_id: user.id,
+        ...(dealCommand.method ? { method: dealCommand.method } : {}),
+      };
+      const dealRes = await fetch(`${SUPABASE_URL}/functions/v1/waouh-deal-ops`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
+        body: JSON.stringify(dealBody),
+      });
+      const dealData = await readWaouhEngineResponse(dealRes);
+      const dealReply = String(
+        dealData?.reply ||
+        (dealRes.ok ? "✅ Action enregistrée." : "Cette action n'est pas disponible à cette étape.")
+      );
+      const dealActions: WaouhAction[] = Array.isArray(dealData?.actions) ? dealData.actions : [];
+      const dealThreadId = dealData?.thread_id ?? metaThreadId ?? null;
+      const dealArticleId = dealData?.article_id ?? metaArticleId ?? null;
+
+      const { data: dealRow } = await sb.from("waouh_messages").insert({
+        conversation_id: convId,
+        thread_id: dealThreadId,
+        user_id: user.id,
+        channel,
+        direction: "out",
+        text: dealReply,
+        web_session_id: sessionId,
+        phone_number: phone,
+        attachments: [],
+        article_id: dealArticleId,
+        meta: {
+          ...clientMeta,
+          intent: dealData?.intent ?? (dealRes.ok ? "deal_action" : "deal_action_blocked"),
+          workflow_state: dealData?.workflow_state ?? null,
+          deal_id: dealCommand.dealId,
+          transaction_id: dealData?.transaction_id ?? clientMeta?.transaction_id ?? null,
+          thread_id: dealThreadId,
+          article_id: dealArticleId,
+          actions: dealActions,
+          correlation_id: correlationId,
+        },
+      }).select("id").maybeSingle();
+
+      if (convId) {
+        await sb.from("waouh_conversations")
+          .update({ last_message: dealReply, updated_at: new Date().toISOString() })
+          .eq("id", convId);
+      }
+      if (channel === "whatsapp" && phone && WAHA_BASE_URL) {
+        try {
+          await sendWahaReply(WAHA_BASE_URL, wahaSession, replyChatIds, dealReply, dealActions);
+        } catch (e) {
+          console.error("[waouh-channel-in] deal reply WAHA failed", e);
+        }
+      }
+
+      return new Response(JSON.stringify({
+        ok: dealRes.ok && dealData?.ok !== false,
+        ...dealData,
+        reply: dealReply,
+        outbound_message_id: dealRow?.id ?? null,
+        inbound_message_id: inboundMessageId,
+        conversation_id: convId,
+        user_id: user.id,
+        article_id: dealArticleId,
+        thread_id: dealThreadId,
+        deal_id: dealCommand.dealId,
+        actions: dealActions,
+        correlation_id: correlationId,
+      }), {
+        status: dealRes.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
-    if (!openNeg) {
-      const { data } = await sb
-        .from("waouh_negotiations")
-        .select("id, buyer_user_id, seller_user_id")
+
+    type OpenNeg = {
+      id: string;
+      thread_id: string | null;
+      buyer_user_id: string | null;
+      seller_user_id: string | null;
+    };
+    let openNeg: OpenNeg | null = null;
+    let ambiguousNegotiation = false;
+
+    if (metaNegotiationId) {
+      const { data } = await sb.from("waouh_negotiations")
+        .select("id, thread_id, buyer_user_id, seller_user_id")
+        .eq("id", metaNegotiationId)
+        .or(siblingOrFilter(siblingIds))
+        .in("state", ["proposed", "countered"])
+        .maybeSingle();
+      openNeg = data as OpenNeg | null;
+    }
+
+    if (!openNeg && metaThreadId) {
+      const { data } = await sb.from("waouh_negotiations")
+        .select("id, thread_id, buyer_user_id, seller_user_id")
+        .eq("thread_id", metaThreadId)
         .or(siblingOrFilter(siblingIds))
         .in("state", ["proposed", "countered"])
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      openNeg = data as any;
+      openNeg = data as OpenNeg | null;
     }
 
-    // Choisit l'id sibling qui correspond effectivement à un côté de la négo,
-    // pour que negotiation-router calcule correctement isBuyer/isSeller.
+    if (!openNeg && metaArticleId && metaCounterpartId && metaRole) {
+      let q: any = sb.from("waouh_negotiations")
+        .select("id, thread_id, buyer_user_id, seller_user_id")
+        .eq("article_id", metaArticleId)
+        .in("state", ["proposed", "countered"]);
+      if (metaRole === "seller") {
+        q = q.eq("buyer_user_id", metaCounterpartId).in("seller_user_id", siblingIds);
+      } else {
+        q = q.eq("seller_user_id", metaCounterpartId).in("buyer_user_id", siblingIds);
+      }
+      const { data } = await q.order("updated_at", { ascending: false }).limit(1).maybeSingle();
+      openNeg = data as OpenNeg | null;
+    }
+
+    if (!openNeg) {
+      const { data } = await sb.from("waouh_negotiations")
+        .select("id, thread_id, buyer_user_id, seller_user_id")
+        .or(siblingOrFilter(siblingIds))
+        .in("state", ["proposed", "countered"])
+        .order("updated_at", { ascending: false })
+        .limit(2);
+      const candidates = (data || []) as OpenNeg[];
+      if (candidates.length === 1) openNeg = candidates[0];
+      else if (candidates.length > 1) ambiguousNegotiation = true;
+    }
+
+    // Choisit l'identité sibling stockée dans la négociation.
     let negUserId: string = user.id;
     if (openNeg) {
       if (metaRole === "seller" && openNeg.seller_user_id) {
@@ -785,14 +932,33 @@ serve(async (req) => {
       }
     }
 
-    const lowerText = (text || "").toLowerCase();
+    const lowerText = (text || "").toLowerCase();    const lowerText = (text || "").toLowerCase();
     const shouldStayInCore = /(?:int[ée]ress[ée]|interesse)\s*(?:n[°o]?\s*)?(?:x|\d+)|\b(?:je\s+)?(?:cherche|vends)\b/i.test(lowerText);
+
+    if (!openNeg && ambiguousNegotiation && !shouldStayInCore &&
+        /^(?:oui|ok|d['’]?accord|j['’]?accepte|accepte|yes|non|no|je\s+refuse|refuse|je\s+propose|propose)\b/i.test(text.trim())) {
+      return new Response(JSON.stringify({
+        ok: false,
+        code: "thread_required",
+        reply: "Ouvrez le Deal Room du produit concerné pour répondre à cette négociation.",
+        inbound_message_id: inboundMessageId,
+      }), {
+        status: 409,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     if (openNeg && !shouldStayInCore) {
       const negRes = await fetch(`${SUPABASE_URL}/functions/v1/waouh-negotiation-router`, {
         method: "POST",
         headers: { Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, text, user_id: negUserId }),
+        body: JSON.stringify({
+          phone,
+          text,
+          user_id: negUserId,
+          thread_id: metaThreadId ?? openNeg.thread_id ?? null,
+          negotiation_id: metaNegotiationId ?? openNeg.id,
+        }),
       });
       const negData = await readWaouhEngineResponse(negRes);
       const negReply = negData?.reply ?? "";
@@ -811,6 +977,7 @@ serve(async (req) => {
       if (!suppressDirectReply) {
         const { data: negRow, error: negWriteError } = await sb.from("waouh_messages").insert({
           conversation_id: convId,
+          thread_id: negData?.thread_id ?? metaThreadId ?? openNeg.thread_id ?? null,
           user_id: user.id, channel, direction: "out", text: negReply,
           web_session_id: sessionId, phone_number: phone,
           attachments: negAttachments,
@@ -818,6 +985,8 @@ serve(async (req) => {
           meta: {
             intent: negIntent,
             transaction_id: negTxId,
+            negotiation_id: negData?.negotiation_id ?? openNeg.id,
+            thread_id: negData?.thread_id ?? metaThreadId ?? openNeg.thread_id ?? null,
             article_id: clientMeta?.article_id ?? null,
             actions: negActions, results: negResults, products: negProducts,
             // 🔑 Garantit que la fenêtre WaouhMatchChatWindow de l'expéditeur
