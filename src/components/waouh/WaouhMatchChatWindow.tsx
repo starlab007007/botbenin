@@ -874,11 +874,14 @@ export function WaouhMatchChatWindow({
                           setTimeout(() => textareaRef.current?.focus(), 0);
                           return;
                         }
-                        const visibleText = /accepter|^oui/i.test(actionId)
-                          ? "OUI"
-                          : /refuser|^non/i.test(actionId)
-                            ? "NON"
-                            : actionId;
+                        const isDealAction = /^(?:payer-mobile|paiement-livraison|confirmer-disponibilite|confirmer-paiement-cash|confirmer-paiement-mobile|annuler):/i.test(actionId);
+                        const visibleText = isDealAction
+                          ? label
+                          : /accepter|^oui/i.test(actionId)
+                            ? "OUI"
+                            : /refuser|^non/i.test(actionId)
+                              ? "NON"
+                              : actionId;
                         void sendMessage(visibleText, {
                           button_payload: actionId,
                           thread_id: m.meta?.thread_id ?? latestCommerceScope.thread_id ?? null,
