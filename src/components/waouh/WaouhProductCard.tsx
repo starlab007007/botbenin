@@ -18,6 +18,10 @@ import {
   Users,
   ExternalLink,
   Bot,
+  FileText,
+  BarChart3,
+  GitCompareArrows,
+  Lightbulb,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +30,7 @@ import { isImageReady, preloadImage, prefetchNeighbours } from "@/components/wao
 import { cn } from "@/lib/utils";
 import { WaouhContactabilityBadge } from "./WaouhCommerceAgentBar";
 import { WaouhNexusContactSheet } from "./WaouhNexusContactSheet";
+import { getNexusMarketHistory } from "@/lib/waouh/nexus";
 
 /**
  * Fiche produit d'un résultat de recherche WAOUH.
@@ -70,6 +75,14 @@ export interface WaouhResultCard {
   scores?: Record<string, unknown> | null;
   reasons?: string[] | null;
   evidence?: Record<string, unknown> | null;
+  details?: string | null;
+  market_comparison?: string | null;
+  comparative_analysis?: string | null;
+  recommendation?: string | null;
+  market_price_min?: number | null;
+  market_price_median?: number | null;
+  market_price_max?: number | null;
+  source_mix?: Record<string, number> | null;
 }
 
 type OpenDetail = {
@@ -104,6 +117,140 @@ const resultReasons = (result: WaouhResultCard): string[] => {
 
 const contactLevel = (result: WaouhResultCard): string | null =>
   (result.contactability_level || result.contactability || (result.evidence as any)?.contactability_level || null) as string | null;
+
+type ProductMarketIntel = {
+  min: number | null;
+  median: number | null;
+  max: number | null;
+  sampleCount: number;
+  sourceMix: Record<string, number>;
+};
+
+const marketIntelCache = new Map<string, Promise<ProductMarketIntel | null>>();
+
+function fetchProductMarketIntel(result: WaouhResultCard): Promise<ProductMarketIntel | null> {
+  const key = `${result.title.trim().toLowerCase()}|${String(result.city || "").trim().toLowerCase()}`;
+  const cached = marketIntelCache.get(key);
+  if (cached) return cached;
+  const promise = getNexusMarketHistory(result.title, result.city || undefined)
+    .then((data) => {
+      const point = Array.isArray(data?.points) ? data.points[0] : null;
+      if (!point) return null;
+      const num = (value: unknown): number | null => {
+        const parsed = typeof value === "number" ? value : Number(value);
+        return Number.isFinite(parsed) ? parsed : null;
+      };
+      return {
+        min: num(point.min_amount),
+        median: num(point.median_amount),
+        max: num(point.max_amount),
+        sampleCount: Number(point.sample_count || 0) || 0,
+        sourceMix: point.source_mix && typeof point.source_mix === "object"
+          ? point.source_mix as Record<string, number>
+          : {},
+      };
+    })
+    .catch(() => null);
+  marketIntelCache.set(key, promise);
+  return promise;
+}
+
+function productPrice(result: WaouhResultCard): number | null {
+  const raw = result.price ?? result.price_min ?? result.price_max;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
+function verifiedDetails(result: WaouhResultCard): string {
+  const facts = [
+    result.details,
+    result.condition ? `État : ${result.condition}` : null,
+    result.city ? `Zone : ${result.city}` : null,
+    result.source ? `Source : ${result.source}` : null,
+  ].filter((value): value is string => !!value?.trim());
+  return facts.length ? [...new Set(facts)].join(" · ") : "Aucun détail vérifié supplémentaire n’est disponible.";
+}
+
+function deriveMarketText(result: WaouhResultCard, market: ProductMarketIntel | null, loading: boolean): string {
+  if (result.market_comparison?.trim()) return result.market_comparison.trim();
+  const directMin = result.market_price_min;
+  const directMedian = result.market_price_median;
+  const directMax = result.market_price_max;
+  const effective = market || ((directMin != null || directMedian != null || directMax != null) ? {
+    min: directMin ?? null, median: directMedian ?? null, max: directMax ?? null, sampleCount: 0, sourceMix: result.source_mix || {},
+  } : null);
+  if (!effective) return loading ? "NEXUS analyse les observations du marché…" : "Aucun échantillon marché vérifié disponible pour cet article.";
+  const parts = [
+    effective.min != null && effective.max != null ? `Fourchette ${fmt(effective.min)} – ${fmt(effective.max)}` : null,
+    effective.median != null ? `médiane ${fmt(effective.median)}` : null,
+    effective.sampleCount > 0 ? `${effective.sampleCount} observation(s)` : null,
+    Object.keys(effective.sourceMix || {}).length ? `sources ${Object.keys(effective.sourceMix).slice(0, 3).join(", ")}` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "Aucun échantillon marché vérifié disponible pour cet article.";
+}
+
+function deriveComparison(result: WaouhResultCard, market: ProductMarketIntel | null, loading: boolean): string {
+  if (result.comparative_analysis?.trim()) return result.comparative_analysis.trim();
+  if (loading && !market) return "Signal Fabric compare le prix et les signaux…";
+  const price = productPrice(result);
+  const median = market?.median ?? result.market_price_median ?? null;
+  if (price == null || median == null || median <= 0) {
+    const priceFit = metric(result, "price_score");
+    return priceFit != null
+      ? `Score prix Signal Fabric : ${Math.round(priceFit)} / 100.`
+      : "Comparaison objective impossible sans prix et médiane vérifiés.";
+  }
+  const delta = ((price - median) / median) * 100;
+  if (Math.abs(delta) < 3) return `Prix proche de la médiane observée (${Math.abs(delta).toFixed(1)} % d’écart).`;
+  return delta < 0
+    ? `Prix ${Math.abs(delta).toFixed(1)} % sous la médiane observée.`
+    : `Prix ${delta.toFixed(1)} % au-dessus de la médiane observée.`;
+}
+
+function deriveRecommendation(result: WaouhResultCard): string {
+  if (result.recommendation?.trim()) return result.recommendation.trim();
+  const reasons = resultReasons(result);
+  if (reasons.length) return reasons.join(" · ");
+  const score = metric(result, "total_score");
+  const trust = metric(result, "trust_score");
+  const level = contactLevel(result);
+  const pieces = [
+    score != null ? `Compatibilité ${Math.round(score)}%` : null,
+    trust != null ? `Confiance ${Math.round(trust)}%` : null,
+    level ? `Contact ${level}` : null,
+  ].filter(Boolean);
+  return pieces.length ? pieces.join(" · ") : "WAOUH attend davantage de signaux vérifiés avant de recommander cette opportunité.";
+}
+
+function IntelligencePanel({
+  icon: Icon,
+  title,
+  text,
+  tone,
+}: {
+  icon: React.ElementType;
+  title: string;
+  text: string;
+  tone: "neutral" | "market" | "compare" | "recommend";
+}) {
+  const styles = {
+    neutral: "border-slate-200 bg-slate-50/80 text-slate-700",
+    market: "border-emerald-200 bg-emerald-50/70 text-emerald-900",
+    compare: "border-blue-200 bg-blue-50/70 text-blue-900",
+    recommend: "border-amber-200 bg-amber-50/75 text-amber-900",
+  }[tone];
+  return (
+    <div className={cn("rounded-xl border px-2.5 py-2", styles)}>
+      <div className="flex items-start gap-2">
+        <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+        <div className="min-w-0 text-[11px] leading-snug">
+          <span className="font-black">{title} · </span>
+          <span>{text}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const isBuyerOpportunity = (result: WaouhResultCard): boolean => {
   const intent = String(result.intent || (result.evidence as any)?.intent || "").toUpperCase();
@@ -192,6 +339,8 @@ export function WaouhProductCard({
   const [ready, setReady] = useState<boolean>(() => isImageReady(photos[0]));
   const [asking, setAsking] = useState(false);
   const [question, setQuestion] = useState("");
+  const [marketIntel, setMarketIntel] = useState<ProductMarketIntel | null>(null);
+  const [marketLoading, setMarketLoading] = useState(false);
   const gallery = photos.map((url) => ({ url, caption: result.title }));
   const interestAction = result.action === null ? null : (result.action || defaultInterestAction(result));
   const opportunity = isBuyerOpportunity(result);
@@ -200,6 +349,22 @@ export function WaouhProductCard({
   const trust = metric(result, "trust_score");
   const priceFit = metric(result, "price_score");
   const reasons = resultReasons(result);
+
+  useEffect(() => {
+    const needsMarket = !result.market_comparison || !result.comparative_analysis;
+    if (!needsMarket) {
+      setMarketLoading(false);
+      return;
+    }
+    let alive = true;
+    setMarketLoading(true);
+    fetchProductMarketIntel(result).then((value) => {
+      if (!alive) return;
+      setMarketIntel(value);
+      setMarketLoading(false);
+    });
+    return () => { alive = false; };
+  }, [result.title, result.city, result.market_comparison, result.comparative_analysis]);
 
   useEffect(() => {
     setFailed(false);
@@ -347,15 +512,6 @@ export function WaouhProductCard({
           </div>
         )}
 
-        {reasons.length > 0 && (
-          <div className="rounded-xl border border-emerald-100 bg-emerald-50/55 px-2.5 py-2">
-            <div className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-emerald-800">
-              <Bot className="h-3 w-3" /> Pourquoi WAOUH le recommande
-            </div>
-            <div className="text-[11px] leading-snug text-emerald-950">{reasons.join(" · ")}</div>
-          </div>
-        )}
-
         <div className="flex flex-wrap gap-1 text-[11px] text-muted-foreground">
           {(result.city || result.quartier) && (
             <span className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5">
@@ -373,9 +529,12 @@ export function WaouhProductCard({
           {result.badge && <span className="rounded bg-muted px-1.5 py-0.5">{result.badge}</span>}
         </div>
 
-        {result.market_line && (
-          <p className="text-[11px] leading-snug text-muted-foreground line-clamp-3">{result.market_line}</p>
-        )}
+        <div className="space-y-1.5">
+          <IntelligencePanel icon={FileText} title="Détails vérifiés" text={verifiedDetails(result)} tone="neutral" />
+          <IntelligencePanel icon={BarChart3} title="Marché réel" text={deriveMarketText(result, marketIntel, marketLoading)} tone="market" />
+          <IntelligencePanel icon={GitCompareArrows} title="Analyse comparative" text={deriveComparison(result, marketIntel, marketLoading)} tone="compare" />
+          <IntelligencePanel icon={Lightbulb} title="Pourquoi WAOUH le recommande" text={deriveRecommendation(result)} tone="recommend" />
+        </div>
 
         {onAction && (
           <div className="mt-1 space-y-1.5">
@@ -390,7 +549,7 @@ export function WaouhProductCard({
                   : level === "C2"
                     ? "Transmettre mon intérêt via WAOUH"
                     : level === "C3" || level === "C4"
-                      ? "Laisser Muse poursuivre"
+                      ? "Laisser l’Avatar poursuivre"
                       : "Je suis intéressé"}
               </Button>
             )}
