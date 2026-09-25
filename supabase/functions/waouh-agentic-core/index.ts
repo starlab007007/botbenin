@@ -2341,6 +2341,118 @@ Retourne uniquement JSON:
         } }, 201);
       }
 
+      case "nexus.source.sync": {
+        const provider = pickEnum(
+          payload.provider,
+          "provider",
+          [
+            "serpapi",
+            "apify",
+            "firecrawl",
+            "google_places",
+            "facebook_business",
+            "instagram_business",
+            "telegram_public",
+            "tiktok_connected",
+            "whatsapp_groups",
+            "sms_rcs",
+          ] as const,
+        );
+        const queryText = optionalString(payload.query, "query", 500) ?? "commerce";
+        const city = optionalString(payload.city, "city", 120);
+        const mode = pickEnum(
+          payload.mode,
+          "mode",
+          ["find_sellers","find_buyers"] as const,
+          "find_sellers",
+        );
+        const limit = integer(payload.limit, "limit", 12, 1, 30);
+
+        let result: any;
+        if (provider === "serpapi") {
+          result = await refreshSerpApi(sb, ownerId, mode, queryText, city, limit);
+        } else if (provider === "apify") {
+          result = await refreshApifyRadar(sb);
+        } else if (provider === "google_places") {
+          result = await refreshGooglePlaces(sb, ownerId, queryText, city, Math.min(limit, 20));
+        } else if (provider === "facebook_business") {
+          result = await refreshFacebookBusiness(sb, ownerId, queryText, Math.min(limit, 20));
+        } else if (provider === "instagram_business") {
+          result = await refreshInstagramBusiness(sb, ownerId, queryText, Math.min(limit, 20));
+        } else if (provider === "telegram_public") {
+          result = await refreshTelegramPublic(sb, ownerId, queryText, Math.min(limit, 30));
+        } else if (provider === "tiktok_connected") {
+          result = await refreshTikTokConnected(sb, ownerId, queryText, Math.min(limit, 20));
+        } else if (provider === "firecrawl") {
+          const serviceUrl = Deno.env.get("SUPABASE_URL") || "";
+          const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+          if (!serviceUrl || !serviceKey) {
+            result = { configured: false, inserted: 0, reason: "server_not_configured" };
+          } else {
+            try {
+              const response = await fetch(`${serviceUrl}/functions/v1/waouh-radar-site-scraper`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${serviceKey}`,
+                  apikey: serviceKey,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ source: "nexus.source.sync" }),
+                signal: AbortSignal.timeout(30000),
+              });
+              const data = await response.json().catch(() => ({}));
+              result = {
+                configured: true,
+                inserted: Number(data?.signals ?? 0),
+                reason: response.ok ? null : (data?.error || `HTTP ${response.status}`),
+                details: data,
+              };
+              await markRadarProviderSync(
+                sb as any,
+                "firecrawl",
+                response.ok ? "ok" : "ko",
+                response.ok ? `${Number(data?.signals ?? 0)} signaux sites Web` : String(result.reason),
+              );
+            } catch (error: any) {
+              result = { configured: true, inserted: 0, reason: error?.message || String(error) };
+              await markRadarProviderSync(sb as any, "firecrawl", "ko", String(result.reason));
+            }
+          }
+        } else if (provider === "whatsapp_groups") {
+          const { count } = await sb.from("waouh_radar_sources")
+            .select("id", { count: "exact", head: true })
+            .eq("type", "wa_group")
+            .eq("active", true);
+          result = {
+            configured: true,
+            inserted: 0,
+            push_mode: true,
+            active_group_count: count ?? 0,
+            reason: "webhook_realtime_allowlist",
+          };
+        } else {
+          const { data: settings } = await sb.from("waouh_tel_settings")
+            .select("enabled").eq("key", "default").maybeSingle();
+          result = {
+            configured: settings?.enabled === true,
+            inserted: 0,
+            push_mode: true,
+            reason: settings?.enabled === true ? "native_inbound_active" : "native_messaging_disabled",
+          };
+        }
+
+        await audit(sb, ownerId, "nexus.source.sync", "discovery_source", null, {
+          provider,
+          query: queryText,
+          city,
+          mode,
+          inserted: Number(result?.inserted ?? 0),
+          configured: result?.configured !== false,
+          reason: result?.reason ?? null,
+        });
+        return jsonResponse({ ok: true, data: { provider, ...result } });
+      }
+
       case "nexus.google_places.search": {
         const queryText = asString(payload.query, "query", 2, 500);
         const city = optionalString(payload.city, "city", 120);
