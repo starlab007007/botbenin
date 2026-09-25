@@ -1,8 +1,13 @@
 // WAOUH_V25_7_1_AUTH_ACTOR_STABLE
 // WAOUH Negotiation Router — pilote l'échange acheteur↔vendeur après un match,
 // puis ouvre le workflow paiement/livraison sans partager les coordonnées.
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-api-key, x-waouh-session",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 import { contactExchangeText, waouhHeader, waouhFooter, waouhSep, distanceKm, formatDistance, resolveRealPhoneE164 } from "../_shared/waouh-format.ts";
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 import { geminiJson } from "../_shared/gemini.ts";
