@@ -4,13 +4,16 @@ import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
 import 'live_auth_screens.dart';
-import 'live_broadcast_screen.dart';
 import 'live_controller.dart';
 import 'live_controller_v2.dart';
 import 'live_inbox_screen_v2.dart';
 import 'live_legacy_screens.dart';
 import 'live_match_chat_v2.dart';
 import 'live_models.dart';
+import 'live_missions_screen.dart';
+import 'live_muse_screen.dart';
+import 'live_muse_missions_hub_screen.dart';
+import 'live_nexus_screen.dart';
 import 'live_notifications_screen_v2.dart';
 import 'live_offline_banner.dart';
 import 'live_partner_businesses_v3.dart';
@@ -63,7 +66,7 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
   initialLocation: '/app/chat',
   refreshListenable: auth,
   redirect: (_, state) {
-    const guarded = ['/app/notifications', '/app/bots', '/app/whatsapp', '/app/diffusion', '/app/partner', '/app/profile'];
+    const guarded = ['/app/notifications', '/app/bots', '/app/whatsapp', '/app/command', '/app/muse', '/app/missions', '/app/nexus', '/app/partner', '/app/profile'];
     final path = state.uri.path;
     if (!auth.signedIn && guarded.any(path.startsWith)) return '/app/auth?next=${Uri.encodeComponent(path)}';
     if (auth.signedIn && path.startsWith('/app/auth')) return state.uri.queryParameters['next'] ?? '/app/chat';
@@ -84,7 +87,11 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
         GoRoute(path: '/app/notifications', builder: (_, __) => const LiveNotificationsScreenV2()),
         GoRoute(path: '/app/bots', builder: (_, __) => const LiveBotsScreen()),
         GoRoute(path: '/app/whatsapp', builder: (_, __) => const LiveWhatsAppIaScreen()),
-        GoRoute(path: '/app/diffusion', builder: (_, __) => const LiveBroadcastScreen()),
+        GoRoute(path: '/app/command', builder: (_, __) => const LiveMuseMissionsHubScreen()),
+        GoRoute(path: '/app/muse', builder: (_, __) => const LiveMuseScreen()),
+        GoRoute(path: '/app/missions', builder: (_, __) => const LiveMissionsScreen()),
+        GoRoute(path: '/app/nexus', builder: (_, __) => const LiveNexusScreen()),
+        GoRoute(path: '/app/diffusion', redirect: (_, __) => '/app/command'),
         GoRoute(path: '/app/partner', redirect: (_, __) => '/app/partner/businesses'),
         GoRoute(path: '/app/partner/businesses', builder: (_, __) => const LivePartnerBusinessesScreenV3()),
         GoRoute(path: '/app/partner/businesses/:businessId/products', builder: (_, state) => LivePartnerProductsScreenV2(businessId: state.pathParameters['businessId']!)),
@@ -102,7 +109,10 @@ class LiveShell extends StatelessWidget {
   int get _index {
     if (path.startsWith('/app/bots')) return 1;
     if (path.startsWith('/app/whatsapp')) return 2;
-    if (path.startsWith('/app/diffusion')) return 3;
+    if (path.startsWith('/app/command') ||
+        path.startsWith('/app/muse') ||
+        path.startsWith('/app/missions') ||
+        path.startsWith('/app/nexus')) return 3;
     if (path.startsWith('/app/partner')) return 4;
     return 0;
   }
@@ -115,13 +125,13 @@ class LiveShell extends StatelessWidget {
       bottomNavigationBar: focused ? null : NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (index) => context.go(switch (index) {
-          1 => '/app/bots', 2 => '/app/whatsapp', 3 => '/app/diffusion', 4 => '/app/partner', _ => '/app/chat',
+          1 => '/app/bots', 2 => '/app/whatsapp', 3 => '/app/command', 4 => '/app/partner', _ => '/app/chat',
         }),
         destinations: const [
           NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
           NavigationDestination(icon: Icon(Icons.smart_toy_outlined), label: 'Bots'),
           NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), label: 'IA'),
-          NavigationDestination(icon: Icon(Icons.campaign_outlined), label: 'Diffusion'),
+          NavigationDestination(icon: Icon(Icons.auto_awesome_rounded), selectedIcon: Icon(Icons.psychology_alt_rounded), label: 'Muse'),
           NavigationDestination(icon: Icon(Icons.storefront_outlined), label: 'Partenaire'),
         ],
       ),
