@@ -987,10 +987,30 @@ serve(async (req) => {
     }
 
     const lowerText = (text || "").toLowerCase();
-    const shouldStayInCore = /(?:int[ée]ress[ée]|interesse)\s*(?:n[°o]?\s*)?(?:x|\d+)|\b(?:je\s+)?(?:cherche|vends)\b/i.test(lowerText);
+    const metaAction = String(clientMeta?.commerce_action ?? clientMeta?.action ?? "").trim().toLowerCase();
+    const metaButtonPayload = String(clientMeta?.button_payload ?? "").trim().toLowerCase();
 
-    if (!openNeg && ambiguousNegotiation && !shouldStayInCore &&
-        /^(?:oui|ok|d['’]?accord|j['’]?accepte|accepte|yes|non|no|je\s+refuse|refuse|je\s+propose|propose)\b/i.test(text.trim())) {
+    // A generic WAOUH assistant request must stay in the core chat even when the
+    // user also has an open negotiation. Previously every non-search message was
+    // diverted to waouh-negotiation-router, so smart-composer prompts such as
+    // "Comparer top 3", "Préparer une stratégie..." and "Continuer à chercher"
+    // hit a Deal Room/thread guard and surfaced as HTTP 409 -> "Message non envoyé".
+    const shouldStayInCore =
+      clientMeta?.assistant_prompt === true ||
+      metaAction === "assistant_prompt" ||
+      /^(?:assistant[._-]|smart[._-])/.test(metaAction) ||
+      /(?:int[ée]ress[ée]|interesse)\s*(?:n[°o]?\s*)?(?:x|\d+)|\b(?:je\s+)?(?:cherche|recherche|vends|compare|continuer?|prépare|prepare)\b/i.test(lowerText);
+
+    // Route only explicit, state-changing negotiation commands to the Deal Room.
+    // Discussion/analysis *about* a negotiation remains a normal assistant turn.
+    const negotiationMetaAction = /^(?:accept|accept_offer|counter|counter_offer|reject|reject_offer|negotiate|offer|negotiation_accept|negotiation_counter|negotiation_reject)$/.test(metaAction);
+    const explicitNegotiationCommand =
+      negotiationMetaAction ||
+      /^(?:accepter|contre-proposition|refuser):/i.test(metaButtonPayload) ||
+      /^(?:oui|ok|d['’]?accord|j['’]?accepte|accepte|yes|non|no|je\s+refuse|refuse|je\s+propose|propose|contre[-\s]?proposition|contre[-\s]?proposer|accepter|refuser)(?:\b|:)/i.test(text.trim()) ||
+      /^\d[\d\s.,]{2,}\s*(?:fcfa|cfa|f)?$/i.test(text.trim());
+
+    if (!openNeg && ambiguousNegotiation && !shouldStayInCore && explicitNegotiationCommand) {
       return new Response(JSON.stringify({
         ok: false,
         code: "thread_required",
@@ -1002,7 +1022,7 @@ serve(async (req) => {
       });
     }
 
-    if (openNeg && !shouldStayInCore) {
+    if (openNeg && !shouldStayInCore && explicitNegotiationCommand) {
       const negRes = await fetch(`${SUPABASE_URL}/functions/v1/waouh-negotiation-router`, {
         method: "POST",
         headers: { Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
@@ -1014,7 +1034,24 @@ serve(async (req) => {
           negotiation_id: metaNegotiationId ?? openNeg.id,
         }),
       });
-      const negData = await readWaouhEngineResponse(negRes);
+      const negConflictFallback = negRes.clone();
+      let negData: any;
+      try {
+        negData = await readWaouhEngineResponse(negRes);
+      } catch (error) {
+        if (negRes.status !== 409) throw error;
+        const conflict = await negConflictFallback.json().catch(() => ({} as Record<string, any>));
+        // A thread/context conflict is a valid conversational outcome, not a
+        // transport failure. Return its explanation as an assistant reply so
+        // the mobile/web chat never leaves the user's message unanswered.
+        negData = {
+          ...conflict,
+          ok: true,
+          intent: conflict?.intent ?? "negotiation_context_required",
+          reply: conflict?.reply ?? "Ouvrez le Deal Room du produit concerné pour poursuivre cette négociation.",
+          actions: Array.isArray(conflict?.actions) ? conflict.actions : [],
+        };
+      }
       const negReply = negData?.reply ?? "";
       const negTxId = negData?.transaction_id || null;
       const negIntent = negData?.intent || "negotiation";
