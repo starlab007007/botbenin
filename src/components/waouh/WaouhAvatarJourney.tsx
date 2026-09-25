@@ -22,14 +22,13 @@ import { useToast } from "@/hooks/use-toast";
 import {
   expressNexusInterest,
   globalNexusDiscovery,
-  moneyXof,
   prepareNexusContact,
   searchNexus,
   sendNexusDiscoveryContact,
   type NexusDiscoveryResult,
   type NexusSearchItem,
 } from "@/lib/waouh/nexus";
-import { invokeWaouhAgentic } from "@/lib/waouh/agenticClient";
+import { invokeWaouhAgentic, moneyXof } from "@/lib/waouh/agenticClient";
 
 export type AvatarJourneyMode = "buy" | "sell" | "ask";
 
