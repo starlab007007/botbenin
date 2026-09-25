@@ -218,7 +218,7 @@ export default function WaouhChatScreen() {
               <button
                 type="button"
                 className="flex min-w-0 flex-1 items-center gap-2 rounded-xl px-1 py-1 text-left hover:bg-white/10 active:bg-white/15"
-                aria-label="Ouvrir l’activité de Muse"
+                aria-label="Ouvrir l’activité de l’Avatar"
               >
                 <WaouhMuseAvatar
                   mode={resolvedDeal?.active ? (resolvedDeal.role === "seller" ? "seller" : "buyer") : agentState.mode}
@@ -232,14 +232,14 @@ export default function WaouhChatScreen() {
                   </div>
                   <span className="text-[11px] text-white/75 truncate block">
                     {resolvedDeal?.active
-                      ? resolvedDeal.closed ? "Deal conclu" : "Deal Room · Muse accompagne"
+                      ? resolvedDeal.closed ? "Deal conclu" : "Deal Room · Avatar accompagne"
                       : agentState.phase === "searching"
                         ? "NEXUS cherche"
                         : agentState.phase === "comparing"
                           ? "Signal Fabric compare"
                           : profile?.full_name
-                            ? `${profile.full_name.split(" ")[0]} · Muse prêt`
-                            : "Touchez Muse pour voir son activité"}
+                            ? `${profile.full_name.split(" ")[0]} · Avatar prêt`
+                            : "Touchez l’Avatar pour voir son activité"}
                   </span>
                 </div>
               </button>
