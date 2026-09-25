@@ -42,7 +42,13 @@ export default function WaouhRadarTab() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [newSrc, setNewSrc] = useState({ type: "fb_marketplace", identifier: "", label: "", scan_freq_min: 60 });
+  const [newSrc, setNewSrc] = useState({
+    type: "fb_marketplace",
+    identifier: "",
+    label: "",
+    scan_freq_min: 60,
+    actor_input_json: "",
+  });
 
   const load = async () => {
     setLoading(true);
@@ -70,9 +76,34 @@ export default function WaouhRadarTab() {
 
   const addSource = async () => {
     if (!newSrc.identifier) return toast.error("Identifiant requis");
-    const { error } = await supabase.from("waouh_radar_sources").insert(newSrc);
+    let config: Record<string, unknown> = {};
+    if (newSrc.type === "apify_actor" && newSrc.actor_input_json.trim()) {
+      try {
+        const parsed = JSON.parse(newSrc.actor_input_json);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          return toast.error("L'input Apify doit être un objet JSON.");
+        }
+        config = { actor_id: newSrc.identifier.trim(), input: parsed };
+      } catch {
+        return toast.error("JSON Apify invalide.");
+      }
+    } else if (newSrc.type === "apify_actor") {
+      config = { actor_id: newSrc.identifier.trim(), input: {} };
+    }
+    const payload = {
+      type: newSrc.type,
+      identifier: newSrc.identifier.trim(),
+      label: newSrc.label.trim() || null,
+      scan_freq_min: newSrc.scan_freq_min,
+      config,
+    };
+    const { error } = await supabase.from("waouh_radar_sources").insert(payload);
     if (error) toast.error(error.message);
-    else { toast.success("Source ajoutée"); setNewSrc({ type: "fb_marketplace", identifier: "", label: "", scan_freq_min: 60 }); load(); }
+    else {
+      toast.success("Source NEXUS ajoutée");
+      setNewSrc({ type: "fb_marketplace", identifier: "", label: "", scan_freq_min: 60, actor_input_json: "" });
+      load();
+    }
   };
 
   const toggleSource = async (id: string, active: boolean) => {
@@ -126,7 +157,7 @@ export default function WaouhRadarTab() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2"><Radar className="w-5 h-5 text-cyan-500" /> Radar IA</h2>
-          <p className="text-xs text-muted-foreground">NEXUS collecte les sources publiques/autorisees : Web, Maps, Facebook, Instagram, Telegram, TikTok, WhatsApp et SMS/RCS — puis alimente la base unifiée.</p>
+          <p className="text-xs text-muted-foreground">NEXUS collecte les sources publiques ou explicitement autorisées : Web, Maps, Facebook, Instagram, Telegram, TikTok, WhatsApp, SMS/RCS, annuaires et B2B — puis alimente le Signal Fabric et la base unifiée.</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={() => triggerScan("waouh-serpapi-scout")}>SerpAPI</Button>
@@ -215,9 +246,14 @@ export default function WaouhRadarTab() {
                   <SelectItem value="google_places">Google Places / Maps</SelectItem>
                   <SelectItem value="directory">Annuaire entreprise</SelectItem>
                   <SelectItem value="b2b_rfq">B2B / RFQ / appel d’offres</SelectItem>
-                  <SelectItem value="rss">Flux RSS public</SelectItem>
+                  <SelectItem value="rss">Flux RSS / Atom public</SelectItem>
                   <SelectItem value="web_search">Recherche Web publique</SelectItem>
-                  <SelectItem value="site">Site web</SelectItem>
+                  <SelectItem value="web_social">Web social public</SelectItem>
+                  <SelectItem value="linkedin_public">LinkedIn public</SelectItem>
+                  <SelectItem value="youtube_public">YouTube public</SelectItem>
+                  <SelectItem value="x_public">X / Twitter public</SelectItem>
+                  <SelectItem value="apify_actor">Apify Actor public personnalisé</SelectItem>
+                  <SelectItem value="site">Site web public</SelectItem>
                 </SelectContent>
               </Select>
               <Input placeholder="URL, Page ID, @canal, -100..., group@g.us, requête…" value={newSrc.identifier} onChange={(e) => setNewSrc({ ...newSrc, identifier: e.target.value })} />
@@ -232,6 +268,24 @@ export default function WaouhRadarTab() {
               />
               <Button onClick={addSource}><Plus className="w-4 h-4 mr-1" /> Ajouter</Button>
             </div>
+            {newSrc.type === "apify_actor" && (
+              <div className="mt-2 grid md:grid-cols-2 gap-2">
+                <Input
+                  value={newSrc.identifier}
+                  onChange={(e) => setNewSrc({ ...newSrc, identifier: e.target.value })}
+                  placeholder="Actor ID : username~actor-name"
+                />
+                <Input
+                  value={newSrc.actor_input_json}
+                  onChange={(e) => setNewSrc({ ...newSrc, actor_input_json: e.target.value })}
+                  placeholder={'Input JSON optionnel, ex. {"startUrls":[{"url":"https://..."}],"maxItems":30}'}
+                />
+              </div>
+            )}
+            <p className="text-[11px] text-muted-foreground mt-2">
+              Groupes WhatsApp : uniquement les groupes connectés au compte WAHA et ajoutés ici à la liste autorisée.
+              Facebook : Pages Business autorisées via Meta ; Marketplace/groupes publics via Apify ou Web public configuré.
+            </p>
           </Card>
 
           {sources.map((s) => (
