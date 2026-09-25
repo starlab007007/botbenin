@@ -198,7 +198,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
 
       if (!mounted) return;
       _applyResolvedMatch(found);
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
         _resolving = false;
