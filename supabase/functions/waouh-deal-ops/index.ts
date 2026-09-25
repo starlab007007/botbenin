@@ -1,6 +1,7 @@
 // waouh-deal-ops
-// Single router for WAOUH deal operations:
-//   action: "assign" | "status" | "update_eta" | "payment"
+// Single router for WAOUH deal operations.
+// Deal Graph lifecycle: seller confirmation + payment preference -> delivery -> payment -> settlement.
+//   action: "seller_confirm" | "payment_preference" | "cancel" | "assign" | "status" | "update_eta" | "payment"
 // Consolidated from waouh-deal-{assign,status,update-eta,payment} to fit edge-function quota.
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -12,6 +13,10 @@ const WAHA_BASE_URL = Deno.env.get("WAHA_BASE_URL") || "";
 const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY") || "";
 const WAHA_SESSION = Deno.env.get("WAHA_SESSION") || "WaouhApp";
 const WAOUH_OPS_WHATSAPP = Deno.env.get("WAOUH_OPS_WHATSAPP") || "";
+const COMMISSION_RATE = Math.max(
+  0,
+  Math.min(1, Number(Deno.env.get("WAOUH_COMMISSION_RATE") || "0.05") || 0.05),
+);
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -148,6 +153,114 @@ async function requireAdmin(req: Request, sb: any) {
   }
 }
 
+
+type DealActor = {
+  ok: boolean;
+  status?: number;
+  error?: string;
+  internal: boolean;
+  isAdmin: boolean;
+  authUserId: string | null;
+  waouhUserIds: string[];
+};
+
+async function resolveDealActor(req: Request, sb: any, body: any): Promise<DealActor> {
+  const authHeader = req.headers.get("Authorization") || "";
+  const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
+
+  if (bearer && bearer === SERVICE_ROLE) {
+    const actorId = String(body?.actor_user_id || "").trim();
+    return {
+      ok: !!actorId,
+      status: actorId ? 200 : 403,
+      error: actorId ? undefined : "actor_user_id required for internal deal action",
+      internal: true,
+      isAdmin: false,
+      authUserId: null,
+      waouhUserIds: actorId ? [actorId] : [],
+    };
+  }
+
+  if (!authHeader.startsWith("Bearer ")) {
+    return { ok: false, status: 401, error: "Missing Authorization header", internal: false, isAdmin: false, authUserId: null, waouhUserIds: [] };
+  }
+
+  try {
+    const userClient = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: authHeader } } });
+    const { data: u } = await userClient.auth.getUser();
+    if (!u?.user) {
+      return { ok: false, status: 401, error: "Invalid session", internal: false, isAdmin: false, authUserId: null, waouhUserIds: [] };
+    }
+    const [{ data: rows }, { data: isAdmin }] = await Promise.all([
+      sb.from("waouh_users").select("id").eq("auth_user_id", u.user.id).limit(100),
+      sb.rpc("has_role", { _user_id: u.user.id, _role_name: "admin" }),
+    ]);
+    return {
+      ok: true,
+      internal: false,
+      isAdmin: !!isAdmin,
+      authUserId: u.user.id,
+      waouhUserIds: (rows || []).map((row: any) => String(row.id)).filter(Boolean),
+    };
+  } catch (e) {
+    return { ok: false, status: 401, error: String(e), internal: false, isAdmin: false, authUserId: null, waouhUserIds: [] };
+  }
+}
+
+const actorIsBuyer = (actor: DealActor, deal: any) =>
+  actor.isAdmin || actor.waouhUserIds.includes(String(deal?.buyer_user_id || ""));
+
+const actorIsSeller = (actor: DealActor, deal: any) =>
+  actor.isAdmin || actor.waouhUserIds.includes(String(deal?.seller_user_id || ""));
+
+const actorIsParticipant = (actor: DealActor, deal: any) =>
+  actorIsBuyer(actor, deal) || actorIsSeller(actor, deal);
+
+async function advanceReadyDeal(sb: any, dealId: string) {
+  const { data: fresh } = await sb.from("waouh_deals").select("*").eq("id", dealId).maybeSingle();
+  if (!fresh) return null;
+  const ready = !!fresh.seller_confirmed_at && !!fresh.buyer_payment_selected_at;
+  if (!ready || !["awaiting_confirmation", "awaiting_payment"].includes(fresh.status)) return fresh;
+
+  const { data: updated } = await sb.from("waouh_deals")
+    .update({ status: "pending_assignment" })
+    .eq("id", dealId)
+    .in("status", ["awaiting_confirmation", "awaiting_payment"])
+    .select("*")
+    .maybeSingle();
+
+  if (updated) {
+    fetch(`${SUPABASE_URL}/functions/v1/waouh-deal-dispatch`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ deal_id: dealId }),
+    }).catch((e) => console.warn("[waouh-deal-ops] deal-dispatch failed", e));
+    return updated;
+  }
+  return fresh;
+}
+
+async function findDealTransaction(sb: any, deal: any) {
+  if (deal?.thread_id) {
+    const { data } = await sb.from("waouh_transactions")
+      .select("*")
+      .eq("thread_id", deal.thread_id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (data) return data;
+  }
+  const { data } = await sb.from("waouh_transactions")
+    .select("*")
+    .eq("article_id", deal.article_id)
+    .eq("buyer_id", deal.buyer_user_id)
+    .eq("seller_id", deal.seller_user_id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data || null;
+}
+
 // ───────── Action handlers ─────────
 
 async function handleAssign(sb: any, body: any) {
@@ -156,6 +269,9 @@ async function handleAssign(sb: any, body: any) {
 
   const { data: deal } = await sb.from("waouh_deals").select("*").eq("id", deal_id).maybeSingle();
   if (!deal) return json({ error: "deal not found" }, 404);
+  if (deal.status !== "pending_assignment") {
+    return json({ error: "deal_not_ready_for_assignment", current_status: deal.status }, 409);
+  }
   const { data: courier } = await sb.from("waouh_couriers").select("*").eq("id", courier_id).maybeSingle();
   if (!courier) return json({ error: "courier not found" }, 404);
 
@@ -230,12 +346,26 @@ async function handleStatus(sb: any, body: any) {
   const { data: deal } = await sb.from("waouh_deals").select("*").eq("id", deal_id).maybeSingle();
   if (!deal) return json({ error: "deal not found" }, 404);
 
+  if (status === "picked_up" && deal.status !== "assigned") {
+    return json({ error: "invalid_deal_transition", expected: "assigned", current_status: deal.status }, 409);
+  }
+  if (status === "delivered" && deal.status !== "picked_up") {
+    return json({ error: "invalid_deal_transition", expected: "picked_up", current_status: deal.status }, 409);
+  }
+  if (status === "cancelled" && ["delivered", "completed"].includes(deal.status)) {
+    return json({ error: "delivered_deal_requires_dispute", current_status: deal.status }, 409);
+  }
+
   const now = new Date().toISOString();
   const hh = hhmm(new Date(now));
   const updates: any = { status };
   if (status === "picked_up") updates.picked_up_at = now;
   if (status === "delivered") updates.delivered_at = now;
-  if (status === "cancelled") { updates.cancelled_at = now; if (reason) updates.notes = `[Annulation ${hh}] ${reason}`; }
+  if (status === "cancelled") {
+    updates.cancelled_at = now;
+    updates.commission_status = "void";
+    if (reason) updates.notes = `[Annulation ${hh}] ${reason}`;
+  }
   await sb.from("waouh_deals").update(updates).eq("id", deal_id);
 
   const [buyer, seller, { data: article }] = await Promise.all([
@@ -250,8 +380,8 @@ async function handleStatus(sb: any, body: any) {
     await Promise.all([
       insertInAppNotif(sb, deal.buyer_user_id, deal.article_id, kindBuyer, buyerText, { deal_id, role: "buyer", ...payloadExtra }),
       insertInAppNotif(sb, deal.seller_user_id, deal.article_id, kindSeller, sellerText, { deal_id, role: "seller", ...payloadExtra }),
-      pushDealChatEvent(sb, deal.buyer_user_id, deal.article_id, chatLine, { deal_id, event: status, ...payloadExtra }),
-      pushDealChatEvent(sb, deal.seller_user_id, deal.article_id, chatLine, { deal_id, event: status, ...payloadExtra }),
+      pushDealChatEvent(sb, deal.buyer_user_id, deal.article_id, chatLine, { deal_id, event: status, role: "buyer", ...payloadExtra }),
+      pushDealChatEvent(sb, deal.seller_user_id, deal.article_id, chatLine, { deal_id, event: status, role: "seller", ...payloadExtra }),
       buyer.phone_number && !/@lid$/i.test(buyer.phone_number) ? sendWhatsApp(`${buyer.phone_number}@c.us`, buyerText) : Promise.resolve(),
       seller.phone_number && !/@lid$/i.test(seller.phone_number) ? sendWhatsApp(`${seller.phone_number}@c.us`, sellerText) : Promise.resolve(),
     ]);
@@ -263,28 +393,44 @@ async function handleStatus(sb: any, body: any) {
       `📦 *Colis collecté !*\nLe livreur WAOUH a récupéré « ${title} » et se met en route.`,
       `✅ *Colis remis au livreur*\n« ${title} » a quitté votre point. Merci !`,
       `📦 Colis collecté par le livreur à ${hh}.`,
+      { workflow_state: "picked_up" },
     );
   } else if (status === "delivered") {
-    await sendBoth(
-      "deal_payment_request", "deal_delivered",
-      `🎁 *Colis livré !*\n« ${title} » — ${fmt(amount)}.\n\n💵 *Confirmez le paiement* effectué au livreur (cash ou Mobile Money) depuis l'app.`,
-      `📬 *Colis livré à l'acheteur*\n« ${title} » a été remis. Le paiement est en cours de confirmation.`,
-      `📬 Colis livré à l'acheteur à ${hh}. Paiement en cours de confirmation.`,
-      { requires_confirmation: true, amount },
-    );
+    const preferred = deal.payment_method === "mobile_money" ? "mobile_money" : "cash";
+    const paymentActions = preferred === "mobile_money"
+      ? [{ id: `confirmer-paiement-mobile:${deal_id}`, label: "✅ Confirmer Mobile Money" }]
+      : [{ id: `confirmer-paiement-cash:${deal_id}`, label: "✅ Confirmer paiement cash" }];
+    const buyerText = `🎁 *Colis livré !*\n« ${title} » — ${fmt(amount)}.\n\nConfirmez maintenant le paiement effectué au livreur.`;
+    const sellerText = `📬 *Colis livré à l'acheteur*\n« ${title} » a été remis. Le paiement est en cours de confirmation.`;
+    await Promise.all([
+      insertInAppNotif(sb, deal.buyer_user_id, deal.article_id, "deal_payment_request", buyerText, {
+        deal_id, role: "buyer", requires_confirmation: true, amount, actions: paymentActions, workflow_state: "delivered",
+      }),
+      insertInAppNotif(sb, deal.seller_user_id, deal.article_id, "deal_delivered", sellerText, {
+        deal_id, role: "seller", workflow_state: "delivered",
+      }),
+      pushDealChatEvent(sb, deal.buyer_user_id, deal.article_id, `📬 Livraison confirmée à ${hh}. Confirmez le paiement.`, {
+        deal_id, event: "delivered", role: "buyer", actions: paymentActions, workflow_state: "delivered", payment_method: preferred,
+      }),
+      pushDealChatEvent(sb, deal.seller_user_id, deal.article_id, `📬 Colis livré à l'acheteur à ${hh}. Paiement en attente.`, {
+        deal_id, event: "delivered", role: "seller", workflow_state: "delivered",
+      }),
+      buyer.phone_number && !/@lid$/i.test(buyer.phone_number) ? sendWhatsApp(`${buyer.phone_number}@c.us`, buyerText) : Promise.resolve(),
+      seller.phone_number && !/@lid$/i.test(seller.phone_number) ? sendWhatsApp(`${seller.phone_number}@c.us`, sellerText) : Promise.resolve(),
+    ]);
   } else if (status === "cancelled") {
-    const text = `⚠️ *Livraison annulée* pour « ${title} ».${reason ? `\nRaison : ${reason}` : ""}\nL'équipe WAOUH vous recontactera.`;
+    const message = `⚠️ *Livraison annulée* pour « ${title} ».${reason ? `\nRaison : ${reason}` : ""}\nL'article redevient disponible si aucune autre réservation n'est active.`;
     await sendBoth(
-      "deal_cancelled", "deal_cancelled", text, text,
+      "deal_cancelled", "deal_cancelled", message, message,
       `⚠️ Livraison annulée à ${hh}${reason ? ` — ${reason}` : ""}.`,
-      { reason: reason || null },
+      { reason: reason || null, workflow_state: "cancelled" },
     );
   }
 
-  return json({ success: true });
+  return json({ success: true, ok: true, deal_id, status, workflow_state: status });
 }
 
-async function handleUpdateEta(sb: any, body: any) {
+async function handleUpdateEtaasync function handleUpdateEta(sb: any, body: any) {
   const { deal_id, eta_minutes } = body;
   if (!deal_id || !eta_minutes) return json({ error: "deal_id & eta_minutes required" }, 400);
   const { data: deal } = await sb.from("waouh_deals").select("*").eq("id", deal_id).maybeSingle();
@@ -316,34 +462,174 @@ async function handleUpdateEta(sb: any, body: any) {
   return json({ success: true, eta_at: etaAt });
 }
 
-async function handlePayment(sb: any, body: any, authHeader: string) {
+async function handleSellerConfirm(sb: any, body: any, actor: DealActor) {
+  const { deal_id } = body;
+  if (!deal_id) return json({ error: "deal_id required" }, 400);
+  const { data: deal } = await sb.from("waouh_deals").select("*").eq("id", deal_id).maybeSingle();
+  if (!deal) return json({ error: "deal not found" }, 404);
+  if (!actorIsSeller(actor, deal)) return json({ error: "forbidden" }, 403);
+  if (["cancelled", "completed", "delivered"].includes(deal.status)) {
+    return json({ error: "deal_not_confirmable", current_status: deal.status }, 409);
+  }
+
+  const now = new Date().toISOString();
+  await sb.from("waouh_deals").update({ seller_confirmed_at: now }).eq("id", deal_id);
+  const advanced = await advanceReadyDeal(sb, deal_id);
+  const workflow = advanced?.status || deal.status;
+
+  const text = workflow === "pending_assignment"
+    ? "✅ Disponibilité confirmée. WAOUH peut maintenant organiser la livraison."
+    : "✅ Disponibilité confirmée. En attente du choix de paiement de l'acheteur.";
+  await pushDealChatEvent(sb, deal.seller_user_id, deal.article_id, text, {
+    deal_id, event: "seller_confirmed", role: "seller", workflow_state: workflow,
+  });
+
+  return json({
+    success: true, ok: true, reply: text, intent: "seller_availability_confirmed",
+    workflow_state: workflow, deal_id, article_id: deal.article_id, thread_id: deal.thread_id, actions: [],
+  });
+}
+
+async function handlePaymentPreference(sb: any, body: any, actor: DealActor) {
   const { deal_id, method } = body;
   if (!deal_id || !["cash", "mobile_money"].includes(method)) {
     return json({ error: "deal_id & method(cash|mobile_money) required" }, 400);
   }
   const { data: deal } = await sb.from("waouh_deals").select("*").eq("id", deal_id).maybeSingle();
   if (!deal) return json({ error: "deal not found" }, 404);
-  if (deal.payment_status === "paid") return json({ success: true, already_paid: true });
-
-  // Optional buyer check
-  if (authHeader.startsWith("Bearer ")) {
-    try {
-      const userClient = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: authHeader } } });
-      const { data: ures } = await userClient.auth.getUser();
-      const authUid = ures?.user?.id;
-      if (authUid) {
-        const { data: wu } = await sb.from("waouh_users").select("id").eq("auth_user_id", authUid).maybeSingle();
-        // also allow admin
-        const { data: isAdmin } = await sb.rpc("has_role", { _user_id: authUid, _role_name: "admin" });
-        if (wu?.id && wu.id !== deal.buyer_user_id && !isAdmin) return json({ error: "forbidden" }, 403);
-      }
-    } catch {}
+  if (!actorIsBuyer(actor, deal)) return json({ error: "forbidden" }, 403);
+  if (["cancelled", "completed", "delivered"].includes(deal.status)) {
+    return json({ error: "payment_preference_locked", current_status: deal.status }, 409);
   }
 
   const now = new Date().toISOString();
   await sb.from("waouh_deals").update({
-    payment_status: "paid", payment_method: method, paid_at: now, status: "completed",
+    payment_method: method,
+    payment_status: "pending_delivery",
+    buyer_payment_selected_at: now,
   }).eq("id", deal_id);
+
+  const tx = await findDealTransaction(sb, deal);
+  if (tx?.id) {
+    await sb.from("waouh_transactions").update({
+      payment_method: method,
+      status: "delivery_pending",
+      commission_rate: deal.commission_rate ?? COMMISSION_RATE,
+      commission_status: "pending",
+    }).eq("id", tx.id);
+  }
+
+  const advanced = await advanceReadyDeal(sb, deal_id);
+  const workflow = advanced?.status || deal.status;
+  const methodLabel = method === "mobile_money" ? "Mobile Money à la livraison" : "cash à la livraison";
+  const text = workflow === "pending_assignment"
+    ? `✅ ${methodLabel} sélectionné. WAOUH peut maintenant organiser la livraison.`
+    : `✅ ${methodLabel} sélectionné. En attente de confirmation du vendeur.`;
+
+  await pushDealChatEvent(sb, deal.buyer_user_id, deal.article_id, text, {
+    deal_id, event: "payment_preference", role: "buyer", payment_method: method, workflow_state: workflow,
+  });
+
+  return json({
+    success: true, ok: true, reply: text, intent: "payment_preference_selected",
+    workflow_state: workflow, deal_id, article_id: deal.article_id, thread_id: deal.thread_id,
+    payment_method: method, actions: [],
+  });
+}
+
+async function handleParticipantCancel(sb: any, body: any, actor: DealActor) {
+  const { deal_id, reason } = body;
+  if (!deal_id) return json({ error: "deal_id required" }, 400);
+  const { data: deal } = await sb.from("waouh_deals").select("*").eq("id", deal_id).maybeSingle();
+  if (!deal) return json({ error: "deal not found" }, 404);
+  if (!actorIsParticipant(actor, deal)) return json({ error: "forbidden" }, 403);
+  if (["delivered", "completed"].includes(deal.status)) {
+    return json({ error: "delivered_deal_requires_dispute", current_status: deal.status }, 409);
+  }
+  if (deal.status === "cancelled") {
+    return json({ success: true, ok: true, already_cancelled: true, workflow_state: "cancelled", deal_id });
+  }
+
+  const now = new Date().toISOString();
+  await sb.from("waouh_deals").update({
+    status: "cancelled",
+    cancelled_at: now,
+    commission_status: "void",
+    notes: reason ? `[Annulation utilisateur] ${reason}` : deal.notes,
+  }).eq("id", deal_id);
+
+  const text = "❌ Accord annulé. L'article est libéré et peut redevenir disponible.";
+  await Promise.all([
+    insertInAppNotif(sb, deal.buyer_user_id, deal.article_id, "deal_cancelled", text, { deal_id, role: "buyer", workflow_state: "cancelled" }),
+    insertInAppNotif(sb, deal.seller_user_id, deal.article_id, "deal_cancelled", text, { deal_id, role: "seller", workflow_state: "cancelled" }),
+    pushDealChatEvent(sb, deal.buyer_user_id, deal.article_id, text, { deal_id, event: "cancelled", role: "buyer", workflow_state: "cancelled" }),
+    pushDealChatEvent(sb, deal.seller_user_id, deal.article_id, text, { deal_id, event: "cancelled", role: "seller", workflow_state: "cancelled" }),
+  ]);
+
+  return json({
+    success: true, ok: true, reply: text, intent: "deal_cancelled",
+    workflow_state: "cancelled", deal_id, article_id: deal.article_id, thread_id: deal.thread_id, actions: [],
+  });
+}
+
+async function handlePayment(sb: any, body: any, actor: DealActor) {
+  const { deal_id, method } = body;
+  if (!deal_id || !["cash", "mobile_money"].includes(method)) {
+    return json({ error: "deal_id & method(cash|mobile_money) required" }, 400);
+  }
+  const { data: deal } = await sb.from("waouh_deals").select("*").eq("id", deal_id).maybeSingle();
+  if (!deal) return json({ error: "deal not found" }, 404);
+  if (!actorIsBuyer(actor, deal)) return json({ error: "forbidden" }, 403);
+  if (deal.payment_status === "paid") {
+    return json({ success: true, ok: true, already_paid: true, workflow_state: "completed", deal_id });
+  }
+  if (!deal.delivered_at || deal.status !== "delivered") {
+    return json({
+      error: "payment_confirmation_requires_delivery",
+      current_status: deal.status,
+      delivered_at: deal.delivered_at ?? null,
+    }, 409);
+  }
+
+  const now = new Date().toISOString();
+  const amount = Number(deal.amount || 0);
+  const rate = Number(deal.commission_rate ?? COMMISSION_RATE) || COMMISSION_RATE;
+  const commission = Math.round(amount * rate);
+
+  await sb.from("waouh_deals").update({
+    payment_status: "paid",
+    payment_method: method,
+    paid_at: now,
+    status: "completed",
+    commission_rate: rate,
+    commission_amount: commission,
+    commission_status: "earned",
+    settlement_completed_at: now,
+  }).eq("id", deal_id);
+
+  const tx = await findDealTransaction(sb, deal);
+  if (tx?.id) {
+    await sb.from("waouh_transactions").update({
+      amount,
+      negotiated_price: amount,
+      commission,
+      commission_rate: rate,
+      commission_status: "earned",
+      payment_method: method,
+      escrow_status: "settled",
+      seller_confirmed: true,
+      buyer_confirmed: true,
+      status: "completed",
+      completed_at: now,
+      settled_at: now,
+    }).eq("id", tx.id);
+
+    fetch(`${SUPABASE_URL}/functions/v1/waouh-partner-attribute-sale`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ transaction_id: tx.id }),
+    }).catch((e) => console.warn("[waouh-deal-ops] partner attribution failed", e));
+  }
 
   const [buyer, seller, { data: article }] = await Promise.all([
     resolveContact(sb, deal.buyer_user_id),
@@ -351,22 +637,27 @@ async function handlePayment(sb: any, body: any, authHeader: string) {
     sb.from("waouh_articles").select("title").eq("id", deal.article_id).maybeSingle(),
   ]);
   const title = article?.title || "votre article";
-  const amount = Number(deal.amount || 0);
   const methodLbl = method === "cash" ? "espèces" : "Mobile Money";
-
-  const buyerText = `✅ *Paiement confirmé* (${methodLbl}) — ${fmt(amount)}.\nMerci pour votre achat sur WAOUH ! Note ton livreur ⭐`;
-  const sellerText = `💰 *Fonds reçus* — ${fmt(amount)} (${methodLbl}) pour « ${title} ». WAOUH vous reversera selon le cycle convenu.`;
-  const opsText = `💸 Deal #${String(deal_id).slice(0, 8)} *payé* — ${fmt(amount)} (${methodLbl}). À reverser au vendeur ${seller.display_name || ""}.`;
+  const buyerText = `✅ *Paiement confirmé* (${methodLbl}) — ${fmt(amount)}.\nTransaction WAOUH terminée.`;
+  const sellerText = `💰 *Vente finalisée* — ${fmt(amount)} pour « ${title} ». Commission WAOUH : ${fmt(commission)}.`;
+  const opsText = `💸 Deal #${String(deal_id).slice(0, 8)} terminé — ${fmt(amount)} · commission ${fmt(commission)}.`;
 
   await Promise.all([
-    insertInAppNotif(sb, deal.buyer_user_id, deal.article_id, "deal_paid", buyerText, { deal_id, method, amount }),
-    insertInAppNotif(sb, deal.seller_user_id, deal.article_id, "deal_paid", sellerText, { deal_id, method, amount }),
+    insertInAppNotif(sb, deal.buyer_user_id, deal.article_id, "deal_paid", buyerText, { deal_id, method, amount, commission, workflow_state: "completed" }),
+    insertInAppNotif(sb, deal.seller_user_id, deal.article_id, "deal_paid", sellerText, { deal_id, method, amount, commission, workflow_state: "completed" }),
+    pushDealChatEvent(sb, deal.buyer_user_id, deal.article_id, "✅ Paiement confirmé. Transaction terminée.", { deal_id, event: "completed", role: "buyer", workflow_state: "completed" }),
+    pushDealChatEvent(sb, deal.seller_user_id, deal.article_id, "✅ Paiement confirmé. Vente terminée.", { deal_id, event: "completed", role: "seller", workflow_state: "completed" }),
     buyer.phone_number && !/@lid$/i.test(buyer.phone_number) ? sendWhatsApp(`${buyer.phone_number}@c.us`, buyerText) : Promise.resolve(),
     seller.phone_number && !/@lid$/i.test(seller.phone_number) ? sendWhatsApp(`${seller.phone_number}@c.us`, sellerText) : Promise.resolve(),
     WAOUH_OPS_WHATSAPP ? sendWhatsApp(`${WAOUH_OPS_WHATSAPP}@c.us`, opsText) : Promise.resolve(),
   ]);
 
-  return json({ success: true });
+  return json({
+    success: true, ok: true, reply: "✅ Livraison et paiement confirmés. Transaction WAOUH terminée.",
+    intent: "deal_completed", workflow_state: "completed", deal_id,
+    article_id: deal.article_id, thread_id: deal.thread_id, transaction_id: tx?.id ?? null,
+    commission, commission_rate: rate, actions: [],
+  });
 }
 
 Deno.serve(async (req) => {
@@ -375,22 +666,30 @@ Deno.serve(async (req) => {
   try {
     const body = await req.json().catch(() => ({}));
     const action = body?.action;
-    if (!action) return json({ error: "action required (assign|status|update_eta|payment)" }, 400);
+    if (!action) return json({ error: "action required" }, 400);
 
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
-    const authHeader = req.headers.get("Authorization") || "";
 
-    // Admin gate for ops actions (payment is buyer-side, optional admin check inside)
     if (["assign", "status", "update_eta"].includes(action)) {
       const guard = await requireAdmin(req, sb);
       if (!guard.ok) return json({ error: guard.error }, guard.status);
+    }
+
+    if (["seller_confirm", "payment_preference", "cancel", "payment"].includes(action)) {
+      const actor = await resolveDealActor(req, sb, body);
+      if (!actor.ok) return json({ error: actor.error || "unauthorized" }, actor.status || 401);
+      switch (action) {
+        case "seller_confirm":     return await handleSellerConfirm(sb, body, actor);
+        case "payment_preference": return await handlePaymentPreference(sb, body, actor);
+        case "cancel":             return await handleParticipantCancel(sb, body, actor);
+        case "payment":            return await handlePayment(sb, body, actor);
+      }
     }
 
     switch (action) {
       case "assign":      return await handleAssign(sb, body);
       case "status":      return await handleStatus(sb, body);
       case "update_eta":  return await handleUpdateEta(sb, body);
-      case "payment":     return await handlePayment(sb, body, authHeader);
       default:            return json({ error: `unknown action: ${action}` }, 400);
     }
   } catch (e) {
