@@ -110,4 +110,42 @@ void main() {
     expect(source.configured, isFalse);
     expect(source.signalCount, 12);
   });
+
+  test('Avatar journey parses structured NEXUS catalog results', () {
+    final response = NexusSearchResponse.fromJson(<String, dynamic>{
+      'query': 'Samsung S25',
+      'market': <String, dynamic>{
+        'median': 400000,
+        'sample_count': 5,
+      },
+      'results': <Map<String, dynamic>>[
+        <String, dynamic>{
+          'article_id': '11111111-1111-4111-8111-111111111111',
+          'title': 'Samsung Galaxy S25',
+          'price': 395000,
+          'currency': 'XOF',
+          'city': 'Cotonou',
+          'source': 'waouh',
+          'photos': <String>['https://example.test/s25.jpg'],
+          'scores': <String, dynamic>{
+            'total_score': 93,
+            'relevance_score': 95,
+            'trust_score': 88,
+            'contactability_score': 70,
+            'reasons': <String>['Prix cohérent', 'Même ville'],
+          },
+          'badges': <String>['recommended'],
+          'advice': 'Bonne option.',
+        },
+      ],
+    });
+
+    expect(response.results, hasLength(1));
+    expect(response.results.first.articleId,
+        '11111111-1111-4111-8111-111111111111');
+    expect(response.results.first.price, 395000);
+    expect(response.results.first.scores.total, 93);
+    expect(response.results.first.photos, hasLength(1));
+  });
+
 }
