@@ -110,7 +110,7 @@ export function WaouhNexusContactSheet({
     contactabilityLevel === "C2"
       ? "Transmettre via WAOUH"
       : contactabilityLevel === "C3" || contactabilityLevel === "C4"
-        ? "Laisser Muse poursuivre"
+        ? "Laisser l’Avatar poursuivre"
         : contactabilityLevel === "C1"
           ? "Contacter"
           : "Voir le contact";
@@ -149,7 +149,7 @@ export function WaouhNexusContactSheet({
           </div>
         ) : busy && !prepared ? (
           <div className="mt-6 flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Muse vérifie la politique de contact…
+            <Loader2 className="h-4 w-4 animate-spin" /> L’Avatar vérifie la politique de contact…
           </div>
         ) : prepared ? (
           <div className="mt-5 space-y-4">
