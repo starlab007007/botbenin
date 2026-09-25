@@ -3,7 +3,10 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
+import 'avatar/live_avatar_controller.dart';
+import 'avatar/live_avatar_widgets.dart';
 import 'live_auth_screens.dart';
+import 'live_avatar_screen.dart';
 import 'live_controller.dart';
 import 'live_controller_v2.dart';
 import 'live_inbox_production.dart';
@@ -49,6 +52,7 @@ class LiveWaouhProductionApp extends StatelessWidget {
   Widget build(BuildContext context) => MultiProvider(
         providers: [
           ChangeNotifierProvider(create: (_) => legacy.AuthController()),
+          ChangeNotifierProvider(create: (_) => LiveAvatarController()..load()),
           ChangeNotifierProxyProvider<legacy.AuthController,
               LiveWaouhController>(
             create: (context) =>
@@ -150,8 +154,12 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
               builder: (_, __) => const LiveIaFinalHubScreen(),
             ),
             GoRoute(
+              path: '/app/avatar',
+              builder: (_, __) => const LiveAvatarScreen(),
+            ),
+            GoRoute(
               path: '/app/muse',
-              builder: (_, __) => const LiveMuseScreen(),
+              redirect: (_, __) => '/app/avatar',
             ),
             GoRoute(
               path: '/app/missions',
@@ -234,11 +242,11 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
             ),
             GoRoute(
               path: '/app/command',
-              builder: (_, __) => const LiveMuseMissionsHubScreen(),
+              redirect: (_, __) => '/app/avatar',
             ),
             GoRoute(
               path: '/app/diffusion',
-              redirect: (_, __) => '/app/command',
+              redirect: (_, __) => '/app/avatar',
             ),
             GoRoute(
               path: '/app/partner',
@@ -291,7 +299,8 @@ class LiveProductionShell extends StatelessWidget {
         path.startsWith('/app/presence')) {
       return 2;
     }
-    if (path.startsWith('/app/command') ||
+    if (path.startsWith('/app/avatar') ||
+        path.startsWith('/app/command') ||
         path.startsWith('/app/muse') ||
         path.startsWith('/app/missions') ||
         path.startsWith('/app/nexus')) {
@@ -306,11 +315,30 @@ class LiveProductionShell extends StatelessWidget {
     final focused = path.startsWith('/app/chat/') ||
         path.startsWith('/app/profile') ||
         path.startsWith('/app/partner/businesses/');
+    final waouh = context.watch<LiveWaouhController>();
+    final showAvatarDock = !path.startsWith('/app/avatar');
     return Scaffold(
       body: Column(
         children: [
           const LiveOfflineBanner(),
-          Expanded(child: child),
+          Expanded(
+            child: Stack(
+              children: [
+                Positioned.fill(child: child),
+                if (showAvatarDock)
+                  Positioned(
+                    right: 12,
+                    bottom: focused ? 86 : 12,
+                    child: LiveAvatarDock(
+                      compact: focused,
+                      missionCount: waouh.agentic.activeMissionCount,
+                      watchCount: waouh.agentic.activeWatchCount,
+                      approvalCount: waouh.agentic.pendingApprovalCount,
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: focused
@@ -340,7 +368,7 @@ class LiveProductionShell extends StatelessWidget {
                         context.go(switch (index) {
                       1 => '/app/ia',
                       2 => '/app/whatsapp/conversationnel',
-                      3 => '/app/command',
+                      3 => '/app/avatar',
                       4 => '/app/partner',
                       _ => '/app/chat',
                     }),
@@ -361,9 +389,9 @@ class LiveProductionShell extends StatelessWidget {
                         label: 'IA',
                       ),
                       NavigationDestination(
-                        icon: Icon(Icons.psychology_alt_outlined),
-                        selectedIcon: Icon(Icons.psychology_alt_rounded),
-                        label: 'Muse',
+                        icon: Icon(Icons.face_retouching_natural_outlined),
+                        selectedIcon: Icon(Icons.face_retouching_natural_rounded),
+                        label: 'Avatar',
                       ),
                       NavigationDestination(
                         icon: Icon(Icons.storefront_outlined),
