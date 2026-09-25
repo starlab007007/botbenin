@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feat/waouh-web-flutter-nexus-final
+      - feat/waouh-avatar-deal-graph-e2e
       - prod
     paths:
       - "flutter_waouh_app/**"
@@ -68,6 +69,10 @@ jobs:
           flutter test test/live_models_test.dart
           flutter test test/live_commerce_workflow_test.dart
           flutter test test/live_chat_premium_cards_test.dart
+          flutter test test/live_thread_flow_v23_test.dart
+          flutter test test/live_match_scope_sync_test.dart
+          ! grep -q "Mode provisoire actif" lib/live/live_match_chat_v2.dart
+          ! grep -q "synchronisation du fil exact" lib/live/live_match_chat_v2.dart
 
       - name: Build optimized arm64 test APK
         env:
