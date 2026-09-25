@@ -36,6 +36,9 @@ class NexusScore {
     required this.relevance,
     required this.trust,
     required this.contactability,
+    this.price = 0,
+    this.location = 0,
+    this.freshness = 0,
     this.reasons = const [],
   });
 
@@ -43,6 +46,9 @@ class NexusScore {
   final double relevance;
   final double trust;
   final double contactability;
+  final double price;
+  final double location;
+  final double freshness;
   final List<String> reasons;
 
   factory NexusScore.fromJson(Map<String, dynamic> json) => NexusScore(
@@ -50,6 +56,9 @@ class NexusScore {
         relevance: _number(json['relevance_score']),
         trust: _number(json['trust_score']),
         contactability: _number(json['contactability_score']),
+        price: _number(json['price_score']),
+        location: _number(json['location_score']),
+        freshness: _number(json['freshness_score']),
         reasons: _list(json['reasons'])
             .map(_text)
             .where((value) => value.trim().isNotEmpty)
