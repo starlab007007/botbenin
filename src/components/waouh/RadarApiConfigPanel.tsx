@@ -26,7 +26,6 @@ import { syncNexusSource } from "@/lib/waouh/nexus";
 type ProviderId =
   | "serpapi"
   | "apify"
-  | "firecrawl"
   | "google_places"
   | "facebook_business"
   | "instagram_business"
@@ -89,7 +88,6 @@ type ProviderMeta = {
 const ORDER: ProviderId[] = [
   "serpapi",
   "apify",
-  "firecrawl",
   "google_places",
   "facebook_business",
   "instagram_business",
@@ -121,13 +119,6 @@ const META: Record<ProviderId, ProviderMeta> = {
       { key: "fb_marketplace_actor", label: "Actor Marketplace (optionnel)", placeholder: "apify~facebook-marketplace-scraper" },
       { key: "fb_group_actor", label: "Actor groupes publics (optionnel)", placeholder: "apify~facebook-groups-scraper" },
     ],
-  },
-  firecrawl: {
-    label: "Firecrawl · Sites Web",
-    help: "Collecte des sites publics ajoutés dans Sources.",
-    secretLabel: "Clé Firecrawl",
-    secretHelp: "Configuration Firecrawl",
-    keyRequired: true,
   },
   google_places: {
     label: "Google Places / Maps",
