@@ -97,7 +97,6 @@ const YovoGallery = lazy(() => import("./pages/YovoGallery"));
 const WaouhPage = lazy(() => import("./pages/waouh/WaouhPage"));
 const WaouhDemoPage = lazy(() => import("./pages/waouh/WaouhDemoPage"));
 const WaouhNativeMessagingPublicPage = lazy(() => import("./pages/waouh/WaouhNativeMessagingPublicPage"));
-const WaouhMusePage = lazy(() => import("./pages/waouh/WaouhMusePage"));
 const WaouhAvatarPage = lazy(() => import("./pages/waouh/WaouhAvatarPage"));
 const WaouhMissionsPage = lazy(() => import("./pages/waouh/WaouhMissionsPage"));
 
