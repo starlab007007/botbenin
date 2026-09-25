@@ -17,7 +17,6 @@ import {
   ShieldCheck,
   Users,
   ExternalLink,
-  Bot,
   FileText,
   BarChart3,
   GitCompareArrows,
@@ -209,7 +208,6 @@ function deriveComparison(result: WaouhResultCard, market: ProductMarketIntel | 
 
 function deriveRecommendation(result: WaouhResultCard): string {
   if (result.recommendation?.trim()) return result.recommendation.trim();
-  const reasons = resultReasons(result);
   if (reasons.length) return reasons.join(" · ");
   const score = metric(result, "total_score");
   const trust = metric(result, "trust_score");
