@@ -40,7 +40,7 @@ export function WaouhChatTabs({
               <Sparkles className={cn("h-3 w-3", activeKey === "main" ? "text-emerald-300" : "text-emerald-600")} />
             </div>
             <div className={cn("hidden text-[9px] font-semibold sm:block", activeKey === "main" ? "text-white/60" : "text-slate-400")}>
-              Muse · NEXUS · Signal
+              Avatar · NEXUS · Signal
             </div>
           </div>
         </button>
