@@ -288,7 +288,7 @@ export default function ChatListScreen() {
               </Avatar>
               <div className="text-left">
                 <div className="text-sm font-black leading-tight">WAOUH One</div>
-                <div className="text-[11px] text-white/70 leading-tight">Invité · Muse + NEXUS</div>
+                <div className="text-[11px] text-white/70 leading-tight">Invité · Avatar + NEXUS</div>
               </div>
             </div>
           ) : (
@@ -384,7 +384,7 @@ export default function ChatListScreen() {
               </span>
               <span className="text-xs text-muted-foreground shrink-0">Toujours actif</span>
             </div>
-            <p className="text-sm text-muted-foreground truncate">Muse · NEXUS · Signal Fabric · Contact</p>
+            <p className="text-sm text-muted-foreground truncate">Avatar · NEXUS · Signal Fabric · Contact</p>
           </div>
         </button>
 

@@ -139,7 +139,19 @@ export async function expressNexusInterest(item: Pick<NexusSearchItem, "article_
   const { data, error } = await supabase.functions.invoke("waouh-buyer-interest", { body });
   if (error) throw new Error(error.message || "Impossible de contacter le vendeur.");
   if (data?.error) throw new Error(String(data.error));
-  return data as { ok?: boolean; duplicate?: boolean; seller_notified?: boolean };
+  return data as {
+    ok?: boolean;
+    duplicate?: boolean;
+    seller_notified?: boolean;
+    skipped?: string;
+    article_id?: string | null;
+    buyer_user_id?: string | null;
+    seller_user_id?: string | null;
+    thread_id?: string | null;
+    negotiation_id?: string | null;
+    title?: string | null;
+    price?: number | null;
+  };
 }
 
 export function nexusSourceLabel(source?: string | null) {

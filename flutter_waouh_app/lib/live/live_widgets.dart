@@ -1006,11 +1006,11 @@ class _PremiumProduct {
 
   String get displayMarketComparison =>
       marketComparison ??
-      'Prix de produits similaires non communiqué par le service de recherche.';
+      'Données marché insuffisantes pour établir une comparaison fiable.';
 
   String get displayComparativeAnalysis =>
       comparativeAnalysis ??
-      'Données de marché insuffisantes pour comparer objectivement ce prix.';
+      'Comparaison non calculée : échantillon marché insuffisant.';
 
   String get displayRecommendation =>
       recommendation ??
@@ -1355,7 +1355,10 @@ List<_PremiumProduct> _premiumProducts(LiveMessage message) {
       final marketMax = row['market_price_max'] ?? row['prix_marche_max'];
       final marketMedian = row['market_price_median'] ?? row['median_price'];
       final directMarket = _premiumString(
-        row['market_comparison'] ?? row['market'] ?? row['marche_reel'],
+        row['market_comparison'] ??
+            row['market_line'] ??
+            row['market'] ??
+            row['marche_reel'],
       );
       final marketComparison = directMarket ??
           (marketMin == null && marketMax == null && marketMedian == null
