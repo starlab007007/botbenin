@@ -46,6 +46,11 @@ export interface WaouhResultCard {
   source?: "partner" | "waouh" | "radar" | "chat" | string;
   badge?: string | null;
   market_line?: string | null;
+  description?: string | null;
+  comparative_analysis?: string | null;
+  recommendation?: string | null;
+  market_intelligence?: Record<string, unknown> | null;
+  intelligence_sources?: Record<string, unknown> | null;
   photos?: string[] | null;
   /**
    * undefined = générer automatiquement « intéressé N ».
@@ -200,6 +205,26 @@ export function WaouhProductCard({
   const trust = metric(result, "trust_score");
   const priceFit = metric(result, "price_score");
   const reasons = resultReasons(result);
+  const detailText = [
+    result.description,
+    result.condition ? "État : " + result.condition : null,
+    result.city ? "Localisation : " + result.city : null,
+  ].filter(Boolean).join(" · ");
+  const comparativeText =
+    result.comparative_analysis ||
+    [
+      score != null ? "Match " + Math.round(score) + "%" : null,
+      trust != null ? "confiance " + Math.round(trust) + "%" : null,
+      priceFit != null ? "compatibilité prix " + Math.round(priceFit) + "%" : null,
+    ].filter(Boolean).join(" · ");
+  const recommendationText =
+    result.recommendation ||
+    (reasons.length ? reasons.join(" · ") : "Aucune recommandation suffisamment étayée.");
+  const intelligenceSources = result.intelligence_sources && typeof result.intelligence_sources === "object"
+    ? Object.entries(result.intelligence_sources)
+        .filter(([, value]) => value === true || (typeof value === "number" && value > 0))
+        .map(([key]) => key.replace(/_/g, " "))
+    : [];
 
   useEffect(() => {
     setFailed(false);
@@ -347,14 +372,40 @@ export function WaouhProductCard({
           </div>
         )}
 
-        {reasons.length > 0 && (
-          <div className="rounded-xl border border-emerald-100 bg-emerald-50/55 px-2.5 py-2">
-            <div className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-emerald-800">
-              <Bot className="h-3 w-3" /> Pourquoi WAOUH le recommande
-            </div>
-            <div className="text-[11px] leading-snug text-emerald-950">{reasons.join(" · ")}</div>
+        {intelligenceSources.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {intelligenceSources.map((source) => (
+              <span key={source} className="rounded-full bg-blue-50 px-2 py-0.5 text-[9px] font-black uppercase text-blue-700">
+                {source}
+              </span>
+            ))}
           </div>
         )}
+
+        {detailText && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2 text-[11px] leading-snug text-slate-600">
+            <span className="font-black text-slate-800">Détails : </span>{detailText}
+          </div>
+        )}
+
+        {result.market_line && (
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 px-2.5 py-2 text-[11px] leading-snug text-emerald-900">
+            <span className="font-black">Marché réel : </span>{result.market_line}
+          </div>
+        )}
+
+        {comparativeText && (
+          <div className="rounded-xl border border-blue-100 bg-blue-50/60 px-2.5 py-2 text-[11px] leading-snug text-blue-900">
+            <span className="font-black">Analyse comparative : </span>{comparativeText}
+          </div>
+        )}
+
+        <div className="rounded-xl border border-amber-100 bg-amber-50/70 px-2.5 py-2">
+          <div className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-amber-800">
+            <Bot className="h-3 w-3" /> Pourquoi votre Avatar le retient
+          </div>
+          <div className="text-[11px] leading-snug text-amber-950">{recommendationText}</div>
+        </div>
 
         <div className="flex flex-wrap gap-1 text-[11px] text-muted-foreground">
           {(result.city || result.quartier) && (
@@ -373,10 +424,6 @@ export function WaouhProductCard({
           {result.badge && <span className="rounded bg-muted px-1.5 py-0.5">{result.badge}</span>}
         </div>
 
-        {result.market_line && (
-          <p className="text-[11px] leading-snug text-muted-foreground line-clamp-3">{result.market_line}</p>
-        )}
-
         {onAction && (
           <div className="mt-1 space-y-1.5">
             {interestAction && (
@@ -390,7 +437,7 @@ export function WaouhProductCard({
                   : level === "C2"
                     ? "Transmettre mon intérêt via WAOUH"
                     : level === "C3" || level === "C4"
-                      ? "Laisser Muse poursuivre"
+                      ? "Laisser l’Avatar poursuivre"
                       : "Je suis intéressé"}
               </Button>
             )}
