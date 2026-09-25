@@ -117,10 +117,12 @@ class LiveAgenticWorkspace extends StatelessWidget {
     super.key,
     required this.controller,
     required this.onResumeMission,
+    this.standalone = false,
   });
 
   final LiveAgenticController controller;
   final ValueChanged<WaouhMission> onResumeMission;
+  final bool standalone;
 
   @override
   Widget build(BuildContext context) => DefaultTabController(
@@ -153,11 +155,12 @@ class LiveAgenticWorkspace extends StatelessWidget {
                       ],
                     ),
                   ),
-                  IconButton(
-                    tooltip: 'Fermer',
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded),
-                  ),
+                  if (!standalone)
+                    IconButton(
+                      tooltip: 'Fermer',
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
                 ],
               ),
             ),
@@ -169,7 +172,7 @@ class LiveAgenticWorkspace extends StatelessWidget {
                 Tab(
                     icon: Icon(Icons.notifications_active_outlined),
                     text: 'Veilles'),
-                Tab(icon: Icon(Icons.verified_user_outlined), text: 'Accords'),
+                Tab(icon: Icon(Icons.verified_user_outlined), text: 'Validations'),
                 Tab(icon: Icon(Icons.history_rounded), text: 'Activité'),
               ],
             ),
@@ -181,7 +184,7 @@ class LiveAgenticWorkspace extends StatelessWidget {
                     _MissionsTab(
                       controller: controller,
                       onResumeMission: (mission) {
-                        Navigator.pop(context);
+                        if (!standalone) Navigator.pop(context);
                         onResumeMission(mission);
                       },
                     ),
