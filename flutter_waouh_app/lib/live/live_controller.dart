@@ -1458,8 +1458,13 @@ class LiveWaouhController extends ChangeNotifier {
   }
 
   Future<void> _onConnectivityChanged(bool online) async {
-    if (online) await syncPending();
+    // Propagate the radio/network edge immediately so open Deal Rooms can
+    // resubscribe/re-resolve without waiting for the offline outbox to drain.
     notifyListeners();
+    if (online) {
+      await syncPending();
+      notifyListeners();
+    }
   }
 
   Future<void> _refreshPendingCount({bool notify = true}) async {
