@@ -18,6 +18,8 @@ on:
       - "supabase/functions/waouh-agentic-core/**"
       - "supabase/functions/waouh-radar-api-config/**"
       - "supabase/functions/waouh-radar-apify/**"
+      - "supabase/functions/waouh-radar-process/**"
+      - "supabase/functions/waouh-serpapi-scout/**"
       - "supabase/functions/waouh-radar-wa-webhook/**"
       - "supabase/functions/_shared/radar-api-config.ts"
       - "supabase/functions/_shared/waouhContact.ts"
@@ -45,6 +47,8 @@ on:
       - "supabase/functions/waouh-agentic-core/**"
       - "supabase/functions/waouh-radar-api-config/**"
       - "supabase/functions/waouh-radar-apify/**"
+      - "supabase/functions/waouh-radar-process/**"
+      - "supabase/functions/waouh-serpapi-scout/**"
       - "supabase/functions/waouh-radar-wa-webhook/**"
       - "supabase/functions/_shared/radar-api-config.ts"
       - "supabase/functions/_shared/waouhContact.ts"
@@ -98,6 +102,8 @@ jobs:
           deno check supabase/functions/waouh-radar-api-config/index.ts
           deno check supabase/functions/waouh-radar-apify/index.ts
           deno check supabase/functions/waouh-radar-wa-webhook/index.ts
+          deno check supabase/functions/waouh-radar-process/index.ts
+          deno check supabase/functions/waouh-serpapi-scout/index.ts
 
       - name: Check WAOUH Chat Channel
         run: deno check supabase/functions/waouh-channel-in/index.ts
