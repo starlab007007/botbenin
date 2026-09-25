@@ -2465,12 +2465,23 @@ Retourne uniquement JSON:
             .select("id", { count: "exact", head: true })
             .eq("type", "wa_group")
             .eq("active", true);
+          const wahaBase = String(Deno.env.get("WAHA_BASE_URL") || "").trim();
+          const wahaKey = String(
+            Deno.env.get("WAHA_API_KEY_PLAIN") ||
+            Deno.env.get("WAHA_API_KEY") ||
+            "",
+          ).trim();
+          const configured = !!wahaBase && !!wahaKey && (count ?? 0) > 0;
           result = {
-            configured: true,
+            configured,
             inserted: 0,
             push_mode: true,
             active_group_count: count ?? 0,
-            reason: "webhook_realtime_allowlist",
+            reason: configured
+              ? "webhook_realtime_allowlist"
+              : !wahaBase || !wahaKey
+                ? "waha_not_configured"
+                : "no_authorized_whatsapp_group",
           };
         } else {
           const { data: settings } = await sb.from("waouh_tel_settings")
