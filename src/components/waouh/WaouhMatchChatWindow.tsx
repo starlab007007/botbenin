@@ -643,13 +643,13 @@ export function WaouhMatchChatWindow({
   return (
     <div className="flex flex-col h-full w-full bg-background">
       {/* Deal Room — 1 article × 1 interlocuteur */}
-      <div className="shrink-0 border-b border-emerald-100 bg-gradient-to-r from-white via-emerald-50/70 to-cyan-50/70 px-3 py-2.5">
+      <div className="shrink-0 border-b border-emerald-100 bg-gradient-to-r from-white via-emerald-50/70 to-cyan-50/70 px-2.5 py-1.5">
         <div className="flex items-center gap-2.5">
           <WaouhMuseAvatar mode={match.kind === "buyer" ? "buyer" : "seller"} phase={closed ? "success" : "negotiating"} size="sm" />
           {match.photo ? (
-            <img src={match.photo} alt="" className="h-11 w-11 rounded-xl border border-white object-cover shadow-sm" />
+            <img src={match.photo} alt="" className="h-8 w-8 rounded-lg border border-white object-cover shadow-sm" />
           ) : (
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl border bg-white text-emerald-700 shadow-sm">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg border bg-white text-emerald-700 shadow-sm">
               <Icon className="h-5 w-5" />
             </div>
           )}
@@ -683,7 +683,7 @@ export function WaouhMatchChatWindow({
             <div className="mt-0.5 text-[9px] text-slate-400">{matchLabel} · {(match.article_id || "").slice(0, 8)}</div>
           </div>
         </div>
-        <div className="mt-2 flex items-center gap-2 text-[9px] text-muted-foreground">
+        <div className="hidden">
           {syncedAt && !closed ? (
             <span className="inline-flex items-center gap-1 rounded-full border bg-white/70 px-2 py-1">
               <CheckCircle2 className="h-3 w-3 text-emerald-600" />
@@ -698,20 +698,25 @@ export function WaouhMatchChatWindow({
         </div>
       </div>
 
-      {/* Résumé automatique de CETTE négociation (1 article × 1 interlocuteur) */}
-      <div className="px-2 pt-2">
-        <WaouhArticleSummary
-          messages={messages.map((m) => ({ direction: m.direction, text: m.text, created_at: m.created_at }))}
-          title={match.title}
-          price={match.price}
-          role={match.kind}
-          closed={closed}
-        />
-      </div>
+      {/* Résumé IA disponible à la demande afin de préserver la hauteur du fil. */}
+      <details className="mx-2 mt-1 shrink-0 rounded-xl border border-emerald-100 bg-white/90">
+        <summary className="cursor-pointer select-none px-3 py-1.5 text-[10px] font-bold text-emerald-800">
+          ✨ Résumé IA de la négociation
+        </summary>
+        <div className="px-2 pb-2">
+          <WaouhArticleSummary
+            messages={messages.map((m) => ({ direction: m.direction, text: m.text, created_at: m.created_at }))}
+            title={match.title}
+            price={match.price}
+            role={match.kind}
+            closed={closed}
+          />
+        </div>
+      </details>
 
       {/* Messages area — same WAOUH doodle background */}
 
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2 waouh-chat-bg">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-3 space-y-1.5 sm:space-y-2 waouh-chat-bg">
         {/* Seed notification bubble — always pinned at top */}
         <div className="mx-auto max-w-[92%] rounded-2xl border border-amber-300/70 bg-amber-50/95 dark:bg-amber-900/30 dark:border-amber-700/60 px-3 py-2.5 shadow-sm">
           <div className="flex items-start gap-2.5">
@@ -773,8 +778,8 @@ export function WaouhMatchChatWindow({
                 "min-w-0 rounded-3xl px-3 py-2 text-sm break-words shadow-sm",
                 (rich.results.length > 0 || rich.blocks.length > 0) && "w-full max-w-[860px]",
                 m.direction === "in"
-                  ? "max-w-[82%] bg-slate-950 text-white rounded-br-lg"
-                  : "max-w-[88%] bg-white border border-slate-200 rounded-bl-lg"
+                  ? "max-w-[90%] sm:max-w-[86%] bg-slate-950 text-white rounded-br-lg"
+                  : "max-w-[92%] sm:max-w-[88%] bg-white border border-slate-200 rounded-bl-lg"
               )}
             >
               {m.direction === "out" && (
@@ -788,7 +793,15 @@ export function WaouhMatchChatWindow({
             ) : (
               Array.isArray(m.attachments) &&
               m.attachments.map((a: any, i: number) => (
-                <ChatImage key={i} src={a.url} alt="" className="rounded-lg mb-1 max-h-60" />
+                <ChatImage
+                  key={i}
+                  src={a.url}
+                  alt=""
+                  gallery={m.attachments.map((x: any) => ({ url: x.url, caption: x.caption || undefined }))}
+                  index={i}
+                  className="mb-1 max-h-[64dvh] rounded-lg bg-black/[0.03]"
+                  imgClassName="max-h-[64dvh] object-contain"
+                />
               ))
             )}
             {rich.text && <div className="whitespace-pre-wrap">{rich.text}</div>}

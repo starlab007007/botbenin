@@ -977,13 +977,13 @@ class LiveSmartComposerBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = _items().take(3).toList(growable: false);
     return Container(
-      height: 54,
+      height: 42,
       color: Colors.white,
       child: Row(children: [
         Expanded(
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
+            padding: const EdgeInsets.fromLTRB(8, 4, 4, 4),
             itemCount: items.length,
             separatorBuilder: (_, __) => const SizedBox(width: 7),
             itemBuilder: (_, index) {
@@ -1045,26 +1045,26 @@ class LiveDealRoomBanner extends StatelessWidget {
     final mode = match.role == 'seller' ? LiveMuseMode.seller : LiveMuseMode.buyer;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 9),
+      padding: const EdgeInsets.fromLTRB(8, 5, 8, 5),
       decoration: const BoxDecoration(
         gradient: LinearGradient(colors: [Colors.white, Color(0xFFF0FAF6), Color(0xFFF2FAFC)]),
         border: Border(bottom: BorderSide(color: Color(0xFFDCEFE8))),
       ),
       child: Row(children: [
-        LiveMuseAvatar(mode: mode, phase: pending ? LiveMusePhase.searching : LiveMusePhase.negotiating, size: 40),
-        const SizedBox(width: 8),
+        LiveMuseAvatar(mode: mode, phase: pending ? LiveMusePhase.searching : LiveMusePhase.negotiating, size: 32),
+        const SizedBox(width: 7),
         if (match.photo != null && match.photo!.trim().isNotEmpty) ...[
           ClipRRect(
             borderRadius: BorderRadius.circular(11),
             child: Image.network(
               match.photo!,
-              width: 46,
-              height: 46,
+              width: 34,
+              height: 34,
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => _DealFallback(mode: mode),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 7),
         ],
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1072,8 +1072,8 @@ class LiveDealRoomBanner extends StatelessWidget {
               const _AgentPill(text: 'WAOUH Deal Room', icon: Icons.auto_awesome_rounded, tone: Color(0xFF08745D)),
               if (contact != null) LiveContactabilityBadge(level: contact, showCode: true),
             ]),
-            const SizedBox(height: 3),
-            Text(match.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF15372F), fontSize: 13)),
+            const SizedBox(height: 1),
+            Text(match.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF15372F), fontSize: 12)),
             Text(
               [
                 if (match.price != null) '${match.price} FCFA',
@@ -1082,7 +1082,7 @@ class LiveDealRoomBanner extends StatelessWidget {
               ].join(' · '),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Color(0xFF60746E), fontSize: 10.5, fontWeight: FontWeight.w600),
+              style: const TextStyle(color: Color(0xFF60746E), fontSize: 9.5, fontWeight: FontWeight.w600),
             ),
           ]),
         ),
@@ -1107,8 +1107,8 @@ class _DealFallback extends StatelessWidget {
   final LiveMuseMode mode;
   @override
   Widget build(BuildContext context) => Container(
-    width: 46,
-    height: 46,
+    width: 34,
+    height: 34,
     decoration: BoxDecoration(color: const Color(0xFFEAF8F2), borderRadius: BorderRadius.circular(11)),
     child: Icon(mode == LiveMuseMode.seller ? Icons.shopping_bag_outlined : Icons.shopping_cart_outlined, color: const Color(0xFF08745D)),
   );

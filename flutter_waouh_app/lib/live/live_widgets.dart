@@ -2386,7 +2386,7 @@ class _PremiumProductGalleryState extends State<_PremiumProductGallery> {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-        height: 230,
+        height: MediaQuery.sizeOf(context).height < 700 ? 250 : 300,
         child: Stack(children: [
           PageView.builder(
             controller: _controller,
@@ -2396,7 +2396,7 @@ class _PremiumProductGalleryState extends State<_PremiumProductGallery> {
               onTap: _open,
               child: SizedBox.expand(
                   child: _premiumImage(widget.images[imageIndex],
-                      fit: BoxFit.cover)),
+                      fit: BoxFit.contain)),
             ),
           ),
           Positioned(

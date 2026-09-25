@@ -435,7 +435,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
         if (pendingThread)
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(14, 9, 10, 9),
+            padding: const EdgeInsets.fromLTRB(10, 5, 8, 5),
             color: const Color(0xFFE7F6F0),
             child: Row(
               children: [
@@ -448,7 +448,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                             : 'Mode provisoire actif : historique et messages restent disponibles pendant la confirmation du fil exact.',
                     style: const TextStyle(
                       color: Color(0xFF315E50),
-                      fontSize: 12.5,
+                      fontSize: 11.5,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -497,7 +497,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                           : match.isSearch
                               ? 'Poursuivez cette recherche avec Muse.'
                               : 'Commencez la discussion sur ce produit.',
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
                     ),
                   ),
                 ],
@@ -517,14 +517,28 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
             ),
             padding: const EdgeInsets.fromLTRB(8, 7, 8, 9),
             child: Row(children: [
-              IconButton(
-                  tooltip: 'Prendre une photo',
-                  onPressed: () => _pick(ImageSource.camera),
-                  icon: const Icon(Icons.camera_alt_outlined)),
-              IconButton(
-                  tooltip: 'Joindre une image',
-                  onPressed: () => _pick(ImageSource.gallery),
-                  icon: const Icon(Icons.attach_file_rounded)),
+              PopupMenuButton<ImageSource>(
+                  tooltip: 'Ajouter',
+                  icon: const Icon(Icons.add_circle_outline_rounded),
+                  onSelected: _pick,
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: ImageSource.camera,
+                      child: ListTile(
+                        dense: true,
+                        leading: Icon(Icons.camera_alt_outlined),
+                        title: Text('Prendre une photo'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: ImageSource.gallery,
+                      child: ListTile(
+                        dense: true,
+                        leading: Icon(Icons.photo_library_outlined),
+                        title: Text('Choisir une photo'),
+                      ),
+                    ),
+                  ]),
               Expanded(
                   child: TextField(
                       controller: _composer,

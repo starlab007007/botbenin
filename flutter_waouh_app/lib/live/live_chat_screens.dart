@@ -410,20 +410,6 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
                   final waiting = optimistic
                       .any((item) => item.meta['delivery_state'] == 'sending');
                   return Column(children: [
-                    LiveCommerceAgentBar(
-                      messages: messages,
-                      busy: waiting,
-                      onTap: () => showLiveUnifiedIntelligenceSheet(
-                        context,
-                        messages: messages,
-                        busy: waiting,
-                        missionCount: controller.agentic.activeMissionCount,
-                        watchCount: controller.agentic.activeWatchCount,
-                        approvalCount: controller.agentic.pendingApprovalCount,
-                        onNewGoal: () { unawaited(_newChat()); },
-                        onOpenAgentic: () { unawaited(_openAgenticWorkspace()); },
-                      ),
-                    ),
                     LiveSmartComposerBar(
                       messages: messages,
                       busy: waiting,
@@ -494,14 +480,28 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
                 padding: const EdgeInsets.fromLTRB(8, 6, 8, 9),
                 color: Colors.white,
                 child: Row(children: [
-                  IconButton(
-                      tooltip: 'Prendre une photo',
-                      onPressed: () => _attach(ImageSource.camera),
-                      icon: const Icon(Icons.camera_alt_outlined)),
-                  IconButton(
-                      tooltip: 'Joindre une image',
-                      onPressed: () => _attach(ImageSource.gallery),
-                      icon: const Icon(Icons.attach_file_rounded)),
+                  PopupMenuButton<ImageSource>(
+                      tooltip: 'Ajouter',
+                      icon: const Icon(Icons.add_circle_outline_rounded),
+                      onSelected: _attach,
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(
+                          value: ImageSource.camera,
+                          child: ListTile(
+                            dense: true,
+                            leading: Icon(Icons.camera_alt_outlined),
+                            title: Text('Prendre une photo'),
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: ImageSource.gallery,
+                          child: ListTile(
+                            dense: true,
+                            leading: Icon(Icons.photo_library_outlined),
+                            title: Text('Choisir une photo'),
+                          ),
+                        ),
+                      ]),
                   Expanded(
                       child: TextField(
                           controller: composer,
@@ -515,7 +515,7 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
                   const SizedBox(width: 6),
                   FilledButton(
                       style: FilledButton.styleFrom(
-                          minimumSize: const Size(52, 52),
+                          minimumSize: const Size(46, 46),
                           padding: EdgeInsets.zero),
                       onPressed: _send,
                       child: const Icon(Icons.send_rounded)),

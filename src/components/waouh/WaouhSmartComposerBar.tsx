@@ -70,7 +70,7 @@ export function WaouhSmartComposerBar({
 }) {
   const items = prompts(mode, phase, resultCount).slice(0, 3);
   return (
-    <div className={cn("flex gap-1.5 overflow-x-auto border-t bg-background/95 px-2 py-1.5", className)} aria-label="Suggestions WAOUH">
+    <div className={cn("flex gap-1 overflow-x-auto border-t bg-background/95 px-2 py-1", className)} aria-label="Suggestions WAOUH">
       {items.map(({ label, value, icon: Icon }) => {
         const inert = !value;
         return (
@@ -80,7 +80,7 @@ export function WaouhSmartComposerBar({
             disabled={disabled || inert}
             onClick={() => value === "__SELL__" ? onSell() : onPrompt(value)}
             className={cn(
-              "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold transition",
+              "inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[10px] font-bold transition",
               inert
                 ? "border-cyan-100 bg-cyan-50 text-cyan-700"
                 : "border-slate-200 bg-white text-slate-700 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800",

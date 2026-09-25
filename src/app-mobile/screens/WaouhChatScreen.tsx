@@ -203,7 +203,7 @@ export default function WaouhChatScreen() {
       {/* Unified native header */}
       <header
         className="flex items-center justify-between gap-2 px-2 bg-[hsl(var(--wa-green,142_70%_24%))] text-white shrink-0 shadow-md z-10"
-        style={{ paddingTop: "max(env(safe-area-inset-top), 0px)", height: "calc(56px + env(safe-area-inset-top))" }}
+        style={{ paddingTop: "max(env(safe-area-inset-top), 0px)", height: "calc(48px + env(safe-area-inset-top))" }}
       >
         <div className="flex min-w-0 flex-1 items-center gap-1">
           <button
