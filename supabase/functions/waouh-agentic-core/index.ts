@@ -1219,6 +1219,20 @@ async function refreshFacebookBusiness(
   let pageIds = Array.isArray((cfg as any).page_ids)
     ? (cfg as any).page_ids.map((v: any) => String(v).trim()).filter(Boolean)
     : [];
+  const { data: fbPageSources } = await sb.from("waouh_radar_sources")
+    .select("identifier").eq("type", "fb_page").eq("active", true);
+  for (const row of fbPageSources ?? []) {
+    let value = String((row as any).identifier ?? "").trim();
+    try {
+      if (/^https?:\/\//i.test(value)) {
+        const url = new URL(value);
+        value = url.pathname.split("/").filter(Boolean)[0] || value;
+      }
+    } catch {
+      // Keep raw Page ID / username.
+    }
+    if (value && !pageIds.includes(value)) pageIds.push(value);
+  }
   if (!pageIds.length) {
     try {
       const pagesRes = await fetch(
@@ -1358,6 +1372,21 @@ async function refreshTelegramPublic(
       .map((v: any) => String(v).trim().replace(/^@/, ""))
       .filter(Boolean),
   );
+  const { data: telegramSources } = await sb.from("waouh_radar_sources")
+    .select("identifier").in("type", ["telegram","telegram_channel"]).eq("active", true);
+  for (const row of telegramSources ?? []) {
+    let value = String((row as any).identifier ?? "").trim();
+    try {
+      if (/^https?:\/\//i.test(value)) {
+        const url = new URL(value);
+        value = url.pathname.split("/").filter(Boolean)[0] || value;
+      }
+    } catch {
+      // Keep chat id / username.
+    }
+    value = value.replace(/^@/, "");
+    if (value) allowed.add(value);
+  }
   if (!allowed.size) {
     return { configured: true, inserted: 0, results: [], reason: "authorized_chat_ids_required" };
   }
