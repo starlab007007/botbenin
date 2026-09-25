@@ -202,7 +202,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   Future<void> _continueWith(NexusDiscoveryItem item) async {
     final avatar = context.read<LiveAvatarController>();
     final controller = context.read<LiveWaouhController>();
-    avatar.setPersistentState(LiveAvatarPresenceState.contacting);
+    avatar.setPersistentState(LiveAvatarPresenceState.found);
     setState(() => _error = null);
 
     final articleId = item.articleId;
