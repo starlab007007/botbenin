@@ -144,6 +144,14 @@ export async function expressNexusInterest(item: Pick<NexusSearchItem, "article_
 
 export function nexusSourceLabel(source?: string | null) {
   const value = String(source ?? "").toLowerCase();
+  if (value.includes("google_places") || value.includes("maps")) return "Google Maps";
+  if (value.includes("facebook")) return "Facebook";
+  if (value.includes("instagram")) return "Instagram";
+  if (value.includes("telegram")) return "Telegram";
+  if (value.includes("tiktok")) return "TikTok";
+  if (value.includes("serpapi") || value.includes("web_social")) return "Web public";
+  if (value.includes("apify")) return "Apify";
+  if (value.includes("sms") || value.includes("rcs")) return "SMS/RCS";
   if (value.includes("partner")) return "Partenaire";
   if (value.includes("radar")) return "Radar IA";
   if (value.includes("whatsapp")) return "WhatsApp";
@@ -167,7 +175,7 @@ export function nexusBadgeLabel(value: string) {
 
 
 export type NexusSourceStatus = {
-  providers: Array<{ provider: string; active: boolean; configured?: boolean; daily_quota?: number | null; usage_today?: number | null; last_test_at?: string | null; last_test_status?: string | null }>;
+  providers: Array<{ provider: string; source_key?: string | null; label?: string | null; auth_mode?: string | null; active: boolean; configured?: boolean; reason?: string | null; daily_quota?: number | null; usage_today?: number | null; last_test_at?: string | null; last_test_status?: string | null; last_sync_at?: string | null; last_sync_status?: string | null }>;
   registry?: NexusDiscoverySource[];
   fabric?: { total: number; by_source: Record<string, number>; by_intent: Record<string, number>; by_contactability: Record<string, number> };
   offers: Record<string, number>;
