@@ -663,15 +663,23 @@ class LiveWaouhController extends ChangeNotifier {
       ...meta,
       'source': 'avatar_commerce',
       'avatar_flow': true,
-      'intent': intent,
+      'avatar_intent': intent,
       'schema': 'waouh.message.v1',
     };
-    final missionId = await agentic.ensureSynchronizedMissionForRequest(
-      value,
-      effectiveMeta,
-      online: isOnline && auth.signedIn,
-    );
-    if (missionId != null) effectiveMeta['mission_id'] = missionId;
+    effectiveMeta.putIfAbsent('intent', () => intent);
+    final isCommerceCommand =
+        effectiveMeta['button_payload'] != null ||
+        effectiveMeta['commerce_action'] != null ||
+        effectiveMeta['deal_id'] != null ||
+        effectiveMeta['negotiation_id'] != null;
+    if (!isCommerceCommand) {
+      final missionId = await agentic.ensureSynchronizedMissionForRequest(
+        value,
+        effectiveMeta,
+        online: isOnline && auth.signedIn,
+      );
+      if (missionId != null) effectiveMeta['mission_id'] = missionId;
+    }
     effectiveMeta.putIfAbsent('idempotency_key', newIdempotencyKey);
     final staleLocation = _positionAt == null ||
         DateTime.now().difference(_positionAt!) > const Duration(minutes: 2);
