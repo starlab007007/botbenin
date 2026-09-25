@@ -5,7 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { getRadarApiKey, incrementRadarUsage } from "../_shared/radar-api-config.ts";
+import { getRadarApiKey, incrementRadarUsage, markRadarProviderSync } from "../_shared/radar-api-config.ts";
+import { normalizeE164 } from "../_shared/waouh-tel/phone.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -30,7 +31,7 @@ async function aiExtract(text: string): Promise<any> {
     body: JSON.stringify({
       model: "google/gemini-2.5-flash-lite",
       messages: [
-        { role: "system", content: "Extrait depuis un snippet d'annonce BJ et retourne JSON {title, price (number FCFA, null si absent), category, condition (new/like_new/good/fair), city, seller_phone (229XXXXXXXX si visible), confidence (0-1)}. Si pas une annonce de vente, confidence=0." },
+        { role: "system", content: "Extrait depuis un snippet d'annonce BJ et retourne JSON {title, price (number FCFA, null si absent), category, condition (new/like_new/good/fair), city, seller_phone (+22901XXXXXXXX si visible), confidence (0-1)}. Si pas une annonce de vente, confidence=0." },
         { role: "user", content: text.slice(0, 1500) },
       ],
       response_format: { type: "json_object" },
@@ -83,7 +84,7 @@ Deno.serve(async (req) => {
           price: ext.price || null,
           city: ext.city,
           condition: ext.condition,
-          seller_phone: ext.seller_phone,
+          seller_phone: normalizeE164(ext.seller_phone),
           image_url: r.thumbnail || null,
           raw: { serp: r, extracted: ext },
         }).select().single();
