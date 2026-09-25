@@ -242,6 +242,242 @@ class NexusDiscoveryResponse {
   }
 }
 
+class NexusMarketSnapshot {
+  const NexusMarketSnapshot({
+    required this.sampleCount,
+    this.min,
+    this.median,
+    this.max,
+    this.average,
+  });
+
+  final int sampleCount;
+  final double? min;
+  final double? median;
+  final double? max;
+  final double? average;
+
+  factory NexusMarketSnapshot.fromJson(Map<String, dynamic> json) =>
+      NexusMarketSnapshot(
+        sampleCount: _number(json['sample_count']).round(),
+        min: json['min'] == null ? null : _number(json['min']),
+        median: json['median'] == null ? null : _number(json['median']),
+        max: json['max'] == null ? null : _number(json['max']),
+        average: json['average'] == null ? null : _number(json['average']),
+      );
+}
+
+class NexusMarketplaceSeller {
+  const NexusMarketplaceSeller({
+    this.name,
+    this.verified = false,
+    this.reputation,
+  });
+
+  final String? name;
+  final bool verified;
+  final double? reputation;
+
+  factory NexusMarketplaceSeller.fromJson(Map<String, dynamic> json) =>
+      NexusMarketplaceSeller(
+        name: json['display_name'] == null
+            ? null
+            : _text(json['display_name']),
+        verified: _bool(json['verified']),
+        reputation: json['reputation'] == null
+            ? null
+            : _number(json['reputation']),
+      );
+}
+
+class NexusMarketplaceItem {
+  const NexusMarketplaceItem({
+    required this.kind,
+    required this.title,
+    required this.scores,
+    required this.badges,
+    required this.advice,
+    this.articleId,
+    this.catalogId,
+    this.description,
+    this.category,
+    this.brand,
+    this.model,
+    this.condition,
+    this.price,
+    this.currency = 'XOF',
+    this.city,
+    this.photos = const [],
+    this.source,
+    this.seller,
+  });
+
+  final String kind;
+  final String? articleId;
+  final String? catalogId;
+  final String title;
+  final String? description;
+  final String? category;
+  final String? brand;
+  final String? model;
+  final String? condition;
+  final double? price;
+  final String currency;
+  final String? city;
+  final List<String> photos;
+  final String? source;
+  final NexusMarketplaceSeller? seller;
+  final NexusScore scores;
+  final List<String> badges;
+  final String advice;
+
+  bool get internalArticle =>
+      kind == 'article' && articleId?.trim().isNotEmpty == true;
+
+  factory NexusMarketplaceItem.fromJson(Map<String, dynamic> json) {
+    final sellerJson = _map(json['seller']);
+    return NexusMarketplaceItem(
+      kind: _text(json['kind'], 'article'),
+      articleId:
+          json['article_id'] == null ? null : _text(json['article_id']),
+      catalogId:
+          json['catalog_id'] == null ? null : _text(json['catalog_id']),
+      title: _text(json['title'], 'Opportunité WAOUH'),
+      description:
+          json['description'] == null ? null : _text(json['description']),
+      category: json['category'] == null ? null : _text(json['category']),
+      brand: json['brand'] == null ? null : _text(json['brand']),
+      model: json['model'] == null ? null : _text(json['model']),
+      condition:
+          json['condition'] == null ? null : _text(json['condition']),
+      price: json['price'] == null ? null : _number(json['price']),
+      currency: _text(json['currency'], 'XOF'),
+      city: json['city'] == null ? null : _text(json['city']),
+      photos: _list(json['photos'])
+          .map(_text)
+          .where((value) => value.trim().isNotEmpty)
+          .toList(growable: false),
+      source: json['source'] == null ? null : _text(json['source']),
+      seller: sellerJson.isEmpty
+          ? null
+          : NexusMarketplaceSeller.fromJson(sellerJson),
+      scores: NexusScore.fromJson(_map(json['scores'])),
+      badges: _list(json['badges'])
+          .map(_text)
+          .where((value) => value.trim().isNotEmpty)
+          .toList(growable: false),
+      advice: _text(json['advice']),
+    );
+  }
+}
+
+class NexusMarketplaceResponse {
+  const NexusMarketplaceResponse({
+    required this.query,
+    required this.market,
+    required this.results,
+    this.explanation,
+  });
+
+  final String query;
+  final NexusMarketSnapshot market;
+  final List<NexusMarketplaceItem> results;
+  final String? explanation;
+
+  factory NexusMarketplaceResponse.fromJson(Map<String, dynamic> json) =>
+      NexusMarketplaceResponse(
+        query: _text(json['query']),
+        market: NexusMarketSnapshot.fromJson(_map(json['market'])),
+        results: _list(json['results'])
+            .map((value) => NexusMarketplaceItem.fromJson(_map(value)))
+            .where((item) => item.title.trim().isNotEmpty)
+            .toList(growable: false),
+        explanation:
+            json['explanation'] == null ? null : _text(json['explanation']),
+      );
+}
+
+class NexusBuyerOpportunity {
+  const NexusBuyerOpportunity({
+    required this.buyerProfileId,
+    required this.query,
+    required this.scores,
+    this.category,
+    this.budgetMax,
+    this.source,
+    this.buyerName,
+    this.buyerVerified = false,
+  });
+
+  final String buyerProfileId;
+  final String query;
+  final String? category;
+  final double? budgetMax;
+  final String? source;
+  final String? buyerName;
+  final bool buyerVerified;
+  final NexusScore scores;
+
+  factory NexusBuyerOpportunity.fromJson(Map<String, dynamic> json) {
+    final buyer = _map(json['buyer']);
+    return NexusBuyerOpportunity(
+      buyerProfileId: _text(json['buyer_profile_id']),
+      query: _text(json['query']),
+      category: json['category'] == null ? null : _text(json['category']),
+      budgetMax:
+          json['budget_max'] == null ? null : _number(json['budget_max']),
+      source: json['source'] == null ? null : _text(json['source']),
+      buyerName: buyer['display_name'] == null
+          ? null
+          : _text(buyer['display_name']),
+      buyerVerified: _bool(buyer['verified']),
+      scores: NexusScore.fromJson(_map(json['scores'])),
+    );
+  }
+}
+
+class NexusSellerOpportunityGroup {
+  const NexusSellerOpportunityGroup({
+    required this.articleId,
+    required this.title,
+    required this.matchedCount,
+    required this.opportunities,
+    this.price,
+    this.currency = 'XOF',
+    this.city,
+    this.photos = const [],
+  });
+
+  final String articleId;
+  final String title;
+  final double? price;
+  final String currency;
+  final String? city;
+  final List<String> photos;
+  final int matchedCount;
+  final List<NexusBuyerOpportunity> opportunities;
+
+  factory NexusSellerOpportunityGroup.fromJson(Map<String, dynamic> json) {
+    final article = _map(json['article']);
+    return NexusSellerOpportunityGroup(
+      articleId: _text(article['id']),
+      title: _text(article['title'], 'Article WAOUH'),
+      price: article['price'] == null ? null : _number(article['price']),
+      currency: _text(article['currency'], 'XOF'),
+      city: article['city'] == null ? null : _text(article['city']),
+      photos: _list(article['photos'])
+          .map(_text)
+          .where((value) => value.trim().isNotEmpty)
+          .toList(growable: false),
+      matchedCount: _number(json['matched_count']).round(),
+      opportunities: _list(json['opportunities'])
+          .map((value) => NexusBuyerOpportunity.fromJson(_map(value)))
+          .where((item) => item.buyerProfileId.isNotEmpty)
+          .toList(growable: false),
+    );
+  }
+}
+
 class NexusSourceInfo {
   const NexusSourceInfo({
     required this.key,
@@ -498,6 +734,74 @@ class LiveNexusService {
         if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
         'photo_urls': photoUrls,
       });
+
+  Future<NexusMarketplaceResponse> searchMarketplace({
+    required String query,
+    String? city,
+    double? budgetMax,
+    double? budgetMin,
+    int limit = 12,
+    bool persistIntent = true,
+  }) async {
+    final data = await _invoke('nexus.search', {
+      'query': query.trim(),
+      if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
+      if (budgetMax != null) 'budget_max': budgetMax,
+      if (budgetMin != null) 'budget_min': budgetMin,
+      'limit': limit,
+      'persist_intent': persistIntent,
+    });
+    return NexusMarketplaceResponse.fromJson(data);
+  }
+
+  Future<List<NexusSellerOpportunityGroup>> sellerOpportunities({
+    String? articleId,
+  }) async {
+    final data = await _invoke(
+      'nexus.seller_opportunities',
+      articleId == null || articleId.trim().isEmpty
+          ? const <String, dynamic>{}
+          : <String, dynamic>{'article_id': articleId.trim()},
+    );
+    return _list(data['articles'])
+        .map((value) => NexusSellerOpportunityGroup.fromJson(_map(value)))
+        .where((item) => item.articleId.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  Future<Map<String, dynamic>> notifyMatchingBuyers(String articleId) =>
+      _invoke('nexus.notify_buyers', {'article_id': articleId.trim()});
+
+  Future<Map<String, dynamic>> expressMarketplaceInterest({
+    String? articleId,
+    String? catalogId,
+    String source = 'avatar_commerce',
+  }) async {
+    if ((articleId == null || articleId.trim().isEmpty) &&
+        (catalogId == null || catalogId.trim().isEmpty)) {
+      throw const NexusApiException('Aucune opportunité sélectionnée.');
+    }
+    final response = await client.functions.invoke(
+      'waouh-buyer-interest',
+      body: <String, dynamic>{
+        if (articleId != null && articleId.trim().isNotEmpty)
+          'article_id': articleId.trim(),
+        if (catalogId != null && catalogId.trim().isNotEmpty)
+          'catalog_id': catalogId.trim(),
+        'source': source,
+      },
+    );
+    final data = _map(response.data);
+    if (data['error'] != null) {
+      throw NexusApiException(_text(data['error']));
+    }
+    if (data['ok'] != true && data['skipped'] == null) {
+      throw const NexusApiException(
+        'Impossible de démarrer la mise en relation.',
+      );
+    }
+    return data;
+  }
 
   Future<NexusDiscoveryResponse> search({
     required String query,
