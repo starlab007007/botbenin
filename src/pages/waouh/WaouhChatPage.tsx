@@ -48,10 +48,10 @@ function getSessionId() {
 }
 
 const QUICK_ACTIONS = [
-  { icon: ShoppingBag, title: "Vendre", desc: "Décrivez l’offre, Muse cherche des acheteurs." },
+  { icon: ShoppingBag, title: "Vendre", desc: "Décrivez l’offre, votre Avatar cherche des acheteurs." },
   { icon: Search, title: "Acheter", desc: "Décrivez le besoin, NEXUS cherche les vendeurs." },
   { icon: Handshake, title: "Négocier", desc: "La Deal Room garde un seul fil par opportunité." },
-  { icon: BrainCircuit, title: "Muse", desc: "Un seul assistant pilote tout le parcours." },
+  { icon: BrainCircuit, title: "Avatar", desc: "Un seul assistant pilote tout le parcours." },
 ];
 
 const EXAMPLES = [
@@ -67,7 +67,7 @@ const HelpContent = () => (
         <Sparkles className="h-4 w-4" /> Un seul WAOUH
       </div>
       <p className="mt-1 text-xs leading-relaxed text-slate-600">
-        Vous parlez à WAOUH. Muse comprend, NEXUS découvre, Signal Fabric classe, le Contact Layer protège et la Deal Room poursuit la négociation dans le même espace.
+        Vous parlez à WAOUH. Votre Avatar comprend, NEXUS découvre, Signal Fabric classe, le Contact Layer protège et la Deal Room poursuit la négociation dans le même espace.
       </p>
     </div>
     <div className="grid grid-cols-2 gap-2">
@@ -246,7 +246,7 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
               <button
                 type="button"
                 className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl px-1 py-1 text-left transition hover:bg-slate-50"
-                aria-label="Ouvrir l’activité de Muse"
+                aria-label="Ouvrir l’activité de l’Avatar"
               >
                 <WaouhMuseAvatar
                   mode={resolvedDealState?.active ? (resolvedDealState.role === "seller" ? "seller" : "buyer") : agentState.mode}
@@ -262,7 +262,7 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
                   </div>
                   <div className="truncate text-[10px] font-semibold text-slate-500">
                     {resolvedDealState?.active
-                      ? resolvedDealState.closed ? "Deal conclu" : "Deal Room · Muse accompagne"
+                      ? resolvedDealState.closed ? "Deal conclu" : "Deal Room · Avatar accompagne"
                       : PRESENCE_PHASE_LABEL[agentState.phase]}
                   </div>
                 </div>
@@ -361,7 +361,7 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
               <button
                 type="button"
                 className="group flex min-w-0 max-w-[620px] items-center gap-2 rounded-xl border border-slate-200 bg-white/85 px-2.5 py-1.5 text-left shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50/45"
-                aria-label="Ouvrir l’activité de Muse et l’intelligence WAOUH"
+                aria-label="Ouvrir l’activité de l’Avatar et l’intelligence WAOUH"
               >
                 <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700">
                   {resolvedDealState?.active ? <Handshake className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
@@ -373,7 +373,7 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
                   <span className="flex items-center gap-2">
                     <span className="truncate text-[11px] font-black text-slate-900">
                       {resolvedDealState?.active
-                        ? resolvedDealState.closed ? "Deal conclu" : "Muse accompagne la négociation"
+                        ? resolvedDealState.closed ? "Deal conclu" : "Avatar accompagne la négociation"
                         : PRESENCE_PHASE_LABEL[agentState.phase]}
                     </span>
                     {agentState.resultCount > 0 && !resolvedDealState?.active && (
