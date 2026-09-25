@@ -1,4 +1,4 @@
-// WAOUH Radar — moissonne Facebook Marketplace + groupes publics via Apify
+// WAOUH Radar — collecte des sources Web/sociales publiques explicitement configurées via Apify
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-waouh-session",
@@ -90,7 +90,10 @@ Deno.serve(async (req) => {
     };
 
     // Get active sources
-    const { data: sources } = await sb.from("waouh_radar_sources").select("*").eq("active", true).in("type", ["fb_marketplace", "fb_group"]);
+    const { data: sources } = await sb.from("waouh_radar_sources")
+      .select("*")
+      .eq("active", true)
+      .in("type", ["fb_marketplace", "fb_group", "apify_actor"]);
     if (!sources || sources.length === 0) {
       return new Response(JSON.stringify({ ok: true, message: "No active FB sources" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
@@ -102,10 +105,31 @@ Deno.serve(async (req) => {
       let srcCount = 0;
       let srcError: string | null = null;
       try {
-        const actor = actors[src.type as "fb_marketplace" | "fb_group"];
-        const input = src.type === "fb_marketplace"
-          ? { search: src.identifier, country: "BJ", maxItems: 30 }
-          : { startUrls: [{ url: src.identifier }], maxPosts: 30 };
+        const sourceConfig =
+          src?.config && typeof src.config === "object" && !Array.isArray(src.config)
+            ? src.config
+            : {};
+        let actor: string;
+        let input: Record<string, unknown>;
+        if (src.type === "fb_marketplace") {
+          actor = actors.fb_marketplace;
+          input = { search: src.identifier, country: "BJ", maxItems: 30 };
+        } else if (src.type === "fb_group") {
+          actor = actors.fb_group;
+          input = { startUrls: [{ url: src.identifier }], maxPosts: 30 };
+        } else {
+          actor = String((sourceConfig as any).actor_id || src.identifier || "").trim();
+          if (!/^[A-Za-z0-9_.-]+~[A-Za-z0-9_.-]+$/.test(actor)) {
+            throw new Error("apify_actor_invalid: utilisez username~actor-name");
+          }
+          const configuredInput =
+            (sourceConfig as any).input &&
+            typeof (sourceConfig as any).input === "object" &&
+            !Array.isArray((sourceConfig as any).input)
+              ? (sourceConfig as any).input
+              : {};
+          input = { ...configuredInput, maxItems: Number((configuredInput as any).maxItems ?? 30) };
+        }
 
         console.log(`[apify] actor=${actor} src=${src.id} input=${JSON.stringify(input)}`);
         const items = await runActor(actor, input);
