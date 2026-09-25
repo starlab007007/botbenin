@@ -4,6 +4,7 @@ import '../main.dart' as legacy;
 import 'live_whatsapp_ia_bot_service.dart';
 import 'live_whatsapp_ia_models.dart';
 import 'live_whatsapp_ia_sheets.dart';
+import 'live_ia_premium_ui.dart';
 
 Future<void> showNativeWhatsAppBotLinkSheet(
   BuildContext context, {
@@ -80,12 +81,12 @@ class _BotSheetState extends State<_BotSheet> {
                 children: [
                   Text(
                       'Le bot recevra les messages entrants de « ${widget.sessionName} ».',
-                      style: const TextStyle(color: Color(0xFF6B8279))),
+                      style: const TextStyle(color: WaouhIaPalette.muted)),
                   const SizedBox(height: 14),
                   if (bots.isEmpty)
                     const Text(
                         'Aucun bot disponible. Créez-en un depuis l’onglet Bots.',
-                        style: TextStyle(color: Color(0xFF6B8279)))
+                        style: TextStyle(color: WaouhIaPalette.muted))
                   else
                     ...bots.map((bot) => Padding(
                         padding: const EdgeInsets.only(bottom: 8),
@@ -101,12 +102,12 @@ class _BotSheetState extends State<_BotSheet> {
                                     border: Border.all(
                                         color: selected == bot.id
                                             ? const Color(0xFF25D366)
-                                            : const Color(0xFFDFEBE6),
+                                            : WaouhIaPalette.line,
                                         width: selected == bot.id ? 2 : 1),
                                     borderRadius: BorderRadius.circular(16)),
                                 child: Row(children: [
                                   const Icon(Icons.smart_toy_outlined,
-                                      color: Color(0xFF08756A)),
+                                      color: WaouhIaPalette.primary),
                                   const SizedBox(width: 10),
                                   Expanded(
                                       child: Text(bot.name,
@@ -133,7 +134,7 @@ class _BotSheetState extends State<_BotSheet> {
                           label: const Text('Lier le bot'),
                           style: FilledButton.styleFrom(
                               minimumSize: const Size.fromHeight(50),
-                              backgroundColor: const Color(0xFF08756A)))),
+                              backgroundColor: WaouhIaPalette.primary))),
                 ]);
           },
         ),
@@ -193,7 +194,7 @@ class _WebhookSheetState extends State<_WebhookSheet> {
         const SizedBox(height: 8),
         const Text(
             'Cette URL recevra les événements de message, statut et session.',
-            style: TextStyle(color: Color(0xFF6B8279), fontSize: 12.5)),
+            style: TextStyle(color: WaouhIaPalette.muted, fontSize: 12.5)),
         const SizedBox(height: 20),
         SizedBox(
             width: double.infinity,
@@ -209,6 +210,6 @@ class _WebhookSheetState extends State<_WebhookSheet> {
                 label: const Text('Ajouter le webhook'),
                 style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(50),
-                    backgroundColor: const Color(0xFF08756A))))
+                    backgroundColor: WaouhIaPalette.primary)))
       ]));
 }
