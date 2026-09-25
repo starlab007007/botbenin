@@ -28,16 +28,41 @@ ALTER TABLE public.waouh_transactions
 
 UPDATE public.waouh_deals d
 SET
-  commission_rate = COALESCE(d.commission_rate, t.commission_rate, 0.05),
-  commission_amount = COALESCE(d.commission_amount, t.commission, round(d.amount * COALESCE(t.commission_rate, 0.05)))
-FROM LATERAL (
-  SELECT wt.commission_rate, wt.commission
-  FROM public.waouh_transactions wt
-  WHERE (d.thread_id IS NOT NULL AND wt.thread_id = d.thread_id)
-     OR (wt.article_id = d.article_id AND wt.buyer_id = d.buyer_user_id AND wt.seller_id = d.seller_user_id)
-  ORDER BY wt.created_at DESC
-  LIMIT 1
-) t
+  commission_rate = COALESCE(
+    d.commission_rate,
+    (
+      SELECT wt.commission_rate
+      FROM public.waouh_transactions wt
+      WHERE (d.thread_id IS NOT NULL AND wt.thread_id = d.thread_id)
+         OR (wt.article_id = d.article_id AND wt.buyer_id = d.buyer_user_id AND wt.seller_id = d.seller_user_id)
+      ORDER BY wt.created_at DESC
+      LIMIT 1
+    ),
+    0.05
+  ),
+  commission_amount = COALESCE(
+    d.commission_amount,
+    (
+      SELECT wt.commission
+      FROM public.waouh_transactions wt
+      WHERE (d.thread_id IS NOT NULL AND wt.thread_id = d.thread_id)
+         OR (wt.article_id = d.article_id AND wt.buyer_id = d.buyer_user_id AND wt.seller_id = d.seller_user_id)
+      ORDER BY wt.created_at DESC
+      LIMIT 1
+    ),
+    round(d.amount * COALESCE(
+      d.commission_rate,
+      (
+        SELECT wt.commission_rate
+        FROM public.waouh_transactions wt
+        WHERE (d.thread_id IS NOT NULL AND wt.thread_id = d.thread_id)
+           OR (wt.article_id = d.article_id AND wt.buyer_id = d.buyer_user_id AND wt.seller_id = d.seller_user_id)
+        ORDER BY wt.created_at DESC
+        LIMIT 1
+      ),
+      0.05
+    ))
+  )
 WHERE d.commission_rate IS NULL OR d.commission_amount IS NULL;
 
 UPDATE public.waouh_deals
