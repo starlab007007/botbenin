@@ -372,6 +372,56 @@ async function enrichChatWithSignalFabric(
       }
     }
 
+    const explainSignal = (row: any) => {
+      const scores = row?.scores ?? {};
+      const source = String(row?.source_key ?? row?.source ?? "NEXUS");
+      const reasons = Array.isArray(scores?.reasons) ? scores.reasons.filter(Boolean) : [];
+      const total = Number(scores?.total_score ?? row?.total_score);
+      const trust = Number(scores?.trust_score ?? row?.trust_score);
+      const price = Number(scores?.price_score ?? row?.price_score);
+      const location = Number(scores?.location_score ?? row?.location_score);
+      const freshness = Number(scores?.freshness_score ?? row?.freshness_score);
+      const contact = String(row?.contactability_level ?? "C0");
+
+      const marketFacts = [
+        Number.isFinite(price) ? `prix ${Math.round(price)}%` : null,
+        Number.isFinite(location) ? `zone ${Math.round(location)}%` : null,
+        Number.isFinite(freshness) ? `fraîcheur ${Math.round(freshness)}%` : null,
+      ].filter(Boolean);
+
+      const compareFacts = [
+        Number.isFinite(total) ? `match ${Math.round(total)}%` : null,
+        Number.isFinite(trust) ? `confiance ${Math.round(trust)}%` : null,
+        contact ? `contact ${contact}` : null,
+      ].filter(Boolean);
+
+      return {
+        market_comparison:
+          marketFacts.length > 0
+            ? `Lecture marché ${source} · ${marketFacts.join(" · ")}`
+            : `Signal marché réel issu de ${source}`,
+        comparative_analysis:
+          compareFacts.length > 0
+            ? `Signal Fabric · ${compareFacts.join(" · ")}`
+            : "Signal Fabric · comparaison disponible",
+        recommendation:
+          reasons.length > 0
+            ? reasons.slice(0, 3).join(" · ")
+            : Number.isFinite(trust) && trust >= 70
+              ? "Confiance élevée · poursuivre sous contrôle WAOUH"
+              : "Poursuivre avec l’Avatar et vérifier disponibilité, état et conditions",
+        intelligence_provenance: {
+          nexus: true,
+          signal_fabric: true,
+          source,
+          contactability_level: contact,
+          score: Number.isFinite(total) ? total : null,
+          trust_score: Number.isFinite(trust) ? trust : null,
+          reasons,
+        },
+      };
+    };
+
     // Enrichit les cartes historiques sans modifier leur ordre ni leur action.
     // L'index métier reste donc parfaitement aligné avec last_matches.
     const enrichedCore = input.coreResults.map((row: any) => {
@@ -381,8 +431,10 @@ async function enrichChatWithSignalFabric(
         null;
       if (!matched) return row;
       const scores = matched.scores ?? null;
+      const explanation = explainSignal(matched);
       return {
         ...row,
+        ...explanation,
         fabric_id: row.fabric_id ?? matched.fabric_id ?? null,
         source_url: row.source_url ?? matched.source_url ?? null,
         intent: row.intent ?? matched.intent ?? null,
@@ -410,8 +462,10 @@ async function enrichChatWithSignalFabric(
     for (const row of ranked) {
       const evidence =
         row?.evidence && typeof row.evidence === "object" ? row.evidence : {};
+      const explanation = explainSignal(row);
       const candidate = {
         index: enrichedCore.length + appended.length + 1,
+        ...explanation,
         id: String(
           evidence.article_id ??
             evidence.catalog_id ??
@@ -445,7 +499,7 @@ async function enrichChatWithSignalFabric(
         action: null,
         market_line:
           mode === "find_buyers"
-            ? "Demande détectée par NEXUS · Muse poursuit le rapprochement sous contrôle."
+            ? "Demande détectée par NEXUS · l’Avatar poursuit le rapprochement sous contrôle."
             : "Signal découvert par NEXUS · ouvrez la source publique lorsque disponible.",
       };
       const key = chatSignalKey(candidate);
@@ -486,12 +540,12 @@ async function enrichChatWithSignalFabric(
             ? [
                 "Comparer les meilleures offres",
                 "Vérifier la confiance et le contact",
-                "Poursuivre avec Muse",
+                "Poursuivre avec l’Avatar",
               ]
             : [
                 "Comparer les demandes compatibles",
                 "Prioriser les acheteurs contactables",
-                "Poursuivre le rapprochement avec Muse",
+                "Poursuivre le rapprochement avec l’Avatar",
               ],
         confidence,
         rationale:
