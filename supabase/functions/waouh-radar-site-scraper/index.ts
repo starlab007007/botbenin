@@ -1,4 +1,4 @@
-// WAOUH Radar — Scraper générique pour sources type='site' via Firecrawl + Gemini
+// WAOUH Radar — collecteur Web public multi-source via Firecrawl + Gemini
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-waouh-session",
@@ -69,10 +69,19 @@ Deno.serve(async (req) => {
       .from("waouh_radar_sources")
       .select("*")
       .eq("active", true)
-      .eq("type", "site");
+      .in("type", [
+        "site",
+        "web_social",
+        "directory",
+        "b2b_rfq",
+        "rss",
+        "linkedin_public",
+        "youtube_public",
+        "x_public",
+      ]);
 
     if (!sources?.length) {
-      return new Response(JSON.stringify({ ok: true, message: "no active site sources" }), {
+      return new Response(JSON.stringify({ ok: true, message: "no active public web sources" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -105,7 +114,7 @@ Deno.serve(async (req) => {
             // Idempotence via unique index (source_type, raw_url)
             const { error: insErr } = await sb.from("waouh_radar_signals").insert({
               source_id: src.id,
-              source_type: "site",
+              source_type: src.type,
               raw_text: `${it.title || ""}\nPrix: ${it.price ?? "?"}\nVille: ${it.city ?? "?"}`,
               raw_url: url,
               raw_payload: { ...it, normalized_phone: normalizedPhone, photos: photoUrls },
@@ -153,7 +162,7 @@ Deno.serve(async (req) => {
       sb,
       "firecrawl",
       total > 0 ? "ok" : "skipped",
-      `${total} signaux · ${dueSources.length} site(s) parcouru(s)`,
+      `${total} signaux · ${dueSources.length} source(s) Web publique(s) parcourue(s)`,
     );
     return new Response(JSON.stringify({ ok: true, sources: sources.length, due: dueSources.length, signals: total, perSource }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
