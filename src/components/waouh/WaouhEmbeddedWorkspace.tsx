@@ -88,7 +88,7 @@ export function WaouhEmbeddedWorkspace({
               <button
                 type="button"
                 className="flex min-w-0 flex-1 items-center gap-2 rounded-xl px-1.5 py-1 text-left transition hover:bg-emerald-50/60"
-                aria-label="Ouvrir l’activité de Muse"
+                aria-label="Ouvrir l’activité de l’Avatar"
               >
                 <WaouhMuseAvatar
                   mode={resolvedDeal?.active ? (resolvedDeal.role === "seller" ? "seller" : "buyer") : agentState.mode}
@@ -104,7 +104,7 @@ export function WaouhEmbeddedWorkspace({
                   </span>
                   <span className="block truncate text-[10px] font-semibold text-slate-500">
                     {resolvedDeal?.active
-                      ? resolvedDeal.closed ? "Deal conclu" : "Deal Room · Muse accompagne"
+                      ? resolvedDeal.closed ? "Deal conclu" : "Deal Room · Avatar accompagne"
                       : agentState.goal?.trim() || "Un chat · tout le marché"}
                   </span>
                 </span>
