@@ -29,6 +29,7 @@ insert into public.waouh_discovery_sources
 (source_key,label,family,connector_mode,operational_state,supports_buy,supports_sell,supports_business,supports_contact,default_contactability,trust_weight,capabilities)
 values
 ('facebook_public','Facebook public / groupes autorisés','social','hybrid','requires_config',true,true,true,true,'C0',0.62,'{"public_groups":true,"marketplace":true,"apify":true,"allowlist_required":true}'::jsonb),
+('instagram_public','Instagram public / Web','social','hybrid','requires_config',true,true,true,true,'C0',0.60,'{"public_web":true,"serpapi":true,"apify":true}'::jsonb),
 ('tiktok_public','TikTok public / Web','social','hybrid','requires_config',true,true,true,true,'C0',0.58,'{"public_web":true,"serpapi":true,"apify":true}'::jsonb),
 ('web_social','Web social public','social','hybrid','live',true,true,true,true,'C0',0.58,'{"serpapi":true,"firecrawl":true,"apify":true}'::jsonb),
 ('rss_public','Flux RSS / Atom publics','web','public_feed','requires_config',true,true,true,true,'C0',0.65,'{"rss":true,"atom":true}'::jsonb),
@@ -82,3 +83,22 @@ end,
 updated_at=now()
 from public.waouh_radar_api_configs c
 where c.source_key=s.source_key;
+
+
+-- Existing installations originally stored Firecrawl with source_key=firecrawl.
+-- The unified registry represents that connector under web_social.
+update public.waouh_radar_api_configs
+set source_key='web_social', label='Firecrawl / Sites Web'
+where provider='firecrawl';
+
+-- Reflect current admin enablement in the discovery registry.
+update public.waouh_discovery_sources s
+set operational_state = case
+  when c.active=false then 'disabled'
+  when c.api_key is not null and length(c.api_key)>0 then 'live'
+  else 'requires_config'
+end,
+updated_at=now()
+from public.waouh_radar_api_configs c
+where c.source_key=s.source_key
+  and c.provider not in ('whatsapp_groups','sms_rcs');
