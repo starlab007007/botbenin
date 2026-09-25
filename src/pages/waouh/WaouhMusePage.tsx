@@ -124,6 +124,15 @@ export default function WaouhMusePage({ embedded = false }: WaouhMusePageProps) 
                     <ArrowRight className="h-4 w-4 text-white/55 transition group-hover:translate-x-0.5" />
                   </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => navigate("/app/avatar/commerce/ask")}
+                  className="mt-2 inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-[11px] font-black text-white backdrop-blur transition hover:bg-white/15"
+                >
+                  <MessageSquareText className="h-4 w-4" />
+                  Demander à l’Avatar
+                  <ArrowRight className="ml-auto h-3.5 w-3.5 opacity-70" />
+                </button>
               </div>
 
               <div className="grid grid-cols-2 gap-2 rounded-[22px] border border-white/10 bg-black/10 p-2.5 backdrop-blur-sm">
