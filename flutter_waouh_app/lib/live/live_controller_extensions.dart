@@ -121,12 +121,45 @@ extension LiveWaouhControllerMatches on LiveWaouhController {
 
     bool recordBelongsToScope(Map<String, dynamic> record) {
       if (record.isEmpty) return false;
+
+      // Before article_id/thread_id exists locally, the idempotency key is the
+      // only exact identity shared by UI and server. Use it as the Realtime
+      // bridge so the Deal Room promotes as soon as the authoritative row lands.
+      final provisionalCorrelation =
+          liveProvisionalInterestCorrelation(effectiveMatch);
+      if (provisionalCorrelation.isNotEmpty) {
+        final recordCorrelation = liveInterestCorrelationKey(
+          <String, dynamic>{
+            ...record,
+            ...liveMap(record['meta']),
+            ...liveMap(record['payload']),
+          },
+        );
+        if (recordCorrelation == provisionalCorrelation) return true;
+      }
+
       final message = LiveMessage.fromJson(record);
       return liveMessageBelongsToMatch(
         message,
         effectiveMatch,
         authoritativeThreadId: effectiveMatch.threadId,
       );
+    }
+
+    bool threadRecordBelongsToScope(Map<String, dynamic> record) {
+      if (record.isEmpty) return false;
+      final expectedArticle = effectiveMatch.articleId.trim();
+      final article = liveText(record['article_id']).trim();
+      if (expectedArticle.isEmpty || article != expectedArticle) return false;
+
+      final counterpart = (effectiveMatch.counterpartUserId ??
+              effectiveMatch.sellerUserId ??
+              effectiveMatch.buyerUserId ??
+              '')
+          .trim();
+      if (counterpart.isEmpty) return true;
+      return liveText(record['buyer_user_id']).trim() == counterpart ||
+          liveText(record['seller_user_id']).trim() == counterpart;
     }
 
     controller = StreamController<List<LiveMessage>>(
@@ -153,9 +186,23 @@ extension LiveWaouhControllerMatches on LiveWaouhController {
                 if (recordBelongsToScope(current)) unawaited(refresh());
               },
             )
+            .onPostgresChanges(
+              event: PostgresChangeEvent.all,
+              schema: 'public',
+              table: 'waouh_chat_threads',
+              callback: (payload) {
+                final current = payload.newRecord.isNotEmpty
+                    ? payload.newRecord
+                    : payload.oldRecord;
+                if (threadRecordBelongsToScope(current)) unawaited(refresh());
+              },
+            )
             .subscribe();
+
+        // Realtime is primary. Polling remains only as a low-frequency safety
+        // net for radios/proxies that briefly interrupt WebSocket delivery.
         safetyPoll = Timer.periodic(
-          const Duration(seconds: 4),
+          const Duration(seconds: 12),
           (_) => unawaited(refresh()),
         );
       },
