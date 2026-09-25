@@ -11,15 +11,19 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const DISPATCH_URL = `${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`;
 
 function normalizeBeninPhone(value: string | null | undefined) {
-  const digits = String(value || "").replace(/\D/g, "");
+  let digits = String(value || "").replace(/\D/g, "");
   if (!digits) return null;
-  if (digits.startsWith("00229")) return digits.slice(2);
-  if (digits.startsWith("229")) return digits;
-  if (digits.length === 8 || (digits.length === 10 && digits.startsWith("01"))) return `229${digits}`;
+  if (digits.startsWith("00229")) digits = digits.slice(2);
+  if (digits.startsWith("22901") && digits.length === 13) return digits;
+  if (digits.startsWith("229") && digits.length === 11) {
+    return `22901${digits.slice(3)}`;
+  }
+  if (digits.length === 10 && digits.startsWith("01")) return `229${digits}`;
+  if (digits.length === 8) return `22901${digits}`;
   const last10 = digits.slice(-10);
-  if (last10.length === 10 && last10.startsWith("01")) return `229${last10}`;
+  if (last10.startsWith("01")) return `229${last10}`;
   const last8 = digits.slice(-8);
-  return last8.length === 8 ? `229${last8}` : null;
+  return last8.length === 8 ? `22901${last8}` : null;
 }
 
 function normalizeCategory(value: string | null | undefined) {
