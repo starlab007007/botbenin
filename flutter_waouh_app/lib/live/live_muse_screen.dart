@@ -7,6 +7,7 @@ import 'agentic/live_agentic_models.dart';
 import 'agentic/live_agentic_workspace.dart';
 import 'live_controller.dart';
 import 'live_widgets.dart';
+import 'live_theme.dart';
 
 class LiveMuseScreen extends StatefulWidget {
   const LiveMuseScreen({super.key});
@@ -67,6 +68,7 @@ class _LiveMuseScreenState extends State<LiveMuseScreen> {
     final agentic = waouh.agentic;
 
     return Scaffold(
+      backgroundColor: WaouhPalette.pearl,
       appBar: const LiveHeader(
         title: 'WAOUH Muse',
         subtitle: 'Dites l’objectif · Muse + NEXUS s’en chargent',
@@ -74,7 +76,8 @@ class _LiveMuseScreenState extends State<LiveMuseScreen> {
       ),
       body: auth.signedIn
           ? ListView(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 120),
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 120),
               children: [
                 const _MuseHero(),
                 const SizedBox(height: 10),
@@ -85,10 +88,9 @@ class _LiveMuseScreenState extends State<LiveMuseScreen> {
                   onResumeMission: resumeMission,
                 ),
                 const SizedBox(height: 12),
-                _SectionTitle(
-                  title: 'Que voulez-vous confier à Muse ?',
-                  subtitle:
-                      'Muse poursuit un objectif. NEXUS trouve l’offre ou la demande.',
+                const _SectionTitle(
+                  title: 'Que voulez-vous faire ?',
+                  subtitle: 'Muse + NEXUS',
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -165,47 +167,109 @@ class _MuseHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF13263A), Color(0xFF0A7D68)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(22),
+          gradient: WaouhGradients.muse,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: const Color(0xFFDDE7F7)),
+          boxShadow: WaouhShadows.card,
         ),
-        child: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: Colors.white12,
-                  child: Icon(Icons.psychology_alt_rounded, color: Colors.white),
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'Dites l’objectif. WAOUH poursuit.',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: Stack(
+            children: [
+              Positioned(
+                right: -28,
+                top: -38,
+                child: Container(
+                  width: 145,
+                  height: 145,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [Color(0x4455DDF2), Color(0x008B7CFF)],
                     ),
                   ),
                 ),
-              ],
-            ),
-            SizedBox(height: 10),
-            Text(
-              'Muse planifie. NEXUS cherche acheteurs ou vendeurs. Le Signal Fabric classe les meilleures opportunités et protège les contacts.',
-              style: TextStyle(
-                color: Colors.white70,
-                height: 1.35,
-                fontSize: 12.5,
               ),
-            ),
-          ],
+              Padding(
+                padding: const EdgeInsets.all(18),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 54,
+                      height: 54,
+                      decoration: BoxDecoration(
+                        gradient: WaouhGradients.brand,
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: WaouhShadows.brandGlow,
+                      ),
+                      child: const Icon(
+                        Icons.psychology_alt_rounded,
+                        color: Colors.white,
+                        size: 27,
+                      ),
+                    ),
+                    const SizedBox(width: 13),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Acheter ou vendre avec Muse.',
+                            style: Theme.of(context).textTheme.headlineMedium,
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Dites l’objectif. WAOUH cherche et compare.',
+                            style: TextStyle(
+                              color: WaouhPalette.muted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              height: 1.28,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: const [
+                              _MuseChip(label: 'NEXUS'),
+                              _MuseChip(label: 'Comparaison'),
+                              _MuseChip(label: 'Contact'),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+class _MuseChip extends StatelessWidget {
+  const _MuseChip({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.white70,
+          borderRadius: BorderRadius.circular(99),
+          border: Border.all(color: const Color(0xFFDDE6F6)),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: WaouhPalette.blue,
+            fontSize: 9,
+            fontWeight: FontWeight.w800,
+          ),
         ),
       );
 }
@@ -216,33 +280,13 @@ class _ArchitectureFlow extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
         children: const [
-          Expanded(
-            child: _FlowStep(
-              icon: Icons.chat_bubble_outline_rounded,
-              label: 'Objectif',
-            ),
-          ),
+          Expanded(child: _FlowStep(icon: Icons.chat_bubble_outline_rounded, label: 'Objectif')),
           _FlowArrow(),
-          Expanded(
-            child: _FlowStep(
-              icon: Icons.psychology_alt_outlined,
-              label: 'Muse',
-            ),
-          ),
+          Expanded(child: _FlowStep(icon: Icons.psychology_alt_outlined, label: 'Muse')),
           _FlowArrow(),
-          Expanded(
-            child: _FlowStep(
-              icon: Icons.travel_explore_rounded,
-              label: 'NEXUS',
-            ),
-          ),
+          Expanded(child: _FlowStep(icon: Icons.travel_explore_rounded, label: 'NEXUS')),
           _FlowArrow(),
-          Expanded(
-            child: _FlowStep(
-              icon: Icons.hub_outlined,
-              label: 'Signal',
-            ),
-          ),
+          Expanded(child: _FlowStep(icon: Icons.hub_outlined, label: 'Signal')),
         ],
       );
 }
@@ -257,20 +301,21 @@ class _FlowStep extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 5),
         decoration: BoxDecoration(
-          color: const Color(0xFFF4FBF8),
-          borderRadius: BorderRadius.circular(13),
-          border: Border.all(color: const Color(0xFFD8EDE6)),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: WaouhPalette.line),
         ),
         child: Column(
           children: [
-            Icon(icon, size: 18, color: const Color(0xFF08745D)),
-            const SizedBox(height: 3),
+            Icon(icon, size: 18, color: WaouhPalette.blue),
+            const SizedBox(height: 4),
             Text(
               label,
               maxLines: 1,
               style: const TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w800,
+                color: WaouhPalette.ink,
+                fontSize: 9.5,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
@@ -283,11 +328,11 @@ class _FlowArrow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 3),
+        padding: EdgeInsets.symmetric(horizontal: 2),
         child: Icon(
           Icons.chevron_right_rounded,
-          size: 16,
-          color: Colors.blueGrey,
+          size: 15,
+          color: Color(0xFFA5B2C8),
         ),
       );
 }
@@ -299,17 +344,21 @@ class _SectionTitle extends StatelessWidget {
   final String subtitle;
 
   @override
-  Widget build(BuildContext context) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => Row(
         children: [
-          Text(
-            title,
-            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
+          Expanded(
+            child: Text(
+              title,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
           ),
-          const SizedBox(height: 2),
           Text(
             subtitle,
-            style: const TextStyle(color: Colors.blueGrey, fontSize: 12),
+            style: const TextStyle(
+              color: WaouhPalette.blue,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+            ),
           ),
         ],
       );
@@ -331,28 +380,49 @@ class _ActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Material(
         color: Colors.white,
-        shape: RoundedRectangleBorder(
-          side: const BorderSide(color: Color(0xFFDDE8E4)),
-          borderRadius: BorderRadius.circular(17),
-        ),
+        borderRadius: BorderRadius.circular(20),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
-          borderRadius: BorderRadius.circular(17),
+          borderRadius: BorderRadius.circular(20),
           onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
+          child: Ink(
+            padding: const EdgeInsets.all(13),
+            decoration: BoxDecoration(
+              border: Border.all(color: WaouhPalette.line),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: WaouhShadows.card,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(icon, color: const Color(0xFF08745D)),
-                const SizedBox(height: 9),
+                Container(
+                  width: 39,
+                  height: 39,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0F5FF),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(icon, color: WaouhPalette.blue, size: 20),
+                ),
+                const SizedBox(height: 10),
                 Text(
                   title,
-                  style: const TextStyle(fontWeight: FontWeight.w900),
+                  style: const TextStyle(
+                    color: WaouhPalette.ink,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
                   subtitle,
-                  style: const TextStyle(fontSize: 11, color: Colors.blueGrey),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    color: WaouhPalette.muted,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -373,31 +443,76 @@ class _StatusCard extends StatelessWidget {
   final VoidCallback onOpen;
 
   @override
-  Widget build(BuildContext context) => Card(
-        elevation: 0,
-        color: pendingApprovals > 0
-            ? const Color(0xFFFFF8E7)
-            : const Color(0xFFF4FBF7),
-        child: ListTile(
-          leading: Icon(
-            pendingApprovals > 0
-                ? Icons.verified_user_outlined
-                : Icons.history_rounded,
-            color: pendingApprovals > 0
-                ? const Color(0xFF9B6500)
-                : const Color(0xFF08745D),
-          ),
-          title: Text(
-            pendingApprovals > 0
-                ? pendingApprovals.toString() + ' validation(s) à décider'
-                : 'Aucune validation en attente',
-            style: const TextStyle(fontWeight: FontWeight.w900),
-          ),
-          subtitle: Text(
-            activityCount.toString() + ' événement(s) dans le journal Muse',
-          ),
-          trailing: const Icon(Icons.chevron_right_rounded),
+  Widget build(BuildContext context) => Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
           onTap: onOpen,
+          child: Ink(
+            padding: const EdgeInsets.all(13),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: pendingApprovals > 0
+                    ? const Color(0xFFF5D39D)
+                    : WaouhPalette.line,
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: pendingApprovals > 0
+                        ? const Color(0xFFFFF3E1)
+                        : const Color(0xFFF0F5FF),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(
+                    pendingApprovals > 0
+                        ? Icons.verified_user_outlined
+                        : Icons.history_rounded,
+                    color: pendingApprovals > 0
+                        ? const Color(0xFFE0922F)
+                        : WaouhPalette.blue,
+                  ),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        pendingApprovals > 0
+                            ? '$pendingApprovals à valider'
+                            : 'Tout est à jour',
+                        style: const TextStyle(
+                          color: WaouhPalette.ink,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$activityCount activité(s)',
+                        style: const TextStyle(
+                          color: WaouhPalette.muted,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: Color(0xFF9AA9C0),
+                ),
+              ],
+            ),
+          ),
         ),
       );
 }
@@ -407,58 +522,30 @@ class _MusePrinciples extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(13),
         decoration: BoxDecoration(
-          color: const Color(0xFFF7F8F9),
-          borderRadius: BorderRadius.circular(17),
+          color: const Color(0xFFF8FAFF),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: WaouhPalette.line),
         ),
-        child: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: const Row(
           children: [
-            Text(
-              'Contrôle humain intégré',
-              style: TextStyle(fontWeight: FontWeight.w900),
+            Icon(
+              Icons.verified_user_outlined,
+              size: 20,
+              color: WaouhPalette.blue,
             ),
-            SizedBox(height: 8),
-            _Principle(
-              icon: Icons.search_rounded,
-              text: 'Muse peut chercher et comparer automatiquement.',
-            ),
-            _Principle(
-              icon: Icons.visibility_outlined,
-              text: 'Vous voyez missions, veilles, étapes et activité.',
-            ),
-            _Principle(
-              icon: Icons.lock_outline_rounded,
-              text:
-                  'Les contacts privés restent protégés ; blind matching quand nécessaire.',
-            ),
-            _Principle(
-              icon: Icons.payments_outlined,
-              text:
-                  'Aucun paiement autonome : les décisions financières restent hors de Muse.',
-            ),
-          ],
-        ),
-      );
-}
-
-class _Principle extends StatelessWidget {
-  const _Principle({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 7),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: 17, color: const Color(0xFF60776E)),
-            const SizedBox(width: 8),
+            SizedBox(width: 9),
             Expanded(
-              child: Text(text, style: const TextStyle(fontSize: 12)),
+              child: Text(
+                'Vous gardez le contrôle des contacts, validations et paiements.',
+                style: TextStyle(
+                  color: WaouhPalette.muted,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  height: 1.3,
+                ),
+              ),
             ),
           ],
         ),
