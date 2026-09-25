@@ -1168,6 +1168,8 @@ async function refreshSerpApi(
         actor_type: publicBusiness ? "business" : (mode === "find_sellers" ? "seller" : "buyer"),
         product_name: query,
         city: city ?? null,
+        contact_phones: item.phone ? [String(item.phone)] : [],
+        photo_urls: [item.thumbnail, item.image, item.favicon].filter((value) => typeof value === "string"),
         contact_consent_basis: publicBusiness ? "public_business" : "unknown",
         public_business: publicBusiness,
         confidence: publicBusiness ? 0.72 : 0.60,
@@ -1186,6 +1188,12 @@ async function refreshSerpApi(
     surfaces[profile.key] = insertedForProfile;
   }
 
+  await markRadarProviderSync(
+    sb as any,
+    "serpapi",
+    saved.length ? "ok" : "skipped",
+    `${saved.length} signaux unifiés · ${calls} appels`,
+  );
   return {
     configured: true,
     inserted: saved.length,
