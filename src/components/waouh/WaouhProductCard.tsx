@@ -123,7 +123,6 @@ const marketIntelligence = (result: WaouhResultCard) => {
   const freshness = metric(result, "freshness_score");
   const level = contactLevel(result);
   const reasons = resultReasons(result);
-  const intelligence = marketIntelligence(result);
   const source = String(result.source || (result.intelligence_provenance as any)?.source || "NEXUS");
 
   return {
@@ -239,6 +238,15 @@ export function WaouhProductCard({
   const trust = metric(result, "trust_score");
   const priceFit = metric(result, "price_score");
   const reasons = resultReasons(result);
+  const intelligence = marketIntelligence(result);
+  const evidence = result.evidence && typeof result.evidence === "object" ? result.evidence as Record<string, unknown> : {};
+  const details = String(
+    evidence.details ||
+    evidence.description ||
+    evidence.raw_text ||
+    evidence.summary ||
+    ""
+  ).trim();
 
   useEffect(() => {
     setFailed(false);
@@ -386,7 +394,13 @@ export function WaouhProductCard({
           </div>
         )}
 
-        <div className="grid gap-1.5 sm:grid-cols-3">
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-2.5 py-2">
+            <div className="mb-1 text-[9px] font-black uppercase tracking-wide text-slate-700">Détails</div>
+            <div className="text-[10px] leading-snug text-slate-700">
+              {details || [result.condition, result.city, result.quartier].filter(Boolean).join(" · ") || "Aucun détail complémentaire n’est fourni par la source."}
+            </div>
+          </div>
           <div className="rounded-xl border border-emerald-100 bg-emerald-50/55 px-2.5 py-2">
             <div className="mb-1 text-[9px] font-black uppercase tracking-wide text-emerald-800">Marché réel</div>
             <div className="text-[10px] leading-snug text-emerald-950">{intelligence.market || "Signal marché en cours d’enrichissement."}</div>
