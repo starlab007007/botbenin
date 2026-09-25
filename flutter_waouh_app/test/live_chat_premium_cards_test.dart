@@ -403,6 +403,10 @@ Ou proposez votre prix : Je propose 90 000 FCFA.''',
     expect(find.text('💵 À la livraison'), findsOneWidget);
     await tester.tap(find.text('💳 Mobile Money'));
     await tester.pump();
-    expect(selectedPayload, 'payer-mobile:deal-15');
+    expect(selectedPayload, isNotNull);
+    expect(selectedPayload, startsWith('waouh:payment_preference_mobile?'));
+    expect(selectedPayload, contains('deal_id=deal-15'));
+    expect(selectedPayload, contains('article_id=article-15'));
+    expect(selectedPayload, contains('commerce_action=payment_preference_mobile'));
   });
 }
