@@ -10,6 +10,10 @@ import {
   scoreFabricSignal,
   type FabricSignal,
 } from "../_shared/waouh-signal-fabric.ts";
+import {
+  compareMarketPrice,
+  shortMarketLine,
+} from "../_shared/waouh-price.ts";
 
 
 const corsHeaders = {
@@ -445,7 +449,7 @@ async function enrichChatWithSignalFabric(
         action: null,
         market_line:
           mode === "find_buyers"
-            ? "Demande détectée par NEXUS · Muse poursuit le rapprochement sous contrôle."
+            ? "Demande détectée par NEXUS · votre Avatar poursuit le rapprochement sous contrôle."
             : "Signal découvert par NEXUS · ouvrez la source publique lorsque disponible.",
       };
       const key = chatSignalKey(candidate);
@@ -455,8 +459,76 @@ async function enrichChatWithSignalFabric(
       if (enrichedCore.length + appended.length >= 8) break;
     }
 
-    const results = [...enrichedCore, ...appended].map(
+    const rankedResults = [...enrichedCore, ...appended].map(
       (row: any, index: number) => ({ ...row, index: index + 1 }),
+    );
+
+    // Les trois meilleurs résultats reçoivent une analyse marché structurée
+    // issue des couches réelles WAOUH (catalogue, annonces internes, Radar).
+    // fastMode évite le crawl web inline ; le comparateur conserve son cache 6h
+    // et son verdict IA. En cas d'indisponibilité, le classement NEXUS reste
+    // utilisable sans fabriquer de donnée.
+    const results = await Promise.all(
+      rankedResults.map(async (row: any, index: number) => {
+        if (index >= 3) return row;
+        const title = String(row?.title ?? row?.subject ?? "").trim();
+        if (!title) return row;
+        const askedRaw = Number(row?.price ?? row?.price_min ?? row?.price_max);
+        const askedPrice = Number.isFinite(askedRaw) && askedRaw > 0
+          ? askedRaw
+          : null;
+        const articleId = /^[0-9a-f-]{36}$/i.test(String(row?.id ?? ""))
+          ? String(row.id)
+          : null;
+        try {
+          const market = await compareMarketPrice(sb, {
+            article_id: articleId,
+            query: title,
+            city: row?.city ?? null,
+            category: row?.category ?? null,
+            askedPrice,
+            fastMode: true,
+          });
+          const reasons = Array.isArray(row?.reasons)
+            ? row.reasons.filter((value: unknown) => typeof value === "string" && value.trim())
+            : [];
+          const comparative = market.stats.n > 0
+            ? [
+                market.verdict.label ? `Verdict marché : ${market.verdict.label}` : "",
+                market.verdict.pct == null ? "" : `${market.verdict.pct > 0 ? "+" : ""}${market.verdict.pct}% vs médiane`,
+                market.verdict.advice || "",
+              ].filter(Boolean).join(" · ")
+            : null;
+          return {
+            ...row,
+            market_line: shortMarketLine(market, askedPrice),
+            comparative_analysis: comparative,
+            recommendation:
+              reasons.length > 0 ? reasons.join(" · ") : (market.verdict.advice || null),
+            market_intelligence: {
+              stats: market.stats,
+              confidence: market.confidence,
+              counts: market.counts,
+              verdict: market.verdict,
+              samples: market.samples.slice(0, 5),
+            },
+            intelligence_sources: {
+              nexus: true,
+              signal_fabric: true,
+              catalogue: market.counts.unified,
+              waouh: market.counts.internal,
+              radar: market.counts.radar,
+              web: market.counts.web,
+            },
+          };
+        } catch (marketError) {
+          console.warn("[waouh-channel-in] market intelligence unavailable", {
+            title,
+            error: String(marketError),
+          });
+          return row;
+        }
+      }),
     );
     const top = ranked[0] as any;
     const confidence =
@@ -486,12 +558,12 @@ async function enrichChatWithSignalFabric(
             ? [
                 "Comparer les meilleures offres",
                 "Vérifier la confiance et le contact",
-                "Poursuivre avec Muse",
+                "Poursuivre avec votre Avatar",
               ]
             : [
                 "Comparer les demandes compatibles",
                 "Prioriser les acheteurs contactables",
-                "Poursuivre le rapprochement avec Muse",
+                "Poursuivre le rapprochement avec votre Avatar",
               ],
         confidence,
         rationale:
