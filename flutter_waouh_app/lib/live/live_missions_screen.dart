@@ -7,6 +7,7 @@ import 'agentic/live_agentic_models.dart';
 import 'agentic/live_agentic_workspace.dart';
 import 'live_controller.dart';
 import 'live_widgets.dart';
+import 'live_theme.dart';
 
 class LiveMissionsScreen extends StatefulWidget {
   const LiveMissionsScreen({super.key});
@@ -83,7 +84,7 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen> {
     final agentic = waouh.agentic;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7FAF9),
+      backgroundColor: WaouhPalette.pearl,
       appBar: const LiveHeader(
         title: 'Missions & veille',
         subtitle: 'Objectifs persistants · alertes · validations',
@@ -145,109 +146,162 @@ class _MissionHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.fromLTRB(12, 12, 12, 6),
+        margin: const EdgeInsets.fromLTRB(14, 14, 14, 8),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF063F37), Color(0xFF08756A), Color(0xFF0B8A79)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x22064F46),
-              blurRadius: 24,
-              offset: Offset(0, 10),
-            ),
-          ],
+          gradient: WaouhGradients.missions,
+          borderRadius: BorderRadius.circular(26),
+          border: Border.all(color: const Color(0xFFDDE8F4)),
+          boxShadow: WaouhShadows.card,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
+            Row(
               children: [
-                CircleAvatar(
-                  radius: 21,
-                  backgroundColor: Colors.white12,
-                  child: Icon(Icons.route_rounded, color: Colors.white),
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    gradient: WaouhGradients.brand,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: const Icon(
+                    Icons.route_rounded,
+                    color: Colors.white,
+                    size: 23,
+                  ),
                 ),
-                SizedBox(width: 11),
+                const SizedBox(width: 11),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'WAOUH One · Missions & veille',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16.5,
-                          fontWeight: FontWeight.w900,
-                        ),
+                        'Missions & veille',
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
-                      SizedBox(height: 2),
-                      Text(
-                        'WAOUH continue à chercher et surveiller pour vous.',
+                      const SizedBox(height: 2),
+                      const Text(
+                        'WAOUH continue pour vous.',
                         style: TextStyle(
-                          color: Color(0xFFD6F5EC),
-                          fontSize: 11.5,
+                          color: WaouhPalette.muted,
+                          fontSize: 10.5,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: [
-                _CountPill(label: 'Missions', value: missions),
-                _CountPill(label: 'Veilles', value: watches),
-                _CountPill(
-                  label: 'Validations',
-                  value: approvals,
-                  alert: approvals > 0,
+                IconButton.filledTonal(
+                  tooltip: 'Muse',
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.white70,
+                    foregroundColor: WaouhPalette.blue,
+                  ),
+                  onPressed: onMuse,
+                  icon: const Icon(Icons.psychology_alt_rounded, size: 20),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 13),
+            Row(
+              children: [
+                Expanded(
+                  child: _MissionMetric(
+                    label: 'Missions',
+                    value: missions,
+                    accent: WaouhPalette.blue,
+                  ),
+                ),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: _MissionMetric(
+                    label: 'Veilles',
+                    value: watches,
+                    accent: const Color(0xFF8B6CE8),
+                  ),
+                ),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: _MissionMetric(
+                    label: 'À valider',
+                    value: approvals,
+                    accent: approvals > 0
+                        ? const Color(0xFFE18B26)
+                        : const Color(0xFF7D8CA7),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 13),
             Row(
               children: [
                 Expanded(
                   child: FilledButton.icon(
                     onPressed: onMission,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: const Color(0xFF075E54),
-                    ),
-                    icon: const Icon(Icons.flag_outlined, size: 18),
-                    label: const Text('Nouvelle mission'),
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('Mission'),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: onWatch,
+                    icon:
+                        const Icon(Icons.notifications_active_outlined, size: 18),
+                    label: const Text('Veille'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(color: Colors.white38),
+                      backgroundColor: Colors.white70,
                     ),
-                    icon: const Icon(Icons.notifications_active_outlined, size: 18),
-                    label: const Text('Nouvelle veille'),
                   ),
                 ),
               ],
             ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: onMuse,
-                style: TextButton.styleFrom(foregroundColor: const Color(0xFFD6F5EC)),
-                icon: const Icon(Icons.psychology_alt_rounded, size: 17),
-                label: const Text('Ouvrir Muse'),
+          ],
+        ),
+      );
+}
+
+class _MissionMetric extends StatelessWidget {
+  const _MissionMetric({
+    required this.label,
+    required this.value,
+    required this.accent,
+  });
+
+  final String label;
+  final int value;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(10, 9, 8, 8),
+        decoration: BoxDecoration(
+          color: Colors.white70,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: const Color(0xFFE2EAF5)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '$value',
+              style: TextStyle(
+                color: accent,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: WaouhPalette.muted,
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
@@ -255,32 +309,3 @@ class _MissionHero extends StatelessWidget {
       );
 }
 
-class _CountPill extends StatelessWidget {
-  const _CountPill({
-    required this.label,
-    required this.value,
-    this.alert = false,
-  });
-
-  final String label;
-  final int value;
-  final bool alert;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: alert ? const Color(0xFFFFE7B3) : Colors.white12,
-          borderRadius: BorderRadius.circular(99),
-          border: Border.all(color: alert ? const Color(0xFFFFC75A) : Colors.white24),
-        ),
-        child: Text(
-          '$label $value',
-          style: TextStyle(
-            color: alert ? const Color(0xFF704500) : Colors.white,
-            fontSize: 10.5,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      );
-}

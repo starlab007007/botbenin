@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'live_theme.dart';
+
 class LiveBotsModulesHubScreen extends StatelessWidget {
   const LiveBotsModulesHubScreen({super.key});
 
@@ -84,7 +86,10 @@ class LiveBotsModulesHubScreen extends StatelessWidget {
     final ratio = columns == 1 ? 2.15 : 1.05;
 
     return Scaffold(
-      body: SafeArea(
+      backgroundColor: WaouhPalette.pearl,
+      body: DecoratedBox(
+        decoration: const BoxDecoration(gradient: WaouhGradients.air),
+        child: SafeArea(
         child: CustomScrollView(
           slivers: [
             SliverPadding(
@@ -93,12 +98,10 @@ class LiveBotsModulesHubScreen extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(17),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF043F38), Color(0xFF08756A)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(24),
+                    gradient: WaouhGradients.airHero,
+                    borderRadius: BorderRadius.circular(26),
+                    border: Border.all(color: const Color(0xFFDDE7F7)),
+                    boxShadow: WaouhShadows.card,
                   ),
                   child: Row(
                     children: [
@@ -106,12 +109,12 @@ class LiveBotsModulesHubScreen extends StatelessWidget {
                         width: 50,
                         height: 50,
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: .14),
+                          color: const Color(0xFFF0F5FF),
                           borderRadius: BorderRadius.circular(17),
                         ),
                         child: const Icon(
                           Icons.auto_awesome_rounded,
-                          color: Colors.white,
+                          color: WaouhPalette.blue,
                         ),
                       ),
                       const SizedBox(width: 14),
@@ -122,15 +125,15 @@ class LiveBotsModulesHubScreen extends StatelessWidget {
                             Text(
                               'Bots WAOUH',
                               style: theme.textTheme.headlineSmall?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w900,
+                                color: WaouhPalette.ink,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
                             const SizedBox(height: 3),
                             const Text(
-                              'Des modules intelligents adaptés à chaque besoin.',
+                              'Vos assistants spécialisés.',
                               style: TextStyle(
-                                color: Color(0xFFD1F5E6),
+                                color: WaouhPalette.muted,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -160,6 +163,7 @@ class LiveBotsModulesHubScreen extends StatelessWidget {
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -179,7 +183,7 @@ class _SmartModuleCard extends StatelessWidget {
         onTap: () => context.push(module.route),
         child: Ink(
           decoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFFDCE9E4)),
+            border: Border.all(color: WaouhPalette.line),
             borderRadius: BorderRadius.circular(22),
           ),
           child: Padding(
@@ -205,13 +209,13 @@ class _SmartModuleCard extends StatelessWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE9F8F1),
+                        color: const Color(0xFFF0F5FF),
                         borderRadius: BorderRadius.circular(99),
                       ),
                       child: const Text(
                         'SMART',
                         style: TextStyle(
-                          color: Color(0xFF08756A),
+                          color: WaouhPalette.blue,
                           fontSize: 9.5,
                           fontWeight: FontWeight.w900,
                           letterSpacing: .45,
@@ -251,13 +255,13 @@ class _SmartModuleCard extends StatelessWidget {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF2F7F5),
+                            color: const Color(0xFFF4F7FC),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             tag,
                             style: const TextStyle(
-                              color: Color(0xFF52655E),
+                              color: WaouhPalette.muted,
                               fontSize: 9.5,
                               fontWeight: FontWeight.w700,
                             ),

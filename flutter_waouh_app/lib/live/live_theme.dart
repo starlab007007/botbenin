@@ -1,11 +1,6 @@
-// WAOUH design system — extends the historic WaouhColors palette with the
-// tokens needed for a premium, distinctive marketplace UI: named gradients,
-// soft tinted shadows, a strict type scale and small reusable primitives.
-//
-// Signature: the diagonal "deep teal -> WhatsApp green -> near-black" gradient
-// already used on headers is the brand's one bold move. Everywhere else stays
-// quiet: white cards, generous radius, a single accent (neon mint) for calls
-// to action. Spend boldness once, keep the rest disciplined.
+// WAOUH AIR design system — a light, spatial, AI-first visual language.
+// Business semantics stay untouched; this file only centralizes visual tokens
+// used across Flutter so every module inherits the same premium shell.
 import 'package:flutter/material.dart';
 
 import '../main.dart' as legacy;
@@ -33,18 +28,25 @@ class WaouhPalette {
   static const Color red = legacy.WaouhColors.red;
 
   /// Soft destructive tint for empty/error surfaces (not the raw red).
-  static const Color redTint = Color(0xFFFFE9E9);
+  static const Color redTint = Color(0xFFFFEEF1);
 
   /// Warm tint for "negotiate" intent surfaces.
-  static const Color orangeTint = Color(0xFFFFF1E0);
+  static const Color orangeTint = Color(0xFFFFF6EA);
 
   /// Cool tint for "buy" intent surfaces.
-  static const Color blueTint = Color(0xFFEAF1FF);
+  static const Color blueTint = Color(0xFFEEF4FF);
 
   /// Hairline border on dark gradients.
-  static const Color onDarkBorder = Color(0x29FFFFFF); // white @ 16%
-  static const Color onDarkSurface = Color(0x1FFFFFFF); // white @ 12%
-  static const Color onDarkMuted = Color(0xFFBFD8CE);
+  static const Color onDarkBorder = Color(0x42FFFFFF);
+  static const Color onDarkSurface = Color(0x24FFFFFF);
+  static const Color onDarkMuted = Color(0xFFEAF4FF);
+
+  static const Color airBlue = Color(0xFF4F7FFF);
+  static const Color airCyan = Color(0xFF55DDF2);
+  static const Color airViolet = Color(0xFF8B7CFF);
+  static const Color airLavender = Color(0xFFF3F0FF);
+  static const Color airIce = Color(0xFFF5FAFF);
+  static const Color glass = Color(0xF2FFFFFF);
 }
 
 /// Named gradients — the brand's signature move. Use [brand] for anything
@@ -53,34 +55,61 @@ class WaouhPalette {
 class WaouhGradients {
   const WaouhGradients._();
 
+  // Primary CTA gradient. It stays saturated enough for white labels while
+  // feeling much lighter than the former dark-green identity.
   static const LinearGradient brand = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [WaouhPalette.deep, WaouhPalette.green, Color(0xFF031F1A)],
+    colors: [Color(0xFF4F7FFF), Color(0xFF6A8CFF), Color(0xFF47CAE7)],
   );
 
   static const LinearGradient brandSoft = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [WaouhPalette.green, WaouhPalette.jade],
+    colors: [Color(0xFF76A8FF), Color(0xFF69DDD8)],
+  );
+
+  // Main screen/background wash.
+  static const LinearGradient air = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFFF8FBFF), Color(0xFFF2F7FF), Color(0xFFFBF8FF)],
+  );
+
+  static const LinearGradient airHero = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFFEAF3FF), Color(0xFFF0F8FF), Color(0xFFF4F0FF)],
+  );
+
+  static const LinearGradient muse = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFFEAF3FF), Color(0xFFF1F3FF), Color(0xFFFFF4E8)],
+  );
+
+  static const LinearGradient missions = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFFE9F7FF), Color(0xFFEDFBF7), Color(0xFFFFF7EC)],
   );
 
   static const LinearGradient sell = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFFE7515B), Color(0xFFB3242E)],
+    colors: [Color(0xFFFF8C9B), Color(0xFFFFB078)],
   );
 
   static const LinearGradient buy = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [WaouhPalette.jade, Color(0xFF075E54)],
+    colors: [Color(0xFF5F8EFF), Color(0xFF58D6E9)],
   );
 
   static const LinearGradient announce = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: [Color(0xFFFFA83D), WaouhPalette.orange],
+    colors: [Color(0xFFFFC26F), Color(0xFFFF9D6C)],
   );
 
   static LinearGradient forStatusType(String type) => switch (type) {
@@ -98,28 +127,28 @@ class WaouhShadows {
 
   static List<BoxShadow> card = [
     BoxShadow(
-      color: WaouhPalette.green.withOpacity(0.07),
-      blurRadius: 22,
-      offset: const Offset(0, 10),
-      spreadRadius: -6,
+      color: const Color(0xFF5578B8).withOpacity(0.10),
+      blurRadius: 30,
+      offset: const Offset(0, 14),
+      spreadRadius: -10,
     ),
   ];
 
   static List<BoxShadow> floating = [
     BoxShadow(
-      color: WaouhPalette.ink.withOpacity(0.16),
-      blurRadius: 28,
-      offset: const Offset(0, 14),
-      spreadRadius: -8,
+      color: const Color(0xFF36558A).withOpacity(0.14),
+      blurRadius: 36,
+      offset: const Offset(0, 18),
+      spreadRadius: -12,
     ),
   ];
 
   static List<BoxShadow> brandGlow = [
     BoxShadow(
-      color: WaouhPalette.neon.withOpacity(0.28),
-      blurRadius: 24,
-      offset: const Offset(0, 10),
-      spreadRadius: -6,
+      color: WaouhPalette.airCyan.withOpacity(0.30),
+      blurRadius: 30,
+      offset: const Offset(0, 12),
+      spreadRadius: -10,
     ),
   ];
 }
@@ -134,66 +163,66 @@ class WaouhText {
 
   static const TextStyle display = TextStyle(
     fontFamily: _display,
-    fontSize: 32,
-    fontWeight: FontWeight.w900,
-    letterSpacing: -0.4,
+    fontSize: 30,
+    fontWeight: FontWeight.w800,
+    letterSpacing: -0.7,
     height: 1.12,
     color: WaouhPalette.ink,
   );
 
   static const TextStyle h1 = TextStyle(
-    fontSize: 24,
-    fontWeight: FontWeight.w900,
-    letterSpacing: -0.2,
+    fontSize: 23,
+    fontWeight: FontWeight.w800,
+    letterSpacing: -0.4,
     height: 1.18,
     color: WaouhPalette.ink,
   );
 
   static const TextStyle h2 = TextStyle(
-    fontSize: 19,
+    fontSize: 18,
     fontWeight: FontWeight.w800,
     height: 1.22,
     color: WaouhPalette.ink,
   );
 
   static const TextStyle h3 = TextStyle(
-    fontSize: 16,
-    fontWeight: FontWeight.w800,
+    fontSize: 15.5,
+    fontWeight: FontWeight.w700,
     height: 1.25,
     color: WaouhPalette.ink,
   );
 
   static const TextStyle body = TextStyle(
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: FontWeight.w400,
     height: 1.4,
     color: WaouhPalette.ink,
   );
 
   static const TextStyle bodyStrong = TextStyle(
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: FontWeight.w700,
     height: 1.32,
     color: WaouhPalette.ink,
   );
 
   static const TextStyle caption = TextStyle(
-    fontSize: 12.5,
+    fontSize: 11.5,
     fontWeight: FontWeight.w600,
     height: 1.3,
     color: WaouhPalette.muted,
   );
 
   static const TextStyle eyebrow = TextStyle(
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: FontWeight.w800,
     letterSpacing: 0.6,
     color: WaouhPalette.muted,
   );
 
   static const TextStyle button = TextStyle(
-    fontSize: 15.5,
-    fontWeight: FontWeight.w800,
+    fontSize: 14,
+    fontWeight: FontWeight.w700,
     letterSpacing: 0.1,
   );
 

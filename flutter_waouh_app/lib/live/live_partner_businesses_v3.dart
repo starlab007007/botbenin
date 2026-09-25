@@ -32,7 +32,15 @@ class _LivePartnerBusinessesScreenV3State extends State<LivePartnerBusinessesScr
     final controller = context.watch<legacy.PartnerController>();
     return Scaffold(
       backgroundColor: WaouhPalette.pearl,
-      appBar: AppBar(title: const Text('Mes entreprises')),
+      appBar: AppBar(
+        title: const Text('Partenaire'),
+        actions: const [
+          Padding(
+            padding: EdgeInsets.only(right: 12),
+            child: Icon(Icons.storefront_rounded, color: WaouhPalette.blue),
+          ),
+        ],
+      ),
       floatingActionButton: controller.partner == null ? null : FloatingActionButton.extended(
         onPressed: () => _edit(),
         icon: const Icon(Icons.add_rounded),
@@ -49,14 +57,14 @@ class _LivePartnerBusinessesScreenV3State extends State<LivePartnerBusinessesScr
                   return Center(child: FilledButton.icon(onPressed: () => _edit(), icon: const Icon(Icons.add_rounded), label: const Text('Enrôler une entreprise')));
                 }
                 return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 104),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 104),
                   itemCount: items.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (_, index) {
                     final item = items[index];
                     return Card(
                       child: InkWell(
-                        borderRadius: BorderRadius.circular(22),
+                        borderRadius: BorderRadius.circular(24),
                         onTap: () => context.go('/app/partner/businesses/${item.id}/products'),
                         child: Padding(
                           padding: const EdgeInsets.all(16),
@@ -72,10 +80,24 @@ class _LivePartnerBusinessesScreenV3State extends State<LivePartnerBusinessesScr
                               padding: const EdgeInsets.only(top: 10),
                               child: Text([item.city, item.quarter].where((v) => (v ?? '').isNotEmpty).join(' · '), style: WaouhText.body.copyWith(color: WaouhPalette.muted)),
                             ),
-                            const SizedBox(height: 14),
-                            SizedBox(width: double.infinity, child: FilledButton.icon(onPressed: () => context.go('/app/partner/businesses/${item.id}/products'), icon: const Icon(Icons.inventory_2_outlined), label: const Text('Voir et ajouter les produits'))),
-                            const SizedBox(height: 8),
-                            OutlinedButton.icon(onPressed: () => _edit(item), icon: const Icon(Icons.edit_outlined, size: 17), label: const Text('Modifier')),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: FilledButton.icon(
+                                    onPressed: () => context.go('/app/partner/businesses/${item.id}/products'),
+                                    icon: const Icon(Icons.inventory_2_outlined, size: 18),
+                                    label: const Text('Produits'),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                OutlinedButton.icon(
+                                  onPressed: () => _edit(item),
+                                  icon: const Icon(Icons.edit_outlined, size: 17),
+                                  label: const Text('Modifier'),
+                                ),
+                              ],
+                            ),
                           ]),
                         ),
                       ),

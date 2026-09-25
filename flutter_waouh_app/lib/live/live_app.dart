@@ -122,19 +122,68 @@ class LiveShell extends StatelessWidget {
     final focused = path.startsWith('/app/chat/') || path.startsWith('/app/profile') || path.startsWith('/app/partner/businesses/');
     return Scaffold(
       body: Column(children: [const LiveOfflineBanner(), Expanded(child: child)]),
-      bottomNavigationBar: focused ? null : NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (index) => context.go(switch (index) {
-          1 => '/app/bots', 2 => '/app/whatsapp', 3 => '/app/command', 4 => '/app/partner', _ => '/app/chat',
-        }),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
-          NavigationDestination(icon: Icon(Icons.smart_toy_outlined), label: 'Bots'),
-          NavigationDestination(icon: Icon(Icons.auto_awesome_outlined), label: 'IA'),
-          NavigationDestination(icon: Icon(Icons.auto_awesome_rounded), selectedIcon: Icon(Icons.psychology_alt_rounded), label: 'Muse'),
-          NavigationDestination(icon: Icon(Icons.storefront_outlined), label: 'Partenaire'),
-        ],
-      ),
+      bottomNavigationBar: focused
+          ? null
+          : SafeArea(
+              top: false,
+              minimum: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(color: const Color(0xFFE3EAF5)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF42618F).withValues(alpha: .10),
+                      blurRadius: 28,
+                      offset: const Offset(0, 12),
+                      spreadRadius: -8,
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(22),
+                  child: NavigationBar(
+                    selectedIndex: _index,
+                    onDestinationSelected: (index) =>
+                        context.go(switch (index) {
+                      1 => '/app/bots',
+                      2 => '/app/whatsapp',
+                      3 => '/app/command',
+                      4 => '/app/partner',
+                      _ => '/app/chat',
+                    }),
+                    destinations: const [
+                      NavigationDestination(
+                        icon: Icon(Icons.chat_bubble_outline_rounded),
+                        selectedIcon: Icon(Icons.chat_bubble_rounded),
+                        label: 'Chat',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.smart_toy_outlined),
+                        selectedIcon: Icon(Icons.smart_toy_rounded),
+                        label: 'Bots',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.auto_awesome_outlined),
+                        selectedIcon: Icon(Icons.auto_awesome_rounded),
+                        label: 'IA',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.psychology_alt_outlined),
+                        selectedIcon: Icon(Icons.psychology_alt_rounded),
+                        label: 'Muse',
+                      ),
+                      NavigationDestination(
+                        icon: Icon(Icons.storefront_outlined),
+                        selectedIcon: Icon(Icons.storefront_rounded),
+                        label: 'Partenaire',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
     );
   }
 }
