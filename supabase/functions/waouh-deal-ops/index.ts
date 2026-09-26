@@ -691,7 +691,7 @@ async function handleSellerConfirm(sb: any, body: any, actor: DealActor) {
   return json({
     success: true, ok: true, reply: text, intent: "seller_availability_confirmed",
     workflow_state: workflow, deal_id, article_id: deal.article_id, thread_id: deal.thread_id,
-    actions: workflow === "awaiting_confirmation" && !deal.buyer_payment_selected_at ? buyerPaymentActions(deal_id) : [],
+    actions: [],
   });
 }
 
@@ -742,9 +742,11 @@ async function handlePaymentPreference(sb: any, body: any, actor: DealActor) {
   const advanced = await advanceReadyDeal(sb, deal_id);
   const workflow = advanced?.status || deal.status;
   const methodLabel = method === "mobile_money" ? "Mobile Money à la livraison" : "cash à la livraison";
-  const text = workflow === "pending_assignment"
-    ? `✅ ${methodLabel} sélectionné. WAOUH peut maintenant organiser la livraison.`
-    : `✅ ${methodLabel} sélectionné. En attente de confirmation du vendeur.`;
+  const text = ["assigned", "picked_up", "delivered", "completed"].includes(workflow)
+    ? `✅ ${methodLabel} sélectionné. WAOUH a poursuivi automatiquement la livraison.`
+    : workflow === "pending_assignment"
+      ? `✅ ${methodLabel} sélectionné. WAOUH cherche maintenant un livreur.`
+      : `✅ ${methodLabel} sélectionné. En attente de confirmation du vendeur.`;
 
   await pushDealChatEvent(sb, deal.buyer_user_id, deal.article_id, text, {
     deal_id, event: "payment_preference", role: "buyer", payment_method: method, workflow_state: workflow,
@@ -771,7 +773,7 @@ async function handlePaymentPreference(sb: any, body: any, actor: DealActor) {
     success: true, ok: true, reply: text, intent: "payment_preference_selected",
     workflow_state: workflow, deal_id, article_id: deal.article_id, thread_id: deal.thread_id,
     payment_method: method,
-    actions: workflow === "awaiting_confirmation" && !deal.seller_confirmed_at ? sellerAvailabilityActions(deal_id) : [],
+    actions: [],
   });
 }
 
