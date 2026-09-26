@@ -10,6 +10,7 @@ import {
   MessagesSquare,
   KeyRound,
   Radio,
+  RefreshCw,
   Send,
   Save,
   ShieldCheck,
@@ -122,6 +123,7 @@ type EditableKey =
   | "enabled"
   | "sms_enabled"
   | "rcs_enabled"
+  | "fallback_to_sms"
   | "virtual_groups_enabled";
 
 export default function AdminWaouhNativeMessagingPage() {
@@ -199,6 +201,7 @@ export default function AdminWaouhNativeMessagingPage() {
             enabled: settings.enabled,
             sms_enabled: settings.sms_enabled,
             rcs_enabled: settings.rcs_enabled,
+            fallback_to_sms: settings.fallback_to_sms,
             virtual_groups_enabled: settings.virtual_groups_enabled,
           },
         },
@@ -556,6 +559,14 @@ export default function AdminWaouhNativeMessagingPage() {
                   description="Photos, cartes, carrousels, boutons et accusés selon compatibilité."
                   checked={settings.rcs_enabled}
                   onCheckedChange={(checked) => update("rcs_enabled", checked)}
+                />
+                <SettingSwitch
+                  icon={<RefreshCw className="h-5 w-5" />}
+                  label="Fallback RCS → SMS"
+                  description="Bascule automatiquement sur SMS lorsqu’un destinataire n’est pas joignable en RCS."
+                  checked={settings.fallback_to_sms}
+                  disabled={!settings.sms_enabled}
+                  onCheckedChange={(checked) => update("fallback_to_sms", checked)}
                 />
                 <SettingSwitch
                   icon={<Users className="h-5 w-5" />}
