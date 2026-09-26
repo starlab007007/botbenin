@@ -2235,9 +2235,14 @@ Retourne uniquement JSON:
             if (!e164) continue;
             const encrypted = await encryptPhone(e164);
             const hashed = await hashPhone(e164);
-            const { error } = await sb.from("waouh_entity_contacts").upsert({
-              entity_id: signal.entity_id,
-              channel: "phone",
+            const { data: existingContact } = await sb.from("waouh_entity_contacts")
+              .select("id")
+              .eq("entity_id", signal.entity_id)
+              .eq("channel", "phone")
+              .eq("value_hash", hashed)
+              .limit(1)
+              .maybeSingle();
+            const contactPatch = {
               value_encrypted: encrypted,
               value_hash: hashed,
               value_last4: phoneLast4(e164),
@@ -2248,8 +2253,17 @@ Retourne uniquement JSON:
               contactability_level: "C1",
               verified_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
-            }, { onConflict: "entity_id,channel,value_hash" });
-            if (error) console.warn("[opportunity.enrich] public phone store", error.message);
+            };
+            const writeResult = existingContact?.id
+              ? await sb.from("waouh_entity_contacts").update(contactPatch).eq("id", existingContact.id)
+              : await sb.from("waouh_entity_contacts").insert({
+                  entity_id: signal.entity_id,
+                  channel: "phone",
+                  ...contactPatch,
+                });
+            if (writeResult.error) {
+              console.warn("[opportunity.enrich] public phone store", writeResult.error.message);
+            }
           }
           if (nextLevel === "C0") nextLevel = "C1";
         }
