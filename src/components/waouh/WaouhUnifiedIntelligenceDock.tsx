@@ -172,7 +172,7 @@ export function WaouhUnifiedIntelligenceDock({
         <Layer
           icon={ShieldCheck}
           title="Contact Layer"
-          subtitle="Applique C0–C4 avant toute révélation ou action de contact."
+          subtitle="Applique C0–C5 avant toute révélation ou action de contact."
           active={state.phase === "contacting" || !!state.contactLevel || !!deal?.contactLevel}
         >
           <div className="flex items-start gap-2">
