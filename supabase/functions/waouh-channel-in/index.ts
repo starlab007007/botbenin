@@ -1033,7 +1033,8 @@ serve(async (req) => {
             .eq("id", repairThreadId),
         ]);
         openNeg.thread_id = repairThreadId;
-        await sb.rpc("waouh_record_commerce_event", {
+        try {
+          await sb.rpc("waouh_record_commerce_event", {
           p_event_type: "negotiation_thread_repaired",
           p_entity_type: "negotiation",
           p_entity_id: openNeg.id,
@@ -1046,7 +1047,8 @@ serve(async (req) => {
           p_next_state: "thread_bound",
           p_correlation_id: correlationId,
           p_payload: { source: "waouh_channel_in" },
-        }).catch(() => {});
+        })
+        } catch (_) { /* ledger is best-effort for legacy recovery */ }
       }
     }
 
