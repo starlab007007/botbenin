@@ -266,7 +266,7 @@ export default function WaouhAdminCommandCenter() {
     setDispatching(true);
     try {
       const { data, error } = await supabase.functions.invoke("waouh-outbound-dispatch", {
-        body: { limit: 100 },
+        body: { limit: 100, manual: true },
       });
       if (error) throw error;
       toast.success(`Dispatcher exécuté · ${Number((data as any)?.sent ?? 0)} envoyé(s)`);
