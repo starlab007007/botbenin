@@ -436,6 +436,7 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
                 transition={{ delay: index * 0.045 }}
                 whileHover={{ y: -2 }}
                 onClick={action}
+                data-waouh-action={title.toLowerCase()}
                 className={`group rounded-[24px] border bg-gradient-to-br ${card} p-5 text-left shadow-sm transition hover:shadow-md`}
               >
                 <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/80 shadow-sm">
