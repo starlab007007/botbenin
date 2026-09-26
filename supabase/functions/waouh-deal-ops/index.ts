@@ -675,17 +675,18 @@ Deno.serve(async (req) => {
     if (!action) return json({ error: "action required" }, 400);
 
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const adminActions = ["assign", "status", "update_eta"];
+    if (adminActions.includes(action)) {
+      const guard = await requireAdmin(req, sb);
+      if (!guard.ok) return json({ error: guard.error }, guard.status);
+    }
+
     const dealControl = await getWaouhModuleControl(sb, "deals");
-    if (!dealControl.enabled) {
+    if (!dealControl.enabled && !adminActions.includes(action)) {
       return json({
         error: "deals_paused",
         message: dealControl.maintenance_message || "Le Deal Graph WAOUH est temporairement suspendu.",
       }, 503);
-    }
-
-    if (["assign", "status", "update_eta"].includes(action)) {
-      const guard = await requireAdmin(req, sb);
-      if (!guard.ok) return json({ error: guard.error }, guard.status);
     }
 
     if (["seller_confirm", "payment_preference", "cancel", "payment"].includes(action)) {
