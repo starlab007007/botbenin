@@ -1,8 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
-  BadgeCheck,
   Bot,
   Handshake,
   Loader2,
@@ -10,7 +9,6 @@ import {
   Radar,
   Search,
   ShieldCheck,
-  ShoppingBag,
   Sparkles,
 } from "lucide-react";
 
@@ -18,14 +16,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
-import { getWaouhSessionId } from "@/app-mobile/hooks/useWaouhIdentity";
 import {
   globalNexusDiscovery,
-  prepareNexusContact,
-  sendNexusDiscoveryContact,
+  startNexusJourney,
+  contactNexusJourney,
+  followNexusJourney,
+  offerNexusJourney,
+  listNexusJourneys,
   type NexusDiscoveryResult,
+  type NexusOpportunityJourney,
 } from "@/lib/waouh/nexus";
 
 type Mode = "acheter" | "vendre" | "demander";
