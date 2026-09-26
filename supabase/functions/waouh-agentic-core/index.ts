@@ -494,7 +494,7 @@ function contactabilityFromBasis(
   if (basis === "opt_in") return "C3";
   if (basis === "initiated") return "C2";
   if (basis === "public_business" || isPublicBusiness) return "C1";
-  return (["C0","C1","C2","C3","C4"].includes(sourceDefault) ? sourceDefault : "C0") as Contactability;
+  return (["C0","C1","C2","C3","C4","C5"].includes(sourceDefault) ? sourceDefault : "C0") as Contactability;
 }
 
 function actorRoleFromIntent(intent: string, actorType?: string | null) {
