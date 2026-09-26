@@ -252,6 +252,13 @@ export default function WaouhAdminCommandCenter() {
     field: "enabled" | "automation_enabled",
     value: boolean,
   ) => {
+    if (!value) {
+      const label = field === "enabled" ? "le module" : "les automatisations";
+      const confirmed = window.confirm(
+        `Suspendre ${label} « ${module.label} » ? Les données existantes seront conservées et l’action sera auditée.`,
+      );
+      if (!confirmed) return;
+    }
     setBusyModule(module.module_key);
     const params: any = {
       p_module_key: module.module_key,
