@@ -22,6 +22,9 @@ type Negotiation = {
   id: string; article_id: string; buyer_user_id: string; seller_user_id: string;
   status: string; current_price: number | null; last_price: number | null;
   currency: string | null; created_at: string; updated_at: string; meta: any;
+  deal_id?: string | null; deal_status?: string | null;
+  workflow_progress?: number; workflow_stage?: string | null;
+  seller_confirmed?: boolean; buyer_payment_selected?: boolean; courier_assigned?: boolean;
 };
 type Article = { id: string; title: string; price: number; currency: string; photos: any; status: string };
 type User = { id: string; display_name: string | null; phone_number: string | null };
@@ -277,12 +280,12 @@ const AdminWaouhHistoriquePage: React.FC = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Article</TableHead><TableHead>Acheteur</TableHead><TableHead>Vendeur</TableHead>
-                <TableHead>Statut</TableHead><TableHead>Prix</TableHead><TableHead>Complétude</TableHead><TableHead>MAJ</TableHead><TableHead></TableHead>
+                <TableHead>Étape</TableHead><TableHead>Prix</TableHead><TableHead>Progression</TableHead><TableHead>Trace technique</TableHead><TableHead>MAJ</TableHead><TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {negotiations.length === 0 && (
-                <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground py-8">Aucune négociation sur la période.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Aucune négociation sur la période.</TableCell></TableRow>
               )}
               {negotiations.map((n) => {
                 const a = articleMap.get(n.article_id);
@@ -294,8 +297,19 @@ const AdminWaouhHistoriquePage: React.FC = () => {
                     <TableCell className="font-medium">{a?.title || n.article_id?.slice(0, 8)}</TableCell>
                     <TableCell className="text-xs">{buyer?.display_name || buyer?.phone_number || n.buyer_user_id?.slice(0, 8)}</TableCell>
                     <TableCell className="text-xs">{seller?.display_name || seller?.phone_number || n.seller_user_id?.slice(0, 8)}</TableCell>
-                    <TableCell><Badge variant="outline">{n.status}</Badge></TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        <Badge variant="outline" className="w-fit">{n.workflow_stage || n.deal_status || n.status}</Badge>
+                        {n.deal_id && <span className="text-[9px] text-muted-foreground">deal {n.deal_id.slice(0, 8)}</span>}
+                      </div>
+                    </TableCell>
                     <TableCell className="font-mono text-xs">{n.current_price?.toLocaleString() || "-"} {n.currency || "XOF"}</TableCell>
+                    <TableCell className="w-36">
+                      <div className="flex items-center gap-2">
+                        <Progress value={n.workflow_progress ?? 0} className="h-2 w-20" />
+                        <span className="text-[10px] font-mono font-semibold">{n.workflow_progress ?? 0}%</span>
+                      </div>
+                    </TableCell>
                     <TableCell className="w-32">
                       <div className="flex items-center gap-2">
                         <Progress value={comp?.pct ?? 0} className="h-1.5 w-16" />
@@ -319,10 +333,10 @@ const AdminWaouhHistoriquePage: React.FC = () => {
               <div key={n.id} className="p-3 active:bg-muted" onClick={() => setSelectedNeg(n)}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="font-medium text-sm">{a?.title || n.article_id?.slice(0, 8)}</div>
-                  <Badge variant="outline" className="text-[10px]">{n.status}</Badge>
+                  <Badge variant="outline" className="text-[10px]">{n.workflow_stage || n.deal_status || n.status}</Badge>
                 </div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  {n.current_price?.toLocaleString() || "-"} {n.currency || "XOF"} · {format(new Date(n.updated_at), "dd MMM HH:mm", { locale: fr })}
+                  {n.current_price?.toLocaleString() || "-"} {n.currency || "XOF"} · progression {n.workflow_progress ?? 0}% · {format(new Date(n.updated_at), "dd MMM HH:mm", { locale: fr })}
                 </div>
               </div>
             );
