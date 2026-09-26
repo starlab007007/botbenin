@@ -133,7 +133,7 @@ export default function AdminWaouhContactLayerPage() {
           </div>
         </section>
 
-        <div className="grid gap-3 sm:grid-cols-5">
+        <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
           {levels.map((level) => (
             <Card key={level}>
               <CardContent className="p-4">
@@ -151,13 +151,13 @@ export default function AdminWaouhContactLayerPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Politique C0–C4</CardTitle>
+            <CardTitle>Politique C0–C5</CardTitle>
             <CardDescription>
               Les niveaux élevés restent contraints par la nature de la source et le consentement.
               La valeur par défaut n’élève pas rétroactivement les contacts déjà collectés.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-5">
+          <CardContent className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
             {levels.map((level) => {
               const item = policyMap[level];
               return (
