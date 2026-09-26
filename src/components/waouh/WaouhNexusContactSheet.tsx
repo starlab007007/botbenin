@@ -38,11 +38,13 @@ export function WaouhNexusContactSheet({
   title,
   sourceUrl,
   contactabilityLevel,
+  mode = "buy",
 }: {
   fabricId: string;
   title: string;
   sourceUrl?: string | null;
   contactabilityLevel?: string | null;
+  mode?: "buy" | "sell" | "ask";
 }) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -57,10 +59,10 @@ export function WaouhNexusContactSheet({
     if (!user) return;
     setBusy(true);
     try {
-      let started = (await startNexusOpportunity(fabricId, "buy")).journey;
+      let started = (await startNexusOpportunity(fabricId, mode)).journey;
       let contact = await prepareNexusContact(fabricId);
       if (contact.contact_policy.level === "C0" || contact.contact_policy.level === "C1") {
-        started = (await enrichNexusOpportunity(fabricId, "buy")).journey;
+        started = (await enrichNexusOpportunity(fabricId, mode)).journey;
         contact = await prepareNexusContact(fabricId);
       }
       setJourney(started);
@@ -84,7 +86,7 @@ export function WaouhNexusContactSheet({
   const enrich = async () => {
     setEnriching(true);
     try {
-      const result = await enrichNexusOpportunity(fabricId, "buy");
+      const result = await enrichNexusOpportunity(fabricId, mode);
       setJourney(result.journey);
       setPrepared(await prepareNexusContact(fabricId));
     } catch (error) {
