@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -199,6 +199,8 @@ const severityMeta: Record<Severity, { label: string; cls: string }> = {
 
 export default function WaouhAdminCommandCenter() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const focusedModule = searchParams.get("module");
   const [cc, setCc] = useState<CommandCenter | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyModule, setBusyModule] = useState<string | null>(null);
@@ -246,6 +248,14 @@ export default function WaouhAdminCommandCenter() {
       supabase.removeChannel(channel);
     };
   }, [load, scheduleRefresh]);
+
+  useEffect(() => {
+    if (!cc || !focusedModule) return;
+    const target = document.getElementById(`waouh-module-${focusedModule}`);
+    if (!target) return;
+    const timer = window.setTimeout(() => target.scrollIntoView({ behavior: "smooth", block: "center" }), 80);
+    return () => window.clearTimeout(timer);
+  }, [cc, focusedModule]);
 
   const toggleModule = async (
     module: ModuleControl,
@@ -413,7 +423,11 @@ export default function WaouhAdminCommandCenter() {
               const meta = moduleMeta[module.module_key] || { icon: Radio, detail: () => "", manage: "/admin/waouh", automation: false };
               const Icon = meta.icon;
               return (
-                <div key={module.module_key} className="rounded-xl border bg-background p-3">
+                <div
+                  key={module.module_key}
+                  id={`waouh-module-${module.module_key}`}
+                  className={`rounded-xl border bg-background p-3 transition-shadow ${focusedModule === module.module_key ? "ring-2 ring-cyan-500 ring-offset-2 shadow-md" : ""}`}
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2">
                       <div className="rounded-lg border p-2"><Icon className="h-4 w-4" /></div>
@@ -463,7 +477,7 @@ export default function WaouhAdminCommandCenter() {
             Tous les réglages et consoles sont accessibles depuis le front. Le chemin technique est affiché sous chaque entrée pour éviter les fonctions cachées.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 lg:grid-cols-3">
+        <CardContent className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
           <AccessGroup
             title="Pilotage & diagnostic"
             items={[
@@ -476,10 +490,24 @@ export default function WaouhAdminCommandCenter() {
             onOpen={navigate}
           />
           <AccessGroup
+            title="Architecture de contrôle"
+            items={[
+              { label: "Avatar Commerce", path: "/admin/waouh?tab=control&module=avatar_commerce", note: "ON/OFF du parcours Acheter / Vendre / Demander" },
+              { label: "Chat Web / App", path: "/admin/waouh?tab=control&module=chat_web", note: "Canal conversationnel Web et application" },
+              { label: "WhatsApp", path: "/admin/waouh?tab=control&module=chat_whatsapp", note: "Interrupteur global du canal WhatsApp" },
+              { label: "Muse / Agents IA", path: "/admin/waouh?tab=control&module=muse_agents", note: "Missions, agents et automatisations" },
+              { label: "Négociation", path: "/admin/waouh?tab=control&module=negotiation", note: "Moteur offre / contre-offre / acceptation" },
+              { label: "Deal Room / Deal Graph", path: "/admin/waouh?tab=control&module=deals", note: "Moteur deal, paiement et livraison" },
+              { label: "Outbound", path: "/admin/waouh?tab=control&module=outbound", note: "Dispatch et automatisations sortantes" },
+            ]}
+            onOpen={navigate}
+          />
+          <AccessGroup
             title="Paramétrage des moteurs"
             items={[
               { label: "Paramètres généraux", path: "/admin/waouh?tab=settings", note: "IA, commerce, paiements et règles" },
-              { label: "NEXUS / Radar IA", path: "/admin/waouh/radar", note: "Sources, connecteurs, API, quotas et scans" },
+              { label: "NEXUS / Radar IA", path: "/admin/waouh?tab=radar", note: "Sources, connecteurs, API, quotas et scans" },
+              { label: "Contact Layer C0–C4", path: "/admin/waouh?tab=radar&radarTab=contact", note: "Politique de contactabilité par source" },
               { label: "WhatsApp Ops", path: "/admin/waouh/whatsapp-ops", note: "WAHA, sessions, files et replay" },
               { label: "SMS / RCS natif", path: "/admin/waouh/native-messaging", note: "Provider, SMS, RCS et fallback" },
               { label: "Validations diffusion", path: "/admin/waouh/diffusion-approvals", note: "Approbations humaines avant envoi" },
@@ -524,9 +552,14 @@ export default function WaouhAdminCommandCenter() {
             <Row label="Collectes en retard" value={cc.nexus.sources_overdue ?? 0} attention={(cc.nexus.sources_overdue ?? 0) > 0} />
             <Row label="Quotas API ≥ 80%" value={cc.nexus.connector_quota_risks?.length ?? 0} attention={(cc.nexus.connector_quota_risks?.length ?? 0) > 0} />
             {connectorActive > 0 && <Progress value={Math.round((connectorReady / connectorActive) * 100)} className="h-2" />}
-            <Button size="sm" variant="outline" className="w-full" onClick={() => navigate("/admin/waouh?tab=radar")}>
-              Configurer NEXUS / Radar
-            </Button>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Button size="sm" variant="outline" className="w-full" onClick={() => navigate("/admin/waouh?tab=radar")}>
+                Configurer NEXUS / Radar
+              </Button>
+              <Button size="sm" variant="outline" className="w-full" onClick={() => navigate("/admin/waouh?tab=radar&radarTab=contact")}>
+                Contact Layer C0–C4
+              </Button>
+            </div>
           </CardContent>
         </Card>
 

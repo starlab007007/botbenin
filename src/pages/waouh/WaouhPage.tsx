@@ -209,15 +209,23 @@ export default function WaouhPage() {
             </div>
             <Badge variant="outline" className="text-cyan-700 border-cyan-200">WAOUH Admin</Badge>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2">
-            <Link to="/admin/waouh/radar"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Radar className="w-3.5 h-3.5 mr-1" />NEXUS / Radar IA</Button></Link>
-            <Link to="/admin/waouh?tab=settings"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Sparkles className="w-3.5 h-3.5 mr-1" />Paramètres</Button></Link>
-            <Link to="/admin/waouh/whatsapp-ops"><Button variant="outline" className="w-full h-auto py-2 text-xs"><MessagesSquare className="w-3.5 h-3.5 mr-1" />WhatsApp Ops</Button></Link>
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2">
+            <Link to="/admin/waouh?tab=radar"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Radar className="w-3.5 h-3.5 mr-1" />NEXUS / Radar IA</Button></Link>
+            <Link to="/admin/waouh?tab=radar&radarTab=contact"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Users className="w-3.5 h-3.5 mr-1" />Contact Layer C0–C4</Button></Link>
+            <Link to="/admin/waouh?tab=control&module=avatar_commerce"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Sparkles className="w-3.5 h-3.5 mr-1" />Avatar Commerce</Button></Link>
+            <Link to="/admin/waouh?tab=control&module=chat_web"><Button variant="outline" className="w-full h-auto py-2 text-xs"><MessageCircle className="w-3.5 h-3.5 mr-1" />Chat Web / App</Button></Link>
+            <Link to="/admin/waouh/whatsapp-ops"><Button variant="outline" className="w-full h-auto py-2 text-xs"><MessagesSquare className="w-3.5 h-3.5 mr-1" />WhatsApp / WAHA</Button></Link>
+            <Link to="/admin/waouh?tab=control&module=muse_agents"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Sparkles className="w-3.5 h-3.5 mr-1" />Muse / Agents IA</Button></Link>
+            <Link to="/admin/waouh?tab=control&module=negotiation"><Button variant="outline" className="w-full h-auto py-2 text-xs"><TrendingUp className="w-3.5 h-3.5 mr-1" />Négociation</Button></Link>
+            <Link to="/admin/waouh/deals"><Button variant="outline" className="w-full h-auto py-2 text-xs"><ShoppingBag className="w-3.5 h-3.5 mr-1" />Deal Room / Graph</Button></Link>
+            <Link to="/admin/waouh?tab=control&module=outbound"><Button variant="outline" className="w-full h-auto py-2 text-xs"><ExternalLink className="w-3.5 h-3.5 mr-1" />Outbound</Button></Link>
+            <Link to="/admin/waouh/diffusion-approvals"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Megaphone className="w-3.5 h-3.5 mr-1" />Diffusion</Button></Link>
             <Link to="/admin/waouh/native-messaging"><Button variant="outline" className="w-full h-auto py-2 text-xs"><MessagesSquare className="w-3.5 h-3.5 mr-1" />SMS / RCS</Button></Link>
-            <Link to="/admin/waouh/monitoring"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Activity className="w-3.5 h-3.5 mr-1" />Monitoring</Button></Link>
+            <Link to="/admin/waouh/partners"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Users className="w-3.5 h-3.5 mr-1" />Partenaires</Button></Link>
+            <Link to="/admin/waouh/data-control"><Button variant="outline" className="w-full h-auto py-2 text-xs"><QrCode className="w-3.5 h-3.5 mr-1" />Données unifiées</Button></Link>
+            <Link to="/admin/waouh/monitoring"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Activity className="w-3.5 h-3.5 mr-1" />Monitoring global</Button></Link>
             <Link to="/admin/waouh/health-check"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Activity className="w-3.5 h-3.5 mr-1" />Health Check</Button></Link>
-            <Link to="/admin/waouh/deals"><Button variant="outline" className="w-full h-auto py-2 text-xs"><ShoppingBag className="w-3.5 h-3.5 mr-1" />Deal Ops</Button></Link>
-            <Link to="/admin/waouh/data-control"><Button variant="outline" className="w-full h-auto py-2 text-xs"><QrCode className="w-3.5 h-3.5 mr-1" />Données</Button></Link>
+            <Link to="/admin/waouh?tab=settings"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Sparkles className="w-3.5 h-3.5 mr-1" />Paramètres généraux</Button></Link>
           </div>
         </Card>
 

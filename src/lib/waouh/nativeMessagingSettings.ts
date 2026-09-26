@@ -17,6 +17,7 @@ export interface WaouhNativeMessagingSettings {
   enabled: boolean;
   sms_enabled: boolean;
   rcs_enabled: boolean;
+  fallback_to_sms: boolean;
   virtual_groups_enabled: boolean;
   native_groups_enabled: boolean;
   updated_at: string | null;
@@ -33,6 +34,7 @@ export const DEFAULT_NATIVE_MESSAGING_SETTINGS: WaouhNativeMessagingSettings = {
   enabled: false,
   sms_enabled: true,
   rcs_enabled: false,
+  fallback_to_sms: true,
   virtual_groups_enabled: false,
   native_groups_enabled: false,
   updated_at: null,
@@ -130,6 +132,7 @@ export function coerceNativeMessagingSettings(
     enabled: input.enabled === true,
     sms_enabled: input.sms_enabled !== false,
     rcs_enabled: input.rcs_enabled === true,
+    fallback_to_sms: input.fallback_to_sms !== false,
     virtual_groups_enabled: input.virtual_groups_enabled === true,
     native_groups_enabled: input.native_groups_enabled === true,
     updated_at: typeof input.updated_at === "string" ? input.updated_at : null,
