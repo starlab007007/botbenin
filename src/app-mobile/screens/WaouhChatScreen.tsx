@@ -47,9 +47,10 @@ function getSessionId() {
  * WhatsApp-style composer with payload chips sitting JUST above the input.
  */
 export default function WaouhChatScreen() {
-  // Desktop/tablet → redirect to dedicated 2-column WhatsApp-style page
-  // Desktop/tablet → unified entry point is /app/chat (embedded WaouhChatPage)
-  if (typeof window !== "undefined" && window.innerWidth >= 768) {
+  // Desktop ERP only → unified entry point is /app/chat.
+  // Tablet web (768–1179px) keeps this mobile-style chat so Avatar
+  // prefill/autosend deep-links are preserved exactly like Flutter.
+  if (typeof window !== "undefined" && window.innerWidth >= 1180) {
     return <Navigate to="/app/chat" replace />;
   }
   const navigate = useNavigate();
