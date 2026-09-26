@@ -259,6 +259,10 @@ const brickForLocation = (pathname: string, search: string): BrickId | null => {
   if (pathname === HOME_PATH) {
     return new URLSearchParams(search).get('tab') === 'radar' ? 'radar' : null;
   }
+  // /app/bots est désormais le hub Flutter-parity sur tous les formats.
+  // Le rail gauche reste identique mais ne remplace plus cette route par l'ancien brick.
+  if (pathname === '/app/bots') return null;
+
   // Exact match only: deeper routes (détail d'un agent, d'une boutique…) gardent leur écran dédié.
   const hit = navigation.find(
     (item) => item.brick && item.to.split('?')[0] === pathname && pathname !== HOME_PATH,
@@ -342,7 +346,7 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
                 const Icon = item.icon;
                 const itemPath = item.to.split('?')[0];
                 const active = item.brick
-                  ? item.brick === activeBrick
+                  ? item.brick === activeBrick || itemPath === location.pathname
                   : itemPath === HOME_PATH
                     ? isHome
                     : location.pathname === itemPath;
