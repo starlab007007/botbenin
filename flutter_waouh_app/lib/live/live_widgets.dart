@@ -2089,7 +2089,19 @@ class _PremiumProductCard extends StatelessWidget {
                           ? FilledButton(
                               onPressed: onPayload == null
                                   ? null
-                                  : () => onPayload!(action.payload),
+                                  : () {
+                                      if (liveCommerceActionKind(action.payload) ==
+                                          LiveCommerceActionKind.interest) {
+                                        _showGuidedInterestSheet(
+                                          context,
+                                          product,
+                                          action.payload,
+                                          onPayload!,
+                                        );
+                                      } else {
+                                        onPayload!(action.payload);
+                                      }
+                                    },
                               style: FilledButton.styleFrom(
                                 backgroundColor: tone,
                                 foregroundColor: Colors.white,
@@ -2103,12 +2115,7 @@ class _PremiumProductCard extends StatelessWidget {
                                         LiveCommerceActionKind.interest
                                     ? product.isBuyerOpportunity
                                         ? 'Proposer mon offre'
-                                        : product.contactability == 'C2'
-                                            ? 'Transmettre via WAOUH'
-                                            : product.contactability == 'C3' ||
-                                                    product.contactability == 'C4'
-                                                ? 'Laisser l’Avatar poursuivre'
-                                                : action.label
+                                        : 'Je suis intéressé · proposer un prix'
                                     : action.label,
                                 style: const TextStyle(
                                     fontWeight: FontWeight.w900),
@@ -2145,14 +2152,16 @@ class _PremiumProductCard extends StatelessWidget {
                     ),
                     icon: const Icon(Icons.shield_outlined),
                     label: Text(
-                      product.contactability == 'C2'
-                          ? 'Transmettre via WAOUH'
-                          : product.contactability == 'C3' ||
-                                  product.contactability == 'C4'
-                              ? 'Laisser l’Avatar poursuivre'
-                              : product.contactability == 'C1'
-                                  ? 'Contacter'
-                                  : 'Voir possibilité de contact',
+                      product.contactability == 'C5'
+                          ? 'Négocier dans WAOUH'
+                          : product.contactability == 'C4'
+                              ? 'Suivre le contact'
+                              : product.contactability == 'C3' ||
+                                      product.contactability == 'C2'
+                                  ? 'Contacter avec WAOUH'
+                                  : product.contactability == 'C1'
+                                      ? 'Vérifier le contact'
+                                      : 'Trouver un moyen de contacter',
                     ),
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF08745D),
@@ -2170,7 +2179,7 @@ class _PremiumProductCard extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: () => onPayload!(_watchProductPayload(product)),
+                    onPressed: () => _showWatchSetup(context, product),
                     icon: const Icon(Icons.notifications_active_outlined),
                     label: const Text('Suivre prix / stock'),
                     style: OutlinedButton.styleFrom(
@@ -2188,6 +2197,214 @@ class _PremiumProductCard extends StatelessWidget {
   }
 }
 
+
+
+Future<void> _showGuidedInterestSheet(
+  BuildContext context,
+  _PremiumProduct product,
+  String payload,
+  ValueChanged<String> onPayload,
+) async {
+  final rawPrice = (product.price ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+  final base = double.tryParse(rawPrice);
+  final custom = TextEditingController(
+    text: base == null || base <= 0 ? '' : base.round().toString(),
+  );
+  double? selected = base;
+  final result = await showModalBottomSheet<double>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+    ),
+    builder: (sheetContext) => StatefulBuilder(
+      builder: (sheetContext, setSheetState) {
+        final suggestions = <double>[
+          if (base != null && base > 0) base,
+          if (base != null && base > 0) (base * .95).roundToDouble(),
+          if (base != null && base > 0) (base * .90).roundToDouble(),
+        ].toSet().toList();
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            18, 16, 18, 20 + MediaQuery.viewInsetsOf(sheetContext).bottom,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Votre Avatar ouvre la négociation',
+                    style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 6),
+                Text(
+                  'Choisissez votre première offre pour « ' + product.title +
+                      ' ». WAOUH la transmet au vendeur puis vous guide : réponse → contre-offre → accord → livraison → paiement.',
+                  style: const TextStyle(
+                    color: Color(0xFF60746E), fontSize: 12, height: 1.4,
+                  ),
+                ),
+                if (base != null && base > 0) ...[
+                  const SizedBox(height: 14),
+                  Text('Prix affiché : ' + base.round().toString() + ' FCFA',
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 7,
+                    runSpacing: 7,
+                    children: suggestions.map((amount) {
+                      final active = selected?.round() == amount.round();
+                      return ChoiceChip(
+                        selected: active,
+                        label: Text(amount.round().toString() + ' FCFA'),
+                        onSelected: (_) {
+                          setSheetState(() {
+                            selected = amount;
+                            custom.text = amount.round().toString();
+                          });
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                TextField(
+                  controller: custom,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Votre proposition (FCFA)',
+                    prefixIcon: Icon(Icons.payments_outlined),
+                    helperText: 'Vous pourrez contre-proposer ensuite dans le Deal Room.',
+                  ),
+                  onChanged: (value) => selected =
+                      double.tryParse(value.replaceAll(RegExp(r'[^0-9]'), '')),
+                ),
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                  onPressed: () {
+                    final amount = double.tryParse(
+                      custom.text.replaceAll(RegExp(r'[^0-9]'), ''),
+                    );
+                    if (amount == null || amount <= 0) return;
+                    Navigator.of(sheetContext).pop(amount);
+                  },
+                  icon: const Icon(Icons.handshake_outlined),
+                  label: const Text('Envoyer mon offre et ouvrir le Deal Room'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(50),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Votre Avatar reste actif jusqu’à la conclusion de l’accord.',
+                  style: TextStyle(
+                    color: Color(0xFF08745D),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    ),
+  );
+  custom.dispose();
+  if (result == null || result <= 0) return;
+  final query = <String, String>{
+    ...liveCommerceQuery(payload),
+    'initial_offer_amount': result.round().toString(),
+    'offer_price': result.round().toString(),
+    'origin_surface': 'flutter_guided_interest',
+  };
+  final command = liveCommerceRawCommand(payload);
+  final scoped = command + '?' + Uri(queryParameters: query).query;
+  onPayload(scoped);
+}
+
+Future<void> _showWatchSetup(
+  BuildContext context,
+  _PremiumProduct product,
+) async {
+  final rawPrice = (product.price ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+  final base = double.tryParse(rawPrice);
+  final target = TextEditingController(
+    text: base == null || base <= 0 ? '' : (base * .9).round().toString(),
+  );
+  final confirmed = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (sheetContext) => Padding(
+      padding: EdgeInsets.fromLTRB(
+        18, 16, 18, 18 + MediaQuery.viewInsetsOf(sheetContext).bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Suivre prix et disponibilité',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 6),
+          Text(product.title, style: const TextStyle(color: Color(0xFF60746E))),
+          const SizedBox(height: 12),
+          TextField(
+            controller: target,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Prix cible (optionnel)',
+              suffixText: 'FCFA',
+              helperText: 'Laissez vide pour surveiller uniquement les changements.',
+            ),
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: () => Navigator.of(sheetContext).pop(true),
+            icon: const Icon(Icons.notifications_active_outlined),
+            label: const Text('Activer le suivi'),
+            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+          ),
+        ],
+      ),
+    ),
+  );
+  if (confirmed != true) {
+    target.dispose();
+    return;
+  }
+  final amount = double.tryParse(target.text.replaceAll(RegExp(r'[^0-9]'), ''));
+  target.dispose();
+  try {
+    final service = LiveNexusService(legacy.supabase);
+    await service.createWatch(
+      query: product.title,
+      articleId: product.id,
+      sourceUrl: null,
+      targetAmount: amount,
+    );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          amount == null
+              ? 'Suivi activé. Votre Avatar surveille le prix et la disponibilité.'
+              : 'Suivi activé. Votre Avatar vous prévient au prix cible ou en cas de changement.',
+        ),
+      ),
+    );
+  } catch (e) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Impossible d’activer le suivi : $e')),
+    );
+  }
+}
 
 Future<void> _showPremiumNexusContactSheet(
   BuildContext context,
