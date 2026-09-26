@@ -27,6 +27,7 @@ import {
   type BuyerLike,
   type NexusWeights,
 } from "../_shared/waouh-nexus.ts";
+import { resolveProductThread, bindThreadState } from "../_shared/waouh-thread.ts";
 
 type JsonObject = Record<string, unknown>;
 
@@ -1125,6 +1126,146 @@ async function globalDiscoverySearch(
     .sort((a: any, b: any) => b.scores.total_score - a.scores.total_score)
     .slice(0, input.limit);
   return ranked;
+}
+
+
+type OpportunityMode = "buy" | "sell" | "ask";
+type OpportunityState =
+  | "discovered" | "enriching" | "contact_ready" | "contacting"
+  | "waiting_response" | "ready_to_negotiate" | "negotiating"
+  | "agreed" | "executing" | "completed" | "cancelled" | "blocked";
+
+const JOURNEY_PROGRESS: Record<OpportunityState, number> = {
+  discovered: 10,
+  enriching: 20,
+  contact_ready: 30,
+  contacting: 40,
+  waiting_response: 50,
+  ready_to_negotiate: 60,
+  negotiating: 72,
+  agreed: 82,
+  executing: 92,
+  completed: 100,
+  cancelled: 100,
+  blocked: 25,
+};
+
+const JOURNEY_TIMELINE = [
+  { key: "discovered", label: "Trouvé", threshold: 10 },
+  { key: "verified", label: "Vérifié", threshold: 20 },
+  { key: "contact", label: "Contact", threshold: 35 },
+  { key: "response", label: "Réponse", threshold: 55 },
+  { key: "negotiation", label: "Négociation", threshold: 70 },
+  { key: "agreement", label: "Accord", threshold: 82 },
+  { key: "execution", label: "Exécution", threshold: 92 },
+  { key: "completed", label: "Terminé", threshold: 100 },
+];
+
+function opportunitySnapshot(row: any) {
+  const state = String(row?.state || "discovered") as OpportunityState;
+  const progress = JOURNEY_PROGRESS[state] ?? 10;
+  return {
+    ...row,
+    progress,
+    timeline: JOURNEY_TIMELINE.map((item) => ({
+      ...item,
+      done: progress >= item.threshold,
+      current:
+        progress < 100 &&
+        item.threshold <= progress &&
+        !JOURNEY_TIMELINE.some((next) => next.threshold > item.threshold && next.threshold <= progress),
+    })),
+  };
+}
+
+function levelRank(level: unknown) {
+  const levels: Record<string, number> = { C0: 0, C1: 1, C2: 2, C3: 3, C4: 4, C5: 5 };
+  return levels[String(level ?? "C0")] ?? 0;
+}
+
+function maxContactLevel(left: unknown, right: unknown): Contactability {
+  const a = String(left ?? "C0");
+  const b = String(right ?? "C0");
+  return (levelRank(b) > levelRank(a) ? b : a) as Contactability;
+}
+
+async function appendOpportunityEvent(
+  sb: SupabaseClient,
+  ownerId: string,
+  journey: any,
+  eventType: string,
+  fromState: string | null,
+  toState: string | null,
+  payload: Record<string, unknown> = {},
+) {
+  const { error } = await sb.from("waouh_opportunity_events").insert({
+    journey_id: journey.id,
+    owner_id: ownerId,
+    event_type: eventType,
+    from_state: fromState,
+    to_state: toState,
+    contactability_level: journey.contactability_level ?? null,
+    payload,
+  });
+  if (error) console.warn("[waouh-journey] event", error.message);
+}
+
+async function ownedOpportunityJourney(sb: SupabaseClient, ownerId: string, journeyId: string) {
+  return queryOne<any>(
+    sb.from("waouh_opportunity_journeys").select("*")
+      .eq("id", journeyId).eq("owner_id", ownerId).maybeSingle(),
+    "nexus_journey_not_found",
+  );
+}
+
+async function journeyContactCandidates(sb: SupabaseClient, entityId: string | null) {
+  if (!entityId) return [] as any[];
+  const { data, error } = await sb.from("waouh_entity_contacts")
+    .select("*").eq("entity_id", entityId).order("updated_at", { ascending: false }).limit(50);
+  if (error) throw new ApiError(500, "nexus_journey_contacts_failed", error.message);
+  const priority: Record<string, number> = {
+    whatsapp: 100, phone: 90, email: 80, facebook: 70,
+    instagram: 65, telegram: 60, website: 50, google_maps: 45, other: 10,
+  };
+  return [...(data ?? [])].sort((a: any, b: any) => {
+    const level = levelRank(b.contactability_level) - levelRank(a.contactability_level);
+    if (level) return level;
+    const pub = Number(b.is_public_business === true) - Number(a.is_public_business === true);
+    if (pub) return pub;
+    return (priority[String(b.channel)] ?? 0) - (priority[String(a.channel)] ?? 0);
+  });
+}
+
+async function updateOpportunityJourney(
+  sb: SupabaseClient,
+  ownerId: string,
+  journey: any,
+  patch: Record<string, unknown>,
+  eventType: string,
+  payload: Record<string, unknown> = {},
+) {
+  const previousState = String(journey.state || "discovered");
+  const { data, error } = await sb.from("waouh_opportunity_journeys")
+    .update(patch).eq("id", journey.id).eq("owner_id", ownerId).select("*").single();
+  if (error) throw new ApiError(500, "nexus_journey_update_failed", error.message);
+  await appendOpportunityEvent(
+    sb, ownerId, data, eventType, previousState, String(data.state || previousState), payload,
+  );
+  return data;
+}
+
+function nextActionForJourney(level: string, state: OpportunityState, hasArticle: boolean) {
+  if (state === "ready_to_negotiate" || state === "negotiating") {
+    return hasArticle ? "Proposer un prix dans le Deal Room" : "Ayo prépare le Deal Room dès que la contrepartie rejoint WAOUH";
+  }
+  if (state === "waiting_response") return "Ayo attend la réponse et vous avertira ici";
+  if (state === "contacting") return "Ayo finalise la mise en relation dans WAOUH";
+  if (state === "enriching" || level === "C0") return "Ayo recherche un canal public ou autorisé";
+  if (level === "C1") return "Autoriser Ayo à contacter ce professionnel";
+  if (level === "C2") return "Transmettre une proposition sans révéler les coordonnées";
+  if (level === "C3" || level === "C4") return "Envoyer le message avec Ayo";
+  if (level === "C5") return "Ouvrir la négociation";
+  return "Continuer avec Ayo";
 }
 
 Deno.serve(async (req: Request) => {
