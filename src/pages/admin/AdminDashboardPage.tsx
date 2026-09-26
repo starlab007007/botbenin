@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Users, Shield, Key, Activity, Settings, Palette, Database, Megaphone, Bot, GraduationCap, Sparkles, PackageOpen, ArrowLeft, Network, MessageSquareText, HeartPulse, History, Truck, SlidersHorizontal, Handshake, Building2, ExternalLink } from 'lucide-react';
+import { Users, Shield, Key, Activity, Settings, Palette, Database, Megaphone, Bot, GraduationCap, Sparkles, PackageOpen, ArrowLeft, Network, MessageSquareText, HeartPulse, History, Truck, SlidersHorizontal, Handshake, Building2, ExternalLink, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import AdminPrivatAIPage from './AdminPrivatAIPage';
@@ -43,10 +43,24 @@ export const AdminDashboardPage: React.FC = () => {
       ],
     },
     {
+      title: 'Architecture de contrôle',
+      items: [
+        { label: 'NEXUS', path: '/admin/waouh?tab=control&module=nexus', note: 'Signal Fabric, sources et automatisation', icon: Network },
+        { label: 'Contact Layer C0–C4', path: '/admin/waouh?tab=radar&radarTab=contact', note: 'Politique de contactabilité par source', icon: Shield },
+        { label: 'Avatar Commerce', path: '/admin/waouh?tab=control&module=avatar_commerce', note: 'ON/OFF Acheter / Vendre / Demander', icon: Sparkles },
+        { label: 'Chat Web / App', path: '/admin/waouh?tab=control&module=chat_web', note: 'Canal conversationnel Web et application', icon: MessageSquareText },
+        { label: 'WhatsApp', path: '/admin/waouh?tab=control&module=chat_whatsapp', note: 'Canal WhatsApp / WAHA', icon: MessageSquareText },
+        { label: 'Muse / Agents IA', path: '/admin/waouh?tab=control&module=muse_agents', note: 'Missions et automatisations agentiques', icon: Bot },
+        { label: 'Négociation', path: '/admin/waouh?tab=control&module=negotiation', note: 'Offres, contre-offres, acceptation', icon: TrendingUp },
+        { label: 'Deal Room / Deal Graph', path: '/admin/waouh?tab=control&module=deals', note: 'Deal, paiement, livraison et litiges', icon: Truck },
+        { label: 'Outbound', path: '/admin/waouh?tab=control&module=outbound', note: 'Queue, automatisation et dispatch', icon: Megaphone },
+      ],
+    },
+    {
       title: 'Paramétrage des moteurs',
       items: [
         { label: 'Paramètres généraux', path: '/admin/waouh?tab=settings', note: 'IA, commerce, paiement et règles', icon: SlidersHorizontal },
-        { label: 'NEXUS / Radar IA', path: '/admin/waouh/radar', note: 'Sources, API, quotas et collecte', icon: Network },
+        { label: 'NEXUS / Radar IA', path: '/admin/waouh?tab=radar', note: 'Sources, API, quotas et collecte', icon: Network },
         { label: 'WhatsApp Ops', path: '/admin/waouh/whatsapp-ops', note: 'WAHA, sessions, queue et replay', icon: MessageSquareText },
         { label: 'SMS / RCS natif', path: '/admin/waouh/native-messaging', note: 'Provider, SMS, RCS et fallback', icon: MessageSquareText },
         { label: 'Validations diffusion', path: '/admin/waouh/diffusion-approvals', note: 'Approbations humaines avant envoi', icon: Megaphone },
@@ -213,7 +227,7 @@ export const AdminDashboardPage: React.FC = () => {
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="grid gap-5 lg:grid-cols-3">
+        <CardContent className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           {waouhAccessGroups.map((group) => (
             <div key={group.title} className="space-y-2">
               <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.title}</div>
