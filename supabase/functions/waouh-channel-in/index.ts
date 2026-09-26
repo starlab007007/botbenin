@@ -972,6 +972,49 @@ serve(async (req) => {
       else if (candidates.length > 1) ambiguousNegotiation = true;
     }
 
+    // Auto-heal legacy negotiations that predate the canonical Deal Room link.
+    if (openNeg && !openNeg.thread_id) {
+      let repairThreadId: string | null = metaThreadId;
+      if (!repairThreadId && metaArticleId && openNeg.buyer_user_id && openNeg.seller_user_id) {
+        const { data: repairThread } = await sb.from("waouh_chat_threads")
+          .select("id")
+          .eq("thread_type", "product_meet")
+          .eq("article_id", metaArticleId)
+          .eq("buyer_user_id", openNeg.buyer_user_id)
+          .eq("seller_user_id", openNeg.seller_user_id)
+          .not("status", "in", "(cancelled,concluded)")
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        repairThreadId = repairThread?.id ?? null;
+      }
+      if (repairThreadId) {
+        await Promise.all([
+          sb.from("waouh_negotiations")
+            .update({ thread_id: repairThreadId })
+            .eq("id", openNeg.id),
+          sb.from("waouh_chat_threads")
+            .update({ negotiation_id: openNeg.id, updated_at: new Date().toISOString() })
+            .eq("id", repairThreadId),
+        ]);
+        openNeg.thread_id = repairThreadId;
+        await sb.rpc("waouh_record_commerce_event", {
+          p_event_type: "negotiation_thread_repaired",
+          p_entity_type: "negotiation",
+          p_entity_id: openNeg.id,
+          p_thread_id: repairThreadId,
+          p_article_id: metaArticleId,
+          p_negotiation_id: openNeg.id,
+          p_actor_user_id: user.id,
+          p_actor_role: metaRole,
+          p_previous_state: null,
+          p_next_state: "thread_bound",
+          p_correlation_id: correlationId,
+          p_payload: { source: "waouh_channel_in" },
+        }).catch(() => {});
+      }
+    }
+
     // Choisit l'identité sibling stockée dans la négociation.
     let negUserId: string = user.id;
     if (openNeg) {
