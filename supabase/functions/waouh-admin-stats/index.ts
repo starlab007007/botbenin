@@ -73,7 +73,7 @@ serve(async (req) => {
       arts, txs, users,
       controls, controlAudit,
       messages24, threads,
-      external24, fabricCount, nexusMatches24,
+      external24, fabricRows, nexusMatches24,
       negotiations, deals,
       queue24, queuePending, queueStale,
       traceErrors24,
@@ -98,7 +98,7 @@ serve(async (req) => {
       sb.from("waouh_external_commerce_signals")
         .select("id,source_key,intent,has_whatsapp,primary_photo_url,created_at")
         .gte("created_at", since24h).limit(10000),
-      sb.from("waouh_signal_fabric").select("fabric_id", { count: "exact", head: true }),
+      sb.from("waouh_signal_fabric").select("fabric_id,source_key,contactability_level,intent").limit(10000),
       sb.from("waouh_nexus_matches").select("id,status,total_score,source,created_at")
         .gte("created_at", since24h).limit(10000),
 
@@ -134,7 +134,7 @@ serve(async (req) => {
     ]);
 
     const required = [
-      arts, txs, users, controls, controlAudit, messages24, threads, external24,
+      arts, txs, users, controls, controlAudit, messages24, threads, external24, fabricRows,
       nexusMatches24, negotiations, deals, queue24, agentMissions, agentSteps,
       agentApprovals, agentOutbox, connectors, radarSources, whatsappAccounts,
     ];
@@ -147,6 +147,7 @@ serve(async (req) => {
     const messages = messages24.data ?? [];
     const threadRows = threads.data ?? [];
     const externalSignals = external24.data ?? [];
+    const fabric = fabricRows.data ?? [];
     const matchRows = nexusMatches24.data ?? [];
     const negotiationRows = negotiations.data ?? [];
     const dealRows = deals.data ?? [];
@@ -315,7 +316,10 @@ serve(async (req) => {
           muse_messages_24h: museSurface24,
         },
         nexus: {
-          signal_fabric_total: fabricCount.count ?? 0,
+          signal_fabric_total: fabric.length,
+          fabric_by_contactability: countBy(fabric, "contactability_level"),
+          fabric_by_source: countBy(fabric, "source_key"),
+          fabric_by_intent: countBy(fabric, "intent"),
           external_signals_24h: externalSignals.length,
           external_with_photo_24h: externalWithPhoto,
           external_with_whatsapp_24h: externalWithWhatsapp,
