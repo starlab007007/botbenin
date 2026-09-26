@@ -528,6 +528,30 @@ export function WaouhMatchChatWindow({
     match.seller_user_id,
   ]);
 
+  // Only the newest valid commerce action set is clickable. A newer workflow
+  // stage without actions still invalidates every older negotiation button.
+  const latestActionMessageId = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message: any = messages[index] || {};
+      const meta: any = message.meta || {};
+      const actions = Array.isArray(meta.actions) ? meta.actions : [];
+      const stage = String(
+        meta.workflow_state || meta.intent || meta.event || meta.notification_type || ""
+      ).toLowerCase().replace(/_/g, "-");
+
+      if (actions.some((action: any) => String(action?.id || "").trim())) {
+        return message.id;
+      }
+
+      if (
+        /(?:deal-created|deal-accepted|awaiting-payment|awaiting-confirmation|payment-preference|seller-confirm|pending-assignment|assigned|picked-up|delivered|completed|cancelled|closed|refused|rejected)/.test(stage)
+      ) {
+        return null;
+      }
+    }
+    return null;
+  }, [messages]);
+
   const sendMessage = async (
     overrideText?: string,
     overrideMeta: Record<string, unknown> = {}
@@ -855,7 +879,7 @@ export function WaouhMatchChatWindow({
             )}
             {rich.text && <div className="whitespace-pre-wrap">{rich.text}</div>}
             {rich.blocks.length > 0 && <WaouhAgentBlocks blocks={rich.blocks} onAction={authUserId ? handleAgentAction : undefined} busy={!!agentAction} />}
-            {m.direction === "out" && Array.isArray(m.meta?.actions) && m.meta.actions.length > 0 && (
+            {m.direction === "out" && m.id === latestActionMessageId && Array.isArray(m.meta?.actions) && m.meta.actions.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {(m.meta.actions as Array<{ id?: string; label?: string }>).slice(0, 4).map((action, index) => {
                   const actionId = String(action.id || "").trim();
@@ -882,8 +906,15 @@ export function WaouhMatchChatWindow({
                             : /refuser|^non/i.test(actionId)
                               ? "NON"
                               : actionId;
+                        const normalizedAction = actionId.split(":")[0].toLowerCase();
                         void sendMessage(visibleText, {
                           button_payload: actionId,
+                          commerce_contract: "waouh_action_v2",
+                          commerce_action:
+                            /accepter|^oui/.test(normalizedAction) ? "accept_offer" :
+                            /contre-proposition|counter/.test(normalizedAction) ? "counter_offer" :
+                            /refuser|^non/.test(normalizedAction) ? "reject_offer" :
+                            undefined,
                           thread_id: m.meta?.thread_id ?? latestCommerceScope.thread_id ?? null,
                           negotiation_id: m.meta?.negotiation_id ?? latestCommerceScope.negotiation_id ?? null,
                           deal_id: m.meta?.deal_id ?? latestCommerceScope.deal_id ?? null,
