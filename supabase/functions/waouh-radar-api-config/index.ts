@@ -78,7 +78,8 @@ async function nativeProviderState(admin: any, provider: string) {
   }
   if (provider === "sms_rcs") {
     const { data: settings } = await admin.from("waouh_tel_settings").select("*").eq("key", "default").maybeSingle();
-    const readinessResult = await admin.rpc("waouh_tel_runtime_readiness");\n    const runtime = readinessResult.error ? null : readinessResult.data;
+    const readinessResult = await admin.rpc("waouh_tel_runtime_readiness");
+    const runtime = readinessResult.error ? null : readinessResult.data;
     return {
       configured: settings?.enabled === true && runtime?.runtime_ready === true,
       runtime: { settings: settings ?? null, readiness: runtime ?? null },
