@@ -6,6 +6,7 @@ import { lidToPhoneInline } from "../_shared/waouh-format.ts";
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 import { isServiceRoleRequest } from "../_shared/waouh-auth.ts";
 import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
+import { resolveProductThread } from "../_shared/waouh-thread.ts";
 import {
   contactabilityPolicy,
   scoreFabricSignal,
@@ -952,6 +953,7 @@ serve(async (req) => {
 
     type OpenNeg = {
       id: string;
+      article_id: string | null;
       thread_id: string | null;
       buyer_user_id: string | null;
       seller_user_id: string | null;
@@ -961,7 +963,7 @@ serve(async (req) => {
 
     if (metaNegotiationId) {
       const { data } = await sb.from("waouh_negotiations")
-        .select("id, thread_id, buyer_user_id, seller_user_id")
+        .select("id, article_id, thread_id, buyer_user_id, seller_user_id")
         .eq("id", metaNegotiationId)
         .or(siblingOrFilter(siblingIds))
         .in("state", ["proposed", "countered"])
@@ -971,7 +973,7 @@ serve(async (req) => {
 
     if (!openNeg && metaThreadId) {
       const { data } = await sb.from("waouh_negotiations")
-        .select("id, thread_id, buyer_user_id, seller_user_id")
+        .select("id, article_id, thread_id, buyer_user_id, seller_user_id")
         .eq("thread_id", metaThreadId)
         .or(siblingOrFilter(siblingIds))
         .in("state", ["proposed", "countered"])
@@ -983,7 +985,7 @@ serve(async (req) => {
 
     if (!openNeg && metaArticleId && metaCounterpartId && metaRole) {
       let q: any = sb.from("waouh_negotiations")
-        .select("id, thread_id, buyer_user_id, seller_user_id")
+        .select("id, article_id, thread_id, buyer_user_id, seller_user_id")
         .eq("article_id", metaArticleId)
         .in("state", ["proposed", "countered"]);
       if (metaRole === "seller") {
@@ -997,7 +999,7 @@ serve(async (req) => {
 
     if (!openNeg) {
       const { data } = await sb.from("waouh_negotiations")
-        .select("id, thread_id, buyer_user_id, seller_user_id")
+        .select("id, article_id, thread_id, buyer_user_id, seller_user_id")
         .or(siblingOrFilter(siblingIds))
         .in("state", ["proposed", "countered"])
         .order("updated_at", { ascending: false })
@@ -1008,13 +1010,30 @@ serve(async (req) => {
     }
 
     // Auto-heal legacy negotiations that predate the canonical Deal Room link.
+    // If the exact thread does not exist yet, create it from the authoritative
+    // article/buyer/seller relation before routing a state-changing command.
     if (openNeg && !openNeg.thread_id) {
+      const repairArticleId = openNeg.article_id ?? metaArticleId ?? null;
+
+      if (!openNeg.seller_user_id && repairArticleId) {
+        const { data: repairArticle } = await sb.from("waouh_articles")
+          .select("seller_id,status")
+          .eq("id", repairArticleId)
+          .maybeSingle();
+        if (repairArticle?.seller_id && repairArticle.status !== "sold") {
+          await sb.from("waouh_negotiations")
+            .update({ seller_user_id: repairArticle.seller_id })
+            .eq("id", openNeg.id);
+          openNeg.seller_user_id = repairArticle.seller_id;
+        }
+      }
+
       let repairThreadId: string | null = metaThreadId;
-      if (!repairThreadId && metaArticleId && openNeg.buyer_user_id && openNeg.seller_user_id) {
+      if (!repairThreadId && repairArticleId && openNeg.buyer_user_id && openNeg.seller_user_id) {
         const { data: repairThread } = await sb.from("waouh_chat_threads")
           .select("id")
           .eq("thread_type", "product_meet")
-          .eq("article_id", metaArticleId)
+          .eq("article_id", repairArticleId)
           .eq("buyer_user_id", openNeg.buyer_user_id)
           .eq("seller_user_id", openNeg.seller_user_id)
           .not("status", "in", "(cancelled,concluded)")
@@ -1023,6 +1042,31 @@ serve(async (req) => {
           .maybeSingle();
         repairThreadId = repairThread?.id ?? null;
       }
+
+      if (!repairThreadId && repairArticleId && openNeg.buyer_user_id && openNeg.seller_user_id) {
+        const inferredRole: "buyer" | "seller" = metaRole ??
+          (siblingIds.includes(openNeg.seller_user_id) ? "seller" : "buyer");
+        const counterpartUserId = inferredRole === "seller"
+          ? openNeg.buyer_user_id
+          : openNeg.seller_user_id;
+        try {
+          const createdThread = await resolveProductThread({
+            sb,
+            articleId: repairArticleId,
+            actorUser: user,
+            role: inferredRole,
+            counterpartUserId,
+            buyerUserId: openNeg.buyer_user_id,
+            sellerUserId: openNeg.seller_user_id,
+            source: "legacy_repair",
+            create: true,
+          });
+          repairThreadId = createdThread?.id ?? null;
+        } catch (error) {
+          console.warn("[waouh-channel-in] legacy thread repair failed", error);
+        }
+      }
+
       if (repairThreadId) {
         await Promise.all([
           sb.from("waouh_negotiations")
@@ -1035,19 +1079,19 @@ serve(async (req) => {
         openNeg.thread_id = repairThreadId;
         try {
           await sb.rpc("waouh_record_commerce_event", {
-          p_event_type: "negotiation_thread_repaired",
-          p_entity_type: "negotiation",
-          p_entity_id: openNeg.id,
-          p_thread_id: repairThreadId,
-          p_article_id: metaArticleId,
-          p_negotiation_id: openNeg.id,
-          p_actor_user_id: user.id,
-          p_actor_role: metaRole,
-          p_previous_state: null,
-          p_next_state: "thread_bound",
-          p_correlation_id: correlationId,
-          p_payload: { source: "waouh_channel_in" },
-        })
+            p_event_type: "negotiation_thread_repaired",
+            p_entity_type: "negotiation",
+            p_entity_id: openNeg.id,
+            p_thread_id: repairThreadId,
+            p_article_id: repairArticleId,
+            p_negotiation_id: openNeg.id,
+            p_actor_user_id: user.id,
+            p_actor_role: metaRole,
+            p_previous_state: null,
+            p_next_state: "thread_bound",
+            p_correlation_id: correlationId,
+            p_payload: { source: "waouh_channel_in" },
+          });
         } catch (_) { /* ledger is best-effort for legacy recovery */ }
       }
     }
