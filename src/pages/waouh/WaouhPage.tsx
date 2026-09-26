@@ -201,6 +201,26 @@ export default function WaouhPage() {
           </div>
         </div>
 
+        <Card className="p-4 border-cyan-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div>
+              <h2 className="font-semibold text-sm">Accès directs administration</h2>
+              <p className="text-xs text-muted-foreground">Paramétrage, NEXUS, canaux, données et supervision accessibles sans passer par un menu caché.</p>
+            </div>
+            <Badge variant="outline" className="text-cyan-700 border-cyan-200">WAOUH Admin</Badge>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2">
+            <Link to="/admin/waouh/radar"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Radar className="w-3.5 h-3.5 mr-1" />NEXUS / Radar IA</Button></Link>
+            <Link to="/admin/waouh?tab=settings"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Sparkles className="w-3.5 h-3.5 mr-1" />Paramètres</Button></Link>
+            <Link to="/admin/waouh/whatsapp-ops"><Button variant="outline" className="w-full h-auto py-2 text-xs"><MessagesSquare className="w-3.5 h-3.5 mr-1" />WhatsApp Ops</Button></Link>
+            <Link to="/admin/waouh/native-messaging"><Button variant="outline" className="w-full h-auto py-2 text-xs"><MessagesSquare className="w-3.5 h-3.5 mr-1" />SMS / RCS</Button></Link>
+            <Link to="/admin/waouh/monitoring"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Activity className="w-3.5 h-3.5 mr-1" />Monitoring</Button></Link>
+            <Link to="/admin/waouh/health-check"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Activity className="w-3.5 h-3.5 mr-1" />Health Check</Button></Link>
+            <Link to="/admin/waouh/deals"><Button variant="outline" className="w-full h-auto py-2 text-xs"><ShoppingBag className="w-3.5 h-3.5 mr-1" />Deal Ops</Button></Link>
+            <Link to="/admin/waouh/data-control"><Button variant="outline" className="w-full h-auto py-2 text-xs"><QrCode className="w-3.5 h-3.5 mr-1" />Données</Button></Link>
+          </div>
+        </Card>
+
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="bg-white border border-gray-200 flex-wrap h-auto p-1 shadow-sm">
             <TabsTrigger value="control"><Activity className="w-3.5 h-3.5 mr-1" /> Centre de contrôle</TabsTrigger>
