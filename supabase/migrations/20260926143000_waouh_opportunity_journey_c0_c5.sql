@@ -66,12 +66,117 @@ CREATE TABLE IF NOT EXISTS public.waouh_opportunity_journeys (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+
+-- Compatibility with the earlier Avatar Journey schema already present on
+-- some environments. The application contract uses stage/progress/timeline,
+-- while the legacy contract used state/title/avatar_message.
+ALTER TABLE public.waouh_opportunity_journeys
+  ADD COLUMN IF NOT EXISTS stage text,
+  ADD COLUMN IF NOT EXISTS progress smallint,
+  ADD COLUMN IF NOT EXISTS subject text,
+  ADD COLUMN IF NOT EXISTS masked_contact jsonb,
+  ADD COLUMN IF NOT EXISTS last_action text,
+  ADD COLUMN IF NOT EXISTS last_message text,
+  ADD COLUMN IF NOT EXISTS timeline jsonb,
+  ADD COLUMN IF NOT EXISTS started_at timestamptz,
+  ADD COLUMN IF NOT EXISTS last_activity_at timestamptz;
+
+UPDATE public.waouh_opportunity_journeys
+SET stage = COALESCE(stage, CASE state
+      WHEN 'waiting_response' THEN 'waiting_reply'
+      WHEN 'ready_to_negotiate' THEN 'negotiating'
+      WHEN 'blocked' THEN 'enriching'
+      ELSE COALESCE(state,'discovered')
+    END),
+    progress = COALESCE(progress, CASE COALESCE(state,'discovered')
+      WHEN 'discovered' THEN 10 WHEN 'enriching' THEN 22
+      WHEN 'contact_ready' THEN 35 WHEN 'contacting' THEN 45
+      WHEN 'waiting_response' THEN 55 WHEN 'ready_to_negotiate' THEN 65
+      WHEN 'negotiating' THEN 72 WHEN 'agreed' THEN 82
+      WHEN 'executing' THEN 92 WHEN 'completed' THEN 100
+      WHEN 'cancelled' THEN 100 ELSE 15 END),
+    subject = COALESCE(subject,title),
+    masked_contact = COALESCE(masked_contact,
+      jsonb_build_object(
+        'phones', CASE WHEN contact_last4 IS NOT NULL
+          THEN jsonb_build_array(jsonb_build_object(
+            'last4',contact_last4,'channel',COALESCE(contact_channel,'phone')))
+          ELSE '[]'::jsonb END,
+        'channels', CASE WHEN contact_channel IS NOT NULL
+          THEN jsonb_build_array(contact_channel) ELSE '[]'::jsonb END
+      )),
+    last_message = COALESCE(last_message,avatar_message),
+    timeline = COALESCE(timeline,'[]'::jsonb),
+    started_at = COALESCE(started_at,created_at,now()),
+    last_activity_at = COALESCE(last_activity_at,updated_at,now());
+
+ALTER TABLE public.waouh_opportunity_journeys
+  ALTER COLUMN stage SET DEFAULT 'discovered',
+  ALTER COLUMN progress SET DEFAULT 10,
+  ALTER COLUMN masked_contact SET DEFAULT '{}'::jsonb,
+  ALTER COLUMN timeline SET DEFAULT '[]'::jsonb,
+  ALTER COLUMN started_at SET DEFAULT now(),
+  ALTER COLUMN last_activity_at SET DEFAULT now();
+
+CREATE OR REPLACE FUNCTION public.waouh_sync_opportunity_journey_contract()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO 'public'
+AS $
+BEGIN
+  IF TG_OP='INSERT' THEN
+    NEW.stage := COALESCE(NEW.stage, CASE NEW.state
+      WHEN 'waiting_response' THEN 'waiting_reply'
+      WHEN 'ready_to_negotiate' THEN 'negotiating'
+      WHEN 'blocked' THEN 'enriching'
+      ELSE COALESCE(NEW.state,'discovered') END);
+    NEW.state := COALESCE(NEW.state, CASE NEW.stage
+      WHEN 'waiting_reply' THEN 'waiting_response'
+      ELSE NEW.stage END);
+  ELSE
+    IF NEW.stage IS DISTINCT FROM OLD.stage THEN
+      NEW.state := CASE NEW.stage
+        WHEN 'waiting_reply' THEN 'waiting_response'
+        ELSE NEW.stage END;
+    ELSIF NEW.state IS DISTINCT FROM OLD.state THEN
+      NEW.stage := CASE NEW.state
+        WHEN 'waiting_response' THEN 'waiting_reply'
+        WHEN 'ready_to_negotiate' THEN 'negotiating'
+        WHEN 'blocked' THEN 'enriching'
+        ELSE NEW.state END;
+    END IF;
+  END IF;
+
+  NEW.progress := COALESCE(NEW.progress, CASE NEW.stage
+    WHEN 'discovered' THEN 10 WHEN 'enriching' THEN 22
+    WHEN 'contact_ready' THEN 35 WHEN 'contacting' THEN 45
+    WHEN 'waiting_reply' THEN 55 WHEN 'negotiating' THEN 72
+    WHEN 'agreed' THEN 82 WHEN 'executing' THEN 92
+    WHEN 'completed' THEN 100 WHEN 'cancelled' THEN 100 ELSE 15 END);
+  NEW.title := COALESCE(NEW.title,NEW.subject,'Opportunité WAOUH');
+  NEW.subject := COALESCE(NEW.subject,NEW.title);
+  NEW.avatar_message := COALESCE(NEW.avatar_message,NEW.last_message);
+  NEW.last_message := COALESCE(NEW.last_message,NEW.avatar_message);
+  NEW.masked_contact := COALESCE(NEW.masked_contact,'{}'::jsonb);
+  NEW.timeline := COALESCE(NEW.timeline,'[]'::jsonb);
+  NEW.started_at := COALESCE(NEW.started_at,NEW.created_at,now());
+  NEW.last_activity_at := now();
+  RETURN NEW;
+END;
+$;
+
+DROP TRIGGER IF EXISTS waouh_opportunity_journey_contract_sync
+ON public.waouh_opportunity_journeys;
+CREATE TRIGGER waouh_opportunity_journey_contract_sync
+BEFORE INSERT OR UPDATE ON public.waouh_opportunity_journeys
+FOR EACH ROW EXECUTE FUNCTION public.waouh_sync_opportunity_journey_contract();
+
 CREATE INDEX IF NOT EXISTS waouh_opportunity_journeys_owner_idx
   ON public.waouh_opportunity_journeys(owner_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS waouh_opportunity_journeys_fabric_idx
   ON public.waouh_opportunity_journeys(fabric_id, updated_at DESC);
-CREATE UNIQUE INDEX IF NOT EXISTS waouh_opportunity_journeys_active_uq
-  ON public.waouh_opportunity_journeys(owner_id, fabric_id)
+CREATE INDEX IF NOT EXISTS waouh_opportunity_journeys_active_idx
+  ON public.waouh_opportunity_journeys(owner_id, fabric_id, updated_at DESC)
   WHERE stage NOT IN ('completed','cancelled');
 
 ALTER TABLE public.waouh_opportunity_journeys ENABLE ROW LEVEL SECURITY;
@@ -106,11 +211,16 @@ DECLARE v_row public.waouh_opportunity_journeys%ROWTYPE;
 BEGIN
   UPDATE public.waouh_opportunity_journeys
   SET stage = COALESCE(p_stage, stage),
+      state = CASE COALESCE(p_stage, stage)
+        WHEN 'waiting_reply' THEN 'waiting_response'
+        ELSE COALESCE(p_stage, stage)
+      END,
       contactability_level = COALESCE(p_contactability_level, contactability_level),
       progress = COALESCE(p_progress, progress),
       last_action = COALESCE(p_last_action, last_action),
       next_action = COALESCE(p_next_action, next_action),
       last_message = COALESCE(p_last_message, last_message),
+      avatar_message = COALESCE(p_last_message, avatar_message),
       timeline = timeline || jsonb_build_array(
         jsonb_build_object(
           'at', now(),
