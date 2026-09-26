@@ -265,7 +265,7 @@ $$;
 -- Safe canonical backfill: only attach a negotiation to a product_meet thread when
 -- the exact article + buyer + seller relation resolves to exactly one active thread.
 WITH candidates AS (
-  SELECT n.id AS negotiation_id, min(t.id) AS thread_id
+  SELECT n.id AS negotiation_id, (array_agg(t.id ORDER BY t.updated_at DESC))[1] AS thread_id
   FROM public.waouh_negotiations n
   JOIN public.waouh_chat_threads t
     ON t.thread_type='product_meet'
