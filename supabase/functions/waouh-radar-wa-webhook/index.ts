@@ -1,5 +1,6 @@
 // WAHA inbound webhook — capture messages from opt-in WhatsApp groups for radar analysis
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
 import { normalizeE164 } from "../_shared/waouh-tel/phone.ts";
 import { rehostMedia } from "../_shared/waouhContact.ts";
 
@@ -53,6 +54,16 @@ Deno.serve(async (req) => {
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   try {
+    const control = await getWaouhModuleControl(sb, "nexus");
+    if (!control.enabled || !control.automation_enabled) {
+      return new Response(JSON.stringify({
+        ok: true,
+        skipped: true,
+        reason: !control.enabled ? "nexus_paused" : "nexus_automation_paused",
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const evt = await req.json();
     const payload = evt.payload || evt;
     const from = payload.author || payload.participant || payload.from || "";
