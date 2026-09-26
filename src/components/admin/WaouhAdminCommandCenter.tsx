@@ -150,7 +150,7 @@ const moduleMeta: Record<string, { icon: any; detail: (cc: CommandCenter) => str
   avatar_commerce: {
     icon: Sparkles,
     detail: (cc) => `${cc.chat.avatar_messages_24h} événement(s) Avatar/24h`,
-    manage: "/app/avatar-commerce",
+    manage: "/admin/waouh/historique",
   },
   chat_web: {
     icon: MessageCircle,
