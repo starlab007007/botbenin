@@ -310,13 +310,18 @@ WHERE d.thread_id=t.id
   AND d.status <> 'cancelled';
 
 UPDATE public.waouh_chat_threads t
-SET transaction_id=x.id, updated_at=now()
-FROM LATERAL (
-  SELECT wt.id
-  FROM public.waouh_transactions wt
-  WHERE wt.thread_id=t.id
-  ORDER BY wt.created_at DESC
-  LIMIT 1
-) x
+SET transaction_id = (
+      SELECT wt.id
+      FROM public.waouh_transactions wt
+      WHERE wt.thread_id=t.id
+      ORDER BY wt.created_at DESC
+      LIMIT 1
+    ),
+    updated_at=now()
 WHERE t.thread_type='product_meet'
-  AND t.transaction_id IS NULL;
+  AND t.transaction_id IS NULL
+  AND EXISTS (
+    SELECT 1
+    FROM public.waouh_transactions wt
+    WHERE wt.thread_id=t.id
+  );
