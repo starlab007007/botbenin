@@ -7,7 +7,14 @@ import {
 import { chatCompletion, visionCompletion } from "../_shared/agent-ai.ts";
 import { encryptPhone, decryptPhone, hashPhone, sha256Hex } from "../_shared/waouh-tel/crypto.ts";
 import { normalizeE164, phoneLast4 } from "../_shared/waouh-tel/phone.ts";
-import { getRadarApiKey, incrementRadarUsage } from "../_shared/radar-api-config.ts";
+import {
+  getRadarApiKey,
+  getRadarProviderConfig,
+  incrementRadarUsage,
+  markRadarProviderSync,
+} from "../_shared/radar-api-config.ts";
+import { rehostMedia } from "../_shared/waouhContact.ts";
+import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
 import {
   contactabilityPolicy,
   extractPublicContactHints,
@@ -604,15 +611,25 @@ async function resolveCommerceEntity(
     actorHandle?: string | null;
     city?: string | null;
     contactPhones?: string[];
+    whatsappPhones?: string[];
     contactEmails?: string[];
     contactability: Contactability;
     consentBasis: string;
     isPublicBusiness: boolean;
   },
 ) {
-  const normalizedPhones = (input.contactPhones ?? [])
-    .map((phone) => normalizeE164(phone))
-    .filter((phone): phone is string => !!phone);
+  const normalizedWhatsapp = [...new Set(
+    (input.whatsappPhones ?? [])
+      .map((phone) => normalizeE164(phone))
+      .filter((phone): phone is string => !!phone),
+  )];
+  const whatsappSet = new Set(normalizedWhatsapp);
+  const normalizedPhones = [...new Set([
+    ...(input.contactPhones ?? [])
+      .map((phone) => normalizeE164(phone))
+      .filter((phone): phone is string => !!phone),
+    ...normalizedWhatsapp,
+  ])];
   const phoneHashes: string[] = [];
   for (const phone of normalizedPhones) phoneHashes.push(await hashPhone(phone));
 
@@ -673,7 +690,8 @@ async function resolveCommerceEntity(
     const hash = phoneHashes[index];
     const encrypted = await encryptPhone(phone);
     const { data: existing, error: existingError } = await sb.from("waouh_entity_contacts")
-      .select("id").eq("entity_id", entity.id).eq("channel", input.sourceKey === "whatsapp" ? "whatsapp" : "phone")
+      .select("id").eq("entity_id", entity.id)
+      .eq("channel", whatsappSet.has(phone) || input.sourceKey === "whatsapp" || input.sourceKey === "whatsapp_groups" ? "whatsapp" : "phone")
       .eq("value_hash", hash).maybeSingle();
     if (existingError) throw new ApiError(500, "nexus_contact_lookup_failed", existingError.message);
     const values = {
@@ -693,7 +711,7 @@ async function resolveCommerceEntity(
     } else {
       const { error } = await sb.from("waouh_entity_contacts").insert({
         entity_id: entity.id,
-        channel: input.sourceKey === "whatsapp" ? "whatsapp" : "phone",
+        channel: whatsappSet.has(phone) || input.sourceKey === "whatsapp" || input.sourceKey === "whatsapp_groups" ? "whatsapp" : "phone",
         ...values,
       });
       if (error) throw new ApiError(500, "nexus_contact_create_failed", error.message);
@@ -748,6 +766,45 @@ async function resolveCommerceEntity(
   return entity;
 }
 
+function extractWhatsappPhones(...values: unknown[]): string[] {
+  const found = new Set<string>();
+  for (const value of values) {
+    const text = String(value ?? "");
+    const patterns = [
+      /(?:https?:\/\/)?wa\.me\/(\d{8,15})/gi,
+      /api\.whatsapp\.com\/send\?[^\s"'<>]*?phone=(\d{8,15})/gi,
+      /whatsapp[^\d+]{0,20}(\+?\d[\d\s().-]{7,20})/gi,
+    ];
+    for (const pattern of patterns) {
+      for (const match of text.matchAll(pattern)) {
+        const normalized = normalizeE164(match[1]);
+        if (normalized) found.add(normalized);
+      }
+    }
+  }
+  return [...found].slice(0, 5);
+}
+
+function publicPhotoUrls(value: unknown): string[] {
+  const values = Array.isArray(value) ? value : value == null ? [] : [value];
+  const out = new Set<string>();
+  for (const item of values) {
+    const raw = typeof item === "string"
+      ? item
+      : item && typeof item === "object"
+        ? String((item as any).url ?? (item as any).src ?? (item as any).image_url ?? "")
+        : "";
+    if (!raw.trim()) continue;
+    try {
+      const url = new URL(raw.trim());
+      if (["https:","http:"].includes(url.protocol)) out.add(url.toString());
+    } catch {
+      // Ignore malformed/non-public media references.
+    }
+  }
+  return [...out].slice(0, 12);
+}
+
 async function ingestCommerceSignal(
   sb: SupabaseClient,
   ownerId: string | null,
@@ -772,8 +829,26 @@ async function ingestCommerceSignal(
   const hints = extractPublicContactHints(rawTextInput);
   const explicitPhones = stringArray(input.contact_phones, "contact_phones", 5);
   const explicitEmails = stringArray(input.contact_emails, "contact_emails", 5);
+  const explicitWhatsapp = [
+    ...stringArray(input.whatsapp_phones, "whatsapp_phones", 5),
+    ...stringArray(input.contact_whatsapp == null ? [] : [input.contact_whatsapp], "contact_whatsapp", 5),
+  ];
+  const whatsappPhones = [...new Set([
+    ...explicitWhatsapp
+      .map((phone) => normalizeE164(phone))
+      .filter((phone): phone is string => !!phone),
+    ...extractWhatsappPhones(rawTextInput, sourceUrl, ...hints.urls),
+  ])];
   const contactPhones = [...new Set([...explicitPhones, ...hints.phones])];
+  const normalizedContactPhones = [...new Set(
+    contactPhones
+      .map((phone) => normalizeE164(phone))
+      .filter((phone): phone is string => !!phone),
+  )];
   const contactEmails = [...new Set([...explicitEmails, ...hints.emails])];
+  const photos = publicPhotoUrls(
+    input.photo_urls ?? input.photos ?? input.image_urls ?? input.image_url,
+  );
 
   const consentBasis = pickEnum(
     input.contact_consent_basis,
@@ -803,6 +878,7 @@ async function ingestCommerceSignal(
     actorHandle,
     city: optionalString(input.city, "city", 120) ?? extraction.city,
     contactPhones,
+    whatsappPhones,
     contactEmails,
     contactability,
     consentBasis,
@@ -850,12 +926,46 @@ async function ingestCommerceSignal(
       ? pickEnum(input.availability, "availability", ["available","low_stock","out_of_stock","unknown"] as const)
       : extraction.availability,
     raw_text: redactPublicContacts(rawTextInput).slice(0, 20_000) || null,
+    primary_photo_url: photos[0] ?? null,
+    photo_urls: photos,
+    contact_phone_last4:
+      normalizedContactPhones.length > 0
+        ? phoneLast4(normalizedContactPhones[0])
+        : null,
+    whatsapp_phone_last4:
+      whatsappPhones.length > 0
+        ? phoneLast4(whatsappPhones[0])
+        : null,
+    has_whatsapp:
+      whatsappPhones.length > 0 ||
+      sourceKey === "whatsapp" ||
+      sourceKey === "whatsapp_groups",
+    contact_summary: {
+      phone_count: normalizedContactPhones.length,
+      whatsapp_count: whatsappPhones.length,
+      email_count: contactEmails.length,
+      public_business: isPublicBusiness,
+      source_key: sourceKey,
+      benin_e164: normalizedContactPhones.some((phone) => /^\+22901\d{8}$/.test(phone)),
+    },
     evidence: {
       ...(jsonObject(input.evidence, "evidence")),
       contact_hints: {
-        phone_count: contactPhones.length,
+        phone_count: normalizedContactPhones.length,
+        whatsapp_verified_count: whatsappPhones.length,
         email_count: contactEmails.length,
       },
+      ...(photos.length ? { photos } : {}),
+      ...(photos[0] ? { primary_photo_url: photos[0] } : {}),
+      ...(normalizedContactPhones[0]
+        ? { contact_phone_last4: phoneLast4(normalizedContactPhones[0]) }
+        : {}),
+      ...(whatsappPhones[0]
+        ? {
+            whatsapp_detected: true,
+            whatsapp_phone_last4: phoneLast4(whatsappPhones[0]),
+          }
+        : {}),
     },
     ai_extraction: extraction,
     confidence: Math.max(0, Math.min(1, Number(input.confidence ?? extraction.confidence ?? 0.5))),
@@ -900,8 +1010,11 @@ async function refreshGooglePlaces(
   city?: string | null,
   limit = 10,
 ) {
-  const apiKey = Deno.env.get("GOOGLE_PLACES_API_KEY") || Deno.env.get("GOOGLE_MAPS_API_KEY") || "";
-  if (!apiKey) return { configured: false, inserted: 0, results: [] as any[], reason: "google_places_key_missing" };
+  const key = await getRadarApiKey(sb as any, "google_places", "GOOGLE_PLACES_API_KEY");
+  if (!key.ok || !key.key) {
+    return { configured: false, inserted: 0, results: [] as any[], reason: key.reason ?? "google_places_key_missing" };
+  }
+  const apiKey = key.key;
   const textQuery = [query, city, "Bénin"].filter(Boolean).join(" ");
   const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
     method: "POST",
@@ -911,7 +1024,7 @@ async function refreshGooglePlaces(
       "X-Goog-FieldMask": [
         "places.id","places.displayName","places.formattedAddress","places.location",
         "places.nationalPhoneNumber","places.internationalPhoneNumber","places.websiteUri",
-        "places.googleMapsUri","places.businessStatus","places.rating","places.userRatingCount","places.types",
+        "places.googleMapsUri","places.businessStatus","places.rating","places.userRatingCount","places.types","places.photos",
       ].join(","),
     },
     body: JSON.stringify({
@@ -922,7 +1035,11 @@ async function refreshGooglePlaces(
     }),
   });
   const raw = await response.text();
-  if (!response.ok) return { configured: true, inserted: 0, results: [], reason: `google_places_${response.status}`, detail: raw.slice(0, 300) };
+  await incrementRadarUsage(sb as any, key.configId, 1);
+  if (!response.ok) {
+    await markRadarProviderSync(sb as any, "google_places", "ko", `HTTP ${response.status}`);
+    return { configured: true, inserted: 0, results: [], reason: `google_places_${response.status}`, detail: raw.slice(0, 300) };
+  }
   const data = JSON.parse(raw);
   const places = Array.isArray(data?.places) ? data.places : [];
   const saved: any[] = [];
@@ -930,6 +1047,23 @@ async function refreshGooglePlaces(
     const actorName = place?.displayName?.text ?? null;
     if (!actorName || !place?.id) continue;
     const contactPhones = [place.internationalPhoneNumber, place.nationalPhoneNumber].filter(Boolean);
+    const photoUrls: string[] = [];
+    for (const photo of (Array.isArray(place.photos) ? place.photos : []).slice(0, 3)) {
+      const name = String(photo?.name ?? "").trim();
+      if (!name) continue;
+      try {
+        const photoResponse = await fetch(
+          `https://places.googleapis.com/v1/${name}/media?maxWidthPx=1200&skipHttpRedirect=true`,
+          { headers: { "X-Goog-Api-Key": apiKey } },
+        );
+        if (photoResponse.ok) {
+          const photoData = await photoResponse.json().catch(() => ({}));
+          if (typeof photoData?.photoUri === "string") photoUrls.push(photoData.photoUri);
+        }
+      } catch {
+        // A photo failure never blocks the place/business signal.
+      }
+    }
     const ingested = await ingestCommerceSignal(sb, ownerId, {
       source_key: "google_places",
       source_external_id: String(place.id),
@@ -943,6 +1077,7 @@ async function refreshGooglePlaces(
       latitude: place?.location?.latitude ?? null,
       longitude: place?.location?.longitude ?? null,
       contact_phones: contactPhones,
+      photo_urls: photoUrls,
       contact_consent_basis: "public_business",
       public_business: true,
       confidence: 0.72,
@@ -956,20 +1091,25 @@ async function refreshGooglePlaces(
         website_uri: place.websiteUri ?? null,
         google_maps_uri: place.googleMapsUri ?? null,
         types: place.types ?? [],
+        photo_count: photoUrls.length,
       },
     }, { expectedIntent: "ANNOUNCE", publicBusiness: true });
     saved.push(ingested.signal);
   }
+  await markRadarProviderSync(sb as any, "google_places", "ok", `${saved.length} signaux unifiés`);
   return { configured: true, inserted: saved.length, results: saved };
 }
 
 function publicSourceKey(urlValue: string, mode: DiscoveryMode) {
   try {
     const host = new URL(urlValue).hostname.toLowerCase().replace(/^www\./, "");
-    if (host === "facebook.com" || host.endsWith(".facebook.com") || host === "fb.com") return "facebook_business";
-    if (host === "instagram.com" || host.endsWith(".instagram.com")) return "instagram_business";
-    if (host === "tiktok.com" || host.endsWith(".tiktok.com")) return "tiktok_connected";
+    if (host === "facebook.com" || host.endsWith(".facebook.com") || host === "fb.com") return "facebook_public";
+    if (host === "instagram.com" || host.endsWith(".instagram.com")) return "instagram_public";
+    if (host === "tiktok.com" || host.endsWith(".tiktok.com")) return "tiktok_public";
     if (host === "t.me" || host.endsWith(".telegram.me") || host.endsWith(".telegram.org")) return "telegram_public";
+    if (host === "linkedin.com" || host.endsWith(".linkedin.com")) return "linkedin_public";
+    if (host === "youtube.com" || host.endsWith(".youtube.com") || host === "youtu.be") return "youtube_public";
+    if (host === "x.com" || host.endsWith(".x.com") || host === "twitter.com" || host.endsWith(".twitter.com")) return "x_public";
     if (host === "monentreprise.bj" || host.endsWith(".cci.bj") || host.endsWith(".apiex.bj")) return "benin_directory";
     if (mode === "find_buyers" && (
       host.includes("marches-publics") || host.includes("appeloffres") || host.includes("tender") ||
@@ -987,7 +1127,7 @@ function publicSearchProfiles(mode: DiscoveryMode, query: string, city?: string 
   const sellIntent = '("à vendre" OR vente OR prix OR disponible OR arrivage OR boutique OR fournisseur)';
   const buyIntent = '("je cherche" OR "besoin de" OR "qui vend" OR "cherche fournisseur" OR "demande de cotation" OR RFQ OR "appel d\'offres")';
   const intent = mode === "find_sellers" ? sellIntent : buyIntent;
-  const socialSites = "(site:facebook.com OR site:instagram.com OR site:tiktok.com OR site:t.me)";
+  const socialSites = "(site:facebook.com OR site:instagram.com OR site:tiktok.com OR site:t.me OR site:linkedin.com OR site:youtube.com OR site:x.com OR site:twitter.com)";
   const localBusinessSites = "(site:monentreprise.bj OR site:cci.bj OR site:apiex.bj OR site:.bj)";
   const commerceSites = "(site:jiji.bj OR site:afribaba.bj OR site:expat.com OR site:linkedin.com)";
   const b2bSites = "(site:marches-publics.bj OR site:armp.bj OR site:dgmp.bj OR site:linkedin.com OR site:.bj)";
@@ -1069,6 +1209,8 @@ async function refreshSerpApi(
         actor_type: publicBusiness ? "business" : (mode === "find_sellers" ? "seller" : "buyer"),
         product_name: query,
         city: city ?? null,
+        contact_phones: item.phone ? [String(item.phone)] : [],
+        photo_urls: [item.thumbnail, item.image, item.favicon].filter((value) => typeof value === "string"),
         contact_consent_basis: publicBusiness ? "public_business" : "unknown",
         public_business: publicBusiness,
         confidence: publicBusiness ? 0.72 : 0.60,
@@ -1087,6 +1229,12 @@ async function refreshSerpApi(
     surfaces[profile.key] = insertedForProfile;
   }
 
+  await markRadarProviderSync(
+    sb as any,
+    "serpapi",
+    saved.length ? "ok" : "skipped",
+    `${saved.length} signaux unifiés · ${calls} appels`,
+  );
   return {
     configured: true,
     inserted: saved.length,
@@ -1095,6 +1243,386 @@ async function refreshSerpApi(
     surfaces,
     reason: saved.length ? null : "no_public_results",
   };
+}
+
+
+async function refreshFacebookBusiness(
+  sb: SupabaseClient,
+  ownerId: string,
+  query: string,
+  limit = 8,
+) {
+  const ready = await getRadarApiKey(sb as any, "facebook_business");
+  if (!ready.ok || !ready.key) {
+    return { configured: false, inserted: 0, results: [] as any[], reason: ready.reason ?? "facebook_not_ready" };
+  }
+  const cfg = ready.config?.extra_config ?? {};
+  let pageIds = Array.isArray((cfg as any).page_ids)
+    ? (cfg as any).page_ids.map((v: any) => String(v).trim()).filter(Boolean)
+    : [];
+  const { data: fbPageSources } = await sb.from("waouh_radar_sources")
+    .select("identifier").eq("type", "fb_page").eq("active", true);
+  for (const row of fbPageSources ?? []) {
+    let value = String((row as any).identifier ?? "").trim();
+    try {
+      if (/^https?:\/\//i.test(value)) {
+        const url = new URL(value);
+        value = url.pathname.split("/").filter(Boolean)[0] || value;
+      }
+    } catch {
+      // Keep raw Page ID / username.
+    }
+    if (value && !pageIds.includes(value)) pageIds.push(value);
+  }
+  if (!pageIds.length) {
+    try {
+      const pagesRes = await fetch(
+        `https://graph.facebook.com/me/accounts?fields=id,name&limit=25&access_token=${encodeURIComponent(ready.key)}`,
+      );
+      const pagesData = await pagesRes.json().catch(() => ({}));
+      pageIds = Array.isArray(pagesData?.data)
+        ? pagesData.data.map((p: any) => String(p?.id ?? "")).filter(Boolean)
+        : [];
+    } catch {
+      // Admin can explicitly configure page_ids when account discovery is unavailable.
+    }
+  }
+  const saved: any[] = [];
+  for (const pageId of pageIds.slice(0, 10)) {
+    try {
+      const infoRes = await fetch(
+        `https://graph.facebook.com/${encodeURIComponent(pageId)}?fields=id,name,phone,website,link&access_token=${encodeURIComponent(ready.key)}`,
+      );
+      const page = await infoRes.json().catch(() => ({}));
+      const postsRes = await fetch(
+        `https://graph.facebook.com/${encodeURIComponent(pageId)}/posts?fields=id,message,permalink_url,full_picture,created_time&limit=${Math.min(limit, 12)}&access_token=${encodeURIComponent(ready.key)}`,
+      );
+      const posts = await postsRes.json().catch(() => ({}));
+      if (!postsRes.ok || posts?.error) continue;
+      for (const post of Array.isArray(posts?.data) ? posts.data : []) {
+        const raw = String(post?.message ?? "").trim();
+        if (!raw) continue;
+        const ingested = await ingestCommerceSignal(sb, ownerId, {
+          source_key: "facebook_business",
+          source_external_id: String(post.id),
+          source_url: post.permalink_url ?? page.link ?? null,
+          raw_text: raw,
+          actor_type: "business",
+          actor_name: page.name ?? null,
+          actor_handle: page.link ?? null,
+          product_name: query,
+          contact_phones: page.phone ? [page.phone] : [],
+          photo_urls: post.full_picture ? [post.full_picture] : [],
+          contact_consent_basis: page.phone ? "public_business" : "unknown",
+          public_business: !!page.phone,
+          observed_at: post.created_time ?? null,
+          confidence: 0.74,
+          evidence: { page_id: pageId, page_website: page.website ?? null, connector: "facebook_graph" },
+        }, { publicBusiness: !!page.phone });
+        saved.push(ingested.signal);
+      }
+    } catch {
+      // One inaccessible page must not fail the entire discovery cycle.
+    }
+  }
+  await incrementRadarUsage(sb as any, ready.configId, Math.max(1, pageIds.length));
+  await markRadarProviderSync(sb as any, "facebook_business", saved.length ? "ok" : "skipped", `${saved.length} publications unifiées`);
+  return {
+    configured: true,
+    inserted: saved.length,
+    results: saved,
+    reason: pageIds.length ? (saved.length ? null : "no_accessible_posts") : "no_authorized_pages",
+  };
+}
+
+async function refreshInstagramBusiness(
+  sb: SupabaseClient,
+  ownerId: string,
+  query: string,
+  limit = 8,
+) {
+  const ready = await getRadarApiKey(sb as any, "instagram_business");
+  if (!ready.ok || !ready.key) {
+    return { configured: false, inserted: 0, results: [] as any[], reason: ready.reason ?? "instagram_not_ready" };
+  }
+  const cfg = ready.config?.extra_config ?? {};
+  const accountIds = Array.isArray((cfg as any).account_ids)
+    ? (cfg as any).account_ids.map((v: any) => String(v).trim()).filter(Boolean)
+    : [];
+  const saved: any[] = [];
+  for (const accountId of accountIds.slice(0, 10)) {
+    try {
+      const userRes = await fetch(
+        `https://graph.facebook.com/${encodeURIComponent(accountId)}?fields=id,username,name,profile_picture_url&access_token=${encodeURIComponent(ready.key)}`,
+      );
+      const user = await userRes.json().catch(() => ({}));
+      const mediaRes = await fetch(
+        `https://graph.facebook.com/${encodeURIComponent(accountId)}/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp&limit=${Math.min(limit, 12)}&access_token=${encodeURIComponent(ready.key)}`,
+      );
+      const media = await mediaRes.json().catch(() => ({}));
+      if (!mediaRes.ok || media?.error) continue;
+      for (const item of Array.isArray(media?.data) ? media.data : []) {
+        const raw = String(item?.caption ?? "").trim();
+        if (!raw) continue;
+        const photo = item.thumbnail_url ?? item.media_url;
+        const ingested = await ingestCommerceSignal(sb, ownerId, {
+          source_key: "instagram_business",
+          source_external_id: String(item.id),
+          source_url: item.permalink ?? null,
+          raw_text: raw,
+          actor_type: "business",
+          actor_name: user.name ?? user.username ?? null,
+          actor_handle: user.username ? `@${user.username}` : null,
+          product_name: query,
+          photo_urls: photo ? [photo] : [],
+          contact_consent_basis: "unknown",
+          public_business: true,
+          observed_at: item.timestamp ?? null,
+          confidence: 0.70,
+          evidence: { account_id: accountId, media_type: item.media_type ?? null, connector: "instagram_graph" },
+        }, { publicBusiness: true });
+        saved.push(ingested.signal);
+      }
+    } catch {
+      // Continue with the next authorized account.
+    }
+  }
+  await incrementRadarUsage(sb as any, ready.configId, Math.max(1, accountIds.length));
+  await markRadarProviderSync(sb as any, "instagram_business", saved.length ? "ok" : "skipped", `${saved.length} médias unifiés`);
+  return {
+    configured: true,
+    inserted: saved.length,
+    results: saved,
+    reason: accountIds.length ? (saved.length ? null : "no_accessible_media") : "account_ids_required",
+  };
+}
+
+async function refreshTelegramPublic(
+  sb: SupabaseClient,
+  ownerId: string,
+  query: string,
+  limit = 12,
+) {
+  const ready = await getRadarApiKey(sb as any, "telegram_public");
+  if (!ready.ok || !ready.key) {
+    return { configured: false, inserted: 0, results: [] as any[], reason: ready.reason ?? "telegram_not_ready" };
+  }
+  const cfg = ready.config?.extra_config ?? {};
+  const allowed = new Set(
+    (Array.isArray((cfg as any).chat_ids) ? (cfg as any).chat_ids : [])
+      .map((v: any) => String(v).trim().replace(/^@/, ""))
+      .filter(Boolean),
+  );
+  const { data: telegramSources } = await sb.from("waouh_radar_sources")
+    .select("identifier").in("type", ["telegram","telegram_channel"]).eq("active", true);
+  for (const row of telegramSources ?? []) {
+    let value = String((row as any).identifier ?? "").trim();
+    try {
+      if (/^https?:\/\//i.test(value)) {
+        const url = new URL(value);
+        value = url.pathname.split("/").filter(Boolean)[0] || value;
+      }
+    } catch {
+      // Keep chat id / username.
+    }
+    value = value.replace(/^@/, "");
+    if (value) allowed.add(value);
+  }
+  if (!allowed.size) {
+    return { configured: true, inserted: 0, results: [], reason: "authorized_chat_ids_required" };
+  }
+  const offset = Number((cfg as any).last_update_id ?? 0);
+  const url = new URL(`https://api.telegram.org/bot${ready.key}/getUpdates`);
+  if (offset > 0) url.searchParams.set("offset", String(offset + 1));
+  url.searchParams.set("limit", String(Math.min(Math.max(limit, 1), 100)));
+  url.searchParams.set("timeout", "0");
+  const response = await fetch(url.toString());
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data?.ok !== true) {
+    await markRadarProviderSync(sb as any, "telegram_public", "ko", data?.description || `HTTP ${response.status}`);
+    return { configured: true, inserted: 0, results: [], reason: data?.description || "telegram_error" };
+  }
+  const saved: any[] = [];
+  let maxUpdateId = offset;
+  for (const update of Array.isArray(data?.result) ? data.result : []) {
+    maxUpdateId = Math.max(maxUpdateId, Number(update?.update_id ?? 0));
+    const message = update?.channel_post ?? update?.message ?? update?.edited_channel_post ?? null;
+    if (!message?.chat) continue;
+    const chatId = String(message.chat.id ?? "");
+    const chatUsername = String(message.chat.username ?? "");
+    if (!allowed.has(chatId) && !allowed.has(chatUsername)) continue;
+    const raw = String(message.text ?? message.caption ?? "").trim();
+    if (!raw) continue;
+
+    const photos = Array.isArray(message.photo) ? message.photo : [];
+    let photoUrl: string | null = null;
+    const bestPhoto = photos.length ? photos[photos.length - 1] : null;
+    if (bestPhoto?.file_id) {
+      try {
+        const fileRes = await fetch(`https://api.telegram.org/bot${ready.key}/getFile?file_id=${encodeURIComponent(bestPhoto.file_id)}`);
+        const fileData = await fileRes.json().catch(() => ({}));
+        if (fileData?.ok && fileData?.result?.file_path) {
+          const protectedUrl = `https://api.telegram.org/file/bot${ready.key}/${fileData.result.file_path}`;
+          photoUrl = await rehostMedia(sb as any, protectedUrl, "image/jpeg");
+        }
+      } catch {
+        // Text signal remains usable.
+      }
+    }
+    const username = String(message?.from?.username ?? message?.sender_chat?.username ?? chatUsername ?? "");
+    const publicUrl = chatUsername
+      ? `https://t.me/${chatUsername}/${message.message_id}`
+      : null;
+    const sharedPhone = message?.contact?.phone_number ? [String(message.contact.phone_number)] : [];
+    const ingested = await ingestCommerceSignal(sb, ownerId, {
+      source_key: "telegram_public",
+      source_external_id: `${chatId}:${message.message_id}`,
+      source_url: publicUrl,
+      raw_text: raw,
+      actor_type: "announcer",
+      actor_name: [message?.from?.first_name, message?.from?.last_name].filter(Boolean).join(" ") || message?.chat?.title || null,
+      actor_handle: username ? `@${username}` : null,
+      product_name: query,
+      contact_phones: sharedPhone,
+      photo_urls: photoUrl ? [photoUrl] : [],
+      contact_consent_basis: sharedPhone.length ? "shared_by_user" : "unknown",
+      observed_at: message.date ? new Date(Number(message.date) * 1000).toISOString() : null,
+      confidence: 0.67,
+      evidence: { telegram_chat_id: chatId, telegram_message_id: message.message_id, authorized_chat: true },
+    });
+    saved.push(ingested.signal);
+  }
+  if (maxUpdateId > offset && ready.config?.id) {
+    await sb.from("waouh_radar_api_configs").update({
+      extra_config: { ...cfg, last_update_id: maxUpdateId },
+    }).eq("id", ready.config.id);
+  }
+  await incrementRadarUsage(sb as any, ready.configId, 1);
+  await markRadarProviderSync(sb as any, "telegram_public", saved.length ? "ok" : "skipped", `${saved.length} messages autorisés unifiés`);
+  return { configured: true, inserted: saved.length, results: saved, reason: saved.length ? null : "no_new_authorized_messages" };
+}
+
+async function refreshTikTokConnected(
+  sb: SupabaseClient,
+  ownerId: string,
+  query: string,
+  limit = 10,
+) {
+  const ready = await getRadarApiKey(sb as any, "tiktok_connected");
+  if (!ready.ok || !ready.key) {
+    return { configured: false, inserted: 0, results: [] as any[], reason: ready.reason ?? "tiktok_not_ready" };
+  }
+  let displayName: string | null = null;
+  try {
+    const userRes = await fetch("https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name,avatar_url", {
+      headers: { Authorization: `Bearer ${ready.key}` },
+    });
+    const userData = await userRes.json().catch(() => ({}));
+    displayName = userData?.data?.user?.display_name ?? null;
+  } catch {
+    // Video ingestion can continue.
+  }
+  const response = await fetch(
+    "https://open.tiktokapis.com/v2/video/list/?fields=id,title,video_description,duration,cover_image_url,share_url,create_time",
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${ready.key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ max_count: Math.min(Math.max(limit, 1), 20) }),
+    },
+  );
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data?.error?.code) {
+    const message = data?.error?.message || data?.error?.code || `HTTP ${response.status}`;
+    await markRadarProviderSync(sb as any, "tiktok_connected", "ko", String(message));
+    return { configured: true, inserted: 0, results: [], reason: String(message) };
+  }
+  const videos = Array.isArray(data?.data?.videos) ? data.data.videos : [];
+  const saved: any[] = [];
+  for (const video of videos) {
+    const raw = String(video.video_description ?? video.title ?? "").trim();
+    if (!raw || !video.id) continue;
+    const ingested = await ingestCommerceSignal(sb, ownerId, {
+      source_key: "tiktok_connected",
+      source_external_id: String(video.id),
+      source_url: video.share_url ?? null,
+      raw_text: raw,
+      actor_type: "announcer",
+      actor_name: displayName,
+      product_name: query,
+      photo_urls: video.cover_image_url ? [video.cover_image_url] : [],
+      contact_consent_basis: "unknown",
+      observed_at: video.create_time ? new Date(Number(video.create_time) * 1000).toISOString() : null,
+      confidence: 0.64,
+      evidence: { connector: "tiktok_display_api", duration: video.duration ?? null },
+    });
+    saved.push(ingested.signal);
+  }
+  await incrementRadarUsage(sb as any, ready.configId, 1);
+  await markRadarProviderSync(sb as any, "tiktok_connected", saved.length ? "ok" : "skipped", `${saved.length} vidéos unifiées`);
+  return { configured: true, inserted: saved.length, results: saved, reason: saved.length ? null : "no_commercial_video" };
+}
+
+async function refreshApifyRadar(sb: SupabaseClient) {
+  const ready = await getRadarApiKey(sb as any, "apify", "APIFY_TOKEN");
+  if (!ready.ok || !ready.key) {
+    return { configured: false, inserted: 0, reason: ready.reason ?? "apify_not_ready" };
+  }
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  const url = Deno.env.get("SUPABASE_URL") || "";
+  if (!url || !serviceKey) return { configured: true, inserted: 0, reason: "server_not_configured" };
+  try {
+    const response = await fetch(`${url}/functions/v1/waouh-radar-apify`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${serviceKey}`, apikey: serviceKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ source: "nexus.global_discovery" }),
+      signal: AbortSignal.timeout(18000),
+    });
+    const data = await response.json().catch(() => ({}));
+    const inserted = Number(data?.signals ?? 0);
+    await markRadarProviderSync(sb as any, "apify", response.ok ? "ok" : "ko", response.ok ? `${inserted} signaux Radar` : `HTTP ${response.status}`);
+    return { configured: true, inserted, reason: response.ok ? null : (data?.error || `HTTP ${response.status}`) };
+  } catch (error: any) {
+    await markRadarProviderSync(sb as any, "apify", "ko", error?.message || String(error));
+    return { configured: true, inserted: 0, reason: error?.message || String(error) };
+  }
+}
+
+async function refreshFirecrawlSites(sb: SupabaseClient) {
+  const ready = await getRadarApiKey(sb as any, "firecrawl", "FIRECRAWL_API_KEY");
+  if (!ready.ok || !ready.key) {
+    return { configured: false, inserted: 0, reason: ready.reason ?? "firecrawl_not_ready" };
+  }
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  const url = Deno.env.get("SUPABASE_URL") || "";
+  if (!url || !serviceKey) return { configured: true, inserted: 0, reason: "server_not_configured" };
+  try {
+    const response = await fetch(`${url}/functions/v1/waouh-radar-site-scraper`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${serviceKey}`,
+        apikey: serviceKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ source: "nexus.global_discovery" }),
+      signal: AbortSignal.timeout(30000),
+    });
+    const data = await response.json().catch(() => ({}));
+    const inserted = Number(data?.signals ?? 0);
+    await markRadarProviderSync(
+      sb as any,
+      "firecrawl",
+      response.ok ? "ok" : "ko",
+      response.ok ? `${inserted} signaux sites Web` : String(data?.error || `HTTP ${response.status}`),
+    );
+    return {
+      configured: true,
+      inserted,
+      reason: response.ok ? null : (data?.error || `HTTP ${response.status}`),
+    };
+  } catch (error: any) {
+    await markRadarProviderSync(sb as any, "firecrawl", "ko", error?.message || String(error));
+    return { configured: true, inserted: 0, reason: error?.message || String(error) };
+  }
 }
 
 async function globalDiscoverySearch(
@@ -1148,6 +1676,33 @@ Deno.serve(async (req: Request) => {
     if (!supabaseUrl || !serviceKey) throw new ApiError(500, "server_not_configured");
     const sb = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
     const ownerId = authUser.id;
+
+    if (action.startsWith("nexus.")) {
+      const control = await getWaouhModuleControl(sb, "nexus");
+      const statusOnly = new Set(["nexus.summary", "nexus.sources", "nexus.preferences.get"]);
+      if (!control.enabled && !statusOnly.has(action)) {
+        throw new ApiError(503, "nexus_paused", control.maintenance_message || "NEXUS est temporairement désactivé par l'administration.");
+      }
+      const automaticActions = new Set(["nexus.source.sync", "nexus.autopilot.create", "nexus.notify_buyers"]);
+      if (control.enabled && !control.automation_enabled && automaticActions.has(action)) {
+        throw new ApiError(409, "nexus_automation_paused", "Les automatisations NEXUS sont suspendues par l'administration.");
+      }
+    }
+
+    if (action.startsWith("mission.") || action.startsWith("watch.") || action.startsWith("approval.") || action.startsWith("offer.")) {
+      const control = await getWaouhModuleControl(sb, "muse_agents");
+      const safeWhenPaused = new Set([
+        "mission.list", "mission.get", "mission.pause", "mission.cancel",
+        "watch.list", "watch.events", "watch.event.read",
+        "approval.list", "approval.decide", "offer.list",
+      ]);
+      if (!control.enabled && !safeWhenPaused.has(action)) {
+        throw new ApiError(503, "agents_paused", control.maintenance_message || "Muse & Agents IA sont temporairement désactivés par l'administration.");
+      }
+      if (control.enabled && !control.automation_enabled && ["mission.run", "watch.observe"].includes(action)) {
+        throw new ApiError(409, "agents_automation_paused", "Les exécutions autonomes des Agents IA sont suspendues.");
+      }
+    }
 
     switch (action) {
       case "mission.create": {
@@ -1892,6 +2447,96 @@ Retourne uniquement JSON:
         } }, 201);
       }
 
+      case "nexus.source.sync": {
+        const provider = pickEnum(
+          payload.provider,
+          "provider",
+          [
+            "serpapi",
+            "apify",
+            "firecrawl",
+            "google_places",
+            "facebook_business",
+            "instagram_business",
+            "telegram_public",
+            "tiktok_connected",
+            "whatsapp_groups",
+            "sms_rcs",
+          ] as const,
+        );
+        const queryText = optionalString(payload.query, "query", 500) ?? "commerce";
+        const city = optionalString(payload.city, "city", 120);
+        const mode = pickEnum(
+          payload.mode,
+          "mode",
+          ["find_sellers","find_buyers"] as const,
+          "find_sellers",
+        );
+        const limit = integer(payload.limit, "limit", 12, 1, 30);
+
+        let result: any;
+        if (provider === "serpapi") {
+          result = await refreshSerpApi(sb, ownerId, mode, queryText, city, limit);
+        } else if (provider === "apify") {
+          result = await refreshApifyRadar(sb);
+        } else if (provider === "google_places") {
+          result = await refreshGooglePlaces(sb, ownerId, queryText, city, Math.min(limit, 20));
+        } else if (provider === "facebook_business") {
+          result = await refreshFacebookBusiness(sb, ownerId, queryText, Math.min(limit, 20));
+        } else if (provider === "instagram_business") {
+          result = await refreshInstagramBusiness(sb, ownerId, queryText, Math.min(limit, 20));
+        } else if (provider === "telegram_public") {
+          result = await refreshTelegramPublic(sb, ownerId, queryText, Math.min(limit, 30));
+        } else if (provider === "tiktok_connected") {
+          result = await refreshTikTokConnected(sb, ownerId, queryText, Math.min(limit, 20));
+} else if (provider === "firecrawl") {
+          result = await refreshFirecrawlSites(sb);
+        } else if (provider === "whatsapp_groups") {
+          const { count } = await sb.from("waouh_radar_sources")
+            .select("id", { count: "exact", head: true })
+            .eq("type", "wa_group")
+            .eq("active", true);
+          const wahaBase = String(Deno.env.get("WAHA_BASE_URL") || "").trim();
+          const wahaKey = String(
+            Deno.env.get("WAHA_API_KEY_PLAIN") ||
+            Deno.env.get("WAHA_API_KEY") ||
+            "",
+          ).trim();
+          const configured = !!wahaBase && !!wahaKey && (count ?? 0) > 0;
+          result = {
+            configured,
+            inserted: 0,
+            push_mode: true,
+            active_group_count: count ?? 0,
+            reason: configured
+              ? "webhook_realtime_allowlist"
+              : !wahaBase || !wahaKey
+                ? "waha_not_configured"
+                : "no_authorized_whatsapp_group",
+          };
+        } else {
+          const { data: settings } = await sb.from("waouh_tel_settings")
+            .select("enabled").eq("key", "default").maybeSingle();
+          result = {
+            configured: settings?.enabled === true,
+            inserted: 0,
+            push_mode: true,
+            reason: settings?.enabled === true ? "native_inbound_active" : "native_messaging_disabled",
+          };
+        }
+
+        await audit(sb, ownerId, "nexus.source.sync", "discovery_source", null, {
+          provider,
+          query: queryText,
+          city,
+          mode,
+          inserted: Number(result?.inserted ?? 0),
+          configured: result?.configured !== false,
+          reason: result?.reason ?? null,
+        });
+        return jsonResponse({ ok: true, data: { provider, ...result } });
+      }
+
       case "nexus.google_places.search": {
         const queryText = asString(payload.query, "query", 2, 500);
         const city = optionalString(payload.city, "city", 120);
@@ -1951,29 +2596,72 @@ Retourne uniquement JSON:
           const usePublicWeb = sourcePlan.size === 0 || [
             "web_public", "social_public", "directories", "b2b_rfq",
           ].some((family) => sourcePlan.has(family));
+          const useSocial = sourcePlan.size === 0 ||
+            sourcePlan.has("social_public") || sourcePlan.has("web_public");
 
-          if (useMaps) {
-            const places = await refreshGooglePlaces(sb, ownerId, semanticQuery, city, Math.min(limit, 10));
-            refresh.google_places = {
-              configured: places.configured,
-              inserted: places.inserted,
-              reason: places.reason ?? null,
-            };
-          } else {
-            refresh.google_places = { configured: true, inserted: 0, reason: "not_selected_by_ai_plan" };
-          }
+          const skipped = Promise.resolve({
+            configured: true,
+            inserted: 0,
+            reason: "not_selected_by_ai_plan",
+          });
+          const [
+            places,
+            serp,
+            firecrawl,
+            facebook,
+            instagram,
+            telegram,
+            tiktok,
+            apify,
+          ] = await Promise.all([
+            useMaps
+              ? refreshGooglePlaces(sb, ownerId, semanticQuery, city, Math.min(limit, 10))
+              : skipped,
+            usePublicWeb
+              ? refreshSerpApi(sb, ownerId, mode, semanticQuery, city, Math.min(limit, 12))
+              : Promise.resolve({
+                  configured: true,
+                  inserted: 0,
+                  reason: "not_selected_by_ai_plan",
+                  surfaces: {} as Record<string, number>,
+                }),
+            usePublicWeb ? refreshFirecrawlSites(sb) : skipped,
+            useSocial
+              ? refreshFacebookBusiness(sb, ownerId, semanticQuery, Math.min(limit, 8))
+              : skipped,
+            useSocial
+              ? refreshInstagramBusiness(sb, ownerId, semanticQuery, Math.min(limit, 8))
+              : skipped,
+            useSocial
+              ? refreshTelegramPublic(sb, ownerId, semanticQuery, Math.min(limit, 12))
+              : skipped,
+            useSocial
+              ? refreshTikTokConnected(sb, ownerId, semanticQuery, Math.min(limit, 10))
+              : skipped,
+            useSocial ? refreshApifyRadar(sb) : skipped,
+          ]);
 
-          if (usePublicWeb) {
-            const serp = await refreshSerpApi(sb, ownerId, mode, semanticQuery, city, Math.min(limit, 12));
-            refresh.serpapi = {
-              configured: serp.configured,
-              inserted: serp.inserted,
-              reason: serp.reason ?? null,
-              surfaces: serp.surfaces ?? {},
-            };
-          } else {
-            refresh.serpapi = { configured: true, inserted: 0, reason: "not_selected_by_ai_plan", surfaces: {} };
-          }
+          refresh.google_places = {
+            configured: places.configured,
+            inserted: places.inserted,
+            reason: places.reason ?? null,
+          };
+          refresh.serpapi = {
+            configured: serp.configured,
+            inserted: serp.inserted,
+            reason: serp.reason ?? null,
+            surfaces: (serp as any).surfaces ?? {},
+          };
+          refresh.firecrawl = {
+            configured: firecrawl.configured,
+            inserted: firecrawl.inserted,
+            reason: firecrawl.reason ?? null,
+          };
+          refresh.facebook_business = facebook;
+          refresh.instagram_business = instagram;
+          refresh.telegram_public = telegram;
+          refresh.tiktok_connected = tiktok;
+          refresh.apify = apify;
         }
 
         const results = await globalDiscoverySearch(sb, {
@@ -2348,15 +3036,20 @@ Retourne uniquement JSON:
       }
 
       case "nexus.sources": {
-        const [providers, articleSources, buyerSources, radar, registry, fabricRows] = await Promise.all([
+        const [
+          providers, articleSources, buyerSources, radar, registry, fabricRows,
+          telSettings, telRuntime,
+        ] = await Promise.all([
           sb.from("waouh_radar_api_configs")
-            .select("provider,active,daily_quota,usage_today,last_test_at,last_test_status")
+            .select("provider,source_key,label,auth_mode,active,daily_quota,usage_today,last_test_at,last_test_status,last_sync_at,last_sync_status")
             .order("provider"),
           sb.from("waouh_articles").select("source_channel,status").eq("status", "active").limit(2000),
           sb.from("waouh_buyer_profiles").select("source_channel,is_active").eq("is_active", true).limit(3000),
           sb.from("waouh_radar_signals").select("source_type,intent,contact_phone,status").limit(3000),
           sb.from("waouh_discovery_sources").select("*").order("family").order("label"),
           sb.from("waouh_signal_fabric").select("source_key,intent,contactability_level").limit(5000),
+          sb.from("waouh_tel_settings").select("enabled,provider,sms_enabled,rcs_enabled").eq("key","default").maybeSingle(),
+          sb.rpc("waouh_tel_runtime_readiness"),
         ]);
         for (const result of [providers, articleSources, buyerSources, radar, registry, fabricRows]) {
           if ((result as any).error) throw new ApiError(500, "nexus_sources_failed", (result as any).error.message);
@@ -2367,25 +3060,74 @@ Retourne uniquement JSON:
           return acc;
         }, {});
         const providerMap = new Map((providers.data ?? []).map((row: any) => [String(row.provider), row]));
-        const serpReady = await getRadarApiKey(sb as any, "serpapi", "SERPAPI_KEY");
-        const apifyReady = await getRadarApiKey(sb as any, "apify", "APIFY_TOKEN");
-        const googlePlacesReady = !!(Deno.env.get("GOOGLE_PLACES_API_KEY") || Deno.env.get("GOOGLE_MAPS_API_KEY"));
+        const sourceProviderMap = new Map((providers.data ?? []).map((row: any) => [String(row.source_key ?? row.provider), row]));
+        const envByProvider: Record<string, string | undefined> = {
+          serpapi: "SERPAPI_KEY",
+          apify: "APIFY_TOKEN",
+          firecrawl: "FIRECRAWL_API_KEY",
+          google_places: "GOOGLE_PLACES_API_KEY",
+        };
+        const readyEntries = await Promise.all(
+          (providers.data ?? []).map(async (row: any) => {
+            const provider = String(row.provider);
+            const state = await getRadarApiKey(sb as any, provider, envByProvider[provider]);
+            let ok = state.ok;
+            let reason = state.reason ?? null;
+            if (provider === "whatsapp_groups") {
+              const wahaBase = String(Deno.env.get("WAHA_BASE_URL") || "").trim();
+              const wahaKey = String(
+                Deno.env.get("WAHA_API_KEY_PLAIN") ||
+                Deno.env.get("WAHA_API_KEY") ||
+                "",
+              ).trim();
+              ok = row.active === true && !!wahaBase && !!wahaKey;
+              reason = ok ? null : "waha_not_configured_or_disabled";
+            }
+            if (provider === "sms_rcs") {
+              ok = telSettings.data?.enabled === true && telRuntime.data?.runtime_ready === true;
+              reason = ok ? null : "native_sms_rcs_not_ready";
+            }
+            return [provider, { ok, reason }] as const;
+          }),
+        );
+        const readiness = new Map(readyEntries);
         const sourceRegistry = (registry.data ?? []).map((row: any) => {
           let effectiveState = row.operational_state;
           let configured = ["live","ingest_only"].includes(row.operational_state);
           let reason: string | null = null;
-          if (row.source_key === "serpapi") {
-            configured = serpReady.ok;
-            effectiveState = serpReady.ok ? "live" : "requires_config";
-            reason = serpReady.ok ? null : (serpReady.reason ?? "not_configured");
-          } else if (row.source_key === "apify") {
-            configured = apifyReady.ok;
-            effectiveState = apifyReady.ok ? "live" : "requires_config";
-            reason = apifyReady.ok ? null : (apifyReady.reason ?? "not_configured");
-          } else if (row.source_key === "google_places") {
-            configured = googlePlacesReady;
-            effectiveState = googlePlacesReady ? "live" : "requires_config";
-            reason = googlePlacesReady ? null : "google_places_key_missing";
+          const sourceKey = String(row.source_key);
+          const providerRow = sourceProviderMap.get(sourceKey);
+          const serpReady = readiness.get("serpapi")?.ok === true;
+          const apifyReady = readiness.get("apify")?.ok === true;
+          const firecrawlReady = readiness.get("firecrawl")?.ok === true;
+          const compositePublicSources = new Set([
+            "web_social",
+            "facebook_public",
+            "instagram_public",
+            "tiktok_public",
+            "linkedin_public",
+            "youtube_public",
+            "x_public",
+          ]);
+          if (compositePublicSources.has(sourceKey)) {
+            configured = sourceKey === "web_social"
+              ? serpReady || apifyReady || firecrawlReady
+              : serpReady || apifyReady || firecrawlReady;
+            effectiveState = configured ? "live" : "requires_config";
+            reason = configured ? null : "serpapi_apify_or_firecrawl_required";
+          } else if (sourceKey === "rss_public") {
+            configured = firecrawlReady;
+            effectiveState = configured ? "live" : "requires_config";
+            reason = configured ? null : "firecrawl_required";
+          } else if (providerRow) {
+            const state = readiness.get(String(providerRow.provider));
+            configured = state?.ok === true;
+            effectiveState = configured ? "live" : "requires_config";
+            reason = configured ? null : (state?.reason ?? "not_configured");
+          } else if (row.source_key === "sms_rcs") {
+            configured = telSettings.data?.enabled === true && telRuntime.data?.runtime_ready === true;
+            effectiveState = configured ? "live" : "requires_config";
+            reason = configured ? null : "native_sms_rcs_not_ready";
           }
           return {
             source_key: row.source_key,
@@ -2407,12 +3149,18 @@ Retourne uniquement JSON:
         return jsonResponse({ ok: true, data: {
           providers: (providers.data ?? []).map((row: any) => ({
             provider: row.provider,
+            source_key: row.source_key,
+            label: row.label,
+            auth_mode: row.auth_mode,
             active: row.active,
             daily_quota: row.daily_quota,
             usage_today: row.usage_today,
             last_test_at: row.last_test_at,
             last_test_status: row.last_test_status,
-            configured: row.provider === "serpapi" ? serpReady.ok : row.provider === "apify" ? apifyReady.ok : row.active,
+            last_sync_at: row.last_sync_at,
+            last_sync_status: row.last_sync_status,
+            configured: readiness.get(String(row.provider))?.ok === true,
+            reason: readiness.get(String(row.provider))?.reason ?? null,
           })),
           registry: sourceRegistry,
           fabric: {
@@ -2428,7 +3176,11 @@ Retourne uniquement JSON:
             intents: countBy(radar.data, "intent"),
             contacts_ready: (radar.data ?? []).filter((row: any) => !!row.contact_phone).length,
           },
-          google_places: { configured: googlePlacesReady },
+          google_places: { configured: readiness.get("google_places")?.ok === true },
+          sms_rcs: {
+            configured: telSettings.data?.enabled === true && telRuntime.data?.runtime_ready === true,
+            settings: telSettings.data ?? null,
+          },
           source_provider_map: Object.fromEntries(providerMap),
         } });
       }
