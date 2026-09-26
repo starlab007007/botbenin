@@ -169,6 +169,12 @@ String liveCommerceOutboundText(String payload) {
     case LiveCommerceActionKind.cancelDeal:
       return 'Annuler le deal';
     case LiveCommerceActionKind.interest:
+      final offer = liveCommerceQuery(payload)['initial_offer_amount'] ??
+          liveCommerceQuery(payload)['offer_price'];
+      if (offer != null && offer.trim().isNotEmpty) {
+        return 'Je propose ' + offer.trim() + ' FCFA';
+      }
+      return liveCommerceRawCommand(payload);
     case LiveCommerceActionKind.unknown:
       return liveCommerceRawCommand(payload);
   }

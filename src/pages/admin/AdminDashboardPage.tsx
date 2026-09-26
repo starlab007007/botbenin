@@ -46,7 +46,7 @@ export const AdminDashboardPage: React.FC = () => {
       title: 'Architecture de contrôle WAOUH',
       items: [
         { label: 'NEXUS', path: '/admin/waouh/radar', note: 'Signal Fabric, sources, quotas, scans et automatisation', icon: Network },
-        { label: 'Contact Layer C0–C4', path: '/admin/waouh/contact-layer', note: 'Contactabilité, consentement et politique par source', icon: Shield },
+        { label: 'Contact Layer C0–C5', path: '/admin/waouh/contact-layer', note: 'Contactabilité, consentement et politique par source', icon: Shield },
         { label: 'Avatar Commerce', path: '/admin/waouh?tab=control#module-avatar_commerce', note: 'ON/OFF du parcours Acheter / Vendre / Demander', icon: Sparkles },
         { label: 'Chat Web / App', path: '/admin/waouh?tab=control#module-chat_web', note: 'Canal, activité 24 h et fils actifs', icon: MessageSquareText },
         { label: 'WhatsApp', path: '/admin/waouh/whatsapp-ops', note: 'WAHA, sessions, queue, erreurs et replay', icon: MessageSquareText },

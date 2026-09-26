@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const body = await req.json().catch(() => ({}));
-    let { article_id, catalog_id, source = "chat", buyer_user_id: explicitBuyerUserId } = body || {};
+    let { article_id, catalog_id, source = "chat", buyer_user_id: explicitBuyerUserId, offer_price, initial_offer_amount } = body || {};
     if (!article_id && !catalog_id) {
       return new Response(JSON.stringify({ error: "article_id or catalog_id required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -92,6 +92,17 @@ Deno.serve(async (req) => {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const requestedOfferRaw = offer_price ?? initial_offer_amount ?? null;
+    const requestedOffer = requestedOfferRaw == null || requestedOfferRaw === ""
+      ? null
+      : Number(requestedOfferRaw);
+    if (requestedOffer != null && (!Number.isFinite(requestedOffer) || requestedOffer <= 0)) {
+      return new Response(JSON.stringify({ error: "invalid offer_price" }), {
+        status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const initialOffer = requestedOffer ?? (Number((article as any).price ?? 0) || null);
+
     if (article.seller_id && buyerUserId && article.seller_id === buyerUserId) {
       // Seller cannot be interested in own article
       return new Response(JSON.stringify({ ok: true, skipped: "self" }), {
@@ -156,9 +167,9 @@ Deno.serve(async (req) => {
             buyer_user_id: buyerUserId,
             seller_user_id: article.seller_id,
             state: "proposed",
-            last_offer_price: (article as any).price ?? null,
+            last_offer_price: initialOffer,
             last_actor: "buyer",
-            meta: { opened_via: "buyer_interest", source },
+            meta: { opened_via: "buyer_interest", source, initial_offer_amount: initialOffer },
           }).select("id").single();
           if (createdNegError) throw createdNegError;
           negotiationId = createdNeg?.id ?? null;
@@ -220,7 +231,7 @@ Deno.serve(async (req) => {
           recipient: "seller",
           negotiation_id: negotiationId,
           actions: decisionActions,
-          extra_text: `📩 Nouvel acheteur intéressé\n\n📦 ${(article as any).title || "Annonce"}\n💰 ${Number((article as any).price || 0).toLocaleString("fr-FR")} FCFA\n\nAcceptez le prix, faites une contre-offre ou refusez.`,
+          extra_text: `📩 Nouvel acheteur intéressé\n\n📦 ${(article as any).title || "Annonce"}\n💰 Offre proposée : ${Number(initialOffer || (article as any).price || 0).toLocaleString("fr-FR")} FCFA\n\nAcceptez le prix, faites une contre-offre ou refusez.`,
         }),
       });
       dispatched = true;
@@ -252,7 +263,7 @@ Deno.serve(async (req) => {
             buyerUserId,
             sellerUserId: article.seller_id,
             counterpartUserId: article.seller_id,
-            text: `✅ Demande envoyée au vendeur\n\n📦 ${title}\n\nLe vendeur sera notifié et reviendra vers vous très vite via WAOUH.`,
+            text: `✅ Offre envoyée au vendeur\n\n📦 ${title}\n💰 ${Number(initialOffer || (article as any)?.price || 0).toLocaleString("fr-FR")} FCFA\n\nVotre Avatar suit la réponse et vous guidera jusqu’à l’accord.`,
             intent: "buyer_interest",
             eventType: "buyer_interest",
             template: "buyer_interest_ack",
@@ -266,6 +277,7 @@ Deno.serve(async (req) => {
             payloadExtra: {
               source,
               workflow_state: "proposed",
+              initial_offer_amount: initialOffer,
               negotiation_id: negotiationId,
               actions,
               actions,
@@ -309,6 +321,7 @@ Deno.serve(async (req) => {
       actions: decisionActions,
       thread_id: threadId,
       article_id,
+      offer_price: initialOffer,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error("[waouh-buyer-interest] error", e);

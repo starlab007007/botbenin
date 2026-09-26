@@ -390,6 +390,292 @@ serve(async (req) => {
     // "OUI" déclenche CONFIRM index 1 et que la négo soit créée comme en B.
     let radarHydratedContext: any = (conv?.context as any) ?? {};
     let radarBuyerContext: { signal_id: string | null; hydrated_at: string } | null = null;
+
+    // NEXUS Opportunity Journey — an inbound reply to an Avatar-mediated
+    // outreach upgrades the relationship to C5 and, for an external seller,
+    // materializes a private WAOUH article + product_meet so the user never
+    // leaves the platform to negotiate.
+    if (channel === "whatsapp" && phone && !phone.startsWith("web:")) {
+      try {
+        const normalizedReplyPhone = String(phone).replace(/\D/g, "");
+        const sinceNexus = new Date(Date.now() - 14 * 86400_000).toISOString();
+        const { data: nexusOutbound } = await sb.from("waouh_outbound_queue")
+          .select("id,to_phone,payload,created_at")
+          .eq("template", "nexus_discovery_outreach")
+          .eq("to_phone", normalizedReplyPhone)
+          .gte("created_at", sinceNexus)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const nexusPayload = nexusOutbound?.payload && typeof nexusOutbound.payload === "object"
+          ? nexusOutbound.payload as Record<string, any>
+          : null;
+        const nexusSignalId = String(nexusPayload?.signal_id || "").trim();
+        const nexusFabricId = String(nexusPayload?.fabric_id || (nexusSignalId ? "external:" + nexusSignalId : "")).trim();
+        const nexusOwnerAuthId = String(nexusPayload?.initiated_by_auth_user || "").trim();
+
+        if (nexusSignalId && nexusFabricId && nexusOwnerAuthId) {
+          const { data: signal } = await sb.from("waouh_external_commerce_signals")
+            .select("*").eq("id", nexusSignalId).maybeSingle();
+          const { data: journey } = await sb.from("waouh_opportunity_journeys")
+            .select("*")
+            .eq("owner_id", nexusOwnerAuthId)
+            .eq("fabric_id", nexusFabricId)
+            .not("stage", "in", '("completed","cancelled")')
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (signal && journey) {
+            await sb.from("waouh_external_commerce_signals")
+              .update({
+                contactability_level: "C5",
+                updated_at: new Date().toISOString(),
+                contact_summary: {
+                  ...(signal.contact_summary || {}),
+                  reply_received: true,
+                  reply_received_at: new Date().toISOString(),
+                  reply_channel: "whatsapp",
+                },
+              })
+              .eq("id", signal.id);
+            if (signal.entity_id) {
+              await sb.from("waouh_entity_contacts")
+                .update({
+                  contactability_level: "C5",
+                  verified_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("entity_id", signal.entity_id)
+                .in("channel", ["whatsapp","phone"]);
+            }
+
+            let journeyArticleId: string | null = journey.article_id ?? null;
+            let journeyThreadId: string | null = journey.thread_id ?? null;
+            let journeyNegotiationId: string | null = journey.negotiation_id ?? null;
+
+            if (["SELL","ANNOUNCE"].includes(String(signal.intent || "").toUpperCase())) {
+              const { data: ownerActor } = await sb.from("waouh_users")
+                .select("*").eq("auth_user_id", nexusOwnerAuthId)
+                .order("updated_at", { ascending: false })
+                .limit(1).maybeSingle();
+
+              let externalActor: any = null;
+              const { data: knownExternal } = await sb.from("waouh_users")
+                .select("*").eq("phone_number", normalizedReplyPhone)
+                .order("updated_at", { ascending: false })
+                .limit(1).maybeSingle();
+              externalActor = knownExternal;
+              if (!externalActor) {
+                const { data: createdExternal } = await sb.from("waouh_users").insert({
+                  phone_number: normalizedReplyPhone,
+                  display_name: signal.actor_name || signal.actor_handle || "Contact NEXUS",
+                  city: signal.city || null,
+                  country: signal.country_code || "BJ",
+                  channel: "whatsapp",
+                  is_verified: false,
+                }).select("*").single();
+                externalActor = createdExternal;
+              }
+
+              if (ownerActor?.id && externalActor?.id) {
+                const canonicalExternalArticle = "nexus_external:" + signal.id;
+                let { data: article } = await sb.from("waouh_articles")
+                  .select("*").eq("ai_canonical_key", canonicalExternalArticle)
+                  .limit(1).maybeSingle();
+
+                if (!article) {
+                  const rawCategory = String(signal.category || "autre").toLowerCase();
+                  const allowedCategories = new Set([
+                    "smartphone","ordinateur","vetement","vehicule",
+                    "electromenager","meuble","autre",
+                  ]);
+                  const category = allowedCategories.has(rawCategory) ? rawCategory : "autre";
+                  const rawCondition = String(signal.condition || "good").toLowerCase();
+                  const condition = ["new","like_new","good","fair","poor"].includes(rawCondition)
+                    ? rawCondition : "good";
+                  const amount = Number(signal.price_min ?? signal.price_max ?? 0);
+                  const { data: createdArticle } = await sb.from("waouh_articles").insert({
+                    seller_id: externalActor.id,
+                    title: signal.product_name || signal.raw_text || "Opportunité NEXUS",
+                    description: signal.raw_text || "Opportunité externe médiée par WAOUH",
+                    category,
+                    brand: signal.brand || null,
+                    model: signal.model || null,
+                    condition,
+                    price: Number.isFinite(amount) ? Math.max(0, amount) : 0,
+                    currency: signal.currency || "XOF",
+                    photos: Array.isArray(signal.photo_urls) ? signal.photo_urls : [],
+                    city: signal.city || null,
+                    status: "active",
+                    origin: "nexus_external",
+                    source_channel: signal.source_key || "nexus",
+                    contact_whatsapp: normalizedReplyPhone,
+                    ai_canonical_key: canonicalExternalArticle,
+                    ai_attributes: {
+                      external_signal_id: signal.id,
+                      source_url: signal.source_url || null,
+                      mediated_by_waouh: true,
+                    },
+                    ai_quality_score: Number(signal.trust_score || signal.confidence || 0),
+                    last_verified_at: new Date().toISOString(),
+                  }).select("*").single();
+                  article = createdArticle;
+                }
+
+                if (article?.id) {
+                  journeyArticleId = article.id;
+                  const productThread = await resolveProductThread({
+                    sb,
+                    articleId: article.id,
+                    actorUser: ownerActor,
+                    role: "buyer",
+                    counterpartUserId: externalActor.id,
+                    buyerUserId: ownerActor.id,
+                    sellerUserId: externalActor.id,
+                    source: "nexus_external_reply",
+                    create: true,
+                  });
+                  if (productThread?.id) {
+                    journeyThreadId = productThread.id;
+                    const { data: existingNeg } = await sb.from("waouh_negotiations")
+                      .select("*").eq("thread_id", productThread.id)
+                      .in("state", ["proposed","countered"])
+                      .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+                    if (existingNeg?.id) {
+                      journeyNegotiationId = existingNeg.id;
+                    } else {
+                      const amount = Number(signal.price_min ?? signal.price_max ?? article.price ?? 0);
+                      const { data: createdNeg } = await sb.from("waouh_negotiations").insert({
+                        thread_id: productThread.id,
+                        article_id: article.id,
+                        buyer_user_id: ownerActor.id,
+                        seller_user_id: externalActor.id,
+                        state: "proposed",
+                        last_offer_price: Number.isFinite(amount) ? amount : 0,
+                        last_actor: "seller",
+                        meta: {
+                          opened_via: "nexus_external_reply",
+                          external_signal_id: signal.id,
+                          fabric_id: nexusFabricId,
+                        },
+                      }).select("*").single();
+                      journeyNegotiationId = createdNeg?.id ?? null;
+                    }
+                    if (journeyNegotiationId) {
+                      await bindThreadState(sb, productThread.id, {
+                        status: "negotiating",
+                        negotiation_id: journeyNegotiationId,
+                      });
+                    }
+                  }
+                }
+              }
+            }
+
+            const { data: advancedJourney } = await sb.rpc(
+              "waouh_append_opportunity_journey_event",
+              {
+                p_journey_id: journey.id,
+                p_stage: "negotiating",
+                p_contactability_level: "C5",
+                p_progress: 68,
+                p_last_action: "counterparty_reply_received",
+                p_next_action: journeyThreadId
+                  ? "Ouvrir le Deal Room et négocier"
+                  : "Avatar analyse la réponse et prépare la négociation",
+                p_last_message: "Réponse reçue. Votre Avatar vous conduit maintenant vers l’accord.",
+                p_event: {
+                  channel: "whatsapp",
+                  reply_preview: String(text || "").slice(0, 180),
+                  article_id: journeyArticleId,
+                  thread_id: journeyThreadId,
+                  negotiation_id: journeyNegotiationId,
+                },
+              },
+            );
+            await sb.from("waouh_opportunity_journeys").update({
+              article_id: journeyArticleId,
+              thread_id: journeyThreadId,
+              negotiation_id: journeyNegotiationId,
+              contact_channel: "whatsapp",
+              updated_at: new Date().toISOString(),
+            }).eq("id", journey.id);
+
+            const { data: journeyOwner } = await sb.from("waouh_users")
+              .select("id,web_session_id")
+              .eq("auth_user_id", nexusOwnerAuthId)
+              .order("updated_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (journeyOwner?.id) {
+              await sb.from("waouh_notifications").insert({
+                user_id: journeyOwner.id,
+                article_id: journeyArticleId,
+                thread_id: journeyThreadId,
+                notification_type: "nexus_opportunity_reply",
+                photos: Array.isArray(signal.photo_urls) ? signal.photo_urls.slice(0, 3) : [],
+                payload: {
+                  text: "💬 Réponse reçue. Votre Avatar est prêt à poursuivre la négociation dans WAOUH.",
+                  reply_preview: String(text || "").slice(0, 180),
+                  journey_id: journey.id,
+                  fabric_id: nexusFabricId,
+                  negotiation_id: journeyNegotiationId,
+                  thread_id: journeyThreadId,
+                  workflow_state: "negotiating",
+                  contactability_level: "C5",
+                  actions: journeyThreadId
+                    ? [{ id: "ouvrir-deal-room:" + journeyThreadId, label: "🤝 Continuer la négociation" }]
+                    : [],
+                },
+                channel: "waouh_app",
+                delivery_status: "delivered",
+                delivered_at: new Date().toISOString(),
+                web_session_id: journeyOwner.web_session_id ?? null,
+                dedupe_key: "nexus-reply:" + journey.id + ":" + String(nexusOutbound?.id ?? "inbound"),
+              });
+            }
+
+            if (journeyArticleId && journeyThreadId && journeyNegotiationId) {
+              radarHydratedContext = {
+                ...radarHydratedContext,
+                current_article_id: journeyArticleId,
+                last_matches: [{
+                  id: journeyArticleId,
+                  title: signal.product_name || "Opportunité NEXUS",
+                  price: Number(signal.price_min ?? signal.price_max ?? 0),
+                  seller_id: null,
+                  photos: Array.isArray(signal.photo_urls) ? signal.photo_urls : [],
+                  source: "nexus_external",
+                }],
+                nexus_opportunity_context: {
+                  journey_id: journey.id,
+                  fabric_id: nexusFabricId,
+                  negotiation_id: journeyNegotiationId,
+                  thread_id: journeyThreadId,
+                },
+              };
+              if (conv) {
+                (conv as any).context = radarHydratedContext;
+                (conv as any).current_article_id = journeyArticleId;
+                (conv as any).last_intent = "SELL";
+              }
+            }
+            console.log("[nexus-opportunity-reply]", {
+              journey_id: advancedJourney?.id ?? journey.id,
+              fabric_id: nexusFabricId,
+              article_id: journeyArticleId,
+              thread_id: journeyThreadId,
+              negotiation_id: journeyNegotiationId,
+            });
+          }
+        }
+      } catch (e) {
+        console.warn("[nexus-opportunity-reply] failed", e);
+      }
+    }
+
     if (
       channel === "whatsapp" &&
       phone &&

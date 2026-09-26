@@ -1,5 +1,5 @@
 export type FabricIntent = "BUY" | "SELL" | "ANNOUNCE" | "RFQ" | "UNKNOWN";
-export type Contactability = "C0" | "C1" | "C2" | "C3" | "C4";
+export type Contactability = "C0" | "C1" | "C2" | "C3" | "C4" | "C5";
 
 export type FabricSignal = {
   fabric_id?: string;
@@ -89,7 +89,7 @@ export function scoreFabricSignal(input: {
   const ageDays = Number.isFinite(observed) ? Math.max(0, (Date.now() - observed) / 86_400_000) : 30;
   const freshness = Math.max(20, 100 - Math.min(ageDays, 80));
 
-  const contactRank: Record<string, number> = { C0: 20, C1: 55, C2: 70, C3: 90, C4: 100 };
+  const contactRank: Record<string, number> = { C0: 20, C1: 45, C2: 65, C3: 82, C4: 94, C5: 100 };
   const contactability = contactRank[String(input.signal.contactability_level ?? "C0")] ?? 20;
 
   const total = (
@@ -127,11 +127,12 @@ export function scoreFabricSignal(input: {
 export function contactabilityPolicy(level: unknown) {
   const value = String(level ?? "C0") as Contactability;
   switch (value) {
-    case "C4": return { level: value, can_reveal: true, can_auto_contact: true, requires_approval: false, label: "Agent ↔ Agent" };
-    case "C3": return { level: value, can_reveal: true, can_auto_contact: true, requires_approval: true, label: "Opt-in commercial" };
-    case "C2": return { level: value, can_reveal: false, can_auto_contact: false, requires_approval: true, label: "Conversation privée / blind matching" };
-    case "C1": return { level: value, can_reveal: true, can_auto_contact: false, requires_approval: false, label: "Contact professionnel public" };
-    default: return { level: "C0" as const, can_reveal: false, can_auto_contact: false, requires_approval: false, label: "Découverte uniquement" };
+    case "C5": return { level: value, can_reveal: true, can_auto_contact: true, requires_approval: false, label: "Prêt à négocier", journey_stage: "negotiating" };
+    case "C4": return { level: value, can_reveal: true, can_auto_contact: true, requires_approval: false, label: "Contact établi", journey_stage: "waiting_reply" };
+    case "C3": return { level: value, can_reveal: true, can_auto_contact: true, requires_approval: true, label: "Contact vérifié", journey_stage: "contact_ready" };
+    case "C2": return { level: value, can_reveal: false, can_auto_contact: false, requires_approval: true, label: "Canal trouvé / contact médié", journey_stage: "contact_ready" };
+    case "C1": return { level: value, can_reveal: true, can_auto_contact: false, requires_approval: false, label: "Identifié / contact public", journey_stage: "enriching" };
+    default: return { level: "C0" as const, can_reveal: false, can_auto_contact: false, requires_approval: false, label: "Signal détecté / enrichissement requis", journey_stage: "enriching" };
   }
 }
 

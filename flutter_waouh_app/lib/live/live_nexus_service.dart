@@ -533,6 +533,66 @@ class NexusSharedSignal {
       );
 }
 
+
+class NexusOpportunityJourney {
+  const NexusOpportunityJourney({
+    required this.id,
+    required this.fabricId,
+    required this.stage,
+    required this.contactability,
+    required this.progress,
+    required this.nextAction,
+    this.subject,
+    this.sourceKey,
+    this.sourceUrl,
+    this.contactChannel,
+    this.lastMessage,
+    this.maskedContact = const <String, dynamic>{},
+    this.timeline = const <Map<String, dynamic>>[],
+  });
+
+  final String id;
+  final String fabricId;
+  final String stage;
+  final String contactability;
+  final int progress;
+  final String nextAction;
+  final String? subject;
+  final String? sourceKey;
+  final String? sourceUrl;
+  final String? contactChannel;
+  final String? lastMessage;
+  final Map<String, dynamic> maskedContact;
+  final List<Map<String, dynamic>> timeline;
+
+  bool get waiting => stage == 'waiting_reply' || stage == 'contacting';
+  bool get negotiating => stage == 'negotiating' || contactability == 'C5';
+  bool get completed => stage == 'completed';
+
+  factory NexusOpportunityJourney.fromJson(Map<String, dynamic> json) =>
+      NexusOpportunityJourney(
+        id: _text(json['id']),
+        fabricId: _text(json['fabric_id']),
+        stage: _text(json['stage'], 'discovered'),
+        contactability: _text(json['contactability_level'], 'C0'),
+        progress: _number(json['progress'], 10).round(),
+        nextAction: _text(json['next_action'], 'Avatar analyse la prochaine étape'),
+        subject: json['subject'] == null ? null : _text(json['subject']),
+        sourceKey: json['source_key'] == null ? null : _text(json['source_key']),
+        sourceUrl: json['source_url'] == null ? null : _text(json['source_url']),
+        contactChannel: json['contact_channel'] == null
+            ? null
+            : _text(json['contact_channel']),
+        lastMessage:
+            json['last_message'] == null ? null : _text(json['last_message']),
+        maskedContact: _map(json['masked_contact']),
+        timeline: _list(json['timeline'])
+            .map(_map)
+            .where((item) => item.isNotEmpty)
+            .toList(growable: false),
+      );
+}
+
 class LiveNexusService {
   LiveNexusService(this.client);
 
@@ -700,6 +760,56 @@ class LiveNexusService {
     });
     return NexusSharedSignal.fromJson(_map(data['signal']));
   }
+
+  Future<NexusOpportunityJourney> startOpportunity({
+    required String fabricId,
+    String mode = 'buy',
+  }) async {
+    final data = await _invoke('nexus.opportunity.start', {
+      'fabric_id': fabricId,
+      'mode': mode,
+    });
+    return NexusOpportunityJourney.fromJson(_map(data['journey']));
+  }
+
+  Future<NexusOpportunityJourney> opportunityStatus({
+    String? journeyId,
+    String? fabricId,
+  }) async {
+    final data = await _invoke('nexus.opportunity.status', {
+      if (journeyId != null) 'journey_id': journeyId,
+      if (fabricId != null) 'fabric_id': fabricId,
+    });
+    return NexusOpportunityJourney.fromJson(_map(data['journey']));
+  }
+
+  Future<NexusOpportunityJourney> enrichOpportunity({
+    required String fabricId,
+    String mode = 'buy',
+  }) async {
+    final data = await _invoke('nexus.opportunity.enrich', {
+      'fabric_id': fabricId,
+      'mode': mode,
+    });
+    return NexusOpportunityJourney.fromJson(_map(data['journey']));
+  }
+
+  Future<Map<String, dynamic>> createWatch({
+    required String query,
+    String? articleId,
+    String? sourceUrl,
+    double? targetAmount,
+  }) =>
+      _invoke('watch.create', {
+        'query': query.trim(),
+        if (articleId != null && articleId.trim().isNotEmpty)
+          'article_id': articleId.trim(),
+        if (sourceUrl != null && sourceUrl.trim().isNotEmpty)
+          'source_url': sourceUrl.trim(),
+        if (targetAmount != null) 'target_amount': targetAmount,
+        'currency': 'XOF',
+        'check_interval_minutes': 60,
+      });
 
   Future<NexusPreparedContact> prepareContact(String fabricId) async {
     final data = await _invoke('nexus.contact.prepare', {

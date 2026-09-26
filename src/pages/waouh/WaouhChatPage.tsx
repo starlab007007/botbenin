@@ -90,7 +90,7 @@ const HelpContent = () => (
     <div className="flex items-start gap-2 rounded-2xl border border-slate-200 bg-slate-950 p-3 text-white">
       <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
       <div className="text-[11px] leading-relaxed">
-        Le Contact Layer C0–C4 s’applique avant toute révélation de coordonnées ou action de contact. Les actions sensibles restent sous votre contrôle.
+        Le Contact Layer C0–C5 s’applique avant toute révélation de coordonnées ou action de contact. Les actions sensibles restent sous votre contrôle.
       </div>
     </div>
   </div>

@@ -234,6 +234,8 @@ export function WaouhProductCard({
   const interestAction = result.action === null ? null : (result.action || defaultInterestAction(result));
   const opportunity = isBuyerOpportunity(result);
   const level = contactLevel(result);
+  const externalOpportunity = !!result.fabric_id &&
+    !["waouh", "chat", "waouh_app"].includes(String(result.source || "").toLowerCase());
    const score = metric(result, "total_score");
   const trust = metric(result, "trust_score");
   const priceFit = metric(result, "price_score");
@@ -440,7 +442,7 @@ export function WaouhProductCard({
 
         {onAction && (
           <div className="mt-1 space-y-1.5">
-            {interestAction && (
+            {interestAction && !externalOpportunity && (
               <Button
                 size="sm"
                 className="w-full h-9 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -448,15 +450,11 @@ export function WaouhProductCard({
               >
                 {opportunity
                   ? "Proposer mon offre"
-                  : level === "C2"
-                    ? "Transmettre mon intérêt via WAOUH"
-                    : level === "C3" || level === "C4"
-                      ? "Laisser l’Avatar poursuivre"
-                      : "Je suis intéressé"}
+                  : "Je suis intéressé · ouvrir le Deal Room"}
               </Button>
             )}
             <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-1.5">
-              {result.fabric_id && !interestAction ? (
+              {result.fabric_id && (externalOpportunity || !interestAction) ? (
                 <WaouhNexusContactSheet
                   fabricId={result.fabric_id}
                   title={result.title}

@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
-type Level = "C0" | "C1" | "C2" | "C3" | "C4";
+type Level = "C0" | "C1" | "C2" | "C3" | "C4" | "C5";
 type Source = {
   source_key: string;
   label: string;
@@ -29,7 +29,7 @@ type Policy = {
   can_auto_contact: boolean;
   requires_approval: boolean;
 };
-const levels: Level[] = ["C0", "C1", "C2", "C3", "C4"];
+const levels: Level[] = ["C0", "C1", "C2", "C3", "C4", "C5"];
 
 export default function AdminWaouhContactLayerPage() {
   const [sources, setSources] = useState<Source[]>([]);
@@ -120,7 +120,7 @@ export default function AdminWaouhContactLayerPage() {
                 <ShieldCheck className="h-6 w-6" />
               </span>
               <div>
-                <h1 className="text-2xl font-bold md:text-3xl">Contact Layer C0–C4</h1>
+                <h1 className="text-2xl font-bold md:text-3xl">Contact Layer C0–C5</h1>
                 <p className="text-sm text-white/80">
                   Contactabilité, consentement, visibilité et politique par source.
                 </p>
@@ -133,7 +133,7 @@ export default function AdminWaouhContactLayerPage() {
           </div>
         </section>
 
-        <div className="grid gap-3 sm:grid-cols-5">
+        <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
           {levels.map((level) => (
             <Card key={level}>
               <CardContent className="p-4">
@@ -151,13 +151,13 @@ export default function AdminWaouhContactLayerPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Politique C0–C4</CardTitle>
+            <CardTitle>Politique C0–C5</CardTitle>
             <CardDescription>
               Les niveaux élevés restent contraints par la nature de la source et le consentement.
               La valeur par défaut n’élève pas rétroactivement les contacts déjà collectés.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-5">
+          <CardContent className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
             {levels.map((level) => {
               const item = policyMap[level];
               return (

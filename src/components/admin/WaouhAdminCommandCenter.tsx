@@ -493,7 +493,7 @@ export default function WaouhAdminCommandCenter() {
             items={[
               { label: "Paramètres généraux", path: "/admin/waouh?tab=settings", note: "IA, commerce, paiements et règles" },
               { label: "NEXUS / Radar IA", path: "/admin/waouh/radar", note: "Sources, connecteurs, API, quotas et scans" },
-              { label: "Contact Layer C0–C4", path: "/admin/waouh/contact-layer", note: "Contactabilité, consentement et politique par source" },
+              { label: "Contact Layer C0–C5", path: "/admin/waouh/contact-layer", note: "Contactabilité, consentement et politique par source" },
               { label: "WhatsApp Ops", path: "/admin/waouh/whatsapp-ops", note: "WAHA, sessions, files et replay" },
               { label: "SMS / RCS natif", path: "/admin/waouh/native-messaging", note: "Provider, SMS, RCS et fallback" },
               { label: "Validations diffusion", path: "/admin/waouh/diffusion-approvals", note: "Approbations humaines avant envoi" },
@@ -522,8 +522,8 @@ export default function WaouhAdminCommandCenter() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <Row label="Signal Fabric" value={cc.nexus.signal_fabric_total} />
-            <div className="grid grid-cols-5 gap-1.5">
-              {["C0", "C1", "C2", "C3", "C4"].map((level) => (
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-1.5">
+              {["C0", "C1", "C2", "C3", "C4", "C5"].map((level) => (
                 <div key={level} className="rounded-lg border bg-muted/20 px-2 py-2 text-center">
                   <div className="text-[10px] text-muted-foreground">Contact {level}</div>
                   <div className="font-semibold">{cc.nexus.fabric_by_contactability?.[level] ?? 0}</div>
