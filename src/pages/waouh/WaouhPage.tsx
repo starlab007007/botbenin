@@ -210,7 +210,8 @@ export default function WaouhPage() {
             <Badge variant="outline" className="text-cyan-700 border-cyan-200">WAOUH Admin</Badge>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-9 gap-2">
-            <Link to="/admin/waouh/radar"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Radar className="w-3.5 h-3.5 mr-1" />NEXUS / Radar IA</Button></Link>\n            <Link to="/admin/waouh/contact-layer"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Shield className="w-3.5 h-3.5 mr-1" />Contact C0–C4</Button></Link>
+            <Link to="/admin/waouh/radar"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Radar className="w-3.5 h-3.5 mr-1" />NEXUS / Radar IA</Button></Link>
+            <Link to="/admin/waouh/contact-layer"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Shield className="w-3.5 h-3.5 mr-1" />Contact C0–C4</Button></Link>
             <Link to="/admin/waouh?tab=settings"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Sparkles className="w-3.5 h-3.5 mr-1" />Paramètres</Button></Link>
             <Link to="/admin/waouh/whatsapp-ops"><Button variant="outline" className="w-full h-auto py-2 text-xs"><MessagesSquare className="w-3.5 h-3.5 mr-1" />WhatsApp Ops</Button></Link>
             <Link to="/admin/waouh/native-messaging"><Button variant="outline" className="w-full h-auto py-2 text-xs"><MessagesSquare className="w-3.5 h-3.5 mr-1" />SMS / RCS</Button></Link>
