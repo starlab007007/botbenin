@@ -841,6 +841,137 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   }
 }
 
+class _ActiveJourneysPanel extends StatelessWidget {
+  const _ActiveJourneysPanel({
+    required this.journeys,
+    required this.loading,
+    required this.onRefresh,
+    required this.onOpen,
+    required this.stageLabel,
+  });
+
+  final List<NexusOpportunityJourney> journeys;
+  final bool loading;
+  final VoidCallback onRefresh;
+  final ValueChanged<NexusOpportunityJourney> onOpen;
+  final String Function(String) stageLabel;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF9FBFF),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFFDCE7F8)),
+          boxShadow: WaouhShadows.card,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.route_rounded, color: WaouhPalette.blue),
+                const SizedBox(width: 7),
+                const Expanded(
+                  child: Text(
+                    'Mes démarches',
+                    style: TextStyle(
+                      color: WaouhPalette.ink,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Actualiser',
+                  onPressed: loading ? null : onRefresh,
+                  icon: loading
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.refresh_rounded),
+                ),
+              ],
+            ),
+            const Text(
+              'Avatar conserve chaque opportunité jusqu’à la réponse, la négociation, l’accord et l’exécution.',
+              style: TextStyle(
+                color: WaouhPalette.muted,
+                fontSize: 10.5,
+                height: 1.35,
+              ),
+            ),
+            if (journeys.isNotEmpty) ...[
+              const SizedBox(height: 9),
+              ...journeys.take(4).map(
+                (journey) => Padding(
+                  padding: const EdgeInsets.only(bottom: 7),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => onOpen(journey),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: WaouhPalette.line),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  journey.subject ?? 'Démarche WAOUH',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: WaouhPalette.ink,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${journey.progress}%',
+                                style: const TextStyle(
+                                  color: WaouhPalette.blue,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          LinearProgressIndicator(
+                            value: journey.progress.clamp(0, 100) / 100,
+                            minHeight: 5,
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            '${journey.contactability} · ${stageLabel(journey.stage)} · ${journey.nextAction}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: WaouhPalette.muted,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+}
+
 class _AvatarCommerceHero extends StatelessWidget {
   const _AvatarCommerceHero({
     required this.avatar,
