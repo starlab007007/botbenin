@@ -64,6 +64,9 @@ type CommandCenter = {
   };
   nexus: {
     signal_fabric_total: number;
+    fabric_by_contactability?: Record<string, number>;
+    fabric_by_source?: Record<string, number>;
+    fabric_by_intent?: Record<string, number>;
     external_signals_24h: number;
     external_with_photo_24h: number;
     external_with_whatsapp_24h: number;
@@ -454,6 +457,14 @@ export default function WaouhAdminCommandCenter() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <Row label="Signal Fabric" value={cc.nexus.signal_fabric_total} />
+            <div className="grid grid-cols-3 gap-2">
+              {["C0", "C2", "C4"].map((level) => (
+                <div key={level} className="rounded-lg border bg-muted/20 px-2 py-2 text-center">
+                  <div className="text-[10px] text-muted-foreground">Contact {level}</div>
+                  <div className="font-semibold">{cc.nexus.fabric_by_contactability?.[level] ?? 0}</div>
+                </div>
+              ))}
+            </div>
             <Row label="Signaux externes / 24h" value={cc.nexus.external_signals_24h} />
             <Row label="Avec photo / 24h" value={`${cc.nexus.external_with_photo_24h} (${photoPct}%)`} />
             <Row label="WhatsApp détecté / 24h" value={cc.nexus.external_with_whatsapp_24h} />
