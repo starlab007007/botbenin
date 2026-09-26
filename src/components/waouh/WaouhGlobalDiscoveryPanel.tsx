@@ -27,6 +27,7 @@ import {
   type NexusSourceStatus,
 } from "@/lib/waouh/nexus";
 import { moneyXof } from "@/lib/waouh/agenticClient";
+import { WaouhNexusContactSheet } from "./WaouhNexusContactSheet";
 
 const sourceLabel = (key?: string | null) => {
   const value = String(key ?? "");
@@ -446,10 +447,13 @@ export function WaouhGlobalDiscoveryPanel() {
                         <ExternalLink className="mr-1 h-3.5 w-3.5" />Source
                       </Button>
                     )}
-                    <Button size="sm" onClick={() => void prepareContact(result)} disabled={busy}>
-                      <MessageCircle className="mr-1 h-3.5 w-3.5" />
-                      {result.contact_policy.level === "C0" ? "Voir possibilité de contact" : "Contacter"}
-                    </Button>
+                    <WaouhNexusContactSheet
+                      fabricId={result.fabric_id}
+                      title={result.subject ?? result.category ?? "Opportunité WAOUH"}
+                      sourceUrl={result.source_url}
+                      contactabilityLevel={result.contact_policy.level}
+                      mode={resolvedMode === "find_buyers" ? "sell" : "buy"}
+                    />
                   </div>
                 </div>
               ))}
