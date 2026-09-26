@@ -273,7 +273,8 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
               </h3>
               <div className="space-y-2">
                 <NavItem item={{ title: 'Paramètres généraux', path: '/admin/waouh?tab=settings', icon: SlidersHorizontal, color: 'from-indigo-500 to-violet-600', description: 'IA, commerce, paiement & règles' }} showDescription />
-                <NavItem item={{ title: 'NEXUS / Radar IA', path: '/admin/waouh/radar', icon: Network, color: 'from-purple-500 to-pink-600', description: 'Sources, API, quotas & collecte' }} showDescription />\n                <NavItem item={{ title: 'Contact Layer C0–C4', path: '/admin/waouh/contact-layer', icon: Shield, color: 'from-violet-500 to-indigo-600', description: 'Contactabilité, consentement & règles' }} showDescription />
+                <NavItem item={{ title: 'NEXUS / Radar IA', path: '/admin/waouh/radar', icon: Network, color: 'from-purple-500 to-pink-600', description: 'Sources, API, quotas & collecte' }} showDescription />
+                <NavItem item={{ title: 'Contact Layer C0–C4', path: '/admin/waouh/contact-layer', icon: Shield, color: 'from-violet-500 to-indigo-600', description: 'Contactabilité, consentement & règles' }} showDescription />
                 <NavItem item={{ title: 'WhatsApp Ops', path: '/admin/waouh/whatsapp-ops', icon: Settings2, color: 'from-green-600 to-emerald-700', description: 'WAHA, sessions, queue & replay' }} showDescription />
                 <NavItem item={{ title: 'SMS / RCS natif', path: '/admin/waouh/native-messaging', icon: MessageSquareText, color: 'from-sky-500 to-cyan-600', description: 'Provider, SMS, RCS & fallback' }} showDescription />
                 <NavItem item={{ title: 'Validations diffusion', path: '/admin/waouh/diffusion-approvals', icon: Megaphone, color: 'from-fuchsia-500 to-pink-600', description: 'Approbations humaines avant envoi' }} showDescription />
