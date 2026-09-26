@@ -194,8 +194,8 @@ export default function WaouhPage() {
                   )}
                 </Button>
               </Link>
-              <Badge className="bg-emerald-400/20 text-white border-emerald-300/40">
-                <span className="w-2 h-2 rounded-full bg-emerald-300 mr-2 animate-pulse" /> Système actif
+              <Badge className="bg-white/15 text-white border-white/30">
+                <Activity className="w-3.5 h-3.5 mr-1.5" /> Supervision WAOUH
               </Badge>
             </div>
           </div>
