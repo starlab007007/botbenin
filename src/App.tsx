@@ -98,7 +98,6 @@ const WaouhPage = lazy(() => import("./pages/waouh/WaouhPage"));
 const WaouhDemoPage = lazy(() => import("./pages/waouh/WaouhDemoPage"));
 const WaouhNativeMessagingPublicPage = lazy(() => import("./pages/waouh/WaouhNativeMessagingPublicPage"));
 const WaouhMusePage = lazy(() => import("./pages/waouh/WaouhMusePage"));
-const WaouhAvatarCommercePage = lazy(() => import("./pages/waouh/WaouhAvatarCommercePage"));
 const WaouhMissionsPage = lazy(() => import("./pages/waouh/WaouhMissionsPage"));
 
 const WaouhRadarPage = lazy(() => import("./pages/admin/WaouhRadarPage"));
@@ -112,7 +111,6 @@ const AdminWaouhDealsPage = lazy(() => import("./pages/admin/AdminWaouhDealsPage
 const AdminWaouhHistoriquePage = lazy(() => import("./pages/admin/AdminWaouhHistoriquePage"));
 const AdminWaouhHealthCheckPage = lazy(() => import("./pages/admin/AdminWaouhHealthCheckPage"));
 const AdminWaouhNativeMessagingPage = lazy(() => import("./pages/admin/AdminWaouhNativeMessagingPage"));
-const AdminWaouhContactLayerPage = lazy(() => import("./pages/admin/AdminWaouhContactLayerPage"));
 const AdminBotsControlPage = lazy(() => import("./pages/admin/AdminBotsControlPage"));
 const AdminApresBacPage = lazy(() => import("./pages/admin/AdminApresBacPage"));
 const AdminFaPage = lazy(() => import("./pages/admin/AdminFaPage"));
@@ -319,7 +317,6 @@ const AppContent = () => {
                     <Route path="/admin/waouh/historique" element={<AdminRoute><AdminWaouhHistoriquePage /></AdminRoute>} />
                     <Route path="/admin/waouh/health-check" element={<AdminRoute><AdminWaouhHealthCheckPage /></AdminRoute>} />
                     <Route path="/admin/waouh/native-messaging" element={<AdminRoute><AdminWaouhNativeMessagingPage /></AdminRoute>} />
-                    <Route path="/admin/waouh/contact-layer" element={<AdminRoute><AdminWaouhContactLayerPage /></AdminRoute>} />
                      <Route path="/partner" element={<AuthRoute><PartnerDashboardPage /></AuthRoute>} />
                      <Route path="/partner/businesses" element={<PartnerRoute><PartnerBusinessesPage /></PartnerRoute>} />
                      <Route path="/partner/b/:code/produits" element={<PartnerRoute><PartnerProductsPage /></PartnerRoute>} />
@@ -339,8 +336,8 @@ const AppContent = () => {
                    <Route path="/yovo-gallery" element={<YovoGallery />} />
                    <Route path="/waouh-chat" element={<Navigate to="/app/chat" replace />} />
                    <Route path="/waouh/messages" element={<WaouhNativeMessagingPublicPage />} />
-                   <Route path="/waouh/muse" element={<Navigate to="/app/avatar" replace />} />
-                   <Route path="/waouh/nexus" element={<Navigate to="/app/avatar" replace />} />
+                   <Route path="/waouh/muse" element={<Navigate to="/app/muse" replace />} />
+                   <Route path="/waouh/nexus" element={<Navigate to="/app/muse" replace />} />
 
                   {/* WaouhApp — Mobile shell (Capacitor + web preview) */}
                   <Route path="/app/auth" element={<MobileAuthHome />} />
@@ -350,9 +347,7 @@ const AppContent = () => {
                     <Route index element={<Navigate to="/app/chat" replace />} />
                     <Route path="chat" element={<MobileConversations />} />
                     <Route path="chat/waouh" element={<MobileWaouhChat />} />
-                    <Route path="avatar" element={<WaouhMusePage embedded />} />
-                    <Route path="avatar/:mode" element={<WaouhAvatarCommercePage />} />
-                    <Route path="muse" element={<Navigate to="/app/avatar" replace />} />
+                    <Route path="muse" element={<WaouhMusePage embedded />} />
                     <Route path="missions" element={<WaouhMissionsPage />} />
                     <Route path="conversations" element={<Navigate to="/app/chat" replace />} />
                   </Route>
