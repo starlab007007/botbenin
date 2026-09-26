@@ -2227,6 +2227,8 @@ Retourne uniquement JSON:
         if (hints.urls.length) publicChannels.push("web");
         if (hints.emails.length) publicChannels.push("email");
         if (hints.phones.length) publicChannels.push("phone");
+        if (signal.has_whatsapp === true) publicChannels.push("whatsapp");
+        if (signal.contact_phone_last4) publicChannels.push("phone_hint");
 
         if (nextLevel === "C0" && publicChannels.length) nextLevel = "C1";
         if (fabricId.startsWith("external:") && signal.entity_id && hints.phones.length) {
@@ -2273,13 +2275,34 @@ Retourne uniquement JSON:
             .update({ contactability_level: nextLevel, updated_at: new Date().toISOString() })
             .eq("id", signalId);
         }
+        const extractedPhones = hints.phones.map((p) => ({
+          country_code: p.replace(/\D/g, "").startsWith("229") ? "+229" : null,
+          last4: phoneLast4(p),
+          channel: "phone",
+        }));
+        if (signal.contact_phone_last4 &&
+            !extractedPhones.some((row) => row.last4 === String(signal.contact_phone_last4))) {
+          extractedPhones.push({
+            country_code: signal.country_code === "BJ" ? "+229" : null,
+            last4: String(signal.contact_phone_last4),
+            channel: signal.has_whatsapp ? "whatsapp" : "phone",
+          });
+        }
+        if (signal.whatsapp_phone_last4 &&
+            !extractedPhones.some((row) => row.last4 === String(signal.whatsapp_phone_last4))) {
+          extractedPhones.push({
+            country_code: signal.country_code === "BJ" ? "+229" : null,
+            last4: String(signal.whatsapp_phone_last4),
+            channel: "whatsapp",
+          });
+        }
         const masked = {
-          channels: publicChannels,
-          phones: hints.phones.map((p) => ({
-            country_code: p.replace(/\D/g, "").startsWith("229") ? "+229" : null,
-            last4: phoneLast4(p),
-          })),
+          channels: Array.from(new Set(publicChannels)),
+          phones: extractedPhones,
+          has_whatsapp: signal.has_whatsapp === true,
           email_count: hints.emails.length,
+          source_label: signal.source_key ?? null,
+          observed_at: signal.observed_at ?? null,
         };
         const stage = ["C2","C3","C4","C5"].includes(nextLevel) ? "contact_ready" : "enriching";
         const updated = await updateOpportunityJourney(sb, journey.id, {
