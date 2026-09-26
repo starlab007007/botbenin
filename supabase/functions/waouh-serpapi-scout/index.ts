@@ -5,6 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
 import { getRadarApiKey, incrementRadarUsage, markRadarProviderSync } from "../_shared/radar-api-config.ts";
 import { normalizeE164 } from "../_shared/waouh-tel/phone.ts";
 
@@ -48,6 +49,16 @@ Deno.serve(async (req) => {
   let scanned = 0;
 
   try {
+    const control = await getWaouhModuleControl(sb, "nexus");
+    if (!control.enabled || !control.automation_enabled) {
+      return new Response(JSON.stringify({
+        ok: true,
+        skipped: true,
+        reason: !control.enabled ? "nexus_paused" : "nexus_automation_paused",
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const keyRes = await getRadarApiKey(sb, "serpapi", "SERPAPI_KEY");
     if (!keyRes.ok) {
       return new Response(JSON.stringify({ ok: false, skipped: true, reason: keyRes.reason }), {
