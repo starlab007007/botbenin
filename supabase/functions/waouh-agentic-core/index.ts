@@ -14,6 +14,7 @@ import {
   markRadarProviderSync,
 } from "../_shared/radar-api-config.ts";
 import { rehostMedia } from "../_shared/waouhContact.ts";
+import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
 import {
   contactabilityPolicy,
   extractPublicContactHints,
@@ -1675,6 +1676,33 @@ Deno.serve(async (req: Request) => {
     if (!supabaseUrl || !serviceKey) throw new ApiError(500, "server_not_configured");
     const sb = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
     const ownerId = authUser.id;
+
+    if (action.startsWith("nexus.")) {
+      const control = await getWaouhModuleControl(sb, "nexus");
+      const statusOnly = new Set(["nexus.summary", "nexus.sources", "nexus.preferences.get"]);
+      if (!control.enabled && !statusOnly.has(action)) {
+        throw new ApiError(503, "nexus_paused", control.maintenance_message || "NEXUS est temporairement désactivé par l'administration.");
+      }
+      const automaticActions = new Set(["nexus.source.sync", "nexus.autopilot.create", "nexus.notify_buyers"]);
+      if (control.enabled && !control.automation_enabled && automaticActions.has(action)) {
+        throw new ApiError(409, "nexus_automation_paused", "Les automatisations NEXUS sont suspendues par l'administration.");
+      }
+    }
+
+    if (action.startsWith("mission.") || action.startsWith("watch.") || action.startsWith("approval.") || action.startsWith("offer.")) {
+      const control = await getWaouhModuleControl(sb, "muse_agents");
+      const safeWhenPaused = new Set([
+        "mission.list", "mission.get", "mission.pause", "mission.cancel",
+        "watch.list", "watch.events", "watch.event.read",
+        "approval.list", "approval.decide", "offer.list",
+      ]);
+      if (!control.enabled && !safeWhenPaused.has(action)) {
+        throw new ApiError(503, "agents_paused", control.maintenance_message || "Muse & Agents IA sont temporairement désactivés par l'administration.");
+      }
+      if (control.enabled && !control.automation_enabled && ["mission.run", "watch.observe"].includes(action)) {
+        throw new ApiError(409, "agents_automation_paused", "Les exécutions autonomes des Agents IA sont suspendues.");
+      }
+    }
 
     switch (action) {
       case "mission.create": {
