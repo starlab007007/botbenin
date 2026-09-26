@@ -9,6 +9,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
 import { requestSessionId, requireAuthOrGuestSession } from "../_shared/waouh-auth.ts";
+import { resolveProductThread, bindThreadState } from "../_shared/waouh-thread.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -77,6 +78,33 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Canonical commerce relation: the Deal Room is created/resolved BEFORE
+    // the negotiation so every state-changing action has one authoritative thread.
+    const { data: buyerActor } = await sb.from("waouh_users")
+      .select("id,auth_user_id,phone_number,web_session_id")
+      .eq("id", buyerUserId)
+      .maybeSingle();
+    if (!buyerActor || !article.seller_id) {
+      return new Response(JSON.stringify({ error: "commerce_participants_required" }), {
+        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const productThread = await resolveProductThread({
+      sb,
+      articleId: article_id,
+      actorUser: buyerActor,
+      role: "buyer",
+      counterpartUserId: article.seller_id,
+      sellerUserId: article.seller_id,
+      source,
+      create: true,
+    });
+    if (!productThread?.id) {
+      return new Response(JSON.stringify({ error: "product_thread_required" }), {
+        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Insert interest (dedupe on (article, buyer))
     const { error: insErr } = await sb.from("waouh_interests").insert({
       article_id,
@@ -90,14 +118,13 @@ Deno.serve(async (req) => {
       console.error("[waouh-buyer-interest] insert error", insErr);
     }
 
-    // 🤝 Ensure an OPEN negotiation exists so the buyer can immediately reply
-    // OUI / NON / "je propose X" via waouh-negotiation-router. Without this
-    // the router answers "Aucune négociation en cours".
+    // Ensure one OPEN negotiation bound to the exact canonical Deal Room.
+    let negotiationId: string | null = null;
     if (buyerUserId && article.seller_id) {
       try {
         const { data: openNeg } = await sb
           .from("waouh_negotiations")
-          .select("id, state")
+          .select("id, state, thread_id")
           .eq("article_id", article_id)
           .eq("buyer_user_id", buyerUserId)
           .eq("seller_user_id", article.seller_id)
@@ -105,16 +132,45 @@ Deno.serve(async (req) => {
           .order("updated_at", { ascending: false })
           .limit(1)
           .maybeSingle();
-        if (!openNeg) {
-          await sb.from("waouh_negotiations").insert({
+        if (openNeg?.id) {
+          negotiationId = openNeg.id;
+          if (!openNeg.thread_id) {
+            await sb.from("waouh_negotiations")
+              .update({ thread_id: productThread.id })
+              .eq("id", openNeg.id);
+          }
+        } else {
+          const { data: createdNeg, error: negErr } = await sb.from("waouh_negotiations").insert({
             article_id,
             buyer_user_id: buyerUserId,
             seller_user_id: article.seller_id,
+            thread_id: productThread.id,
             state: "proposed",
             last_offer_price: (article as any).price ?? null,
             last_actor: "buyer",
-            meta: { opened_via: "buyer_interest", source },
+            meta: { opened_via: "buyer_interest", source, canonical_thread: true },
+          }).select("id").maybeSingle();
+          if (negErr) throw negErr;
+          negotiationId = createdNeg?.id ?? null;
+        }
+        if (negotiationId) {
+          await bindThreadState(sb, productThread.id, {
+            status: "negotiating",
+            negotiation_id: negotiationId,
           });
+          await sb.rpc("waouh_record_commerce_event", {
+            p_event_type: "buyer_interest_opened",
+            p_entity_type: "negotiation",
+            p_entity_id: negotiationId,
+            p_thread_id: productThread.id,
+            p_article_id: article_id,
+            p_negotiation_id: negotiationId,
+            p_actor_user_id: buyerUserId,
+            p_actor_role: "buyer",
+            p_previous_state: null,
+            p_next_state: "proposed",
+            p_payload: { source },
+          }).catch(() => {});
         }
       } catch (e) {
         console.warn("[waouh-buyer-interest] open negotiation failed", e);
@@ -164,6 +220,18 @@ Deno.serve(async (req) => {
             intent: "buyer_interest",
             eventType: "buyer_interest",
             template: "buyer_interest_ack",
+            negotiationId,
+            payloadExtra: {
+              thread_id: productThread.id,
+              buyer_user_id: buyerUserId,
+              seller_user_id: article.seller_id,
+              workflow_state: "negotiating",
+              actions: negotiationId ? [
+                { id: `accepter:${negotiationId}`, label: "✅ Accepter" },
+                { id: `contre-proposition:${negotiationId}`, label: "💬 Proposer un prix" },
+                { id: `refuser:${negotiationId}`, label: "❌ Refuser" },
+              ] : [],
+            },
             dedupSuffix: "actor",
           });
         }
@@ -177,6 +245,8 @@ Deno.serve(async (req) => {
       ok: true,
       duplicate: !!isDuplicate,
       seller_notified: dispatched,
+      thread_id: productThread.id,
+      negotiation_id: negotiationId,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error("[waouh-buyer-interest] error", e);
