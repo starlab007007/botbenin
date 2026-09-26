@@ -46,7 +46,8 @@ export const AdminDashboardPage: React.FC = () => {
       title: 'Paramétrage des moteurs',
       items: [
         { label: 'Paramètres généraux', path: '/admin/waouh?tab=settings', note: 'IA, commerce, paiement et règles', icon: SlidersHorizontal },
-        { label: 'NEXUS / Radar IA', path: '/admin/waouh/radar', note: 'Sources, API, quotas et collecte', icon: Network },\n        { label: 'Contact Layer C0–C4', path: '/admin/waouh/contact-layer', note: 'Contactabilité, consentement et politiques par source', icon: Shield },
+        { label: 'NEXUS / Radar IA', path: '/admin/waouh/radar', note: 'Sources, API, quotas et collecte', icon: Network },
+        { label: 'Contact Layer C0–C4', path: '/admin/waouh/contact-layer', note: 'Contactabilité, consentement et politiques par source', icon: Shield },
         { label: 'WhatsApp Ops', path: '/admin/waouh/whatsapp-ops', note: 'WAHA, sessions, queue et replay', icon: MessageSquareText },
         { label: 'SMS / RCS natif', path: '/admin/waouh/native-messaging', note: 'Provider, SMS, RCS et fallback', icon: MessageSquareText },
         { label: 'Validations diffusion', path: '/admin/waouh/diffusion-approvals', note: 'Approbations humaines avant envoi', icon: Megaphone },
