@@ -18,9 +18,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { getWaouhSessionId } from "@/app-mobile/hooks/useWaouhIdentity";
+import { WaouhNexusContactSheet } from "@/components/waouh/WaouhNexusContactSheet";
 import {
   globalNexusDiscovery,
   prepareNexusContact,
@@ -129,6 +131,9 @@ export default function WaouhAvatarCommercePage() {
   const [results, setResults] = useState<NexusDiscoveryResult[]>([]);
   const [sourceMix, setSourceMix] = useState<Record<string, number>>({});
   const [rationale, setRationale] = useState("");
+  const [offerItem, setOfferItem] = useState<NexusDiscoveryResult | null>(null);
+  const [offerAmount, setOfferAmount] = useState("");
+
 
   const sources = useMemo(
     () => Object.entries(sourceMix).filter(([, count]) => Number(count) > 0),
@@ -163,7 +168,7 @@ export default function WaouhAvatarCommercePage() {
     }
   };
 
-  const continueWith = async (item: NexusDiscoveryResult) => {
+  const continueWith = async (item: NexusDiscoveryResult, initialOffer?: number) => {
     setWorkingId(item.fabric_id);
     try {
       const evidence = (item.evidence || {}) as Record<string, unknown>;
@@ -183,7 +188,9 @@ export default function WaouhAvatarCommercePage() {
         const price = item.price_min ?? item.price_max ?? null;
         const sessionId = getWaouhSessionId();
         const { data: authData } = await supabase.auth.getUser();
-        const text = `Je suis intéressé par « ${title} ».`;
+        const text = initialOffer && initialOffer > 0
+          ? `Je propose ${Math.round(initialOffer).toLocaleString("fr-FR")} FCFA pour « ${title} ».`
+          : `Je suis intéressé par « ${title} ».`;
         const meta = {
           source: "avatar_commerce",
           origin_surface: "web_avatar_commerce",
@@ -197,6 +204,7 @@ export default function WaouhAvatarCommercePage() {
           title,
           city: item.city ?? null,
           price,
+          ...(initialOffer && initialOffer > 0 ? { offer_price: initialOffer, initial_offer_amount: initialOffer } : {}),
           fabric_id: item.fabric_id,
           contactability_level: item.contact_policy.level,
           nexus_total_score: item.scores?.total_score ?? null,
@@ -404,25 +412,84 @@ export default function WaouhAvatarCommercePage() {
                   La mise en relation reste médiée par WAOUH selon le niveau {item.contact_policy.level}. Les coordonnées privées ne sont pas révélées directement.
                 </div>
 
-                <Button
-                  onClick={() => void continueWith(item)}
-                  disabled={workingId === item.fabric_id}
-                  className="mt-3 h-11 w-full rounded-2xl"
-                >
-                  {workingId === item.fabric_id ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : item.source_key === "waouh_app" ? (
-                    <Handshake className="mr-2 h-4 w-4" />
-                  ) : (
-                    <Radar className="mr-2 h-4 w-4" />
-                  )}
-                  {item.source_key === "waouh_app" ? "Intéressé · ouvrir le Deal Room" : "Laisser mon Avatar poursuivre"}
-                </Button>
+                {item.source_key === "waouh_app" ? (
+                  <Button
+                    onClick={() => {
+                      setOfferItem(item);
+                      const displayed = item.price_min ?? item.price_max;
+                      setOfferAmount(displayed != null ? String(Math.round(displayed)) : "");
+                    }}
+                    disabled={workingId === item.fabric_id}
+                    className="mt-3 h-11 w-full rounded-2xl"
+                  >
+                    {workingId === item.fabric_id ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Handshake className="mr-2 h-4 w-4" />
+                    )}
+                    Je suis intéressé
+                  </Button>
+                ) : (
+                  <div className="mt-3 [&_button]:h-11 [&_button]:w-full [&_button]:rounded-2xl">
+                    <WaouhNexusContactSheet
+                      fabricId={item.fabric_id}
+                      title={item.subject || item.raw_text || "Opportunité WAOUH"}
+                      sourceUrl={item.source_url}
+                      contactabilityLevel={item.contact_policy.level}
+                    />
+                  </div>
+                )}
                 </div>
               </article>
             );
           })}
         </div>
+
+        <Dialog open={!!offerItem} onOpenChange={(open) => !open && setOfferItem(null)}>
+          <DialogContent className="max-w-md rounded-3xl">
+            <DialogHeader>
+              <DialogTitle>Votre Avatar ouvre la négociation</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Proposez votre prix. WAOUH transmet l’offre, suit la réponse et vous guide jusqu’à l’accord puis l’exécution du deal.
+              </p>
+              {offerItem && (
+                <div className="rounded-2xl border bg-slate-50 p-3">
+                  <div className="font-semibold">{offerItem.subject || offerItem.raw_text || "Opportunité"}</div>
+                  {(offerItem.price_min != null || offerItem.price_max != null) && (
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Prix observé : {Math.round(offerItem.price_min ?? offerItem.price_max ?? 0).toLocaleString("fr-FR")} FCFA
+                    </div>
+                  )}
+                </div>
+              )}
+              <Input
+                value={offerAmount}
+                onChange={(event) => setOfferAmount(event.target.value.replace(/[^0-9]/g, ""))}
+                inputMode="numeric"
+                placeholder="Votre proposition en FCFA"
+              />
+              <Button
+                className="h-12 w-full rounded-2xl"
+                disabled={!offerItem || Number(offerAmount) <= 0 || workingId === offerItem?.fabric_id}
+                onClick={() => {
+                  if (!offerItem) return;
+                  const item = offerItem;
+                  const amount = Number(offerAmount);
+                  setOfferItem(null);
+                  void continueWith(item, amount);
+                }}
+              >
+                <Handshake className="mr-2 h-4 w-4" />
+                Envoyer mon offre et ouvrir le Deal Room
+              </Button>
+              <p className="text-xs font-semibold text-emerald-700">
+                Votre Avatar reste actif jusqu’à la conclusion de l’accord.
+              </p>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {!busy && goal && results.length === 0 && (
           <div className="rounded-[24px] border border-slate-200 bg-white p-6 text-center">
