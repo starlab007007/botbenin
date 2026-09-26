@@ -1567,7 +1567,8 @@ serve(async (req) => {
             status: "negotiating",
             negotiation_id: neg.id,
           });
-          await sb.rpc("waouh_record_commerce_event", {
+          try {
+            await sb.rpc("waouh_record_commerce_event", {
             p_event_type: "whatsapp_negotiation_opened",
             p_entity_type: "negotiation",
             p_entity_id: neg.id,
@@ -1579,7 +1580,8 @@ serve(async (req) => {
             p_previous_state: null,
             p_next_state: "proposed",
             p_payload: { source: pickSource },
-          }).catch(() => {});
+          })
+          } catch (_) { /* ledger is best-effort for legacy recovery */ }
         }
         // 🛰️ v10 — Si la négo provient d'un outreach Radar IA, marquer le
         // signal comme converti pour éviter de re-contacter l'acheteur sur
