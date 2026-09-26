@@ -204,21 +204,38 @@ export default function WaouhPage() {
         <Card className="p-4 border-cyan-200 bg-white shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div>
-              <h2 className="font-semibold text-sm">Accès directs administration</h2>
-              <p className="text-xs text-muted-foreground">Paramétrage, NEXUS, canaux, données et supervision accessibles sans passer par un menu caché.</p>
+              <h2 className="font-semibold text-sm">Accès directs — architecture de contrôle</h2>
+              <p className="text-xs text-muted-foreground">
+                Tous les moteurs, canaux, contrôles métier et consoles d’exploitation sont accessibles ici, sans menu caché.
+              </p>
             </div>
             <Badge variant="outline" className="text-cyan-700 border-cyan-200">WAOUH Admin</Badge>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-9 gap-2">
-            <Link to="/admin/waouh/radar"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Radar className="w-3.5 h-3.5 mr-1" />NEXUS / Radar IA</Button></Link>
+
+          <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Moteurs & canaux</div>
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2">
+            <Link to="/admin/waouh/radar"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Radar className="w-3.5 h-3.5 mr-1" />NEXUS</Button></Link>
             <Link to="/admin/waouh/contact-layer"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Shield className="w-3.5 h-3.5 mr-1" />Contact C0–C4</Button></Link>
-            <Link to="/admin/waouh?tab=settings"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Sparkles className="w-3.5 h-3.5 mr-1" />Paramètres</Button></Link>
-            <Link to="/admin/waouh/whatsapp-ops"><Button variant="outline" className="w-full h-auto py-2 text-xs"><MessagesSquare className="w-3.5 h-3.5 mr-1" />WhatsApp Ops</Button></Link>
+            <Link to="/admin/waouh?tab=control#module-avatar_commerce"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Sparkles className="w-3.5 h-3.5 mr-1" />Avatar Commerce</Button></Link>
+            <Link to="/admin/waouh?tab=control#module-chat_web"><Button variant="outline" className="w-full h-auto py-2 text-xs"><MessageCircle className="w-3.5 h-3.5 mr-1" />Chat Web / App</Button></Link>
+            <Link to="/admin/waouh/whatsapp-ops"><Button variant="outline" className="w-full h-auto py-2 text-xs"><MessagesSquare className="w-3.5 h-3.5 mr-1" />WhatsApp</Button></Link>
+            <Link to="/admin/waouh?tab=control#module-muse_agents"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Sparkles className="w-3.5 h-3.5 mr-1" />Muse / Agents IA</Button></Link>
+            <Link to="/admin/waouh?tab=control#module-negotiation"><Button variant="outline" className="w-full h-auto py-2 text-xs"><TrendingUp className="w-3.5 h-3.5 mr-1" />Négociation</Button></Link>
+            <Link to="/admin/waouh/deals"><Button variant="outline" className="w-full h-auto py-2 text-xs"><ShoppingBag className="w-3.5 h-3.5 mr-1" />Deal Room / Graph</Button></Link>
+            <Link to="/admin/waouh?tab=control#module-outbound"><Button variant="outline" className="w-full h-auto py-2 text-xs"><ExternalLink className="w-3.5 h-3.5 mr-1" />Outbound</Button></Link>
+            <Link to="/admin/waouh/diffusion-approvals"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Megaphone className="w-3.5 h-3.5 mr-1" />Diffusion</Button></Link>
+          </div>
+
+          <div className="mt-4 mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Configuration & supervision</div>
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2">
             <Link to="/admin/waouh/native-messaging"><Button variant="outline" className="w-full h-auto py-2 text-xs"><MessagesSquare className="w-3.5 h-3.5 mr-1" />SMS / RCS</Button></Link>
+            <Link to="/admin/waouh/partners"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Users className="w-3.5 h-3.5 mr-1" />Partenaires</Button></Link>
+            <Link to="/admin/waouh/data-control"><Button variant="outline" className="w-full h-auto py-2 text-xs"><QrCode className="w-3.5 h-3.5 mr-1" />Données unifiées</Button></Link>
+            <Link to="/admin/waouh?tab=settings"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Sparkles className="w-3.5 h-3.5 mr-1" />Paramètres</Button></Link>
             <Link to="/admin/waouh/monitoring"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Activity className="w-3.5 h-3.5 mr-1" />Monitoring</Button></Link>
             <Link to="/admin/waouh/health-check"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Activity className="w-3.5 h-3.5 mr-1" />Health Check</Button></Link>
-            <Link to="/admin/waouh/deals"><Button variant="outline" className="w-full h-auto py-2 text-xs"><ShoppingBag className="w-3.5 h-3.5 mr-1" />Deal Ops</Button></Link>
-            <Link to="/admin/waouh/data-control"><Button variant="outline" className="w-full h-auto py-2 text-xs"><QrCode className="w-3.5 h-3.5 mr-1" />Données</Button></Link>
+            <Link to="/admin/waouh/historique"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Clock className="w-3.5 h-3.5 mr-1" />Historique / traces</Button></Link>
+            <Link to="/admin/waouh?tab=control"><Button className="w-full h-auto py-2 text-xs"><Activity className="w-3.5 h-3.5 mr-1" />Centre de contrôle</Button></Link>
           </div>
         </Card>
 
