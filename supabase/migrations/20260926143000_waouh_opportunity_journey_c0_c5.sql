@@ -147,12 +147,18 @@ BEGIN
     END IF;
   END IF;
 
-  NEW.progress := COALESCE(NEW.progress, CASE NEW.stage
-    WHEN 'discovered' THEN 10 WHEN 'enriching' THEN 22
-    WHEN 'contact_ready' THEN 35 WHEN 'contacting' THEN 45
-    WHEN 'waiting_reply' THEN 55 WHEN 'negotiating' THEN 72
-    WHEN 'agreed' THEN 82 WHEN 'executing' THEN 92
-    WHEN 'completed' THEN 100 WHEN 'cancelled' THEN 100 ELSE 15 END);
+  IF TG_OP='INSERT'
+     OR NEW.stage IS DISTINCT FROM OLD.stage
+     OR NEW.state IS DISTINCT FROM OLD.state THEN
+    NEW.progress := CASE NEW.stage
+      WHEN 'discovered' THEN 10 WHEN 'enriching' THEN 22
+      WHEN 'contact_ready' THEN 35 WHEN 'contacting' THEN 45
+      WHEN 'waiting_reply' THEN 55 WHEN 'negotiating' THEN 72
+      WHEN 'agreed' THEN 82 WHEN 'executing' THEN 92
+      WHEN 'completed' THEN 100 WHEN 'cancelled' THEN 100 ELSE 15 END;
+  ELSE
+    NEW.progress := COALESCE(NEW.progress,10);
+  END IF;
   NEW.title := COALESCE(NEW.title,NEW.subject,'Opportunité WAOUH');
   NEW.subject := COALESCE(NEW.subject,NEW.title);
   NEW.avatar_message := COALESCE(NEW.avatar_message,NEW.last_message);
