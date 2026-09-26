@@ -270,6 +270,8 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       }
       if (!mounted) return;
       avatar.showState(LiveAvatarPresenceState.found);
+      await _loadJourneys();
+      if (!mounted) return;
       context.push('/app/chat/match/' + Uri.encodeComponent(match.key),
           extra: match);
     } catch (e) {
@@ -409,6 +411,8 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       }
       if (!mounted) return;
       avatar.showState(LiveAvatarPresenceState.waiting);
+      await _loadJourneys();
+      if (!mounted) return;
       await _showJourneyStatus(item, journey, contactSent: true);
     } catch (e) {
       if (!mounted) return;
@@ -429,9 +433,31 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   Future<void> _continue(NexusDiscoveryItem item) async {
     if (item.internalArticle) {
       await _internalInterest(item);
-    } else {
-      await _mediatedContact(item);
+      return;
     }
+
+    if (item.contactPolicy.level == 'C4' ||
+        item.contactPolicy.level == 'C5') {
+      try {
+        final journey = await _nexus.startOpportunity(
+          fabricId: item.fabricId,
+          mode: widget.mode == LiveAvatarCommerceMode.sell ? 'sell' : 'buy',
+        );
+        await _loadJourneys();
+        if (!mounted) return;
+        if (journey.negotiating &&
+            (journey.threadId ?? '').trim().isNotEmpty) {
+          await _openJourneyDealRoom(journey);
+        } else {
+          await _showJourneyProgress(journey);
+        }
+      } catch (_) {
+        await _mediatedContact(item);
+      }
+      return;
+    }
+
+    await _mediatedContact(item);
   }
 
   String _journeyStageLabel(String stage) => switch (stage) {
