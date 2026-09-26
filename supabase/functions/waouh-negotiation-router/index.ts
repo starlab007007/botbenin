@@ -12,6 +12,7 @@ import { contactExchangeText, waouhHeader, waouhFooter, waouhSep, distanceKm, fo
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 import { geminiJson } from "../_shared/gemini.ts";
 import { bindThreadState } from "../_shared/waouh-thread.ts";
+import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -83,6 +84,17 @@ Deno.serve(async (req) => {
     });
   }
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
+  const negotiationControl = await getWaouhModuleControl(sb, "negotiation");
+  if (!negotiationControl.enabled) {
+    return new Response(JSON.stringify({
+      ok: false,
+      error: "negotiation_paused",
+      message: negotiationControl.maintenance_message || "La négociation WAOUH est temporairement suspendue.",
+    }), {
+      status: 503,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   // Helper: notification cloche + message direct chez l'autre partie
   async function pushToOther(toUserId: string, template: string, payload: any, directText: string, directMeta: any, transactionId: string | null = null, actions: Array<{id:string;label:string;url?:string}> = [], dedupeKey: string | null = null, eventType: string | null = null, attachments: Array<{url: string; type: string; caption?: string}> = [], toPhoneE164: string | null = null) {
