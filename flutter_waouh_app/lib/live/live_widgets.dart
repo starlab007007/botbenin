@@ -1042,7 +1042,8 @@ class _PremiumProduct {
       if (priceScore != null && priceScore! >= 70) 'Prix compétitif',
       if (contactability == 'C2' ||
           contactability == 'C3' ||
-          contactability == 'C4')
+          contactability == 'C4' ||
+          contactability == 'C5')
         'Contact médié possible',
     ];
     return facts.isEmpty
