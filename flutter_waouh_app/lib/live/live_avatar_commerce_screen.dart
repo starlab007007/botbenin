@@ -791,11 +791,52 @@ class _OpportunityCard extends StatelessWidget {
     required this.item,
     required this.busy,
     required this.onContinue,
+    required this.onFollow,
+    this.journey,
   });
   final int rank;
   final NexusDiscoveryItem item;
   final bool busy;
+  final NexusOpportunityJourney? journey;
   final VoidCallback onContinue;
+  final VoidCallback onFollow;
+
+  String get _primaryLabel {
+    final current = journey;
+    if (current != null) {
+      if (current.state == 'enriching') return 'Voir la recherche de contact';
+      if (current.state == 'contacting') return 'Voir la mise en relation';
+      if (current.state == 'waiting_response') return 'Voir le suivi du contact';
+      if (current.readyToNegotiate) return 'Négocier avec mon Avatar';
+    }
+    if (item.internalArticle) return 'Je suis intéressé · proposer un prix';
+    switch (item.contactPolicy.level) {
+      case 'C0':
+        return 'Trouver un moyen de contacter';
+      case 'C1':
+        return 'Contacter avec WAOUH';
+      case 'C2':
+        return 'Transmettre via WAOUH';
+      case 'C3':
+        return 'Envoyer avec mon Avatar';
+      case 'C4':
+        return 'Poursuivre le contact';
+      case 'C5':
+        return 'Négocier';
+      default:
+        return 'Continuer avec mon Avatar';
+    }
+  }
+
+  IconData get _primaryIcon {
+    final current = journey;
+    if (current?.waiting == true) return Icons.route_rounded;
+    if (current?.readyToNegotiate == true || item.internalArticle) {
+      return Icons.handshake_outlined;
+    }
+    if (item.contactPolicy.level == 'C0') return Icons.manage_search_rounded;
+    return Icons.send_rounded;
+  }
 
   String get _price {
     if (item.priceMin == null && item.priceMax == null) return 'Prix non publié';
@@ -961,6 +1002,96 @@ class _OpportunityCard extends StatelessWidget {
                   : 'Contact médié par NEXUS selon la politique ${item.contactPolicy.level}.',
               accent: WaouhPalette.blue,
             ),
+            if (journey != null) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F8FF),
+                  borderRadius: BorderRadius.circular(15),
+                  border: Border.all(color: const Color(0xFFDCE7F8)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.route_rounded,
+                            size: 17, color: WaouhPalette.blue),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Démarche WAOUH · ${journey!.progress}%',
+                            style: const TextStyle(
+                              color: WaouhPalette.ink,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEAF2FF),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: Text(
+                            journey!.contactabilityLevel,
+                            style: const TextStyle(
+                              color: WaouhPalette.blue,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 7),
+                    LinearProgressIndicator(
+                      value: (journey!.progress / 100).clamp(0, 1),
+                      minHeight: 5,
+                      backgroundColor: const Color(0xFFE8EEF7),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    if ((journey!.avatarMessage ?? '').trim().isNotEmpty) ...[
+                      const SizedBox(height: 7),
+                      Text(
+                        journey!.avatarMessage!,
+                        style: const TextStyle(
+                          color: WaouhPalette.muted,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w600,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                    if ((journey!.contactLast4 ?? '').isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        '${journey!.contactChannel ?? 'Contact'} · +229 •••• ${journey!.contactLast4}',
+                        style: const TextStyle(
+                          color: Color(0xFF159A69),
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                    if ((journey!.nextAction ?? '').trim().isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        'Prochaine étape : ${journey!.nextAction}',
+                        style: const TextStyle(
+                          color: WaouhPalette.ink,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 10),
             FilledButton.icon(
               onPressed: busy ? null : onContinue,
@@ -969,13 +1100,26 @@ class _OpportunityCard extends StatelessWidget {
                       dimension: 15,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Icon(item.internalArticle
-                      ? Icons.handshake_outlined
-                      : Icons.send_rounded),
-              label: Text(item.internalArticle
-                  ? 'Intéressé · ouvrir le Deal Room'
-                  : 'Laisser mon Avatar contacter'),
+                  : Icon(_primaryIcon),
+              label: Text(_primaryLabel),
               style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(47),
+              ),
+            ),
+            const SizedBox(height: 7),
+            OutlinedButton.icon(
+              onPressed: busy ? null : onFollow,
+              icon: Icon(
+                journey?.state == 'enriching' || journey?.waiting == true
+                    ? Icons.notifications_active_outlined
+                    : Icons.notifications_none_rounded,
+              ),
+              label: Text(
+                journey?.state == 'enriching'
+                    ? 'Suivi actif · Ayo continue'
+                    : 'Suivre prix / disponibilité',
+              ),
+              style: OutlinedButton.styleFrom(
                 minimumSize: const Size.fromHeight(45),
               ),
             ),
@@ -983,6 +1127,236 @@ class _OpportunityCard extends StatelessWidget {
         ),
       );
 
+}
+
+
+class _JourneySheet extends StatelessWidget {
+  const _JourneySheet({
+    required this.avatarName,
+    required this.item,
+    required this.journey,
+    required this.onRefresh,
+    this.onNegotiate,
+  });
+
+  final String avatarName;
+  final NexusDiscoveryItem item;
+  final NexusOpportunityJourney journey;
+  final Future<void> Function() onRefresh;
+  final VoidCallback? onNegotiate;
+
+  String get _stateLabel => switch (journey.state) {
+        'enriching' => 'Recherche du meilleur contact',
+        'contact_ready' => 'Contact prêt',
+        'contacting' => 'Mise en relation en cours',
+        'waiting_response' => 'En attente de réponse',
+        'ready_to_negotiate' => 'Prêt à négocier',
+        'negotiating' => 'Négociation en cours',
+        'agreed' => 'Accord trouvé',
+        'executing' => 'Exécution du deal',
+        'completed' => 'Terminé',
+        _ => 'Démarche active',
+      };
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+        top: false,
+        child: Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * .82,
+          ),
+          padding: const EdgeInsets.fromLTRB(18, 14, 18, 22),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD8DEE8),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0F5FF),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Icon(Icons.auto_awesome_rounded,
+                          color: WaouhPalette.blue),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '$avatarName vous accompagne',
+                            style: const TextStyle(
+                              color: WaouhPalette.ink,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          Text(
+                            _stateLabel,
+                            style: const TextStyle(
+                              color: WaouhPalette.blue,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      '${journey.progress}%',
+                      style: const TextStyle(
+                        color: WaouhPalette.blue,
+                        fontSize: 19,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  item.title,
+                  style: const TextStyle(
+                    color: WaouhPalette.ink,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                LinearProgressIndicator(
+                  value: (journey.progress / 100).clamp(0, 1),
+                  minHeight: 7,
+                  borderRadius: BorderRadius.circular(99),
+                  backgroundColor: const Color(0xFFE8EEF7),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: journey.timeline
+                      .map(
+                        (step) => Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: step.current
+                                ? const Color(0xFFEAF2FF)
+                                : step.done
+                                    ? const Color(0xFFEAF8F2)
+                                    : const Color(0xFFF4F6F9),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                step.done
+                                    ? Icons.check_circle_rounded
+                                    : step.current
+                                        ? Icons.radio_button_checked_rounded
+                                        : Icons.radio_button_unchecked_rounded,
+                                size: 13,
+                                color: step.done
+                                    ? const Color(0xFF159A69)
+                                    : step.current
+                                        ? WaouhPalette.blue
+                                        : WaouhPalette.muted,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                step.label,
+                                style: const TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: WaouhPalette.ink,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 14),
+                _InfoStrip(
+                  icon: Icons.psychology_alt_rounded,
+                  text: journey.avatarMessage ??
+                      '$avatarName poursuit cette démarche dans WAOUH.',
+                  accent: WaouhPalette.blue,
+                ),
+                if ((journey.contactChannel ?? '').isNotEmpty ||
+                    (journey.contactLast4 ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _InfoStrip(
+                    icon: Icons.verified_user_outlined,
+                    text: [
+                      'Contact ${journey.contactabilityLevel}',
+                      if ((journey.contactChannel ?? '').isNotEmpty)
+                        journey.contactChannel!,
+                      if ((journey.contactLast4 ?? '').isNotEmpty)
+                        '+229 •••• ${journey.contactLast4}',
+                    ].join(' · '),
+                    accent: const Color(0xFF159A69),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                _InfoStrip(
+                  icon: Icons.flag_outlined,
+                  text: 'Prochaine étape : ${journey.nextAction ?? 'Ayo continue le parcours'}',
+                  accent: const Color(0xFF8B6500),
+                ),
+                const SizedBox(height: 14),
+                if (onNegotiate != null)
+                  FilledButton.icon(
+                    onPressed: onNegotiate,
+                    icon: const Icon(Icons.handshake_outlined),
+                    label: const Text('Proposer un prix · ouvrir le Deal Room'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(50),
+                    ),
+                  )
+                else
+                  FilledButton.icon(
+                    onPressed: () => onRefresh(),
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Actualiser avec Ayo'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(50),
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Vous pouvez fermer cet écran : WAOUH conserve la démarche et la prochaine action.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: WaouhPalette.muted,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
 }
 
 class _ScoreBar extends StatelessWidget {
