@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Activity, BellRing, Bot, Loader2, Plus, RefreshCw, ShieldCheck, Store } from "lucide-react";
+import { Activity, BellRing, Bot, Loader2, Plus, RefreshCw, ShieldCheck, Sparkles, Store } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
