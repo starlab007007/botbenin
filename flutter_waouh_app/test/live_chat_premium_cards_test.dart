@@ -103,7 +103,7 @@ void main() {
 
     expect(selectedPayload, isNotNull);
     final payload = selectedPayload!;
-    expect(liveCommercePayloadText(payload), 'intéressé 1');
+    expect(liveCommercePayloadText(payload), 'Je propose 90000 FCFA');
 
     final meta = liveCommercePayloadMeta(payload);
     expect(meta['action'], 'interested');
