@@ -5,21 +5,37 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const DISPATCH_URL = `${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`;
 
 function normalizeBeninPhone(value: string | null | undefined) {
-  const digits = String(value || "").replace(/\D/g, "");
+  let digits = String(value || "").replace(/\D/g, "");
   if (!digits) return null;
-  if (digits.startsWith("00229")) return digits.slice(2);
-  if (digits.startsWith("229")) return digits;
-  if (digits.length === 8 || (digits.length === 10 && digits.startsWith("01"))) return `229${digits}`;
+  if (digits.startsWith("00229")) digits = digits.slice(2);
+  if (digits.startsWith("22901") && digits.length === 13) return digits;
+  if (digits.startsWith("229") && digits.length === 11) {
+    return `22901${digits.slice(3)}`;
+  }
+  if (digits.length === 10 && digits.startsWith("01")) return `229${digits}`;
+  if (digits.length === 8) return `22901${digits}`;
   const last10 = digits.slice(-10);
-  if (last10.length === 10 && last10.startsWith("01")) return `229${last10}`;
+  if (last10.startsWith("01")) return `229${last10}`;
   const last8 = digits.slice(-8);
-  return last8.length === 8 ? `229${last8}` : null;
+  return last8.length === 8 ? `22901${last8}` : null;
+}
+
+function sourceChannelForSignal(sig: any) {
+  const source = String(sig?.source_type || "").toLowerCase();
+  if (source === "wa_group") return "whatsapp_groups";
+  if (["fb_marketplace","fb_group","fb_page"].includes(source)) return "apify";
+  if (["telegram","telegram_channel"].includes(source)) return "telegram_public";
+  if (source === "instagram_business") return "instagram_business";
+  if (source === "tiktok") return "tiktok_connected";
+  if (source === "google_places") return "google_places";
+  return "radar_ia";
 }
 
 function normalizeCategory(value: string | null | undefined) {
@@ -82,7 +98,7 @@ async function promoteSignal(sb: any, sig: any, phone: string | null) {
       status: "active",
       origin: "radar",
       origin_signal_id: sig.id,
-      source_channel: "radar_ia",
+      source_channel: sourceChannelForSignal(sig),
       contact_whatsapp: phone ?? sig.contact_phone ?? null,
     }).select("id").single();
     if (error) console.warn("[radar-process] promote article", error);
@@ -110,7 +126,7 @@ async function promoteSignal(sb: any, sig: any, phone: string | null) {
       is_active: true,
       origin: "radar",
       origin_signal_id: sig.id,
-      source_channel: "radar_ia",
+      source_channel: sourceChannelForSignal(sig),
       contact_whatsapp: phone ?? sig.contact_phone ?? null,
     }).select("id").single();
     if (error) console.warn("[radar-process] promote buyer", error);
@@ -263,6 +279,16 @@ Deno.serve(async (req) => {
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   try {
+    const control = await getWaouhModuleControl(sb, "nexus");
+    if (!control.enabled || !control.automation_enabled) {
+      return new Response(JSON.stringify({
+        ok: true,
+        skipped: true,
+        reason: !control.enabled ? "nexus_paused" : "nexus_automation_paused",
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const { limit = 50 } = req.method === "POST" ? await req.json().catch(() => ({})) : {};
 
     const { data: signals, error: sigErr } = await sb

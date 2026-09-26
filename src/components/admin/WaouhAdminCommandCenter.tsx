@@ -525,14 +525,9 @@ export default function WaouhAdminCommandCenter() {
             <Row label="Collectes en retard" value={cc.nexus.sources_overdue ?? 0} attention={(cc.nexus.sources_overdue ?? 0) > 0} />
             <Row label="Quotas API ≥ 80%" value={cc.nexus.connector_quota_risks?.length ?? 0} attention={(cc.nexus.connector_quota_risks?.length ?? 0) > 0} />
             {connectorActive > 0 && <Progress value={Math.round((connectorReady / connectorActive) * 100)} className="h-2" />}
-            <div className="grid grid-cols-2 gap-2">
-              <Button size="sm" variant="outline" className="w-full" onClick={() => navigate("/admin/waouh?tab=radar")}>
-                NEXUS / Radar
-              </Button>
-              <Button size="sm" variant="outline" className="w-full" onClick={() => navigate("/admin/waouh/contact-layer")}>
-                Contact Layer
-              </Button>
-            </div>
+            <Button size="sm" variant="outline" className="w-full" onClick={() => navigate("/admin/waouh?tab=radar")}>
+              Configurer NEXUS / Radar
+            </Button>
           </CardContent>
         </Card>
 

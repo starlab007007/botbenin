@@ -1,3 +1,5 @@
+import { normalizeE164 } from "./waouh-tel/phone.ts";
+
 // Shared helpers to resolve contact/channel + rehost media for the WAOUH flow.
 // Used by waouh-sell-handler, waouh-buy-handler, waouh-notify-dispatch,
 // waouh-channel-in, waouh-radar-process, waouh-partner-ai.
@@ -12,26 +14,12 @@ export interface ResolvedContact {
 }
 
 export function normalizeBeninPhone(value?: string | null): string | null {
-  const raw = String(value || "").replace(/@c\.us|@lid/g, "");
-  // 🔒 Refuse les valeurs alphanumériques (stubs E2E type 229E2ECS64284).
-  if (/[A-Za-z]/.test(raw)) return null;
-  const digits = raw.replace(/\D/g, "");
-  if (!digits) return null;
-  let candidate: string | null = null;
-  if (digits.startsWith("229")) candidate = digits;
-  else if (digits.length === 8) candidate = `229${digits}`;
-  else if (digits.length === 10 && digits.startsWith("01")) candidate = `229${digits}`;
-  else {
-    const last10 = digits.slice(-10);
-    if (last10.length === 10 && last10.startsWith("01")) candidate = `229${last10}`;
-    else {
-      const last8 = digits.slice(-8);
-      if (last8.length === 8) candidate = `229${last8}`;
-    }
-  }
-  if (!candidate) return null;
-  if (!/^229(\d{8}|01\d{8})$/.test(candidate)) return null;
-  return candidate;
+  const raw = String(value || "").replace(/@c\.us|@lid/g, "").trim();
+  if (!raw || /[A-Za-z]/.test(raw)) return null;
+  const e164 = normalizeE164(raw, "+229");
+  // WAHA/provider APIs use an MSISDN without the leading +.
+  // Benin's current national format is 01XXXXXXXX => 22901XXXXXXXX.
+  return e164?.replace(/^\+/, "") ?? null;
 }
 
 /**

@@ -5,7 +5,9 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { getRadarApiKey, incrementRadarUsage } from "../_shared/radar-api-config.ts";
+import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
+import { getRadarApiKey, incrementRadarUsage, markRadarProviderSync } from "../_shared/radar-api-config.ts";
+import { normalizeE164 } from "../_shared/waouh-tel/phone.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -30,7 +32,7 @@ async function aiExtract(text: string): Promise<any> {
     body: JSON.stringify({
       model: "google/gemini-2.5-flash-lite",
       messages: [
-        { role: "system", content: "Extrait depuis un snippet d'annonce BJ et retourne JSON {title, price (number FCFA, null si absent), category, condition (new/like_new/good/fair), city, seller_phone (229XXXXXXXX si visible), confidence (0-1)}. Si pas une annonce de vente, confidence=0." },
+        { role: "system", content: "Extrait depuis un snippet d'annonce BJ et retourne JSON {title, price (number FCFA, null si absent), category, condition (new/like_new/good/fair), city, seller_phone (+22901XXXXXXXX si visible), confidence (0-1)}. Si pas une annonce de vente, confidence=0." },
         { role: "user", content: text.slice(0, 1500) },
       ],
       response_format: { type: "json_object" },
@@ -47,6 +49,16 @@ Deno.serve(async (req) => {
   let scanned = 0;
 
   try {
+    const control = await getWaouhModuleControl(sb, "nexus");
+    if (!control.enabled || !control.automation_enabled) {
+      return new Response(JSON.stringify({
+        ok: true,
+        skipped: true,
+        reason: !control.enabled ? "nexus_paused" : "nexus_automation_paused",
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const keyRes = await getRadarApiKey(sb, "serpapi", "SERPAPI_KEY");
     if (!keyRes.ok) {
       return new Response(JSON.stringify({ ok: false, skipped: true, reason: keyRes.reason }), {
@@ -83,7 +95,7 @@ Deno.serve(async (req) => {
           price: ext.price || null,
           city: ext.city,
           condition: ext.condition,
-          seller_phone: ext.seller_phone,
+          seller_phone: normalizeE164(ext.seller_phone),
           image_url: r.thumbnail || null,
           raw: { serp: r, extracted: ext },
         }).select().single();
@@ -91,17 +103,25 @@ Deno.serve(async (req) => {
         if (ins) {
           inserted.push(ins);
           // Also push to radar_signals for matching
+          const normalizedPhone = normalizeE164(ext.seller_phone);
+          const thumbnail = typeof r.thumbnail === "string" && /^https?:\/\//i.test(r.thumbnail)
+            ? r.thumbnail
+            : null;
           await sb.from("waouh_radar_signals").insert({
             source_type: "serpapi",
             raw_text: text,
             raw_url: r.link,
             raw_payload: r,
             intent: "SELL",
-            product: ext,
+            product: {
+              ...ext,
+              photos: thumbnail ? [thumbnail] : [],
+              image_url: thumbnail,
+            },
             category: ext.category || cat,
             price: ext.price,
             city: ext.city,
-            contact_phone: ext.seller_phone,
+            contact_phone: normalizedPhone,
             confidence: ext.confidence,
             status: "extracted",
           });

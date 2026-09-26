@@ -1,11 +1,21 @@
-// WAOUH Radar — moissonne Facebook Marketplace + groupes publics via Apify
+// WAOUH Radar — collecte des sources Web/sociales publiques explicitement configurées via Apify
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-waouh-session",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { getRadarApiKey, incrementRadarUsage } from "../_shared/radar-api-config.ts";
+import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
+import { getRadarApiKey, incrementRadarUsage, markRadarProviderSync } from "../_shared/radar-api-config.ts";
+import { normalizeE164 } from "../_shared/waouh-tel/phone.ts";
+
+function sourceDue(source: any, now = Date.now()) {
+  if (!source?.last_scan_at) return true;
+  const last = Date.parse(String(source.last_scan_at));
+  if (!Number.isFinite(last)) return true;
+  const minutes = Math.max(5, Number(source.scan_freq_min ?? 60));
+  return now - last >= minutes * 60000;
+}
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -14,7 +24,7 @@ let APIFY_TOKEN = "";
 let APIFY_CFG_ID: string | undefined;
 
 // Apify REST: actorId format is `username~actor-name` in URLs
-const ACTORS = {
+const DEFAULT_ACTORS = {
   fb_marketplace: "apify~facebook-marketplace-scraper",
   fb_group: "apify~facebook-groups-scraper",
 };
@@ -30,6 +40,20 @@ async function runActor(actor: string, input: any) {
   return await r.json();
 }
 
+function itemPhotos(item: any): string[] {
+  const raw = [
+    item?.image, item?.imageUrl, item?.thumbnail, item?.full_picture,
+    ...(Array.isArray(item?.images) ? item.images : []),
+    ...(Array.isArray(item?.photos) ? item.photos : []),
+  ];
+  const out = new Set<string>();
+  for (const value of raw) {
+    const url = typeof value === "string" ? value : value?.url || value?.src;
+    if (typeof url === "string" && /^https?:\/\//i.test(url)) out.add(url);
+  }
+  return [...out].slice(0, 8);
+}
+
 async function aiExtract(text: string): Promise<any> {
   const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -37,7 +61,7 @@ async function aiExtract(text: string): Promise<any> {
     body: JSON.stringify({
       model: "google/gemini-2.5-flash-lite",
       messages: [
-        { role: "system", content: "Analyse un post Facebook (vente/achat au Bénin) et retourne JSON {intent: SELL|BUY|UNKNOWN, title, price (number FCFA, null si absent), category, city, contact_phone (229XXXXXXXX si visible), contact_handle (nom auteur), confidence (0-1)}." },
+        { role: "system", content: "Analyse un post Facebook (vente/achat au Bénin) et retourne JSON {intent: SELL|BUY|UNKNOWN, title, price (number FCFA, null si absent), category, city, contact_phone (+22901XXXXXXXX si visible), contact_handle (nom auteur), confidence (0-1)}." },
         { role: "user", content: text.slice(0, 2000) },
       ],
       response_format: { type: "json_object" },
@@ -52,6 +76,16 @@ Deno.serve(async (req) => {
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   try {
+    const control = await getWaouhModuleControl(sb, "nexus");
+    if (!control.enabled || !control.automation_enabled) {
+      return new Response(JSON.stringify({
+        ok: true,
+        skipped: true,
+        reason: !control.enabled ? "nexus_paused" : "nexus_automation_paused",
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const keyRes = await getRadarApiKey(sb, "apify", "APIFY_TOKEN");
     if (!keyRes.ok) {
       return new Response(JSON.stringify({ ok: false, skipped: true, reason: keyRes.reason }), {
@@ -60,23 +94,53 @@ Deno.serve(async (req) => {
     }
     APIFY_TOKEN = keyRes.key!;
     APIFY_CFG_ID = keyRes.configId;
+    const providerExtra = keyRes.config?.extra_config || {};
+    const actors = {
+      fb_marketplace: String((providerExtra as any).fb_marketplace_actor || DEFAULT_ACTORS.fb_marketplace),
+      fb_group: String((providerExtra as any).fb_group_actor || DEFAULT_ACTORS.fb_group),
+    };
 
     // Get active sources
-    const { data: sources } = await sb.from("waouh_radar_sources").select("*").eq("active", true).in("type", ["fb_marketplace", "fb_group"]);
+    const { data: sources } = await sb.from("waouh_radar_sources")
+      .select("*")
+      .eq("active", true)
+      .in("type", ["fb_marketplace", "fb_group", "apify_actor"]);
     if (!sources || sources.length === 0) {
       return new Response(JSON.stringify({ ok: true, message: "No active FB sources" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    const dueSources = sources.filter((source: any) => sourceDue(source));
     let total = 0;
     const perSource: any[] = [];
-    for (const src of sources) {
+    for (const src of dueSources) {
       let srcCount = 0;
       let srcError: string | null = null;
       try {
-        const actor = ACTORS[src.type as "fb_marketplace" | "fb_group"];
-        const input = src.type === "fb_marketplace"
-          ? { search: src.identifier, country: "BJ", maxItems: 30 }
-          : { startUrls: [{ url: src.identifier }], maxPosts: 30 };
+        const sourceConfig =
+          src?.config && typeof src.config === "object" && !Array.isArray(src.config)
+            ? src.config
+            : {};
+        let actor: string;
+        let input: Record<string, unknown>;
+        if (src.type === "fb_marketplace") {
+          actor = actors.fb_marketplace;
+          input = { search: src.identifier, country: "BJ", maxItems: 30 };
+        } else if (src.type === "fb_group") {
+          actor = actors.fb_group;
+          input = { startUrls: [{ url: src.identifier }], maxPosts: 30 };
+        } else {
+          actor = String((sourceConfig as any).actor_id || src.identifier || "").trim();
+          if (!/^[A-Za-z0-9_.-]+~[A-Za-z0-9_.-]+$/.test(actor)) {
+            throw new Error("apify_actor_invalid: utilisez username~actor-name");
+          }
+          const configuredInput =
+            (sourceConfig as any).input &&
+            typeof (sourceConfig as any).input === "object" &&
+            !Array.isArray((sourceConfig as any).input)
+              ? (sourceConfig as any).input
+              : {};
+          input = { ...configuredInput, maxItems: Number((configuredInput as any).maxItems ?? 30) };
+        }
 
         console.log(`[apify] actor=${actor} src=${src.id} input=${JSON.stringify(input)}`);
         const items = await runActor(actor, input);
@@ -94,6 +158,10 @@ Deno.serve(async (req) => {
           const ext = await aiExtract(text);
           if (!ext || (ext.confidence ?? 0) < 0.4) continue;
 
+          const photos = itemPhotos(it);
+          const phone = normalizeE164(
+            ext.contact_phone ?? it.phone ?? it.sellerPhone ?? it.user?.phone,
+          );
           await sb.from("waouh_radar_signals").insert({
             source_id: src.id,
             source_type: src.type,
@@ -101,12 +169,17 @@ Deno.serve(async (req) => {
             raw_url: url,
             raw_payload: it,
             intent: ext.intent || "UNKNOWN",
-            product: ext,
+            product: {
+              ...ext,
+              title: ext.title || it.title || null,
+              photos,
+              image_url: photos[0] ?? null,
+            },
             category: ext.category,
             price: ext.price,
             city: ext.city,
-            contact_phone: ext.contact_phone,
-            contact_handle: ext.contact_handle || it.user?.name,
+            contact_phone: phone,
+            contact_handle: ext.contact_handle || it.user?.name || it.seller?.name,
             confidence: ext.confidence,
             status: "extracted",
           });
@@ -131,7 +204,8 @@ Deno.serve(async (req) => {
       }).catch(console.error);
     }
 
-    return new Response(JSON.stringify({ ok: true, sources: sources.length, signals: total, perSource }), {
+    await markRadarProviderSync(sb, "apify", total > 0 ? "ok" : "skipped", `${total} signaux · ${sources.length} sources`);
+    return new Response(JSON.stringify({ ok: true, sources: sources.length, due: dueSources.length, signals: total, perSource }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {

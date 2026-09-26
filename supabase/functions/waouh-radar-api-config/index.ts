@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { normalizeBeninPhone } from "../_shared/waouhContact.ts";
+import { contactabilityPolicy } from "../_shared/waouh-signal-fabric.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -78,8 +79,7 @@ async function nativeProviderState(admin: any, provider: string) {
   }
   if (provider === "sms_rcs") {
     const { data: settings } = await admin.from("waouh_tel_settings").select("*").eq("key", "default").maybeSingle();
-    const readinessResult = await admin.rpc("waouh_tel_runtime_readiness");
-    const runtime = readinessResult.error ? null : readinessResult.data;
+    const { data: runtime } = await admin.rpc("waouh_tel_runtime_readiness").catch(() => ({ data: null }));
     return {
       configured: settings?.enabled === true && runtime?.runtime_ready === true,
       runtime: { settings: settings ?? null, readiness: runtime ?? null },
