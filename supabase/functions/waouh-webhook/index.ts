@@ -603,6 +603,40 @@ serve(async (req) => {
               updated_at: new Date().toISOString(),
             }).eq("id", journey.id);
 
+            const { data: journeyOwner } = await sb.from("waouh_users")
+              .select("id,web_session_id")
+              .eq("auth_user_id", nexusOwnerAuthId)
+              .order("updated_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (journeyOwner?.id) {
+              await sb.from("waouh_notifications").insert({
+                user_id: journeyOwner.id,
+                article_id: journeyArticleId,
+                thread_id: journeyThreadId,
+                notification_type: "nexus_opportunity_reply",
+                photos: Array.isArray(signal.photo_urls) ? signal.photo_urls.slice(0, 3) : [],
+                payload: {
+                  text: "💬 Réponse reçue. Votre Avatar est prêt à poursuivre la négociation dans WAOUH.",
+                  reply_preview: String(text || "").slice(0, 180),
+                  journey_id: journey.id,
+                  fabric_id: nexusFabricId,
+                  negotiation_id: journeyNegotiationId,
+                  thread_id: journeyThreadId,
+                  workflow_state: "negotiating",
+                  contactability_level: "C5",
+                  actions: journeyThreadId
+                    ? [{ id: "ouvrir-deal-room:" + journeyThreadId, label: "🤝 Continuer la négociation" }]
+                    : [],
+                },
+                channel: "waouh_app",
+                delivery_status: "delivered",
+                delivered_at: new Date().toISOString(),
+                web_session_id: journeyOwner.web_session_id ?? null,
+                dedupe_key: "nexus-reply:" + journey.id + ":" + String(nexusOutbound.id),
+              });
+            }
+
             if (journeyArticleId && journeyThreadId && journeyNegotiationId) {
               radarHydratedContext = {
                 ...radarHydratedContext,
