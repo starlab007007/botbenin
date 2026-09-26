@@ -23,7 +23,7 @@ export function MobileErrorFallback() {
           <RefreshCw className="h-4 w-4" /> Réessayer
         </button>
         <button
-          onClick={() => { window.location.href = "/app/chat"; }}
+          onClick={() => { window.location.href = "/"; }}
           className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl border border-border bg-card font-medium active:scale-95 transition-transform"
         >
           <Home className="h-4 w-4" /> Accueil

@@ -224,8 +224,6 @@ const AppContent = () => {
       <Routes>
                   {/* Routes avec layout principal */}
                   <Route element={<MainLayout />}>
-                    {/* Route d'accueil */}
-                    <Route path="/" element={<Navigate to="/app/chat" replace />} />
                     {/* Modules web historiques — hors périmètre Flutter : réservés aux administrateurs */}
                     <Route path="/legacy" element={<FlutterParityGate><Index /></FlutterParityGate>} />
                     <Route path="/home" element={<FlutterParityGate><HomePage /></FlutterParityGate>} />
@@ -328,6 +326,11 @@ const AppContent = () => {
                      <Route path="/partner/payouts" element={<PartnerRoute><PartnerPayoutsPage /></PartnerRoute>} />
                   </Route>
                   
+                  {/* Accueil canonique bot.bj — même moteur et même UI que /app/chat */}
+                  <Route path="/" element={<ErrorBoundary fallback={<MobileErrorFallback />}><MobileShell /></ErrorBoundary>}>
+                    <Route index element={<MobileConversations />} />
+                  </Route>
+
                   {/* Routes publiques sans layout */}
                   <Route path="/auth" element={<AuthPage />} />
                   <Route path="/reset-password" element={<ResetPasswordPage />} />
@@ -347,7 +350,7 @@ const AppContent = () => {
                   <Route path="/app/auth/email" element={<MobileAuthEmail />} />
                   <Route path="/app/auth/whatsapp" element={<MobileAuthOtp />} />
                   <Route path="/app" element={<ErrorBoundary fallback={<MobileErrorFallback />}><MobileShell /></ErrorBoundary>}>
-                    <Route index element={<Navigate to="/app/chat" replace />} />
+                    <Route index element={<Navigate to="/" replace />} />
                     <Route path="chat" element={<MobileConversations />} />
                     <Route path="chat/waouh" element={<MobileWaouhChat />} />
                     <Route path="avatar" element={<WaouhMusePage embedded />} />

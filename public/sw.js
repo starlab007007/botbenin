@@ -5,7 +5,7 @@
 // - StaleWhileRevalidate pour images/fonts
 // - NetworkOnly pour Supabase / API / méthodes non-GET
 
-const VERSION = 'v6';
+const VERSION = 'v7';
 const SHELL_CACHE = `botbj-shell-${VERSION}`;
 const ASSETS_CACHE = `botbj-assets-${VERSION}`;
 const RUNTIME_CACHE = `botbj-runtime-${VERSION}`;
@@ -91,8 +91,8 @@ async function networkFirstHTML(request) {
   // Network too slow / failed → serve cached shell instantly, refresh in background.
   const cached =
     (await caches.match(request)) ||
-    (await caches.match('/app/chat')) ||
-    (await caches.match('/'));
+    (await caches.match('/')) ||
+    (await caches.match('/app/chat'));
   if (cached) {
     // Let the network finish in the background to refresh cache for next visit.
     networkPromise.catch(() => null);

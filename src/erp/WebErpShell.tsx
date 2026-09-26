@@ -61,14 +61,16 @@ type NavigationSection = {
   items: NavigationItem[];
 };
 
-const HOME_PATH = '/app/chat';
+const HOME_PATH = '/';
+const LEGACY_HOME_PATH = '/app/chat';
+const isHomePath = (pathname: string) => pathname === HOME_PATH || pathname === LEGACY_HOME_PATH;
 
 const navigationSections: NavigationSection[] = [
   {
     title: 'Communication',
     items: [
       { label: 'Chat Command Center', to: HOME_PATH, icon: MessageSquareText, accent: 'chat' },
-      { label: 'Radar', to: '/app/chat?tab=radar', icon: RadarIcon, brick: 'radar' },
+      { label: 'Radar', to: '/?tab=radar', icon: RadarIcon, brick: 'radar' },
       { label: 'WhatsApp IA', to: '/app/whatsapp', icon: UsersRound, brick: 'whatsapp' },
       { label: 'Diffusion', to: '/app/diffusion', icon: Megaphone, brick: 'diffusion' },
     ],
@@ -148,7 +150,7 @@ const routeContext = (pathname: string) => {
       prompt: 'Ouvrir mon Avatar',
     };
   }
-  if (pathname.startsWith('/app/chat')) {
+  if (pathname === HOME_PATH || pathname.startsWith('/app/chat')) {
 
     return {
       eyebrow: 'Centre opérationnel',
@@ -232,12 +234,12 @@ const routeContext = (pathname: string) => {
 
 /** URL is the single source of truth for the active brick. */
 const brickForLocation = (pathname: string, search: string): BrickId | null => {
-  if (pathname === HOME_PATH) {
+  if (isHomePath(pathname)) {
     return new URLSearchParams(search).get('tab') === 'radar' ? 'radar' : null;
   }
   // Exact match only: deeper routes (détail d'un agent, d'une boutique…) gardent leur écran dédié.
   const hit = navigation.find(
-    (item) => item.brick && item.to.split('?')[0] === pathname && pathname !== HOME_PATH,
+    (item) => item.brick && item.to.split('?')[0] === pathname && !isHomePath(pathname),
   );
   return (hit?.brick as BrickId) ?? null;
 
@@ -255,7 +257,7 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
     [location.pathname, location.search],
   );
 
-  const isHome = location.pathname === HOME_PATH && !activeBrick;
+  const isHome = isHomePath(location.pathname) && !activeBrick;
 
   const contextPath = activeBrick
     ? `${location.pathname}${location.search}`
@@ -271,7 +273,7 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
     .join('') || 'W';
 
   const openWaouh = () => {
-    if (location.pathname !== HOME_PATH || location.search) navigate(HOME_PATH);
+    if (!isHomePath(location.pathname) || location.search) navigate(HOME_PATH);
   };
 
   const openMuse = () => {
