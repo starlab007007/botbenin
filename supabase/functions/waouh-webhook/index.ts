@@ -633,7 +633,7 @@ serve(async (req) => {
                 delivery_status: "delivered",
                 delivered_at: new Date().toISOString(),
                 web_session_id: journeyOwner.web_session_id ?? null,
-                dedupe_key: "nexus-reply:" + journey.id + ":" + String(nexusOutbound.id),
+                dedupe_key: "nexus-reply:" + journey.id + ":" + String(nexusOutbound?.id ?? "inbound"),
               });
             }
 
