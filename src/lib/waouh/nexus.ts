@@ -514,5 +514,7 @@ export async function sendNexusDiscoveryContact(input: {
     channel: string;
     contactability_level: string;
     phone_last4?: string | null;
+    journey?: NexusOpportunityJourney | null;
+    next_action?: string | null;
   }>("nexus.contact.send", input);
 }
