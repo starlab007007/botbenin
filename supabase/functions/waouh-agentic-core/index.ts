@@ -2196,6 +2196,30 @@ Retourne uniquement JSON:
         return jsonResponse({ ok: true, data: { journey: data } });
       }
 
+      case "nexus.opportunity.list": {
+        const limit = integer(payload.limit, "limit", 20, 1, 50);
+        const includeCompleted = payload.include_completed === true;
+        let q = sb.from("waouh_opportunity_journeys")
+          .select("*")
+          .eq("owner_id", ownerId)
+          .order("updated_at", { ascending: false })
+          .limit(limit);
+        if (!includeCompleted) q = q.not("stage", "in", "(completed,cancelled)");
+        const { data, error } = await q;
+        if (error) throw new ApiError(500, "opportunity_journey_list_failed", error.message);
+        const journeys = data ?? [];
+        return jsonResponse({
+          ok: true,
+          data: {
+            journeys,
+            items: journeys,
+            active_count: journeys.filter((row: any) =>
+              !["completed", "cancelled"].includes(String(row?.stage || ""))
+            ).length,
+          },
+        });
+      }
+
       case "nexus.opportunity.enrich": {
         const fabricId = asString(payload.fabric_id, "fabric_id", 5, 200);
         const signal = await queryOne<any>(

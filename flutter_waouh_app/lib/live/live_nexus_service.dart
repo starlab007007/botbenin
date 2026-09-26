@@ -547,6 +547,10 @@ class NexusOpportunityJourney {
     this.sourceUrl,
     this.contactChannel,
     this.lastMessage,
+    this.articleId,
+    this.threadId,
+    this.negotiationId,
+    this.dealId,
     this.maskedContact = const <String, dynamic>{},
     this.timeline = const <Map<String, dynamic>>[],
   });
@@ -562,6 +566,10 @@ class NexusOpportunityJourney {
   final String? sourceUrl;
   final String? contactChannel;
   final String? lastMessage;
+  final String? articleId;
+  final String? threadId;
+  final String? negotiationId;
+  final String? dealId;
   final Map<String, dynamic> maskedContact;
   final List<Map<String, dynamic>> timeline;
 
@@ -585,6 +593,10 @@ class NexusOpportunityJourney {
             : _text(json['contact_channel']),
         lastMessage:
             json['last_message'] == null ? null : _text(json['last_message']),
+        articleId: json['article_id'] == null ? null : _text(json['article_id']),
+        threadId: json['thread_id'] == null ? null : _text(json['thread_id']),
+        negotiationId: json['negotiation_id'] == null ? null : _text(json['negotiation_id']),
+        dealId: json['deal_id'] == null ? null : _text(json['deal_id']),
         maskedContact: _map(json['masked_contact']),
         timeline: _list(json['timeline'])
             .map(_map)
@@ -781,6 +793,20 @@ class LiveNexusService {
       if (fabricId != null) 'fabric_id': fabricId,
     });
     return NexusOpportunityJourney.fromJson(_map(data['journey']));
+  }
+
+  Future<List<NexusOpportunityJourney>> listOpportunities({
+    bool includeCompleted = false,
+    int limit = 20,
+  }) async {
+    final data = await _invoke('nexus.opportunity.list', {
+      'include_completed': includeCompleted,
+      'limit': limit,
+    });
+    return _list(data['journeys'])
+        .map((value) => NexusOpportunityJourney.fromJson(_map(value)))
+        .where((item) => item.id.isNotEmpty)
+        .toList(growable: false);
   }
 
   Future<NexusOpportunityJourney> enrichOpportunity({

@@ -30,9 +30,30 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   final _budget = TextEditingController();
 
   NexusDiscoveryResponse? _response;
+  List<NexusOpportunityJourney> _journeys = const <NexusOpportunityJourney>[];
   bool _loading = false;
+  bool _loadingJourneys = false;
   String? _error;
   String? _workingFabric;
+
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.microtask(_loadJourneys);
+  }
+
+  Future<void> _loadJourneys() async {
+    if (legacy.supabase.auth.currentUser == null || _loadingJourneys) return;
+    if (mounted) setState(() => _loadingJourneys = true);
+    try {
+      final rows = await _nexus.listOpportunities(limit: 12);
+      if (mounted) setState(() => _journeys = rows);
+    } catch (_) {
+      // Search and deal remain usable even if the summary cannot refresh.
+    } finally {
+      if (mounted) setState(() => _loadingJourneys = false);
+    }
+  }
 
   bool get _findSellers => widget.mode != LiveAvatarCommerceMode.sell;
 
@@ -249,6 +270,8 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       }
       if (!mounted) return;
       avatar.showState(LiveAvatarPresenceState.found);
+      await _loadJourneys();
+      if (!mounted) return;
       context.push('/app/chat/match/' + Uri.encodeComponent(match.key),
           extra: match);
     } catch (e) {
@@ -388,6 +411,8 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       }
       if (!mounted) return;
       avatar.showState(LiveAvatarPresenceState.waiting);
+      await _loadJourneys();
+      if (!mounted) return;
       await _showJourneyStatus(item, journey, contactSent: true);
     } catch (e) {
       if (!mounted) return;
@@ -408,8 +433,345 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   Future<void> _continue(NexusDiscoveryItem item) async {
     if (item.internalArticle) {
       await _internalInterest(item);
-    } else {
-      await _mediatedContact(item);
+      return;
+    }
+
+    if (item.contactPolicy.level == 'C4' ||
+        item.contactPolicy.level == 'C5') {
+      try {
+        final journey = await _nexus.startOpportunity(
+          fabricId: item.fabricId,
+          mode: widget.mode == LiveAvatarCommerceMode.sell ? 'sell' : 'buy',
+        );
+        await _loadJourneys();
+        if (!mounted) return;
+        if (journey.negotiating &&
+            (journey.threadId ?? '').trim().isNotEmpty) {
+          await _openJourneyDealRoom(journey);
+        } else {
+          await _showJourneyProgress(journey);
+        }
+      } catch (_) {
+        await _mediatedContact(item);
+      }
+      return;
+    }
+
+    await _mediatedContact(item);
+  }
+
+  String _journeyStageLabel(String stage) => switch (stage) {
+        'discovered' => 'Trouvée',
+        'enriching' => 'Vérification du contact',
+        'contact_ready' => 'Contact prêt',
+        'contacting' => 'Contact en cours',
+        'waiting_reply' => 'En attente de réponse',
+        'negotiating' => 'Négociation',
+        'agreed' => 'Accord',
+        'executing' => 'Exécution',
+        'completed' => 'Terminé',
+        'cancelled' => 'Annulé',
+        _ => stage.replaceAll('_', ' '),
+      };
+
+  Future<void> _openJourneyDealRoom(NexusOpportunityJourney journey) async {
+    final threadId = journey.threadId?.trim() ?? '';
+    if (threadId.isEmpty) {
+      await _showJourneyProgress(journey);
+      return;
+    }
+    final controller = context.read<LiveWaouhController>();
+    try {
+      final matches = await controller.notifications.loadMatches(
+        legacy.supabase.auth.currentUser?.id,
+        force: true,
+      );
+      LiveMatch? match;
+      for (final candidate in matches) {
+        if ((candidate.threadId ?? '').trim() == threadId) {
+          match = candidate;
+          break;
+        }
+      }
+      if (!mounted) return;
+      if (match != null) {
+        context.push(
+          '/app/chat/match/' + Uri.encodeComponent(match.key),
+          extra: match,
+        );
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Le Deal Room est prêt. Avatar synchronise la conversation avant de l’ouvrir.',
+          ),
+        ),
+      );
+      context.go('/app/chat');
+    } catch (_) {
+      if (!mounted) return;
+      context.go('/app/chat');
+    }
+  }
+
+  Future<void> _showJourneyProgress(NexusOpportunityJourney journey) async {
+    NexusOpportunityJourney current = journey;
+    try {
+      current = await _nexus.opportunityStatus(journeyId: journey.id);
+      if (mounted) {
+        setState(() {
+          _journeys = _journeys
+              .map((entry) => entry.id == current.id ? current : entry)
+              .toList(growable: false);
+        });
+      }
+    } catch (_) {}
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (sheetContext) {
+        final phones = current.maskedContact['phones'];
+        final maskedPhones = phones is List
+            ? phones.whereType<Map>().map((entry) {
+                final last4 = '${entry['last4'] ?? ''}'.trim();
+                final country = '${entry['country_code'] ?? ''}'.trim();
+                final channel = '${entry['channel'] ?? 'contact'}'.trim();
+                return last4.isEmpty
+                    ? null
+                    : '$channel · ${country.isEmpty ? '' : '$country '}•••• $last4';
+              }).whereType<String>().toList(growable: false)
+            : const <String>[];
+
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            18,
+            18,
+            18,
+            22 + MediaQuery.viewInsetsOf(sheetContext).bottom,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Votre démarche WAOUH',
+                  style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  current.subject ?? 'Opportunité suivie par Avatar',
+                  style: const TextStyle(
+                    color: WaouhPalette.muted,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                LinearProgressIndicator(
+                  value: current.progress.clamp(0, 100) / 100,
+                  minHeight: 8,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${current.progress}% · ${current.contactability} · ${_journeyStageLabel(current.stage)}',
+                  style: const TextStyle(
+                    color: WaouhPalette.blue,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _InfoStrip(
+                  icon: Icons.auto_awesome_rounded,
+                  text: current.lastMessage ??
+                      'Avatar continue automatiquement cette démarche.',
+                  accent: const Color(0xFF7B61B7),
+                ),
+                const SizedBox(height: 7),
+                _InfoStrip(
+                  icon: Icons.arrow_forward_rounded,
+                  text: 'Prochaine étape : ${current.nextAction}',
+                  accent: const Color(0xFF159A69),
+                ),
+                if (maskedPhones.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Contact vérifié / masqué',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: maskedPhones
+                        .map((value) => Chip(
+                              avatar: const Icon(Icons.shield_outlined, size: 16),
+                              label: Text(value),
+                            ))
+                        .toList(),
+                  ),
+                ],
+                if (current.timeline.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Dernières étapes',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 6),
+                  ...current.timeline.reversed.take(4).map((event) {
+                    final text = '${event['message'] ?? event['action'] ?? event['stage'] ?? ''}'.trim();
+                    if (text.isEmpty) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.check_circle_outline_rounded,
+                            size: 16,
+                            color: Color(0xFF159A69),
+                          ),
+                          const SizedBox(width: 7),
+                          Expanded(
+                            child: Text(
+                              text,
+                              style: const TextStyle(
+                                color: WaouhPalette.muted,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+                const SizedBox(height: 14),
+                if (current.negotiating &&
+                    (current.threadId ?? '').trim().isNotEmpty)
+                  FilledButton.icon(
+                    onPressed: () {
+                      Navigator.of(sheetContext).pop();
+                      Future<void>.microtask(
+                        () => _openJourneyDealRoom(current),
+                      );
+                    },
+                    icon: const Icon(Icons.handshake_outlined),
+                    label: const Text('Continuer la négociation'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(50),
+                    ),
+                  )
+                else
+                  FilledButton.icon(
+                    onPressed: () async {
+                      Navigator.of(sheetContext).pop();
+                      await _loadJourneys();
+                    },
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Actualiser la progression'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(50),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _followOpportunity(NexusDiscoveryItem item) async {
+    final targetController = TextEditingController(
+      text: (item.priceMin ?? item.priceMax)?.round().toString() ?? '',
+    );
+    final target = await showModalBottomSheet<double?>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          18,
+          18,
+          18,
+          20 + MediaQuery.viewInsetsOf(sheetContext).bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Suivre prix et disponibilité',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 5),
+            const Text(
+              'Avatar surveille cette opportunité et vous avertit lorsqu’un changement mérite votre attention.',
+              style: TextStyle(color: WaouhPalette.muted, fontSize: 11.5),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: targetController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Prix cible (optionnel)',
+                suffixText: 'FCFA',
+              ),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: () {
+                final raw = targetController.text
+                    .replaceAll(RegExp(r'[^0-9]'), '');
+                Navigator.of(sheetContext).pop(
+                  raw.isEmpty ? null : double.tryParse(raw),
+                );
+              },
+              icon: const Icon(Icons.notifications_active_outlined),
+              label: const Text('Activer le suivi'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    targetController.dispose();
+    if (!mounted) return;
+    try {
+      await _nexus.createWatch(
+        query: item.title,
+        articleId: item.articleId,
+        sourceUrl: item.sourceUrl,
+        targetAmount: target,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Suivi activé. Avatar vous préviendra ici dès qu’un prix ou une disponibilité change.',
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Le suivi n’a pas pu être activé : $e')),
+      );
     }
   }
 
@@ -443,6 +805,19 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
               loading: _loading,
             ),
             const SizedBox(height: 12),
+            if (_loadingJourneys || _journeys.isNotEmpty) ...[
+              _ActiveJourneysPanel(
+                journeys: _journeys,
+                loading: _loadingJourneys,
+                onRefresh: _loadJourneys,
+                onOpen: (journey) => journey.negotiating &&
+                        (journey.threadId ?? '').trim().isNotEmpty
+                    ? _openJourneyDealRoom(journey)
+                    : _showJourneyProgress(journey),
+                stageLabel: _journeyStageLabel,
+              ),
+              const SizedBox(height: 12),
+            ],
             _GoalSurface(
               controller: _goal,
               city: _city,
@@ -480,6 +855,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
                           item: entry.value,
                           busy: _workingFabric == entry.value.fabricId,
                           onContinue: () => _continue(entry.value),
+                          onFollow: () => _followOpportunity(entry.value),
                         ),
                       ),
                     ),
@@ -489,6 +865,137 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       ),
     );
   }
+}
+
+class _ActiveJourneysPanel extends StatelessWidget {
+  const _ActiveJourneysPanel({
+    required this.journeys,
+    required this.loading,
+    required this.onRefresh,
+    required this.onOpen,
+    required this.stageLabel,
+  });
+
+  final List<NexusOpportunityJourney> journeys;
+  final bool loading;
+  final VoidCallback onRefresh;
+  final ValueChanged<NexusOpportunityJourney> onOpen;
+  final String Function(String) stageLabel;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF9FBFF),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFFDCE7F8)),
+          boxShadow: WaouhShadows.card,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.route_rounded, color: WaouhPalette.blue),
+                const SizedBox(width: 7),
+                const Expanded(
+                  child: Text(
+                    'Mes démarches',
+                    style: TextStyle(
+                      color: WaouhPalette.ink,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Actualiser',
+                  onPressed: loading ? null : onRefresh,
+                  icon: loading
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.refresh_rounded),
+                ),
+              ],
+            ),
+            const Text(
+              'Avatar conserve chaque opportunité jusqu’à la réponse, la négociation, l’accord et l’exécution.',
+              style: TextStyle(
+                color: WaouhPalette.muted,
+                fontSize: 10.5,
+                height: 1.35,
+              ),
+            ),
+            if (journeys.isNotEmpty) ...[
+              const SizedBox(height: 9),
+              ...journeys.take(4).map(
+                (journey) => Padding(
+                  padding: const EdgeInsets.only(bottom: 7),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => onOpen(journey),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: WaouhPalette.line),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  journey.subject ?? 'Démarche WAOUH',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: WaouhPalette.ink,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${journey.progress}%',
+                                style: const TextStyle(
+                                  color: WaouhPalette.blue,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          LinearProgressIndicator(
+                            value: journey.progress.clamp(0, 100) / 100,
+                            minHeight: 5,
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            '${journey.contactability} · ${stageLabel(journey.stage)} · ${journey.nextAction}',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: WaouhPalette.muted,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
 }
 
 class _AvatarCommerceHero extends StatelessWidget {
@@ -735,11 +1242,13 @@ class _OpportunityCard extends StatelessWidget {
     required this.item,
     required this.busy,
     required this.onContinue,
+    required this.onFollow,
   });
   final int rank;
   final NexusDiscoveryItem item;
   final bool busy;
   final VoidCallback onContinue;
+  final VoidCallback onFollow;
 
   String get _price {
     if (item.priceMin == null && item.priceMax == null) return 'Prix non publié';
@@ -913,14 +1422,39 @@ class _OpportunityCard extends StatelessWidget {
                       dimension: 15,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Icon(item.internalArticle
-                      ? Icons.handshake_outlined
-                      : Icons.send_rounded),
-              label: Text(item.internalArticle
-                  ? 'Intéressé · ouvrir le Deal Room'
-                  : 'Laisser mon Avatar contacter'),
+                  : Icon(
+                      item.internalArticle
+                          ? Icons.handshake_outlined
+                          : item.contactPolicy.level == 'C0'
+                              ? Icons.travel_explore_rounded
+                              : item.contactPolicy.level == 'C5'
+                                  ? Icons.handshake_rounded
+                                  : Icons.send_rounded,
+                    ),
+              label: Text(
+                item.internalArticle
+                    ? 'Je suis intéressé · proposer un prix'
+                    : item.contactPolicy.level == 'C0'
+                        ? 'Trouver un moyen de contacter'
+                        : item.contactPolicy.level == 'C1'
+                            ? 'Vérifier le meilleur contact'
+                            : item.contactPolicy.level == 'C4'
+                                ? 'Suivre le contact'
+                                : item.contactPolicy.level == 'C5'
+                                    ? 'Continuer vers l’accord'
+                                    : 'Contacter avec WAOUH',
+              ),
               style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(45),
+                minimumSize: const Size.fromHeight(48),
+              ),
+            ),
+            const SizedBox(height: 7),
+            OutlinedButton.icon(
+              onPressed: busy ? null : onFollow,
+              icon: const Icon(Icons.notifications_active_outlined),
+              label: const Text('Suivre prix / disponibilité'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(44),
               ),
             ),
           ],
