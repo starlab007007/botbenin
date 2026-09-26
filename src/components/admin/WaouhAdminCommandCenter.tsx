@@ -140,11 +140,12 @@ type AdminStats = {
   command_center?: CommandCenter;
 };
 
-const moduleMeta: Record<string, { icon: any; detail: (cc: CommandCenter) => string; manage: string }> = {
+const moduleMeta: Record<string, { icon: any; detail: (cc: CommandCenter) => string; manage: string; automation?: boolean }> = {
   nexus: {
     icon: Network,
     detail: (cc) => `${cc.nexus.external_signals_24h} signaux/24h · ${cc.nexus.matches_24h} matchs`,
     manage: "/admin/waouh?tab=radar",
+    automation: true,
   },
   avatar_commerce: {
     icon: Sparkles,
@@ -165,6 +166,7 @@ const moduleMeta: Record<string, { icon: any; detail: (cc: CommandCenter) => str
     icon: Bot,
     detail: (cc) => `${cc.agents.missions_total} mission(s) · ${cc.agents.approvals_pending} approbation(s)`,
     manage: "/app/missions",
+    automation: true,
   },
   negotiation: {
     icon: Workflow,
@@ -180,6 +182,7 @@ const moduleMeta: Record<string, { icon: any; detail: (cc: CommandCenter) => str
     icon: Send,
     detail: (cc) => `${cc.outbound.pending_total} pending · ${cc.outbound.failed_24h} échec(s)/24h`,
     manage: "/admin/waouh/historique",
+    automation: true,
   },
 };
 
@@ -411,7 +414,7 @@ export default function WaouhAdminCommandCenter() {
                       {module.enabled ? "ON" : "OFF"}
                     </Badge>
                   </div>
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className={`mt-3 grid gap-2 text-xs ${meta.automation ? "grid-cols-2" : "grid-cols-1"}`}>
                     <label className="flex items-center justify-between gap-2 rounded-lg border px-2 py-2">
                       <span>Actif</span>
                       <Switch
@@ -420,14 +423,16 @@ export default function WaouhAdminCommandCenter() {
                         onCheckedChange={(value) => void toggleModule(module, "enabled", value)}
                       />
                     </label>
-                    <label className="flex items-center justify-between gap-2 rounded-lg border px-2 py-2">
-                      <span>Auto</span>
-                      <Switch
-                        checked={module.automation_enabled}
-                        disabled={!module.enabled || busyModule === module.module_key}
-                        onCheckedChange={(value) => void toggleModule(module, "automation_enabled", value)}
-                      />
-                    </label>
+                    {meta.automation && (
+                      <label className="flex items-center justify-between gap-2 rounded-lg border px-2 py-2">
+                        <span>Auto</span>
+                        <Switch
+                          checked={module.automation_enabled}
+                          disabled={!module.enabled || busyModule === module.module_key}
+                          onCheckedChange={(value) => void toggleModule(module, "automation_enabled", value)}
+                        />
+                      </label>
+                    )}
                   </div>
                   <Button size="sm" variant="ghost" className="mt-2 h-7 w-full text-xs" onClick={() => navigate(meta.manage)}>
                     Gérer le module <ExternalLink className="ml-1 h-3 w-3" />
@@ -495,6 +500,36 @@ export default function WaouhAdminCommandCenter() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Journal des contrôles administrateur</CardTitle>
+          <CardDescription>Traçabilité des derniers changements de modules, avec état avant/après.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {(cc.recent_control_audit ?? []).slice(0, 8).map((event: any) => {
+            const beforeEnabled = event.before_state?.enabled;
+            const afterEnabled = event.after_state?.enabled;
+            const beforeAuto = event.before_state?.automation_enabled;
+            const afterAuto = event.after_state?.automation_enabled;
+            const changed: string[] = [];
+            if (beforeEnabled !== afterEnabled) changed.push(`actif ${beforeEnabled ? "ON" : "OFF"} → ${afterEnabled ? "ON" : "OFF"}`);
+            if (beforeAuto !== afterAuto) changed.push(`auto ${beforeAuto ? "ON" : "OFF"} → ${afterAuto ? "ON" : "OFF"}`);
+            return (
+              <div key={event.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs">
+                <div>
+                  <span className="font-semibold">{event.module_key}</span>
+                  <span className="ml-2 text-muted-foreground">{changed.join(" · ") || event.action}</span>
+                </div>
+                <span className="text-muted-foreground">{new Date(event.created_at).toLocaleString("fr-FR")}</span>
+              </div>
+            );
+          })}
+          {!cc.recent_control_audit?.length && (
+            <div className="py-3 text-center text-xs text-muted-foreground">Aucun changement de contrôle enregistré.</div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 xl:grid-cols-3">
         <Card>
