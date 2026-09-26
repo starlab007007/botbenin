@@ -43,14 +43,30 @@ export const AdminDashboardPage: React.FC = () => {
       ],
     },
     {
-      title: 'Paramétrage des moteurs',
+      title: 'Architecture de contrôle WAOUH',
+      items: [
+        { label: 'NEXUS', path: '/admin/waouh/radar', note: 'Signal Fabric, sources, quotas, scans et automatisation', icon: Network },
+        { label: 'Contact Layer C0–C4', path: '/admin/waouh/contact-layer', note: 'Contactabilité, consentement et politique par source', icon: Shield },
+        { label: 'Avatar Commerce', path: '/admin/waouh?tab=control#module-avatar_commerce', note: 'ON/OFF du parcours Acheter / Vendre / Demander', icon: Sparkles },
+        { label: 'Chat Web / App', path: '/admin/waouh?tab=control#module-chat_web', note: 'Canal, activité 24 h et fils actifs', icon: MessageSquareText },
+        { label: 'WhatsApp', path: '/admin/waouh/whatsapp-ops', note: 'WAHA, sessions, queue, erreurs et replay', icon: MessageSquareText },
+        { label: 'Muse / Agents IA', path: '/admin/waouh?tab=control#module-muse_agents', note: 'Missions, approvals, erreurs, outbox et automatisation', icon: Bot },
+        { label: 'Négociation', path: '/admin/waouh?tab=control#module-negotiation', note: 'Propositions, contre-propositions, acceptations et stagnation', icon: SlidersHorizontal },
+        { label: 'Deal Room / Deal Graph', path: '/admin/waouh/deals', note: 'Deals, paiement, livraison, litiges et actions de secours', icon: Truck },
+        { label: 'Outbound', path: '/admin/waouh?tab=control#module-outbound', note: 'Pending, sent, failed, auto et dispatch manuel', icon: ExternalLink },
+        { label: 'Diffusion', path: '/admin/waouh/diffusion-approvals', note: 'Validation humaine des demandes en attente', icon: Megaphone },
+        { label: 'SMS / RCS', path: '/admin/waouh/native-messaging', note: 'Provider, SMS, RCS et fallback vers SMS', icon: MessageSquareText },
+        { label: 'Partenaires', path: '/admin/waouh/partners', note: 'Activité, catalogue, permissions et entreprises', icon: Handshake },
+        { label: 'Données unifiées', path: '/admin/waouh/data-control', note: 'Qualité, contacts, catalogue et incohérences', icon: Database },
+      ],
+    },
+    {
+      title: 'Paramétrage & opérations',
       items: [
         { label: 'Paramètres généraux', path: '/admin/waouh?tab=settings', note: 'IA, commerce, paiement et règles', icon: SlidersHorizontal },
-        { label: 'NEXUS / Radar IA', path: '/admin/waouh/radar', note: 'Sources, API, quotas et collecte', icon: Network },
-        { label: 'Contact Layer C0–C4', path: '/admin/waouh/contact-layer', note: 'Contactabilité, consentement et politiques par source', icon: Shield },
-        { label: 'WhatsApp Ops', path: '/admin/waouh/whatsapp-ops', note: 'WAHA, sessions, queue et replay', icon: MessageSquareText },
-        { label: 'SMS / RCS natif', path: '/admin/waouh/native-messaging', note: 'Provider, SMS, RCS et fallback', icon: MessageSquareText },
-        { label: 'Validations diffusion', path: '/admin/waouh/diffusion-approvals', note: 'Approbations humaines avant envoi', icon: Megaphone },
+        { label: 'Monitoring temps réel', path: '/admin/waouh/monitoring', note: 'Santé et métriques opérationnelles', icon: Activity },
+        { label: 'Health Check', path: '/admin/waouh/health-check', note: 'Divergences, synchronisation et anomalies', icon: HeartPulse },
+        { label: 'Historique & traces', path: '/admin/waouh/historique', note: 'Chat, négociations, outbound et traces', icon: History },
       ],
     },
     {
@@ -214,7 +230,7 @@ export const AdminDashboardPage: React.FC = () => {
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="grid gap-5 lg:grid-cols-3">
+        <CardContent className="grid gap-5 lg:grid-cols-2 xl:grid-cols-4">
           {waouhAccessGroups.map((group) => (
             <div key={group.title} className="space-y-2">
               <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.title}</div>
