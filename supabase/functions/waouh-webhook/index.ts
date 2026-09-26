@@ -9,6 +9,7 @@ import {
 } from "../_shared/waouh-phone.ts";
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
+import { resolveProductThread, bindThreadState } from "../_shared/waouh-thread.ts";
 import { findRadarOutreachContext, findRadarSellerOutreachContext } from "../_shared/waouh-radar.ts";
 import { extractFallbackKeywords, expandKeywordVariants, escapeIlikeToken, matchesAnyKeyword, scoreRelevance, normalizeCategorySafe } from "../_shared/waouh-keywords.ts";
 import { compareMarketPrice, shortMarketLine } from "../_shared/waouh-price.ts";
@@ -1510,12 +1511,76 @@ serve(async (req) => {
             }
           } catch {}
         }
-        // Négociation seule, AUCUNE transaction n'est créée (plus de paiement)
-        const { data: neg } = await sb.from("waouh_negotiations").insert({
-          article_id: pick.id, buyer_user_id: user!.id, seller_user_id: pick.seller_id,
-          state: "proposed", last_offer_price: askPrice, last_actor: "system",
-          meta: { source: pickSource, stage: "awaiting_buyer_decision", rounds: 0, radar_signal_id: radarBuyerContext?.signal_id ?? pickRadarSignalId ?? null },
-        }).select().single();
+        // Canonical Deal Room first: every WhatsApp-origin negotiation is bound
+        // to the same product_meet identity used by Web and Flutter.
+        const productThread = await resolveProductThread({
+          sb,
+          articleId: pick.id,
+          actorUser: user!,
+          role: "buyer",
+          counterpartUserId: pick.seller_id,
+          sellerUserId: pick.seller_id,
+          source: pickSource,
+          create: true,
+        });
+        if (!productThread?.id) throw new Error("product_thread_required");
+
+        const { data: existingNeg } = await sb.from("waouh_negotiations")
+          .select("id,thread_id,state")
+          .eq("article_id", pick.id)
+          .eq("buyer_user_id", user!.id)
+          .eq("seller_user_id", pick.seller_id)
+          .in("state", ["proposed", "countered"])
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        let neg: any = existingNeg;
+        if (existingNeg?.id) {
+          if (!existingNeg.thread_id) {
+            await sb.from("waouh_negotiations")
+              .update({ thread_id: productThread.id })
+              .eq("id", existingNeg.id);
+          }
+        } else {
+          const { data: createdNeg, error: negErr } = await sb.from("waouh_negotiations").insert({
+            article_id: pick.id,
+            buyer_user_id: user!.id,
+            seller_user_id: pick.seller_id,
+            thread_id: productThread.id,
+            state: "proposed",
+            last_offer_price: askPrice,
+            last_actor: "system",
+            meta: {
+              source: pickSource,
+              stage: "awaiting_buyer_decision",
+              rounds: 0,
+              canonical_thread: true,
+              radar_signal_id: radarBuyerContext?.signal_id ?? pickRadarSignalId ?? null,
+            },
+          }).select().single();
+          if (negErr) throw negErr;
+          neg = createdNeg;
+        }
+        if (neg?.id) {
+          await bindThreadState(sb, productThread.id, {
+            status: "negotiating",
+            negotiation_id: neg.id,
+          });
+          await sb.rpc("waouh_record_commerce_event", {
+            p_event_type: "whatsapp_negotiation_opened",
+            p_entity_type: "negotiation",
+            p_entity_id: neg.id,
+            p_thread_id: productThread.id,
+            p_article_id: pick.id,
+            p_negotiation_id: neg.id,
+            p_actor_user_id: user!.id,
+            p_actor_role: "buyer",
+            p_previous_state: null,
+            p_next_state: "proposed",
+            p_payload: { source: pickSource },
+          }).catch(() => {});
+        }
         // 🛰️ v10 — Si la négo provient d'un outreach Radar IA, marquer le
         // signal comme converti pour éviter de re-contacter l'acheteur sur
         // la même annonce et alimenter les métriques admin.
