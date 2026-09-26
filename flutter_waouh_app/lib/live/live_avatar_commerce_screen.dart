@@ -30,9 +30,30 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   final _budget = TextEditingController();
 
   NexusDiscoveryResponse? _response;
+  List<NexusOpportunityJourney> _journeys = const <NexusOpportunityJourney>[];
   bool _loading = false;
+  bool _loadingJourneys = false;
   String? _error;
   String? _workingFabric;
+
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.microtask(_loadJourneys);
+  }
+
+  Future<void> _loadJourneys() async {
+    if (legacy.supabase.auth.currentUser == null || _loadingJourneys) return;
+    if (mounted) setState(() => _loadingJourneys = true);
+    try {
+      final rows = await _nexus.listOpportunities(limit: 12);
+      if (mounted) setState(() => _journeys = rows);
+    } catch (_) {
+      // Search and deal remain usable even if the summary cannot refresh.
+    } finally {
+      if (mounted) setState(() => _loadingJourneys = false);
+    }
+  }
 
   bool get _findSellers => widget.mode != LiveAvatarCommerceMode.sell;
 
