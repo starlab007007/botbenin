@@ -2494,13 +2494,26 @@ Retourne uniquement JSON:
             source_record_id: signal.source_record_id,
           });
 
+          const { data: internalJourney } = await sb.from("waouh_opportunity_journeys")
+            .select("*").eq("owner_id", ownerId).eq("fabric_id", fabricId)
+            .not("stage", "in", '("completed","cancelled")')
+            .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+          const journey = internalJourney
+            ? await updateOpportunityJourney(sb, internalJourney.id, {
+                stage: "waiting_reply", level: "C4", action: "mediated_contact_sent",
+                message: "Votre Avatar a transmis votre intérêt dans WAOUH. Il attend la réponse.",
+                event: { approval_id: approval.id, channel: "waouh" }, channel: "waouh",
+              })
+            : null;
           return jsonResponse({ ok: true, data: {
             queued: true,
             blind: true,
             approval_id: approval.id,
             channel: "waouh",
-            contactability_level: "C2",
+            contactability_level: "C4",
             phone_last4: null,
+            journey,
+            next_action: "Attendre la réponse · Avatar vous prévient dès qu’elle arrive",
           } }, 202);
         }
 
@@ -2549,24 +2562,37 @@ Retourne uniquement JSON:
           await audit(sb, signal.submitted_by, "nexus.blind_message.received", "approval", approval.id, {
             signal_id: signalId,
           });
+          const { data: blindJourney } = await sb.from("waouh_opportunity_journeys")
+            .select("*").eq("owner_id", ownerId).eq("fabric_id", fabricId)
+            .not("stage", "in", '("completed","cancelled")')
+            .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+          const journey = blindJourney
+            ? await updateOpportunityJourney(sb, blindJourney.id, {
+                stage: "waiting_reply", level: "C4", action: "mediated_contact_sent",
+                message: "Votre Avatar a transmis votre proposition. Réponse en attente.",
+                event: { approval_id: approval.id, channel: "waouh" }, channel: "waouh",
+              })
+            : null;
           return jsonResponse({ ok: true, data: {
             queued: true,
             blind: true,
             approval_id: approval.id,
             channel: "waouh",
-            contactability_level: "C2",
+            contactability_level: "C4",
             phone_last4: null,
+            journey,
+            next_action: "Attendre la réponse · Avatar vous prévient dès qu’elle arrive",
           } }, 202);
         }
 
-        if (!signalPolicy.can_auto_contact || !["C3","C4"].includes(signalPolicy.level)) {
+        if (!signalPolicy.can_auto_contact || !["C3","C4","C5"].includes(signalPolicy.level)) {
           throw new ApiError(403, "automated_contact_not_permitted");
         }
         if (!signal.entity_id) throw new ApiError(404, "contact_not_found");
         const { data: contacts, error: contactsError } = await sb.from("waouh_entity_contacts")
           .select("*").eq("entity_id", signal.entity_id)
           .in("channel", ["whatsapp","phone"])
-          .in("contactability_level", ["C3","C4"])
+          .in("contactability_level", ["C3","C4","C5"])
           .order("contactability_level", { ascending: false }).limit(5);
         if (contactsError) throw new ApiError(500, "nexus_contacts_failed", contactsError.message);
         const target = (contacts ?? []).find((contact: any) => !!contact.value_encrypted);
@@ -2604,11 +2630,26 @@ Retourne uniquement JSON:
           contactability: signal.contactability_level,
           phone_last4: target.value_last4,
         });
+        const { data: activeJourney } = await sb.from("waouh_opportunity_journeys")
+          .select("*").eq("owner_id", ownerId).eq("fabric_id", fabricId)
+          .not("stage", "in", '("completed","cancelled")')
+          .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+        const journey = activeJourney
+          ? await updateOpportunityJourney(sb, activeJourney.id, {
+              stage: "waiting_reply", level: "C4", action: "whatsapp_contact_queued",
+              message: "Message envoyé par votre Avatar. WAOUH suit maintenant la réponse.",
+              event: { channel: "whatsapp", phone_last4: target.value_last4 },
+              channel: "whatsapp",
+              maskedContact: { country_code: "+229", last4: target.value_last4 },
+            })
+          : null;
         return jsonResponse({ ok: true, data: {
           queued: true,
           channel: "whatsapp",
-          contactability_level: signal.contactability_level,
+          contactability_level: "C4",
           phone_last4: target.value_last4,
+          journey,
+          next_action: "Attendre la réponse · Avatar relance si nécessaire",
         } }, 202);
       }
 
