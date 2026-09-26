@@ -269,11 +269,28 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
 
             <div>
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">
+                WAOUH — Architecture
+              </h3>
+              <div className="space-y-2">
+                <NavItem item={{ title: 'NEXUS', path: '/admin/waouh?tab=control&module=nexus', icon: Network, color: 'from-purple-500 to-pink-600', description: 'Signal Fabric & automatisation' }} showDescription />
+                <NavItem item={{ title: 'Contact Layer C0–C4', path: '/admin/waouh?tab=radar&radarTab=contact', icon: Shield, color: 'from-cyan-500 to-blue-600', description: 'Contactabilité par source' }} showDescription />
+                <NavItem item={{ title: 'Avatar Commerce', path: '/admin/waouh?tab=control&module=avatar_commerce', icon: Sparkles, color: 'from-fuchsia-500 to-purple-600', description: 'Acheter / Vendre / Demander' }} showDescription />
+                <NavItem item={{ title: 'Chat Web / App', path: '/admin/waouh?tab=control&module=chat_web', icon: MessageSquareText, color: 'from-sky-500 to-blue-600', description: 'Canal Web & App' }} showDescription />
+                <NavItem item={{ title: 'WhatsApp', path: '/admin/waouh?tab=control&module=chat_whatsapp', icon: MessageSquareText, color: 'from-green-500 to-emerald-600', description: 'Canal WAHA' }} showDescription />
+                <NavItem item={{ title: 'Muse / Agents IA', path: '/admin/waouh?tab=control&module=muse_agents', icon: Bot, color: 'from-indigo-500 to-violet-600', description: 'Missions & automatisations' }} showDescription />
+                <NavItem item={{ title: 'Négociation', path: '/admin/waouh?tab=control&module=negotiation', icon: TrendingUp, color: 'from-amber-500 to-orange-600', description: 'Offres & contre-offres' }} showDescription />
+                <NavItem item={{ title: 'Deal Room / Graph', path: '/admin/waouh?tab=control&module=deals', icon: Truck, color: 'from-orange-500 to-red-600', description: 'Paiement, livraison & litiges' }} showDescription />
+                <NavItem item={{ title: 'Outbound', path: '/admin/waouh?tab=control&module=outbound', icon: Megaphone, color: 'from-rose-500 to-pink-600', description: 'Queue & dispatch' }} showDescription />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">
                 WAOUH — Paramétrage
               </h3>
               <div className="space-y-2">
                 <NavItem item={{ title: 'Paramètres généraux', path: '/admin/waouh?tab=settings', icon: SlidersHorizontal, color: 'from-indigo-500 to-violet-600', description: 'IA, commerce, paiement & règles' }} showDescription />
-                <NavItem item={{ title: 'NEXUS / Radar IA', path: '/admin/waouh/radar', icon: Network, color: 'from-purple-500 to-pink-600', description: 'Sources, API, quotas & collecte' }} showDescription />
+                <NavItem item={{ title: 'NEXUS / Radar IA', path: '/admin/waouh?tab=radar', icon: Network, color: 'from-purple-500 to-pink-600', description: 'Sources, API, quotas & collecte' }} showDescription />
                 <NavItem item={{ title: 'WhatsApp Ops', path: '/admin/waouh/whatsapp-ops', icon: Settings2, color: 'from-green-600 to-emerald-700', description: 'WAHA, sessions, queue & replay' }} showDescription />
                 <NavItem item={{ title: 'SMS / RCS natif', path: '/admin/waouh/native-messaging', icon: MessageSquareText, color: 'from-sky-500 to-cyan-600', description: 'Provider, SMS, RCS & fallback' }} showDescription />
                 <NavItem item={{ title: 'Validations diffusion', path: '/admin/waouh/diffusion-approvals', icon: Megaphone, color: 'from-fuchsia-500 to-pink-600', description: 'Approbations humaines avant envoi' }} showDescription />
