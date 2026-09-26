@@ -2089,7 +2089,15 @@ class _PremiumProductCard extends StatelessWidget {
                           ? FilledButton(
                               onPressed: onPayload == null
                                   ? null
-                                  : () => onPayload!(action.payload),
+                                  : () {
+                                      final kind = liveCommerceActionKind(action.payload);
+                                      if (kind == LiveCommerceActionKind.interest &&
+                                          product.fabricId != null) {
+                                        _showPremiumNexusContactSheet(context, product);
+                                        return;
+                                      }
+                                      onPayload!(action.payload);
+                                    },
                               style: FilledButton.styleFrom(
                                 backgroundColor: tone,
                                 foregroundColor: Colors.white,
@@ -2103,12 +2111,19 @@ class _PremiumProductCard extends StatelessWidget {
                                         LiveCommerceActionKind.interest
                                     ? product.isBuyerOpportunity
                                         ? 'Proposer mon offre'
-                                        : product.contactability == 'C2'
-                                            ? 'Transmettre via WAOUH'
-                                            : product.contactability == 'C3' ||
-                                                    product.contactability == 'C4'
-                                                ? 'Laisser l’Avatar poursuivre'
-                                                : action.label
+                                        : product.contactability == 'C0'
+                                            ? 'Trouver un moyen de contacter'
+                                            : product.contactability == 'C1'
+                                                ? 'Contacter avec WAOUH'
+                                                : product.contactability == 'C2'
+                                                    ? 'Transmettre via WAOUH'
+                                                    : product.contactability == 'C3'
+                                                        ? 'Envoyer avec l’Avatar'
+                                                        : product.contactability == 'C4'
+                                                            ? 'Suivre le contact'
+                                                            : product.contactability == 'C5'
+                                                                ? 'Négocier'
+                                                                : action.label
                                     : action.label,
                                 style: const TextStyle(
                                     fontWeight: FontWeight.w900),
@@ -2145,14 +2160,19 @@ class _PremiumProductCard extends StatelessWidget {
                     ),
                     icon: const Icon(Icons.shield_outlined),
                     label: Text(
-                      product.contactability == 'C2'
-                          ? 'Transmettre via WAOUH'
-                          : product.contactability == 'C3' ||
-                                  product.contactability == 'C4'
-                              ? 'Laisser l’Avatar poursuivre'
-                              : product.contactability == 'C1'
-                                  ? 'Contacter'
-                                  : 'Voir possibilité de contact',
+                      product.contactability == 'C0'
+                          ? 'Trouver un moyen de contacter'
+                          : product.contactability == 'C1'
+                              ? 'Contacter avec WAOUH'
+                              : product.contactability == 'C2'
+                                  ? 'Transmettre via WAOUH'
+                                  : product.contactability == 'C3'
+                                      ? 'Envoyer avec l’Avatar'
+                                      : product.contactability == 'C4'
+                                          ? 'Suivre le contact'
+                                          : product.contactability == 'C5'
+                                              ? 'Négocier'
+                                              : 'Continuer avec WAOUH',
                     ),
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF08745D),
@@ -2170,7 +2190,9 @@ class _PremiumProductCard extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: () => onPayload!(_watchProductPayload(product)),
+                    onPressed: product.fabricId != null
+                        ? () => _activatePremiumNexusWatch(context, product)
+                        : () => onPayload!(_watchProductPayload(product)),
                     icon: const Icon(Icons.notifications_active_outlined),
                     label: const Text('Suivre prix / stock'),
                     style: OutlinedButton.styleFrom(
@@ -2350,7 +2372,7 @@ class _PremiumNexusContactSheetState
                         ),
                       ),
                       Text(
-                        'Le Contact Layer applique C0–C4 avant toute action.',
+                        'Le Contact Layer applique C0–C5 et garde la démarche dans WAOUH.',
                         style: TextStyle(
                           fontSize: 10.5,
                           color: Color(0xFF60746E),
