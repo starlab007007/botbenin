@@ -163,7 +163,8 @@ Deno.serve(async (req) => {
       negotiation_id: negotiationId,
     });
     if (negotiationId) {
-      await sb.rpc("waouh_record_commerce_event", {
+      try {
+        await sb.rpc("waouh_record_commerce_event", {
         p_event_type: "buyer_interest_opened",
         p_entity_type: "negotiation",
         p_entity_id: negotiationId,
@@ -175,7 +176,8 @@ Deno.serve(async (req) => {
         p_previous_state: null,
         p_next_state: "proposed",
         p_payload: { source },
-      }).catch(() => {});
+      })
+      } catch (_) { /* ledger is best-effort for legacy recovery */ }
     }
     const decisionActions = negotiationId
       ? [
