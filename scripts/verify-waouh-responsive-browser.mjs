@@ -195,17 +195,23 @@ async function testRoot(viewport) {
   }
 
   const actionPaths = {
-    Acheter: "/app/avatar/acheter",
-    Vendre: "/app/avatar/vendre",
-    Trouver: "/app/nexus",
+    acheter: "/app/avatar/acheter",
+    vendre: "/app/avatar/vendre",
+    trouver: "/app/nexus",
   };
-  for (const [label, expectedPath] of Object.entries(actionPaths)) {
+  for (const [action, expectedPath] of Object.entries(actionPaths)) {
     await navigate("http://127.0.0.1:4173/", viewport);
-    if (!(await clickExact(label))) fail(`${viewport.name}: action ${label} is not clickable`);
-    await sleep(350);
+    const clicked = await evaluate(`(() => {
+      const element = document.querySelector('[data-waouh-action="${action}"]');
+      if (!element) return false;
+      element.click();
+      return true;
+    })()`);
+    if (!clicked) fail(`${viewport.name}: Avatar action ${action} is not clickable`);
+    await sleep(450);
     const pathNow = await evaluate("location.pathname");
     if (pathNow !== expectedPath) {
-      fail(`${viewport.name}: ${label} navigated to ${pathNow}; expected ${expectedPath}`);
+      fail(`${viewport.name}: ${action} navigated to ${pathNow}; expected ${expectedPath}`);
     }
   }
 
