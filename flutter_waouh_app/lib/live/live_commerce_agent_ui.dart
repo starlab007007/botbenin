@@ -10,7 +10,7 @@ enum LiveMusePhase { idle, listening, searching, comparing, contacting, negotiat
 
 String liveContactLabel(String? level) {
   switch ((level ?? '').toUpperCase()) {
-    case 'C4': return 'Agent connecté';
+    case 'C5': return 'Prêt à négocier';\n    case 'C4': return 'Contact établi';
     case 'C3': return 'Contact autorisé';
     case 'C2': return 'Contact privé protégé';
     case 'C1': return 'Contact pro public';
@@ -101,7 +101,7 @@ String _phaseDetail(LiveMusePhase phase) {
     case LiveMusePhase.searching: return 'Sources · marché · signaux · confiance';
     case LiveMusePhase.comparing: return 'Pertinence · prix · proximité · fraîcheur · contact';
     case LiveMusePhase.negotiating: return 'Une négociation active · actions sous votre contrôle';
-    case LiveMusePhase.contacting: return 'Contact Layer C0–C4';
+    case LiveMusePhase.contacting: return 'Contact Layer C0–C5';
     case LiveMusePhase.listening: return 'WAOUH transforme votre demande en objectif';
     case LiveMusePhase.success: return 'Mission terminée · veille disponible';
     case LiveMusePhase.idle: return 'Dites ce que vous voulez acheter ou vendre';
@@ -498,7 +498,7 @@ class LiveUnifiedIntelligenceSheet extends StatelessWidget {
                 const SizedBox(height: 8),
                 _UnifiedLayerCard(
                   icon: Icons.shield_outlined,
-                  title: 'Contact Layer C0–C4',
+                  title: 'Contact Layer C0–C5',
                   subtitle:
                       'Vérifie les permissions avant toute révélation ou prise de contact.',
                   active: contact != null || phase == LiveMusePhase.contacting,
