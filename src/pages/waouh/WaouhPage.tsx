@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import WaouhWhatsAppPanel from "@/components/waouh/WaouhWhatsAppPanel";
 import WaouhRadarTab from "@/components/waouh/WaouhRadarTab";
 import { PhoneCell } from "@/components/waouh/PhoneCell";
+import WaouhAdminCommandCenter from "@/components/admin/WaouhAdminCommandCenter";
 
 type Stats = {
   total_articles: number;
@@ -46,7 +47,7 @@ function fmtXOF(n: number) {
 export default function WaouhPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const activeTab = searchParams.get("tab") || "dashboard";
+  const activeTab = searchParams.get("tab") || "control";
   const setActiveTab = (v: string) => setSearchParams((prev) => { prev.set("tab", v); return prev; }, { replace: true });
 
   const [stats, setStats] = useState<Stats | null>(null);
@@ -202,6 +203,7 @@ export default function WaouhPage() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="bg-white border border-gray-200 flex-wrap h-auto p-1 shadow-sm">
+            <TabsTrigger value="control"><Activity className="w-3.5 h-3.5 mr-1" /> Centre de contrôle</TabsTrigger>
             <TabsTrigger value="dashboard">Vue d'ensemble</TabsTrigger>
             <TabsTrigger value="articles">Annonces</TabsTrigger>
             <TabsTrigger value="buyers">Acheteurs</TabsTrigger>
@@ -210,6 +212,11 @@ export default function WaouhPage() {
             <TabsTrigger value="whatsapp">WhatsApp (WAHA)</TabsTrigger>
             <TabsTrigger value="settings">Paramètres</TabsTrigger>
           </TabsList>
+
+          {/* COMMAND CENTER */}
+          <TabsContent value="control" className="space-y-6 mt-4">
+            <WaouhAdminCommandCenter />
+          </TabsContent>
 
           {/* DASHBOARD */}
           <TabsContent value="dashboard" className="space-y-6 mt-4">
