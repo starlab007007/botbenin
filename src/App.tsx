@@ -98,6 +98,8 @@ const WaouhPage = lazy(() => import("./pages/waouh/WaouhPage"));
 const WaouhDemoPage = lazy(() => import("./pages/waouh/WaouhDemoPage"));
 const WaouhNativeMessagingPublicPage = lazy(() => import("./pages/waouh/WaouhNativeMessagingPublicPage"));
 const WaouhMusePage = lazy(() => import("./pages/waouh/WaouhMusePage"));
+const WaouhAvatarHomePage = lazy(() => import("./pages/waouh/WaouhAvatarHomePage"));
+const WaouhNexusPage = lazy(() => import("./pages/waouh/WaouhNexusPage"));
 const WaouhAvatarCommercePage = lazy(() => import("./pages/waouh/WaouhAvatarCommercePage"));
 const WaouhMissionsPage = lazy(() => import("./pages/waouh/WaouhMissionsPage"));
 
@@ -328,7 +330,7 @@ const AppContent = () => {
                   
                   {/* Accueil canonique bot.bj — même moteur et même UI que /app/chat */}
                   <Route path="/" element={<ErrorBoundary fallback={<MobileErrorFallback />}><MobileShell /></ErrorBoundary>}>
-                    <Route index element={<MobileConversations />} />
+                    <Route index element={<WaouhAvatarHomePage />} />
                   </Route>
 
                   {/* Routes publiques sans layout */}
@@ -353,10 +355,11 @@ const AppContent = () => {
                     <Route index element={<Navigate to="/" replace />} />
                     <Route path="chat" element={<MobileConversations />} />
                     <Route path="chat/waouh" element={<MobileWaouhChat />} />
-                    <Route path="avatar" element={<WaouhMusePage embedded />} />
+                    <Route path="avatar" element={<WaouhAvatarHomePage />} />
                     <Route path="avatar/:mode" element={<WaouhAvatarCommercePage />} />
                     <Route path="muse" element={<Navigate to="/app/avatar" replace />} />
                     <Route path="missions" element={<WaouhMissionsPage />} />
+                    <Route path="nexus" element={<WaouhNexusPage />} />
                     <Route path="conversations" element={<Navigate to="/app/chat" replace />} />
                   </Route>
                   <Route path="/checkin/:token" element={<PublicCheckin />} />

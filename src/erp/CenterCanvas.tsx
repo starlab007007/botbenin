@@ -11,7 +11,7 @@ import { useMobileAuth } from '@/app-mobile/hooks/useMobileAuth';
 import { RadarPanel } from '@/app-mobile/components/radar/RadarPanel';
 import { StatusesPanel } from '@/components/waouh/statuses/StatusesPanel';
 import ChatScreen from '@/app-mobile/screens/ChatScreen';
-import CenterChatHome from './CenterChatHome';
+import WaouhAvatarHomePage from '@/pages/waouh/WaouhAvatarHomePage';
 import { cn } from '@/lib/utils';
 
 type CanvasView = 'home' | 'chat' | 'conversation' | 'statuses' | 'radar';
@@ -24,7 +24,7 @@ type CanvasView = 'home' | 'chat' | 'conversation' | 'statuses' | 'radar';
 export const CenterCanvas = () => {
   const navigate = useNavigate();
   const { user } = useMobileAuth();
-  const { sessionId, waouhUserIds } = useWaouhIdentity();
+  const { sessionId } = useWaouhIdentity();
   const sid = sessionId ?? '';
 
   const [view, setView] = useState<CanvasView>('home');
@@ -44,6 +44,23 @@ export const CenterCanvas = () => {
     window.addEventListener('waouh:open-match-chat', onOpen as EventListener);
     return () => window.removeEventListener('waouh:open-match-chat', onOpen as EventListener);
   }, []);
+
+  // Les autres écrans (Avatar/NEXUS) peuvent revenir à l'accueil puis confier
+  // immédiatement une demande au même moteur de chat, sans second backend.
+  useEffect(() => {
+    const onAvatarAsk = (event: Event) => {
+      const prompt = String((event as CustomEvent<{ prompt?: string }>).detail?.prompt || '').trim();
+      if (!prompt) return;
+      setActiveConvId(null);
+      setActiveKey('main');
+      setView('chat');
+      window.setTimeout(() => {
+        chatRef.current?.prefillAndSend(prompt);
+      }, 80);
+    };
+    window.addEventListener('waouh:avatar-ask', onAvatarAsk as EventListener);
+    return () => window.removeEventListener('waouh:avatar-ask', onAvatarAsk as EventListener);
+  }, [setActiveKey]);
 
   const requireAuth = useCallback(
     (target: string) => {
@@ -76,19 +93,6 @@ export const CenterCanvas = () => {
     },
     [requireAuth, setActiveKey],
   );
-
-  const startNewThread = useCallback(() => {
-    if (!requireAuth('/app/chat')) return;
-    setActiveConvId(null);
-    setActiveKey('main');
-    setView('chat');
-    setTimeout(() => chatRef.current?.startNewThread(), 60);
-  }, [requireAuth, setActiveKey]);
-
-  const openConversation = useCallback((id: string) => {
-    setActiveConvId(id);
-    setView('conversation');
-  }, []);
 
   const activeMatch = activeKey && activeKey !== 'main' ? matches.find((m) => m.key === activeKey) : null;
 
@@ -131,19 +135,9 @@ export const CenterCanvas = () => {
       )}
 
       <div className="relative min-h-0 flex-1">
-        {/* HOME — parité Flutter */}
-        <div className={cn('absolute inset-0 overflow-y-auto', view !== 'home' && 'hidden')}>
-          <CenterChatHome
-            sessionId={sid}
-            waouhUserIds={waouhUserIds}
-            authUserId={user?.id ?? null}
-            isGuest={!user}
-            onOpenWaouh={openWaouh}
-            onNewWaouh={startNewThread}
-            onIntent={openIntent}
-            onOpenConversation={openConversation}
-            onSignIn={() => navigate('/app/auth')}
-          />
+        {/* HOME — Avatar-first, parité fonctionnelle Flutter */}
+        <div className={cn('absolute inset-0 overflow-hidden', view !== 'home' && 'hidden')}>
+          <WaouhAvatarHomePage onAsk={openIntent} />
         </div>
 
         {/* CHAT — always mounted so the engine and its cache never reload */}
