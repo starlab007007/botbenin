@@ -31,6 +31,7 @@ on:
       - "supabase/functions/waouh-negotiation-router/**"
       - "supabase/functions/waouh-deal-ops/**"
       - "supabase/functions/waouh-outbound-dispatch/**"
+      - "supabase/functions/waouh-replay-notification/**"
       - "supabase/migrations/**"
       - "supabase/functions/_shared/waouh-nexus.ts"
       - "supabase/functions/_shared/waouh-signal-fabric.ts"
@@ -65,6 +66,7 @@ on:
       - "supabase/functions/waouh-negotiation-router/**"
       - "supabase/functions/waouh-deal-ops/**"
       - "supabase/functions/waouh-outbound-dispatch/**"
+      - "supabase/functions/waouh-replay-notification/**"
       - "supabase/migrations/**"
       - "supabase/functions/_shared/waouh-nexus.ts"
       - "supabase/functions/_shared/waouh-signal-fabric.ts"
@@ -127,4 +129,6 @@ jobs:
         run: deno check supabase/functions/waouh-deal-ops/index.ts
 
       - name: Check WAOUH Outbound Dispatcher
-        run: deno check supabase/functions/waouh-outbound-dispatch/index.ts
+        run: |
+          deno check supabase/functions/waouh-outbound-dispatch/index.ts
+          deno check supabase/functions/waouh-replay-notification/index.ts
