@@ -2180,7 +2180,10 @@ class _PremiumProductCard extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: () => _showWatchSetup(context, product),
+                    onPressed: () {
+                      onPayload!(_watchProductPayload(product));
+                      _showWatchSetup(context, product);
+                    },
                     icon: const Icon(Icons.notifications_active_outlined),
                     label: const Text('Suivre prix / stock'),
                     style: OutlinedButton.styleFrom(
