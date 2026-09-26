@@ -230,7 +230,7 @@ export default function WaouhAvatarCommercePage() {
   const openOffer = (item: NexusDiscoveryResult, journey: NexusOpportunityJourney) => {
     rememberJourney(journey);
     setOfferTarget(item);
-    const proposed = journey.proposed_amount ?? item.price_min ?? item.price_max ?? Number(budget) || 0;
+    const proposed = journey.proposed_amount ?? item.price_min ?? item.price_max ?? (Number(budget) || 0);
     setOfferValue(proposed > 0 ? String(Math.round(proposed)) : "");
   };
 
@@ -464,6 +464,41 @@ export default function WaouhAvatarCommercePage() {
                   La mise en relation reste médiée par WAOUH selon le niveau {item.contact_policy.level}. Les coordonnées privées ne sont pas révélées directement.
                 </div>
 
+                {journeys[item.fabric_id] && (
+                  <div className="mt-3 rounded-2xl border border-blue-100 bg-slate-50/80 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[11px] font-black text-slate-900">
+                        Démarche WAOUH · {journeys[item.fabric_id].progress}%
+                      </div>
+                      <Badge variant="outline" className="rounded-full bg-white text-[9px]">
+                        {journeys[item.fabric_id].contactability_level}
+                      </Badge>
+                    </div>
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
+                      <div
+                        className="h-full rounded-full bg-blue-600 transition-all"
+                        style={{ width: `${Math.min(100, Math.max(0, journeys[item.fabric_id].progress))}%` }}
+                      />
+                    </div>
+                    {journeys[item.fabric_id].avatar_message && (
+                      <p className="mt-2 text-[10px] font-semibold leading-relaxed text-slate-600">
+                        {journeys[item.fabric_id].avatar_message}
+                      </p>
+                    )}
+                    {(journeys[item.fabric_id].contact_channel || journeys[item.fabric_id].contact_last4) && (
+                      <p className="mt-1 text-[10px] font-bold text-emerald-700">
+                        {journeys[item.fabric_id].contact_channel || "Contact"}
+                        {journeys[item.fabric_id].contact_last4 ? ` · +229 •••• ${journeys[item.fabric_id].contact_last4}` : ""}
+                      </p>
+                    )}
+                    {journeys[item.fabric_id].next_action && (
+                      <p className="mt-1 text-[10px] font-bold text-slate-800">
+                        Prochaine étape : {journeys[item.fabric_id].next_action}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <Button
                   onClick={() => void continueWith(item)}
                   disabled={workingId === item.fabric_id}
@@ -471,12 +506,20 @@ export default function WaouhAvatarCommercePage() {
                 >
                   {workingId === item.fabric_id ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : item.source_key === "waouh_app" ? (
-                    <Handshake className="mr-2 h-4 w-4" />
-                  ) : (
+                  ) : journeys[item.fabric_id]?.state === "waiting_response" ? (
                     <Radar className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Handshake className="mr-2 h-4 w-4" />
                   )}
-                  {item.source_key === "waouh_app" ? "Intéressé · ouvrir le Deal Room" : "Laisser mon Avatar poursuivre"}
+                  {primaryLabel(item)}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => void followOpportunity(item)}
+                  disabled={workingId === item.fabric_id}
+                  className="mt-2 h-11 w-full rounded-2xl"
+                >
+                  Suivre prix / disponibilité
                 </Button>
                 </div>
               </article>
@@ -492,6 +535,63 @@ export default function WaouhAvatarCommercePage() {
           </div>
         )}
       </div>
+
+      <Dialog open={!!offerTarget} onOpenChange={(open) => !open && setOfferTarget(null)}>
+        <DialogContent className="max-w-md rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>Proposer un prix</DialogTitle>
+            <DialogDescription>
+              Votre Avatar ouvre le Deal Room, transmet l’offre et suit les contre-propositions jusqu’à l’accord.
+            </DialogDescription>
+          </DialogHeader>
+          {offerTarget && (
+            <div className="space-y-3">
+              <div className="rounded-2xl bg-slate-50 p-3">
+                <div className="text-sm font-black text-slate-950">
+                  {offerTarget.subject || offerTarget.raw_text || "Opportunité WAOUH"}
+                </div>
+                {(offerTarget.price_min != null || offerTarget.price_max != null) && (
+                  <div className="mt-1 text-xs font-bold text-emerald-700">
+                    Prix observé : {Math.round(offerTarget.price_min ?? offerTarget.price_max ?? 0)} FCFA
+                  </div>
+                )}
+              </div>
+              <Input
+                value={offerValue}
+                onChange={(event) => setOfferValue(event.target.value)}
+                inputMode="numeric"
+                placeholder="Votre proposition en FCFA"
+                className="h-12 rounded-2xl"
+              />
+              <div className="grid grid-cols-3 gap-2">
+                {[1, .95, .9].map((ratio) => {
+                  const base = offerTarget.price_min ?? offerTarget.price_max ?? (Number(budget) || 0);
+                  const amount = Math.round(base * ratio);
+                  return amount > 0 ? (
+                    <Button
+                      key={ratio}
+                      type="button"
+                      variant="outline"
+                      className="rounded-xl text-xs"
+                      onClick={() => setOfferValue(String(amount))}
+                    >
+                      {amount.toLocaleString("fr-FR")}
+                    </Button>
+                  ) : null;
+                })}
+              </div>
+              <Button
+                className="h-12 w-full rounded-2xl"
+                disabled={workingId === offerTarget.fabric_id || !(Number(offerValue) > 0)}
+                onClick={() => void submitOffer()}
+              >
+                {workingId === offerTarget.fabric_id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Envoyer mon offre avec l’Avatar
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }
