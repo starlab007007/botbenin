@@ -1,0 +1,253 @@
+name: WAOUH Build APK + Complete Handoff
+
+on:
+  push:
+    branches:
+      - feat/waouh-opportunity-journey-c0-c5-e2e
+    paths:
+      - ".github/workflows/waouh-build-apk-handoff.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: waouh-build-apk-handoff-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+
+    steps:
+      - name: Checkout latest WAOUH feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/waouh-opportunity-journey-c0-c5-e2e
+          path: source-feature
+          fetch-depth: 0
+
+      - name: Checkout production reference
+        uses: actions/checkout@v4
+        with:
+          ref: prod
+          path: source-prod
+          fetch-depth: 0
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Flutter stable
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Android SDK 36 and NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
+
+      - name: Resolve Flutter dependencies
+        working-directory: source-feature/flutter_waouh_app
+        run: flutter pub get
+
+      - name: Analyze WAOUH Flutter
+        working-directory: source-feature/flutter_waouh_app
+        run: flutter analyze --no-fatal-warnings --no-fatal-infos
+
+      - name: Run critical WAOUH tests
+        working-directory: source-feature/flutter_waouh_app
+        run: |
+          set -euo pipefail
+          flutter test test/live_nexus_service_test.dart
+          flutter test test/live_agentic_waouh_test.dart
+          flutter test test/live_models_test.dart
+          flutter test test/live_commerce_workflow_test.dart
+          flutter test test/live_chat_premium_cards_test.dart
+
+      - name: Build optimized ARM64 APK
+        working-directory: source-feature/flutter_waouh_app
+        env:
+          WAOUH_TEST_RELEASE: "1"
+        run: |
+          set -euo pipefail
+          flutter build apk \
+            --release \
+            --target lib/live/live_app_production.dart \
+            --target-platform android-arm64 \
+            --split-per-abi \
+            --obfuscate \
+            --split-debug-info=build/symbols
+          test -f build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+
+      - name: Prepare named APK package
+        shell: bash
+        run: |
+          set -euo pipefail
+          FEATURE_SHA="$(git -C source-feature rev-parse HEAD)"
+          SHORT_SHA="${FEATURE_SHA:0:8}"
+          mkdir -p deliverables/apk
+          APK_NAME="WAOUH_AVATAR_C0-C5_2026-09-26_${SHORT_SHA}.apk"
+          cp source-feature/flutter_waouh_app/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk "deliverables/apk/${APK_NAME}"
+          sha256sum "deliverables/apk/${APK_NAME}" > "deliverables/apk/${APK_NAME}.sha256"
+          echo "APK_NAME=${APK_NAME}" >> "$GITHUB_ENV"
+
+      - name: Build complete continuation archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          FEATURE_SHA="$(git -C source-feature rev-parse HEAD)"
+          PROD_SHA="$(git -C source-prod rev-parse HEAD)"
+          SHORT_FEATURE="${FEATURE_SHA:0:8}"
+          SHORT_PROD="${PROD_SHA:0:8}"
+
+          mkdir -p handoff/source-feature handoff/source-prod handoff/status
+          rsync -a --exclude='.git' source-feature/ handoff/source-feature/
+          rsync -a --exclude='.git' source-prod/ handoff/source-prod/
+
+          git -C source-feature log --oneline --decorate -60 > handoff/status/FEATURE_RECENT_COMMITS.txt
+          git -C source-prod log --oneline --decorate -40 > handoff/status/PROD_RECENT_COMMITS.txt
+          git -C source-feature fetch origin prod:refs/remotes/origin/prod
+          git -C source-feature diff --stat origin/prod...HEAD > handoff/status/FEATURE_VS_PROD_STAT.txt || true
+          git -C source-feature diff --name-status origin/prod...HEAD > handoff/status/FEATURE_VS_PROD_FILES.txt || true
+          git -C source-feature diff origin/prod...HEAD --             flutter_waouh_app/lib/live             src/components/waouh             src/lib/waouh             src/pages/waouh             src/pages/admin             src/components/admin             src/components/navigation             supabase/functions             supabase/migrations             > handoff/status/WAOUH_LATEST_PATCH.diff || true
+
+          cat > handoff/HANDOFF_WAOUH_2026-09-26.md <<EOF
+          # WAOUH — Archive complète de reprise
+
+          Date: 2026-09-26
+          Repository: starlab007007/botbenin
+          Supabase production: mvynepqulhflxtyymtzs
+
+          ## Références exactes
+          - Branche de reprise: feat/waouh-opportunity-journey-c0-c5-e2e
+          - HEAD branche: ${FEATURE_SHA}
+          - Production prod: ${PROD_SHA}
+
+          ## Niveau fonctionnel atteint
+          Cette archive reprend l'état complet WAOUH avec les dernières mises à jour:
+          - NEXUS / Signal Fabric multi-source;
+          - Avatar Commerce Acheter / Vendre / Demander;
+          - Contact Layer étendu C0 → C5;
+          - C0 = enrichissement du signal au lieu d'un cul-de-sac;
+          - C1 = identité/contact public à vérifier;
+          - C2/C3 = contact médié/autorisé;
+          - C4 = contact établi / réponse en attente;
+          - C5 = contrepartie prête à négocier;
+          - parcours persistant waouh_opportunity_journeys;
+          - contact externe suivi jusqu'à réponse;
+          - réponse externe promue vers un contexte WAOUH interne;
+          - création/liaison Deal Room et négociation;
+          - première offre explicite côté acheteur;
+          - suivi prix/stock;
+          - UI Flutter/Web guidée par Avatar sans laisser l'utilisateur dans l'incertitude;
+          - administration Contact Layer C0–C5 et Command Center.
+
+          ## Principe métier à préserver
+          Tout doit converger vers WAOUH.
+          L'utilisateur ne doit jamais recevoir seulement une information de contact puis être abandonné.
+          Avatar conserve l'état, affiche la prochaine étape, suit la réponse, ouvre le Deal Room,
+          assiste la négociation, puis accompagne l'exécution jusqu'à la conclusion de l'accord.
+
+          ## Organisation
+          - source-feature/: source complète exacte de la branche de reprise
+          - source-prod/: photographie de référence de prod
+          - status/FEATURE_RECENT_COMMITS.txt
+          - status/PROD_RECENT_COMMITS.txt
+          - status/FEATURE_VS_PROD_STAT.txt
+          - status/FEATURE_VS_PROD_FILES.txt
+          - status/WAOUH_LATEST_PATCH.diff
+          - status/STATE.json
+          - CONTINUE_NEW_CHAT.txt
+
+          ## APK
+          L'APK est livré séparément dans l'artifact WAOUH APK.
+          Nom: ${APK_NAME}
+          EOF
+
+          cat > handoff/CONTINUE_NEW_CHAT.txt <<EOF
+          Continuer WAOUH exactement à partir de cette archive, sans repartir d'une ancienne branche.
+
+          Repo: starlab007007/botbenin
+          Branche: feat/waouh-opportunity-journey-c0-c5-e2e
+          HEAD: ${FEATURE_SHA}
+          Production de comparaison: prod @ ${PROD_SHA}
+          Supabase: mvynepqulhflxtyymtzs
+
+          Lire d'abord HANDOFF_WAOUH_2026-09-26.md et status/STATE.json.
+
+          Principe impératif:
+          tout le parcours doit rester piloté dans WAOUH jusqu'à conclusion de l'accord.
+          Avatar doit toujours indiquer l'état courant et la prochaine action.
+          Une opportunité C0 doit être enrichie; C2/C3 doit permettre un contact médié;
+          C4 doit suivre la réponse; C5 doit ouvrir/conduire la négociation dans le Deal Room.
+          Ne jamais renvoyer l'utilisateur vers une impasse ou une simple coordonnée sans suivi.
+
+          Avant toute nouvelle modification:
+          1. vérifier le HEAD de la branche;
+          2. vérifier les migrations/Edge Functions déjà déployées;
+          3. exécuter les tests Flutter/Web concernés;
+          4. conserver la compatibilité avec prod et le même backend Supabase.
+          EOF
+
+          cat > handoff/status/STATE.json <<EOF
+          {
+            "date": "2026-09-26",
+            "repository": "starlab007007/botbenin",
+            "supabase_project": "mvynepqulhflxtyymtzs",
+            "feature_branch": "feat/waouh-opportunity-journey-c0-c5-e2e",
+            "feature_sha": "${FEATURE_SHA}",
+            "prod_branch": "prod",
+            "prod_sha": "${PROD_SHA}",
+            "apk": "${APK_NAME}",
+            "core_scope": [
+              "NEXUS",
+              "Avatar Commerce",
+              "Contact Layer C0-C5",
+              "Opportunity Journey",
+              "Deal Room",
+              "Negotiation",
+              "Price/stock watch",
+              "Admin Command Center",
+              "Flutter",
+              "Web",
+              "Supabase"
+            ]
+          }
+          EOF
+
+          mkdir -p deliverables/archive
+          ARCHIVE_NAME="WAOUH_HANDOFF_COMPLETE_2026-09-26_${SHORT_FEATURE}_prod-${SHORT_PROD}.zip"
+          (cd handoff && zip -qr "../deliverables/archive/${ARCHIVE_NAME}" .)
+          sha256sum "deliverables/archive/${ARCHIVE_NAME}" > "deliverables/archive/${ARCHIVE_NAME}.sha256"
+          echo "ARCHIVE_NAME=${ARCHIVE_NAME}" >> "$GITHUB_ENV"
+
+      - name: Upload WAOUH APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: waouh-apk-latest-c0-c5
+          path: |
+            deliverables/apk/${{ env.APK_NAME }}
+            deliverables/apk/${{ env.APK_NAME }}.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload complete WAOUH handoff
+        uses: actions/upload-artifact@v4
+        with:
+          name: waouh-handoff-complete-c0-c5
+          path: |
+            deliverables/archive/${{ env.ARCHIVE_NAME }}
+            deliverables/archive/${{ env.ARCHIVE_NAME }}.sha256
+          if-no-files-found: error
+          retention-days: 30
