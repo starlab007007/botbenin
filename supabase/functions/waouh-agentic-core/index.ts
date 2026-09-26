@@ -2524,10 +2524,7 @@ Retourne uniquement JSON:
         );
         const signalPolicy = contactabilityPolicy(signal.contactability_level);
 
-        if (signalPolicy.level === "C2") {
-          if (!signal.submitted_by || signal.submitted_by === ownerId) {
-            throw new ApiError(403, "blind_contact_not_available");
-          }
+        if (signalPolicy.level === "C2" && signal.submitted_by && signal.submitted_by !== ownerId) {
           const approval = await queryOne<any>(
             sb.from("waouh_agent_approvals").insert({
               owner_id: signal.submitted_by,
@@ -2585,17 +2582,25 @@ Retourne uniquement JSON:
           } }, 202);
         }
 
-        if (!signalPolicy.can_auto_contact || !["C3","C4","C5"].includes(signalPolicy.level)) {
-          throw new ApiError(403, "automated_contact_not_permitted");
+        const userConfirmedPublicOrMediated =
+          payload.confirmed === true && ["C1","C2"].includes(signalPolicy.level);
+        if ((!signalPolicy.can_auto_contact && !userConfirmedPublicOrMediated) ||
+            !["C1","C2","C3","C4","C5"].includes(signalPolicy.level)) {
+          throw new ApiError(403, "contact_not_permitted");
         }
         if (!signal.entity_id) throw new ApiError(404, "contact_not_found");
         const { data: contacts, error: contactsError } = await sb.from("waouh_entity_contacts")
           .select("*").eq("entity_id", signal.entity_id)
           .in("channel", ["whatsapp","phone"])
-          .in("contactability_level", ["C3","C4","C5"])
+          .in("contactability_level", ["C1","C2","C3","C4","C5"])
           .order("contactability_level", { ascending: false }).limit(5);
         if (contactsError) throw new ApiError(500, "nexus_contacts_failed", contactsError.message);
-        const target = (contacts ?? []).find((contact: any) => !!contact.value_encrypted);
+        const target = (contacts ?? []).find((contact: any) =>
+          !!contact.value_encrypted &&
+          (signalPolicy.level !== "C1" ||
+            contact.is_public_business === true ||
+            contact.consent_state === "public_business")
+        );
         if (!target) throw new ApiError(404, "contact_not_found");
         const clear = await decryptPhone(target.value_encrypted);
         const e164 = normalizeE164(clear);
