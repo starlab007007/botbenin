@@ -101,7 +101,7 @@ Deno.serve(async (req) => {
         status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const initialOffer = requestedOffer ?? Number((article as any).price ?? 0) || null;
+    const initialOffer = requestedOffer ?? (Number((article as any).price ?? 0) || null);
 
     if (article.seller_id && buyerUserId && article.seller_id === buyerUserId) {
       // Seller cannot be interested in own article
