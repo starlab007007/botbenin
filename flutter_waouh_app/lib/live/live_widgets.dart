@@ -2114,9 +2114,7 @@ class _PremiumProductCard extends StatelessWidget {
                               child: Text(
                                 liveCommerceActionKind(action.payload) ==
                                         LiveCommerceActionKind.interest
-                                    ? product.isBuyerOpportunity
-                                        ? 'Proposer mon offre'
-                                        : 'Je suis intéressé · proposer un prix'
+                                    ? 'Je suis intéressé'
                                     : action.label,
                                 style: const TextStyle(
                                     fontWeight: FontWeight.w900),
@@ -2157,9 +2155,10 @@ class _PremiumProductCard extends StatelessWidget {
                           ? 'Négocier dans WAOUH'
                           : product.contactability == 'C4'
                               ? 'Suivre le contact'
-                              : product.contactability == 'C3' ||
-                                      product.contactability == 'C2'
+                              : product.contactability == 'C3'
                                   ? 'Contacter avec WAOUH'
+                                  : product.contactability == 'C2'
+                                      ? 'Transmettre via WAOUH'
                                   : product.contactability == 'C1'
                                       ? 'Vérifier le contact'
                                       : 'Trouver un moyen de contacter',
