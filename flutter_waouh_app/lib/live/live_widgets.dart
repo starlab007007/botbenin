@@ -2212,6 +2212,19 @@ class _PremiumProductCard extends StatelessWidget {
 
 
 
+
+String _watchProductPayload(_PremiumProduct product) {
+  final params = <String, String>{
+    'product_id': product.id ?? product.title,
+    'title': product.title,
+    'currency': 'XOF',
+    if (product.price != null) 'price': product.price!,
+    if (product.city != null) 'city': product.city!,
+    if (product.images.isNotEmpty) 'image_url': product.images.first.url,
+  };
+  return 'waouh:watch?${Uri(queryParameters: params).query}';
+}
+
 double? _premiumNumericPrice(_PremiumProduct product) {
   final raw = (product.price ?? '').replaceAll(RegExp(r'[^0-9.]'), '');
   final parsed = double.tryParse(raw);
