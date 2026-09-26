@@ -6,7 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { normalizeBeninPhone } from "../_shared/waouhContact.ts";\nimport { contactabilityPolicy } from "../_shared/waouh-signal-fabric.ts";
+import { normalizeBeninPhone } from "../_shared/waouhContact.ts";
+import { contactabilityPolicy } from "../_shared/waouh-signal-fabric.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
