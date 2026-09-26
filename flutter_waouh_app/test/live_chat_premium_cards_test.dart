@@ -108,7 +108,7 @@ void main() {
     final meta = liveCommercePayloadMeta(payload);
     expect(meta['action'], 'interested');
     expect(meta['intent'], 'interested');
-    expect(meta['origin_surface'], 'flutter_product_card');
+    expect(meta['origin_surface'], 'flutter_guided_interest');
 
     final queryAt = payload.indexOf('?');
     expect(queryAt, greaterThan(0));
