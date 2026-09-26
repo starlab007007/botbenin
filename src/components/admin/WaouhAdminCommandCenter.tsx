@@ -479,7 +479,7 @@ export default function WaouhAdminCommandCenter() {
             title="Paramétrage des moteurs"
             items={[
               { label: "Paramètres généraux", path: "/admin/waouh?tab=settings", note: "IA, commerce, paiements et règles" },
-              { label: "NEXUS / Radar IA", path: "/admin/waouh/radar", note: "Sources, connecteurs, API, quotas et scans" },
+              { label: "NEXUS / Radar IA", path: "/admin/waouh/radar", note: "Sources, connecteurs, API, quotas et scans" },\n              { label: "Contact Layer C0–C4", path: "/admin/waouh/contact-layer", note: "Contactabilité, consentement et politique par source" },
               { label: "WhatsApp Ops", path: "/admin/waouh/whatsapp-ops", note: "WAHA, sessions, files et replay" },
               { label: "SMS / RCS natif", path: "/admin/waouh/native-messaging", note: "Provider, SMS, RCS et fallback" },
               { label: "Validations diffusion", path: "/admin/waouh/diffusion-approvals", note: "Approbations humaines avant envoi" },
@@ -524,9 +524,14 @@ export default function WaouhAdminCommandCenter() {
             <Row label="Collectes en retard" value={cc.nexus.sources_overdue ?? 0} attention={(cc.nexus.sources_overdue ?? 0) > 0} />
             <Row label="Quotas API ≥ 80%" value={cc.nexus.connector_quota_risks?.length ?? 0} attention={(cc.nexus.connector_quota_risks?.length ?? 0) > 0} />
             {connectorActive > 0 && <Progress value={Math.round((connectorReady / connectorActive) * 100)} className="h-2" />}
-            <Button size="sm" variant="outline" className="w-full" onClick={() => navigate("/admin/waouh?tab=radar")}>
-              Configurer NEXUS / Radar
-            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <Button size="sm" variant="outline" className="w-full" onClick={() => navigate("/admin/waouh?tab=radar")}>
+                NEXUS / Radar
+              </Button>
+              <Button size="sm" variant="outline" className="w-full" onClick={() => navigate("/admin/waouh/contact-layer")}>
+                Contact Layer
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
