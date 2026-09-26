@@ -93,19 +93,73 @@ serve(async (req) => {
       orphanArticleMsgs = recentArticleIds.filter((id) => !known.has(id));
     }
 
-    // 3c) Negotiations without any trace_events
+    // 3c) Negotiations without technical trace OR commerce ledger event.
+    // The commerce ledger is authoritative for state transitions; trace_events
+    // remains authoritative for delivery/transport observability.
     let negsWithoutTrace: any[] = [];
     if ((recentNegs ?? []).length) {
       const negIds = (recentNegs ?? []).map((n: any) => n.id);
-      const { data: traces } = await sb
-        .from("waouh_trace_events")
-        .select("negotiation_id")
-        .in("negotiation_id", negIds)
-        .limit(2000);
-      const tracedNegIds = new Set((traces ?? []).map((t: any) => t.negotiation_id).filter(Boolean));
+      const [{ data: traces }, { data: commerceEvents }] = await Promise.all([
+        sb.from("waouh_trace_events")
+          .select("negotiation_id")
+          .in("negotiation_id", negIds)
+          .limit(5000),
+        sb.from("waouh_commerce_events")
+          .select("negotiation_id")
+          .in("negotiation_id", negIds)
+          .limit(5000),
+      ]);
+      const tracedNegIds = new Set<string>();
+      for (const t of traces ?? []) if ((t as any).negotiation_id) tracedNegIds.add((t as any).negotiation_id);
+      for (const t of commerceEvents ?? []) if ((t as any).negotiation_id) tracedNegIds.add((t as any).negotiation_id);
       negsWithoutTrace = (recentNegs ?? [])
         .filter((n: any) => !tracedNegIds.has(n.id))
         .slice(0, 50);
+    }
+
+    // 3d) Commerce graph integrity: these are blocking invariants, not UI metrics.
+    const [
+      { count: openThreadless },
+      { count: acceptedWithoutDeal },
+      { count: dealThreadless },
+      { count: dealNegotiationless },
+      { count: awaitingCourier },
+    ] = await Promise.all([
+      sb.from("waouh_negotiations")
+        .select("id", { count: "exact", head: true })
+        .in("state", ["proposed", "countered"])
+        .is("thread_id", null),
+      sb.from("waouh_negotiations")
+        .select("id", { count: "exact", head: true })
+        .eq("state", "accepted")
+        .is("thread_id", null),
+      sb.from("waouh_deals")
+        .select("id", { count: "exact", head: true })
+        .is("thread_id", null),
+      sb.from("waouh_deals")
+        .select("id", { count: "exact", head: true })
+        .is("negotiation_id", null),
+      sb.from("waouh_deals")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending_assignment"),
+    ]);
+
+    // Count accepted negotiations that truly have no deal.
+    let acceptedWithoutDealReal = 0;
+    const { data: acceptedRows } = await sb.from("waouh_negotiations")
+      .select("id")
+      .eq("state", "accepted")
+      .gte("updated_at", since)
+      .limit(2000);
+    if (acceptedRows?.length) {
+      const acceptedIds = acceptedRows.map((n: any) => n.id);
+      const { data: acceptedDeals } = await sb.from("waouh_deals")
+        .select("negotiation_id")
+        .in("negotiation_id", acceptedIds)
+        .neq("status", "cancelled")
+        .limit(5000);
+      const linked = new Set((acceptedDeals || []).map((d: any) => d.negotiation_id).filter(Boolean));
+      acceptedWithoutDealReal = acceptedRows.filter((n: any) => !linked.has(n.id)).length;
     }
 
     // 4) Outbound queue health
@@ -136,6 +190,14 @@ serve(async (req) => {
           negotiations_without_messages: negotiationsWithoutMessages,
           orphan_article_ids: orphanArticleMsgs,
           negotiations_without_trace: negsWithoutTrace,
+        },
+        commerce_integrity: {
+          open_negotiations_without_thread: openThreadless ?? 0,
+          accepted_without_deal_in_window: acceptedWithoutDealReal,
+          deals_without_thread: dealThreadless ?? 0,
+          deals_without_negotiation: dealNegotiationless ?? 0,
+          deals_waiting_courier: awaitingCourier ?? 0,
+          accepted_threadless_legacy: acceptedWithoutDeal ?? 0,
         },
         generated_at: new Date().toISOString(),
       }),

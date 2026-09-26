@@ -194,6 +194,7 @@ String liveCanonicalWorkflowPayload(
   final query = <String, String>{
     ...context,
     'commerce_action': action,
+    'commerce_contract': 'waouh_action_v2',
     'origin_surface': context['origin_surface'] ?? 'flutter_match_chat',
   };
   return 'waouh:$action?${Uri(queryParameters: query).query}';
@@ -250,9 +251,6 @@ const Set<String> _terminalCommerceStages = <String>{
   'cancelled',
   'canceled',
   'completed',
-  'delivered',
-  'delivery-completed',
-  'reception-confirmed',
   'sale-completed',
   'transaction-completed',
   'deal-cancelled',
@@ -274,8 +272,6 @@ const List<String> _terminalCommerceTextMarkers = <String>[
   'negociation-refusee',
   'vente-conclue',
   'achat-confirme',
-  'reception-confirmee',
-  'livraison-terminee',
   'transaction-terminee',
 ];
 
@@ -322,6 +318,9 @@ bool liveCommerceMessageSupersedesPreviousActions(LiveMessage message) {
       stage.contains('delivery-assigned') ||
       stage.contains('delivery-in-progress') ||
       stage.contains('in-transit') ||
+      stage.contains('delivered') ||
+      stage.contains('delivery-completed') ||
+      stage.contains('reception-confirmed') ||
       stage.contains('problem-reported');
 }
 

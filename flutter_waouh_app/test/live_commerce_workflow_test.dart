@@ -54,6 +54,7 @@ void main() {
     expect(query['counterpart_user_id'], 'seller-1');
     expect(query['thread_id'], 'thread-1');
     expect(query['commerce_action'], 'accept');
+    expect(query['commerce_contract'], 'waouh_action_v2');
   });
 
   test(
@@ -129,13 +130,9 @@ void main() {
       'refused',
       'rejected',
       'cancelled',
-      'delivery_completed',
-      'reception_confirmed',
       'sale_completed',
       'transaction_completed',
       'Négociation fermée',
-      'Réception confirmée',
-      'Livraison terminée',
     ]) {
       expect(
         liveCommerceStageIsTerminal(stage),
@@ -148,6 +145,10 @@ void main() {
       'deal_created',
       'awaiting_payment',
       'delivery_in_progress',
+      'delivered',
+      'delivery_completed',
+      'reception_confirmed',
+      'Livraison terminée',
       'payment_not_completed',
       'article_not_delivered',
       'partially_completed',
@@ -258,6 +259,27 @@ void main() {
 
   test('awaiting_confirmation reste un état actif', () {
     expect(liveCommerceStageIsTerminal('awaiting_confirmation'), isFalse);
+  });
+
+  test('delivered reste actionnable jusqu’à confirmation du paiement', () {
+    final delivered = _message(
+      id: 'delivered',
+      direction: 'out',
+      text: 'Colis livré. Confirmez le paiement.',
+      meta: const <String, dynamic>{
+        'workflow_state': 'delivered',
+        'deal_id': 'deal-1',
+        'actions': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'id': 'confirmer-paiement-cash:deal-1',
+            'label': 'Confirmer paiement',
+          },
+        ],
+      },
+    );
+    expect(liveCommerceMessageIsTerminal(delivered), isFalse);
+    expect(liveCommerceMessageIsActionable(delivered), isTrue);
+    expect(liveLatestActionableMessageIndex(<LiveMessage>[delivered]), 0);
   });
 
 }

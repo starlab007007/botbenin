@@ -27,6 +27,14 @@ type Health = {
     orphan_article_ids: string[];
     negotiations_without_trace: Array<{ id: string; article_id: string; state: string; created_at: string }>;
   };
+  commerce_integrity: {
+    open_negotiations_without_thread: number;
+    accepted_without_deal_in_window: number;
+    deals_without_thread: number;
+    deals_without_negotiation: number;
+    deals_waiting_courier: number;
+    accepted_threadless_legacy: number;
+  };
   generated_at: string;
 };
 
@@ -140,6 +148,50 @@ const AdminWaouhHealthCheckPage: React.FC = () => {
           )}
         </Card>
       </div>
+
+      <Card className="p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Database className="w-4 h-4 text-blue-600" />
+          <h2 className="font-semibold">Intégrité commerce E2E</h2>
+          <Badge variant={
+            data && (
+              data.commerce_integrity.open_negotiations_without_thread > 0 ||
+              data.commerce_integrity.accepted_without_deal_in_window > 0 ||
+              data.commerce_integrity.deals_waiting_courier > 0
+            ) ? "destructive" : "secondary"
+          }>
+            graphe
+          </Badge>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+          <div className="rounded-lg border p-3">
+            <div className="text-xs text-muted-foreground">Négos ouvertes sans thread</div>
+            <div className="text-xl font-bold">{data?.commerce_integrity.open_negotiations_without_thread ?? "—"}</div>
+          </div>
+          <div className="rounded-lg border p-3">
+            <div className="text-xs text-muted-foreground">Accords sans deal · fenêtre</div>
+            <div className="text-xl font-bold">{data?.commerce_integrity.accepted_without_deal_in_window ?? "—"}</div>
+          </div>
+          <div className="rounded-lg border p-3">
+            <div className="text-xs text-muted-foreground">Deals sans thread</div>
+            <div className="text-xl font-bold">{data?.commerce_integrity.deals_without_thread ?? "—"}</div>
+          </div>
+          <div className="rounded-lg border p-3">
+            <div className="text-xs text-muted-foreground">Deals sans négociation</div>
+            <div className="text-xl font-bold">{data?.commerce_integrity.deals_without_negotiation ?? "—"}</div>
+          </div>
+          <div className="rounded-lg border p-3">
+            <div className="text-xs text-muted-foreground">En attente livreur</div>
+            <div className="text-xl font-bold">{data?.commerce_integrity.deals_waiting_courier ?? "—"}</div>
+          </div>
+        </div>
+        {(data?.commerce_integrity.accepted_threadless_legacy ?? 0) > 0 && (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Historique legacy : {data!.commerce_integrity.accepted_threadless_legacy} accord(s) accepted sans thread canonique.
+            Les nouveaux parcours sont bloqués par les invariants E2E V3.
+          </p>
+        )}
+      </Card>
 
       <Card className="p-4">
         <div className="flex items-center gap-2 mb-3">

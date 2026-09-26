@@ -7,15 +7,38 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 import { resolveRealPhoneE164, stripLegacyPaymentText, lidToPhoneInline } from "../_shared/waouh-format.ts";
+import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const WAHA_BASE_URL = Deno.env.get("WAHA_BASE_URL");
 const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY");
 const WAHA_SESSION = Deno.env.get("WAHA_SESSION") || "WaouhApp";
 const WAOUH_BUSINESS_PHONE = normalizeBeninPhone(Deno.env.get("WAOUH_BUSINESS_PHONE") || "65653468") || "22965653468";
 
 const MAX_ATTEMPTS_DEFAULT = 5;
+
+async function requestIsAdmin(req: Request, sb: any) {
+  const auth = req.headers.get("Authorization") || "";
+  if (!auth.startsWith("Bearer ")) return false;
+  const bearer = auth.replace(/^Bearer\s+/i, "").trim();
+  if (bearer === SERVICE_ROLE) return true;
+  try {
+    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
+      global: { headers: { Authorization: auth } },
+    });
+    const { data: { user } } = await userClient.auth.getUser();
+    if (!user) return false;
+    const [admin, superAdmin] = await Promise.all([
+      sb.rpc("has_role", { _user_id: user.id, _role_name: "admin" }),
+      sb.rpc("has_role", { _user_id: user.id, _role_name: "super_admin" }),
+    ]);
+    return admin.data === true || superAdmin.data === true;
+  } catch {
+    return false;
+  }
+}
 
 function fmt(n: number | null | undefined) {
   if (n == null) return "prix à discuter";
@@ -132,8 +155,40 @@ async function sendWahaButtons(base: string, session: string, chatId: string, te
 }
 
 
-function defaultActionsForTemplate(_template: string, _p: any): Array<{ id: string; label: string; url?: string; phone?: string }> {
-  // Parcours 100 % conversationnel : plus aucune action par défaut (OUI / NON / Je propose XXX).
+function defaultActionsForTemplate(template: string, p: any): Array<{ id: string; label: string; url?: string; phone?: string }> {
+  const negId = String(p?.negotiation_id || p?.neg_id || "").trim();
+  const dealId = String(p?.deal_id || "").trim();
+  const role = String(p?.target_role || p?.role || "").trim().toLowerCase();
+
+  if ((template === "negotiation_open" || p?.intent === "negotiation_open") && negId) {
+    return [
+      { id: `accepter:${negId}`, label: "✅ Accepter" },
+      { id: `contre-proposition:${negId}`, label: "💬 Contre-proposer" },
+      { id: `refuser:${negId}`, label: "❌ Refuser" },
+    ];
+  }
+  if ((template === "deal_accepted" || p?.intent === "deal_accepted") && dealId) {
+    if (role === "seller") {
+      return [
+        { id: `confirmer-disponibilite:${dealId}`, label: "✅ Article disponible" },
+        { id: `annuler:${dealId}`, label: "❌ Indisponible" },
+      ];
+    }
+    return [
+      { id: `payer-mobile:${dealId}`, label: "📱 Mobile Money" },
+      { id: `paiement-livraison:${dealId}`, label: "💵 Cash livraison" },
+      { id: `annuler:${dealId}`, label: "❌ Annuler" },
+    ];
+  }
+  if (p?.workflow_state === "delivered" && dealId && role === "buyer") {
+    const method = String(p?.payment_method || "").toLowerCase();
+    return [{
+      id: method === "mobile_money"
+        ? `confirmer-paiement-mobile:${dealId}`
+        : `confirmer-paiement-cash:${dealId}`,
+      label: method === "mobile_money" ? "✅ Confirmer Mobile Money" : "✅ Confirmer paiement",
+    }];
+  }
   return [];
 }
 
@@ -143,7 +198,34 @@ Deno.serve(async (req) => {
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   try {
-    const { limit = 50 } = req.method === "POST" ? await req.json().catch(() => ({})) : {};
+    const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
+    const limit = Number(body?.limit ?? 50);
+    const manual = body?.manual === true;
+
+    const outboundControl = await getWaouhModuleControl(sb, "outbound");
+    if (!outboundControl.enabled) {
+      return new Response(JSON.stringify({
+        ok: false,
+        skipped: true,
+        reason: "outbound_paused",
+        message: outboundControl.maintenance_message || "Les sorties WAOUH sont temporairement suspendues.",
+      }), { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    if (!outboundControl.automation_enabled) {
+      if (!manual) {
+        return new Response(JSON.stringify({
+          ok: true,
+          skipped: true,
+          reason: "outbound_automation_paused",
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      if (!(await requestIsAdmin(req, sb))) {
+        return new Response(JSON.stringify({ ok: false, error: "admin_required_for_manual_dispatch" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     const nowIso = new Date().toISOString();
 
