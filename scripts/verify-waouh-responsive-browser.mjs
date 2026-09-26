@@ -158,10 +158,39 @@ async function clickExact(label) {
   })()`);
 }
 
+async function waitForText(marker, timeoutMs = 7000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const state = await evaluate(`({
+      text: document.body?.innerText || "",
+      path: location.pathname + location.search,
+      fallback:
+        (document.body?.innerText || "").includes("Une erreur s'est produite") ||
+        (document.body?.innerText || "").includes("Une erreur s’est produite")
+    })`);
+    if (state.fallback) return state;
+    if (state.text.includes(marker)) return state;
+    await sleep(200);
+  }
+  return evaluate(`({
+    text: document.body?.innerText || "",
+    path: location.pathname + location.search,
+    fallback:
+      (document.body?.innerText || "").includes("Une erreur s'est produite") ||
+      (document.body?.innerText || "").includes("Une erreur s’est produite")
+  })`);
+}
+
 async function testRoot(viewport) {
   let state = await navigate("http://127.0.0.1:4173/", viewport);
+  if (!state.text.includes("Votre Avatar WAOUH") && !state.fallback) {
+    const waited = await waitForText("Votre Avatar WAOUH");
+    state = { ...state, ...waited };
+  }
   if (state.fallback) fail(`${viewport.name}: root rendered the ErrorBoundary fallback`);
-  if (!state.text.includes("Votre Avatar WAOUH")) fail(`${viewport.name}: Avatar home is missing`);
+  if (!state.text.includes("Votre Avatar WAOUH")) {
+    fail(`${viewport.name}: Avatar home is missing at ${state.path}; body=${state.text.slice(0, 300)}`);
+  }
   for (const label of ["Acheter", "Vendre", "Trouver", "Demander"]) {
     if (!state.text.includes(label)) fail(`${viewport.name}: missing Avatar action ${label}`);
   }
@@ -262,8 +291,14 @@ async function testRoutes(viewport) {
     const state = await navigate(`http://127.0.0.1:4173${route}`, viewport);
     if (state.fallback) fail(`${viewport.name}: ${route} rendered ErrorBoundary fallback`);
     if (state.overflowX) fail(`${viewport.name}: horizontal overflow on ${route}`);
+    if (marker && !state.text.includes(marker) && !state.fallback) {
+      const waited = await waitForText(marker);
+      state.text = waited.text;
+      state.path = waited.path;
+      state.fallback = waited.fallback;
+    }
     if (marker && !state.text.includes(marker)) {
-      fail(`${viewport.name}: ${route} missing marker "${marker}"`);
+      fail(`${viewport.name}: ${route} missing marker "${marker}" at ${state.path}; body=${state.text.slice(0, 300)}`);
     }
     if (route === "/app/auth" && state.text.includes("Comment fonctionne WAOUH")) {
       fail(`${viewport.name}: removed login explainer returned`);
