@@ -387,6 +387,7 @@ Map<String, dynamic> liveCommercePayloadMeta(String payload) {
   final kind = liveCommerceActionKind(payload);
   final result = <String, dynamic>{
     'button_payload': command,
+    'commerce_contract': 'waouh_action_v2',
     ...query,
   };
   final legacyReference = liveCommerceLegacyReference(payload);
