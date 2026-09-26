@@ -83,6 +83,8 @@ type CommandCenter = {
     sources_total: number;
     sources_active: number;
     sources_never_scanned: number;
+    sources_overdue?: number;
+    connector_quota_risks?: Array<{ provider: string; quota_pct: number }>;
     radar_auto?: {
       auto_enabled?: boolean;
       pause_until?: string | null;
@@ -457,6 +459,8 @@ export default function WaouhAdminCommandCenter() {
             <Row label="WhatsApp détecté / 24h" value={cc.nexus.external_with_whatsapp_24h} />
             <Row label="Connecteurs prêts" value={`${connectorReady}/${connectorActive}`} />
             <Row label="Sources actives" value={`${cc.nexus.sources_active}/${cc.nexus.sources_total}`} />
+            <Row label="Collectes en retard" value={cc.nexus.sources_overdue ?? 0} attention={(cc.nexus.sources_overdue ?? 0) > 0} />
+            <Row label="Quotas API ≥ 80%" value={cc.nexus.connector_quota_risks?.length ?? 0} attention={(cc.nexus.connector_quota_risks?.length ?? 0) > 0} />
             {connectorActive > 0 && <Progress value={Math.round((connectorReady / connectorActive) * 100)} className="h-2" />}
             <Button size="sm" variant="outline" className="w-full" onClick={() => navigate("/admin/waouh?tab=radar")}>
               Configurer NEXUS / Radar
