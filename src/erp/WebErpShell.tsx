@@ -117,7 +117,7 @@ const routeContext = (pathname: string) => {
       prompt: 'Demander à WAOUH les opportunités proches',
     };
   }
-  if (pathname.startsWith('/app/apres-bac')) {
+  if (pathname.startsWith('/app/apres-bac') || pathname.startsWith('/app/apresbac')) {
     return {
       eyebrow: 'Orientation',
       title: 'AprèsBac IA',
@@ -165,7 +165,7 @@ const routeContext = (pathname: string) => {
       prompt: 'Interroger WAOUH sur mes conversations et mes opportunités',
     };
   }
-  if (pathname.startsWith('/app/agents/stock')) {
+  if (pathname.startsWith('/app/agents/stock') || pathname === '/app/stock') {
     return {
       eyebrow: 'Opérations',
       title: 'Stock IA',
@@ -173,7 +173,7 @@ const routeContext = (pathname: string) => {
       prompt: 'Demander à WAOUH une analyse de mon stock',
     };
   }
-  if (pathname.startsWith('/app/agents/bi')) {
+  if (pathname.startsWith('/app/agents/bi') || pathname === '/app/whatsapp/bi') {
     return {
       eyebrow: 'Décision',
       title: 'BI IA',
@@ -181,12 +181,28 @@ const routeContext = (pathname: string) => {
       prompt: 'Demander à WAOUH une lecture de mes indicateurs',
     };
   }
-  if (pathname.startsWith('/app/agents/attendance')) {
+  if (pathname.startsWith('/app/agents/attendance') || pathname === '/app/presence') {
     return {
       eyebrow: 'Terrain',
       title: 'Présence QR',
       description: 'Sites, QR géolocalisés et pointages notifiés sur WhatsApp.',
       prompt: 'Demander à WAOUH un point sur les présences',
+    };
+  }
+  if (pathname === '/app/ia') {
+    return {
+      eyebrow: 'Intelligence artificielle',
+      title: 'Bots & IA WAOUH',
+      description: 'Vos outils IA spécialisés avec les mêmes parcours que Flutter.',
+      prompt: 'Ouvrir les outils IA WAOUH',
+    };
+  }
+  if (pathname === '/app/radar-map') {
+    return {
+      eyebrow: 'Détection locale',
+      title: 'Radar WAOUH',
+      description: 'Recherche géolocalisée intelligente et signaux de proximité.',
+      prompt: 'Demander à WAOUH les opportunités proches',
     };
   }
   if (pathname.startsWith('/app/bots') || pathname.startsWith('/app/agents')) {
