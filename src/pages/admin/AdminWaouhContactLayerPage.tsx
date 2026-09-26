@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
-type Level = "C0" | "C1" | "C2" | "C3" | "C4";
+type Level = "C0" | "C1" | "C2" | "C3" | "C4" | "C5";
 type Source = {
   source_key: string;
   label: string;
@@ -29,7 +29,7 @@ type Policy = {
   can_auto_contact: boolean;
   requires_approval: boolean;
 };
-const levels: Level[] = ["C0", "C1", "C2", "C3", "C4"];
+const levels: Level[] = ["C0", "C1", "C2", "C3", "C4", "C5"];
 
 export default function AdminWaouhContactLayerPage() {
   const [sources, setSources] = useState<Source[]>([]);
@@ -120,7 +120,7 @@ export default function AdminWaouhContactLayerPage() {
                 <ShieldCheck className="h-6 w-6" />
               </span>
               <div>
-                <h1 className="text-2xl font-bold md:text-3xl">Contact Layer C0–C4</h1>
+                <h1 className="text-2xl font-bold md:text-3xl">Contact Layer C0–C5</h1>
                 <p className="text-sm text-white/80">
                   Contactabilité, consentement, visibilité et politique par source.
                 </p>
