@@ -110,7 +110,8 @@ const AdminWaouhBusinessesPage = lazy(() => import("./pages/admin/AdminWaouhBusi
 const AdminWaouhDealsPage = lazy(() => import("./pages/admin/AdminWaouhDealsPage"));
 const AdminWaouhHistoriquePage = lazy(() => import("./pages/admin/AdminWaouhHistoriquePage"));
 const AdminWaouhHealthCheckPage = lazy(() => import("./pages/admin/AdminWaouhHealthCheckPage"));
-const AdminWaouhNativeMessagingPage = lazy(() => import("./pages/admin/AdminWaouhNativeMessagingPage"));\nconst AdminWaouhContactLayerPage = lazy(() => import("./pages/admin/AdminWaouhContactLayerPage"));
+const AdminWaouhNativeMessagingPage = lazy(() => import("./pages/admin/AdminWaouhNativeMessagingPage"));
+const AdminWaouhContactLayerPage = lazy(() => import("./pages/admin/AdminWaouhContactLayerPage"));
 const AdminBotsControlPage = lazy(() => import("./pages/admin/AdminBotsControlPage"));
 const AdminApresBacPage = lazy(() => import("./pages/admin/AdminApresBacPage"));
 const AdminFaPage = lazy(() => import("./pages/admin/AdminFaPage"));
@@ -316,7 +317,8 @@ const AppContent = () => {
                      <Route path="/admin/waouh/deals" element={<AdminRoute><AdminWaouhDealsPage /></AdminRoute>} />
                     <Route path="/admin/waouh/historique" element={<AdminRoute><AdminWaouhHistoriquePage /></AdminRoute>} />
                     <Route path="/admin/waouh/health-check" element={<AdminRoute><AdminWaouhHealthCheckPage /></AdminRoute>} />
-                    <Route path="/admin/waouh/native-messaging" element={<AdminRoute><AdminWaouhNativeMessagingPage /></AdminRoute>} />\n                    <Route path="/admin/waouh/contact-layer" element={<AdminRoute><AdminWaouhContactLayerPage /></AdminRoute>} />
+                    <Route path="/admin/waouh/native-messaging" element={<AdminRoute><AdminWaouhNativeMessagingPage /></AdminRoute>} />
+                    <Route path="/admin/waouh/contact-layer" element={<AdminRoute><AdminWaouhContactLayerPage /></AdminRoute>} />
                      <Route path="/partner" element={<AuthRoute><PartnerDashboardPage /></AuthRoute>} />
                      <Route path="/partner/businesses" element={<PartnerRoute><PartnerBusinessesPage /></PartnerRoute>} />
                      <Route path="/partner/b/:code/produits" element={<PartnerRoute><PartnerProductsPage /></PartnerRoute>} />
