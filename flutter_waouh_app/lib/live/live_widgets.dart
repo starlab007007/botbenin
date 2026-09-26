@@ -2437,9 +2437,11 @@ class _PremiumNexusContactSheetState
   late final LiveNexusService service = LiveNexusService(legacy.supabase);
   final message = TextEditingController();
   NexusPreparedContact? prepared;
+  NexusOpportunityJourney? journey;
   Object? error;
   bool busy = true;
   bool sending = false;
+  bool enriching = false;
 
   @override
   void initState() {
@@ -2453,18 +2455,41 @@ class _PremiumNexusContactSheetState
     super.dispose();
   }
 
+  String get _mode {
+    final intent = (widget.product.intent ?? '').toUpperCase();
+    return intent == 'BUY' ? 'sell' : 'buy';
+  }
+
   Future<void> _load() async {
+    setState(() {
+      busy = true;
+      error = null;
+    });
     try {
-      final value = await service.prepareContact(widget.product.fabricId!);
+      var currentJourney = await service.startOpportunity(
+        fabricId: widget.product.fabricId!,
+        mode: _mode,
+      );
+      var value = await service.prepareContact(widget.product.fabricId!);
+
+      if (value.policy.level == 'C0' || value.policy.level == 'C1') {
+        currentJourney = await service.enrichOpportunity(
+          fabricId: widget.product.fabricId!,
+          mode: _mode,
+        );
+        value = await service.prepareContact(widget.product.fabricId!);
+      }
+
       if (!mounted) return;
       setState(() {
+        journey = currentJourney;
         prepared = value;
         busy = false;
         error = null;
         message.text =
-            'Bonjour, je vous contacte via WAOUH au sujet de « ' +
+            'Bonjour, mon Avatar WAOUH vous contacte au sujet de « ' +
                 widget.product.title +
-                ' ». Est-ce toujours disponible / pertinent pour vous ?';
+                ' ». Est-ce toujours disponible ? Si oui, je souhaite poursuivre la discussion dans WAOUH.';
       });
     } catch (e) {
       if (!mounted) return;
@@ -2475,57 +2500,279 @@ class _PremiumNexusContactSheetState
     }
   }
 
-  Future<void> _openContact(NexusContactItem item) async {
-    final value = item.value.trim();
-    Uri? uri;
-    if (item.channel == 'whatsapp') {
-      final digits = value.replaceAll(RegExp(r'\D'), '');
-      uri = Uri.parse('https://wa.me/' + digits);
-    } else if (item.channel == 'phone') {
-      uri = Uri(scheme: 'tel', path: value);
-    } else if (item.channel == 'email') {
-      uri = Uri(scheme: 'mailto', path: value);
-    } else {
-      uri = Uri.tryParse(value);
+  Future<void> _enrich() async {
+    if (enriching) return;
+    setState(() {
+      enriching = true;
+      error = null;
+    });
+    try {
+      final updated = await service.enrichOpportunity(
+        fabricId: widget.product.fabricId!,
+        mode: _mode,
+      );
+      final contact = await service.prepareContact(widget.product.fabricId!);
+      if (!mounted) return;
+      setState(() {
+        journey = updated;
+        prepared = contact;
+      });
+    } catch (e) {
+      if (mounted) setState(() => error = e);
+    } finally {
+      if (mounted) setState(() => enriching = false);
     }
-    if (uri == null) return;
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _refreshJourney() async {
+    final current = journey;
+    if (current == null) return;
+    try {
+      final updated = await service.opportunityStatus(journeyId: current.id);
+      if (!mounted) return;
+      setState(() => journey = updated);
+    } catch (e) {
+      if (mounted) setState(() => error = e);
+    }
   }
 
   Future<void> _send() async {
     final contact = prepared;
     final text = message.text.trim();
     if (contact == null || text.isEmpty || sending) return;
-    setState(() => sending = true);
+    setState(() {
+      sending = true;
+      error = null;
+    });
     try {
       final result = await service.sendContact(
         fabricId: contact.fabricId,
         message: text,
       );
+      NexusOpportunityJourney? updated;
+      final rawJourney = result['journey'];
+      if (rawJourney is Map) {
+        updated = NexusOpportunityJourney.fromJson(
+          Map<String, dynamic>.from(rawJourney),
+        );
+      } else if (journey != null) {
+        updated = await service.opportunityStatus(journeyId: journey!.id);
+      }
       if (!mounted) return;
-      final blind = result['blind'] == true;
+      setState(() {
+        if (updated != null) journey = updated;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text(
-            blind
-                ? 'Proposition transmise sans révéler les coordonnées privées.'
-                : 'Contact WAOUH mis en file.',
+            'Votre Avatar a pris le relais. WAOUH suit la réponse et vous guidera à la prochaine étape.',
           ),
         ),
       );
-      Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.toString())));
+      setState(() => error = e);
     } finally {
       if (mounted) setState(() => sending = false);
     }
   }
 
+  Widget _progress() {
+    final current = journey;
+    final level = current?.contactability ??
+        prepared?.policy.level ??
+        widget.product.contactability ??
+        'C0';
+    final progress = (current?.progress ?? 10).clamp(0, 100);
+    final stages = const [
+      ['Trouvé', 10],
+      ['Vérifié', 25],
+      ['Contact', 40],
+      ['Réponse', 55],
+      ['Négociation', 70],
+      ['Accord', 80],
+      ['Exécution', 90],
+      ['Terminé', 100],
+    ];
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF4F8FF),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFDCE7F8)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  current?.lastMessage ??
+                      'Votre Avatar prend en charge cette opportunité.',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF19304F),
+                  ),
+                ),
+              ),
+              Text(
+                progress.toString() + '%',
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF2368FF),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          LinearProgressIndicator(
+            value: progress / 100,
+            minHeight: 7,
+            borderRadius: BorderRadius.circular(99),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: stages.map((stage) {
+              final reached = progress >= (stage[1] as int);
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  color: reached
+                      ? const Color(0xFFE4F7EF)
+                      : const Color(0xFFF1F3F6),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  stage[0] as String,
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w800,
+                    color: reached
+                        ? const Color(0xFF08745D)
+                        : const Color(0xFF7B8797),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 9),
+          Row(
+            children: [
+              LiveContactabilityBadge(level: level, showCode: true),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  current?.nextAction ??
+                      'Avatar analyse automatiquement la prochaine action.',
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    color: Color(0xFF60746E),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _maskedContact() {
+    final data = journey?.maskedContact ?? const <String, dynamic>{};
+    final rawPhones = data['phones'];
+    final channels = data['channels'] is List
+        ? List<dynamic>.from(data['channels'] as List)
+        : const <dynamic>[];
+    final lines = <String>[];
+    if (rawPhones is List) {
+      for (final raw in rawPhones.take(3)) {
+        if (raw is Map) {
+          final country = (raw['country_code'] ?? '').toString();
+          final last4 = (raw['last4'] ?? '').toString();
+          if (last4.isNotEmpty) {
+            lines.add((country.isEmpty ? '' : country + ' ') + '•••• ' + last4);
+          }
+        }
+      }
+    }
+    if (prepared != null) {
+      for (final item in prepared!.contacts) {
+        final last4 = item.last4;
+        if (last4 != null && last4.isNotEmpty) {
+          final label = item.channel == 'whatsapp' ? 'WhatsApp' : item.channel;
+          lines.add(label + ' · •••• ' + last4);
+        }
+      }
+    }
+    if (lines.isEmpty && channels.isEmpty) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1FAF6),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFD5EBE2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Informations de contact autorisées',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11),
+          ),
+          if (lines.isNotEmpty) ...[
+            const SizedBox(height: 5),
+            for (final line in lines.toSet())
+              Text(
+                line,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF08745D),
+                ),
+              ),
+          ],
+          if (channels.isNotEmpty) ...[
+            const SizedBox(height: 5),
+            Text(
+              'Canaux détectés : ' + channels.join(' · '),
+              style: const TextStyle(
+                color: Color(0xFF60746E),
+                fontSize: 10.5,
+              ),
+            ),
+          ],
+          const SizedBox(height: 4),
+          const Text(
+            'WAOUH ne révèle que les coordonnées publiques, professionnelles ou autorisées.',
+            style: TextStyle(
+              color: Color(0xFF7B8797),
+              fontSize: 9.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final contact = prepared;
+    final current = journey;
+    final level = current?.contactability ??
+        contact?.policy.level ??
+        widget.product.contactability ??
+        'C0';
+    final canSend = contact != null &&
+        (contact.policy.canBlindMessage || contact.policy.canAutoContact);
+    final waiting = current?.waiting == true || level == 'C4';
+    final negotiating = current?.negotiating == true || level == 'C5';
+
     return Padding(
       padding: EdgeInsets.fromLTRB(
         16,
@@ -2560,14 +2807,14 @@ class _PremiumNexusContactSheetState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Contact intelligent WAOUH',
+                        'Votre Avatar conduit la démarche',
                         style: TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
                       Text(
-                        'Le Contact Layer applique C0–C4 avant toute action.',
+                        'Découverte → contact C0–C5 → négociation → accord',
                         style: TextStyle(
                           fontSize: 10.5,
                           color: Color(0xFF60746E),
@@ -2576,11 +2823,7 @@ class _PremiumNexusContactSheetState
                     ],
                   ),
                 ),
-                LiveContactabilityBadge(
-                  level: contact?.policy.level ??
-                      widget.product.contactability,
-                  showCode: true,
-                ),
+                LiveContactabilityBadge(level: level, showCode: true),
               ],
             ),
             const SizedBox(height: 14),
@@ -2588,93 +2831,168 @@ class _PremiumNexusContactSheetState
               const Center(
                 child: Padding(
                   padding: EdgeInsets.all(28),
-                  child: CircularProgressIndicator(),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 10),
+                      Text('Avatar vérifie le meilleur chemin de contact…'),
+                    ],
+                  ),
                 ),
               )
-            else if (error != null)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF4F3),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Text(
-                  error.toString(),
-                  style: const TextStyle(color: Color(0xFF8A3138)),
-                ),
-              )
-            else if (contact != null) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(13),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1FAF6),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFD5EBE2)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      contact.actorName ??
-                          contact.productName ??
-                          widget.product.title,
-                      style: const TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                    if (contact.note?.trim().isNotEmpty == true) ...[
-                      const SizedBox(height: 5),
+            else ...[
+              _progress(),
+              _maskedContact(),
+              if (contact != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(13),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE0E7E4)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        contact.note!,
+                        contact.actorName ??
+                            contact.productName ??
+                            widget.product.title,
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        contact.note ??
+                            'WAOUH protège vos coordonnées et garde le suivi de bout en bout.',
                         style: const TextStyle(
                           fontSize: 11.5,
                           color: Color(0xFF60746E),
                           height: 1.35,
                         ),
                       ),
+                      if (contact.sourceUrl?.trim().isNotEmpty == true) ...[
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Source originale vérifiée par NEXUS',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Color(0xFF7B8797),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
-                ),
-              ),
-              if (contact.contacts.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                const Text(
-                  'Contacts autorisés',
-                  style: TextStyle(fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 7),
-                Wrap(
-                  spacing: 7,
-                  runSpacing: 7,
-                  children: contact.contacts.map((item) {
-                    final suffix =
-                        item.last4 == null ? '' : ' · …' + item.last4!;
-                    return OutlinedButton.icon(
-                      onPressed: () => _openContact(item),
-                      icon: Icon(
-                        item.channel == 'whatsapp'
-                            ? Icons.chat_outlined
-                            : item.channel == 'email'
-                                ? Icons.email_outlined
-                                : Icons.phone_outlined,
-                        size: 17,
-                      ),
-                      label: Text(item.channel + suffix),
-                    );
-                  }).toList(growable: false),
+                  ),
                 ),
               ],
-              if (contact.policy.canBlindMessage ||
-                  contact.policy.canAutoContact) ...[
-                const SizedBox(height: 14),
-                Text(
-                  contact.policy.canBlindMessage
-                      ? 'WAOUH transmet sans révéler les coordonnées'
-                      : 'Message que votre Avatar peut transmettre',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 12,
+              if (error != null) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF5E8),
+                    borderRadius: BorderRadius.circular(14),
                   ),
+                  child: Text(
+                    'Avatar poursuit la démarche. Détail technique : ' +
+                        error.toString(),
+                    style: const TextStyle(
+                      color: Color(0xFF765200),
+                      fontSize: 10.5,
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              if (level == 'C0' || level == 'C1') ...[
+                const Text(
+                  'Aucun cul-de-sac : votre Avatar enrichit le signal jusqu’à trouver un canal autorisé.',
+                  style: TextStyle(
+                    color: Color(0xFF19304F),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11.5,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                FilledButton.icon(
+                  onPressed: enriching ? null : _enrich,
+                  icon: enriching
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.manage_search_rounded),
+                  label: Text(
+                    level == 'C0'
+                        ? 'Trouver un moyen de contacter'
+                        : 'Vérifier le meilleur canal',
+                  ),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                ),
+              ] else if (waiting) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(13),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEAF8F2),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.schedule_send_rounded, color: Color(0xFF08745D)),
+                      SizedBox(width: 9),
+                      Expanded(
+                        child: Text(
+                          'Message envoyé · réponse en attente. Avatar garde la main et vous avertit dès que la contrepartie répond.',
+                          style: TextStyle(
+                            color: Color(0xFF08745D),
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: _refreshJourney,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Actualiser le suivi'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(46),
+                  ),
+                ),
+              ] else if (negotiating) ...[
+                FilledButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'La contrepartie est prête. Ouvrez le Deal Room pour négocier et conclure.',
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.handshake_rounded),
+                  label: const Text('Continuer vers la négociation'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                ),
+              ] else if (canSend) ...[
+                const Text(
+                  'Message proposé par votre Avatar',
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
                 ),
                 const SizedBox(height: 7),
                 TextField(
@@ -2682,29 +3000,32 @@ class _PremiumNexusContactSheetState
                   minLines: 2,
                   maxLines: 4,
                   decoration: const InputDecoration(
-                    hintText: 'Votre message…',
+                    hintText: 'Message de prise de contact…',
                   ),
                 ),
                 const SizedBox(height: 9),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: sending ? null : _send,
-                    icon: sending
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.send_rounded),
-                    label: Text(
-                      contact.policy.canBlindMessage
-                          ? 'Transmettre via WAOUH'
-                          : 'Confirmer et envoyer',
-                    ),
+                FilledButton.icon(
+                  onPressed: sending ? null : _send,
+                  icon: sending
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.send_rounded),
+                  label: const Text('Contacter avec WAOUH'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                  ),
+                ),
+                const SizedBox(height: 7),
+                const Text(
+                  'Après l’envoi, cette démarche reste suivie dans WAOUH jusqu’à l’accord.',
+                  style: TextStyle(
+                    color: Color(0xFF60746E),
+                    fontSize: 10,
                   ),
                 ),
               ],
