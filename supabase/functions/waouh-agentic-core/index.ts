@@ -1127,6 +1127,130 @@ async function globalDiscoverySearch(
   return ranked;
 }
 
+
+function journeyProgress(stage: string) {
+  const map: Record<string, number> = {
+    discovered: 10, enriching: 20, contact_ready: 32, contacting: 42,
+    waiting_reply: 52, negotiating: 68, agreed: 78, executing: 88,
+    completed: 100, cancelled: 100,
+  };
+  return map[stage] ?? 10;
+}
+
+function journeyNextAction(stage: string, level: string) {
+  if (stage === "completed") return "Voir le reçu et l’historique";
+  if (stage === "executing") return "Suivre l’exécution / livraison";
+  if (stage === "agreed") return "Finaliser livraison / prestation";
+  if (stage === "negotiating" || level === "C5") return "Négocier dans WAOUH";
+  if (stage === "waiting_reply" || level === "C4") return "Attendre la réponse · Avatar relance si nécessaire";
+  if (stage === "contacting") return "Suivre l’envoi";
+  if (["C2","C3"].includes(level)) return "Contacter avec WAOUH";
+  return "Avatar recherche un canal de contact";
+}
+
+async function ensureOpportunityJourney(
+  sb: SupabaseClient,
+  ownerId: string,
+  input: {
+    fabricId: string;
+    mode?: string | null;
+    stage?: string | null;
+    level?: string | null;
+    sourceKey?: string | null;
+    sourceUrl?: string | null;
+    subject?: string | null;
+    city?: string | null;
+    articleId?: string | null;
+    metadata?: Record<string, unknown>;
+  },
+) {
+  const stage = input.stage ?? "discovered";
+  const level = input.level ?? "C0";
+  const { data: existing, error: lookupError } = await sb
+    .from("waouh_opportunity_journeys")
+    .select("*")
+    .eq("owner_id", ownerId)
+    .eq("fabric_id", input.fabricId)
+    .not("stage", "in", '("completed","cancelled")')
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (lookupError) throw new ApiError(500, "opportunity_journey_lookup_failed", lookupError.message);
+  if (existing) return existing;
+
+  const firstEvent = {
+    at: new Date().toISOString(),
+    stage,
+    contactability_level: level,
+    action: "opportunity_started",
+    message: "Opportunité prise en charge par Avatar",
+  };
+  return await queryOne<any>(
+    sb.from("waouh_opportunity_journeys").insert({
+      owner_id: ownerId,
+      fabric_id: input.fabricId,
+      mode: ["buy","sell","ask"].includes(String(input.mode)) ? input.mode : "buy",
+      stage,
+      contactability_level: level,
+      progress: journeyProgress(stage),
+      source_key: input.sourceKey ?? null,
+      source_url: input.sourceUrl ?? null,
+      subject: input.subject ?? null,
+      city: input.city ?? null,
+      article_id: input.articleId ?? null,
+      last_action: "opportunity_started",
+      next_action: journeyNextAction(stage, level),
+      last_message: "Avatar a pris en charge cette opportunité.",
+      timeline: [firstEvent],
+      metadata: input.metadata ?? {},
+    }).select("*").single(),
+    "opportunity_journey_create_failed",
+  );
+}
+
+async function updateOpportunityJourney(
+  sb: SupabaseClient,
+  journeyId: string,
+  input: {
+    stage: string;
+    level?: string | null;
+    action?: string | null;
+    message?: string | null;
+    event?: Record<string, unknown>;
+    channel?: string | null;
+    maskedContact?: Record<string, unknown>;
+    threadId?: string | null;
+    negotiationId?: string | null;
+    dealId?: string | null;
+  },
+) {
+  const { data: updated, error } = await sb.rpc("waouh_append_opportunity_journey_event", {
+    p_journey_id: journeyId,
+    p_stage: input.stage,
+    p_contactability_level: input.level ?? null,
+    p_progress: journeyProgress(input.stage),
+    p_last_action: input.action ?? null,
+    p_next_action: journeyNextAction(input.stage, input.level ?? ""),
+    p_last_message: input.message ?? null,
+    p_event: input.event ?? {},
+  });
+  if (error) throw new ApiError(500, "opportunity_journey_update_failed", error.message);
+  const patch: Record<string, unknown> = {};
+  if (input.channel) patch.contact_channel = input.channel;
+  if (input.maskedContact) patch.masked_contact = input.maskedContact;
+  if (input.threadId) patch.thread_id = input.threadId;
+  if (input.negotiationId) patch.negotiation_id = input.negotiationId;
+  if (input.dealId) patch.deal_id = input.dealId;
+  if (Object.keys(patch).length) {
+    const { data, error: patchError } = await sb.from("waouh_opportunity_journeys")
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq("id", journeyId).select("*").single();
+    if (patchError) throw new ApiError(500, "opportunity_journey_patch_failed", patchError.message);
+    return data;
+  }
+  return updated;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: waouhCorsHeaders });
   if (req.method !== "POST") return errorResponse(405, "method_not_allowed");
@@ -2020,6 +2144,147 @@ Retourne uniquement JSON:
             ? "WAOUH a compris l’objectif et cherche les meilleures offres, vendeurs, entreprises et annonceurs à travers NEXUS et le Signal Fabric."
             : "WAOUH a compris l’objectif et cherche les demandes, acheteurs et RFQ compatibles à travers NEXUS et le Signal Fabric.",
         } });
+      }
+
+      case "nexus.opportunity.start": {
+        const fabricId = asString(payload.fabric_id, "fabric_id", 5, 200);
+        const mode = pickEnum(payload.mode, "mode", ["buy","sell","ask"] as const, "buy");
+        const signal = await queryOne<any>(
+          sb.from("waouh_signal_fabric").select("*").eq("fabric_id", fabricId).maybeSingle(),
+          "nexus_signal_not_found",
+        );
+        const policy = contactabilityPolicy(signal.contactability_level);
+        const evidence = signal.evidence && typeof signal.evidence === "object"
+          ? signal.evidence as Record<string, unknown> : {};
+        const articleId = typeof evidence.article_id === "string"
+          ? evidence.article_id
+          : (fabricId.startsWith("article:") && typeof signal.source_record_id === "string"
+              ? signal.source_record_id : null);
+        const journey = await ensureOpportunityJourney(sb, ownerId, {
+          fabricId,
+          mode,
+          level: policy.level,
+          sourceKey: signal.source_key ?? null,
+          sourceUrl: signal.source_url ?? null,
+          subject: signal.subject ?? null,
+          city: signal.city ?? null,
+          articleId,
+          metadata: {
+            intent: signal.intent ?? null,
+            source_record_id: signal.source_record_id ?? null,
+            trust_score: signal.trust_score ?? null,
+          },
+        });
+        return jsonResponse({ ok: true, data: {
+          journey,
+          contact_policy: policy,
+          next_action: journeyNextAction(journey.stage, journey.contactability_level),
+          internal_article: !!articleId,
+        }});
+      }
+
+      case "nexus.opportunity.status": {
+        const journeyId = payload.journey_id ? uuid(payload.journey_id, "journey_id") : null;
+        const fabricId = payload.fabric_id ? asString(payload.fabric_id, "fabric_id", 5, 200) : null;
+        let q = sb.from("waouh_opportunity_journeys").select("*").eq("owner_id", ownerId);
+        if (journeyId) q = q.eq("id", journeyId);
+        else if (fabricId) q = q.eq("fabric_id", fabricId);
+        else throw new ApiError(422, "journey_id_or_fabric_id_required");
+        const { data, error } = await q.order("updated_at", { ascending: false }).limit(1).maybeSingle();
+        if (error) throw new ApiError(500, "opportunity_journey_status_failed", error.message);
+        if (!data) throw new ApiError(404, "opportunity_journey_not_found");
+        return jsonResponse({ ok: true, data: { journey: data } });
+      }
+
+      case "nexus.opportunity.enrich": {
+        const fabricId = asString(payload.fabric_id, "fabric_id", 5, 200);
+        const signal = await queryOne<any>(
+          sb.from("waouh_signal_fabric").select("*").eq("fabric_id", fabricId).maybeSingle(),
+          "nexus_signal_not_found",
+        );
+        const journey = await ensureOpportunityJourney(sb, ownerId, {
+          fabricId,
+          mode: typeof payload.mode === "string" ? payload.mode : "buy",
+          level: String(signal.contactability_level ?? "C0"),
+          sourceKey: signal.source_key ?? null,
+          sourceUrl: signal.source_url ?? null,
+          subject: signal.subject ?? null,
+          city: signal.city ?? null,
+        });
+
+        let nextLevel = String(signal.contactability_level ?? "C0");
+        const evidence = signal.evidence && typeof signal.evidence === "object"
+          ? signal.evidence as Record<string, unknown> : {};
+        const publicText = [
+          signal.raw_text,
+          typeof evidence.raw_text === "string" ? evidence.raw_text : null,
+          typeof evidence.description === "string" ? evidence.description : null,
+          typeof evidence.contact === "string" ? evidence.contact : null,
+        ].filter(Boolean).join("\n");
+        const hints = extractPublicContactHints(publicText);
+        const publicChannels: string[] = [];
+        if (signal.source_url) publicChannels.push("source");
+        if (hints.urls.length) publicChannels.push("web");
+        if (hints.emails.length) publicChannels.push("email");
+        if (hints.phones.length) publicChannels.push("phone");
+
+        if (nextLevel === "C0" && publicChannels.length) nextLevel = "C1";
+        if (fabricId.startsWith("external:") && signal.entity_id && hints.phones.length) {
+          for (const raw of hints.phones.slice(0, 3)) {
+            const e164 = normalizeE164(raw);
+            if (!e164) continue;
+            const encrypted = await encryptPhone(e164);
+            const hashed = await hashPhone(e164);
+            const { error } = await sb.from("waouh_entity_contacts").upsert({
+              entity_id: signal.entity_id,
+              channel: "phone",
+              value_encrypted: encrypted,
+              value_hash: hashed,
+              value_last4: phoneLast4(e164),
+              public_value: null,
+              source_key: signal.source_key,
+              is_public_business: signal.actor_type === "business",
+              consent_state: "public_business",
+              contactability_level: "C1",
+              verified_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            }, { onConflict: "entity_id,channel,value_hash" });
+            if (error) console.warn("[opportunity.enrich] public phone store", error.message);
+          }
+          if (nextLevel === "C0") nextLevel = "C1";
+        }
+        if (fabricId.startsWith("external:") && nextLevel !== String(signal.contactability_level ?? "C0")) {
+          const signalId = fabricId.slice("external:".length);
+          await sb.from("waouh_external_commerce_signals")
+            .update({ contactability_level: nextLevel, updated_at: new Date().toISOString() })
+            .eq("id", signalId);
+        }
+        const masked = {
+          channels: publicChannels,
+          phones: hints.phones.map((p) => ({
+            country_code: p.replace(/\D/g, "").startsWith("229") ? "+229" : null,
+            last4: phoneLast4(p),
+          })),
+          email_count: hints.emails.length,
+        };
+        const stage = ["C2","C3","C4","C5"].includes(nextLevel) ? "contact_ready" : "enriching";
+        const updated = await updateOpportunityJourney(sb, journey.id, {
+          stage,
+          level: nextLevel,
+          action: "contact_enrichment",
+          message: nextLevel === "C0"
+            ? "Avatar poursuit la recherche d’un canal public ou autorisé."
+            : "Avatar a trouvé de nouvelles informations de contact.",
+          event: { public_channels: publicChannels, source_url: signal.source_url ?? null },
+          maskedContact: masked,
+        });
+        return jsonResponse({ ok: true, data: {
+          journey: updated,
+          contact_policy: contactabilityPolicy(nextLevel),
+          public_channels: publicChannels,
+          masked_contact: masked,
+          next_action: journeyNextAction(stage, nextLevel),
+        }});
       }
 
       case "nexus.contact.prepare": {
