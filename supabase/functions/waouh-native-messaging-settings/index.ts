@@ -53,6 +53,7 @@ const defaultSettings = {
   enabled: false,
   sms_enabled: true,
   rcs_enabled: false,
+  fallback_to_sms: true,
   virtual_groups_enabled: false,
   native_groups_enabled: false,
   updated_at: null,
@@ -146,6 +147,7 @@ function validateSettings(input: unknown) {
   const enabled = value.enabled === true;
   const smsEnabled = value.sms_enabled === true;
   const rcsEnabled = value.rcs_enabled === true;
+  const fallbackToSms = value.fallback_to_sms !== false;
   const virtualGroupsEnabled = value.virtual_groups_enabled === true;
   if (enabled && !smsEnabled && !rcsEnabled) {
     throw new TypeError("Activez SMS ou RCS avant d’activer le service.");
@@ -165,6 +167,7 @@ function validateSettings(input: unknown) {
     enabled,
     sms_enabled: smsEnabled,
     rcs_enabled: rcsEnabled,
+    fallback_to_sms: fallbackToSms,
     virtual_groups_enabled: virtualGroupsEnabled,
   };
 }
