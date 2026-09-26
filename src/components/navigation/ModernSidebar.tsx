@@ -21,6 +21,11 @@ import {
   Truck,
   Sparkles,
   History,
+  SlidersHorizontal,
+  HeartPulse,
+  Megaphone,
+  Network,
+  MessageSquareText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -127,10 +132,20 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
   const [pendingPath, setPendingPath] = useState<string | null>(null);
 
   const isActive = (path: string) => {
-    if (path === '/home') {
+    const routePath = path.split('?')[0];
+    if (routePath === '/home') {
       return location.pathname === '/' || location.pathname === '/home';
     }
-    return location.pathname.startsWith(path);
+    if (routePath === '/admin') {
+      return location.pathname === '/admin';
+    }
+    if (routePath === '/admin/waouh') {
+      const expectedTab = new URLSearchParams(path.split('?')[1] || '').get('tab');
+      const currentTab = new URLSearchParams(location.search).get('tab') || 'control';
+      if (expectedTab) return location.pathname === routePath && currentTab === expectedTab;
+      return location.pathname === routePath;
+    }
+    return location.pathname.startsWith(routePath);
   };
 
   const NavItem = ({ item, showDescription = false, requireAuth = false }: { item: any; showDescription?: boolean; requireAuth?: boolean }) => {
@@ -213,39 +228,60 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
 
         {/* Administration - Only for admins */}
         {isAdmin && (
-          <div>
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4 px-2">
-              Administration
-            </h3>
-            <div className="space-y-2">
-              <NavLink
-                to="/admin"
-                onClick={onClose}
-                className={`group flex items-center space-x-3 px-3 py-3 rounded-xl transition-all duration-200 ${
-                  isActive('/admin')
-                    ? 'bg-white shadow-md border border-gray-100'
-                    : 'hover:bg-white/60 hover:shadow-sm'
-                }`}
-              >
-                <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
-                  <Shield className="w-5 h-5 text-white" />
-                </div>
-                <span className={`font-medium ${
-                  isActive('/admin') ? 'text-gray-900' : 'text-gray-700'
-                }`}>
-                  Administration
-                </span>
-              </NavLink>
-              <NavItem item={{ title: 'WAOUH Admin', path: '/waouh', icon: ShoppingBag, color: 'from-cyan-600 to-blue-700', description: 'Tableau de bord marketplace' }} showDescription />
-              <NavItem item={{ title: 'Waouh Partners', path: '/admin/waouh/partners', icon: Handshake, color: 'from-amber-500 to-orange-600', description: 'Gérer les partenaires' }} showDescription />
-              <NavItem item={{ title: 'Catalogue unifié', path: '/admin/waouh/data-control', icon: Database, color: 'from-emerald-500 to-teal-600', description: 'Contrôle & IA' }} showDescription />
-              <NavItem item={{ title: 'WhatsApp Ops', path: '/admin/waouh/whatsapp-ops', icon: Settings2, color: 'from-green-600 to-emerald-700', description: 'Opérations WhatsApp' }} showDescription />
-              <NavItem item={{ title: 'Radar IA', path: '/admin/waouh/radar', icon: Radar, color: 'from-purple-500 to-pink-600', description: 'Scraping intelligent' }} showDescription />
-              <NavItem item={{ title: 'Monitoring', path: '/admin/waouh/monitoring', icon: Activity, color: 'from-rose-500 to-red-600', description: 'Santé & métriques temps réel' }} showDescription />
-              <NavItem item={{ title: 'Livraisons (Deals)', path: '/admin/waouh/deals', icon: Truck, color: 'from-orange-500 to-amber-600', description: 'Assigner livreurs & suivi' }} showDescription />
-              <NavItem item={{ title: 'Commerces', path: '/admin/waouh/businesses', icon: Building2, color: 'from-blue-500 to-indigo-600', description: 'Catalogue des commerces' }} showDescription />
-              <NavItem item={{ title: 'Historique WAOUH', path: '/admin/waouh/historique', icon: History, color: 'from-slate-500 to-slate-700', description: 'Négociations, chat & traces', badge: 'New' }} showDescription />
-              <NavItem item={{ title: 'Démo WAOUH', path: '/admin/waouh/demo', icon: Sparkles, color: 'from-fuchsia-500 to-purple-600', description: 'Page démo / showcase' }} showDescription />
+          <div className="space-y-5">
+            <div>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">
+                Administration générale
+              </h3>
+              <div className="space-y-2">
+                <NavLink
+                  to="/admin"
+                  onClick={onClose}
+                  className={`group flex items-center space-x-3 px-3 py-3 rounded-xl transition-all duration-200 ${
+                    isActive('/admin')
+                      ? 'bg-white shadow-md border border-gray-100'
+                      : 'hover:bg-white/60 hover:shadow-sm'
+                  }`}
+                >
+                  <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
+                    <Shield className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-800">Administration</div>
+                    <div className="text-xs text-gray-500">Utilisateurs, rôles et permissions</div>
+                  </div>
+                </NavLink>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">
+                WAOUH — Pilotage
+              </h3>
+              <div className="space-y-2">
+                <NavItem item={{ title: 'Centre de contrôle', path: '/admin/waouh?tab=control', icon: Activity, color: 'from-cyan-600 to-blue-700', description: 'État global, alertes & kill switches' }} showDescription />
+                <NavItem item={{ title: 'Monitoring temps réel', path: '/admin/waouh/monitoring', icon: Activity, color: 'from-rose-500 to-red-600', description: 'Santé & métriques opérationnelles' }} showDescription />
+                <NavItem item={{ title: 'Health Check', path: '/admin/waouh/health-check', icon: HeartPulse, color: 'from-emerald-500 to-teal-600', description: 'Divergences, synchro & anomalies' }} showDescription />
+                <NavItem item={{ title: 'Historique & traces', path: '/admin/waouh/historique', icon: History, color: 'from-slate-500 to-slate-700', description: 'Chat, négociations, queue & traces' }} showDescription />
+                <NavItem item={{ title: 'Deal Ops', path: '/admin/waouh/deals', icon: Truck, color: 'from-orange-500 to-amber-600', description: 'Deals, livraison, paiement & arbitrage' }} showDescription />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 px-2">
+                WAOUH — Paramétrage
+              </h3>
+              <div className="space-y-2">
+                <NavItem item={{ title: 'Paramètres généraux', path: '/admin/waouh?tab=settings', icon: SlidersHorizontal, color: 'from-indigo-500 to-violet-600', description: 'IA, commerce, paiement & règles' }} showDescription />
+                <NavItem item={{ title: 'NEXUS / Radar IA', path: '/admin/waouh/radar', icon: Network, color: 'from-purple-500 to-pink-600', description: 'Sources, API, quotas & collecte' }} showDescription />
+                <NavItem item={{ title: 'WhatsApp Ops', path: '/admin/waouh/whatsapp-ops', icon: Settings2, color: 'from-green-600 to-emerald-700', description: 'WAHA, sessions, queue & replay' }} showDescription />
+                <NavItem item={{ title: 'SMS / RCS natif', path: '/admin/waouh/native-messaging', icon: MessageSquareText, color: 'from-sky-500 to-cyan-600', description: 'Provider, SMS, RCS & fallback' }} showDescription />
+                <NavItem item={{ title: 'Validations diffusion', path: '/admin/waouh/diffusion-approvals', icon: Megaphone, color: 'from-fuchsia-500 to-pink-600', description: 'Approbations humaines avant envoi' }} showDescription />
+                <NavItem item={{ title: 'Catalogue & données', path: '/admin/waouh/data-control', icon: Database, color: 'from-emerald-500 to-teal-600', description: 'Qualité, normalisation & contrôle IA' }} showDescription />
+                <NavItem item={{ title: 'Partenaires', path: '/admin/waouh/partners', icon: Handshake, color: 'from-amber-500 to-orange-600', description: 'Gérer les partenaires WAOUH' }} showDescription />
+                <NavItem item={{ title: 'Commerces', path: '/admin/waouh/businesses', icon: Building2, color: 'from-blue-500 to-indigo-600', description: 'Entreprises, catalogues & vérification' }} showDescription />
+                <NavItem item={{ title: 'Démo / recette', path: '/admin/waouh/demo', icon: Sparkles, color: 'from-fuchsia-500 to-purple-600', description: 'Parcours de démonstration' }} showDescription />
+              </div>
             </div>
           </div>
         )}
