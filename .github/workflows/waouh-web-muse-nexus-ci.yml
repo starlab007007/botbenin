@@ -13,6 +13,11 @@ on:
       - "src/app-mobile/screens/ChatListScreen.tsx"
       - "src/app-mobile/screens/WaouhChatScreen.tsx"
       - "src/app-mobile/screens/ChatScreen.tsx"
+      - "src/app-mobile/layouts/**"
+      - "src/erp/**"
+      - "public/sw.js"
+      - "scripts/verify-waouh-web-parity.mjs"
+      - "scripts/verify-waouh-responsive-browser.mjs"
       - "src/app-mobile/components/ChatRightPane.tsx"
       - "supabase/functions/waouh-agentic-core/**"
       - "supabase/functions/waouh-channel-in/**"
@@ -34,6 +39,11 @@ on:
       - "src/app-mobile/screens/ChatListScreen.tsx"
       - "src/app-mobile/screens/WaouhChatScreen.tsx"
       - "src/app-mobile/screens/ChatScreen.tsx"
+      - "src/app-mobile/layouts/**"
+      - "src/erp/**"
+      - "public/sw.js"
+      - "scripts/verify-waouh-web-parity.mjs"
+      - "scripts/verify-waouh-responsive-browser.mjs"
       - "src/app-mobile/components/ChatRightPane.tsx"
       - "supabase/functions/waouh-agentic-core/**"
       - "supabase/functions/waouh-channel-in/**"
@@ -71,6 +81,12 @@ jobs:
 
       - name: Build Web
         run: npm run build
+
+      - name: Verify Flutter/Web route and navigation parity
+        run: node scripts/verify-waouh-web-parity.mjs
+
+      - name: Responsive browser smoke — desktop tablet mobile
+        run: node scripts/verify-waouh-responsive-browser.mjs
 
       - name: Deno
         uses: denoland/setup-deno@v2
