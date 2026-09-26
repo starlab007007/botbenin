@@ -398,7 +398,7 @@ export default function WaouhAdminCommandCenter() {
         <CardContent>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {cc.modules.map((module) => {
-              const meta = moduleMeta[module.module_key] || { icon: Radio, detail: () => "", manage: "/admin/waouh" };
+              const meta = moduleMeta[module.module_key] || { icon: Radio, detail: () => "", manage: "/admin/waouh", automation: false };
               const Icon = meta.icon;
               return (
                 <div key={module.module_key} className="rounded-xl border bg-background p-3">
