@@ -103,7 +103,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
     }
   }
 
-  Map<String, dynamic> _interestMeta(NexusDiscoveryItem item) {
+  Map<String, dynamic> _interestMeta(NexusDiscoveryItem item, {double? offer}) {
     final meta = <String, dynamic>{
       'source': 'avatar_commerce',
       'origin_surface': 'flutter_avatar_commerce',
@@ -116,6 +116,8 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       'title': item.title,
       'city': item.city,
       'price': item.priceMin == item.priceMax ? item.priceMin : item.priceMin,
+      if (offer != null) 'offer_price': offer,
+      if (offer != null) 'initial_offer_amount': offer,
       'fabric_id': item.fabricId,
       'contactability_level': item.contactPolicy.level,
       'nexus_total_score': item.scores.total,
@@ -126,41 +128,216 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
     return meta;
   }
 
+  Future<double?> _askInitialOffer(NexusDiscoveryItem item) async {
+    final displayed = item.priceMin ?? item.priceMax;
+    final controller = TextEditingController(
+      text: displayed == null ? '' : displayed.round().toString(),
+    );
+    final value = await showModalBottomSheet<double>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.fromLTRB(
+          18, 18, 18, 20 + MediaQuery.viewInsetsOf(sheetContext).bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Votre Avatar ouvre le Deal Room',
+              style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Proposez votre prix pour « ' + item.title +
+                  ' ». Ensuite Avatar suit la réponse, vous suggère les contre-offres et conduit le deal jusqu’à l’accord.',
+              style: const TextStyle(
+                color: WaouhPalette.muted,
+                fontSize: 11.5,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Votre offre',
+                suffixText: 'FCFA',
+                helperText: displayed == null
+                    ? 'Saisissez le montant que vous souhaitez proposer.'
+                    : 'Prix affiché : ' + displayed.round().toString() + ' FCFA',
+              ),
+            ),
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              onPressed: () {
+                final amount = double.tryParse(
+                  controller.text.replaceAll(RegExp(r'[^0-9]'), ''),
+                );
+                if (amount == null || amount <= 0) return;
+                Navigator.of(sheetContext).pop(amount);
+              },
+              icon: const Icon(Icons.handshake_outlined),
+              label: const Text('Envoyer mon offre'),
+              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    return value;
+  }
+
   Future<void> _internalInterest(NexusDiscoveryItem item) async {
+    final offer = await _askInitialOffer(item);
+    if (offer == null || offer <= 0 || !mounted) return;
+
     final controller = context.read<LiveWaouhController>();
     final avatar = context.read<LiveAvatarController>();
-    final text = 'Je suis intéressé par « ${item.title} ».';
-    final meta = liveCanonicalInterestedMeta(
-      text: text,
-      meta: _interestMeta(item),
-      authUserId: legacy.supabase.auth.currentUser?.id,
-    );
-    final seed = liveBuildInterestedEntryMatch(text: text, requestMeta: meta);
-
     setState(() => _workingFabric = item.fabricId);
     avatar.setPersistentState(LiveAvatarPresenceState.negotiating);
     try {
+      final interestResponse = await legacy.supabase.functions.invoke(
+        'waouh-buyer-interest',
+        body: <String, dynamic>{
+          'article_id': item.articleId,
+          'source': 'avatar_commerce',
+          'offer_price': offer,
+          'initial_offer_amount': offer,
+        },
+      );
+      final data = interestResponse.data is Map
+          ? Map<String, dynamic>.from(interestResponse.data as Map)
+          : <String, dynamic>{};
+      if (data['error'] != null) {
+        throw StateError(data['error'].toString());
+      }
+
+      final text = 'Je propose ' + offer.round().toString() +
+          ' FCFA pour « ' + item.title + ' ».';
+      final rawMeta = _interestMeta(item, offer: offer)
+        ..addAll({
+          if (data['thread_id'] != null) 'thread_id': data['thread_id'],
+          if (data['negotiation_id'] != null)
+            'negotiation_id': data['negotiation_id'],
+          'workflow_state': data['workflow_state'] ?? 'proposed',
+          'commerce_contract': 'waouh_action_v2',
+        });
+      final meta = liveCanonicalInterestedMeta(
+        text: text,
+        meta: rawMeta,
+        authUserId: legacy.supabase.auth.currentUser?.id,
+      );
+      final seed = liveBuildInterestedEntryMatch(text: text, requestMeta: meta);
+
       await controller.sendMain(text: text, meta: meta);
       LiveMatch? match = controller.takePendingMeet();
       match ??= await controller.resolvePreparedInterestedMeet(seed);
       if (match == null || (match.threadId ?? '').trim().isEmpty) {
         throw StateError(
-          'Le Deal Room est encore en cours de création. Réessayez dans quelques secondes.',
+          'Votre offre est enregistrée. Avatar finalise l’ouverture du Deal Room.',
         );
       }
       if (!mounted) return;
       avatar.showState(LiveAvatarPresenceState.found);
-      context.push('/app/chat/match/${Uri.encodeComponent(match.key)}',
+      context.push('/app/chat/match/' + Uri.encodeComponent(match.key),
           extra: match);
     } catch (e) {
       if (!mounted) return;
-      avatar.showState(LiveAvatarPresenceState.idle);
+      avatar.showState(LiveAvatarPresenceState.waiting);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e')),
+        SnackBar(
+          content: Text(
+            'Avatar garde votre démarche active. ' + e.toString(),
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _workingFabric = null);
     }
+  }
+
+  Future<void> _showJourneyStatus(
+    NexusDiscoveryItem item,
+    NexusOpportunityJourney journey, {
+    bool contactSent = false,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 22),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              contactSent
+                  ? 'Avatar suit maintenant le contact'
+                  : 'Avatar poursuit la recherche de contact',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              item.title,
+              style: const TextStyle(color: WaouhPalette.muted),
+            ),
+            const SizedBox(height: 12),
+            LinearProgressIndicator(
+              value: (journey.progress.clamp(0, 100)) / 100,
+              minHeight: 8,
+              borderRadius: BorderRadius.circular(99),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              journey.progress.toString() + '% · ' +
+                  journey.contactability + ' · ' + journey.stage,
+              style: const TextStyle(
+                color: WaouhPalette.blue,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              journey.lastMessage ??
+                  'Votre démarche reste active dans WAOUH.',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Prochaine étape : ' + journey.nextAction,
+              style: const TextStyle(
+                color: WaouhPalette.muted,
+                fontSize: 11.5,
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(sheetContext).pop(),
+              icon: const Icon(Icons.check_circle_outline_rounded),
+              label: const Text('Compris · Avatar continue'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _mediatedContact(NexusDiscoveryItem item) async {
@@ -168,31 +345,60 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
     setState(() => _workingFabric = item.fabricId);
     avatar.setPersistentState(LiveAvatarPresenceState.negotiating);
     try {
-      final prepared = await _nexus.prepareContact(item.fabricId);
-      final policy = prepared.policy;
-      if (!policy.canBlindMessage && !policy.canAutoContact) {
-        throw StateError(
-          'Cette opportunité est découverte mais son niveau ${policy.level} ne permet pas encore un contact médié.',
+      var journey = await _nexus.startOpportunity(
+        fabricId: item.fabricId,
+        mode: widget.mode == LiveAvatarCommerceMode.sell ? 'sell' : 'buy',
+      );
+      var prepared = await _nexus.prepareContact(item.fabricId);
+
+      if (!prepared.policy.canBlindMessage &&
+          !prepared.policy.canAutoContact) {
+        journey = await _nexus.enrichOpportunity(
+          fabricId: item.fabricId,
+          mode: widget.mode == LiveAvatarCommerceMode.sell ? 'sell' : 'buy',
         );
+        prepared = await _nexus.prepareContact(item.fabricId);
       }
-      final message = widget.mode == LiveAvatarCommerceMode.sell
-          ? 'Bonjour, WAOUH accompagne un vendeur dont l’offre correspond à votre besoin « ${item.title} ». Souhaitez-vous poursuivre dans WAOUH ?'
-          : 'Bonjour, WAOUH accompagne un utilisateur intéressé par « ${item.title} ». Souhaitez-vous poursuivre dans WAOUH ?';
-      await _nexus.sendContact(fabricId: item.fabricId, message: message);
+
+      if (!prepared.policy.canBlindMessage &&
+          !prepared.policy.canAutoContact) {
+        if (!mounted) return;
+        avatar.showState(LiveAvatarPresenceState.watching);
+        await _showJourneyStatus(item, journey);
+        return;
+      }
+
+      final contactMessage = widget.mode == LiveAvatarCommerceMode.sell
+          ? 'Bonjour, mon Avatar WAOUH accompagne un vendeur dont l’offre correspond à votre besoin « ' +
+              item.title +
+              ' ». Souhaitez-vous poursuivre la discussion dans WAOUH ?'
+          : 'Bonjour, mon Avatar WAOUH accompagne un utilisateur intéressé par « ' +
+              item.title +
+              ' ». Est-ce toujours disponible ? Nous pouvons poursuivre dans WAOUH.';
+      final result = await _nexus.sendContact(
+        fabricId: item.fabricId,
+        message: contactMessage,
+      );
+      if (result['journey'] is Map) {
+        journey = NexusOpportunityJourney.fromJson(
+          Map<String, dynamic>.from(result['journey'] as Map),
+        );
+      } else {
+        journey = await _nexus.opportunityStatus(journeyId: journey.id);
+      }
       if (!mounted) return;
       avatar.showState(LiveAvatarPresenceState.waiting);
+      await _showJourneyStatus(item, journey, contactSent: true);
+    } catch (e) {
+      if (!mounted) return;
+      avatar.showState(LiveAvatarPresenceState.watching);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${avatar.name} a envoyé une prise de contact médiée. Vos coordonnées restent protégées.',
+            'La démarche reste enregistrée dans WAOUH. Avatar réessaiera le chemin de contact. ' +
+                e.toString(),
           ),
         ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      avatar.showState(LiveAvatarPresenceState.idle);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e')),
       );
     } finally {
       if (mounted) setState(() => _workingFabric = null);
