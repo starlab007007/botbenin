@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   BarChart3,
   Bell,
+  BrainCircuit,
   BookOpenText,
   Bot,
   GraduationCap,
