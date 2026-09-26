@@ -27,6 +27,7 @@ import {
   type BuyerLike,
   type NexusWeights,
 } from "../_shared/waouh-nexus.ts";
+import { resolveProductThread, bindThreadState } from "../_shared/waouh-thread.ts";
 
 type JsonObject = Record<string, unknown>;
 
@@ -1127,6 +1128,146 @@ async function globalDiscoverySearch(
   return ranked;
 }
 
+
+type OpportunityMode = "buy" | "sell" | "ask";
+type OpportunityState =
+  | "discovered" | "enriching" | "contact_ready" | "contacting"
+  | "waiting_response" | "ready_to_negotiate" | "negotiating"
+  | "agreed" | "executing" | "completed" | "cancelled" | "blocked";
+
+const JOURNEY_PROGRESS: Record<OpportunityState, number> = {
+  discovered: 10,
+  enriching: 20,
+  contact_ready: 30,
+  contacting: 40,
+  waiting_response: 50,
+  ready_to_negotiate: 60,
+  negotiating: 72,
+  agreed: 82,
+  executing: 92,
+  completed: 100,
+  cancelled: 100,
+  blocked: 25,
+};
+
+const JOURNEY_TIMELINE = [
+  { key: "discovered", label: "Trouvé", threshold: 10 },
+  { key: "verified", label: "Vérifié", threshold: 20 },
+  { key: "contact", label: "Contact", threshold: 35 },
+  { key: "response", label: "Réponse", threshold: 55 },
+  { key: "negotiation", label: "Négociation", threshold: 70 },
+  { key: "agreement", label: "Accord", threshold: 82 },
+  { key: "execution", label: "Exécution", threshold: 92 },
+  { key: "completed", label: "Terminé", threshold: 100 },
+];
+
+function opportunitySnapshot(row: any) {
+  const state = String(row?.state || "discovered") as OpportunityState;
+  const progress = JOURNEY_PROGRESS[state] ?? 10;
+  return {
+    ...row,
+    progress,
+    timeline: JOURNEY_TIMELINE.map((item) => ({
+      ...item,
+      done: progress >= item.threshold,
+      current:
+        progress < 100 &&
+        item.threshold <= progress &&
+        !JOURNEY_TIMELINE.some((next) => next.threshold > item.threshold && next.threshold <= progress),
+    })),
+  };
+}
+
+function levelRank(level: unknown) {
+  const levels: Record<string, number> = { C0: 0, C1: 1, C2: 2, C3: 3, C4: 4, C5: 5 };
+  return levels[String(level ?? "C0")] ?? 0;
+}
+
+function maxContactLevel(left: unknown, right: unknown): Contactability {
+  const a = String(left ?? "C0");
+  const b = String(right ?? "C0");
+  return (levelRank(b) > levelRank(a) ? b : a) as Contactability;
+}
+
+async function appendOpportunityEvent(
+  sb: SupabaseClient,
+  ownerId: string,
+  journey: any,
+  eventType: string,
+  fromState: string | null,
+  toState: string | null,
+  payload: Record<string, unknown> = {},
+) {
+  const { error } = await sb.from("waouh_opportunity_events").insert({
+    journey_id: journey.id,
+    owner_id: ownerId,
+    event_type: eventType,
+    from_state: fromState,
+    to_state: toState,
+    contactability_level: journey.contactability_level ?? null,
+    payload,
+  });
+  if (error) console.warn("[waouh-journey] event", error.message);
+}
+
+async function ownedOpportunityJourney(sb: SupabaseClient, ownerId: string, journeyId: string) {
+  return queryOne<any>(
+    sb.from("waouh_opportunity_journeys").select("*")
+      .eq("id", journeyId).eq("owner_id", ownerId).maybeSingle(),
+    "nexus_journey_not_found",
+  );
+}
+
+async function journeyContactCandidates(sb: SupabaseClient, entityId: string | null) {
+  if (!entityId) return [] as any[];
+  const { data, error } = await sb.from("waouh_entity_contacts")
+    .select("*").eq("entity_id", entityId).order("updated_at", { ascending: false }).limit(50);
+  if (error) throw new ApiError(500, "nexus_journey_contacts_failed", error.message);
+  const priority: Record<string, number> = {
+    whatsapp: 100, phone: 90, email: 80, facebook: 70,
+    instagram: 65, telegram: 60, website: 50, google_maps: 45, other: 10,
+  };
+  return [...(data ?? [])].sort((a: any, b: any) => {
+    const level = levelRank(b.contactability_level) - levelRank(a.contactability_level);
+    if (level) return level;
+    const pub = Number(b.is_public_business === true) - Number(a.is_public_business === true);
+    if (pub) return pub;
+    return (priority[String(b.channel)] ?? 0) - (priority[String(a.channel)] ?? 0);
+  });
+}
+
+async function updateOpportunityJourney(
+  sb: SupabaseClient,
+  ownerId: string,
+  journey: any,
+  patch: Record<string, unknown>,
+  eventType: string,
+  payload: Record<string, unknown> = {},
+) {
+  const previousState = String(journey.state || "discovered");
+  const { data, error } = await sb.from("waouh_opportunity_journeys")
+    .update(patch).eq("id", journey.id).eq("owner_id", ownerId).select("*").single();
+  if (error) throw new ApiError(500, "nexus_journey_update_failed", error.message);
+  await appendOpportunityEvent(
+    sb, ownerId, data, eventType, previousState, String(data.state || previousState), payload,
+  );
+  return data;
+}
+
+function nextActionForJourney(level: string, state: OpportunityState, hasArticle: boolean) {
+  if (state === "ready_to_negotiate" || state === "negotiating") {
+    return hasArticle ? "Proposer un prix dans le Deal Room" : "Ayo prépare le Deal Room dès que la contrepartie rejoint WAOUH";
+  }
+  if (state === "waiting_response") return "Ayo attend la réponse et vous avertira ici";
+  if (state === "contacting") return "Ayo finalise la mise en relation dans WAOUH";
+  if (state === "enriching" || level === "C0") return "Ayo recherche un canal public ou autorisé";
+  if (level === "C1") return "Autoriser Ayo à contacter ce professionnel";
+  if (level === "C2") return "Transmettre une proposition sans révéler les coordonnées";
+  if (level === "C3" || level === "C4") return "Envoyer le message avec Ayo";
+  if (level === "C5") return "Ouvrir la négociation";
+  return "Continuer avec Ayo";
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: waouhCorsHeaders });
   if (req.method !== "POST") return errorResponse(405, "method_not_allowed");
@@ -1481,6 +1622,67 @@ Deno.serve(async (req: Request) => {
         }
         await audit(sb, ownerId, `approval.${decision}`, "approval", approvalId, { action_type: approval.action_type }, approval.mission_id);
         await enqueue(sb, ownerId, `approval.${decision}`, "approval", approvalId, { approval_id: approvalId }, `approval.${decision}:${approvalId}`, approval.mission_id);
+
+        // Blind Contact Layer acceptance is the bridge C2 -> C5. The sender's
+        // persistent journey advances automatically; neither party has to
+        // rediscover the opportunity or guess what to do next.
+        const approvalContext = approval.context && typeof approval.context === "object"
+          ? approval.context as Record<string, any>
+          : {};
+        if (decision === "approved" && approvalContext.journey_id && approvalContext.from_auth_user) {
+          try {
+            const { data: targetUser } = await sb.from("waouh_users")
+              .select("id").eq("auth_user_id", ownerId)
+              .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+            const { data: senderJourney } = await sb.from("waouh_opportunity_journeys")
+              .select("*")
+              .eq("id", String(approvalContext.journey_id))
+              .eq("owner_id", String(approvalContext.from_auth_user))
+              .maybeSingle();
+            if (senderJourney?.id) {
+              const next = await updateOpportunityJourney(
+                sb,
+                String(approvalContext.from_auth_user),
+                senderJourney,
+                {
+                  state: "ready_to_negotiate",
+                  contactability_level: "C5",
+                  target_waouh_user_id: targetUser?.id ?? senderJourney.target_waouh_user_id ?? null,
+                  last_response_at: new Date().toISOString(),
+                  next_action: senderJourney.article_id ? "Proposer votre prix" : "Ayo prépare la négociation dans WAOUH",
+                  avatar_message: "La contrepartie a accepté la mise en relation. Ayo vous conduit maintenant vers la négociation.",
+                },
+                "blind_contact_accepted",
+                { approval_id: approvalId },
+              );
+              const { data: senderUser } = await sb.from("waouh_users")
+                .select("id,web_session_id").eq("auth_user_id", String(approvalContext.from_auth_user))
+                .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+              if (senderUser?.id) {
+                await sb.from("waouh_notifications").insert({
+                  user_id: senderUser.id,
+                  web_session_id: senderUser.web_session_id ?? null,
+                  article_id: next.article_id ?? null,
+                  notification_type: "avatar_contact_ready",
+                  photos: [],
+                  dedupe_key: `avatar-contact-ready:${next.id}:${approvalId}`,
+                  payload: {
+                    text: "✅ Contact établi. Ayo est prêt à ouvrir la négociation.",
+                    journey_id: next.id,
+                    workflow_state: "ready_to_negotiate",
+                    contactability_level: "C5",
+                  },
+                  channel: "waouh_app",
+                  delivery_status: "delivered",
+                  delivered_at: new Date().toISOString(),
+                });
+              }
+            }
+          } catch (journeyError) {
+            console.warn("[waouh-journey] approval bridge", journeyError);
+          }
+        }
+
         return jsonResponse({ ok: true, data: { approval: data } });
       }
 
@@ -2022,6 +2224,724 @@ Retourne uniquement JSON:
         } });
       }
 
+
+      case "nexus.journey.start": {
+        const fabricId = asString(payload.fabric_id, "fabric_id", 5, 200);
+        const mode = pickEnum(payload.mode, "mode", ["buy", "sell", "ask"] as const, "buy") as OpportunityMode;
+        const signal = await queryOne<any>(
+          sb.from("waouh_signal_fabric").select("*").eq("fabric_id", fabricId).maybeSingle(),
+          "nexus_signal_not_found",
+        );
+        const evidence = signal.evidence && typeof signal.evidence === "object"
+          ? signal.evidence as Record<string, unknown>
+          : {};
+        const title = optionalString(payload.title, "title", 300)
+          ?? String(signal.subject || signal.raw_text || "Opportunité WAOUH").slice(0, 300);
+        const journeyCity = optionalString(payload.city, "city", 120) ?? signal.city ?? null;
+        let articleId: string | null =
+          typeof evidence.article_id === "string" ? evidence.article_id :
+          fabricId.startsWith("article:") ? String(signal.source_record_id || "") :
+          null;
+        let targetWaouhUserId: string | null = null;
+        let entityId: string | null = null;
+        let actorName: string | null = null;
+        let externalSignal: any = null;
+
+        if (fabricId.startsWith("article:")) {
+          targetWaouhUserId = typeof evidence.seller_id === "string" ? evidence.seller_id : null;
+        } else if (fabricId.startsWith("buyer:")) {
+          targetWaouhUserId = typeof evidence.user_id === "string" ? evidence.user_id : null;
+        } else if (fabricId.startsWith("external:")) {
+          const signalId = uuid(fabricId.slice("external:".length), "signal_id");
+          externalSignal = await queryOne<any>(
+            sb.from("waouh_external_commerce_signals").select("*").eq("id", signalId).maybeSingle(),
+            "nexus_signal_not_found",
+          );
+          entityId = externalSignal.entity_id ?? null;
+          actorName = externalSignal.actor_name ?? null;
+        }
+
+        const ownerWaouhUser = await getOrCreateNexusUser(
+          sb,
+          ownerId,
+          authUser.email?.split("@")[0] ?? "Utilisateur WAOUH",
+        );
+
+        // Vendre à un acheteur trouvé : quand l'utilisateur fournit explicitement
+        // un prix, Avatar matérialise l'offre dans WAOUH afin que la négociation
+        // reste dans le Deal Graph au lieu de sortir de la plateforme.
+        if (mode === "sell" && !articleId) {
+          const askingPrice = positiveNumber(payload.asking_price, "asking_price", true);
+          const listingTitle = optionalString(payload.listing_title, "listing_title", 300)
+            ?? optionalString(payload.goal, "goal", 300);
+          if (askingPrice != null && listingTitle) {
+            const { data: existing } = await sb.from("waouh_articles")
+              .select("id").eq("seller_id", ownerWaouhUser.id)
+              .eq("title", listingTitle).eq("status", "active")
+              .order("created_at", { ascending: false }).limit(1).maybeSingle();
+            if (existing?.id) {
+              articleId = existing.id;
+            } else {
+              const { data: created, error } = await sb.from("waouh_articles").insert({
+                seller_id: ownerWaouhUser.id,
+                title: listingTitle,
+                description: optionalString(payload.description, "description", 2_000) ?? listingTitle,
+                category: "autre",
+                condition: "good",
+                price: askingPrice,
+                currency: "XOF",
+                city: journeyCity,
+                photos: [],
+                status: "active",
+                origin: "avatar",
+                source_channel: "waouh_app",
+                ai_attributes: { avatar_journey: true, fabric_id: fabricId },
+              }).select("id").single();
+              if (error) throw new ApiError(500, "nexus_journey_article_create_failed", error.message);
+              articleId = created.id;
+            }
+          }
+        }
+
+        let effectiveLevel = String(signal.contactability_level || "C0") as Contactability;
+        const contacts = await journeyContactCandidates(sb, entityId);
+        const bestContact = contacts[0] ?? null;
+        if (bestContact) effectiveLevel = maxContactLevel(effectiveLevel, bestContact.contactability_level);
+
+        let threadId: string | null = null;
+        let state: OpportunityState = "discovered";
+        let avatarMessage = "Ayo garde cette opportunité dans vos démarches.";
+        if (articleId && targetWaouhUserId && mode !== "sell") {
+          const thread = await resolveProductThread({
+            sb,
+            articleId,
+            actorUser: ownerWaouhUser,
+            role: "buyer",
+            counterpartUserId: targetWaouhUserId,
+            sellerUserId: targetWaouhUserId,
+            source: "avatar_opportunity",
+            create: true,
+          });
+          threadId = thread?.id ?? null;
+          effectiveLevel = "C5";
+          state = "ready_to_negotiate";
+          avatarMessage = "Cette contrepartie est déjà dans WAOUH. Ayo peut ouvrir la négociation maintenant.";
+        } else if (articleId && targetWaouhUserId && mode === "sell") {
+          const thread = await resolveProductThread({
+            sb,
+            articleId,
+            actorUser: ownerWaouhUser,
+            role: "seller",
+            counterpartUserId: targetWaouhUserId,
+            buyerUserId: targetWaouhUserId,
+            source: "avatar_opportunity",
+            create: true,
+          });
+          threadId = thread?.id ?? null;
+          effectiveLevel = "C5";
+          state = "ready_to_negotiate";
+          avatarMessage = "L'acheteur est déjà dans WAOUH. Ayo peut conduire la négociation jusqu'à l'accord.";
+        } else if (levelRank(effectiveLevel) >= 5) {
+          state = "ready_to_negotiate";
+          avatarMessage = "La conversation est établie. Ayo prépare la négociation.";
+        } else if (effectiveLevel === "C0") {
+          state = "enriching";
+          avatarMessage = "Ayo vérifie l'identité, la source et cherche un canal public ou autorisé. Vous pouvez quitter cet écran : la démarche reste suivie.";
+        } else {
+          state = "contact_ready";
+          avatarMessage = effectiveLevel === "C1"
+            ? "Un canal professionnel public a été identifié. Ayo peut vous accompagner sans exposer inutilement les coordonnées."
+            : effectiveLevel === "C2"
+              ? "WAOUH peut transmettre votre proposition de façon médiée, sans révéler les coordonnées privées."
+              : "Un canal vérifié est disponible. Ayo peut prendre en charge le contact.";
+        }
+
+        const contactLast4 = bestContact?.value_last4 ? String(bestContact.value_last4) : null;
+        const contactChannel = bestContact?.channel ? String(bestContact.channel) : null;
+        const current = await sb.from("waouh_opportunity_journeys").select("*")
+          .eq("owner_id", ownerId).eq("fabric_id", fabricId).eq("mode", mode).maybeSingle();
+        if (current.error) throw new ApiError(500, "nexus_journey_lookup_failed", current.error.message);
+
+        const values = {
+          owner_id: ownerId,
+          fabric_id: fabricId,
+          mode,
+          title,
+          source_key: signal.source_key ?? null,
+          source_url: signal.source_url ?? null,
+          actor_name: actorName,
+          city: journeyCity,
+          article_id: articleId,
+          target_waouh_user_id: targetWaouhUserId,
+          entity_id: entityId,
+          contact_id: bestContact?.id ?? null,
+          contactability_level: effectiveLevel,
+          state,
+          contact_channel: contactChannel,
+          contact_last4: contactLast4,
+          thread_id: threadId,
+          next_action: nextActionForJourney(effectiveLevel, state, !!articleId),
+          avatar_message: avatarMessage,
+          metadata: {
+            source_record_id: signal.source_record_id ?? null,
+            source_intent: signal.intent ?? null,
+            source_actor_type: signal.actor_type ?? null,
+            source_evidence: evidence,
+            ...(current.data?.metadata && typeof current.data.metadata === "object" ? current.data.metadata : {}),
+          },
+        };
+        let journey: any;
+        if (current.data?.id) {
+          const previousProgress = JOURNEY_PROGRESS[String(current.data.state) as OpportunityState] ?? 0;
+          const nextProgress = JOURNEY_PROGRESS[state] ?? 0;
+          const safeState = previousProgress > nextProgress ? current.data.state : state;
+          const { data, error } = await sb.from("waouh_opportunity_journeys")
+            .update({
+              ...values,
+              state: safeState,
+              thread_id: current.data.thread_id ?? threadId,
+              negotiation_id: current.data.negotiation_id ?? null,
+              deal_id: current.data.deal_id ?? null,
+              article_id: current.data.article_id ?? articleId,
+              target_waouh_user_id: current.data.target_waouh_user_id ?? targetWaouhUserId,
+            })
+            .eq("id", current.data.id).select("*").single();
+          if (error) throw new ApiError(500, "nexus_journey_update_failed", error.message);
+          journey = data;
+        } else {
+          const { data, error } = await sb.from("waouh_opportunity_journeys")
+            .insert(values).select("*").single();
+          if (error) throw new ApiError(500, "nexus_journey_create_failed", error.message);
+          journey = data;
+          await appendOpportunityEvent(sb, ownerId, journey, "journey_started", null, journey.state, {
+            fabric_id: fabricId, source_key: signal.source_key ?? null,
+          });
+        }
+
+        // C0 is a tracked state, never an error. Create one lightweight watch so
+        // the user always has a visible continuation while Ayo enriches the lead.
+        if (journey.state === "enriching") {
+          const meta = journey.metadata && typeof journey.metadata === "object" ? journey.metadata : {};
+          if (!(meta as any).contact_watch_id) {
+            const { data: watch } = await sb.from("waouh_watchlists").insert({
+              owner_id: ownerId,
+              query: title,
+              article_id: articleId,
+              source_url: signal.source_url ?? null,
+              currency: "XOF",
+              status: "active",
+              check_interval_minutes: 60,
+            }).select("id").single();
+            if (watch?.id) {
+              const { data: patched } = await sb.from("waouh_opportunity_journeys")
+                .update({ metadata: { ...meta, contact_watch_id: watch.id } })
+                .eq("id", journey.id).select("*").single();
+              if (patched) journey = patched;
+            }
+          }
+        }
+
+        await audit(sb, ownerId, "nexus.journey.started", "opportunity_journey", journey.id, {
+          fabric_id: fabricId,
+          mode,
+          state: journey.state,
+          contactability_level: journey.contactability_level,
+        });
+        return jsonResponse({ ok: true, data: {
+          journey: opportunitySnapshot(journey),
+          contact_preview: bestContact ? {
+            channel: bestContact.channel,
+            last4: bestContact.value_last4 ?? null,
+            level: bestContact.contactability_level,
+            public_business: bestContact.is_public_business === true,
+          } : null,
+        } }, current.data?.id ? 200 : 201);
+      }
+
+      case "nexus.journey.status": {
+        const journeyId = uuid(payload.journey_id, "journey_id");
+        const journey = await ownedOpportunityJourney(sb, ownerId, journeyId);
+        const { data: events, error } = await sb.from("waouh_opportunity_events")
+          .select("*").eq("journey_id", journey.id).eq("owner_id", ownerId)
+          .order("created_at", { ascending: false }).limit(50);
+        if (error) throw new ApiError(500, "nexus_journey_events_failed", error.message);
+        return jsonResponse({ ok: true, data: {
+          journey: opportunitySnapshot(journey),
+          events: events ?? [],
+        } });
+      }
+
+      case "nexus.journey.list": {
+        const limit = integer(payload.limit, "limit", 50, 1, 100);
+        let q = sb.from("waouh_opportunity_journeys").select("*")
+          .eq("owner_id", ownerId).order("updated_at", { ascending: false }).limit(limit);
+        if (payload.state) q = q.eq("state", asString(payload.state, "state", 2, 40));
+        const { data, error } = await q;
+        if (error) throw new ApiError(500, "nexus_journey_list_failed", error.message);
+        return jsonResponse({ ok: true, data: {
+          journeys: (data ?? []).map(opportunitySnapshot),
+        } });
+      }
+
+      case "nexus.journey.follow": {
+        const journeyId = uuid(payload.journey_id, "journey_id");
+        let journey = await ownedOpportunityJourney(sb, ownerId, journeyId);
+        const meta = journey.metadata && typeof journey.metadata === "object" ? journey.metadata : {};
+        let watchId = (meta as any).watch_id ?? null;
+        if (!watchId) {
+          const { data: watch, error } = await sb.from("waouh_watchlists").insert({
+            owner_id: ownerId,
+            query: journey.title,
+            article_id: journey.article_id ?? null,
+            source_url: journey.source_url ?? null,
+            target_amount: positiveNumber(payload.target_amount, "target_amount", true),
+            currency: "XOF",
+            status: "active",
+            check_interval_minutes: integer(payload.check_interval_minutes, "check_interval_minutes", 60, 15, 10_080),
+          }).select("*").single();
+          if (error) throw new ApiError(500, "nexus_journey_watch_failed", error.message);
+          watchId = watch.id;
+          journey = await updateOpportunityJourney(
+            sb, ownerId, journey,
+            {
+              metadata: { ...meta, watch_id: watch.id, watch_active: true },
+              avatar_message: "Suivi activé. Ayo surveille le prix, la disponibilité et les changements utiles.",
+            },
+            "watch_activated",
+            { watch_id: watch.id, target_amount: watch.target_amount ?? null },
+          );
+        }
+        return jsonResponse({ ok: true, data: {
+          journey: opportunitySnapshot(journey),
+          watch_id: watchId,
+          message: "Suivi actif : Ayo vous avertira dans WAOUH dès qu'un changement utile est détecté.",
+        } });
+      }
+
+      case "nexus.journey.contact": {
+        const journeyId = uuid(payload.journey_id, "journey_id");
+        let journey = await ownedOpportunityJourney(sb, ownerId, journeyId);
+        const message = optionalString(payload.message, "message", 1_000)
+          ?? `Bonjour, je vous contacte via WAOUH au sujet de « ${journey.title} ». Êtes-vous disponible pour poursuivre dans WAOUH ?`;
+        const level = String(journey.contactability_level || "C0");
+
+        if (journey.article_id && journey.target_waouh_user_id && journey.thread_id) {
+          journey = await updateOpportunityJourney(
+            sb, ownerId, journey,
+            {
+              state: "ready_to_negotiate",
+              contactability_level: "C5",
+              next_action: "Proposer votre prix",
+              avatar_message: "La contrepartie est déjà joignable dans WAOUH. Ayo ouvre directement la négociation.",
+            },
+            "contact_already_internal",
+          );
+          return jsonResponse({ ok: true, data: {
+            journey: opportunitySnapshot(journey),
+            ready_to_negotiate: true,
+          } });
+        }
+
+        if (level === "C0") {
+          await enqueue(
+            sb, ownerId, "nexus.journey.enrichment_requested", "opportunity_journey", journey.id,
+            { journey_id: journey.id, fabric_id: journey.fabric_id, source_url: journey.source_url },
+            `nexus.journey.enrich:${journey.id}`,
+          );
+          journey = await updateOpportunityJourney(
+            sb, ownerId, journey,
+            {
+              state: "enriching",
+              next_action: "Ayo recherche un canal public ou autorisé",
+              avatar_message: "Recherche lancée. Cette opportunité reste dans Mes démarches ; Ayo vous montrera le canal, le niveau C0–C5 et la prochaine action.",
+            },
+            "contact_enrichment_requested",
+          );
+          return jsonResponse({ ok: true, data: {
+            journey: opportunitySnapshot(journey),
+            queued: true,
+            contact_pending: true,
+          } }, 202);
+        }
+
+        // Internal C2: blind relay to a real WAOUH account.
+        if (journey.target_waouh_user_id && level === "C2") {
+          const target = await queryOne<any>(
+            sb.from("waouh_users").select("id,auth_user_id,display_name")
+              .eq("id", journey.target_waouh_user_id).maybeSingle(),
+            "nexus_internal_target_not_found",
+          );
+          if (!target.auth_user_id || target.auth_user_id === ownerId) {
+            throw new ApiError(403, "blind_contact_not_available");
+          }
+          const approval = await queryOne<any>(
+            sb.from("waouh_agent_approvals").insert({
+              owner_id: target.auth_user_id,
+              action_type: "send_message",
+              action_summary: "Un utilisateur WAOUH souhaite poursuivre cette opportunité.",
+              context: {
+                operation: "nexus.journey.blind_message",
+                journey_id: journey.id,
+                fabric_id: journey.fabric_id,
+                from_auth_user: ownerId,
+                message,
+              },
+              status: "pending",
+              expires_at: new Date(Date.now() + 24 * 60 * 60_000).toISOString(),
+            }).select("*").single(),
+            "nexus_journey_approval_failed",
+          );
+          await enqueue(
+            sb, target.auth_user_id, "nexus.journey.blind_message_requested", "approval", approval.id,
+            { approval_id: approval.id, journey_id: journey.id },
+            `nexus.journey.blind:${journey.id}:${approval.id}`,
+          );
+          journey = await updateOpportunityJourney(
+            sb, ownerId, journey,
+            {
+              state: "waiting_response",
+              last_contact_at: new Date().toISOString(),
+              next_action: "Attendre la réponse dans WAOUH",
+              avatar_message: "Proposition transmise sans révéler les coordonnées. Ayo surveille la réponse et ouvrira la négociation dès acceptation.",
+            },
+            "blind_contact_sent",
+            { approval_id: approval.id },
+          );
+          return jsonResponse({ ok: true, data: {
+            journey: opportunitySnapshot(journey),
+            approval_id: approval.id,
+            queued: true,
+            blind: true,
+          } }, 202);
+        }
+
+        let externalSignal: any = null;
+        if (journey.fabric_id.startsWith("external:")) {
+          const signalId = uuid(journey.fabric_id.slice("external:".length), "signal_id");
+          externalSignal = await queryOne<any>(
+            sb.from("waouh_external_commerce_signals").select("*").eq("id", signalId).maybeSingle(),
+            "nexus_signal_not_found",
+          );
+        }
+
+        if (level === "C2" && externalSignal?.submitted_by && externalSignal.submitted_by !== ownerId) {
+          const approval = await queryOne<any>(
+            sb.from("waouh_agent_approvals").insert({
+              owner_id: externalSignal.submitted_by,
+              action_type: "send_message",
+              action_summary: "Un utilisateur WAOUH souhaite poursuivre cette opportunité.",
+              context: {
+                operation: "nexus.journey.blind_message",
+                journey_id: journey.id,
+                signal_id: externalSignal.id,
+                from_auth_user: ownerId,
+                message,
+              },
+              status: "pending",
+              expires_at: new Date(Date.now() + 24 * 60 * 60_000).toISOString(),
+            }).select("*").single(),
+            "nexus_journey_approval_failed",
+          );
+          await enqueue(
+            sb, externalSignal.submitted_by, "nexus.journey.blind_message_requested", "approval", approval.id,
+            { approval_id: approval.id, journey_id: journey.id },
+            `nexus.journey.blind:${journey.id}:${approval.id}`,
+          );
+          journey = await updateOpportunityJourney(
+            sb, ownerId, journey,
+            {
+              state: "waiting_response",
+              last_contact_at: new Date().toISOString(),
+              next_action: "Attendre la réponse dans WAOUH",
+              avatar_message: "WAOUH a transmis la proposition. Ayo poursuit automatiquement dès que la contrepartie répond.",
+            },
+            "blind_contact_sent",
+            { approval_id: approval.id },
+          );
+          return jsonResponse({ ok: true, data: {
+            journey: opportunitySnapshot(journey), approval_id: approval.id, queued: true, blind: true,
+          } }, 202);
+        }
+
+        const contacts = await journeyContactCandidates(sb, journey.entity_id ?? externalSignal?.entity_id ?? null);
+        const chosen = journey.contact_id
+          ? contacts.find((item: any) => item.id === journey.contact_id) ?? contacts[0]
+          : contacts[0];
+        if (!chosen) {
+          journey = await updateOpportunityJourney(
+            sb, ownerId, journey,
+            {
+              state: "enriching",
+              contactability_level: "C0",
+              next_action: "Ayo recherche un canal public ou autorisé",
+              avatar_message: "Aucun canal fiable n'est encore disponible. Ayo continue la recherche au lieu d'abandonner la démarche.",
+            },
+            "contact_missing_enrichment_started",
+          );
+          return jsonResponse({ ok: true, data: {
+            journey: opportunitySnapshot(journey), contact_pending: true,
+          } }, 202);
+        }
+
+        const chosenLevel = String(chosen.contactability_level || level);
+        if (chosenLevel === "C1" && !(chosen.is_public_business === true || chosen.consent_state === "public_business")) {
+          journey = await updateOpportunityJourney(
+            sb, ownerId, journey,
+            {
+              state: "enriching",
+              next_action: "Ayo vérifie l'autorisation de contact",
+              avatar_message: "Le canal détecté n'est pas suffisamment autorisé pour un envoi automatique. Ayo cherche une voie professionnelle ou consentie.",
+            },
+            "contact_permission_enrichment_started",
+          );
+          return jsonResponse({ ok: true, data: {
+            journey: opportunitySnapshot(journey), contact_pending: true,
+          } }, 202);
+        }
+
+        let clear = chosen.public_value ?? null;
+        if (!clear && chosen.value_encrypted) {
+          try { clear = await decryptPhone(chosen.value_encrypted); } catch { clear = null; }
+        }
+        const contactChannel = String(chosen.channel || "");
+        const phone = ["whatsapp", "phone"].includes(contactChannel) && clear ? normalizeE164(clear) : null;
+
+        if (phone) {
+          const toPhone = phone.replace(/\D/g, "");
+          const dedupeKey = `nexus-journey:${journey.id}:${await sha256Hex(message)}`;
+          const { error: queueError } = await sb.rpc("waouh_enqueue_outbound_v2", {
+            p_to_phone: toPhone,
+            p_to_user_id: null,
+            p_template: "nexus_journey_outreach",
+            p_payload: {
+              text: message,
+              journey_id: journey.id,
+              fabric_id: journey.fabric_id,
+              source_key: journey.source_key,
+              initiated_by_auth_user: ownerId,
+              actions: [{ id: `waouh-journey-reply:${journey.id}`, label: "💬 Répondre à WAOUH" }],
+            },
+            p_web_session_id: null,
+            p_image_url: null,
+            p_channel: "whatsapp",
+            p_dedupe_key: dedupeKey,
+            p_event_type: "nexus_journey_outreach",
+          });
+          if (queueError) throw new ApiError(500, "nexus_journey_contact_queue_failed", queueError.message);
+          fetch(`${supabaseUrl}/functions/v1/waouh-outbound-dispatch`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ limit: 20 }),
+          }).catch(() => {});
+          journey = await updateOpportunityJourney(
+            sb, ownerId, journey,
+            {
+              state: "waiting_response",
+              contact_id: chosen.id,
+              contact_channel: contactChannel,
+              contact_last4: chosen.value_last4 ?? phoneLast4(phone),
+              contactability_level: maxContactLevel(level, chosenLevel),
+              last_contact_at: new Date().toISOString(),
+              next_action: "Ayo attend la réponse et vous avertira ici",
+              avatar_message: `Message envoyé via ${contactChannel === "whatsapp" ? "WhatsApp" : "le canal professionnel"} · …${chosen.value_last4 ?? phoneLast4(phone)}. Vous n'avez rien à surveiller manuellement.`,
+            },
+            "contact_message_queued",
+            { channel: contactChannel, contact_last4: chosen.value_last4 ?? phoneLast4(phone) },
+          );
+          return jsonResponse({ ok: true, data: {
+            journey: opportunitySnapshot(journey),
+            queued: true,
+            channel: contactChannel,
+            phone_last4: chosen.value_last4 ?? phoneLast4(phone),
+          } }, 202);
+        }
+
+        // Social/web connectors may not yet support transactional sending.
+        // Keep the action inside WAOUH and track it rather than sending the user
+        // to an external dead-end.
+        await enqueue(
+          sb, ownerId, "nexus.journey.public_channel_requested", "opportunity_journey", journey.id,
+          {
+            journey_id: journey.id,
+            contact_id: chosen.id,
+            channel: contactChannel,
+            source_url: journey.source_url,
+            message,
+          },
+          `nexus.journey.channel:${journey.id}:${chosen.id}`,
+        );
+        journey = await updateOpportunityJourney(
+          sb, ownerId, journey,
+          {
+            state: "contacting",
+            contact_id: chosen.id,
+            contact_channel: contactChannel,
+            contact_last4: chosen.value_last4 ?? null,
+            next_action: "Ayo finalise la mise en relation dans WAOUH",
+            avatar_message: `Canal ${contactChannel || "public"} identifié. Ayo garde la démarche active et vous indiquera la prochaine action dès qu'un envoi ou une réponse est confirmé.`,
+          },
+          "public_channel_contact_requested",
+          { channel: contactChannel },
+        );
+        return jsonResponse({ ok: true, data: {
+          journey: opportunitySnapshot(journey),
+          queued: true,
+          channel: contactChannel,
+        } }, 202);
+      }
+
+      case "nexus.journey.offer": {
+        const journeyId = uuid(payload.journey_id, "journey_id");
+        let journey = await ownedOpportunityJourney(sb, ownerId, journeyId);
+        const amount = positiveNumber(payload.amount, "amount")!;
+        const ownerWaouhUser = await getOrCreateNexusUser(
+          sb, ownerId, authUser.email?.split("@")[0] ?? "Utilisateur WAOUH",
+        );
+
+        // Seller journeys may originate from a buyer signal rather than an
+        // existing catalogue article. The first explicit price is sufficient
+        // to materialize a canonical WAOUH offer owned by the seller, so the
+        // negotiation can still enter the same Deal Graph.
+        if (journey.mode === "sell" && !journey.article_id && journey.target_waouh_user_id) {
+          const { data: createdArticle, error: articleError } = await sb.from("waouh_articles").insert({
+            seller_id: ownerWaouhUser.id,
+            title: journey.title || "Offre Avatar WAOUH",
+            description: `Offre créée par l'Avatar pour la démarche ${journey.id}.`,
+            category: "autre",
+            condition: "good",
+            price: amount,
+            currency: "XOF",
+            photos: [],
+            city: journey.city ?? null,
+            status: "active",
+            origin: "avatar",
+            source_channel: "waouh_app",
+            ai_attributes: {
+              avatar_journey_id: journey.id,
+              fabric_id: journey.fabric_id,
+              created_from_seller_offer: true,
+            },
+          }).select("id").single();
+          if (articleError) throw new ApiError(500, "nexus_journey_article_create_failed", articleError.message);
+          journey = await updateOpportunityJourney(
+            sb, ownerId, journey,
+            { article_id: createdArticle.id },
+            "seller_offer_materialized",
+            { amount, article_id: createdArticle.id },
+          );
+        }
+
+        if (!journey.article_id || !journey.target_waouh_user_id) {
+          journey = await updateOpportunityJourney(
+            sb, ownerId, journey,
+            {
+              state: "waiting_response",
+              proposed_amount: amount,
+              next_action: "Ayo attend que la contrepartie rejoigne la conversation WAOUH",
+              avatar_message: `Votre intention à ${Math.round(amount).toLocaleString("fr-FR")} FCFA est mémorisée. Dès que la contrepartie répond, Ayo crée le Deal Room et transmet cette proposition.`,
+            },
+            "offer_buffered_until_contact",
+            { amount },
+          );
+          return jsonResponse({ ok: true, data: {
+            journey: opportunitySnapshot(journey),
+            buffered: true,
+          } }, 202);
+        }
+
+        const role = journey.mode === "sell" ? "seller" : "buyer";
+        const thread = await resolveProductThread({
+          sb,
+          articleId: journey.article_id,
+          actorUser: ownerWaouhUser,
+          role,
+          counterpartUserId: journey.target_waouh_user_id,
+          buyerUserId: role === "seller" ? journey.target_waouh_user_id : ownerWaouhUser.id,
+          sellerUserId: role === "buyer" ? journey.target_waouh_user_id : ownerWaouhUser.id,
+          preferredThreadId: journey.thread_id ?? null,
+          source: "avatar_opportunity",
+          create: true,
+        });
+        if (!thread?.id) throw new ApiError(409, "nexus_journey_thread_required");
+
+        const buyerId = role === "buyer" ? ownerWaouhUser.id : journey.target_waouh_user_id;
+        const sellerId = role === "seller" ? ownerWaouhUser.id : journey.target_waouh_user_id;
+        let { data: negotiation, error: negLookupError } = await sb.from("waouh_negotiations")
+          .select("*")
+          .eq("article_id", journey.article_id)
+          .eq("buyer_user_id", buyerId)
+          .eq("seller_user_id", sellerId)
+          .in("state", ["proposed", "countered"])
+          .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+        if (negLookupError) throw new ApiError(500, "nexus_journey_negotiation_lookup_failed", negLookupError.message);
+        if (!negotiation?.id) {
+          const { data, error } = await sb.from("waouh_negotiations").insert({
+            thread_id: thread.id,
+            article_id: journey.article_id,
+            buyer_user_id: buyerId,
+            seller_user_id: sellerId,
+            state: "proposed",
+            last_offer_price: amount,
+            last_actor: role,
+            meta: {
+              source: "avatar_opportunity",
+              journey_id: journey.id,
+              commerce_contract: "waouh_action_v2",
+            },
+          }).select("*").single();
+          if (error) throw new ApiError(500, "nexus_journey_negotiation_create_failed", error.message);
+          negotiation = data;
+        } else if (!negotiation.thread_id) {
+          const { data } = await sb.from("waouh_negotiations")
+            .update({ thread_id: thread.id }).eq("id", negotiation.id).select("*").single();
+          if (data) negotiation = data;
+        }
+        await bindThreadState(sb, thread.id, {
+          status: "negotiating",
+          negotiation_id: negotiation.id,
+        });
+
+        const routerResponse = await fetch(`${supabaseUrl}/functions/v1/waouh-negotiation-router`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: ownerWaouhUser.id,
+            thread_id: thread.id,
+            negotiation_id: negotiation.id,
+            text: `Je propose ${Math.round(amount)} FCFA`,
+          }),
+        });
+        const raw = await routerResponse.text();
+        let routed: any = {};
+        try { routed = raw ? JSON.parse(raw) : {}; } catch { routed = { reply: raw }; }
+        if (!routerResponse.ok) {
+          throw new ApiError(routerResponse.status, "nexus_journey_negotiation_failed", String(routed?.reply || routed?.error || routerResponse.status));
+        }
+
+        journey = await updateOpportunityJourney(
+          sb, ownerId, journey,
+          {
+            state: routed?.deal_id ? "agreed" : "negotiating",
+            contactability_level: "C5",
+            thread_id: thread.id,
+            negotiation_id: negotiation.id,
+            deal_id: routed?.deal_id ?? journey.deal_id ?? null,
+            proposed_amount: amount,
+            next_action: routed?.deal_id ? "Continuer les confirmations du Deal" : "Ayo suit la réponse et vous propose la meilleure action",
+            avatar_message: routed?.reply || "Proposition envoyée. Ayo suit la négociation jusqu'à l'accord.",
+          },
+          "offer_submitted",
+          { amount, negotiation_id: negotiation.id, thread_id: thread.id },
+        );
+        return jsonResponse({ ok: true, data: {
+          journey: opportunitySnapshot(journey),
+          negotiation: routed,
+          thread_id: thread.id,
+          negotiation_id: negotiation.id,
+          deal_id: routed?.deal_id ?? null,
+        } });
+      }
+
       case "nexus.contact.prepare": {
         const fabricId = asString(payload.fabric_id, "fabric_id", 5, 200);
 
@@ -2294,14 +3214,14 @@ Retourne uniquement JSON:
           } }, 202);
         }
 
-        if (!signalPolicy.can_auto_contact || !["C3","C4"].includes(signalPolicy.level)) {
+        if (!signalPolicy.can_auto_contact || !["C3","C4","C5"].includes(signalPolicy.level)) {
           throw new ApiError(403, "automated_contact_not_permitted");
         }
         if (!signal.entity_id) throw new ApiError(404, "contact_not_found");
         const { data: contacts, error: contactsError } = await sb.from("waouh_entity_contacts")
           .select("*").eq("entity_id", signal.entity_id)
           .in("channel", ["whatsapp","phone"])
-          .in("contactability_level", ["C3","C4"])
+          .in("contactability_level", ["C3","C4","C5"])
           .order("contactability_level", { ascending: false }).limit(5);
         if (contactsError) throw new ApiError(500, "nexus_contacts_failed", contactsError.message);
         const target = (contacts ?? []).find((contact: any) => !!contact.value_encrypted);

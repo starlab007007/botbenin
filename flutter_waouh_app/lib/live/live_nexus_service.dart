@@ -501,6 +501,130 @@ class NexusPreparedContact {
       );
 }
 
+
+class NexusJourneyStep {
+  const NexusJourneyStep({
+    required this.key,
+    required this.label,
+    required this.done,
+    required this.current,
+  });
+
+  final String key;
+  final String label;
+  final bool done;
+  final bool current;
+
+  factory NexusJourneyStep.fromJson(Map<String, dynamic> json) =>
+      NexusJourneyStep(
+        key: _text(json['key']),
+        label: _text(json['label']),
+        done: _bool(json['done']),
+        current: _bool(json['current']),
+      );
+}
+
+class NexusOpportunityJourney {
+  const NexusOpportunityJourney({
+    required this.id,
+    required this.fabricId,
+    required this.mode,
+    required this.title,
+    required this.state,
+    required this.contactabilityLevel,
+    required this.progress,
+    required this.timeline,
+    this.sourceKey,
+    this.sourceUrl,
+    this.actorName,
+    this.city,
+    this.articleId,
+    this.targetWaouhUserId,
+    this.contactChannel,
+    this.contactLast4,
+    this.threadId,
+    this.negotiationId,
+    this.dealId,
+    this.proposedAmount,
+    this.nextAction,
+    this.avatarMessage,
+  });
+
+  final String id;
+  final String fabricId;
+  final String mode;
+  final String title;
+  final String state;
+  final String contactabilityLevel;
+  final int progress;
+  final List<NexusJourneyStep> timeline;
+  final String? sourceKey;
+  final String? sourceUrl;
+  final String? actorName;
+  final String? city;
+  final String? articleId;
+  final String? targetWaouhUserId;
+  final String? contactChannel;
+  final String? contactLast4;
+  final String? threadId;
+  final String? negotiationId;
+  final String? dealId;
+  final double? proposedAmount;
+  final String? nextAction;
+  final String? avatarMessage;
+
+  bool get readyToNegotiate =>
+      state == 'ready_to_negotiate' ||
+      state == 'negotiating' ||
+      state == 'agreed' ||
+      state == 'executing' ||
+      state == 'completed';
+
+  bool get waiting =>
+      state == 'enriching' ||
+      state == 'contacting' ||
+      state == 'waiting_response';
+
+  factory NexusOpportunityJourney.fromJson(Map<String, dynamic> json) =>
+      NexusOpportunityJourney(
+        id: _text(json['id']),
+        fabricId: _text(json['fabric_id']),
+        mode: _text(json['mode'], 'buy'),
+        title: _text(json['title'], 'Opportunité WAOUH'),
+        state: _text(json['state'], 'discovered'),
+        contactabilityLevel: _text(json['contactability_level'], 'C0'),
+        progress: _number(json['progress'], 10).round(),
+        timeline: _list(json['timeline'])
+            .map((value) => NexusJourneyStep.fromJson(_map(value)))
+            .toList(growable: false),
+        sourceKey: json['source_key'] == null ? null : _text(json['source_key']),
+        sourceUrl: json['source_url'] == null ? null : _text(json['source_url']),
+        actorName: json['actor_name'] == null ? null : _text(json['actor_name']),
+        city: json['city'] == null ? null : _text(json['city']),
+        articleId: json['article_id'] == null ? null : _text(json['article_id']),
+        targetWaouhUserId: json['target_waouh_user_id'] == null
+            ? null
+            : _text(json['target_waouh_user_id']),
+        contactChannel: json['contact_channel'] == null
+            ? null
+            : _text(json['contact_channel']),
+        contactLast4:
+            json['contact_last4'] == null ? null : _text(json['contact_last4']),
+        threadId: json['thread_id'] == null ? null : _text(json['thread_id']),
+        negotiationId: json['negotiation_id'] == null
+            ? null
+            : _text(json['negotiation_id']),
+        dealId: json['deal_id'] == null ? null : _text(json['deal_id']),
+        proposedAmount: json['proposed_amount'] == null
+            ? null
+            : _number(json['proposed_amount']),
+        nextAction:
+            json['next_action'] == null ? null : _text(json['next_action']),
+        avatarMessage:
+            json['avatar_message'] == null ? null : _text(json['avatar_message']),
+      );
+}
+
 class NexusSharedSignal {
   const NexusSharedSignal({
     required this.intent,
@@ -699,6 +823,81 @@ class LiveNexusService {
       'origin_surface': originSurface,
     });
     return NexusSharedSignal.fromJson(_map(data['signal']));
+  }
+
+
+  Future<NexusOpportunityJourney> startJourney({
+    required String fabricId,
+    required String mode,
+    required String title,
+    String? city,
+    String? goal,
+    double? askingPrice,
+  }) async {
+    final data = await _invoke('nexus.journey.start', {
+      'fabric_id': fabricId,
+      'mode': mode,
+      'title': title,
+      if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
+      if (goal != null && goal.trim().isNotEmpty) 'goal': goal.trim(),
+      if (askingPrice != null) 'asking_price': askingPrice,
+      if (mode == 'sell' && goal != null && goal.trim().isNotEmpty)
+        'listing_title': goal.trim(),
+    });
+    return NexusOpportunityJourney.fromJson(_map(data['journey']));
+  }
+
+  Future<NexusOpportunityJourney> journeyStatus(String journeyId) async {
+    final data = await _invoke('nexus.journey.status', {
+      'journey_id': journeyId,
+    });
+    return NexusOpportunityJourney.fromJson(_map(data['journey']));
+  }
+
+  Future<List<NexusOpportunityJourney>> journeys({String? state}) async {
+    final data = await _invoke('nexus.journey.list', {
+      if (state != null && state.trim().isNotEmpty) 'state': state.trim(),
+      'limit': 50,
+    });
+    return _list(data['journeys'])
+        .map((value) => NexusOpportunityJourney.fromJson(_map(value)))
+        .where((item) => item.id.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  Future<NexusOpportunityJourney> contactJourney({
+    required String journeyId,
+    String? message,
+  }) async {
+    final data = await _invoke('nexus.journey.contact', {
+      'journey_id': journeyId,
+      if (message != null && message.trim().isNotEmpty)
+        'message': message.trim(),
+    });
+    return NexusOpportunityJourney.fromJson(_map(data['journey']));
+  }
+
+  Future<NexusOpportunityJourney> followJourney({
+    required String journeyId,
+    double? targetAmount,
+  }) async {
+    final data = await _invoke('nexus.journey.follow', {
+      'journey_id': journeyId,
+      if (targetAmount != null) 'target_amount': targetAmount,
+      'check_interval_minutes': 60,
+    });
+    return NexusOpportunityJourney.fromJson(_map(data['journey']));
+  }
+
+  Future<Map<String, dynamic>> offerJourney({
+    required String journeyId,
+    required double amount,
+  }) async {
+    final data = await _invoke('nexus.journey.offer', {
+      'journey_id': journeyId,
+      'amount': amount,
+    });
+    return data;
   }
 
   Future<NexusPreparedContact> prepareContact(String fabricId) async {

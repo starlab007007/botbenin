@@ -2089,7 +2089,15 @@ class _PremiumProductCard extends StatelessWidget {
                           ? FilledButton(
                               onPressed: onPayload == null
                                   ? null
-                                  : () => onPayload!(action.payload),
+                                  : () {
+                                      final kind = liveCommerceActionKind(action.payload);
+                                      if (kind == LiveCommerceActionKind.interest &&
+                                          product.fabricId != null) {
+                                        _showPremiumNexusContactSheet(context, product);
+                                        return;
+                                      }
+                                      onPayload!(action.payload);
+                                    },
                               style: FilledButton.styleFrom(
                                 backgroundColor: tone,
                                 foregroundColor: Colors.white,
@@ -2103,12 +2111,19 @@ class _PremiumProductCard extends StatelessWidget {
                                         LiveCommerceActionKind.interest
                                     ? product.isBuyerOpportunity
                                         ? 'Proposer mon offre'
-                                        : product.contactability == 'C2'
-                                            ? 'Transmettre via WAOUH'
-                                            : product.contactability == 'C3' ||
-                                                    product.contactability == 'C4'
-                                                ? 'Laisser l’Avatar poursuivre'
-                                                : action.label
+                                        : product.contactability == 'C0'
+                                            ? 'Trouver un moyen de contacter'
+                                            : product.contactability == 'C1'
+                                                ? 'Contacter avec WAOUH'
+                                                : product.contactability == 'C2'
+                                                    ? 'Transmettre via WAOUH'
+                                                    : product.contactability == 'C3'
+                                                        ? 'Envoyer avec l’Avatar'
+                                                        : product.contactability == 'C4'
+                                                            ? 'Suivre le contact'
+                                                            : product.contactability == 'C5'
+                                                                ? 'Négocier'
+                                                                : action.label
                                     : action.label,
                                 style: const TextStyle(
                                     fontWeight: FontWeight.w900),
@@ -2145,14 +2160,19 @@ class _PremiumProductCard extends StatelessWidget {
                     ),
                     icon: const Icon(Icons.shield_outlined),
                     label: Text(
-                      product.contactability == 'C2'
-                          ? 'Transmettre via WAOUH'
-                          : product.contactability == 'C3' ||
-                                  product.contactability == 'C4'
-                              ? 'Laisser l’Avatar poursuivre'
-                              : product.contactability == 'C1'
-                                  ? 'Contacter'
-                                  : 'Voir possibilité de contact',
+                      product.contactability == 'C0'
+                          ? 'Trouver un moyen de contacter'
+                          : product.contactability == 'C1'
+                              ? 'Contacter avec WAOUH'
+                              : product.contactability == 'C2'
+                                  ? 'Transmettre via WAOUH'
+                                  : product.contactability == 'C3'
+                                      ? 'Envoyer avec l’Avatar'
+                                      : product.contactability == 'C4'
+                                          ? 'Suivre le contact'
+                                          : product.contactability == 'C5'
+                                              ? 'Négocier'
+                                              : 'Continuer avec WAOUH',
                     ),
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF08745D),
@@ -2170,7 +2190,9 @@ class _PremiumProductCard extends StatelessWidget {
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
-                    onPressed: () => onPayload!(_watchProductPayload(product)),
+                    onPressed: product.fabricId != null
+                        ? () => _activatePremiumNexusWatch(context, product)
+                        : () => onPayload!(_watchProductPayload(product)),
                     icon: const Icon(Icons.notifications_active_outlined),
                     label: const Text('Suivre prix / stock'),
                     style: OutlinedButton.styleFrom(
@@ -2189,6 +2211,61 @@ class _PremiumProductCard extends StatelessWidget {
 }
 
 
+
+
+String _watchProductPayload(_PremiumProduct product) {
+  final params = <String, String>{
+    'product_id': product.id ?? product.title,
+    'title': product.title,
+    'currency': 'XOF',
+    if (product.price != null) 'price': product.price!,
+    if (product.city != null) 'city': product.city!,
+    if (product.images.isNotEmpty) 'image_url': product.images.first.url,
+  };
+  return 'waouh:watch?${Uri(queryParameters: params).query}';
+}
+
+double? _premiumNumericPrice(_PremiumProduct product) {
+  final raw = (product.price ?? '').replaceAll(RegExp(r'[^0-9.]'), '');
+  final parsed = double.tryParse(raw);
+  return parsed != null && parsed > 0 ? parsed : null;
+}
+
+Future<void> _activatePremiumNexusWatch(
+  BuildContext context,
+  _PremiumProduct product,
+) async {
+  if (product.fabricId == null) return;
+  final service = LiveNexusService(legacy.supabase);
+  try {
+    final journey = await service.startJourney(
+      fabricId: product.fabricId!,
+      mode: product.isBuyerOpportunity ? 'sell' : 'buy',
+      title: product.title,
+      city: product.city,
+      goal: product.title,
+      askingPrice: product.isBuyerOpportunity ? _premiumNumericPrice(product) : null,
+    );
+    await service.followJourney(
+      journeyId: journey.id,
+      targetAmount: product.isBuyerOpportunity ? null : _premiumNumericPrice(product),
+    );
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          '✓ Suivi actif. L’Avatar surveille le prix, la disponibilité et la prochaine action.',
+        ),
+      ),
+    );
+  } catch (error) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(error.toString())),
+    );
+  }
+}
+
 Future<void> _showPremiumNexusContactSheet(
   BuildContext context,
   _PremiumProduct product,
@@ -2198,10 +2275,7 @@ Future<void> _showPremiumNexusContactSheet(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    backgroundColor: Colors.white,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
+    backgroundColor: Colors.transparent,
     builder: (_) => _PremiumNexusContactSheet(product: product),
   );
 }
@@ -2218,36 +2292,61 @@ class _PremiumNexusContactSheet extends StatefulWidget {
 class _PremiumNexusContactSheetState
     extends State<_PremiumNexusContactSheet> {
   late final LiveNexusService service = LiveNexusService(legacy.supabase);
-  final message = TextEditingController();
-  NexusPreparedContact? prepared;
+  final offer = TextEditingController();
+  NexusOpportunityJourney? journey;
   Object? error;
   bool busy = true;
   bool sending = false;
+  bool following = false;
+
+  String get mode => widget.product.isBuyerOpportunity ? 'sell' : 'buy';
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _start();
   }
 
   @override
   void dispose() {
-    message.dispose();
+    offer.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
+  Future<void> _start() async {
+    setState(() {
+      busy = true;
+      error = null;
+    });
     try {
-      final value = await service.prepareContact(widget.product.fabricId!);
+      var value = await service.startJourney(
+        fabricId: widget.product.fabricId!,
+        mode: mode,
+        title: widget.product.title,
+        city: widget.product.city,
+        goal: widget.product.title,
+        askingPrice:
+            widget.product.isBuyerOpportunity ? _premiumNumericPrice(widget.product) : null,
+      );
+
+      if (!value.readyToNegotiate) {
+        value = await service.contactJourney(
+          journeyId: value.id,
+          message: widget.product.isBuyerOpportunity
+              ? 'Bonjour, mon Avatar WAOUH a identifié votre besoin « ${widget.product.title} ». Je souhaite vous faire une proposition et poursuivre dans WAOUH.'
+              : 'Bonjour, mon Avatar WAOUH m’accompagne au sujet de « ${widget.product.title} ». Êtes-vous disponible pour poursuivre et négocier dans WAOUH ?',
+        );
+      }
+
       if (!mounted) return;
+      final initialPrice =
+          value.proposedAmount ?? _premiumNumericPrice(widget.product);
       setState(() {
-        prepared = value;
+        journey = value;
         busy = false;
-        error = null;
-        message.text =
-            'Bonjour, je vous contacte via WAOUH au sujet de « ' +
-                widget.product.title +
-                ' ». Est-ce toujours disponible / pertinent pour vous ?';
+        if (initialPrice != null && initialPrice > 0) {
+          offer.text = initialPrice.round().toString();
+        }
       });
     } catch (e) {
       if (!mounted) return;
@@ -2258,45 +2357,120 @@ class _PremiumNexusContactSheetState
     }
   }
 
-  Future<void> _openContact(NexusContactItem item) async {
-    final value = item.value.trim();
-    Uri? uri;
-    if (item.channel == 'whatsapp') {
-      final digits = value.replaceAll(RegExp(r'\D'), '');
-      uri = Uri.parse('https://wa.me/' + digits);
-    } else if (item.channel == 'phone') {
-      uri = Uri(scheme: 'tel', path: value);
-    } else if (item.channel == 'email') {
-      uri = Uri(scheme: 'mailto', path: value);
-    } else {
-      uri = Uri.tryParse(value);
+  Future<void> _refresh() async {
+    final current = journey;
+    if (current == null) return;
+    setState(() => busy = true);
+    try {
+      final fresh = await service.journeyStatus(current.id);
+      if (!mounted) return;
+      setState(() {
+        journey = fresh;
+        busy = false;
+        error = null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        error = e;
+      });
     }
-    if (uri == null) return;
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
-  Future<void> _send() async {
-    final contact = prepared;
-    final text = message.text.trim();
-    if (contact == null || text.isEmpty || sending) return;
-    setState(() => sending = true);
+  Future<void> _follow() async {
+    final current = journey;
+    if (current == null || following) return;
+    setState(() => following = true);
     try {
-      final result = await service.sendContact(
-        fabricId: contact.fabricId,
-        message: text,
+      final next = await service.followJourney(
+        journeyId: current.id,
+        targetAmount: widget.product.isBuyerOpportunity
+            ? null
+            : _premiumNumericPrice(widget.product),
       );
       if (!mounted) return;
-      final blind = result['blind'] == true;
+      setState(() => journey = next);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Suivi actif. Vous pouvez quitter : l’Avatar continue.'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => following = false);
+    }
+  }
+
+  Future<void> _submitOffer() async {
+    final current = journey;
+    final amount = double.tryParse(
+      offer.text.replaceAll(RegExp(r'[^0-9.]'), ''),
+    );
+    if (current == null || amount == null || amount <= 0 || sending) return;
+    setState(() => sending = true);
+    try {
+      final response = await service.offerJourney(
+        journeyId: current.id,
+        amount: amount,
+      );
+      final raw = response['journey'];
+      if (raw is! Map) {
+        throw StateError('WAOUH n’a pas retourné l’état de la négociation.');
+      }
+      final next = NexusOpportunityJourney.fromJson(
+        Map<String, dynamic>.from(raw),
+      );
+      if (!mounted) return;
+      setState(() => journey = next);
+
+      if ((next.articleId ?? '').isNotEmpty &&
+          (next.threadId ?? '').isNotEmpty) {
+        final role = mode == 'sell' ? 'seller' : 'buyer';
+        final match = LiveMatch(
+          key: liveMatchKey(
+            next.articleId!,
+            role,
+            next.targetWaouhUserId,
+            next.threadId,
+          ),
+          articleId: next.articleId!,
+          role: role,
+          title: widget.product.title,
+          lastAt: DateTime.now(),
+          counterpartUserId: next.targetWaouhUserId,
+          threadId: next.threadId,
+          source: 'avatar_opportunity',
+          negotiationId: next.negotiationId,
+          dealId: next.dealId,
+          seedText: next.avatarMessage,
+          price: amount,
+          city: widget.product.city,
+          photo: widget.product.images.isEmpty
+              ? null
+              : widget.product.images.first.url,
+          photoUrls: widget.product.images.map((item) => item.url).toList(),
+        );
+        final router = GoRouter.of(context);
+        Navigator.of(context).pop();
+        router.push(
+          '/app/chat/match/${Uri.encodeComponent(match.key)}',
+          extra: match,
+        );
+        return;
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            blind
-                ? 'Proposition transmise sans révéler les coordonnées privées.'
-                : 'Contact WAOUH mis en file.',
+            next.avatarMessage ??
+                'Votre proposition est mémorisée. L’Avatar la transmet dès que la contrepartie répond.',
           ),
         ),
       );
-      Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -2306,209 +2480,302 @@ class _PremiumNexusContactSheetState
     }
   }
 
+  String _stateLabel(NexusOpportunityJourney value) => switch (value.state) {
+        'enriching' => 'Recherche du meilleur contact',
+        'contact_ready' => 'Contact prêt',
+        'contacting' => 'Mise en relation en cours',
+        'waiting_response' => 'En attente de réponse',
+        'ready_to_negotiate' => 'Prêt à négocier',
+        'negotiating' => 'Négociation en cours',
+        'agreed' => 'Accord trouvé',
+        'executing' => 'Exécution du deal',
+        'completed' => 'Terminé',
+        _ => 'Démarche active',
+      };
+
   @override
   Widget build(BuildContext context) {
-    final contact = prepared;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        16,
-        14,
-        16,
-        18 + MediaQuery.viewInsetsOf(context).bottom,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 42,
-              height: 4,
-              margin: const EdgeInsets.only(bottom: 14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFD5E1DC),
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            Row(
-              children: [
-                const LiveMuseAvatar(
-                  mode: LiveMuseMode.neutral,
-                  phase: LiveMusePhase.contacting,
-                  size: 42,
-                ),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Contact intelligent WAOUH',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      Text(
-                        'Le Contact Layer applique C0–C4 avant toute action.',
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          color: Color(0xFF60746E),
-                        ),
-                      ),
-                    ],
+    final current = journey;
+    final basePrice = _premiumNumericPrice(widget.product);
+    final suggestions = <int>{
+      if (basePrice != null) basePrice.round(),
+      if (basePrice != null) (basePrice * .95).round(),
+      if (basePrice != null) (basePrice * .90).round(),
+    }.where((value) => value > 0).toList()
+      ..sort();
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * .88,
+        ),
+        padding: EdgeInsets.fromLTRB(
+          16,
+          14,
+          16,
+          20 + MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD5E1DC),
+                    borderRadius: BorderRadius.circular(999),
                   ),
                 ),
-                LiveContactabilityBadge(
-                  level: contact?.policy.level ??
-                      widget.product.contactability,
-                  showCode: true,
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            if (busy)
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(28),
-                  child: CircularProgressIndicator(),
-                ),
-              )
-            else if (error != null)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF4F3),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Text(
-                  error.toString(),
-                  style: const TextStyle(color: Color(0xFF8A3138)),
-                ),
-              )
-            else if (contact != null) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(13),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1FAF6),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFD5EBE2)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      contact.actorName ??
-                          contact.productName ??
-                          widget.product.title,
-                      style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+              Row(
+                children: [
+                  const LiveMuseAvatar(
+                    mode: LiveMuseMode.neutral,
+                    phase: LiveMusePhase.contacting,
+                    size: 42,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Votre Avatar conduit la démarche',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        Text(
+                          current == null
+                              ? 'Initialisation…'
+                              : _stateLabel(current),
+                          style: const TextStyle(
+                            fontSize: 10.5,
+                            color: Color(0xFF08745D),
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
                     ),
-                    if (contact.note?.trim().isNotEmpty == true) ...[
-                      const SizedBox(height: 5),
-                      Text(
-                        contact.note!,
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          color: Color(0xFF60746E),
-                          height: 1.35,
+                  ),
+                  if (current != null)
+                    LiveContactabilityBadge(
+                      level: current.contactabilityLevel,
+                      showCode: true,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              if (busy && current == null)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(28),
+                    child: CircularProgressIndicator(),
+                  ),
+                )
+              else if (error != null && current == null)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF4F3),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text(
+                    error.toString(),
+                    style: const TextStyle(color: Color(0xFF8A3138)),
+                  ),
+                )
+              else if (current != null) ...[
+                Text(
+                  widget.product.title,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(99),
+                        child: LinearProgressIndicator(
+                          value: (current.progress / 100).clamp(0, 1),
+                          minHeight: 7,
+                          backgroundColor: const Color(0xFFE7EFEA),
                         ),
                       ),
-                    ],
+                    ),
+                    const SizedBox(width: 9),
+                    Text(
+                      '${current.progress}%',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF08745D),
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              if (contact.contacts.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                const Text(
-                  'Contacts autorisés',
-                  style: TextStyle(fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 7),
+                const SizedBox(height: 10),
                 Wrap(
-                  spacing: 7,
-                  runSpacing: 7,
-                  children: contact.contacts.map((item) {
-                    final suffix =
-                        item.last4 == null ? '' : ' · …' + item.last4!;
-                    return OutlinedButton.icon(
-                      onPressed: () => _openContact(item),
-                      icon: Icon(
-                        item.channel == 'whatsapp'
-                            ? Icons.chat_outlined
-                            : item.channel == 'email'
-                                ? Icons.email_outlined
-                                : Icons.phone_outlined,
-                        size: 17,
-                      ),
-                      label: Text(item.channel + suffix),
-                    );
-                  }).toList(growable: false),
+                  spacing: 5,
+                  runSpacing: 5,
+                  children: current.timeline
+                      .map(
+                        (step) => Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 7, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: step.done
+                                ? const Color(0xFFEAF8F2)
+                                : step.current
+                                    ? const Color(0xFFEAF2FF)
+                                    : const Color(0xFFF3F5F7),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: Text(
+                            '${step.done ? '✓ ' : step.current ? '• ' : ''}${step.label}',
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
                 ),
-              ],
-              if (contact.policy.canBlindMessage ||
-                  contact.policy.canAutoContact) ...[
-                const SizedBox(height: 14),
-                Text(
-                  contact.policy.canBlindMessage
-                      ? 'WAOUH transmet sans révéler les coordonnées'
-                      : 'Message que votre Avatar peut transmettre',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 12,
+                const SizedBox(height: 10),
+                _PremiumInformationPanel(
+                  icon: Icons.psychology_alt_rounded,
+                  title: 'Ce que fait l’Avatar',
+                  text: current.avatarMessage ??
+                      'La démarche reste active dans WAOUH.',
+                  accent: const Color(0xFF42658B),
+                  background: const Color(0xFFF1F5FB),
+                ),
+                if ((current.contactChannel ?? '').isNotEmpty ||
+                    (current.contactLast4 ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _PremiumInformationPanel(
+                    icon: Icons.verified_user_outlined,
+                    title: 'Contact ${current.contactabilityLevel}',
+                    text: [
+                      if ((current.contactChannel ?? '').isNotEmpty)
+                        current.contactChannel!,
+                      if ((current.contactLast4 ?? '').isNotEmpty)
+                        '+229 •••• ${current.contactLast4}',
+                    ].join(' · '),
+                    accent: const Color(0xFF08745D),
+                    background: const Color(0xFFEAF8F2),
                   ),
+                ],
+                const SizedBox(height: 8),
+                _PremiumInformationPanel(
+                  icon: Icons.flag_outlined,
+                  title: 'Prochaine étape',
+                  text: current.nextAction ?? 'L’Avatar continue le parcours.',
+                  accent: const Color(0xFF8B6500),
+                  background: const Color(0xFFFFF8E6),
                 ),
-                const SizedBox(height: 7),
-                TextField(
-                  controller: message,
-                  minLines: 2,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    hintText: 'Votre message…',
+                if (current.readyToNegotiate) ...[
+                  const SizedBox(height: 12),
+                  if (suggestions.isNotEmpty)
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: suggestions
+                          .map(
+                            (value) => ActionChip(
+                              label: Text('$value FCFA'),
+                              onPressed: () => offer.text = '$value',
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: offer,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Votre proposition',
+                      suffixText: 'FCFA',
+                      prefixIcon: Icon(Icons.payments_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  FilledButton.icon(
+                    onPressed: sending ? null : _submitOffer,
+                    icon: sending
+                        ? const SizedBox.square(
+                            dimension: 15,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.handshake_outlined),
+                    label: const Text(
+                      'Envoyer mon offre · ouvrir le Deal Room',
+                    ),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                  ),
+                ] else ...[
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: busy ? null : _refresh,
+                    icon: busy
+                        ? const SizedBox.square(
+                            dimension: 15,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.refresh_rounded),
+                    label: const Text('Actualiser avec l’Avatar'),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: following ? null : _follow,
+                  icon: following
+                      ? const SizedBox.square(
+                          dimension: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.notifications_active_outlined),
+                  label: const Text('Suivre prix / disponibilité'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(45),
                   ),
                 ),
                 const SizedBox(height: 9),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: sending ? null : _send,
-                    icon: sending
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.send_rounded),
-                    label: Text(
-                      contact.policy.canBlindMessage
-                          ? 'Transmettre via WAOUH'
-                          : 'Confirmer et envoyer',
-                    ),
+                const Text(
+                  'Vous pouvez fermer cet écran : WAOUH conserve la démarche, les réponses et la prochaine action.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    color: Color(0xFF60746E),
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
             ],
-          ],
+          ),
         ),
       ),
     );
   }
-}
-
-String _watchProductPayload(_PremiumProduct product) {
-  final params = <String, String>{
-    'product_id': product.id ?? product.title,
-    'title': product.title,
-    'currency': 'XOF',
-    if (product.price != null) 'price': product.price!,
-    if (product.city != null) 'city': product.city!,
-    if (product.images.isNotEmpty) 'image_url': product.images.first.url,
-  };
-  return 'waouh:watch?${Uri(queryParameters: params).query}';
 }
 
 class _PremiumInformationPanel extends StatelessWidget {

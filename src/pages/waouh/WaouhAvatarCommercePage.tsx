@@ -1,8 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
-  BadgeCheck,
   Bot,
   Handshake,
   Loader2,
@@ -10,7 +9,6 @@ import {
   Radar,
   Search,
   ShieldCheck,
-  ShoppingBag,
   Sparkles,
 } from "lucide-react";
 
@@ -18,14 +16,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
-import { getWaouhSessionId } from "@/app-mobile/hooks/useWaouhIdentity";
 import {
   globalNexusDiscovery,
-  prepareNexusContact,
-  sendNexusDiscoveryContact,
+  startNexusJourney,
+  contactNexusJourney,
+  followNexusJourney,
+  offerNexusJourney,
+  listNexusJourneys,
   type NexusDiscoveryResult,
+  type NexusOpportunityJourney,
 } from "@/lib/waouh/nexus";
 
 type Mode = "acheter" | "vendre" | "demander";
@@ -129,6 +130,27 @@ export default function WaouhAvatarCommercePage() {
   const [results, setResults] = useState<NexusDiscoveryResult[]>([]);
   const [sourceMix, setSourceMix] = useState<Record<string, number>>({});
   const [rationale, setRationale] = useState("");
+  const [journeys, setJourneys] = useState<Record<string, NexusOpportunityJourney>>({});
+  const [offerTarget, setOfferTarget] = useState<NexusDiscoveryResult | null>(null);
+  const [offerValue, setOfferValue] = useState("");
+
+  const journeyMode: "buy" | "sell" | "ask" =
+    mode === "acheter" ? "buy" : mode === "vendre" ? "sell" : "ask";
+
+  useEffect(() => {
+    let active = true;
+    void listNexusJourneys()
+      .then((data) => {
+        if (!active) return;
+        const map: Record<string, NexusOpportunityJourney> = {};
+        for (const journey of data.journeys || []) {
+          if (journey.mode === journeyMode) map[journey.fabric_id] = journey;
+        }
+        setJourneys(map);
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [journeyMode]);
 
   const sources = useMemo(
     () => Object.entries(sourceMix).filter(([, count]) => Number(count) > 0),
@@ -163,75 +185,137 @@ export default function WaouhAvatarCommercePage() {
     }
   };
 
+  const rememberJourney = (journey: NexusOpportunityJourney) => {
+    setJourneys((current) => ({ ...current, [journey.fabric_id]: journey }));
+    return journey;
+  };
+
+  const ensureJourney = async (item: NexusDiscoveryResult) => {
+    const existing = journeys[item.fabric_id];
+    if (existing) return existing;
+    const title = item.subject || item.raw_text || "Opportunité WAOUH";
+    const data = await startNexusJourney({
+      fabric_id: item.fabric_id,
+      mode: journeyMode,
+      title,
+      city: item.city || city.trim() || undefined,
+      goal: goal.trim() || title,
+      asking_price: mode === "vendre" ? Number(budget) || undefined : undefined,
+    });
+    return rememberJourney(data.journey);
+  };
+
+  const primaryLabel = (item: NexusDiscoveryResult) => {
+    const journey = journeys[item.fabric_id];
+    if (journey?.state === "enriching") return "Voir la recherche de contact";
+    if (journey?.state === "contacting") return "Voir la mise en relation";
+    if (journey?.state === "waiting_response") return "Voir le suivi du contact";
+    if (journey && ["ready_to_negotiate", "negotiating", "agreed", "executing"].includes(journey.state)) {
+      return "Négocier avec mon Avatar";
+    }
+    const evidence = (item.evidence || {}) as Record<string, unknown>;
+    const articleId = String(evidence.article_id || (item.source_key === "waouh_app" ? item.source_record_id || "" : "")).trim();
+    if (articleId) return "Je suis intéressé · proposer un prix";
+    switch (item.contact_policy.level) {
+      case "C0": return "Trouver un moyen de contacter";
+      case "C1": return "Contacter avec WAOUH";
+      case "C2": return "Transmettre via WAOUH";
+      case "C3": return "Envoyer avec mon Avatar";
+      case "C4": return "Poursuivre le contact";
+      case "C5": return "Négocier";
+      default: return "Continuer avec mon Avatar";
+    }
+  };
+
+  const openOffer = (item: NexusDiscoveryResult, journey: NexusOpportunityJourney) => {
+    rememberJourney(journey);
+    setOfferTarget(item);
+    const proposed = journey.proposed_amount ?? item.price_min ?? item.price_max ?? (Number(budget) || 0);
+    setOfferValue(proposed > 0 ? String(Math.round(proposed)) : "");
+  };
+
+  const followOpportunity = async (item: NexusDiscoveryResult) => {
+    setWorkingId(item.fabric_id);
+    try {
+      const journey = await ensureJourney(item);
+      const data = await followNexusJourney({
+        journey_id: journey.id,
+        target_amount: mode === "acheter" ? Number(budget) || undefined : undefined,
+      });
+      rememberJourney(data.journey);
+      toast({
+        title: "Suivi actif",
+        description: data.message || "Ayo surveille le prix, la disponibilité et la prochaine action.",
+      });
+    } catch (error: any) {
+      toast({ title: "Suivi impossible", description: error?.message || String(error), variant: "destructive" });
+    } finally {
+      setWorkingId(null);
+    }
+  };
+
   const continueWith = async (item: NexusDiscoveryResult) => {
     setWorkingId(item.fabric_id);
     try {
-      const evidence = (item.evidence || {}) as Record<string, unknown>;
-      const articleId = String(
-        (evidence.article_id as string | undefined) ||
-          (item.source_key === "waouh_app" ? item.source_record_id || "" : "")
-      ).trim();
+      let journey = await ensureJourney(item);
+      if (["ready_to_negotiate", "negotiating", "agreed", "executing"].includes(journey.state) &&
+          journey.article_id && journey.thread_id) {
+        openOffer(item, journey);
+        return;
+      }
 
-      if (articleId) {
-        const sellerUserId = String(
-          (evidence.seller_user_id as string | undefined) ||
-            (evidence.owner_user_id as string | undefined) ||
-            (evidence.user_id as string | undefined) ||
-            ""
-        ).trim();
-        const title = item.subject || item.raw_text || "Annonce";
-        const price = item.price_min ?? item.price_max ?? null;
-        const sessionId = getWaouhSessionId();
-        const { data: authData } = await supabase.auth.getUser();
-        const text = `Je suis intéressé par « ${title} ».`;
-        const meta = {
-          source: "avatar_commerce",
-          origin_surface: "web_avatar_commerce",
-          action: "interested",
-          intent: "interested",
-          commerce_action: "interest",
-          thread_type: "product_meet",
-          article_id: articleId,
-          seller_user_id: sellerUserId || null,
-          counterpart_user_id: sellerUserId || null,
-          title,
-          city: item.city ?? null,
-          price,
-          fabric_id: item.fabric_id,
-          contactability_level: item.contact_policy.level,
-          nexus_total_score: item.scores?.total_score ?? null,
-          nexus_trust_score: item.scores?.trust_score ?? null,
-          nexus_reasons: item.scores?.reasons ?? [],
-        };
+      const message = mode === "vendre"
+        ? `Bonjour, mon Avatar WAOUH a identifié votre besoin « ${item.subject || goal} ». Je souhaite vous faire une proposition et poursuivre dans WAOUH.`
+        : `Bonjour, mon Avatar WAOUH m’accompagne au sujet de « ${item.subject || goal} ». Êtes-vous disponible pour poursuivre et négocier dans WAOUH ?`;
+      const data = await contactNexusJourney({ journey_id: journey.id, message });
+      journey = rememberJourney(data.journey);
 
-        const { data, error } = await supabase.functions.invoke("waouh-channel-in-secure", {
-          headers: { "x-waouh-session": sessionId },
-          body: {
-            channel: "web",
-            sessionId,
-            text,
-            authUserId: authData.user?.id ?? null,
-            meta,
-          },
+      if (["ready_to_negotiate", "negotiating"].includes(journey.state) &&
+          journey.article_id && journey.thread_id) {
+        openOffer(item, journey);
+      } else {
+        toast({
+          title: journey.state === "enriching" ? "Ayo poursuit la recherche" : "Démarche WAOUH active",
+          description: journey.avatar_message || journey.next_action || "Ayo conserve cette démarche et vous indiquera la prochaine étape.",
         });
-        if (error || data?.error) {
-          throw new Error(error?.message || data?.message || data?.error || "Impossible de créer le Deal Room.");
-        }
+      }
+    } catch (error: any) {
+      toast({
+        title: "WAOUH garde la démarche",
+        description: error?.message || String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setWorkingId(null);
+    }
+  };
 
+  const submitOffer = async () => {
+    if (!offerTarget) return;
+    const amount = Number(String(offerValue).replace(/[^0-9.]/g, ""));
+    if (!Number.isFinite(amount) || amount <= 0) return;
+    setWorkingId(offerTarget.fabric_id);
+    try {
+      const journey = await ensureJourney(offerTarget);
+      const data = await offerNexusJourney({ journey_id: journey.id, amount });
+      const next = rememberJourney(data.journey);
+      setOfferTarget(null);
+
+      if (next.article_id && next.thread_id) {
         const detail = {
-          article_id: data?.article_id || articleId,
-          counterpart_user_id: data?.counterpart_user_id || sellerUserId || null,
-          seller_user_id: data?.seller_user_id || sellerUserId || null,
-          buyer_user_id: data?.buyer_user_id || null,
-          thread_id: data?.thread_id || null,
-          negotiation_id: data?.negotiation_id || null,
-          deal_id: data?.deal_id || null,
-          kind: "buyer",
-          title,
-          price,
-          city: item.city ?? null,
-          seed_text: data?.reply || text,
-          source: "avatar_commerce",
+          article_id: next.article_id,
+          counterpart_user_id: next.target_waouh_user_id || null,
+          seller_user_id: journeyMode === "sell" ? null : next.target_waouh_user_id || null,
+          buyer_user_id: journeyMode === "sell" ? next.target_waouh_user_id || null : null,
+          thread_id: next.thread_id,
+          negotiation_id: next.negotiation_id || null,
+          deal_id: next.deal_id || null,
+          kind: journeyMode === "sell" ? "seller" : "buyer",
+          title: offerTarget.subject || offerTarget.raw_text || "Opportunité WAOUH",
+          price: amount,
+          city: offerTarget.city || null,
+          seed_text: next.avatar_message || "Ayo suit cette négociation.",
+          source: "avatar_opportunity",
         };
         try {
           const raw = localStorage.getItem("waouh_pending_open");
@@ -240,46 +324,22 @@ export default function WaouhAvatarCommercePage() {
           list.push(detail);
           localStorage.setItem("waouh_pending_open", JSON.stringify(list.slice(-10)));
         } catch {}
-
         navigate("/app/chat");
         window.setTimeout(() => {
           window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));
         }, 60);
         toast({
-          title: "Deal Room ouvert",
-          description: "Le vendeur est notifié. Votre Avatar vous accompagne dans la négociation.",
+          title: "Offre envoyée",
+          description: "Le Deal Room est ouvert. Ayo suit les contre-propositions jusqu’à l’accord.",
         });
-        return;
+      } else {
+        toast({
+          title: "Proposition mémorisée",
+          description: next.avatar_message || "Ayo l’enverra dès que la contrepartie rejoint WAOUH.",
+        });
       }
-
-      const prepared = await prepareNexusContact(item.fabric_id);
-      if (!prepared.contact_policy.can_auto_contact && !prepared.contact_policy.can_blind_message) {
-        throw new Error(
-          `Le niveau ${prepared.contact_policy.level} autorise la découverte, mais pas encore un contact médié.`
-        );
-      }
-
-      const message =
-        mode === "vendre"
-          ? `Bonjour, WAOUH accompagne un vendeur dont l’offre correspond à votre besoin « ${item.subject || goal} ». Souhaitez-vous poursuivre dans WAOUH ?`
-          : `Bonjour, WAOUH accompagne un utilisateur intéressé par « ${item.subject || goal} ». Souhaitez-vous poursuivre dans WAOUH ?`;
-
-      await sendNexusDiscoveryContact({
-        fabric_id: item.fabric_id,
-        message,
-        confirmed: true,
-      });
-
-      toast({
-        title: "Votre Avatar poursuit",
-        description: "La prise de contact est médiée par WAOUH ; les coordonnées privées ne sont pas révélées directement.",
-      });
     } catch (error: any) {
-      toast({
-        title: "Impossible de poursuivre",
-        description: error?.message || String(error),
-        variant: "destructive",
-      });
+      toast({ title: "Offre non envoyée", description: error?.message || String(error), variant: "destructive" });
     } finally {
       setWorkingId(null);
     }
@@ -404,6 +464,41 @@ export default function WaouhAvatarCommercePage() {
                   La mise en relation reste médiée par WAOUH selon le niveau {item.contact_policy.level}. Les coordonnées privées ne sont pas révélées directement.
                 </div>
 
+                {journeys[item.fabric_id] && (
+                  <div className="mt-3 rounded-2xl border border-blue-100 bg-slate-50/80 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[11px] font-black text-slate-900">
+                        Démarche WAOUH · {journeys[item.fabric_id].progress}%
+                      </div>
+                      <Badge variant="outline" className="rounded-full bg-white text-[9px]">
+                        {journeys[item.fabric_id].contactability_level}
+                      </Badge>
+                    </div>
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
+                      <div
+                        className="h-full rounded-full bg-blue-600 transition-all"
+                        style={{ width: `${Math.min(100, Math.max(0, journeys[item.fabric_id].progress))}%` }}
+                      />
+                    </div>
+                    {journeys[item.fabric_id].avatar_message && (
+                      <p className="mt-2 text-[10px] font-semibold leading-relaxed text-slate-600">
+                        {journeys[item.fabric_id].avatar_message}
+                      </p>
+                    )}
+                    {(journeys[item.fabric_id].contact_channel || journeys[item.fabric_id].contact_last4) && (
+                      <p className="mt-1 text-[10px] font-bold text-emerald-700">
+                        {journeys[item.fabric_id].contact_channel || "Contact"}
+                        {journeys[item.fabric_id].contact_last4 ? ` · +229 •••• ${journeys[item.fabric_id].contact_last4}` : ""}
+                      </p>
+                    )}
+                    {journeys[item.fabric_id].next_action && (
+                      <p className="mt-1 text-[10px] font-bold text-slate-800">
+                        Prochaine étape : {journeys[item.fabric_id].next_action}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <Button
                   onClick={() => void continueWith(item)}
                   disabled={workingId === item.fabric_id}
@@ -411,12 +506,20 @@ export default function WaouhAvatarCommercePage() {
                 >
                   {workingId === item.fabric_id ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : item.source_key === "waouh_app" ? (
-                    <Handshake className="mr-2 h-4 w-4" />
-                  ) : (
+                  ) : journeys[item.fabric_id]?.state === "waiting_response" ? (
                     <Radar className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Handshake className="mr-2 h-4 w-4" />
                   )}
-                  {item.source_key === "waouh_app" ? "Intéressé · ouvrir le Deal Room" : "Laisser mon Avatar poursuivre"}
+                  {primaryLabel(item)}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => void followOpportunity(item)}
+                  disabled={workingId === item.fabric_id}
+                  className="mt-2 h-11 w-full rounded-2xl"
+                >
+                  Suivre prix / disponibilité
                 </Button>
                 </div>
               </article>
@@ -432,6 +535,63 @@ export default function WaouhAvatarCommercePage() {
           </div>
         )}
       </div>
+
+      <Dialog open={!!offerTarget} onOpenChange={(open) => !open && setOfferTarget(null)}>
+        <DialogContent className="max-w-md rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>Proposer un prix</DialogTitle>
+            <DialogDescription>
+              Votre Avatar ouvre le Deal Room, transmet l’offre et suit les contre-propositions jusqu’à l’accord.
+            </DialogDescription>
+          </DialogHeader>
+          {offerTarget && (
+            <div className="space-y-3">
+              <div className="rounded-2xl bg-slate-50 p-3">
+                <div className="text-sm font-black text-slate-950">
+                  {offerTarget.subject || offerTarget.raw_text || "Opportunité WAOUH"}
+                </div>
+                {(offerTarget.price_min != null || offerTarget.price_max != null) && (
+                  <div className="mt-1 text-xs font-bold text-emerald-700">
+                    Prix observé : {Math.round(offerTarget.price_min ?? offerTarget.price_max ?? 0)} FCFA
+                  </div>
+                )}
+              </div>
+              <Input
+                value={offerValue}
+                onChange={(event) => setOfferValue(event.target.value)}
+                inputMode="numeric"
+                placeholder="Votre proposition en FCFA"
+                className="h-12 rounded-2xl"
+              />
+              <div className="grid grid-cols-3 gap-2">
+                {[1, .95, .9].map((ratio) => {
+                  const base = offerTarget.price_min ?? offerTarget.price_max ?? (Number(budget) || 0);
+                  const amount = Math.round(base * ratio);
+                  return amount > 0 ? (
+                    <Button
+                      key={ratio}
+                      type="button"
+                      variant="outline"
+                      className="rounded-xl text-xs"
+                      onClick={() => setOfferValue(String(amount))}
+                    >
+                      {amount.toLocaleString("fr-FR")}
+                    </Button>
+                  ) : null;
+                })}
+              </div>
+              <Button
+                className="h-12 w-full rounded-2xl"
+                disabled={workingId === offerTarget.fabric_id || !(Number(offerValue) > 0)}
+                onClick={() => void submitOffer()}
+              >
+                {workingId === offerTarget.fabric_id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Envoyer mon offre avec l’Avatar
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

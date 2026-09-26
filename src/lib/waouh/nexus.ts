@@ -289,7 +289,7 @@ export type NexusDiscoveryResult = {
   currency?: string | null;
   city?: string | null;
   canonical_key?: string | null;
-  contactability_level?: "C0" | "C1" | "C2" | "C3" | "C4" | string;
+  contactability_level?: "C0" | "C1" | "C2" | "C3" | "C4" | "C5" | string;
   trust_score?: number | null;
   observed_at?: string | null;
   source_url?: string | null;
@@ -306,7 +306,7 @@ export type NexusDiscoveryResult = {
     reasons: string[];
   };
   contact_policy: {
-    level: "C0" | "C1" | "C2" | "C3" | "C4";
+    level: "C0" | "C1" | "C2" | "C3" | "C4" | "C5";
     can_reveal: boolean;
     can_auto_contact: boolean;
     requires_approval: boolean;
@@ -426,6 +426,83 @@ export async function searchGooglePlacesWithNexus(input: { query: string; city?:
     results: unknown[];
     reason?: string | null;
   }>("nexus.google_places.search", input);
+}
+
+export type NexusOpportunityJourney = {
+  id: string;
+  fabric_id: string;
+  mode: "buy" | "sell" | "ask";
+  title: string;
+  state: "discovered" | "enriching" | "contact_ready" | "contacting" | "waiting_response" |
+    "ready_to_negotiate" | "negotiating" | "agreed" | "executing" | "completed" | "cancelled" | "blocked";
+  contactability_level: "C0" | "C1" | "C2" | "C3" | "C4" | "C5";
+  progress: number;
+  source_key?: string | null;
+  source_url?: string | null;
+  actor_name?: string | null;
+  city?: string | null;
+  article_id?: string | null;
+  target_waouh_user_id?: string | null;
+  contact_channel?: string | null;
+  contact_last4?: string | null;
+  thread_id?: string | null;
+  negotiation_id?: string | null;
+  deal_id?: string | null;
+  proposed_amount?: number | null;
+  next_action?: string | null;
+  avatar_message?: string | null;
+  timeline: Array<{ key: string; label: string; threshold: number; done: boolean; current: boolean }>;
+};
+
+export async function startNexusJourney(input: {
+  fabric_id: string;
+  mode: "buy" | "sell" | "ask";
+  title: string;
+  city?: string;
+  goal?: string;
+  asking_price?: number;
+}) {
+  return invokeWaouhAgentic<{ journey: NexusOpportunityJourney; contact_preview?: {
+    channel?: string | null; last4?: string | null; level?: string | null; public_business?: boolean;
+  } | null }>("nexus.journey.start", input);
+}
+
+export async function getNexusJourney(journeyId: string) {
+  return invokeWaouhAgentic<{ journey: NexusOpportunityJourney; events: unknown[] }>(
+    "nexus.journey.status",
+    { journey_id: journeyId },
+  );
+}
+
+export async function listNexusJourneys() {
+  return invokeWaouhAgentic<{ journeys: NexusOpportunityJourney[] }>(
+    "nexus.journey.list",
+    { limit: 50 },
+  );
+}
+
+export async function contactNexusJourney(input: { journey_id: string; message?: string }) {
+  return invokeWaouhAgentic<{ journey: NexusOpportunityJourney; queued?: boolean; blind?: boolean }>(
+    "nexus.journey.contact",
+    input,
+  );
+}
+
+export async function followNexusJourney(input: { journey_id: string; target_amount?: number }) {
+  return invokeWaouhAgentic<{ journey: NexusOpportunityJourney; watch_id?: string; message?: string }>(
+    "nexus.journey.follow",
+    input,
+  );
+}
+
+export async function offerNexusJourney(input: { journey_id: string; amount: number }) {
+  return invokeWaouhAgentic<{
+    journey: NexusOpportunityJourney;
+    negotiation?: Record<string, unknown>;
+    thread_id?: string | null;
+    negotiation_id?: string | null;
+    deal_id?: string | null;
+  }>("nexus.journey.offer", input);
 }
 
 export async function prepareNexusContact(fabricId: string) {

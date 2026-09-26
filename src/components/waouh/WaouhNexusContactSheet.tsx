@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ExternalLink, Loader2, MessageCircle, Send, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
@@ -60,24 +61,6 @@ export function WaouhNexusContactSheet({
     };
   }, [fabricId, open, prepared?.fabric_id, title, toast, user]);
 
-  const openContact = (channel: string, value: string) => {
-    if (channel === "whatsapp") {
-      const digits = value.replace(/\D/g, "");
-      window.open(`https://wa.me/${digits}`, "_blank", "noopener,noreferrer");
-      return;
-    }
-    if (channel === "phone") {
-      window.location.href = `tel:${value}`;
-      return;
-    }
-    if (channel === "email") {
-      window.location.href = `mailto:${value}`;
-      return;
-    }
-    if (/^https?:/i.test(value)) {
-      window.open(value, "_blank", "noopener,noreferrer");
-    }
-  };
 
   const send = async () => {
     if (!prepared || !message.trim()) return;
@@ -107,13 +90,19 @@ export function WaouhNexusContactSheet({
   };
 
   const label =
-    contactabilityLevel === "C2"
-      ? "Transmettre via WAOUH"
-      : contactabilityLevel === "C3" || contactabilityLevel === "C4"
-        ? "Laisser Muse poursuivre"
-        : contactabilityLevel === "C1"
-          ? "Contacter"
-          : "Voir le contact";
+    contactabilityLevel === "C0"
+      ? "Trouver un moyen de contacter"
+      : contactabilityLevel === "C1"
+        ? "Contacter avec WAOUH"
+        : contactabilityLevel === "C2"
+          ? "Transmettre via WAOUH"
+          : contactabilityLevel === "C3"
+            ? "Envoyer avec mon Avatar"
+            : contactabilityLevel === "C4"
+              ? "Suivre le contact"
+              : contactabilityLevel === "C5"
+                ? "Négocier"
+                : "Continuer avec WAOUH";
 
   return (
     <Sheet open={open} onOpenChange={(value) => {
@@ -149,7 +138,7 @@ export function WaouhNexusContactSheet({
           </div>
         ) : busy && !prepared ? (
           <div className="mt-6 flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" /> Muse vérifie la politique de contact…
+            <Loader2 className="h-4 w-4 animate-spin" /> L’Avatar vérifie la politique de contact…
           </div>
         ) : prepared ? (
           <div className="mt-5 space-y-4">
@@ -168,7 +157,7 @@ export function WaouhNexusContactSheet({
                   className="mt-3"
                   onClick={() => window.open(prepared.source_url || sourceUrl!, "_blank", "noopener,noreferrer")}
                 >
-                  <ExternalLink className="mr-1 h-3.5 w-3.5" /> Voir la source
+                  <ExternalLink className="mr-1 h-3.5 w-3.5" /> Voir la preuve source
                 </Button>
               )}
             </div>
@@ -178,15 +167,10 @@ export function WaouhNexusContactSheet({
                 <div className="text-xs font-semibold">Contacts autorisés</div>
                 <div className="flex flex-wrap gap-2">
                   {prepared.contacts.map((contact) => (
-                    <Button
-                      key={contact.id}
-                      size="sm"
-                      variant="outline"
-                      onClick={() => openContact(contact.channel, contact.value)}
-                    >
-                      {contact.channel === "whatsapp" ? "WhatsApp" : contact.channel === "email" ? "Email" : contact.channel === "phone" ? "Appeler" : contact.channel}
-                      {contact.value_last4 ? ` · …${contact.value_last4}` : ""}
-                    </Button>
+                    <Badge key={contact.id} variant="outline" className="rounded-full bg-white px-3 py-2">
+                      {contact.channel === "whatsapp" ? "WhatsApp" : contact.channel === "email" ? "Email" : contact.channel === "phone" ? "Téléphone" : contact.channel}
+                      {contact.value_last4 ? ` · …${contact.value_last4}` : " · vérifié"}
+                    </Badge>
                   ))}
                 </div>
               </div>
@@ -197,7 +181,7 @@ export function WaouhNexusContactSheet({
                 <div className="text-xs font-semibold">
                   {prepared.contact_policy.can_blind_message
                     ? "WAOUH transmet votre proposition sans révéler les coordonnées"
-                    : "Message que Muse peut transmettre"}
+                    : "Message que votre Avatar peut transmettre"}
                 </div>
                 <Textarea value={message} onChange={(event) => setMessage(event.target.value)} rows={3} />
                 <Button size="sm" disabled={busy || !message.trim()} onClick={() => void send()}>

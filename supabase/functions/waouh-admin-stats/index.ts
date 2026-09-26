@@ -81,7 +81,7 @@ serve(async (req) => {
       if (contacts.error) throw contacts.error;
       if (fabric.error) throw fabric.error;
       const byLevel = (rows: any[] | null) => {
-        const out: Record<string, number> = { C0: 0, C1: 0, C2: 0, C3: 0, C4: 0 };
+        const out: Record<string, number> = { C0: 0, C1: 0, C2: 0, C3: 0, C4: 0, C5: 0 };
         for (const row of rows ?? []) {
           const key = String(row?.contactability_level ?? "C0");
           out[key] = (out[key] ?? 0) + 1;
@@ -93,7 +93,8 @@ serve(async (req) => {
         { level: "C1", label: "Contact professionnel public", can_reveal: true, can_auto_contact: false, requires_approval: false },
         { level: "C2", label: "Conversation privée / blind matching", can_reveal: false, can_auto_contact: false, requires_approval: true },
         { level: "C3", label: "Opt-in commercial", can_reveal: true, can_auto_contact: true, requires_approval: true },
-        { level: "C4", label: "Agent ↔ Agent", can_reveal: true, can_auto_contact: true, requires_approval: false },
+        { level: "C4", label: "Contact établi / Agent ↔ Agent", can_reveal: true, can_auto_contact: true, requires_approval: false },
+        { level: "C5", label: "Conversation établie · prêt à négocier", can_reveal: false, can_auto_contact: true, requires_approval: false },
       ];
       return new Response(JSON.stringify({
         ok: true,
@@ -107,7 +108,7 @@ serve(async (req) => {
       const sourceKey = String(requestBody.source_key ?? "");
       const level = String(requestBody.default_contactability ?? "");
       const trust = Number(requestBody.trust_weight);
-      const allowedLevels = new Set(["C0", "C1", "C2", "C3", "C4"]);
+      const allowedLevels = new Set(["C0", "C1", "C2", "C3", "C4", "C5"]);
       if (!allowedLevels.has(level)) throw new Error("Niveau de contactabilité invalide.");
       if (!Number.isFinite(trust) || trust < 0 || trust > 1) throw new Error("Le poids de confiance doit être compris entre 0 et 1.");
       const { data: source, error: sourceError } = await sb.from("waouh_discovery_sources")
@@ -115,6 +116,7 @@ serve(async (req) => {
       if (sourceError) throw sourceError;
       if (!source) throw new Error("Source inconnue.");
       const permitted =
+        level === "C5" ? false :
         level === "C4" ? (source.source_key === "partner" || source.family === "partner") :
         level === "C3" ? (source.supports_contact === true && ["partner","telephony","messaging","internal"].includes(source.family)) :
         level === "C2" ? source.supports_contact === true :

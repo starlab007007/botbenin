@@ -18,6 +18,8 @@ import {
   requiresNativeEngineAuthorization,
 } from "../_shared/waouh-tel/native-engine-auth.ts";
 import { telRuntimeSecret } from "../_shared/waouh-tel/runtime-secret.ts";
+import { hashPhone } from "../_shared/waouh-tel/crypto.ts";
+import { normalizeE164, phoneLast4 } from "../_shared/waouh-tel/phone.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -266,6 +268,191 @@ async function ai(system: string, user: string, json = true) {
   return txt;
 }
 
+
+async function bridgeAvatarOpportunityFromInbound(sb: any, user: any, rawPhone: string | null | undefined) {
+  if (!user?.id || !rawPhone || String(rawPhone).startsWith("web:")) return;
+  const e164 = normalizeE164(rawPhone);
+  if (!e164) return;
+  let phoneHash: string;
+  try {
+    phoneHash = await hashPhone(e164);
+  } catch (error) {
+    console.warn("[avatar-journey] phone hash unavailable", error);
+    return;
+  }
+
+  const { data: contacts, error: contactError } = await sb.from("waouh_entity_contacts")
+    .select("id,entity_id,channel,value_last4,contactability_level")
+    .eq("value_hash", phoneHash)
+    .limit(20);
+  if (contactError || !contacts?.length) return;
+  const contactIds = contacts.map((row: any) => row.id).filter(Boolean);
+  if (!contactIds.length) return;
+
+  const { data: journeys, error: journeyError } = await sb.from("waouh_opportunity_journeys")
+    .select("*")
+    .in("contact_id", contactIds)
+    .in("state", ["contact_ready","contacting","waiting_response","enriching"])
+    .order("updated_at", { ascending: false })
+    .limit(50);
+  if (journeyError || !journeys?.length) return;
+
+  for (const journey of journeys) {
+    try {
+      let articleId: string | null = journey.article_id ?? null;
+      let signal: any = null;
+      if (String(journey.fabric_id || "").startsWith("external:")) {
+        const signalId = String(journey.fabric_id).slice("external:".length);
+        const { data } = await sb.from("waouh_external_commerce_signals")
+          .select("*").eq("id", signalId).maybeSingle();
+        signal = data;
+      }
+
+      // The external contact has now answered through a WAOUH-controlled
+      // channel. For buy/ask journeys, materialize the opportunity as a
+      // canonical WAOUH article owned by the responding counterparty. From
+      // this point negotiation and Deal Graph remain fully in-platform.
+      if (!articleId && journey.mode !== "sell") {
+        const evidence = signal?.evidence && typeof signal.evidence === "object" ? signal.evidence : {};
+        const rawPhotos = [
+          evidence?.image_url,
+          evidence?.photo,
+          evidence?.thumbnail,
+          ...(Array.isArray(evidence?.photos) ? evidence.photos : []),
+        ];
+        const photos = [...new Set(rawPhotos
+          .map((value: unknown) => String(value || "").trim())
+          .filter((value: string) => /^https?:\/\//i.test(value)))].slice(0, 6);
+        const price = Math.max(
+          0,
+          Number(signal?.price_min ?? signal?.price_max ?? journey.proposed_amount ?? 0) || 0,
+        );
+        const { data: existing } = await sb.from("waouh_articles")
+          .select("id")
+          .eq("seller_id", user.id)
+          .contains("ai_attributes", { avatar_journey_id: journey.id })
+          .limit(1).maybeSingle();
+        if (existing?.id) {
+          articleId = existing.id;
+        } else {
+          const { data: created, error } = await sb.from("waouh_articles").insert({
+            seller_id: user.id,
+            title: journey.title || signal?.product_name || "Opportunité WAOUH",
+            description: signal?.raw_text || "Opportunité qualifiée par l'Avatar WAOUH.",
+            category: normalizeCategory(signal?.category),
+            condition: ["new","like_new","good","fair","poor"].includes(String(signal?.condition))
+              ? signal.condition : "good",
+            price,
+            currency: "XOF",
+            photos,
+            city: journey.city ?? signal?.city ?? user.city ?? null,
+            status: "active",
+            origin: "avatar",
+            source_channel: "nexus_external",
+            ai_attributes: {
+              avatar_journey_id: journey.id,
+              fabric_id: journey.fabric_id,
+              external_signal_id: signal?.id ?? null,
+              generated_after_counterparty_response: true,
+            },
+          }).select("id").single();
+          if (!error && created?.id) articleId = created.id;
+          else if (error) console.warn("[avatar-journey] article bridge", error.message);
+        }
+      }
+
+      const { data: ownerUser } = await sb.from("waouh_users")
+        .select("*").eq("auth_user_id", journey.owner_id)
+        .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+
+      let threadId: string | null = journey.thread_id ?? null;
+      if (articleId && ownerUser?.id) {
+        const role = journey.mode === "sell" ? "seller" : "buyer";
+        try {
+          const thread = await resolveProductThread({
+            sb,
+            articleId,
+            actorUser: ownerUser,
+            role,
+            counterpartUserId: user.id,
+            buyerUserId: role === "seller" ? user.id : ownerUser.id,
+            sellerUserId: role === "buyer" ? user.id : ownerUser.id,
+            preferredThreadId: threadId,
+            source: "avatar_external_response",
+            create: true,
+          });
+          threadId = thread?.id ?? threadId;
+        } catch (threadError) {
+          console.warn("[avatar-journey] thread bridge", threadError);
+        }
+      }
+
+      const nextAction = articleId && threadId
+        ? "Proposer votre prix"
+        : journey.mode === "sell"
+          ? "Définir l'offre à vendre puis négocier"
+          : "Ayo prépare le Deal Room";
+      const avatarMessage = articleId && threadId
+        ? "La contrepartie a répondu. Contact C5 : Ayo a créé le Deal Room et peut conduire la négociation."
+        : "La contrepartie a répondu dans WAOUH. Ayo conserve le contexte et prépare la prochaine étape.";
+
+      const { data: updated } = await sb.from("waouh_opportunity_journeys").update({
+        article_id: articleId,
+        target_waouh_user_id: user.id,
+        thread_id: threadId,
+        contactability_level: "C5",
+        state: "ready_to_negotiate",
+        contact_channel: "whatsapp",
+        contact_last4: phoneLast4(e164),
+        last_response_at: new Date().toISOString(),
+        next_action: nextAction,
+        avatar_message: avatarMessage,
+      }).eq("id", journey.id).select("*").single();
+      if (!updated) continue;
+
+      await sb.from("waouh_opportunity_events").insert({
+        journey_id: journey.id,
+        owner_id: journey.owner_id,
+        event_type: "counterparty_replied",
+        from_state: journey.state,
+        to_state: "ready_to_negotiate",
+        contactability_level: "C5",
+        payload: {
+          channel: "whatsapp",
+          contact_last4: phoneLast4(e164),
+          target_waouh_user_id: user.id,
+          article_id: articleId,
+          thread_id: threadId,
+        },
+      });
+
+      if (ownerUser?.id) {
+        await sb.from("waouh_notifications").insert({
+          thread_id: threadId,
+          user_id: ownerUser.id,
+          web_session_id: ownerUser.web_session_id ?? null,
+          article_id: articleId,
+          notification_type: "avatar_counterparty_replied",
+          photos: [],
+          dedupe_key: `avatar-reply:${journey.id}:${user.id}`,
+          payload: {
+            text: "✅ Réponse reçue. Ayo est prêt à poursuivre la négociation dans WAOUH.",
+            journey_id: journey.id,
+            thread_id: threadId,
+            workflow_state: "ready_to_negotiate",
+            contactability_level: "C5",
+          },
+          channel: "waouh_app",
+          delivery_status: "delivered",
+          delivered_at: new Date().toISOString(),
+        });
+      }
+    } catch (error) {
+      console.warn("[avatar-journey] inbound bridge failed", journey?.id, error);
+    }
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -333,6 +520,13 @@ serve(async (req) => {
         location: `SRID=4326;POINT(${lng} ${lat})` as any,
       }).select().single();
       user = created;
+    }
+
+    // A reply to an Avatar-mediated external opportunity must never become a
+    // disconnected generic WhatsApp chat. Promote the contact to C5 and bind
+    // it back to the persistent WAOUH journey before normal intent handling.
+    if (channel === "whatsapp" && user?.id && phone) {
+      await bridgeAvatarOpportunityFromInbound(sb, user, phone);
     }
 
     // Pré-détection règles déterministes (avant AI)

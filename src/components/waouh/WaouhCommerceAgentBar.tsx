@@ -3,13 +3,13 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { WaouhMuseAvatar, type WaouhMuseMode, type WaouhMusePhase } from "./WaouhMuseAvatar";
 
-export type ContactabilityLevel = "C0" | "C1" | "C2" | "C3" | "C4";
+export type ContactabilityLevel = "C0" | "C1" | "C2" | "C3" | "C4" | "C5";
 
 export function contactabilityPresentation(level?: string | null) {
   const normalized = String(level || "").toUpperCase() as ContactabilityLevel;
   switch (normalized) {
     case "C4":
-      return { level: normalized, label: "Agent connecté", detail: "Muse peut poursuivre selon vos règles.", tone: "emerald" as const };
+      return { level: normalized, label: "Agent connecté", detail: "Votre Avatar peut poursuivre dans WAOUH.", tone: "emerald" as const };
     case "C3":
       return { level: normalized, label: "Contact autorisé", detail: "Contact possible avec consentement.", tone: "emerald" as const };
     case "C2":
@@ -56,7 +56,7 @@ const PHASE_LABEL: Record<WaouhMusePhase, string> = {
   searching: "NEXUS cherche",
   comparing: "Signal Fabric compare",
   contacting: "Prépare le contact",
-  negotiating: "Muse négocie",
+  negotiating: "Votre Avatar négocie",
   success: "Objectif atteint",
 };
 
@@ -65,9 +65,9 @@ const PHASE_DETAIL: Record<WaouhMusePhase, string> = {
   listening: "WAOUH transforme votre demande en objectif commercial.",
   searching: "WAOUH explore les sources utiles sans exposer vos données privées.",
   comparing: "Les signaux sont classés par pertinence, confiance, prix, proximité et fraîcheur.",
-  contacting: "Le Contact Layer applique les permissions C0–C4 avant toute action.",
+  contacting: "Le Contact Layer applique les permissions C0–C5 avant toute action.",
   negotiating: "Une seule négociation active est suivie avec votre contrôle.",
-  success: "Muse peut conserver la veille si vous souhaitez continuer à surveiller le marché.",
+  success: "Votre Avatar peut conserver la veille si vous souhaitez continuer à surveiller le marché.",
 };
 
 const STEP_ORDER: WaouhMusePhase[] = ["listening", "searching", "comparing", "contacting"];
