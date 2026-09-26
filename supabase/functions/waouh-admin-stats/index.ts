@@ -243,7 +243,20 @@ serve(async (req) => {
     const connectorProblems = safeConnectors.filter((row: any) =>
       row.active && (!row.configured || row.last_test_status === "ko" || row.last_sync_status === "ko")
     );
+    const connectorQuotaRisks = safeConnectors
+      .filter((row: any) => row.active && Number(row.daily_quota || 0) > 0)
+      .map((row: any) => ({
+        ...row,
+        quota_pct: Math.round((Number(row.usage_today || 0) / Math.max(1, Number(row.daily_quota || 1))) * 100),
+      }))
+      .filter((row: any) => row.quota_pct >= 80);
     const sourceNeverScanned = sourceRows.filter((row: any) => row.active && !row.last_scan_at).length;
+    const sourceOverdue = sourceRows.filter((row: any) => {
+      if (!row.active || !row.last_scan_at) return false;
+      const intervalMs = Math.max(5, Number(row.scan_freq_min || 60)) * 60_000;
+      const last = new Date(row.last_scan_at).getTime();
+      return Number.isFinite(last) && now - last > intervalMs * 2;
+    }).length;
     const activeWhatsAppAccounts = waAccounts.filter((row: any) =>
       ["WORKING", "connected"].includes(String(row.status)) || row.waha_authenticated === true
     ).length;
@@ -261,7 +274,12 @@ serve(async (req) => {
     if (pendingAgentApprovals > 0) addAlert("info", "agent_approvals", "Approbations Agents IA", `${pendingAgentApprovals} action(s) attendent une décision humaine.`, "/app/missions");
     if ((diffusionPending.count ?? 0) > 0) addAlert("info", "diffusion_approvals", "Diffusions à valider", `${diffusionPending.count ?? 0} campagne(s) en attente.`, "/admin/waouh/diffusion-approvals");
     if (connectorProblems.length > 0) addAlert("warning", "connector_problems", "Connecteurs NEXUS", `${connectorProblems.length} connecteur(s) actif(s) nécessitent une action.`, "/admin/waouh?tab=radar");
+    if (connectorQuotaRisks.length > 0) {
+      const maxRisk = Math.max(...connectorQuotaRisks.map((row: any) => Number(row.quota_pct || 0)));
+      addAlert(maxRisk >= 95 ? "critical" : "warning", "connector_quota", "Quotas API NEXUS", `${connectorQuotaRisks.length} connecteur(s) ont consommé au moins 80 % de leur quota journalier.`, "/admin/waouh?tab=radar");
+    }
     if (sourceNeverScanned > 0) addAlert("info", "sources_never_scanned", "Sources jamais collectées", `${sourceNeverScanned} source(s) actives n'ont encore jamais été scannées.`, "/admin/waouh?tab=radar");
+    if (sourceOverdue > 0) addAlert("warning", "sources_overdue", "Collectes NEXUS en retard", `${sourceOverdue} source(s) dépassent deux fois leur fréquence de scan configurée.`, "/admin/waouh?tab=radar");
     const whatsappControl = (controls.data ?? []).find((row: any) => row.module_key === "chat_whatsapp");
     if (whatsappControl?.enabled && activeWhatsAppAccounts === 0) {
       addAlert("warning", "whatsapp_no_session", "WhatsApp sans session active", "Le module est activé mais aucune session WAHA opérationnelle n'est détectée.", "/admin/waouh/whatsapp-ops");
@@ -304,9 +322,11 @@ serve(async (req) => {
           matches_24h: matchRows.length,
           match_status_24h: countBy(matchRows, "status"),
           connectors: safeConnectors,
+          connector_quota_risks: connectorQuotaRisks,
           sources_total: sourceRows.length,
           sources_active: sourceRows.filter((row: any) => row.active).length,
           sources_never_scanned: sourceNeverScanned,
+          sources_overdue: sourceOverdue,
           radar_auto: radarAuto.data ?? null,
         },
         negotiation: {
