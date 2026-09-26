@@ -5,6 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
 import { getRadarApiKey, incrementRadarUsage, markRadarProviderSync } from "../_shared/radar-api-config.ts";
 import { normalizeE164 } from "../_shared/waouh-tel/phone.ts";
 
@@ -58,6 +59,16 @@ Deno.serve(async (req) => {
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   try {
+    const control = await getWaouhModuleControl(sb, "nexus");
+    if (!control.enabled || !control.automation_enabled) {
+      return new Response(JSON.stringify({
+        ok: true,
+        skipped: true,
+        reason: !control.enabled ? "nexus_paused" : "nexus_automation_paused",
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const key = await getRadarApiKey(sb, "firecrawl", "FIRECRAWL_API_KEY");
     if (!key.ok || !key.key) {
       return new Response(JSON.stringify({ ok: false, skipped: true, reason: key.reason || "firecrawl_not_ready" }), {
