@@ -2797,6 +2797,40 @@ Retourne uniquement JSON:
         const ownerWaouhUser = await getOrCreateNexusUser(
           sb, ownerId, authUser.email?.split("@")[0] ?? "Utilisateur WAOUH",
         );
+
+        // Seller journeys may originate from a buyer signal rather than an
+        // existing catalogue article. The first explicit price is sufficient
+        // to materialize a canonical WAOUH offer owned by the seller, so the
+        // negotiation can still enter the same Deal Graph.
+        if (journey.mode === "sell" && !journey.article_id && journey.target_waouh_user_id) {
+          const { data: createdArticle, error: articleError } = await sb.from("waouh_articles").insert({
+            seller_id: ownerWaouhUser.id,
+            title: journey.title || "Offre Avatar WAOUH",
+            description: `Offre créée par l'Avatar pour la démarche ${journey.id}.`,
+            category: "autre",
+            condition: "good",
+            price: amount,
+            currency: "XOF",
+            photos: [],
+            city: journey.city ?? null,
+            status: "active",
+            origin: "avatar",
+            source_channel: "waouh_app",
+            ai_attributes: {
+              avatar_journey_id: journey.id,
+              fabric_id: journey.fabric_id,
+              created_from_seller_offer: true,
+            },
+          }).select("id").single();
+          if (articleError) throw new ApiError(500, "nexus_journey_article_create_failed", articleError.message);
+          journey = await updateOpportunityJourney(
+            sb, ownerId, journey,
+            { article_id: createdArticle.id },
+            "seller_offer_materialized",
+            { amount, article_id: createdArticle.id },
+          );
+        }
+
         if (!journey.article_id || !journey.target_waouh_user_id) {
           journey = await updateOpportunityJourney(
             sb, ownerId, journey,
