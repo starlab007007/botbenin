@@ -289,7 +289,7 @@ export type NexusDiscoveryResult = {
   currency?: string | null;
   city?: string | null;
   canonical_key?: string | null;
-  contactability_level?: "C0" | "C1" | "C2" | "C3" | "C4" | string;
+  contactability_level?: "C0" | "C1" | "C2" | "C3" | "C4" | "C5" | string;
   trust_score?: number | null;
   observed_at?: string | null;
   source_url?: string | null;
@@ -306,7 +306,7 @@ export type NexusDiscoveryResult = {
     reasons: string[];
   };
   contact_policy: {
-    level: "C0" | "C1" | "C2" | "C3" | "C4";
+    level: "C0" | "C1" | "C2" | "C3" | "C4" | "C5";
     can_reveal: boolean;
     can_auto_contact: boolean;
     requires_approval: boolean;
@@ -428,6 +428,51 @@ export async function searchGooglePlacesWithNexus(input: { query: string; city?:
   }>("nexus.google_places.search", input);
 }
 
+export type NexusOpportunityJourney = {
+  id: string;
+  fabric_id: string;
+  mode: "buy" | "sell" | "ask";
+  stage: "discovered" | "enriching" | "contact_ready" | "contacting" | "waiting_reply" | "negotiating" | "agreed" | "executing" | "completed" | "cancelled";
+  contactability_level: "C0" | "C1" | "C2" | "C3" | "C4" | "C5";
+  progress: number;
+  source_key?: string | null;
+  source_url?: string | null;
+  subject?: string | null;
+  contact_channel?: string | null;
+  masked_contact?: Record<string, unknown>;
+  last_action?: string | null;
+  next_action?: string | null;
+  last_message?: string | null;
+  timeline?: Array<Record<string, unknown>>;
+  article_id?: string | null;
+  thread_id?: string | null;
+  negotiation_id?: string | null;
+  deal_id?: string | null;
+};
+
+export async function startNexusOpportunity(fabricId: string, mode: "buy" | "sell" | "ask" = "buy") {
+  return invokeWaouhAgentic<{
+    journey: NexusOpportunityJourney;
+    contact_policy: NexusDiscoveryResult["contact_policy"];
+    next_action: string;
+    internal_article: boolean;
+  }>("nexus.opportunity.start", { fabric_id: fabricId, mode });
+}
+
+export async function enrichNexusOpportunity(fabricId: string, mode: "buy" | "sell" | "ask" = "buy") {
+  return invokeWaouhAgentic<{
+    journey: NexusOpportunityJourney;
+    contact_policy: NexusDiscoveryResult["contact_policy"];
+    public_channels: string[];
+    masked_contact: Record<string, unknown>;
+    next_action: string;
+  }>("nexus.opportunity.enrich", { fabric_id: fabricId, mode });
+}
+
+export async function getNexusOpportunityStatus(input: { journey_id?: string; fabric_id?: string }) {
+  return invokeWaouhAgentic<{ journey: NexusOpportunityJourney }>("nexus.opportunity.status", input);
+}
+
 export async function prepareNexusContact(fabricId: string) {
   return invokeWaouhAgentic<{
     fabric_id: string;
@@ -436,7 +481,7 @@ export async function prepareNexusContact(fabricId: string) {
     actor_name?: string | null;
     product_name?: string | null;
     contact_policy: {
-      level: "C0" | "C1" | "C2" | "C3" | "C4";
+      level: "C0" | "C1" | "C2" | "C3" | "C4" | "C5";
       can_reveal: boolean;
       can_auto_contact: boolean;
       requires_approval: boolean;
