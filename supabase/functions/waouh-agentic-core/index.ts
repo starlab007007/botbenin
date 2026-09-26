@@ -1622,6 +1622,67 @@ Deno.serve(async (req: Request) => {
         }
         await audit(sb, ownerId, `approval.${decision}`, "approval", approvalId, { action_type: approval.action_type }, approval.mission_id);
         await enqueue(sb, ownerId, `approval.${decision}`, "approval", approvalId, { approval_id: approvalId }, `approval.${decision}:${approvalId}`, approval.mission_id);
+
+        // Blind Contact Layer acceptance is the bridge C2 -> C5. The sender's
+        // persistent journey advances automatically; neither party has to
+        // rediscover the opportunity or guess what to do next.
+        const approvalContext = approval.context && typeof approval.context === "object"
+          ? approval.context as Record<string, any>
+          : {};
+        if (decision === "approved" && approvalContext.journey_id && approvalContext.from_auth_user) {
+          try {
+            const { data: targetUser } = await sb.from("waouh_users")
+              .select("id").eq("auth_user_id", ownerId)
+              .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+            const { data: senderJourney } = await sb.from("waouh_opportunity_journeys")
+              .select("*")
+              .eq("id", String(approvalContext.journey_id))
+              .eq("owner_id", String(approvalContext.from_auth_user))
+              .maybeSingle();
+            if (senderJourney?.id) {
+              const next = await updateOpportunityJourney(
+                sb,
+                String(approvalContext.from_auth_user),
+                senderJourney,
+                {
+                  state: "ready_to_negotiate",
+                  contactability_level: "C5",
+                  target_waouh_user_id: targetUser?.id ?? senderJourney.target_waouh_user_id ?? null,
+                  last_response_at: new Date().toISOString(),
+                  next_action: senderJourney.article_id ? "Proposer votre prix" : "Ayo prépare la négociation dans WAOUH",
+                  avatar_message: "La contrepartie a accepté la mise en relation. Ayo vous conduit maintenant vers la négociation.",
+                },
+                "blind_contact_accepted",
+                { approval_id: approvalId },
+              );
+              const { data: senderUser } = await sb.from("waouh_users")
+                .select("id,web_session_id").eq("auth_user_id", String(approvalContext.from_auth_user))
+                .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+              if (senderUser?.id) {
+                await sb.from("waouh_notifications").insert({
+                  user_id: senderUser.id,
+                  web_session_id: senderUser.web_session_id ?? null,
+                  article_id: next.article_id ?? null,
+                  notification_type: "avatar_contact_ready",
+                  photos: [],
+                  dedupe_key: `avatar-contact-ready:${next.id}:${approvalId}`,
+                  payload: {
+                    text: "✅ Contact établi. Ayo est prêt à ouvrir la négociation.",
+                    journey_id: next.id,
+                    workflow_state: "ready_to_negotiate",
+                    contactability_level: "C5",
+                  },
+                  channel: "waouh_app",
+                  delivery_status: "delivered",
+                  delivered_at: new Date().toISOString(),
+                });
+              }
+            }
+          } catch (journeyError) {
+            console.warn("[waouh-journey] approval bridge", journeyError);
+          }
+        }
+
         return jsonResponse({ ok: true, data: { approval: data } });
       }
 
@@ -3119,14 +3180,14 @@ Retourne uniquement JSON:
           } }, 202);
         }
 
-        if (!signalPolicy.can_auto_contact || !["C3","C4"].includes(signalPolicy.level)) {
+        if (!signalPolicy.can_auto_contact || !["C3","C4","C5"].includes(signalPolicy.level)) {
           throw new ApiError(403, "automated_contact_not_permitted");
         }
         if (!signal.entity_id) throw new ApiError(404, "contact_not_found");
         const { data: contacts, error: contactsError } = await sb.from("waouh_entity_contacts")
           .select("*").eq("entity_id", signal.entity_id)
           .in("channel", ["whatsapp","phone"])
-          .in("contactability_level", ["C3","C4"])
+          .in("contactability_level", ["C3","C4","C5"])
           .order("contactability_level", { ascending: false }).limit(5);
         if (contactsError) throw new ApiError(500, "nexus_contacts_failed", contactsError.message);
         const target = (contacts ?? []).find((contact: any) => !!contact.value_encrypted);
