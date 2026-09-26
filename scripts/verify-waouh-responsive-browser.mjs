@@ -63,20 +63,21 @@ function send(method, params = {}) {
 
 async function connectCdp() {
   const started = Date.now();
-  let version;
+  let pageTarget;
   while (Date.now() - started < 15000) {
     try {
-      const response = await fetch(`http://127.0.0.1:${port}/json/version`);
+      const response = await fetch(`http://127.0.0.1:${port}/json/list`);
       if (response.ok) {
-        version = await response.json();
-        break;
+        const targets = await response.json();
+        pageTarget = targets.find((target) => target.type === "page" && target.webSocketDebuggerUrl);
+        if (pageTarget) break;
       }
     } catch {}
     await sleep(200);
   }
-  if (!version) fail("Chrome DevTools endpoint unavailable");
+  if (!pageTarget) fail("Chrome DevTools page target unavailable");
 
-  ws = new WebSocket(version.webSocketDebuggerUrl);
+  ws = new WebSocket(pageTarget.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => {
     ws.addEventListener("open", resolve, { once: true });
     ws.addEventListener("error", reject, { once: true });
