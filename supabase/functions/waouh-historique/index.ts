@@ -90,6 +90,68 @@ serve(async (req) => {
           : Promise.resolve({ data: [] as any[] }),
       ]);
 
+      const { data: dealRows } = negIds.length
+        ? await sb.from("waouh_deals")
+            .select("id,negotiation_id,status,payment_status,payment_method,seller_confirmed_at,buyer_payment_selected_at,courier_user_id,assigned_at,picked_up_at,delivered_at,updated_at")
+            .in("negotiation_id", negIds)
+            .order("updated_at", { ascending: false })
+        : { data: [] as any[] };
+      const dealByNeg = new Map<string, any>();
+      for (const d of dealRows || []) {
+        if (d.negotiation_id && !dealByNeg.has(d.negotiation_id)) dealByNeg.set(d.negotiation_id, d);
+      }
+      const articleById = new Map((articles || []).map((a: any) => [a.id, a]));
+
+      const workflowProgress = (n: any, d: any) => {
+        if (d) {
+          if (d.status === "completed") return 100;
+          if (d.status === "delivered") return 94;
+          if (d.status === "picked_up") return 86;
+          if (d.status === "assigned") return 78;
+          if (d.status === "pending_assignment") return 70;
+          if (d.seller_confirmed_at && d.buyer_payment_selected_at) return 68;
+          if (d.seller_confirmed_at || d.buyer_payment_selected_at) return 60;
+          if (d.status === "cancelled") return 100;
+          return 55;
+        }
+        if (n.state === "accepted") return 45;
+        if (n.state === "countered") return 35;
+        if (n.state === "closed") return 100;
+        return 20;
+      };
+      const workflowStage = (n: any, d: any) => {
+        if (!d) return n.state === "accepted" ? "Accord sans deal" : n.state;
+        const map: Record<string, string> = {
+          awaiting_confirmation: "Confirmations",
+          awaiting_payment: "Paiement à choisir",
+          pending_assignment: "Recherche livreur",
+          assigned: "Livreur assigné",
+          picked_up: "Colis collecté",
+          delivered: "Livré · paiement à confirmer",
+          completed: "Terminé",
+          cancelled: "Annulé",
+        };
+        return map[d.status] || d.status || n.state;
+      };
+      const normalizedNegotiations = (negotiations || []).map((n: any) => {
+        const d = dealByNeg.get(n.id) || null;
+        const a: any = articleById.get(n.article_id);
+        return {
+          ...n,
+          status: n.state,
+          current_price: n.last_offer_price ?? a?.price ?? null,
+          last_price: n.last_offer_price ?? null,
+          currency: a?.currency || "XOF",
+          deal_id: d?.id ?? null,
+          deal_status: d?.status ?? null,
+          workflow_progress: workflowProgress(n, d),
+          workflow_stage: workflowStage(n, d),
+          seller_confirmed: !!d?.seller_confirmed_at,
+          buyer_payment_selected: !!d?.buyer_payment_selected_at,
+          courier_assigned: !!d?.courier_user_id,
+        };
+      });
+
       // Completeness per negotiation — pass 1: direct negotiation_id match
       // pass 2: fallback via (article_id + actor in buyer/seller) or transaction_id
       // pour récupérer les traces émises avant que la négo soit liée.
@@ -142,12 +204,12 @@ serve(async (req) => {
       }
 
 
-      let filteredNeg = negotiations || [];
+      let filteredNeg = normalizedNegotiations;
       if (search) {
         const s = search.toLowerCase();
-        const articleMap = new Map((articles || []).map((a: any) => [a.id, a]));
+        const searchArticleMap = new Map((articles || []).map((a: any) => [a.id, a]));
         filteredNeg = filteredNeg.filter((n: any) => {
-          const a = articleMap.get(n.article_id);
+          const a = searchArticleMap.get(n.article_id);
           return (a?.title || "").toLowerCase().includes(s) || (n.id || "").toLowerCase().includes(s);
         });
       }
