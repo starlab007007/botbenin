@@ -1,0 +1,142 @@
+name: Build WAOUH handoff archive
+
+on:
+  push:
+    branches:
+      - prod
+    paths:
+      - ".github/workflows/waouh-handoff-archive.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout production snapshot
+        uses: actions/checkout@v4
+        with:
+          ref: prod
+          path: source-prod
+          fetch-depth: 0
+
+      - name: Checkout complete feature snapshot
+        uses: actions/checkout@v4
+        with:
+          ref: feat/waouh-avatar-deal-graph-e2e
+          path: source-feature
+          fetch-depth: 0
+
+      - name: Build continuation pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROD_SHA="$(git -C source-prod rev-parse HEAD)"
+          FEATURE_SHA="$(git -C source-feature rev-parse HEAD)"
+          mkdir -p handoff/source-prod handoff/source-feature handoff/status
+
+          rsync -a --exclude='.git' source-prod/ handoff/source-prod/
+          rsync -a --exclude='.git' source-feature/ handoff/source-feature/
+
+          git -C source-prod log --oneline --decorate -30 > handoff/status/PROD_RECENT_COMMITS.txt
+          git -C source-feature log --oneline --decorate -40 > handoff/status/FEATURE_RECENT_COMMITS.txt
+          git -C source-feature fetch origin prod:refs/remotes/origin/prod
+          git -C source-feature diff --stat origin/prod...HEAD > handoff/status/FEATURE_VS_PROD_STAT.txt || true
+          git -C source-feature diff --name-status origin/prod...HEAD > handoff/status/FEATURE_VS_PROD_FILES.txt || true
+
+          cat > handoff/HANDOFF_WAOUH_2026-09-26.md <<EOF
+          # WAOUH — Archive de reprise / Handoff
+
+          Date: 2026-09-26
+          Repository: starlab007007/botbenin
+          Supabase production: mvynepqulhflxtyymtzs
+
+          ## Références exactes
+          - Production snapshot: prod @ ${PROD_SHA}
+          - Branche complète de travail: feat/waouh-avatar-deal-graph-e2e @ ${FEATURE_SHA}
+          - Pull Request: #34 — WAOUH — Avatar Commerce Journey + factual Deal Graph intelligence
+
+          ## Point de reprise
+          Cette archive correspond au niveau atteint après:
+          - correction du WAOUH Chat et des payloads/boutons;
+          - synchronisation Deal Room Realtime et reconnexion silencieuse;
+          - NEXUS multi-source (SerpAPI, Apify, Firecrawl, Google Places, Meta/Facebook Business, Instagram Business, Telegram public, TikTok connecté/public, WhatsApp groupes autorisés, SMS/RCS, Web social et sources configurables);
+          - normalisation des contacts Bénin, détection WhatsApp et photos produit;
+          - WAOUH Admin Command Center, kill switches, audit, télémétrie, quotas et suivi;
+          - exposition visuelle des chemins Administration / WAOUH;
+          - accès direct NEXUS / Radar IA, Paramètres, WhatsApp Ops, SMS/RCS, Monitoring, Health Check, Deal Ops et Données.
+
+          ## Chemins front d'administration
+          - /admin
+          - /admin/waouh?tab=control
+          - /admin/waouh?tab=settings
+          - /admin/waouh/radar
+          - /admin/waouh/whatsapp-ops
+          - /admin/waouh/native-messaging
+          - /admin/waouh/monitoring
+          - /admin/waouh/health-check
+          - /admin/waouh/historique
+          - /admin/waouh/deals
+          - /admin/waouh/data-control
+          - /admin/waouh/diffusion-approvals
+          - /admin/waouh/partners
+          - /admin/waouh/businesses
+          - /admin/waouh/demo
+
+          ## Organisation de l'archive
+          - source-prod/: photographie exacte de prod
+          - source-feature/: photographie exacte de feat/waouh-avatar-deal-graph-e2e
+          - status/PROD_RECENT_COMMITS.txt
+          - status/FEATURE_RECENT_COMMITS.txt
+          - status/FEATURE_VS_PROD_STAT.txt
+          - status/FEATURE_VS_PROD_FILES.txt
+          - CONTINUE_NEW_CHAT.txt
+
+          ## Consigne de reprise recommandée
+          Utiliser la branche feat/waouh-avatar-deal-graph-e2e comme source fonctionnelle complète pour poursuivre les travaux WAOUH.
+          Toujours vérifier ce qui est déjà porté sur prod avant toute fusion ou copie.
+          Ne pas recréer une fonctionnalité déjà déployée sur Supabase sans vérifier les Edge Functions et migrations actives.
+          EOF
+
+          cat > handoff/CONTINUE_NEW_CHAT.txt <<EOF
+          Continuer le projet WAOUH exactement à partir de cette archive.
+          Repo: starlab007007/botbenin
+          Branche fonctionnelle complète: feat/waouh-avatar-deal-graph-e2e @ ${FEATURE_SHA}
+          Production: prod @ ${PROD_SHA}
+          Supabase: mvynepqulhflxtyymtzs
+          PR: #34
+
+          Commencer par lire HANDOFF_WAOUH_2026-09-26.md puis les fichiers status/.
+          Le travail récent porte notamment sur NEXUS, Avatar Commerce, WAOUH Chat, Deal Room/Deal Graph,
+          synchronisation Realtime, administration, sources multi-canales et visibilité des chemins d'accès Admin.
+          Préserver les intégrations et continuer sans repartir d'une ancienne branche.
+          EOF
+
+          cat > handoff/status/STATE.json <<EOF
+          {
+            "date": "2026-09-26",
+            "repository": "starlab007007/botbenin",
+            "supabase_project": "mvynepqulhflxtyymtzs",
+            "prod_branch": "prod",
+            "prod_sha": "${PROD_SHA}",
+            "feature_branch": "feat/waouh-avatar-deal-graph-e2e",
+            "feature_sha": "${FEATURE_SHA}",
+            "pull_request": 34
+          }
+          EOF
+
+          ARCHIVE="WAOUH_HANDOFF_2026-09-26_${PROD_SHA:0:8}_${FEATURE_SHA:0:8}.zip"
+          (cd handoff && zip -qr "../${ARCHIVE}" .)
+          sha256sum "${ARCHIVE}" > "${ARCHIVE}.sha256"
+          echo "ARCHIVE=${ARCHIVE}" >> "$GITHUB_ENV"
+
+      - name: Upload continuation archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: waouh-handoff-2026-09-26
+          path: |
+            ${{ env.ARCHIVE }}
+            ${{ env.ARCHIVE }}.sha256
+          if-no-files-found: error
+          retention-days: 30
