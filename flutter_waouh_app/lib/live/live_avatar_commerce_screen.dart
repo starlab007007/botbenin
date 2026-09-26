@@ -33,6 +33,34 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   bool _loading = false;
   String? _error;
   String? _workingFabric;
+  final Map<String, NexusOpportunityJourney> _journeys =
+      <String, NexusOpportunityJourney>{};
+
+  String get _modeKey => switch (widget.mode) {
+        LiveAvatarCommerceMode.buy => 'buy',
+        LiveAvatarCommerceMode.sell => 'sell',
+        LiveAvatarCommerceMode.ask => 'ask',
+      };
+
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.microtask(_loadJourneys);
+  }
+
+  Future<void> _loadJourneys() async {
+    try {
+      final items = await _nexus.journeys();
+      if (!mounted) return;
+      setState(() {
+        for (final item in items) {
+          if (item.mode == _modeKey) _journeys[item.fabricId] = item;
+        }
+      });
+    } catch (_) {
+      // Fail-soft: la découverte reste utilisable même si l'historique tarde.
+    }
+  }
 
   bool get _findSellers => widget.mode != LiveAvatarCommerceMode.sell;
 
@@ -103,94 +131,65 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
     }
   }
 
-  Map<String, dynamic> _interestMeta(NexusDiscoveryItem item) {
-    final meta = <String, dynamic>{
-      'source': 'avatar_commerce',
-      'origin_surface': 'flutter_avatar_commerce',
-      'action': 'interested',
-      'intent': 'interested',
-      'thread_type': 'product_meet',
-      'article_id': item.articleId,
-      'seller_user_id': item.sellerUserId,
-      'counterpart_user_id': item.sellerUserId,
-      'title': item.title,
-      'city': item.city,
-      'price': item.priceMin == item.priceMax ? item.priceMin : item.priceMin,
-      'fabric_id': item.fabricId,
-      'contactability_level': item.contactPolicy.level,
-      'nexus_total_score': item.scores.total,
-      'nexus_trust_score': item.scores.trust,
-      'nexus_reasons': item.scores.reasons,
-    };
-    meta.removeWhere((_, value) => value == null || '$value'.trim().isEmpty);
-    return meta;
+
+  double? get _enteredAmount {
+    final value = _budget.text.replaceAll(RegExp(r'[^0-9.]'), '');
+    return double.tryParse(value);
   }
 
-  Future<void> _internalInterest(NexusDiscoveryItem item) async {
-    final controller = context.read<LiveWaouhController>();
-    final avatar = context.read<LiveAvatarController>();
-    final text = 'Je suis intéressé par « ${item.title} ».';
-    final meta = liveCanonicalInterestedMeta(
-      text: text,
-      meta: _interestMeta(item),
-      authUserId: legacy.supabase.auth.currentUser?.id,
+  Future<NexusOpportunityJourney> _ensureJourney(
+    NexusDiscoveryItem item,
+  ) async {
+    final existing = _journeys[item.fabricId];
+    if (existing != null) return existing;
+    final journey = await _nexus.startJourney(
+      fabricId: item.fabricId,
+      mode: _modeKey,
+      title: item.title,
+      city: item.city ?? (_city.text.trim().isEmpty ? null : _city.text.trim()),
+      goal: _goal.text.trim().isEmpty ? item.title : _goal.text.trim(),
+      askingPrice: widget.mode == LiveAvatarCommerceMode.sell
+          ? _enteredAmount
+          : null,
     );
-    final seed = liveBuildInterestedEntryMatch(text: text, requestMeta: meta);
-
-    setState(() => _workingFabric = item.fabricId);
-    avatar.setPersistentState(LiveAvatarPresenceState.negotiating);
-    try {
-      await controller.sendMain(text: text, meta: meta);
-      LiveMatch? match = controller.takePendingMeet();
-      match ??= await controller.resolvePreparedInterestedMeet(seed);
-      if (match == null || (match.threadId ?? '').trim().isEmpty) {
-        throw StateError(
-          'Le Deal Room est encore en cours de création. Réessayez dans quelques secondes.',
-        );
-      }
-      if (!mounted) return;
-      avatar.showState(LiveAvatarPresenceState.found);
-      context.push('/app/chat/match/${Uri.encodeComponent(match.key)}',
-          extra: match);
-    } catch (e) {
-      if (!mounted) return;
-      avatar.showState(LiveAvatarPresenceState.idle);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$e')),
-      );
-    } finally {
-      if (mounted) setState(() => _workingFabric = null);
+    if (mounted) {
+      setState(() => _journeys[item.fabricId] = journey);
     }
+    return journey;
   }
 
-  Future<void> _mediatedContact(NexusDiscoveryItem item) async {
+  Future<void> _refreshJourney(
+    NexusDiscoveryItem item,
+    NexusOpportunityJourney journey,
+  ) async {
+    final fresh = await _nexus.journeyStatus(journey.id);
+    if (!mounted) return;
+    setState(() => _journeys[item.fabricId] = fresh);
+  }
+
+  Future<void> _followJourney(NexusDiscoveryItem item) async {
     final avatar = context.read<LiveAvatarController>();
     setState(() => _workingFabric = item.fabricId);
-    avatar.setPersistentState(LiveAvatarPresenceState.negotiating);
     try {
-      final prepared = await _nexus.prepareContact(item.fabricId);
-      final policy = prepared.policy;
-      if (!policy.canBlindMessage && !policy.canAutoContact) {
-        throw StateError(
-          'Cette opportunité est découverte mais son niveau ${policy.level} ne permet pas encore un contact médié.',
-        );
-      }
-      final message = widget.mode == LiveAvatarCommerceMode.sell
-          ? 'Bonjour, WAOUH accompagne un vendeur dont l’offre correspond à votre besoin « ${item.title} ». Souhaitez-vous poursuivre dans WAOUH ?'
-          : 'Bonjour, WAOUH accompagne un utilisateur intéressé par « ${item.title} ». Souhaitez-vous poursuivre dans WAOUH ?';
-      await _nexus.sendContact(fabricId: item.fabricId, message: message);
+      var journey = await _ensureJourney(item);
+      journey = await _nexus.followJourney(
+        journeyId: journey.id,
+        targetAmount: widget.mode == LiveAvatarCommerceMode.buy
+            ? _enteredAmount
+            : null,
+      );
       if (!mounted) return;
-      avatar.showState(LiveAvatarPresenceState.waiting);
+      setState(() => _journeys[item.fabricId] = journey);
+      avatar.showState(LiveAvatarPresenceState.watching);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            '${avatar.name} a envoyé une prise de contact médiée. Vos coordonnées restent protégées.',
+            '✓ Suivi actif. ${avatar.name} surveille le prix, la disponibilité et la prochaine action.',
           ),
         ),
       );
     } catch (e) {
       if (!mounted) return;
-      avatar.showState(LiveAvatarPresenceState.idle);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('$e')),
       );
@@ -200,10 +199,271 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   }
 
   Future<void> _continue(NexusDiscoveryItem item) async {
-    if (item.internalArticle) {
-      await _internalInterest(item);
-    } else {
-      await _mediatedContact(item);
+    final avatar = context.read<LiveAvatarController>();
+    setState(() => _workingFabric = item.fabricId);
+    avatar.setPersistentState(LiveAvatarPresenceState.negotiating);
+    try {
+      var journey = await _ensureJourney(item);
+
+      if (journey.readyToNegotiate &&
+          (journey.articleId ?? '').isNotEmpty &&
+          (journey.threadId ?? '').isNotEmpty) {
+        if (!mounted) return;
+        await _showOfferSheet(item, journey);
+        return;
+      }
+
+      journey = await _nexus.contactJourney(
+        journeyId: journey.id,
+        message: widget.mode == LiveAvatarCommerceMode.sell
+            ? 'Bonjour, mon Avatar WAOUH a identifié votre besoin « ${item.title} ». Je souhaite vous faire une proposition et poursuivre dans WAOUH.'
+            : 'Bonjour, mon Avatar WAOUH m’accompagne au sujet de « ${item.title} ». Êtes-vous disponible pour poursuivre et négocier dans WAOUH ?',
+      );
+      if (!mounted) return;
+      setState(() => _journeys[item.fabricId] = journey);
+      avatar.showState(
+        journey.readyToNegotiate
+            ? LiveAvatarPresenceState.found
+            : LiveAvatarPresenceState.waiting,
+      );
+
+      if (journey.readyToNegotiate &&
+          (journey.articleId ?? '').isNotEmpty &&
+          (journey.threadId ?? '').isNotEmpty) {
+        await _showOfferSheet(item, journey);
+      } else {
+        await _showJourneySheet(item, journey);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      avatar.showState(LiveAvatarPresenceState.idle);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
+    } finally {
+      if (mounted) setState(() => _workingFabric = null);
+    }
+  }
+
+  Future<void> _showJourneySheet(
+    NexusDiscoveryItem item,
+    NexusOpportunityJourney journey,
+  ) async {
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _JourneySheet(
+        avatarName: context.read<LiveAvatarController>().name,
+        item: item,
+        journey: journey,
+        onRefresh: () async {
+          Navigator.of(sheetContext).pop();
+          await _refreshJourney(item, journey);
+          if (!mounted) return;
+          final fresh = _journeys[item.fabricId];
+          if (fresh != null) {
+            if (fresh.readyToNegotiate &&
+                (fresh.articleId ?? '').isNotEmpty &&
+                (fresh.threadId ?? '').isNotEmpty) {
+              await _showOfferSheet(item, fresh);
+            } else {
+              await _showJourneySheet(item, fresh);
+            }
+          }
+        },
+        onNegotiate: journey.readyToNegotiate
+            ? () {
+                Navigator.of(sheetContext).pop();
+                Future<void>.microtask(() => _showOfferSheet(item, journey));
+              }
+            : null,
+      ),
+    );
+  }
+
+  Future<void> _showOfferSheet(
+    NexusDiscoveryItem item,
+    NexusOpportunityJourney journey,
+  ) async {
+    if (!mounted) return;
+    final listed = item.priceMin ?? item.priceMax ?? journey.proposedAmount;
+    final controller = TextEditingController(
+      text: listed == null || listed <= 0 ? '' : listed.round().toString(),
+    );
+    final suggestions = <int>{
+      if (listed != null && listed > 0) listed.round(),
+      if (listed != null && listed > 0) (listed * .95).round(),
+      if (listed != null && listed > 0) (listed * .90).round(),
+      if (_enteredAmount != null && _enteredAmount! > 0)
+        _enteredAmount!.round(),
+    }.where((value) => value > 0).toList()
+      ..sort();
+
+    final amount = await showModalBottomSheet<double>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+        ),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.handshake_outlined, color: WaouhPalette.blue),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Proposer un prix',
+                      style: TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.w900,
+                        color: WaouhPalette.ink,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Ayo ouvre le Deal Room et reste avec vous jusqu’à l’accord. La contrepartie peut accepter, contre-proposer ou refuser.',
+                style: TextStyle(
+                  color: WaouhPalette.muted,
+                  fontSize: 12,
+                  height: 1.35,
+                ),
+              ),
+              if (listed != null && listed > 0) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Prix observé : ${listed.round()} FCFA',
+                  style: const TextStyle(
+                    color: Color(0xFF159A69),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+              if (suggestions.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 7,
+                  runSpacing: 7,
+                  children: suggestions
+                      .map(
+                        (value) => ActionChip(
+                          label: Text('$value FCFA'),
+                          onPressed: () => controller.text = '$value',
+                        ),
+                      )
+                      .toList(),
+                ),
+              ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                autofocus: listed == null || listed <= 0,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Votre proposition',
+                  suffixText: 'FCFA',
+                  prefixIcon: Icon(Icons.payments_outlined),
+                ),
+              ),
+              const SizedBox(height: 14),
+              FilledButton.icon(
+                onPressed: () {
+                  final value = double.tryParse(
+                    controller.text.replaceAll(RegExp(r'[^0-9.]'), ''),
+                  );
+                  if (value != null && value > 0) {
+                    Navigator.of(sheetContext).pop(value);
+                  }
+                },
+                icon: const Icon(Icons.send_rounded),
+                label: const Text('Envoyer mon offre avec Ayo'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(50),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    controller.dispose();
+    if (amount == null || !mounted) return;
+
+    final avatar = context.read<LiveAvatarController>();
+    avatar.setPersistentState(LiveAvatarPresenceState.negotiating);
+    setState(() => _workingFabric = item.fabricId);
+    try {
+      final result = await _nexus.offerJourney(
+        journeyId: journey.id,
+        amount: amount,
+      );
+      final journeyRaw = result['journey'];
+      if (journeyRaw is! Map) {
+        throw StateError('WAOUH n’a pas retourné l’état de la démarche.');
+      }
+      final next = NexusOpportunityJourney.fromJson(
+        Map<String, dynamic>.from(journeyRaw),
+      );
+      if (!mounted) return;
+      setState(() => _journeys[item.fabricId] = next);
+      avatar.showState(LiveAvatarPresenceState.negotiating);
+
+      if ((next.articleId ?? '').isNotEmpty &&
+          (next.threadId ?? '').isNotEmpty) {
+        final role = widget.mode == LiveAvatarCommerceMode.sell
+            ? 'seller'
+            : 'buyer';
+        final match = LiveMatch(
+          key: liveMatchKey(
+            next.articleId!,
+            role,
+            next.targetWaouhUserId,
+            next.threadId,
+          ),
+          articleId: next.articleId!,
+          role: role,
+          title: item.title,
+          lastAt: DateTime.now(),
+          counterpartUserId: next.targetWaouhUserId,
+          threadId: next.threadId,
+          source: 'avatar_opportunity',
+          negotiationId: next.negotiationId,
+          dealId: next.dealId,
+          seedText: next.avatarMessage,
+          price: amount,
+          city: item.city,
+          photo: item.photoUrls.isEmpty ? null : item.photoUrls.first,
+          photoUrls: item.photoUrls,
+        );
+        context.push(
+          '/app/chat/match/${Uri.encodeComponent(match.key)}',
+          extra: match,
+        );
+      } else {
+        await _showJourneySheet(item, next);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$e')),
+      );
+    } finally {
+      if (mounted) setState(() => _workingFabric = null);
     }
   }
 
@@ -273,7 +533,9 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
                           rank: entry.key + 1,
                           item: entry.value,
                           busy: _workingFabric == entry.value.fabricId,
+                          journey: _journeys[entry.value.fabricId],
                           onContinue: () => _continue(entry.value),
+                          onFollow: () => _followJourney(entry.value),
                         ),
                       ),
                     ),
