@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { WaouhMuseAvatar, type WaouhMuseMode, type WaouhMusePhase } from "./WaouhMuseAvatar";
 
-export type ContactabilityLevel = "C0" | "C1" | "C2" | "C3" | "C4";
+export type ContactabilityLevel = "C0" | "C1" | "C2" | "C3" | "C4" | "C5";
 
 export function contactabilityPresentation(level?: string | null) {
   const normalized = String(level || "").toUpperCase() as ContactabilityLevel;
@@ -65,7 +65,7 @@ const PHASE_DETAIL: Record<WaouhMusePhase, string> = {
   listening: "WAOUH transforme votre demande en objectif commercial.",
   searching: "WAOUH explore les sources utiles sans exposer vos données privées.",
   comparing: "Les signaux sont classés par pertinence, confiance, prix, proximité et fraîcheur.",
-  contacting: "Le Contact Layer applique les permissions C0–C4 avant toute action.",
+  contacting: "Le Contact Layer applique les permissions C0–C5 avant toute action.",
   negotiating: "Une seule négociation active est suivie avec votre contrôle.",
   success: "Muse peut conserver la veille si vous souhaitez continuer à surveiller le marché.",
 };
