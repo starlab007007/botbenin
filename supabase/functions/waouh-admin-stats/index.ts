@@ -107,7 +107,7 @@ serve(async (req) => {
       const sourceKey = String(requestBody.source_key ?? "");
       const level = String(requestBody.default_contactability ?? "");
       const trust = Number(requestBody.trust_weight);
-      const allowedLevels = new Set(["C0", "C1", "C2", "C3", "C4"]);
+      const allowedLevels = new Set(["C0", "C1", "C2", "C3", "C4", "C5"]);
       if (!allowedLevels.has(level)) throw new Error("Niveau de contactabilité invalide.");
       if (!Number.isFinite(trust) || trust < 0 || trust > 1) throw new Error("Le poids de confiance doit être compris entre 0 et 1.");
       const { data: source, error: sourceError } = await sb.from("waouh_discovery_sources")
@@ -115,7 +115,8 @@ serve(async (req) => {
       if (sourceError) throw sourceError;
       if (!source) throw new Error("Source inconnue.");
       const permitted =
-        level === "C4" ? (source.source_key === "partner" || source.family === "partner") :
+        level === "C5" ? (source.source_key === "partner" || source.family === "partner" || source.family === "internal") :
+        level === "C4" ? (source.source_key === "partner" || source.family === "partner" || source.family === "internal") :
         level === "C3" ? (source.supports_contact === true && ["partner","telephony","messaging","internal"].includes(source.family)) :
         level === "C2" ? source.supports_contact === true :
         true;
