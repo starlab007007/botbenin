@@ -555,7 +555,7 @@ async function handleStatus(sb: any, body: any) {
       insertInAppNotif(sb, deal.seller_user_id, deal.article_id, kindSeller, sellerText, { deal_id, role: "seller", ...payloadExtra }),
       pushDealChatEvent(sb, deal.buyer_user_id, deal.article_id, chatLine, { deal_id, event: status, role: "buyer", ...payloadExtra }),
       pushDealChatEvent(sb, deal.seller_user_id, deal.article_id, chatLine, { deal_id, event: status, role: "seller", ...payloadExtra }),
-      buyer.phone_number && !/@lid$/i.test(buyer.phone_number) ? sendWhatsApp(`${buyer.phone_number}@c.us`, buyerText, paymentActions) : Promise.resolve(),
+      buyer.phone_number && !/@lid$/i.test(buyer.phone_number) ? sendWhatsApp(`${buyer.phone_number}@c.us`, buyerText) : Promise.resolve(),
       seller.phone_number && !/@lid$/i.test(seller.phone_number) ? sendWhatsApp(`${seller.phone_number}@c.us`, sellerText) : Promise.resolve(),
     ]);
   };
@@ -588,7 +588,7 @@ async function handleStatus(sb: any, body: any) {
       pushDealChatEvent(sb, deal.seller_user_id, deal.article_id, `📬 Colis livré à l'acheteur à ${hh}. Paiement en attente.`, {
         deal_id, event: "delivered", role: "seller", workflow_state: "delivered",
       }),
-      buyer.phone_number && !/@lid$/i.test(buyer.phone_number) ? sendWhatsApp(`${buyer.phone_number}@c.us`, buyerText) : Promise.resolve(),
+      buyer.phone_number && !/@lid$/i.test(buyer.phone_number) ? sendWhatsApp(`${buyer.phone_number}@c.us`, buyerText, paymentActions) : Promise.resolve(),
       seller.phone_number && !/@lid$/i.test(seller.phone_number) ? sendWhatsApp(`${seller.phone_number}@c.us`, sellerText) : Promise.resolve(),
     ]);
   } else if (status === "cancelled") {
