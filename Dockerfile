@@ -1,11 +1,18 @@
 # Utilisation d'une image Node.js pour le build
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 
 WORKDIR /app
 
 # Copie des fichiers de dépendances
 COPY package.json package-lock.json ./
-RUN npm ci --legacy-peer-deps --no-audit --no-fund || (echo "⚠️ npm ci failed (lockfile drift) — falling back to npm install" && npm install --legacy-peer-deps --no-audit --no-fund)
+# Le lockfile historique peut contenir des URLs du cache privé Lovable qui ne
+# sont pas accessibles depuis le VPS. On les remappe vers le registre npm
+# public avant l'installation, puis on garde le fallback pour les drifts du lock.
+RUN npm config set registry https://registry.npmjs.org/ && \
+    sed -i 's#https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache#https://registry.npmjs.org#g' package-lock.json && \
+    (npm ci --legacy-peer-deps --no-audit --no-fund || \
+      (echo "⚠️ npm ci failed (lockfile drift) — falling back to npm install from npmjs.org" && \
+       npm install --legacy-peer-deps --no-audit --no-fund --registry=https://registry.npmjs.org/))
 
 # Copie du code source
 COPY . .
