@@ -456,6 +456,50 @@ export default function WaouhAdminCommandCenter() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Chemins d’accès — administration WAOUH</CardTitle>
+          <CardDescription>
+            Tous les réglages et consoles sont accessibles depuis le front. Le chemin technique est affiché sous chaque entrée pour éviter les fonctions cachées.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 lg:grid-cols-3">
+          <AccessGroup
+            title="Pilotage & diagnostic"
+            items={[
+              { label: "Centre de contrôle", path: "/admin/waouh?tab=control", note: "État global, alertes et interrupteurs" },
+              { label: "Monitoring temps réel", path: "/admin/waouh/monitoring", note: "Métriques et santé opérationnelle" },
+              { label: "Health Check", path: "/admin/waouh/health-check", note: "Divergences et cohérence des flux" },
+              { label: "Historique & traces", path: "/admin/waouh/historique", note: "Messages, négociations, queue et traces" },
+              { label: "Deal Ops", path: "/admin/waouh/deals", note: "Deals, livraison, paiement et arbitrage" },
+            ]}
+            onOpen={navigate}
+          />
+          <AccessGroup
+            title="Paramétrage des moteurs"
+            items={[
+              { label: "Paramètres généraux", path: "/admin/waouh?tab=settings", note: "IA, commerce, paiements et règles" },
+              { label: "NEXUS / Radar IA", path: "/admin/waouh/radar", note: "Sources, connecteurs, API, quotas et scans" },
+              { label: "WhatsApp Ops", path: "/admin/waouh/whatsapp-ops", note: "WAHA, sessions, files et replay" },
+              { label: "SMS / RCS natif", path: "/admin/waouh/native-messaging", note: "Provider, SMS, RCS et fallback" },
+              { label: "Validations diffusion", path: "/admin/waouh/diffusion-approvals", note: "Approbations humaines avant envoi" },
+            ]}
+            onOpen={navigate}
+          />
+          <AccessGroup
+            title="Données & écosystème"
+            items={[
+              { label: "Catalogue & données", path: "/admin/waouh/data-control", note: "Qualité, normalisation et contrôle IA" },
+              { label: "Partenaires", path: "/admin/waouh/partners", note: "Partenaires et permissions" },
+              { label: "Commerces", path: "/admin/waouh/businesses", note: "Entreprises, catalogues et vérification" },
+              { label: "Démo / recette", path: "/admin/waouh/demo", note: "Parcours de démonstration et recette" },
+              { label: "Admin général", path: "/admin", note: "Utilisateurs, rôles et permissions" },
+            ]}
+            onOpen={navigate}
+          />
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4 xl:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
@@ -604,6 +648,37 @@ export default function WaouhAdminCommandCenter() {
       <div className="text-right text-[10px] text-muted-foreground">
         Snapshot : {new Date(cc.generated_at).toLocaleString("fr-FR")}
       </div>
+    </div>
+  );
+}
+
+function AccessGroup({
+  title,
+  items,
+  onOpen,
+}: {
+  title: string;
+  items: Array<{ label: string; path: string; note: string }>;
+  onOpen: (path: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</div>
+      {items.map((item) => (
+        <button
+          type="button"
+          key={item.path}
+          onClick={() => onOpen(item.path)}
+          className="w-full rounded-xl border bg-background px-3 py-2.5 text-left transition-colors hover:bg-muted/50"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-semibold">{item.label}</span>
+            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          </div>
+          <div className="mt-0.5 text-[11px] text-muted-foreground">{item.note}</div>
+          <code className="mt-1 block truncate text-[10px] text-slate-500">{item.path}</code>
+        </button>
+      ))}
     </div>
   );
 }
