@@ -779,6 +779,19 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
               loading: _loading,
             ),
             const SizedBox(height: 12),
+            if (_loadingJourneys || _journeys.isNotEmpty) ...[
+              _ActiveJourneysPanel(
+                journeys: _journeys,
+                loading: _loadingJourneys,
+                onRefresh: _loadJourneys,
+                onOpen: (journey) => journey.negotiating &&
+                        (journey.threadId ?? '').trim().isNotEmpty
+                    ? _openJourneyDealRoom(journey)
+                    : _showJourneyProgress(journey),
+                stageLabel: _journeyStageLabel,
+              ),
+              const SizedBox(height: 12),
+            ],
             _GoalSurface(
               controller: _goal,
               city: _city,
@@ -816,6 +829,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
                           item: entry.value,
                           busy: _workingFabric == entry.value.fabricId,
                           onContinue: () => _continue(entry.value),
+                          onFollow: () => _followOpportunity(entry.value),
                         ),
                       ),
                     ),
@@ -1071,11 +1085,13 @@ class _OpportunityCard extends StatelessWidget {
     required this.item,
     required this.busy,
     required this.onContinue,
+    required this.onFollow,
   });
   final int rank;
   final NexusDiscoveryItem item;
   final bool busy;
   final VoidCallback onContinue;
+  final VoidCallback onFollow;
 
   String get _price {
     if (item.priceMin == null && item.priceMax == null) return 'Prix non publié';
@@ -1249,14 +1265,39 @@ class _OpportunityCard extends StatelessWidget {
                       dimension: 15,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Icon(item.internalArticle
-                      ? Icons.handshake_outlined
-                      : Icons.send_rounded),
-              label: Text(item.internalArticle
-                  ? 'Intéressé · ouvrir le Deal Room'
-                  : 'Laisser mon Avatar contacter'),
+                  : Icon(
+                      item.internalArticle
+                          ? Icons.handshake_outlined
+                          : item.contactPolicy.level == 'C0'
+                              ? Icons.travel_explore_rounded
+                              : item.contactPolicy.level == 'C5'
+                                  ? Icons.handshake_rounded
+                                  : Icons.send_rounded,
+                    ),
+              label: Text(
+                item.internalArticle
+                    ? 'Je suis intéressé · proposer un prix'
+                    : item.contactPolicy.level == 'C0'
+                        ? 'Trouver un moyen de contacter'
+                        : item.contactPolicy.level == 'C1'
+                            ? 'Vérifier le meilleur contact'
+                            : item.contactPolicy.level == 'C4'
+                                ? 'Suivre le contact'
+                                : item.contactPolicy.level == 'C5'
+                                    ? 'Continuer vers l’accord'
+                                    : 'Contacter avec WAOUH',
+              ),
               style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(45),
+                minimumSize: const Size.fromHeight(48),
+              ),
+            ),
+            const SizedBox(height: 7),
+            OutlinedButton.icon(
+              onPressed: busy ? null : onFollow,
+              icon: const Icon(Icons.notifications_active_outlined),
+              label: const Text('Suivre prix / disponibilité'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(44),
               ),
             ),
           ],
