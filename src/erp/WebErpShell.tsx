@@ -69,7 +69,7 @@ const navigationSections: NavigationSection[] = [
     title: 'Communication',
     items: [
       { label: 'Chat Command Center', to: CHAT_PATH, icon: MessageSquareText, accent: 'chat' },
-      { label: 'Radar', to: '/?tab=radar', icon: RadarIcon, brick: 'radar' },
+      { label: 'Radar', to: '/app/radar-map', icon: RadarIcon, brick: 'radar' },
       { label: 'WhatsApp IA', to: '/app/whatsapp', icon: UsersRound, brick: 'whatsapp' },
       { label: 'Diffusion', to: '/app/diffusion', icon: Megaphone, brick: 'diffusion' },
     ],
@@ -80,11 +80,11 @@ const navigationSections: NavigationSection[] = [
       { label: 'Avatar', to: '/app/avatar', icon: Sparkles, accent: 'ai' },
       { label: 'Missions & veille', to: '/app/missions', icon: Workflow, accent: 'ai' },
       { label: 'Bots', to: '/app/bots', icon: Bot, brick: 'bots', accent: 'ai' },
-      { label: 'Agents IA', to: '/app/agents', icon: Sparkles, brick: 'agents', accent: 'ai' },
-      { label: 'Conversationnel', to: '/app/bots/new', icon: MessagesSquare, brick: 'conversational' },
-      { label: 'BI WAOUH IA', to: '/app/agents/bi', icon: BarChart3, brick: 'bi', accent: 'bi' },
-      { label: 'Stock WAOUH IA', to: '/app/agents/stock', icon: Package, brick: 'stock', accent: 'stock' },
-      { label: 'Présence QR', to: '/app/agents/attendance', icon: QrCode, brick: 'presence' },
+      { label: 'Agents IA', to: '/app/whatsapp/select-agent', icon: Sparkles, brick: 'agents', accent: 'ai' },
+      { label: 'Conversationnel', to: '/app/whatsapp/conversationnel', icon: MessagesSquare, brick: 'conversational' },
+      { label: 'BI WAOUH IA', to: '/app/whatsapp/bi', icon: BarChart3, brick: 'bi', accent: 'bi' },
+      { label: 'Stock WAOUH IA', to: '/app/stock', icon: Package, brick: 'stock', accent: 'stock' },
+      { label: 'Présence QR', to: '/app/presence', icon: QrCode, brick: 'presence' },
     ],
   },
   {
@@ -98,8 +98,8 @@ const navigationSections: NavigationSection[] = [
   {
     title: 'Services IA',
     items: [
-      { label: 'AprèsBac IA', to: '/app/apres-bac', icon: GraduationCap, brick: 'apresbac' },
-      { label: 'FA IA', to: '/app/fa', icon: BookOpenText, brick: 'fa' },
+      { label: 'AprèsBac IA', to: '/app/apresbac', icon: GraduationCap, brick: 'apresbac' },
+      { label: 'FA IA', to: '/app/fa-ia', icon: BookOpenText, brick: 'fa' },
     ],
   },
 ];

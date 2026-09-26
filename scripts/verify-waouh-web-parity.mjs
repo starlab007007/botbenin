@@ -127,6 +127,26 @@ for (const label of [
   must(sidebar, `label: '${label}'`, `Desktop sidebar changed or missing: ${label}`);
 }
 
+const canonicalDesktopRoutes = [
+  ["Chat Command Center", "/app/chat"],
+  ["Radar", "/app/radar-map"],
+  ["WhatsApp IA", "/app/whatsapp"],
+  ["Avatar", "/app/avatar"],
+  ["Missions & veille", "/app/missions"],
+  ["Bots", "/app/bots"],
+  ["Agents IA", "/app/whatsapp/select-agent"],
+  ["Conversationnel", "/app/whatsapp/conversationnel"],
+  ["BI WAOUH IA", "/app/whatsapp/bi"],
+  ["Stock WAOUH IA", "/app/stock"],
+  ["Présence QR", "/app/presence"],
+  ["Boutiques & magasins", "/app/partner/businesses"],
+  ["AprèsBac IA", "/app/apresbac"],
+  ["FA IA", "/app/fa-ia"],
+];
+for (const [label, route] of canonicalDesktopRoutes) {
+  must(sidebar, `label: '${label}', to: '${route}'`, `Desktop canonical route mismatch: ${label} -> ${route}`);
+}
+
 must(sw, "const VERSION = 'v8';", "Service worker cache version must be v8");
 
 console.log("WAOUH Flutter/Web route parity: OK");

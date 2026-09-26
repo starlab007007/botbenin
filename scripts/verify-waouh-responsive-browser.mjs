@@ -227,6 +227,7 @@ async function testRoot(viewport) {
     acheter: "/app/avatar/acheter",
     vendre: "/app/avatar/vendre",
     trouver: "/app/nexus",
+    demander: "/app/avatar/demander",
   };
   for (const [action, expectedPath] of Object.entries(actionPaths)) {
     await navigate("http://127.0.0.1:4173/", viewport);
@@ -272,6 +273,46 @@ async function testRoot(viewport) {
   }
 }
 
+async function testDesktopSidebar(viewport) {
+  if (viewport.width < 1180) return;
+  const expected = [
+    ["Chat Command Center", "/app/chat"],
+    ["Radar", "/app/radar-map"],
+    ["WhatsApp IA", "/app/whatsapp"],
+    ["Avatar", "/app/avatar"],
+    ["Missions & veille", "/app/missions"],
+    ["Bots", "/app/bots"],
+    ["Agents IA", "/app/whatsapp/select-agent"],
+    ["Conversationnel", "/app/whatsapp/conversationnel"],
+    ["BI WAOUH IA", "/app/whatsapp/bi"],
+    ["Stock WAOUH IA", "/app/stock"],
+    ["Présence QR", "/app/presence"],
+    ["Boutiques & magasins", "/app/partner/businesses"],
+    ["AprèsBac IA", "/app/apresbac"],
+    ["FA IA", "/app/fa-ia"],
+  ];
+
+  for (const [label, expectedPath] of expected) {
+    await navigate("http://127.0.0.1:4173/", viewport);
+    const clicked = await clickExact(label);
+    if (!clicked) fail(`desktop: sidebar item ${label} is not clickable`);
+    await sleep(350);
+    const state = await evaluate(`({
+      path: location.pathname,
+      text: document.body?.innerText || "",
+      fallback:
+        (document.body?.innerText || "").includes("Une erreur s'est produite") ||
+        (document.body?.innerText || "").includes("Une erreur s’est produite"),
+      overflowX: document.documentElement.scrollWidth > innerWidth + 3
+    })`);
+    if (state.path !== expectedPath) {
+      fail(`desktop: sidebar ${label} navigated to ${state.path}; expected ${expectedPath}`);
+    }
+    if (state.fallback) fail(`desktop: sidebar ${label} rendered ErrorBoundary fallback`);
+    if (state.overflowX) fail(`desktop: horizontal overflow after sidebar ${label}`);
+  }
+}
+
 async function testRoutes(viewport) {
   const routes = [
     ["/app/chat", null],
@@ -284,6 +325,15 @@ async function testRoutes(viewport) {
     ["/app/ia", "Bots & IA WAOUH"],
     ["/app/bots", "Bots WAOUH"],
     ["/app/radar-map", null],
+    ["/app/whatsapp", null],
+    ["/app/whatsapp/conversationnel", null],
+    ["/app/whatsapp/bi", null],
+    ["/app/whatsapp/select-agent", null],
+    ["/app/stock", null],
+    ["/app/presence", null],
+    ["/app/partner/businesses", null],
+    ["/app/apresbac", null],
+    ["/app/fa-ia", null],
     ["/app/auth", "WaouhApp"],
   ];
 
@@ -318,6 +368,7 @@ try {
 
   for (const viewport of viewports) {
     await testRoot(viewport);
+    await testDesktopSidebar(viewport);
     await testRoutes(viewport);
     console.log(`WAOUH responsive smoke: ${viewport.name} OK`);
   }
