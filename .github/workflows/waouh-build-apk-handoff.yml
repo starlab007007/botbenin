@@ -21,10 +21,10 @@ jobs:
     timeout-minutes: 70
 
     steps:
-      - name: Checkout latest WAOUH feature branch
+      - name: Checkout latest WAOUH production snapshot
         uses: actions/checkout@v4
         with:
-          ref: feat/waouh-opportunity-journey-c0-c5-e2e
+          ref: prod
           path: source-feature
           fetch-depth: 0
 
@@ -130,7 +130,7 @@ jobs:
           Supabase production: mvynepqulhflxtyymtzs
 
           ## Références exactes
-          - Branche de reprise: feat/waouh-opportunity-journey-c0-c5-e2e
+          - Source exacte de reprise: prod (snapshot actuel)
           - HEAD branche: ${FEATURE_SHA}
           - Production prod: ${PROD_SHA}
 
@@ -179,7 +179,7 @@ jobs:
           Continuer WAOUH exactement à partir de cette archive, sans repartir d'une ancienne branche.
 
           Repo: starlab007007/botbenin
-          Branche: feat/waouh-opportunity-journey-c0-c5-e2e
+          Branche source: prod
           HEAD: ${FEATURE_SHA}
           Production de comparaison: prod @ ${PROD_SHA}
           Supabase: mvynepqulhflxtyymtzs
@@ -205,7 +205,7 @@ jobs:
             "date": "2026-09-26",
             "repository": "starlab007007/botbenin",
             "supabase_project": "mvynepqulhflxtyymtzs",
-            "feature_branch": "feat/waouh-opportunity-journey-c0-c5-e2e",
+            "feature_branch": "prod",
             "feature_sha": "${FEATURE_SHA}",
             "prod_branch": "prod",
             "prod_sha": "${PROD_SHA}",
