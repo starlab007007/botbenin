@@ -226,6 +226,15 @@ export default function WaouhAdminCommandCenter() {
   }, [load]);
 
   useEffect(() => {
+    if (!cc || typeof window === "undefined" || !window.location.hash) return;
+    const id = window.location.hash.slice(1);
+    const timer = window.setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [cc]);
+
+  useEffect(() => {
     void load();
     const channel = supabase.channel(`waouh-admin-command-${Math.random().toString(36).slice(2, 8)}`);
     [
@@ -413,7 +422,11 @@ export default function WaouhAdminCommandCenter() {
               const meta = moduleMeta[module.module_key] || { icon: Radio, detail: () => "", manage: "/admin/waouh", automation: false };
               const Icon = meta.icon;
               return (
-                <div key={module.module_key} className="rounded-xl border bg-background p-3">
+                <div
+                  id={`module-${module.module_key}`}
+                  key={module.module_key}
+                  className="scroll-mt-24 rounded-xl border bg-background p-3"
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2">
                       <div className="rounded-lg border p-2"><Icon className="h-4 w-4" /></div>
