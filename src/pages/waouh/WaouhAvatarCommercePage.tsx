@@ -436,6 +436,7 @@ export default function WaouhAvatarCommercePage() {
                       title={item.subject || item.raw_text || "Opportunité WAOUH"}
                       sourceUrl={item.source_url}
                       contactabilityLevel={item.contact_policy.level}
+                      mode={mode === "vendre" ? "sell" : mode === "demander" ? "ask" : "buy"}
                     />
                   </div>
                 )}
