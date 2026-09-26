@@ -5,6 +5,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { lidToPhoneInline } from "../_shared/waouh-format.ts";
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 import { isServiceRoleRequest } from "../_shared/waouh-auth.ts";
+import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
 import {
   contactabilityPolicy,
   scoreFabricSignal,
@@ -554,6 +555,40 @@ serve(async (req) => {
     const city = raw.city ?? "Cotonou";
     const authUserId: string | null = raw.authUserId ?? null;
     const clientMeta: Record<string, any> = (raw.meta && typeof raw.meta === "object") ? raw.meta : {};
+
+    const surface = String(
+      clientMeta.origin_surface ?? clientMeta.source ?? raw.origin_surface ?? raw.source ?? "",
+    ).toLowerCase();
+    const isAvatarSurface = surface.includes("avatar");
+    if (isAvatarSurface) {
+      const avatarControl = await getWaouhModuleControl(sb, "avatar_commerce");
+      if (!avatarControl.enabled) {
+        return new Response(JSON.stringify({
+          ok: false,
+          error: "avatar_commerce_paused",
+          message: avatarControl.maintenance_message || "Le parcours Avatar Commerce est temporairement suspendu.",
+        }), {
+          status: 503,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    const inboundModule = (raw.event && raw.payload) || channel === "whatsapp"
+      ? "chat_whatsapp"
+      : "chat_web";
+    const chatControl = await getWaouhModuleControl(sb, inboundModule);
+    if (!chatControl.enabled) {
+      return new Response(JSON.stringify({
+        ok: false,
+        error: `${inboundModule}_paused`,
+        message: chatControl.maintenance_message || "Ce canal WAOUH est temporairement suspendu.",
+      }), {
+        status: 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Traçabilité bout en bout : corrélation fournie par l'UI (fenêtre dédiée).
     const correlationId: string | null = clientMeta?.correlation_id ?? raw.correlation_id ?? null;
 
