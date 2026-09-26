@@ -102,6 +102,11 @@ const WaouhAvatarHomePage = lazy(() => import("./pages/waouh/WaouhAvatarHomePage
 const WaouhNexusPage = lazy(() => import("./pages/waouh/WaouhNexusPage"));
 const WaouhAvatarCommercePage = lazy(() => import("./pages/waouh/WaouhAvatarCommercePage"));
 const WaouhMissionsPage = lazy(() => import("./pages/waouh/WaouhMissionsPage"));
+const WaouhAiHubPage = lazy(() => import("./pages/waouh/WaouhAiHubPage"));
+const WaouhRadarMapPage = lazy(() => import("./pages/waouh/WaouhRadarMapPage"));
+const WaouhMatchDeepLinkPage = lazy(() => import("./pages/waouh/WaouhMatchDeepLinkPage"));
+const WaouhAgentInsightsPage = lazy(() => import("./pages/waouh/WaouhAgentInsightsPage"));
+const WaouhAgentCataloguePage = lazy(() => import("./pages/waouh/WaouhAgentCataloguePage"));
 
 const WaouhRadarPage = lazy(() => import("./pages/admin/WaouhRadarPage"));
 const WaouhWhatsAppOpsPage = lazy(() => import("./pages/admin/WaouhWhatsAppOpsPage"));
@@ -345,7 +350,7 @@ const AppContent = () => {
                    <Route path="/waouh-chat" element={<Navigate to="/app/chat" replace />} />
                    <Route path="/waouh/messages" element={<WaouhNativeMessagingPublicPage />} />
                    <Route path="/waouh/muse" element={<Navigate to="/app/avatar" replace />} />
-                   <Route path="/waouh/nexus" element={<Navigate to="/app/avatar" replace />} />
+                   <Route path="/waouh/nexus" element={<Navigate to="/app/nexus" replace />} />
 
                   {/* WaouhApp — Mobile shell (Capacitor + web preview) */}
                   <Route path="/app/auth" element={<MobileAuthHome />} />
@@ -360,12 +365,19 @@ const AppContent = () => {
                     <Route path="muse" element={<Navigate to="/app/avatar" replace />} />
                     <Route path="missions" element={<WaouhMissionsPage />} />
                     <Route path="nexus" element={<WaouhNexusPage />} />
+                    <Route path="ia" element={<WaouhAiHubPage />} />
+                    <Route path="bots" element={<WaouhAiHubPage />} />
+                    <Route path="apresbac" element={<ApresBacPage />} />
+                    <Route path="fa-ia" element={<FaIaScreen />} />
+                    <Route path="radar-map" element={<WaouhRadarMapPage />} />
+                    <Route path="command" element={<Navigate to="/app/avatar" replace />} />
                     <Route path="conversations" element={<Navigate to="/app/chat" replace />} />
                   </Route>
                   <Route path="/checkin/:token" element={<PublicCheckin />} />
+                  <Route path="/app/presence/checkin" element={<PublicCheckin />} />
                   <Route path="/app" element={<RequireMobileAuth><ErrorBoundary fallback={<MobileErrorFallback />}><MobileShell /></ErrorBoundary></RequireMobileAuth>}>
+                    <Route path="chat/match/:key" element={<WaouhMatchDeepLinkPage />} />
                     <Route path="chat/:id" element={<MobileChatThread />} />
-                    <Route path="bots" element={<MobileBots />} />
                     <Route path="bots/new" element={<MobileCreateBot />} />
                     <Route path="bots/:id" element={<MobileBotDetail />} />
                     <Route path="bots/:id/table/:tableId/entry/:index" element={<MobileBotEntryForm />} />
@@ -384,6 +396,13 @@ const AppContent = () => {
                     <Route path="agents/attendance/new" element={<AttendanceAgentWizard />} />
                     <Route path="agents/attendance/:id" element={<AttendanceDashboard />} />
                     <Route path="whatsapp" element={<MobileWhatsApp />} />
+                    <Route path="whatsapp/conversationnel" element={<MobileWhatsApp />} />
+                    <Route path="whatsapp/bi" element={<BiBrickHome />} />
+                    <Route path="whatsapp/select-agent" element={<AgentTypePicker />} />
+                    <Route path="whatsapp/agent/:agentId/insights" element={<WaouhAgentInsightsPage />} />
+                    <Route path="whatsapp/agent/:agentId/catalogue" element={<WaouhAgentCataloguePage />} />
+                    <Route path="stock" element={<StockAgentDashboard />} />
+                    <Route path="presence" element={<PresenceBrickHome />} />
                     <Route path="diffusion" element={<MobileDiffusion />} />
                     <Route path="partner" element={<MobilePartner />} />
                     <Route path="partner/businesses" element={<MobilePartnerBusinesses />} />
