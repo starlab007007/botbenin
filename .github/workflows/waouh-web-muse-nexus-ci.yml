@@ -9,6 +9,7 @@ on:
     paths:
       - "src/pages/waouh/**"
       - "src/components/waouh/**"
+      - "src/components/admin/WaouhAdminCommandCenter.tsx"
       - "src/lib/waouh/**"
       - "src/App.tsx"
       - "src/app-mobile/screens/ChatListScreen.tsx"
@@ -16,8 +17,10 @@ on:
       - "src/app-mobile/screens/ChatScreen.tsx"
       - "src/app-mobile/components/ChatRightPane.tsx"
       - "supabase/functions/waouh-agentic-core/**"
+      - "supabase/functions/waouh-admin-stats/**"
       - "supabase/functions/waouh-radar-api-config/**"
       - "supabase/functions/waouh-radar-apify/**"
+      - "supabase/functions/waouh-radar-site-scraper/**"
       - "supabase/functions/waouh-radar-process/**"
       - "supabase/functions/waouh-serpapi-scout/**"
       - "supabase/functions/waouh-radar-wa-webhook/**"
@@ -31,6 +34,8 @@ on:
       - "supabase/migrations/**"
       - "supabase/functions/_shared/waouh-nexus.ts"
       - "supabase/functions/_shared/waouh-signal-fabric.ts"
+      - "supabase/functions/_shared/waouh-admin-control.ts"
+      - "supabase/functions/_shared/waouh-admin-control.ts"
       - ".github/workflows/waouh-web-muse-nexus-ci.yml"
   pull_request:
     branches:
@@ -38,6 +43,7 @@ on:
     paths:
       - "src/pages/waouh/**"
       - "src/components/waouh/**"
+      - "src/components/admin/WaouhAdminCommandCenter.tsx"
       - "src/lib/waouh/**"
       - "src/App.tsx"
       - "src/app-mobile/screens/ChatListScreen.tsx"
@@ -45,8 +51,10 @@ on:
       - "src/app-mobile/screens/ChatScreen.tsx"
       - "src/app-mobile/components/ChatRightPane.tsx"
       - "supabase/functions/waouh-agentic-core/**"
+      - "supabase/functions/waouh-admin-stats/**"
       - "supabase/functions/waouh-radar-api-config/**"
       - "supabase/functions/waouh-radar-apify/**"
+      - "supabase/functions/waouh-radar-site-scraper/**"
       - "supabase/functions/waouh-radar-process/**"
       - "supabase/functions/waouh-serpapi-scout/**"
       - "supabase/functions/waouh-radar-wa-webhook/**"
@@ -97,10 +105,14 @@ jobs:
       - name: Check NEXUS Edge Function
         run: deno check supabase/functions/waouh-agentic-core/index.ts
 
+      - name: Check WAOUH Admin Command Center
+        run: deno check supabase/functions/waouh-admin-stats/index.ts
+
       - name: Check NEXUS Admin Connectors
         run: |
           deno check supabase/functions/waouh-radar-api-config/index.ts
           deno check supabase/functions/waouh-radar-apify/index.ts
+          deno check supabase/functions/waouh-radar-site-scraper/index.ts
           deno check supabase/functions/waouh-radar-wa-webhook/index.ts
           deno check supabase/functions/waouh-radar-process/index.ts
           deno check supabase/functions/waouh-serpapi-scout/index.ts
