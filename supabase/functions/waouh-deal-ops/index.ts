@@ -4,6 +4,7 @@
 //   action: "seller_confirm" | "payment_preference" | "cancel" | "assign" | "status" | "update_eta" | "payment"
 // Consolidated from waouh-deal-{assign,status,update-eta,payment} to fit edge-function quota.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -674,6 +675,13 @@ Deno.serve(async (req) => {
     if (!action) return json({ error: "action required" }, 400);
 
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const dealControl = await getWaouhModuleControl(sb, "deals");
+    if (!dealControl.enabled) {
+      return json({
+        error: "deals_paused",
+        message: dealControl.maintenance_message || "Le Deal Graph WAOUH est temporairement suspendu.",
+      }, 503);
+    }
 
     if (["assign", "status", "update_eta"].includes(action)) {
       const guard = await requireAdmin(req, sb);
