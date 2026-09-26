@@ -31,28 +31,30 @@ function wahaHeaders() {
 }
 
 async function sendWhatsApp(chatId: string, text: string, photoUrl?: string | null) {
-  if (!WAHA_BASE_URL) return { ok: false, skipped: "WAHA_BASE_URL missing" };
-  const base = WAHA_BASE_URL.replace(/\/$/, "");
+  const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
+  const toPhone = String(chatId || "").replace(/@(?:c\.us|s\.whatsapp\.net)$/i, "").trim();
+  if (!toPhone) return { ok: false, skipped: "missing phone" };
   try {
-    if (photoUrl) {
-      const r = await fetch(`${base}/api/sendImage`, {
-        method: "POST",
-        headers: wahaHeaders(),
-        body: JSON.stringify({ session: WAHA_SESSION, chatId, file: { url: photoUrl }, caption: text }),
-      });
-      if (!r.ok) {
-        await fetch(`${base}/api/sendText`, {
-          method: "POST", headers: wahaHeaders(),
-          body: JSON.stringify({ session: WAHA_SESSION, chatId, text }),
-        });
-      }
-    } else {
-      await fetch(`${base}/api/sendText`, {
-        method: "POST", headers: wahaHeaders(),
-        body: JSON.stringify({ session: WAHA_SESSION, chatId, text }),
-      });
-    }
-    return { ok: true };
+    const { error } = await sb.rpc("waouh_enqueue_outbound_v2", {
+      p_to_phone: toPhone,
+      p_to_user_id: null,
+      p_template: "deal_ops",
+      p_payload: { text, actions: [] },
+      p_web_session_id: null,
+      p_image_url: photoUrl ?? null,
+      p_channel: "whatsapp",
+      p_message_id: null,
+      p_transaction_id: null,
+      p_dedupe_key: null,
+      p_event_type: "deal_ops",
+    });
+    if (error) throw error;
+    fetch(`${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ limit: 20 }),
+    }).catch(() => {});
+    return { ok: true, queued: true };
   } catch (e) {
     return { ok: false, error: String(e) };
   }
@@ -63,7 +65,7 @@ function buildSellerText(title: string, amount: number) {
     `🎉 *Vente conclue !*\n` +
     `📦 ${title}\n` +
     `💰 ${fmt(amount)}\n\n` +
-    `🛵 Un *livreur WAOUH* vous contactera dans quelques minutes au numéro associé à ce compte pour convenir de la collecte du colis.\n\n` +
+    `🛵 WAOUH recherche maintenant le livreur disponible le plus adapté pour la collecte.\n\n` +
     `🔒 *Confidentialité* : pour votre sécurité, le contact de l'acheteur n'est pas partagé. WAOUH coordonne la livraison.\n\n` +
     `⏱️ Préparez le colis dès maintenant.\n\n` +
     `— WAOUH ✨`
@@ -75,7 +77,7 @@ function buildBuyerText(title: string, amount: number) {
     `🎉 *Achat confirmé !*\n` +
     `📦 ${title}\n` +
     `💰 ${fmt(amount)}\n\n` +
-    `🛵 Un *livreur WAOUH* a été assigné. Vous recevrez sous peu une notification avec le *délai estimé de livraison*.\n` +
+    `🛵 WAOUH recherche maintenant un livreur. Vous recevrez une notification dès que l’assignation et l’ETA seront confirmées.\n` +
     `💵 *Paiement à la livraison* (cash ou Mobile Money au livreur).\n\n` +
     `🔒 Le contact du vendeur n'est pas partagé : WAOUH s'occupe de tout.\n\n` +
     `— WAOUH ✨`
@@ -94,7 +96,7 @@ function buildOpsText(deal: any, article: any, buyer: any, seller: any) {
     `🛒 *Acheteur* : ${buyer?.display_name || "—"}\n` +
     `   📞 ${buyer?.phone_number || "—"}\n` +
     `   📍 ${buyer?.city || "—"}\n\n` +
-    `▶️ Assigner un livreur depuis le dashboard WAOUH.`
+    `▶️ Assignation automatique activée. Le dashboard WAOUH reste disponible en secours.`
   );
 }
 
@@ -154,6 +156,16 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "deal not found" }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    if (deal.status !== "pending_assignment") {
+      return new Response(JSON.stringify({
+        success: true,
+        deal_id,
+        skipped: true,
+        reason: "deal_not_waiting_for_courier",
+        current_status: deal.status,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const [{ data: buyer }, { data: seller }, { data: article }] = await Promise.all([
