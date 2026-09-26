@@ -479,7 +479,8 @@ export default function WaouhAdminCommandCenter() {
             title="Paramétrage des moteurs"
             items={[
               { label: "Paramètres généraux", path: "/admin/waouh?tab=settings", note: "IA, commerce, paiements et règles" },
-              { label: "NEXUS / Radar IA", path: "/admin/waouh/radar", note: "Sources, connecteurs, API, quotas et scans" },\n              { label: "Contact Layer C0–C4", path: "/admin/waouh/contact-layer", note: "Contactabilité, consentement et politique par source" },
+              { label: "NEXUS / Radar IA", path: "/admin/waouh/radar", note: "Sources, connecteurs, API, quotas et scans" },
+              { label: "Contact Layer C0–C4", path: "/admin/waouh/contact-layer", note: "Contactabilité, consentement et politique par source" },
               { label: "WhatsApp Ops", path: "/admin/waouh/whatsapp-ops", note: "WAHA, sessions, files et replay" },
               { label: "SMS / RCS natif", path: "/admin/waouh/native-messaging", note: "Provider, SMS, RCS et fallback" },
               { label: "Validations diffusion", path: "/admin/waouh/diffusion-approvals", note: "Approbations humaines avant envoi" },
