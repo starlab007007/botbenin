@@ -132,8 +132,40 @@ async function sendWahaButtons(base: string, session: string, chatId: string, te
 }
 
 
-function defaultActionsForTemplate(_template: string, _p: any): Array<{ id: string; label: string; url?: string; phone?: string }> {
-  // Parcours 100 % conversationnel : plus aucune action par défaut (OUI / NON / Je propose XXX).
+function defaultActionsForTemplate(template: string, p: any): Array<{ id: string; label: string; url?: string; phone?: string }> {
+  const negId = String(p?.negotiation_id || p?.neg_id || "").trim();
+  const dealId = String(p?.deal_id || "").trim();
+  const role = String(p?.target_role || p?.role || "").trim().toLowerCase();
+
+  if ((template === "negotiation_open" || p?.intent === "negotiation_open") && negId) {
+    return [
+      { id: `accepter:${negId}`, label: "✅ Accepter" },
+      { id: `contre-proposition:${negId}`, label: "💬 Contre-proposer" },
+      { id: `refuser:${negId}`, label: "❌ Refuser" },
+    ];
+  }
+  if ((template === "deal_accepted" || p?.intent === "deal_accepted") && dealId) {
+    if (role === "seller") {
+      return [
+        { id: `confirmer-disponibilite:${dealId}`, label: "✅ Article disponible" },
+        { id: `annuler:${dealId}`, label: "❌ Indisponible" },
+      ];
+    }
+    return [
+      { id: `payer-mobile:${dealId}`, label: "📱 Mobile Money" },
+      { id: `paiement-livraison:${dealId}`, label: "💵 Cash livraison" },
+      { id: `annuler:${dealId}`, label: "❌ Annuler" },
+    ];
+  }
+  if (p?.workflow_state === "delivered" && dealId && role === "buyer") {
+    const method = String(p?.payment_method || "").toLowerCase();
+    return [{
+      id: method === "mobile_money"
+        ? `confirmer-paiement-mobile:${dealId}`
+        : `confirmer-paiement-cash:${dealId}`,
+      label: method === "mobile_money" ? "✅ Confirmer Mobile Money" : "✅ Confirmer paiement",
+    }];
+  }
   return [];
 }
 
