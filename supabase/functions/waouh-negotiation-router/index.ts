@@ -378,57 +378,19 @@ Deno.serve(async (req) => {
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      const nowIso = new Date().toISOString();
-      await sb.from("waouh_negotiations").update({
-        state: "accepted",
-        last_actor: isBuyer ? "buyer" : "seller",
-        closed_at: nowIso,
-      }).eq("id", neg.id);
+      // Atomic commerce transition: negotiation + deal + transaction + article
+      // reservation + thread binding commit together or all roll back.
+      const { data: atomicResult, error: atomicError } = await sb.rpc("waouh_accept_negotiation_atomic", {
+        p_negotiation_id: neg.id,
+        p_thread_id: activeThreadId,
+        p_actor_user_id: user.id,
+        p_actor_role: isBuyer ? "buyer" : "seller",
+        p_commission_rate: COMMISSION_RATE,
+        p_correlation_id: (neg.meta as any)?.correlation_id ?? null,
+      });
 
-      // Charge les deux parties + article (pour photos et titre)
-      const [{ data: buyer }, { data: seller }, { data: article }] = await Promise.all([
-        sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id, location").eq("id", neg.buyer_user_id).maybeSingle(),
-        sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id, location").eq("id", neg.seller_user_id).maybeSingle(),
-        sb.from("waouh_articles").select("id, title, photos").eq("id", neg.article_id).maybeSingle(),
-      ]);
-
-      const title = article?.title || "votre annonce";
-      const articlePhotos: string[] = Array.isArray((article as any)?.photos)
-        ? (article as any).photos.filter((u: any) => typeof u === "string" && /^https?:\/\//i.test(u))
-        : [];
-      const replyAttachments = articlePhotos.slice(0, 4).map((url, k) => ({
-        url, type: "image/jpeg",
-        caption: `${title}${articlePhotos.length > 1 ? ` — photo ${k + 1}/${articlePhotos.length}` : ""}`,
-      }));
-
-      // Création du deal — protégée par UNIQUE INDEX waouh_deals_unique_per_negotiation.
-      // Si une course parallèle a déjà inséré un deal, l'INSERT échoue (23505)
-      // et on court-circuite proprement sans renvoyer d'event en double.
-      const { data: deal, error: dealErr } = await sb.from("waouh_deals").insert({
-        thread_id: activeThreadId,
-        negotiation_id: neg.id,
-        article_id: neg.article_id,
-        buyer_user_id: neg.buyer_user_id,
-        seller_user_id: neg.seller_user_id,
-        amount,
-        status: "awaiting_confirmation",
-        commission_rate: COMMISSION_RATE,
-        commission_amount: Math.round(amount * COMMISSION_RATE),
-        commission_status: "pending",
-        pickup_address: (seller as any)?.city ?? null,
-        dropoff_address: (buyer as any)?.city ?? null,
-      }).select("id").maybeSingle();
-
-      if (dealErr && (dealErr as any).code === "23505") {
-        console.log("[neg-router] deal déjà créé en parallèle, court-circuit", { neg_id: neg.id });
-        return new Response(JSON.stringify({
-          ok: true,
-          reply: "✅ Accord déjà enregistré. WAOUH poursuit le parcours de livraison.",
-          intent: "deal_already_accepted",
-        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
-      if (dealErr) {
-        const reason = String((dealErr as any)?.message || "");
+      if (atomicError) {
+        const reason = String((atomicError as any)?.message || "");
         const unavailable = /article_(?:reserved|sold)/i.test(reason);
         if (unavailable) {
           await sb.from("waouh_negotiations").update({
@@ -454,66 +416,81 @@ Deno.serve(async (req) => {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
-        throw dealErr;
+        if (/thread|participants|required|mismatch/i.test(reason)) {
+          return new Response(JSON.stringify({
+            ok: false,
+            code: "commerce_context_invalid",
+            reply: "WAOUH doit resynchroniser le Deal Room exact avant de conclure cet accord.",
+            intent: "commerce_context_invalid",
+            workflow_state: "negotiating",
+            negotiation_id: neg.id,
+            thread_id: activeThreadId,
+            article_id: neg.article_id,
+            actions: negotiationActions(neg.id),
+          }), {
+            status: 409,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        throw atomicError;
       }
 
-      // Réserver l'article pendant le paiement. Il ne devient vendu qu'après
-      // livraison confirmée par l'acheteur.
-      try {
-        await sb.from("waouh_articles").update({ status: "reserved" }).eq("id", neg.article_id);
-      } catch (e) { console.warn("[neg-router] mark sold failed", e); }
+      const acceptance = (atomicResult || {}) as any;
+      const finalAmount = Number(acceptance.amount ?? amount ?? 0);
+      const dealId: string | null = acceptance.deal_id ?? null;
+      const transactionId: string | null = acceptance.transaction_id ?? null;
 
-      // La commission et l'attribution partenaire ne sont acquises qu'après
-      // livraison et confirmation du paiement.
+      const [
+        { data: buyer },
+        { data: seller },
+        { data: article },
+        { data: deal },
+        { data: transaction },
+      ] = await Promise.all([
+        sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id, location").eq("id", neg.buyer_user_id).maybeSingle(),
+        sb.from("waouh_users").select("id, display_name, phone_number, city, web_session_id, location").eq("id", neg.seller_user_id).maybeSingle(),
+        sb.from("waouh_articles").select("id, title, photos").eq("id", neg.article_id).maybeSingle(),
+        dealId ? sb.from("waouh_deals").select("*").eq("id", dealId).maybeSingle() : Promise.resolve({ data: null }),
+        transactionId ? sb.from("waouh_transactions").select("*").eq("id", transactionId).maybeSingle() : Promise.resolve({ data: null }),
+      ]);
 
-      let transaction: any = null;
-      if (deal?.id) {
-        const { data, error } = await sb.from("waouh_transactions").insert({
-          thread_id: activeThreadId,
-          article_id: neg.article_id,
-          seller_id: neg.seller_user_id,
-          buyer_id: neg.buyer_user_id,
-          amount,
-          currency: "XOF",
-          commission: Math.round(amount * COMMISSION_RATE),
-          commission_rate: COMMISSION_RATE,
-          commission_status: "pending",
-          payment_method: "pending",
-          escrow_status: "pending",
-          negotiated_price: amount,
-          status: "initiated",
-        }).select().maybeSingle();
-        if (!error) transaction = data;
-      }
+      const title = article?.title || "votre annonce";
+      const articlePhotos: string[] = Array.isArray((article as any)?.photos)
+        ? (article as any).photos.filter((u: any) => typeof u === "string" && /^https?:\/\//i.test(u))
+        : [];
+      const replyAttachments = articlePhotos.slice(0, 4).map((url, k) => ({
+        url, type: "image/jpeg",
+        caption: `${title}${articlePhotos.length > 1 ? ` — photo ${k + 1}/${articlePhotos.length}` : ""}`,
+      }));
 
       const product = {
         id: neg.article_id,
         article_id: neg.article_id,
         title,
-        price: amount,
+        price: finalAmount,
         photos: articlePhotos,
         availability: "Réservé",
         workflow_state: "awaiting_confirmation",
-        deal_id: deal?.id ?? null,
-        transaction_id: transaction?.id ?? null,
+        deal_id: dealId,
+        transaction_id: transactionId,
       };
       const myRole: "buyer" | "seller" = isBuyer ? "buyer" : "seller";
-      const myActions = deal?.id
-        ? (isBuyer ? buyerPaymentActions(deal.id) : sellerAvailabilityActions(deal.id))
+      const myActions = dealId
+        ? (isBuyer ? buyerPaymentActions(dealId) : sellerAvailabilityActions(dealId))
         : [];
       const myReply = isBuyer
-        ? `🎉 Accord conclu à ${fmt(amount)}. Choisissez comment vous paierez après livraison.`
-        : `🎉 Accord conclu à ${fmt(amount)}. Confirmez que l'article est disponible.`;
+        ? `🎉 Accord conclu à ${fmt(finalAmount)}. Choisissez comment vous paierez après livraison.`
+        : `🎉 Accord conclu à ${fmt(finalAmount)}. Confirmez que l'article est disponible.`;
 
-      if (otherUserId && deal?.id) {
+      if (otherUserId && dealId) {
         const otherIsBuyer = otherUserId === neg.buyer_user_id;
         const otherRole: "buyer" | "seller" = otherIsBuyer ? "buyer" : "seller";
         const otherActions = otherIsBuyer
-          ? buyerPaymentActions(deal.id)
-          : sellerAvailabilityActions(deal.id);
+          ? buyerPaymentActions(dealId)
+          : sellerAvailabilityActions(dealId);
         const otherText = otherIsBuyer
-          ? `🎉 Accord conclu à ${fmt(amount)}. Choisissez comment vous paierez après livraison.`
-          : `🎉 Accord conclu à ${fmt(amount)}. Confirmez que l'article est disponible.`;
+          ? `🎉 Accord conclu à ${fmt(finalAmount)}. Choisissez comment vous paierez après livraison.`
+          : `🎉 Accord conclu à ${fmt(finalAmount)}. Confirmez que l'article est disponible.`;
         await pushToOther(
           otherUserId,
           "deal_accepted",
@@ -524,16 +501,16 @@ Deno.serve(async (req) => {
             workflow_state: "awaiting_confirmation",
             role: otherRole,
             article_id: neg.article_id,
-            deal_id: deal.id,
-            transaction_id: transaction?.id ?? null,
+            deal_id: dealId,
+            transaction_id: transactionId,
             thread_id: activeThreadId,
             buyer_user_id: neg.buyer_user_id,
             seller_user_id: neg.seller_user_id,
             products: [{ ...product, role: otherRole, actions: otherActions }],
           },
-          transaction?.id ?? null,
+          transactionId,
           otherActions,
-          `deal:${deal.id}:accepted:${otherUserId}`,
+          `deal:${dealId}:accepted:${otherUserId}`,
           "deal_accepted",
           replyAttachments,
         );
@@ -542,8 +519,8 @@ Deno.serve(async (req) => {
       await bindThreadState(sb, activeThreadId, {
         status: "awaiting_confirmation",
         negotiation_id: neg.id,
-        deal_id: deal?.id ?? null,
-        transaction_id: transaction?.id ?? null,
+        deal_id: dealId,
+        transaction_id: transactionId,
       });
 
       fetch(`${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`, {
@@ -562,8 +539,8 @@ Deno.serve(async (req) => {
         attachments: replyAttachments,
         products: [{ ...product, role: myRole, actions: myActions }],
         article_id: neg.article_id,
-        transaction_id: transaction?.id ?? null,
-        deal_id: deal?.id ?? null,
+        transaction_id: transactionId,
+        deal_id: dealId,
         thread_id: activeThreadId,
         suppress_direct_reply: false,
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
