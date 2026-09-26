@@ -122,7 +122,7 @@ CREATE OR REPLACE FUNCTION public.waouh_sync_opportunity_journey_contract()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path TO 'public'
-AS $
+AS $$
 BEGIN
   IF TG_OP='INSERT' THEN
     NEW.stage := COALESCE(NEW.stage, CASE NEW.state
@@ -169,7 +169,7 @@ BEGIN
   NEW.last_activity_at := now();
   RETURN NEW;
 END;
-$;
+$$;
 
 DROP TRIGGER IF EXISTS waouh_opportunity_journey_contract_sync
 ON public.waouh_opportunity_journeys;
