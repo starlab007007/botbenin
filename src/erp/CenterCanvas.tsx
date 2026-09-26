@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Radar, Sparkles } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -22,7 +21,6 @@ type CanvasView = 'home' | 'chat' | 'conversation' | 'statuses' | 'radar';
  * L'accueil réplique l'écran Chat de l'app Flutter (parité 1:1).
  */
 export const CenterCanvas = () => {
-  const navigate = useNavigate();
   const { user } = useMobileAuth();
   const { sessionId } = useWaouhIdentity();
   const sid = sessionId ?? '';
@@ -62,37 +60,31 @@ export const CenterCanvas = () => {
     return () => window.removeEventListener('waouh:avatar-ask', onAvatarAsk as EventListener);
   }, [setActiveKey]);
 
-  const requireAuth = useCallback(
-    (target: string) => {
-      if (user) return true;
-      try {
-        sessionStorage.setItem('waouh_post_auth_redirect', target);
-      } catch {
-        /* noop */
-      }
-      navigate('/app/auth');
-      return false;
-    },
-    [navigate, user],
-  );
-
+  // Le chat WAOUH accepte une session Web anonyme. L’authentification
+  // est demandée seulement au moment d’une action personnelle/sensible,
+  // comme dans le parcours Flutter.
   const openWaouh = useCallback(() => {
-    if (!requireAuth('/app/chat')) return;
     setActiveConvId(null);
     setActiveKey('main');
     setView('chat');
-  }, [requireAuth, setActiveKey]);
+  }, [setActiveKey]);
 
   const openIntent = useCallback(
     (prompt: string) => {
-      if (!requireAuth('/app/chat')) return;
       setActiveConvId(null);
       setActiveKey('main');
       setView('chat');
       setTimeout(() => chatRef.current?.prefill(prompt), 60);
     },
-    [requireAuth, setActiveKey],
+    [setActiveKey],
   );
+
+  useEffect(() => {
+    if (activeKey && activeKey !== 'main') {
+      setActiveConvId(null);
+      setView('chat');
+    }
+  }, [activeKey]);
 
   const activeMatch = activeKey && activeKey !== 'main' ? matches.find((m) => m.key === activeKey) : null;
 
