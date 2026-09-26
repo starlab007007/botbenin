@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Users, Shield, Key, Activity, Settings, Palette, Database, Megaphone, Bot, GraduationCap, Sparkles, PackageOpen, ArrowLeft } from 'lucide-react';
+import { Users, Shield, Key, Activity, Settings, Palette, Database, Megaphone, Bot, GraduationCap, Sparkles, PackageOpen, ArrowLeft, Network, MessageSquareText, HeartPulse, History, Truck, SlidersHorizontal, Handshake, Building2, ExternalLink } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import AdminPrivatAIPage from './AdminPrivatAIPage';
@@ -30,6 +30,38 @@ export const AdminDashboardPage: React.FC = () => {
       .subscribe();
     return () => { alive = false; supabase.removeChannel(ch); };
   }, []);
+
+  const waouhAccessGroups = [
+    {
+      title: 'Pilotage & diagnostic',
+      items: [
+        { label: 'Centre de contrôle', path: '/admin/waouh?tab=control', note: 'État global, alertes et kill switches', icon: Activity },
+        { label: 'Monitoring temps réel', path: '/admin/waouh/monitoring', note: 'Santé et métriques opérationnelles', icon: Activity },
+        { label: 'Health Check', path: '/admin/waouh/health-check', note: 'Divergences, synchronisation et anomalies', icon: HeartPulse },
+        { label: 'Historique & traces', path: '/admin/waouh/historique', note: 'Chat, négociations, queue et traces', icon: History },
+        { label: 'Deal Ops', path: '/admin/waouh/deals', note: 'Deals, livraison, paiement et arbitrage', icon: Truck },
+      ],
+    },
+    {
+      title: 'Paramétrage des moteurs',
+      items: [
+        { label: 'Paramètres généraux', path: '/admin/waouh?tab=settings', note: 'IA, commerce, paiement et règles', icon: SlidersHorizontal },
+        { label: 'NEXUS / Radar IA', path: '/admin/waouh/radar', note: 'Sources, API, quotas et collecte', icon: Network },
+        { label: 'WhatsApp Ops', path: '/admin/waouh/whatsapp-ops', note: 'WAHA, sessions, queue et replay', icon: MessageSquareText },
+        { label: 'SMS / RCS natif', path: '/admin/waouh/native-messaging', note: 'Provider, SMS, RCS et fallback', icon: MessageSquareText },
+        { label: 'Validations diffusion', path: '/admin/waouh/diffusion-approvals', note: 'Approbations humaines avant envoi', icon: Megaphone },
+      ],
+    },
+    {
+      title: 'Données & écosystème',
+      items: [
+        { label: 'Catalogue & données', path: '/admin/waouh/data-control', note: 'Qualité, normalisation et contrôle IA', icon: Database },
+        { label: 'Partenaires', path: '/admin/waouh/partners', note: 'Partenaires et permissions', icon: Handshake },
+        { label: 'Commerces', path: '/admin/waouh/businesses', note: 'Entreprises, catalogues et vérification', icon: Building2 },
+        { label: 'Démo / recette', path: '/admin/waouh/demo', note: 'Parcours de démonstration', icon: Sparkles },
+      ],
+    },
+  ];
 
   const adminCards = [
     {
@@ -166,6 +198,54 @@ export const AdminDashboardPage: React.FC = () => {
           );
         })}
       </div>
+
+      <Card className="mb-8 border-cyan-200">
+        <CardHeader>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle>WAOUH — chemins d’accès administration</CardTitle>
+              <CardDescription className="mt-1">
+                Accès directs aux réglages, consoles de suivi et outils de contrôle. Les routes sont affichées pour qu’aucun paramétrage ne reste caché.
+              </CardDescription>
+            </div>
+            <Button onClick={() => navigate('/admin/waouh?tab=control')}>
+              <Activity className="h-4 w-4 mr-2" />Ouvrir WAOUH Command Center
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-5 lg:grid-cols-3">
+          {waouhAccessGroups.map((group) => (
+            <div key={group.title} className="space-y-2">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group.title}</div>
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    type="button"
+                    key={item.path}
+                    onClick={() => navigate(item.path)}
+                    className="w-full rounded-xl border bg-background px-3 py-3 text-left transition-all hover:border-cyan-300 hover:bg-cyan-50/40 hover:shadow-sm"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="rounded-lg border bg-muted/30 p-2">
+                        <Icon className="h-4 w-4 text-cyan-700" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-semibold">{item.label}</span>
+                          <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                        </div>
+                        <div className="mt-0.5 text-xs text-muted-foreground">{item.note}</div>
+                        <code className="mt-1 block truncate text-[10px] text-slate-500">{item.path}</code>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
