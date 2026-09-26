@@ -264,7 +264,7 @@ export function WhatsAppFlutterParityBrick() {
                       <Button variant="outline" size="sm" onClick={() => stopSession(session.name)}><Square className="mr-1 h-3.5 w-3.5" /> Arrêter</Button>
                     )}
                     <Button size="sm" className="bg-amber-500 hover:bg-amber-600" onClick={() => navigate('/app/whatsapp')}><QrCode className="mr-1 h-3.5 w-3.5" /> Scanner le QR</Button>
-                    <Button size="sm" variant="ghost"><ChevronRight className="h-4 w-4" /></Button>
+                    <Button size="sm" variant="ghost" onClick={() => navigate('/app/whatsapp')} aria-label="Ouvrir WhatsApp IA"><ChevronRight className="h-4 w-4" /></Button>
                   </div>
                 </div>
               );

@@ -82,21 +82,36 @@ function ActionGrid({ actions }: { actions: ModuleAction[] }) {
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
       {actions.map((item) => {
         const Icon = item.icon;
-        return (
-          <button
-            key={item.title}
-            type="button"
-            onClick={() => item.route && navigate(item.route)}
-            className={cn(
-              'rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md',
-              item.accent,
-            )}
-          >
+        const content = (
+          <>
             <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-[hsl(165_91%_25%)]/10 text-[hsl(165_91%_25%)]">
               <Icon className="h-5 w-5" />
             </div>
             <div className="font-semibold text-slate-950">{item.title}</div>
             <p className="mt-1 text-sm leading-snug text-slate-500">{item.description}</p>
+          </>
+        );
+        if (!item.route) {
+          return (
+            <div
+              key={item.title}
+              className={cn('rounded-2xl border bg-white p-4 text-left shadow-sm', item.accent)}
+            >
+              {content}
+            </div>
+          );
+        }
+        return (
+          <button
+            key={item.title}
+            type="button"
+            onClick={() => navigate(item.route!)}
+            className={cn(
+              'rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md',
+              item.accent,
+            )}
+          >
+            {content}
           </button>
         );
       })}
@@ -128,12 +143,13 @@ const agentActions: ModuleAction[] = [
 ];
 
 export function AgentsIaParityBrick() {
+  const navigate = useNavigate();
   return (
     <ShellParityFrame
       title="Agents IA"
       subtitle="Même contenu que Flutter : agents conversationnels, BI, stock et présence QR."
       icon={Sparkles}
-      action={<Button className="bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)]"><Plus className="mr-2 h-4 w-4" /> Nouvel agent</Button>}
+      action={<Button onClick={() => navigate('/app/agents/new')} className="bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)]"><Plus className="mr-2 h-4 w-4" /> Nouvel agent</Button>}
     >
       <ActionGrid actions={agentActions} />
       <AgentsSection />
@@ -164,12 +180,13 @@ export function ConversationalParityBrick() {
 }
 
 export function BiWaouhParityBrick() {
+  const navigate = useNavigate();
   return (
     <ShellParityFrame
       title="BI WAOUH IA"
       subtitle="Même parcours Flutter : source de données, lignes importées, indicateurs et lecture IA."
       icon={BarChart3}
-      action={<Button variant="outline"><RefreshCw className="mr-2 h-4 w-4" /> Actualiser</Button>}
+      action={<Button variant="outline" onClick={() => navigate('/app/agents/bi/new')}><Plus className="mr-2 h-4 w-4" /> Ajouter une source</Button>}
     >
       <div className="grid gap-4 md:grid-cols-3">
         <MetricCard label="Sources" value="CSV · Excel · Sheet · API" icon={FileText} />
@@ -262,12 +279,13 @@ export function StockWaouhParityBrick() {
 }
 
 export function PresenceQrParityBrick() {
+  const navigate = useNavigate();
   return (
     <ShellParityFrame
       title="Présence QR"
       subtitle="Même contenu Flutter : sites, QR géolocalisés, pointages et notifications WhatsApp."
       icon={QrCode}
-      action={<Button className="bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)]"><Plus className="mr-2 h-4 w-4" /> Nouveau site</Button>}
+      action={<Button onClick={() => navigate('/app/agents/attendance/new')} className="bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)]"><Plus className="mr-2 h-4 w-4" /> Nouveau site</Button>}
     >
       <ActionGrid
         actions={[
