@@ -286,8 +286,8 @@ BEGIN
   IF v_uid IS NULL THEN
     RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='admin_required';
   END IF;
-  SELECT COALESCE(public.has_role(v_uid, 'admin'::app_role), false)
-      OR COALESCE(public.has_role(v_uid, 'super_admin'::app_role), false)
+  SELECT COALESCE(public.has_role(v_uid, 'admin'), false)
+      OR COALESCE(public.has_role(v_uid, 'super_admin'), false)
     INTO v_is_admin;
   IF NOT v_is_admin THEN
     RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='admin_required';
