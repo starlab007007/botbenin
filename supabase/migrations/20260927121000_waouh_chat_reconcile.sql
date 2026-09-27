@@ -278,7 +278,7 @@ RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path TO 'public'
-AS $
+AS $reconcile$
 DECLARE
   v_uid uuid := auth.uid();
   v_is_admin boolean := false;
@@ -294,7 +294,7 @@ BEGIN
   END IF;
   RETURN public.waouh_reconcile_chat_integrity(p_mode, NULL);
 END;
-$;
+$reconcile$;
 
 REVOKE ALL ON FUNCTION public.waouh_admin_reconcile_chat(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.waouh_admin_reconcile_chat(text) FROM anon;
