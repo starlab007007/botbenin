@@ -56,6 +56,11 @@ export interface WaouhResultCard {
    * null = pas d'action d'intérêt (ex : fiche de confirmation déjà ouverte).
    */
   action?: string | null;
+  /**
+   * Parcours v3 : boutons de fiche fournis par le serveur (« Je le veux à X »,
+   * « Proposer un prix », « Poser une question »). Remplacent le bouton d'intérêt.
+   */
+  actions?: Array<{ id: string; label: string }> | null;
   /** Optionnel : fourni par certaines surfaces pour ouvrir directement 1 article × 1 interlocuteur. */
   seller_id?: string | null;
   counterpart_user_id?: string | null;
@@ -219,7 +224,7 @@ export function WaouhProductCard({
   topPick = false,
 }: {
   result: WaouhResultCard;
-  onAction?: (text: string) => void;
+  onAction?: (text: string, meta?: Record<string, unknown>) => void;
   compact?: boolean;
   topPick?: boolean;
 }) {
@@ -230,6 +235,11 @@ export function WaouhProductCard({
   const [ready, setReady] = useState<boolean>(() => isImageReady(photos[0]));
   const [asking, setAsking] = useState(false);
   const [question, setQuestion] = useState("");
+  // Parcours v3 : saisie d'offre pré-remplie avec le prix suggéré.
+  const [offering, setOffering] = useState(false);
+  const [offer, setOffer] = useState("");
+  const serverActions = Array.isArray(result.actions) ? result.actions.filter((a) => a?.id && a?.label).slice(0, 3) : [];
+  const v3Entry = serverActions.find((a) => /^je-veux:/i.test(a.id)) ?? null;
   const gallery = photos.map((url) => ({ url, caption: result.title }));
   const interestAction = result.action === null ? null : (result.action || defaultInterestAction(result));
   const opportunity = isBuyerOpportunity(result);
@@ -272,6 +282,14 @@ export function WaouhProductCard({
   const submitQuestion = () => {
     const q = question.trim();
     if (!q || !onAction) return;
+    if (v3Entry) {
+      // Parcours v3 : la question part au vendeur dans la Deal Room du produit.
+      openDedicatedWindowFromResult(result);
+      onAction(q, { article_id: result.id, button_payload: `poser-question:${result.id}`, commerce_action: "ask" });
+      setQuestion("");
+      setAsking(false);
+      return;
+    }
     onAction(`question ${result.index} : ${q}`);
     setQuestion("");
     setAsking(false);
@@ -281,6 +299,26 @@ export function WaouhProductCard({
     if (!interestAction || !onAction) return;
     openDedicatedWindowFromResult(result);
     onAction(interestAction);
+  };
+
+  const listPrice = Number(result.price ?? result.price_min ?? result.price_max ?? 0) || null;
+  const openOffer = () => {
+    const suggested = listPrice ? Math.max(100, Math.round((listPrice * 0.9) / 25) * 25) : null;
+    setOffer(suggested ? String(suggested) : "");
+    setOffering((o) => !o);
+    setAsking(false);
+  };
+  const submitOffer = () => {
+    const amount = Number(offer.replace(/\D/g, ""));
+    if (!onAction || !Number.isFinite(amount) || amount < 100) return;
+    openDedicatedWindowFromResult(result);
+    onAction(`Je propose ${fmt(amount)}`, { article_id: result.id, commerce_action: "offer", offer_price: amount });
+    setOffering(false);
+  };
+  const handleWant = () => {
+    if (!v3Entry || !onAction) return;
+    openDedicatedWindowFromResult(result);
+    onAction(v3Entry.label, { article_id: result.id, button_payload: v3Entry.id, commerce_action: "open_deal" });
   };
 
   return (
@@ -440,7 +478,60 @@ export function WaouhProductCard({
           <p className="text-[11px] leading-snug text-muted-foreground line-clamp-3">{result.market_line}</p>
         )}
 
-        {onAction && (
+        {onAction && v3Entry && !externalOpportunity && (
+          <div className="mt-1 space-y-1.5">
+            <Button
+              size="sm"
+              className="w-full h-9 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={handleWant}
+            >
+              {v3Entry.label}
+            </Button>
+            <div className="grid grid-cols-2 gap-1.5">
+              <Button size="sm" variant="outline" className="h-8 min-w-0 px-2 text-[11px]" onClick={openOffer}>
+                <span className="truncate">Proposer un prix</span>
+              </Button>
+              <Button size="sm" variant="outline" className="h-8 min-w-0 px-2 text-[11px]" onClick={() => { setAsking((a) => !a); setOffering(false); }}>
+                <MessageCircleQuestion className="h-3.5 w-3.5 mr-1 shrink-0" />
+                <span className="truncate">Poser une question</span>
+              </Button>
+            </div>
+            {offering && (
+              <div className="flex items-center gap-1.5">
+                <Input
+                  autoFocus
+                  inputMode="numeric"
+                  value={offer}
+                  onChange={(e) => setOffer(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submitOffer(); } }}
+                  placeholder="Votre prix en FCFA"
+                  className="h-8 text-xs"
+                  aria-label="Votre prix en FCFA"
+                />
+                <Button size="sm" className="h-8 px-2" onClick={submitOffer} aria-label="Envoyer l'offre">
+                  <Send className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+            {asking && (
+              <div className="flex items-center gap-1.5">
+                <Input
+                  autoFocus
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submitQuestion(); } }}
+                  placeholder={`Votre question sur « ${result.title.slice(0, 22)}… »`}
+                  className="h-8 text-xs"
+                />
+                <Button size="sm" className="h-8 px-2" onClick={submitQuestion} aria-label="Envoyer la question">
+                  <Send className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {onAction && !(v3Entry && !externalOpportunity) && (
           <div className="mt-1 space-y-1.5">
             {interestAction && !externalOpportunity && (
               <Button
@@ -510,7 +601,7 @@ export function WaouhProductResults({
   compact,
 }: {
   results: WaouhResultCard[];
-  onAction?: (text: string) => void;
+  onAction?: (text: string, meta?: Record<string, unknown>) => void;
   compact?: boolean;
 }) {
   const normalized = normalizeResultCards(results);

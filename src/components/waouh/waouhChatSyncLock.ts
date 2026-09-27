@@ -331,6 +331,24 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
         "user.auth_user_id = authUserId;",
       ],
     },
+    // 🔒 v15 — Parcours v3 (Lot 2) : point d'entrée unique idempotent, argent
+    // jamais exécuté depuis le texte libre sans tap, catalogue derrière son
+    // interrupteur (textes historiques intacts quand il est coupé).
+    commerceActionContract: {
+      file: "supabase/functions/waouh-commerce-action/index.ts",
+      mustContain: [
+        "commerceActionV3Enabled(sb)",
+        "waouh_commerce_actions",
+        "verdict.needsConfirm && !request.confirmed",
+      ],
+    },
+    routerCatalogBehindFlag: {
+      file: "supabase/functions/waouh-negotiation-router/index.ts",
+      mustContain: [
+        "chatCatalogV3Enabled(sb)",
+        "registryNegotiationActions(id)",
+      ],
+    },
     webhookThreadInEveryReply: {
       file: "supabase/functions/waouh-webhook/index.ts",
       mustContain: [
