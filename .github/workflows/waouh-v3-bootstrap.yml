@@ -49,3 +49,5 @@ jobs:
           git add -A
           git commit -m "chore(waouh-chat): remove v3 bootstrap staging"
           git push origin HEAD:feat/waouh-chat-v3-20260927
+
+# retry after exact chunk repair
