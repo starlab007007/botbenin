@@ -56,31 +56,41 @@ export interface RecordChatMessageResult {
   error?: string;
 }
 
-const FLAG_TTL_MS = 30_000;
-let flagCache: { value: boolean; at: number } | null = null;
+const FLAG_TTL_MS = 5_000;
+const flagCache = new Map<string, { value: boolean; at: number }>();
 
-/** Interrupteur chat_writer_v2, fermé par défaut, mis en cache 30 s par instance. */
-export async function chatWriterV2Enabled(sb: any): Promise<boolean> {
+async function moduleFlagEnabled(sb: any, moduleKey: string): Promise<boolean> {
   const now = Date.now();
-  if (flagCache && now - flagCache.at < FLAG_TTL_MS) return flagCache.value;
+  const cached = flagCache.get(moduleKey);
+  if (cached && now - cached.at < FLAG_TTL_MS) return cached.value;
   let value = false;
   try {
     const { data, error } = await sb
       .from("waouh_admin_module_controls")
       .select("enabled,automation_enabled")
-      .eq("module_key", "chat_writer_v2")
+      .eq("module_key", moduleKey)
       .maybeSingle();
     value = !error && !!data && data.enabled === true && data.automation_enabled === true;
   } catch {
     value = false;
   }
-  flagCache = { value, at: now };
+  flagCache.set(moduleKey, { value, at: now });
   return value;
+}
+
+/** Interrupteur écrivain canonique, fermé par défaut. */
+export async function chatWriterV2Enabled(sb: any): Promise<boolean> {
+  return moduleFlagEnabled(sb, "chat_writer_v2");
+}
+
+/** Interrupteur du routeur canonique, indépendant du writer pour rollback séparé. */
+export async function chatRouterV2Enabled(sb: any): Promise<boolean> {
+  return moduleFlagEnabled(sb, "chat_router_v2");
 }
 
 /** Tests uniquement. */
 export function __resetChatWriterFlagCache() {
-  flagCache = null;
+  flagCache.clear();
 }
 
 function emptyResult(threadId: string, error: string): RecordChatMessageResult {
