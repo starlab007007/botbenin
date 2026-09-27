@@ -4,6 +4,7 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   __resetChatWriterFlagCache,
+  chatRouterV2Enabled,
   chatWriterV2Enabled,
   deriveWaouhChannel,
   recordChatMessage,
@@ -73,6 +74,17 @@ Deno.test("interrupteur : module + automatisation => ouvert", async () => {
   __resetChatWriterFlagCache();
   const sb = fakeSb({ tables: { waouh_admin_module_controls: [{ module_key: "chat_writer_v2", enabled: true, automation_enabled: true }] } });
   assertEquals(await chatWriterV2Enabled(sb), true);
+  __resetChatWriterFlagCache();
+});
+
+Deno.test("routeur v2 : interrupteur indépendant de l'écrivain", async () => {
+  __resetChatWriterFlagCache();
+  const sb = fakeSb({ tables: { waouh_admin_module_controls: [
+    { module_key: "chat_writer_v2", enabled: true, automation_enabled: true },
+    { module_key: "chat_router_v2", enabled: false, automation_enabled: false },
+  ] } });
+  assertEquals(await chatWriterV2Enabled(sb), true);
+  assertEquals(await chatRouterV2Enabled(sb), false);
   __resetChatWriterFlagCache();
 });
 
