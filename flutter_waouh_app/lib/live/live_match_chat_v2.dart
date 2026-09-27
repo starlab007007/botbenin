@@ -40,6 +40,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
   late final LiveWaouhController _controller;
   bool _promotionScheduled = false;
   String? _promotedThreadId;
+  static const int _maxSilentResolveCycles = 8;
 
   @override
   void initState() {
@@ -168,11 +169,17 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
         _resolving = false;
         _resolveError = error;
       });
-      if (seed != null && _automaticResolveCycles < 2) {
-        final repairSubmission = _automaticResolveCycles == 0;
+      // Parcours v3 : plus de bandeau « Mode provisoire ». La confirmation du
+      // fil se poursuit en silence (3 s, 6 s, 12 s, 24 s, puis 30 s) ; le
+      // serveur renvoie désormais thread_id dès l'ouverture, ces reprises ne
+      // servent qu'en cas de réseau lent. Les messages restent envoyables.
+      if (seed != null && _automaticResolveCycles < _maxSilentResolveCycles) {
+        final repairSubmission = _automaticResolveCycles.isEven;
+        final backoff = 3 << _automaticResolveCycles;
+        final delaySeconds = backoff > 30 ? 30 : backoff;
         _automaticResolveCycles += 1;
         _resolveRetryTimer?.cancel();
-        _resolveRetryTimer = Timer(const Duration(seconds: 3), () {
+        _resolveRetryTimer = Timer(Duration(seconds: delaySeconds), () {
           if (mounted) {
             unawaited(_resolve(repairSubmission: repairSubmission));
           }
@@ -411,9 +418,8 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
     return Scaffold(
       appBar: LiveHeader(
         title: 'WAOUH One',
-        subtitle: pendingThread
-            ? 'Deal Room · synchronisation…'
-            : 'Deal Room · ${match.title}${match.city == null ? '' : ' · ${match.city}'}',
+        subtitle:
+            'Deal Room · ${match.title}${match.city == null ? '' : ' · ${match.city}'}',
         back: true,
         actions: pendingThread
             ? const <Widget>[]
@@ -430,42 +436,9 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
               ],
       ),
       body: Column(children: [
-        if (pendingThread && _resolving)
-          const LinearProgressIndicator(minHeight: 2),
+        // Seul indicateur pendant la confirmation du fil : une barre fine.
         if (pendingThread)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(10, 5, 8, 5),
-            color: const Color(0xFFE7F6F0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _resolving
-                        ? 'Envoi de votre intérêt et synchronisation du fil exact…'
-                        : _resolveError == null
-                            ? 'Discussion synchronisée.'
-                            : 'Mode provisoire actif : historique et messages restent disponibles pendant la confirmation du fil exact.',
-                    style: const TextStyle(
-                      color: Color(0xFF53698E),
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                if (_resolveError != null)
-                  TextButton(
-                    onPressed: _resolving
-                        ? null
-                        : () => _resolve(
-                              repairSubmission: true,
-                              replayAcceptedSubmission: true,
-                            ),
-                    child: const Text('Réessayer'),
-                  ),
-              ],
-            ),
-          ),
+          const LinearProgressIndicator(minHeight: 2),
         Expanded(
           child: StreamBuilder<List<LiveMessage>>(
             stream: _messageStream,
@@ -493,7 +466,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                       onPayload: _handlePayload,
                       showAssistantHint: waiting,
                       emptyMessage: pendingThread
-                          ? 'Deal Room ouverte. WAOUH synchronise le fil exact.'
+                          ? 'Deal Room ouverte. Votre offre part au vendeur.'
                           : match.isSearch
                               ? 'Poursuivez cette recherche avec votre Avatar.'
                               : 'Commencez la discussion sur ce produit.',

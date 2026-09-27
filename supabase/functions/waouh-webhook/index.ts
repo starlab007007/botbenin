@@ -10,7 +10,10 @@ import {
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 import { resolveProductThread, bindThreadState } from "../_shared/waouh-thread.ts";
-import { chatRouterV2Enabled, chatWriterV2Enabled, recordChatMessage, resolveThreadIdForEvent } from "../_shared/waouh-chat-writer.ts";
+import { chatCatalogV3Enabled, chatInterestFastPathEnabled, chatRouterV2Enabled, chatWriterV2Enabled, recordChatMessage, resolveThreadIdForEvent } from "../_shared/waouh-chat-writer.ts";
+import { articleEntryActionsV3, negotiationActions as registryNegotiationActions, negotiationActionsV3 } from "../_shared/waouh-commands.ts";
+import { renderCatalog } from "../_shared/waouh-message-catalog.ts";
+import { openBuyerDeal } from "../_shared/waouh-deal-open.ts";
 import { findRadarOutreachContext, findRadarSellerOutreachContext } from "../_shared/waouh-radar.ts";
 import { extractFallbackKeywords, expandKeywordVariants, escapeIlikeToken, matchesAnyKeyword, scoreRelevance, normalizeCategorySafe } from "../_shared/waouh-keywords.ts";
 import { compareMarketPrice, shortMarketLine } from "../_shared/waouh-price.ts";
@@ -340,6 +343,28 @@ async function delegateToNegotiationRouter(
   };
 }
 
+// Parcours v3 — Lot 1 : négociation ouverte d'UN article pour une personne
+// (toutes ses identités). Remplace « la plus récente, tous produits ».
+async function findOpenNegotiationForArticle(
+  // deno-lint-ignore no-explicit-any
+  sb: any,
+  articleId: string | null | undefined,
+  siblingIds: string[],
+  // deno-lint-ignore no-explicit-any
+): Promise<any | null> {
+  if (!articleId || siblingIds.length === 0) return null;
+  const { data } = await sb.from("waouh_negotiations")
+    .select("*")
+    .eq("article_id", articleId)
+    .or(siblingOrFilter(siblingIds))
+    .in("state", ["proposed", "countered"])
+    .order("updated_at", { ascending: false })
+    .limit(2);
+  // Plusieurs négociations sur le même article (vendeur avec deux acheteurs) :
+  // on ne devine pas, l'appelant garde son chemin historique.
+  return Array.isArray(data) && data.length === 1 ? data[0] : null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -368,6 +393,8 @@ serve(async (req) => {
     const channel = body.channel ?? (webSessionId ? "web" : "whatsapp");
     const attachments = Array.isArray(body.attachments) ? body.attachments : [];
     const passedUserId = body.user_id || null;
+    // Indices fournis par waouh-channel-in (article / fil du message).
+    const articleHint: string | null = typeof body.article_hint === "string" && body.article_hint ? body.article_hint : null;
     const nativeMessagingRequest = requiresNativeEngineAuthorization(body);
 
     if (nativeMessagingRequest) {
@@ -892,6 +919,20 @@ serve(async (req) => {
     // d'utiliser `reply` (texte) + `attachments` (images).
     let replyResults: Array<Record<string, any>> = [];
     let returnedActions: Array<{ id: string; label: string }> = [];
+    // Parcours v3 — toute réponse liée à un produit porte son fil et sa
+    // négociation : le client ouvre la Deal Room sans attendre de sondage.
+    let returnedThreadId: string | null = null;
+    let returnedNegotiationId: string | null = null;
+    let returnedStage: string | null = null;
+    const catalogV3 = await chatCatalogV3Enabled(sb);
+    const fastPathOn = await chatInterestFastPathEnabled(sb);
+    const noOpenDealReply = () => {
+      if (catalogV3) return renderCatalog("no_open_deal").text;
+      if (!fastPathOn) return "🤔 Aucune négociation en cours. Recherchez d'abord un produit puis dites *intéressé 1*.";
+      return channel === "whatsapp"
+        ? "🤔 Aucune discussion ouverte. Recherchez un produit puis répondez *intéressé 1* (le numéro de l'annonce)."
+        : "🤔 Aucune discussion ouverte. Recherchez un produit puis touchez « Je suis intéressé » sur sa fiche.";
+    };
 
     let nextContext: any = radarHydratedContext ?? (conv?.context ?? {});
 
@@ -1667,6 +1708,8 @@ serve(async (req) => {
               market_line: officialExtras[idx]?.market_line || null,
               photos: (Array.isArray(m.photos) ? m.photos.filter(isPublicImageUrl) : []).slice(0, 6),
               action: `intéressé ${idx}`,
+              // v3 : boutons de fiche (ouvrent la Deal Room en un aller-retour).
+              ...(catalogV3 && m.id ? { actions: articleEntryActionsV3(m.id, Number(m.price || 0) || null), seller_id: m.seller_id ?? null } : {}),
             };
           }),
           ...radarTop.map((r: any, i: number) => {
@@ -1811,13 +1854,34 @@ serve(async (req) => {
         // correct mais l'annonce n'est pas encore disponible.
         reply = `⏳ L'annonce n°${intent.article_index} (${pick.title}) est en cours de vérification. Choisissez un autre numéro ou réessayez dans un instant.`;
       } else {
-        const alreadyOnArticle = (nextContext?.current_article_id || conv?.current_article_id) === pick.id;
+        let alreadyOnArticle = (nextContext?.current_article_id || conv?.current_article_id) === pick.id;
         const askPrice = Number(pick.price || 0);
+        // Lot 1 : « déjà ouverte » seulement si la négociation existe vraiment.
+        // Avant, le seul contexte de conversation suffisait : réponse figée,
+        // sans fil ni bouton (capture 2), même quand rien n'avait été créé.
+        // deno-lint-ignore no-explicit-any
+        let existingOpenNeg: any = null;
+        if (alreadyOnArticle && fastPathOn) {
+          const confirmSiblings = await resolveSiblingUserIds(sb, user);
+          existingOpenNeg = await findOpenNegotiationForArticle(sb, pick.id, confirmSiblings);
+          if (!existingOpenNeg?.thread_id) alreadyOnArticle = false;
+        }
         if (alreadyOnArticle) {
           returnedArticleId = pick.id;
-          returnedCounterpartId = pick.seller_id ?? null;
-          returnedActions = [];
-          reply = `${waouhHeader("✅ Mise en relation déjà ouverte")}\n\n📦 *${pick.title}*\n💰 *Prix* : ${fmt(askPrice)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou écrivez (Ex : *Je propose ${fmt(askPrice)}*) pour négocier.\n\n${waouhFooter()}`;
+          returnedCounterpartId = pick.seller_id ?? existingOpenNeg?.seller_user_id ?? null;
+          returnedThreadId = existingOpenNeg?.thread_id ?? null;
+          returnedNegotiationId = existingOpenNeg?.id ?? null;
+          returnedStage = existingOpenNeg ? "negotiation" : null;
+          const currentOffer = Number(existingOpenNeg?.last_offer_price || askPrice || 0);
+          const buyerWaits = String(existingOpenNeg?.last_actor || "") === "buyer";
+          returnedActions = existingOpenNeg && !buyerWaits
+            ? (catalogV3
+              ? negotiationActionsV3(existingOpenNeg.id, { amount: currentOffer })
+              : registryNegotiationActions(existingOpenNeg.id))
+            : [];
+          reply = catalogV3
+            ? renderCatalog(buyerWaits ? "awaiting_counterparty" : "deal_already_open", { title: pick.title, amount: currentOffer, role: "buyer" }).text
+            : `${waouhHeader("✅ Mise en relation déjà ouverte")}\n\n📦 *${pick.title}*\n💰 *Prix* : ${fmt(askPrice)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou écrivez (Ex : *Je propose ${fmt(askPrice)}*) pour négocier.\n\n${waouhFooter()}`;
         } else {
         const pickSource: "chat" | "partner" | "radar" =
           pick.source === "partner" ? "partner" :
@@ -2112,34 +2176,95 @@ serve(async (req) => {
         }];
 
         returnedActions = [];
+        if (fastPathOn) {
+          returnedThreadId = productThread.id;
+          returnedNegotiationId = neg?.id ?? null;
+          returnedStage = neg?.id ? "negotiation" : "interest";
+        }
+        // Lot 1 : l'acheteur décide avec des boutons (mêmes identifiants que
+        // les commandes texte OUI / Je propose / NON).
+        if (fastPathOn && neg?.id) {
+          returnedActions = catalogV3
+            ? negotiationActionsV3(neg.id, { amount: askPrice })
+            : registryNegotiationActions(neg.id);
+        }
         const distLineBuyer = distKm != null ? `\n${fmtDistance(distKm)}` : "";
-        reply = `${waouhHeader("✅ Demande envoyée au vendeur")}\n\n📦 *${pick.title}*\n💰 *Prix du vendeur* : ${fmt(askPrice)}${distLineBuyer}\n${firstPhoto ? "📸 *Photo transmise au vendeur*\n" : ""}\n*Que souhaitez-vous faire ?*\n1️⃣ Répondez *OUI* pour accepter ce prix (${fmt(askPrice)}).\n2️⃣ Ou proposez votre prix : *Je propose ${fmt(Math.round(askPrice * 0.9))}*.\n\nLe vendeur attend votre décision.\n\n${waouhFooter()}`;
+        if (catalogV3) {
+          reply = renderCatalog("request_sent", { title: pick.title, amount: askPrice }).text;
+        } else reply = `${waouhHeader("✅ Demande envoyée au vendeur")}\n\n📦 *${pick.title}*\n💰 *Prix du vendeur* : ${fmt(askPrice)}${distLineBuyer}\n${firstPhoto ? "📸 *Photo transmise au vendeur*\n" : ""}\n*Que souhaitez-vous faire ?*\n1️⃣ Répondez *OUI* pour accepter ce prix (${fmt(askPrice)}).\n2️⃣ Ou proposez votre prix : *Je propose ${fmt(Math.round(askPrice * 0.9))}*.\n\nLe vendeur attend votre décision.\n\n${waouhFooter()}`;
         } // end if (!promotionFailed)
         } // end if (!seller is buyer sibling)
         }
       }
 
-    } else if (intent.intent === "NEGOTIATE" || (offerMatch && conv?.current_article_id)) {
+    } else if (intent.intent === "NEGOTIATE" || (offerMatch && conv?.current_article_id) || (offerMatch && fastPathOn && articleHint)) {
       const amount = offerMatch ? parseInt(offerMatch[1].replace(/[\s.,]/g, ""), 10) : null;
       // 🔒 v8 — Multi-identités : résoudre les siblings (App + WA, LID + phone)
       // pour retrouver la négo même si l'expéditeur WA n'est pas le même
       // waouh_users que celui stocké sur la négo (cas vendeur App répondant
       // depuis son WhatsApp).
       const negSiblingIds = await resolveSiblingUserIds(sb, user as any);
-      const { data: neg } = await sb.from("waouh_negotiations")
-        .select("*")
-        .or(siblingOrFilter(negSiblingIds))
-        .in("state", ["proposed", "countered"])
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Lot 1 : négociation de l'article en cours d'abord ; la recherche
+      // globale ne sert plus que sans aucun contexte d'article explicite.
+      const negContextArticleId: string | null = articleHint ?? conv?.current_article_id ?? null;
+      // deno-lint-ignore no-explicit-any
+      let neg: any = fastPathOn
+        ? await findOpenNegotiationForArticle(sb, negContextArticleId, negSiblingIds)
+        : null;
+      if (!neg && !(fastPathOn && articleHint)) {
+        const { data: globalNeg } = await sb.from("waouh_negotiations")
+          .select("*")
+          .or(siblingOrFilter(negSiblingIds))
+          .in("state", ["proposed", "countered"])
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        neg = globalNeg;
+      }
+      if (neg && fastPathOn) {
+        returnedThreadId = neg.thread_id ?? null;
+        returnedNegotiationId = neg.id;
+        returnedStage = "negotiation";
+      }
       const negDelegated = neg
         ? await delegateToNegotiationRouter(sb, neg, negSiblingIds, amount
           ? { text: `je propose ${amount}` }
           : { text: String(text || ""), buttonPayload: `contre-proposition:${neg.id}` })
         : null;
-      if (!neg) {
-        reply = "🤔 Aucune négociation en cours. Recherchez d'abord un produit puis dites *intéressé 1*.";
+      if (!neg && fastPathOn && amount && negContextArticleId) {
+        // Capture 1 : un prix sur un article connu OUVRE la négociation au lieu
+        // de répondre « Aucune négociation en cours ».
+        const opened = await openBuyerDeal({
+          sb,
+          articleId: negContextArticleId,
+          buyerUserId: user!.id,
+          source: channel === "whatsapp" ? "whatsapp_offer" : "chat_offer",
+          offer: amount,
+          supabaseUrl: Deno.env.get("SUPABASE_URL")!,
+          serviceRole: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+          notifySeller: "on_create",
+          rejectUnavailable: true,
+          catalogV3,
+        });
+        const openedTitle = opened.article?.title ?? "l'article";
+        if (opened.ok) {
+          returnedArticleId = negContextArticleId;
+          returnedCounterpartId = opened.sellerUserId;
+          returnedThreadId = opened.threadId;
+          returnedNegotiationId = opened.negotiationId;
+          returnedStage = "negotiation";
+          reply = catalogV3
+            ? renderCatalog(opened.created ? "deal_opened" : "deal_already_open", { title: openedTitle, amount: opened.offerPrice }).text
+            : `💬 Offre de *${fmt(opened.offerPrice || amount)}* transmise pour *${openedTitle}*. Vous serez notifié de la réponse.`;
+        } else if (opened.code === "self") {
+          reply = catalogV3 ? renderCatalog("self_article").text : "🤔 Vous êtes le vendeur de cet article. Attendez qu'un acheteur se manifeste.";
+        } else if (opened.code === "article_unavailable") {
+          reply = catalogV3 ? renderCatalog("article_reserved").text : "⏳ Cet article n'est plus disponible. Relancez une recherche pour voir des articles proches.";
+        } else {
+          reply = catalogV3 ? renderCatalog("technical_error").text : "⚠️ Votre offre n'a pas pu être transmise. Rien n'a été validé : réessayez dans un instant.";
+        }
+      } else if (!neg) {
+        reply = noOpenDealReply();
       } else if (negDelegated) {
         reply = negDelegated.reply;
         returnedActions = Array.isArray(negDelegated.actions) ? negDelegated.actions : [];
@@ -2147,6 +2272,7 @@ serve(async (req) => {
         returnedArticleId = negDelegated.article_id ?? neg.article_id;
         returnedTransactionId = negDelegated.transaction_id ?? null;
         returnedCounterpartId = negSiblingIds.includes(neg.buyer_user_id) ? neg.seller_user_id : neg.buyer_user_id;
+        if (fastPathOn && negDelegated.thread_id) returnedThreadId = negDelegated.thread_id;
       } else if (amount) {
         const isBuyer = negSiblingIds.includes(neg.buyer_user_id);
         const otherId = isBuyer ? neg.seller_user_id : neg.buyer_user_id;
@@ -2177,13 +2303,26 @@ serve(async (req) => {
     } else if (intent.intent === "DECIDE_YES" || intent.intent === "DECIDE_NO") {
       // Réponse OUI/NON à une négociation en cours (acheteur OU vendeur)
       const decSiblingIds = await resolveSiblingUserIds(sb, user as any);
-      const { data: neg } = await sb.from("waouh_negotiations")
-        .select("*")
-        .or(siblingOrFilter(decSiblingIds))
-        .in("state", ["proposed", "countered"])
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const decContextArticleId: string | null = articleHint ?? conv?.current_article_id ?? null;
+      // deno-lint-ignore no-explicit-any
+      let neg: any = fastPathOn
+        ? await findOpenNegotiationForArticle(sb, decContextArticleId, decSiblingIds)
+        : null;
+      if (!neg && !(fastPathOn && articleHint)) {
+        const { data: globalNeg } = await sb.from("waouh_negotiations")
+          .select("*")
+          .or(siblingOrFilter(decSiblingIds))
+          .in("state", ["proposed", "countered"])
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        neg = globalNeg;
+      }
+      if (neg && fastPathOn) {
+        returnedThreadId = neg.thread_id ?? null;
+        returnedNegotiationId = neg.id;
+        returnedStage = "negotiation";
+      }
       const decDelegated = neg
         ? await delegateToNegotiationRouter(sb, neg, decSiblingIds, {
           text: String(text || ""),
@@ -2191,7 +2330,17 @@ serve(async (req) => {
         })
         : null;
       if (!neg) {
-        reply = "🤔 Aucune négociation en cours. Recherchez d'abord un produit puis dites *intéressé 1*.";
+        reply = noOpenDealReply();
+        if (fastPathOn && decContextArticleId && intent.intent === "DECIDE_YES") {
+          // « OUI » sur un article connu sans négociation : on propose l'entrée
+          // directe plutôt qu'une impasse.
+          const { data: ctxArt } = await sb.from("waouh_articles")
+            .select("id,title,price,seller_id").eq("id", decContextArticleId).maybeSingle();
+          if (ctxArt?.id && !decSiblingIds.includes(ctxArt.seller_id)) {
+            returnedArticleId = ctxArt.id;
+            returnedActions = articleEntryActionsV3(ctxArt.id, Number(ctxArt.price || 0) || null);
+          }
+        }
       } else if (decDelegated) {
         reply = decDelegated.reply;
         returnedActions = Array.isArray(decDelegated.actions) ? decDelegated.actions : [];
@@ -2199,6 +2348,8 @@ serve(async (req) => {
         returnedArticleId = decDelegated.article_id ?? neg.article_id;
         returnedTransactionId = decDelegated.transaction_id ?? null;
         returnedCounterpartId = decSiblingIds.includes(neg.buyer_user_id) ? neg.seller_user_id : neg.buyer_user_id;
+        if (fastPathOn && decDelegated.thread_id) returnedThreadId = decDelegated.thread_id;
+        if (fastPathOn && decDelegated.deal_id) returnedStage = "agreement";
       } else {
         const isBuyer = decSiblingIds.includes(neg.buyer_user_id);
         const myRole: "buyer" | "seller" = isBuyer ? "buyer" : "seller";
@@ -2281,7 +2432,7 @@ serve(async (req) => {
       body: JSON.stringify({ limit: 20 }),
     }).catch(() => {});
 
-    return new Response(JSON.stringify({ ok: true, intent: intent.intent, reply, attachments: replyAttachments, results: replyResults, article_id: returnedArticleId, counterpart_user_id: returnedCounterpartId, transaction_id: returnedTransactionId, actions: returnedActions }), {
+    return new Response(JSON.stringify({ ok: true, intent: intent.intent, reply, attachments: replyAttachments, results: replyResults, article_id: returnedArticleId, counterpart_user_id: returnedCounterpartId, transaction_id: returnedTransactionId, actions: returnedActions, thread_id: returnedThreadId, negotiation_id: returnedNegotiationId, stage: returnedStage }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {

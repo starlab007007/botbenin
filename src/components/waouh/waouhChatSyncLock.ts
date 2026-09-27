@@ -18,7 +18,7 @@
  */
 
 export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
-  version: "v14",
+  version: "v15",
   lockedAt: "2026-09-27T12:00:00.000Z",
   memoryRef: "mem://features/waouh-chat-sync-flow",
 
@@ -312,10 +312,31 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
         "throw atomicError;",
       ],
     },
+    // v15 — l'écho acheteur vit dans l'ouverture commune (waouh-deal-open).
     buyerEchoWithoutSelfDecision: {
-      file: "supabase/functions/waouh-buyer-interest/index.ts",
+      file: "supabase/functions/_shared/waouh-deal-open.ts",
       mustContain: [
-        "const actions: typeof decisionActions = [];",
+        "const actions: WaouhAction[] = [];",
+      ],
+    },
+    // 🔒 v15 — Parcours v3 (Lot 1) : un message avec article ouvre la Deal
+    // Room et la réponse porte son fil ; « déjà ouverte » vérifie la
+    // négociation réelle ; plus de recherche « tous produits » avec article.
+    interestFastPathReturnsThread: {
+      file: "supabase/functions/waouh-channel-in/index.ts",
+      mustContain: [
+        "chatInterestFastPathEnabled(sb)",
+        "decideFastPath({",
+        "thread_id: out.threadId",
+        "user.auth_user_id = authUserId;",
+      ],
+    },
+    webhookThreadInEveryReply: {
+      file: "supabase/functions/waouh-webhook/index.ts",
+      mustContain: [
+        "findOpenNegotiationForArticle",
+        "thread_id: returnedThreadId",
+        "negotiation_id: returnedNegotiationId",
       ],
     },
     // 🔒 v14 — Écrivain unique derrière l'interrupteur chat_writer_v2.
