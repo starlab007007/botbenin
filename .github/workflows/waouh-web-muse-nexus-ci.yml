@@ -23,6 +23,13 @@ on:
       - "supabase/functions/waouh-channel-in/**"
       - "supabase/functions/waouh-negotiation-router/**"
       - "supabase/functions/waouh-deal-ops/**"
+      - "supabase/functions/waouh-commerce-action/**"
+      - "supabase/functions/_shared/waouh-commerce-*.ts"
+      - "supabase/functions/_shared/waouh-deal-open*.ts"
+      - "supabase/functions/_shared/waouh-interest-fastpath*.ts"
+      - "supabase/functions/_shared/waouh-message-catalog*.ts"
+      - "supabase/functions/_shared/waouh-free-text.ts"
+      - "supabase/functions/_shared/waouh-predictive.ts"
       - "supabase/functions/waouh-outbound-dispatch/**"
       - "supabase/migrations/**"
       - "supabase/functions/_shared/waouh-nexus.ts"
@@ -49,6 +56,13 @@ on:
       - "supabase/functions/waouh-channel-in/**"
       - "supabase/functions/waouh-negotiation-router/**"
       - "supabase/functions/waouh-deal-ops/**"
+      - "supabase/functions/waouh-commerce-action/**"
+      - "supabase/functions/_shared/waouh-commerce-*.ts"
+      - "supabase/functions/_shared/waouh-deal-open*.ts"
+      - "supabase/functions/_shared/waouh-interest-fastpath*.ts"
+      - "supabase/functions/_shared/waouh-message-catalog*.ts"
+      - "supabase/functions/_shared/waouh-free-text.ts"
+      - "supabase/functions/_shared/waouh-predictive.ts"
       - "supabase/functions/waouh-outbound-dispatch/**"
       - "supabase/migrations/**"
       - "supabase/functions/_shared/waouh-nexus.ts"
@@ -104,6 +118,17 @@ jobs:
 
       - name: Check WAOUH Deal Operations
         run: deno check supabase/functions/waouh-deal-ops/index.ts
+
+      - name: Check WAOUH Commerce Action
+        run: deno check supabase/functions/waouh-commerce-action/index.ts
+
+      - name: WAOUH Chat V3 contract tests
+        run: |
+          deno test supabase/functions/_shared/waouh-deal-open-test.ts
+          deno test supabase/functions/_shared/waouh-interest-fastpath-test.ts
+          deno test supabase/functions/_shared/waouh-message-catalog-test.ts
+          deno test supabase/functions/_shared/waouh-commerce-v3-test.ts
+          npx vitest run src/lib/waouh/__tests__/commerceAction.test.ts src/components/waouh/__tests__/waouh-chat-sync-flow.lock.test.ts
 
       - name: Check WAOUH Outbound Dispatcher
         run: deno check supabase/functions/waouh-outbound-dispatch/index.ts
