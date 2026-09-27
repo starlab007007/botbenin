@@ -189,6 +189,19 @@ const moduleMeta: Record<string, { icon: any; detail: (cc: CommandCenter) => str
     manage: "/admin/waouh/historique",
     automation: true,
   },
+  // Chat v2 (plan du 27/09/2026) : automatisation = bascule effective.
+  chat_writer_v2: {
+    icon: MessagesSquare,
+    detail: () => "Écrivain unique + routage négociation unifié (automatisation = activé)",
+    manage: "/admin/waouh/health-check",
+    automation: true,
+  },
+  chat_reconcile: {
+    icon: Workflow,
+    detail: () => "Automatisation coupée = rapport seul · activée = réparations",
+    manage: "/admin/waouh/health-check",
+    automation: true,
+  },
 };
 
 const severityMeta: Record<Severity, { label: string; cls: string }> = {

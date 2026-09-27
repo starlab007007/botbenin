@@ -6,10 +6,16 @@
 // Body: { article_id: string, source?: "match"|"radar"|"chat"|"card" }
 // Auth: requires Authorization Bearer <user JWT>.
 
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-waouh-session, x-session-id",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
 import { bindThreadState, resolveProductThread } from "../_shared/waouh-thread.ts";
+import { sellerOfferDecisionActions } from "../_shared/waouh-commands.ts";
 import { requestSessionId, requireAuthOrGuestSession } from "../_shared/waouh-auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -201,13 +207,8 @@ Deno.serve(async (req) => {
       })
       } catch (_) { /* ledger is best-effort for legacy recovery */ }
     }
-    const decisionActions = negotiationId
-      ? [
-          { id: `accepter:${negotiationId}`, label: "✅ Accepter le prix" },
-          { id: `contre-proposition:${negotiationId}`, label: "💬 Faire une contre-offre" },
-          { id: `refuser:${negotiationId}`, label: "❌ Refuser" },
-        ]
-      : [];
+    // Boutons de décision : pour le VENDEUR uniquement (registre unique).
+    const decisionActions = negotiationId ? sellerOfferDecisionActions(negotiationId) : [];
 
 
     // Always dispatch the seller notification. The dispatcher has its own
@@ -252,7 +253,9 @@ Deno.serve(async (req) => {
           const photos = Array.isArray((article as any)?.photos)
             ? (article as any).photos.filter((url: unknown) => typeof url === "string" && /^https?:\/\//i.test(url as string))
             : [];
-          const actions = decisionActions;
+          // L'acheteur ne décide pas de sa propre offre : pas de bouton
+          // « Accepter le prix » sur son écho (sinon deal créé sans le vendeur).
+          const actions: typeof decisionActions = [];
           await pushSyncedEvent({
             sb,
             user: buyerUser,
@@ -279,7 +282,6 @@ Deno.serve(async (req) => {
               workflow_state: "proposed",
               initial_offer_amount: initialOffer,
               negotiation_id: negotiationId,
-              actions,
               actions,
               products: [{
                 id: article_id,
@@ -318,7 +320,8 @@ Deno.serve(async (req) => {
       seller_notified: dispatched,
       negotiation_id: negotiationId,
       workflow_state: negotiationId ? "proposed" : "interest_recorded",
-      actions: decisionActions,
+      // Réponse adressée à l'acheteur : aucune décision à prendre sur sa propre offre.
+      actions: [],
       thread_id: threadId,
       article_id,
       offer_price: initialOffer,

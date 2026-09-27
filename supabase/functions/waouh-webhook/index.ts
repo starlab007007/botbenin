@@ -10,6 +10,7 @@ import {
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 import { resolveProductThread, bindThreadState } from "../_shared/waouh-thread.ts";
+import { chatWriterV2Enabled, recordChatMessage, resolveThreadIdForEvent } from "../_shared/waouh-chat-writer.ts";
 import { findRadarOutreachContext, findRadarSellerOutreachContext } from "../_shared/waouh-radar.ts";
 import { extractFallbackKeywords, expandKeywordVariants, escapeIlikeToken, matchesAnyKeyword, scoreRelevance, normalizeCategorySafe } from "../_shared/waouh-keywords.ts";
 import { compareMarketPrice, shortMarketLine } from "../_shared/waouh-price.ts";
@@ -264,6 +265,79 @@ async function ai(system: string, user: string, json = true) {
   const txt = data?.choices?.[0]?.message?.content ?? "";
   if (json) { try { return JSON.parse(txt); } catch { return {}; } }
   return txt;
+}
+
+
+// Chat v2 (interrupteur chat_writer_v2) — une seule mécanique de décision.
+// Le moteur ci-dessous gardait sa propre négociation (OUI/NON/contre-offre) :
+// acceptation SANS deal ni transaction ni thread, message « contactez-le »
+// contraire au parcours livreur WAOUH, et choix de la négociation la plus
+// récente sans tenir compte du thread. Quand la négociation a un thread, la
+// décision est confiée au routeur canonique (transition atomique).
+async function delegateToNegotiationRouter(
+  sb: any,
+  neg: any,
+  siblingIds: string[],
+  command: { text: string; buttonPayload?: string | null },
+): Promise<Record<string, any> | null> {
+  if (!neg?.id || !neg?.thread_id) return null;
+  if (!(await chatWriterV2Enabled(sb))) return null;
+  const url = Deno.env.get("SUPABASE_URL");
+  const srv = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !srv) return null;
+  const actorIsBuyer = siblingIds.includes(neg.buyer_user_id);
+  const actorIsSeller = siblingIds.includes(neg.seller_user_id);
+  if (actorIsBuyer === actorIsSeller) {
+    return {
+      reply: "⚠️ Cette négociation ne peut pas être modifiée depuis cette identité.",
+      intent: "negotiation_actor_invalid",
+      actions: [],
+    };
+  }
+  const actorId = actorIsBuyer ? neg.buyer_user_id : neg.seller_user_id;
+  // Plusieurs négociations ouvertes : on ne devine pas laquelle est visée
+  // (le moteur prenait « la plus récente »), on demande de répondre depuis
+  // le bon produit ou le bouton du dernier message.
+  if (siblingIds.length > 0) {
+    const list = `(${siblingIds.join(",")})`;
+    const { data: openNegs } = await sb.from("waouh_negotiations")
+      .select("id")
+      .or(`buyer_user_id.in.${list},seller_user_id.in.${list}`)
+      .in("state", ["proposed", "countered"])
+      .limit(2);
+    if (Array.isArray(openNegs) && openNegs.length > 1) {
+      return {
+        reply: "🤝 Vous avez plusieurs négociations en cours. Répondez depuis la fenêtre du produit concerné, ou touchez le bouton du dernier message de cette négociation.",
+        intent: "negotiation_context_required",
+        actions: [],
+      };
+    }
+  }
+  try {
+    const res = await fetch(`${url}/functions/v1/waouh-negotiation-router`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${srv}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: command.text,
+        button_payload: command.buttonPayload ?? null,
+        user_id: actorId,
+        thread_id: neg.thread_id,
+        negotiation_id: neg.id,
+      }),
+    });
+    const data = await res.json().catch(() => null);
+    const replyText = typeof data?.reply === "string" && data.reply.trim()
+      ? data.reply
+      : (typeof data?.message === "string" && data.message.trim() ? data.message : null);
+    if (replyText) return { ...data, reply: replyText };
+  } catch (e) {
+    console.warn("[waouh-webhook] negotiation delegation failed", e);
+  }
+  return {
+    reply: "⚠️ Votre réponse n'a pas pu être traitée pour le moment. Rien n'a été validé : réessayez dans un instant.",
+    intent: "negotiation_unavailable",
+    actions: [],
+  };
 }
 
 serve(async (req) => {
@@ -908,7 +982,37 @@ serve(async (req) => {
       // seller's WaouhMatchChatWindow can split history per interested buyer.
       const counterpartForMeta = user?.id ?? (opts.directMeta as any)?.counterpart_user_id ?? null;
       let insertedMsgId: string | null = null;
-      if (target.id) {
+      // Chat v2 (chat_writer_v2) : quand la négociation a un thread et que la
+      // cible en est partie, contrepartie/rôle viennent du thread (ici
+      // buyer_user_id valait l'expéditeur même quand c'était le vendeur).
+      // Cible hors thread (vendeur invité, partenaire) => ancien chemin.
+      if (target.id && await chatWriterV2Enabled(sb)) {
+        const v2ThreadId = await resolveThreadIdForEvent({
+          sb,
+          threadId: (opts.directMeta as any)?.thread_id ?? (opts.payload as any)?.thread_id ?? null,
+          negotiationId: (opts.directMeta as any)?.negotiation_id ?? (opts.payload as any)?.neg_id ?? null,
+        });
+        if (v2ThreadId) {
+          const written = await recordChatMessage({
+            sb,
+            threadId: v2ThreadId,
+            recipientUserId: target.id,
+            text: opts.directText,
+            attachments: opts.directAtts ?? [],
+            intent: (opts.directMeta as any)?.intent ?? opts.template,
+            template: opts.template,
+            payloadExtra: {
+              ...(opts.directMeta ?? {}),
+              from_user_id: user?.id ?? null,
+              transaction_id: opts.transaction_id ?? opts.directMeta?.transaction_id ?? null,
+              source: opts.source ?? "chat",
+            },
+            enqueueWhatsapp: false,
+          });
+          if (written.ok) insertedMsgId = written.recipientMessageId;
+        }
+      }
+      if (target.id && !insertedMsgId) {
         try {
           const { data: msg } = await sb.from("waouh_messages").insert({
             user_id: target.id,
@@ -2029,8 +2133,20 @@ serve(async (req) => {
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+      const negDelegated = neg
+        ? await delegateToNegotiationRouter(sb, neg, negSiblingIds, amount
+          ? { text: `je propose ${amount}` }
+          : { text: String(text || ""), buttonPayload: `contre-proposition:${neg.id}` })
+        : null;
       if (!neg) {
         reply = "🤔 Aucune négociation en cours. Recherchez d'abord un produit puis dites *intéressé 1*.";
+      } else if (negDelegated) {
+        reply = negDelegated.reply;
+        returnedActions = Array.isArray(negDelegated.actions) ? negDelegated.actions : [];
+        if (Array.isArray(negDelegated.attachments)) replyAttachments = negDelegated.attachments;
+        returnedArticleId = negDelegated.article_id ?? neg.article_id;
+        returnedTransactionId = negDelegated.transaction_id ?? null;
+        returnedCounterpartId = negSiblingIds.includes(neg.buyer_user_id) ? neg.seller_user_id : neg.buyer_user_id;
       } else if (amount) {
         const isBuyer = negSiblingIds.includes(neg.buyer_user_id);
         const otherId = isBuyer ? neg.seller_user_id : neg.buyer_user_id;
@@ -2068,8 +2184,21 @@ serve(async (req) => {
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
+      const decDelegated = neg
+        ? await delegateToNegotiationRouter(sb, neg, decSiblingIds, {
+          text: String(text || ""),
+          buttonPayload: `${intent.intent === "DECIDE_YES" ? "accepter" : "refuser"}:${neg.id}`,
+        })
+        : null;
       if (!neg) {
         reply = "🤔 Aucune négociation en cours. Recherchez d'abord un produit puis dites *intéressé 1*.";
+      } else if (decDelegated) {
+        reply = decDelegated.reply;
+        returnedActions = Array.isArray(decDelegated.actions) ? decDelegated.actions : [];
+        if (Array.isArray(decDelegated.attachments)) replyAttachments = decDelegated.attachments;
+        returnedArticleId = decDelegated.article_id ?? neg.article_id;
+        returnedTransactionId = decDelegated.transaction_id ?? null;
+        returnedCounterpartId = decSiblingIds.includes(neg.buyer_user_id) ? neg.seller_user_id : neg.buyer_user_id;
       } else {
         const isBuyer = decSiblingIds.includes(neg.buyer_user_id);
         const myRole: "buyer" | "seller" = isBuyer ? "buyer" : "seller";

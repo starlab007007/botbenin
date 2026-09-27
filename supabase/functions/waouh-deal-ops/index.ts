@@ -6,6 +6,12 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { bindThreadState } from "../_shared/waouh-thread.ts";
 import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
+import { chatWriterV2Enabled, recordChatMessage } from "../_shared/waouh-chat-writer.ts";
+import { checkOperatorDealTransition, OPERATOR_DEAL_STATUSES } from "../_shared/waouh-commerce-states.ts";
+import {
+  buyerPaymentActions as registryBuyerPaymentActions,
+  sellerAvailabilityActions as registrySellerAvailabilityActions,
+} from "../_shared/waouh-commands.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,15 +40,9 @@ const json = (body: unknown, status = 200) =>
 const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
 const hhmm = (d = new Date()) => d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 
-const buyerPaymentActions = (dealId: string) => [
-  { id: `payer-mobile:${dealId}`, label: "📱 Mobile Money à la livraison" },
-  { id: `paiement-livraison:${dealId}`, label: "💵 Cash à la livraison" },
-  { id: `annuler:${dealId}`, label: "❌ Annuler" },
-];
-const sellerAvailabilityActions = (dealId: string) => [
-  { id: `confirmer-disponibilite:${dealId}`, label: "✅ Article disponible" },
-  { id: `annuler:${dealId}`, label: "❌ Indisponible" },
-];
+// Registre unique des boutons (_shared/waouh-commands.ts) : mêmes ids, mêmes libellés.
+const buyerPaymentActions = registryBuyerPaymentActions;
+const sellerAvailabilityActions = registrySellerAvailabilityActions;
 
 async function recordCommerceEvent(sb: any, args: {
   event_type: string;
@@ -193,6 +193,33 @@ async function pushDealChatEvent(
   meta: Record<string, any>,
 ) {
   if (!waouhUserId) return;
+
+  // Chemin v2 (interrupteur chat_writer_v2) : message rattaché au thread exact
+  // du deal, contrepartie et rôle dérivés du thread. Corrige les évènements
+  // de livraison/paiement invisibles côté vendeur (métadonnées absentes) et
+  // le choix arbitraire de conversation (.limit(1) sans filtre).
+  // WhatsApp reste envoyé par sendWhatsApp() comme aujourd'hui.
+  if (meta?.deal_id && await chatWriterV2Enabled(sb)) {
+    const { data: dealRow } = await sb
+      .from("waouh_deals")
+      .select("thread_id")
+      .eq("id", meta.deal_id)
+      .maybeSingle();
+    if (dealRow?.thread_id) {
+      const written = await recordChatMessage({
+        sb,
+        threadId: dealRow.thread_id,
+        recipientUserId: waouhUserId,
+        text,
+        intent: meta.event ?? "deal_event",
+        actions: Array.isArray(meta.actions) ? meta.actions : [],
+        payloadExtra: { kind: "deal_event", ...meta, at: new Date().toISOString() },
+        enqueueWhatsapp: false,
+      });
+      if (written.ok) return;
+    }
+  }
+
   const { data: wu } = await sb
     .from("waouh_users")
     .select("id, web_session_id")
@@ -497,21 +524,15 @@ async function handleAssign(sb: any, body: any) {
 
 async function handleStatus(sb: any, body: any) {
   const { deal_id, status, reason } = body;
-  if (!deal_id || !["picked_up", "delivered", "cancelled"].includes(status)) {
+  if (!deal_id || !(OPERATOR_DEAL_STATUSES as readonly string[]).includes(status)) {
     return json({ error: "deal_id & valid status required" }, 400);
   }
   const { data: deal } = await sb.from("waouh_deals").select("*").eq("id", deal_id).maybeSingle();
   if (!deal) return json({ error: "deal not found" }, 404);
 
-  if (status === "picked_up" && deal.status !== "assigned") {
-    return json({ error: "invalid_deal_transition", expected: "assigned", current_status: deal.status }, 409);
-  }
-  if (status === "delivered" && deal.status !== "picked_up") {
-    return json({ error: "invalid_deal_transition", expected: "picked_up", current_status: deal.status }, 409);
-  }
-  if (status === "cancelled" && ["delivered", "completed"].includes(deal.status)) {
-    return json({ error: "delivered_deal_requires_dispute", current_status: deal.status }, 409);
-  }
+  // Règles déclarées dans _shared/waouh-commerce-states.ts (réponses identiques).
+  const transition = checkOperatorDealTransition(deal.status, status);
+  if (!transition.ok) return json(transition.body, transition.httpStatus);
 
   const now = new Date().toISOString();
   const hh = hhmm(new Date(now));

@@ -10,6 +10,7 @@
 
 import { resolveRealPhoneE164 } from "./waouh-format.ts";
 import { traceEvent, newTraceId } from "./waouh-trace.ts";
+import { chatWriterV2Enabled, recordChatMessage, resolveThreadIdForEvent } from "./waouh-chat-writer.ts";
 
 export type SyncedRole = "buyer" | "seller";
 
@@ -43,6 +44,14 @@ export interface PushSyncedEventArgs {
   traceId?: string | null;
   // Corrélation métier bout en bout : corr_<article8>_<role>_<counterpart8|any>
   correlationId?: string | null;
+  // Thread canonique (Deal Room). Utilisé par l'écrivain unique (chat_writer_v2).
+  // Déjà transmis par waouh-buyer-interest mais ignoré avant ce champ.
+  threadId?: string | null;
+  // Indications transmises par certains appelants ; l'écrivain v2 dérive ces
+  // valeurs du thread lui-même et ne s'y fie pas.
+  buyerUserId?: string | null;
+  sellerUserId?: string | null;
+  counterpartUserId?: string | null;
 }
 
 export interface PushSyncedEventResult {
@@ -76,7 +85,7 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
     negotiationId = null, transactionId = null, dealId = null,
     template, eventType, attachments = [], imageUrl = null,
     payloadExtra = {}, forcePhoneE164 = null, dedupSuffix = "",
-    traceId: traceIdIn = null, correlationId = null,
+    traceId: traceIdIn = null, correlationId = null, threadId: threadIdIn = null,
   } = args;
   const traceId = traceIdIn || newTraceId();
 
@@ -109,7 +118,42 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
   const msgChannel = user.web_session_id
     ? "web"
     : (user.auth_user_id ? "app" : (user.phone_number ? "whatsapp" : "system"));
-  try {
+
+  // Chemin v2 (interrupteur chat_writer_v2) : ligne rattachée au thread exact,
+  // métadonnées dérivées du thread. La livraison WhatsApp ci-dessous reste
+  // celle d'aujourd'hui (résolution de numéro complète, dedup, trace).
+  if (await chatWriterV2Enabled(sb)) {
+    const v2ThreadId = await resolveThreadIdForEvent({
+      sb,
+      threadId: threadIdIn,
+      dealId,
+      negotiationId,
+      articleId: articleId ?? null,
+      user: user as any,
+      role,
+    });
+    if (v2ThreadId) {
+      const written = await recordChatMessage({
+        sb,
+        threadId: v2ThreadId,
+        recipientUserId: user.id,
+        text,
+        attachments,
+        intent,
+        template: template ?? intent,
+        actions: Array.isArray((payloadExtra as any)?.actions) ? (payloadExtra as any).actions : [],
+        correlationId,
+        payloadExtra: { ...meta, thread_id: v2ThreadId },
+        enqueueWhatsapp: false,
+      });
+      if (written.ok) {
+        result.message_id = written.recipientMessageId;
+        meta.thread_id = v2ThreadId;
+      }
+    }
+  }
+
+  if (!result.message_id) try {
     const { data: msg } = await sb.from("waouh_messages").insert({
       user_id: user.id,
       channel: msgChannel,

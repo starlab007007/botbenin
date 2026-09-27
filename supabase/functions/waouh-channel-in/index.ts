@@ -8,6 +8,14 @@ import { isServiceRoleRequest } from "../_shared/waouh-auth.ts";
 import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
 import { resolveProductThread } from "../_shared/waouh-thread.ts";
 import {
+  buttonIdFromWahaPayload,
+  findActionIdByLabel,
+  looksLikeActionLabel,
+  parseActionPayload,
+  parseDealCommand,
+} from "../_shared/waouh-commands.ts";
+import { chatWriterV2Enabled, recordChatMessage } from "../_shared/waouh-chat-writer.ts";
+import {
   contactabilityPolicy,
   scoreFabricSignal,
   type FabricSignal,
@@ -41,43 +49,6 @@ const normalizeBeninPhone = (value: string) => {
 const WAOUH_BUSINESS_PHONE = normalizeBeninPhone(Deno.env.get("WAOUH_BUSINESS_PHONE") || "65653468") || "22965653468";
 
 type WaouhAction = { id: string; label: string };
-
-type DealCommand = {
-  action: "seller_confirm" | "payment_preference" | "cancel" | "payment";
-  dealId: string;
-  method?: "cash" | "mobile_money";
-};
-
-function parseDealCommand(text: string, meta: Record<string, any>): DealCommand | null {
-  const rawText = String(text || "").trim();
-  const buttonPayload = String(meta?.button_payload || "").trim();
-  const commerceAction = String(meta?.commerce_action || meta?.action || "").trim().toLowerCase();
-  const candidate = buttonPayload || rawText;
-  const commandMatch = candidate.match(/^([^:]+):([0-9a-f-]{8,})$/i);
-  const command = String(commandMatch?.[1] || commerceAction || "").trim().toLowerCase();
-  const dealId = String(meta?.deal_id || commandMatch?.[2] || "").trim();
-  if (!dealId) return null;
-
-  if (["seller_confirm_available", "seller_confirm", "confirmer-disponibilite"].includes(command)) {
-    return { action: "seller_confirm", dealId };
-  }
-  if (["payment_preference_mobile", "payment_mobile", "payer-mobile"].includes(command)) {
-    return { action: "payment_preference", dealId, method: "mobile_money" };
-  }
-  if (["payment_preference_cod", "payment_delivery", "paiement-livraison"].includes(command)) {
-    return { action: "payment_preference", dealId, method: "cash" };
-  }
-  if (["confirm_payment_cash", "confirmer-paiement-cash"].includes(command)) {
-    return { action: "payment", dealId, method: "cash" };
-  }
-  if (["confirm_payment_mobile", "confirmer-paiement-mobile"].includes(command)) {
-    return { action: "payment", dealId, method: "mobile_money" };
-  }
-  if (["cancel_deal", "cancel", "annuler"].includes(command)) {
-    return { action: "cancel", dealId };
-  }
-  return null;
-}
 
 function beninPhoneCandidates(value: string | null | undefined): string[] {
   const canon = normalizeBeninPhone(String(value || ""));
@@ -718,6 +689,10 @@ serve(async (req) => {
 
 
       text = extractInteractiveText(raw.payload);
+      // Identifiant du bouton touché : le texte extrait privilégie le libellé
+      // (« 💬 Contre-proposer »), l'identifiant était donc perdu.
+      const wahaButtonId = buttonIdFromWahaPayload(raw.payload);
+      if (wahaButtonId && !clientMeta.button_payload) clientMeta.button_payload = wahaButtonId;
       const mime = raw.payload.mimetype || raw.payload.media?.mimetype || raw.payload._data?.mimetype || "image/jpeg";
       const hasInboundMedia = raw.payload.hasMedia || raw.payload.media || raw.payload.mediaUrl || raw.payload._data?.deprecatedMms3Url;
       const derivedMediaUrl = hasInboundMedia && raw.payload.id && WAHA_BASE_URL
@@ -858,6 +833,36 @@ serve(async (req) => {
 
 
 
+    // WhatsApp sans identifiant de bouton : retrouver l'action par son libellé
+    // parmi les dernières actions proposées à cette personne (toutes identités).
+    if (channel === "whatsapp" && !clientMeta.button_payload && looksLikeActionLabel(text)) {
+      try {
+        const labelSiblingIds = await resolveSiblingUserIds(sb, user);
+        const { data: recentWithActions } = await sb.from("waouh_messages")
+          .select("meta")
+          .in("user_id", labelSiblingIds)
+          .eq("direction", "out")
+          .gte("created_at", new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString())
+          .order("created_at", { ascending: false })
+          .limit(30);
+        const recoveredId = findActionIdByLabel(
+          (recentWithActions || []).map((row: any) => row?.meta?.actions),
+          text,
+        );
+        if (recoveredId) clientMeta.button_payload = recoveredId;
+      } catch (e) {
+        console.warn("[waouh-channel-in] button label recovery failed", e);
+      }
+    }
+    // Le bouton désigne lui-même sa négociation / son deal.
+    const payloadCommand = parseActionPayload(clientMeta.button_payload);
+    if (payloadCommand?.scope === "negotiation" && !clientMeta.negotiation_id) {
+      clientMeta.negotiation_id = payloadCommand.targetId;
+    }
+    if (payloadCommand?.scope === "deal" && !clientMeta.deal_id) {
+      clientMeta.deal_id = payloadCommand.targetId;
+    }
+
     // Negotiation + Deal Graph routing.
     // A commercial decision is always scoped to one exact thread/deal. Article-only
     // routing is allowed only when the counterpart is explicit or a single open
@@ -886,16 +891,50 @@ serve(async (req) => {
         headers: { Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
         body: JSON.stringify(dealBody),
       });
-      const dealData = await readWaouhEngineResponse(dealRes);
+      // Une action refusée (mauvaise étape, déjà traitée…) est une issue
+      // conversationnelle : on répond au lieu de lever une erreur (avant :
+      // HTTP 500, aucune réponse côté WhatsApp, « Message non envoyé » côté web).
+      let dealData: Record<string, any>;
+      let dealActionOk = true;
+      try {
+        dealData = await readWaouhEngineResponse(dealRes.clone());
+      } catch (_) {
+        dealActionOk = false;
+        const failed = await dealRes.json().catch(() => ({} as Record<string, any>));
+        dealData = (failed && typeof failed === "object" && !Array.isArray(failed)) ? failed : {};
+      }
       const dealReply = String(
-        dealData?.reply ||
-        (dealRes.ok ? "✅ Action enregistrée." : "Cette action n'est pas disponible à cette étape.")
+        (typeof dealData?.reply === "string" && dealData.reply.trim()) ||
+        (dealActionOk ? "✅ Action enregistrée." : "Cette action n'est pas disponible à cette étape.")
       );
       const dealActions: WaouhAction[] = Array.isArray(dealData?.actions) ? dealData.actions : [];
       const dealThreadId = dealData?.thread_id ?? metaThreadId ?? null;
       const dealArticleId = dealData?.article_id ?? metaArticleId ?? null;
 
-      const { data: dealRow } = await sb.from("waouh_messages").insert({
+      let dealRow: { id: string } | null = null;
+      if (dealThreadId && await chatWriterV2Enabled(sb)) {
+        const written = await recordChatMessage({
+          sb,
+          threadId: dealThreadId,
+          recipientUserId: user.id,
+          text: dealReply,
+          channel,
+          intent: dealData?.intent ?? (dealActionOk ? "deal_action" : "deal_action_blocked"),
+          actions: dealActions,
+          correlationId,
+          payloadExtra: {
+            workflow_state: dealData?.workflow_state ?? null,
+            deal_id: dealCommand.dealId,
+            transaction_id: dealData?.transaction_id ?? clientMeta?.transaction_id ?? null,
+            button_payload: clientMeta?.button_payload ?? null,
+          },
+          enqueueWhatsapp: false,
+          conversationId: convId,
+          phoneNumber: phone,
+        });
+        if (written.ok && written.recipientMessageId) dealRow = { id: written.recipientMessageId };
+      }
+      if (!dealRow) ({ data: dealRow } = await sb.from("waouh_messages").insert({
         conversation_id: convId,
         thread_id: dealThreadId,
         user_id: user.id,
@@ -917,7 +956,7 @@ serve(async (req) => {
           actions: dealActions,
           correlation_id: correlationId,
         },
-      }).select("id").maybeSingle();
+      }).select("id").maybeSingle());
 
       if (convId) {
         await sb.from("waouh_conversations")
@@ -933,8 +972,9 @@ serve(async (req) => {
       }
 
       return new Response(JSON.stringify({
-        ok: dealRes.ok && dealData?.ok !== false,
         ...dealData,
+        ok: true,
+        action_ok: dealActionOk && dealData?.ok !== false,
         reply: dealReply,
         outbound_message_id: dealRow?.id ?? null,
         inbound_message_id: inboundMessageId,
@@ -946,7 +986,6 @@ serve(async (req) => {
         actions: dealActions,
         correlation_id: correlationId,
       }), {
-        status: dealRes.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -1134,6 +1173,46 @@ serve(async (req) => {
       /^(?:oui|ok|d['’]?accord|j['’]?accepte|accepte|yes|non|no|je\s+refuse|refuse|je\s+propose|propose|contre[-\s]?proposition|contre[-\s]?proposer|accepter|refuser)(?:\b|:)/i.test(text.trim()) ||
       /^\d[\d\s.,]{2,}\s*(?:fcfa|cfa|f)?$/i.test(text.trim());
 
+    // Un bouton de négociation agit sur SA négociation, jamais sur une autre
+    // trouvée par défaut (ex. « Accepter » touché sur une offre déjà close,
+    // alors qu'une autre négociation est ouverte).
+    if (payloadCommand?.scope === "negotiation" && (!openNeg || openNeg.id !== payloadCommand.targetId)) {
+      const staleReply = "⏳ Cette offre n'est plus active (déjà acceptée, refusée ou remplacée par une nouvelle offre). Répondez depuis le dernier message de la négociation.";
+      const { data: staleRow } = await sb.from("waouh_messages").insert({
+        conversation_id: convId,
+        user_id: user.id, channel, direction: "out", text: staleReply,
+        web_session_id: sessionId, phone_number: phone,
+        attachments: [],
+        article_id: clientMeta?.article_id ?? null,
+        thread_id: clientMeta?.thread_id ?? null,
+        meta: {
+          intent: "negotiation_button_stale",
+          negotiation_id: payloadCommand.targetId,
+          button_payload: clientMeta?.button_payload ?? null,
+          correlation_id: correlationId,
+          actions: [],
+        },
+      }).select("id").maybeSingle();
+      if (channel === "whatsapp" && phone && WAHA_BASE_URL) {
+        try {
+          await sendWahaReply(WAHA_BASE_URL, wahaSession, replyChatIds, staleReply, []);
+        } catch (e) { console.error("[waouh-channel-in] stale button reply failed", e); }
+      }
+      return new Response(JSON.stringify({
+        ok: true,
+        action_ok: false,
+        intent: "negotiation_button_stale",
+        reply: staleReply,
+        actions: [],
+        negotiation_id: payloadCommand.targetId,
+        outbound_message_id: staleRow?.id ?? null,
+        inbound_message_id: inboundMessageId,
+        conversation_id: convId,
+        user_id: user.id,
+        correlation_id: correlationId,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     if (!openNeg && ambiguousNegotiation && !shouldStayInCore && explicitNegotiationCommand) {
       return new Response(JSON.stringify({
         ok: false,
@@ -1156,6 +1235,7 @@ serve(async (req) => {
           user_id: negUserId,
           thread_id: metaThreadId ?? openNeg.thread_id ?? null,
           negotiation_id: metaNegotiationId ?? openNeg.id,
+          button_payload: clientMeta?.button_payload ?? null,
         }),
       });
       const negConflictFallback = negRes.clone();
@@ -1163,8 +1243,20 @@ serve(async (req) => {
       try {
         negData = await readWaouhEngineResponse(negRes);
       } catch (error) {
-        if (negRes.status !== 409) throw error;
-        const conflict = await negConflictFallback.json().catch(() => ({} as Record<string, any>));
+        if (negRes.status !== 409) {
+          // Échec technique du routeur : on répond quand même, sans rien valider.
+          console.error("[waouh-channel-in] negotiation router failed", negRes.status, error);
+        }
+        const failureBody = await negConflictFallback.json().catch(() => ({} as Record<string, any>));
+        const conflict = negRes.status === 409
+          ? failureBody
+          : {
+            intent: failureBody?.error === "negotiation_paused" ? "negotiation_paused" : "negotiation_unavailable",
+            // Message du routeur s'il en donne un (ex. négociation suspendue par l'admin).
+            reply: (typeof failureBody?.reply === "string" && failureBody.reply.trim()) ||
+              (typeof failureBody?.message === "string" && failureBody.message.trim()) ||
+              "⚠️ Votre réponse n'a pas pu être traitée pour le moment. Rien n'a été validé : réessayez dans un instant.",
+          };
         // A thread/context conflict is a valid conversational outcome, not a
         // transport failure. Return its explanation as an assistant reply so
         // the mobile/web chat never leaves the user's message unanswered.
@@ -1189,7 +1281,47 @@ serve(async (req) => {
       const negSignalFabric = negData?.signal_fabric ?? negData?.signalFabric ?? null;
       const negContactability = negData?.contactability_level ?? negData?.contactability ?? null;
       let negOutboundId = negData.outbound_message_id ?? null;
-      if (!suppressDirectReply) {
+      const negThreadId: string | null = negData?.thread_id ?? metaThreadId ?? openNeg.thread_id ?? null;
+      let negWrittenV2 = false;
+      if (!suppressDirectReply && negThreadId && await chatWriterV2Enabled(sb)) {
+        // v2 : article, acheteur, vendeur, contrepartie dérivés du thread.
+        // Corrige les réponses WhatsApp enregistrées sans article (donc
+        // invisibles dans la fenêtre web) et buyer_user_id = contrepartie.
+        const written = await recordChatMessage({
+          sb,
+          threadId: negThreadId,
+          recipientUserId: user.id,
+          text: negReply,
+          channel,
+          attachments: negAttachments,
+          intent: negIntent,
+          actions: negActions,
+          correlationId,
+          payloadExtra: {
+            transaction_id: negTxId,
+            negotiation_id: negData?.negotiation_id ?? openNeg.id,
+            results: negResults,
+            products: negProducts,
+            intelligence: negIntelligence,
+            source_mix: negSourceMix,
+            signal_fabric: negSignalFabric,
+            contactability_level: negContactability,
+          },
+          enqueueWhatsapp: false,
+          conversationId: convId,
+          phoneNumber: phone,
+        });
+        if (written.ok && written.recipientMessageId) {
+          negOutboundId = written.recipientMessageId;
+          negWrittenV2 = true;
+          if (convId) {
+            await sb.from("waouh_conversations")
+              .update({ last_message: negReply, updated_at: new Date().toISOString() })
+              .eq("id", convId);
+          }
+        }
+      }
+      if (!suppressDirectReply && !negWrittenV2) {
         const { data: negRow, error: negWriteError } = await sb.from("waouh_messages").insert({
           conversation_id: convId,
           thread_id: negData?.thread_id ?? metaThreadId ?? openNeg.thread_id ?? null,

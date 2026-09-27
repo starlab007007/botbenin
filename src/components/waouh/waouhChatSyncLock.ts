@@ -18,8 +18,8 @@
  */
 
 export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
-  version: "v13",
-  lockedAt: "2026-07-30T21:00:00.000Z",
+  version: "v14",
+  lockedAt: "2026-09-27T12:00:00.000Z",
   memoryRef: "mem://features/waouh-chat-sync-flow",
 
   invariants: Object.freeze({
@@ -111,7 +111,10 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
       mustContain: [
         "deal_already_accepted",
         "suppress_direct_reply",
-        "23505",
+        // v14 — l'idempotence de l'acceptation repose désormais sur la
+        // transition atomique (commit c4790f66 du 26/09/2026), qui a retiré
+        // la gestion de l'erreur 23505 sans mettre ce verrou à jour.
+        "waouh_accept_negotiation_atomic",
       ],
     },
     whatsappChannelInSuppress: {
@@ -273,7 +276,63 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
       file: "src/components/waouh/WaouhMatchChatWindow.tsx",
       mustContain: [
         "counterpartUserId: match.counterpart_user_id ?? null",
-        "if (match.counterpart_user_id) {",
+        // v14 — le filtre par interlocuteur reste appliqué aux messages sans
+        // thread ; un message du thread canonique appartient à la fenêtre
+        // (thread = article × acheteur × vendeur), comme côté Flutter.
+        "if (!sameThread && match.counterpart_user_id) {",
+      ],
+    },
+    // 🔒 v14 — Plan chat du 27/09/2026 : le thread canonique fait foi.
+    chatWindowThreadAuthority: {
+      file: "src/components/waouh/WaouhMatchChatWindow.tsx",
+      mustContain: [
+        "const expectedThread = threadScopeRef.current;",
+        "messageThread !== expectedThread",
+        "resolved_thread_id",
+      ],
+    },
+    matchHistoryThreadAuthority: {
+      file: "supabase/functions/waouh-match-history/index.ts",
+      mustContain: [
+        "const inRequestedThread = (row: any) =>",
+        "if (inRequestedThread(row)) return true;",
+      ],
+    },
+    // 🔒 v14 — Négociation : pas d'acceptation de sa propre offre, parseur
+    // unique testé, bouton contre-proposer sans faux prix.
+    routerNegotiationRules: {
+      file: "supabase/functions/waouh-negotiation-router/index.ts",
+      mustContain: [
+        "canAcceptOffer(neg.last_actor, actorRole)",
+        "parseNegotiationIntent(text, buttonPayload)",
+        "negotiation_counter_prompt",
+        "sanitizeAiIntent(raw)",
+      ],
+      mustNotContain: [
+        "throw atomicError;",
+      ],
+    },
+    buyerEchoWithoutSelfDecision: {
+      file: "supabase/functions/waouh-buyer-interest/index.ts",
+      mustContain: [
+        "const actions: typeof decisionActions = [];",
+      ],
+    },
+    // 🔒 v14 — Écrivain unique derrière l'interrupteur chat_writer_v2.
+    chatWriterV2Callers: {
+      file: "supabase/functions/waouh-deal-ops/index.ts",
+      mustContain: [
+        "chatWriterV2Enabled(sb)",
+        "recordChatMessage({",
+        "checkOperatorDealTransition(deal.status, status)",
+      ],
+    },
+    channelInNeverSilent: {
+      file: "supabase/functions/waouh-channel-in/index.ts",
+      mustContain: [
+        "buttonIdFromWahaPayload(raw.payload)",
+        "action_ok: dealActionOk && dealData?.ok !== false",
+        "negotiation_unavailable",
       ],
     },
     webhookPushToOtherCounterpart: {

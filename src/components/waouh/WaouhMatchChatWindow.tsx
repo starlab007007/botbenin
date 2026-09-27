@@ -130,6 +130,13 @@ export function WaouhMatchChatWindow({
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
   const [dbMsgCount, setDbMsgCount] = useState<number>(() => initialCached.length);
   const [initialLoading, setInitialLoading] = useState<boolean>(() => initialCached.length === 0);
+  // Thread canonique résolu par le serveur (waouh-match-history). Fait foi
+  // pour ranger les messages temps réel, comme côté Flutter.
+  const [serverThreadId, setServerThreadId] = useState<string | null>(match.thread_id ?? null);
+  const threadScopeRef = useRef<string | null>(match.thread_id ?? null);
+  useEffect(() => {
+    threadScopeRef.current = match.thread_id ?? serverThreadId ?? null;
+  }, [match.thread_id, serverThreadId]);
 
   const handleAgentAction = async (action: AgenticAction, payload: Record<string, unknown>) => {
     if (!authUserId) {
@@ -184,7 +191,7 @@ export function WaouhMatchChatWindow({
   // Server-side history fetcher (source of truth).
   const fetchHistory = async (
     opts: { before?: string | null; limit?: number; includeMeta?: boolean } = {}
-  ): Promise<{ messages: Msg[]; hasMore: boolean; articleStatus: string | null; seedNotification: SeedNotif | null; ok: boolean }> => {
+  ): Promise<{ messages: Msg[]; hasMore: boolean; articleStatus: string | null; seedNotification: SeedNotif | null; ok: boolean; resolvedThreadId?: string | null }> => {
     if (!match.article_id) return { messages: [], hasMore: false, articleStatus: null, seedNotification: null, ok: false };
     const { data, error } = await supabase.functions.invoke("waouh-match-history", {
       body: {
@@ -210,6 +217,7 @@ export function WaouhMatchChatWindow({
       articleStatus: (data as any).articleStatus ?? null,
       seedNotification: (data as any).seedNotification ?? null,
       ok: true,
+      resolvedThreadId: (data as { resolved_thread_id?: string | null } | null)?.resolved_thread_id ?? null,
     };
   };
 
@@ -249,6 +257,7 @@ export function WaouhMatchChatWindow({
         try { localStorage.setItem(SEED_KEY, JSON.stringify(res.seedNotification)); } catch {}
       }
       if (res.ok) setSyncedAt(new Date().toISOString());
+      if (res.ok && res.resolvedThreadId) setServerThreadId(res.resolvedThreadId);
     } finally {
       if (!silent) setInitialLoading(false);
       else setInitialLoading(false); // also clear in silent mode if it was somehow true
@@ -256,6 +265,18 @@ export function WaouhMatchChatWindow({
       firstLoadDoneRef.current = true;
     }
   };
+
+  // Resynchronisation silencieuse, regroupée (plusieurs messages d'un autre
+  // thread arrivant d'un coup ne déclenchent qu'un seul rechargement).
+  const resyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resyncRef = useRef<(() => void) | null>(null);
+  resyncRef.current = () => {
+    if (resyncTimerRef.current) clearTimeout(resyncTimerRef.current);
+    resyncTimerRef.current = setTimeout(() => { void runInitialLoad(true); }, 800);
+  };
+  useEffect(() => () => {
+    if (resyncTimerRef.current) clearTimeout(resyncTimerRef.current);
+  }, []);
 
   // Single consolidated loader. First pass uses requestIdleCallback to defer
   // past first paint; subsequent re-activations fetch silently in background.
@@ -345,9 +366,20 @@ export function WaouhMatchChatWindow({
     const handle = (payload: any) => {
       const m = payload.new;
       if (m?.article_id !== match.article_id && m?.meta?.article_id !== match.article_id) return;
+      // Thread canonique d'abord (même règle que Flutter liveMessageBelongsToMatch) :
+      // même thread => appartient à la fenêtre ; autre thread => autre cycle ou
+      // autre interlocuteur => ignoré ici, mais on resynchronise pour le cas
+      // d'un nouveau cycle sur le même article.
+      const expectedThread = threadScopeRef.current;
+      const messageThread: string | null = m?.thread_id ?? m?.meta?.thread_id ?? null;
+      if (expectedThread && messageThread && messageThread !== expectedThread) {
+        resyncRef.current?.();
+        return;
+      }
+      const sameThread = !!expectedThread && messageThread === expectedThread;
       // v12/v13 — chaque fenêtre est scoppée par contrepartie. On rejette les
       // évènements realtime qui n'appartiennent pas à cet interlocuteur.
-      if (match.counterpart_user_id) {
+      if (!sameThread && match.counterpart_user_id) {
         const cp = match.counterpart_user_id;
         if (match.kind === "seller") {
           const metaCp =
@@ -579,7 +611,7 @@ export function WaouhMatchChatWindow({
             counterpart_user_id: match.counterpart_user_id ?? null,
             buyer_user_id: latestCommerceScope.buyer_user_id ?? null,
             seller_user_id: latestCommerceScope.seller_user_id ?? null,
-            thread_id: latestCommerceScope.thread_id ?? null,
+            thread_id: latestCommerceScope.thread_id ?? serverThreadId ?? null,
             negotiation_id: latestCommerceScope.negotiation_id ?? null,
             deal_id: latestCommerceScope.deal_id ?? null,
             role: match.kind,
@@ -915,7 +947,7 @@ export function WaouhMatchChatWindow({
                             /contre-proposition|counter/.test(normalizedAction) ? "counter_offer" :
                             /refuser|^non/.test(normalizedAction) ? "reject_offer" :
                             undefined,
-                          thread_id: m.meta?.thread_id ?? latestCommerceScope.thread_id ?? null,
+                          thread_id: m.meta?.thread_id ?? latestCommerceScope.thread_id ?? serverThreadId ?? null,
                           negotiation_id: m.meta?.negotiation_id ?? latestCommerceScope.negotiation_id ?? null,
                           deal_id: m.meta?.deal_id ?? latestCommerceScope.deal_id ?? null,
                         });

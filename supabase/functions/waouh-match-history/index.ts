@@ -174,7 +174,11 @@ serve(async (req) => {
         );
       });
       if (candidates.length > 0) {
-        requestedThreadId = clean(candidates[0].id);
+        // Un cycle ouvert prime sur un cycle clos, même mis à jour plus tard.
+        const open = candidates.find((thread: any) =>
+          !["concluded", "cancelled"].includes(String(thread.status || "").toLowerCase())
+        );
+        requestedThreadId = clean((open ?? candidates[0]).id);
       }
     }
 
@@ -275,8 +279,16 @@ serve(async (req) => {
     const viewerOwns = viewerOwnsScopedRow;
 
     let rows = allRows.filter(viewerOwns);
+    // Règle alignée sur Flutter (liveMessageBelongsToMatch) : une ligne du
+    // thread demandé appartient à la fenêtre, même sans métadonnée de
+    // contrepartie (évènements de livraison/paiement invisibles côté
+    // vendeur jusqu'ici). L'heuristique historique ne sert qu'aux lignes
+    // sans thread.
+    const inRequestedThread = (row: any) =>
+      !!requestedThreadId && threadFrom(row) === requestedThreadId;
     if (role === "seller" && counterpartUserId) {
       rows = rows.filter((row) => {
+        if (inRequestedThread(row)) return true;
         const cp = clean(
           row?.meta?.counterpart_user_id ?? row?.meta?.buyer_user_id,
         );
@@ -285,6 +297,7 @@ serve(async (req) => {
     }
     if (role === "buyer" && counterpartUserId) {
       rows = rows.filter((row) => {
+        if (inRequestedThread(row)) return true;
         const cp = clean(
           row?.meta?.counterpart_user_id ?? row?.meta?.seller_user_id,
         );

@@ -1,0 +1,125 @@
+name: Deploy WAOUH Chat v2
+
+on:
+  push:
+    branches:
+      - prod
+    paths:
+      - "supabase/config.toml"
+      - "supabase/migrations/20260927120000_waouh_chat_messages_thread_base.sql"
+      - "supabase/migrations/20260927120500_waouh_chat_messages_thread_backfill.sql"
+      - "supabase/migrations/20260927121000_waouh_chat_reconcile.sql"
+      - "supabase/functions/_shared/waouh-chat-writer.ts"
+      - "supabase/functions/_shared/waouh-commands.ts"
+      - "supabase/functions/_shared/waouh-commerce-states.ts"
+      - "supabase/functions/_shared/waouh-negotiation-intent.ts"
+      - "supabase/functions/_shared/waouh-sync.ts"
+      - "supabase/functions/waouh-match-history/**"
+      - "supabase/functions/waouh-negotiation-router/**"
+      - "supabase/functions/waouh-deal-ops/**"
+      - "supabase/functions/waouh-buyer-interest/**"
+      - "supabase/functions/waouh-payment/**"
+      - "supabase/functions/waouh-deal-dispatch/**"
+      - "supabase/functions/waouh-notify-dispatch/**"
+      - "supabase/functions/waouh-webhook/**"
+      - "supabase/functions/waouh-channel-in/**"
+      - ".github/workflows/deploy-waouh-chat-v2.yml"
+      - ".github/workflows/deploy-waouh-native-messaging.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Same lock as Native Messaging. Whichever starts first applies migrations;
+# the second sees an already-migrated database. No concurrent db push.
+concurrency:
+  group: supabase-production-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  SUPABASE_CLI_VERSION: "2.117.0"
+
+jobs:
+  deploy:
+    name: Deploy canonical WAOUH Chat
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF || secrets.SUPABASE_PROJECT_REF }}
+
+    steps:
+      - name: Checkout integrated prod
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Resolve and validate production credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_PROJECT_REF:-}" ]; then
+            SUPABASE_PROJECT_REF=$(python - <<'PY'
+          import tomllib
+          with open('supabase/config.toml', 'rb') as fh:
+              print(tomllib.load(fh).get('project_id', ''))
+          PY
+            )
+            echo "SUPABASE_PROJECT_REF=$SUPABASE_PROJECT_REF" >> "$GITHUB_ENV"
+          fi
+          test -n "${SUPABASE_ACCESS_TOKEN:-}" || { echo "::error::SUPABASE_ACCESS_TOKEN absent"; exit 1; }
+          test -n "${SUPABASE_DB_PASSWORD:-}" || { echo "::error::SUPABASE_DB_PASSWORD absent"; exit 1; }
+          test -n "${SUPABASE_PROJECT_REF:-}" || { echo "::error::SUPABASE_PROJECT_REF absent"; exit 1; }
+
+      - name: Link Bot.Bj production
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Preview additive Chat v2 migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db push --linked --password "$SUPABASE_DB_PASSWORD" --dry-run
+
+      - name: Apply pending migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The 27/09 backfill migration only INSTALLS the batch function.
+          # It never mutates historical messages automatically.
+          supabase db push --linked --password "$SUPABASE_DB_PASSWORD" --yes
+
+      - name: Deploy existing WAOUH Chat functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          functions=(
+            waouh-match-history
+            waouh-negotiation-router
+            waouh-deal-ops
+            waouh-buyer-interest
+            waouh-payment
+            waouh-deal-dispatch
+            waouh-notify-dispatch
+            waouh-webhook
+            waouh-channel-in
+          )
+          for fn in "${functions[@]}"; do
+            echo "🚀 Deploying $fn"
+            supabase functions deploy "$fn"               --project-ref "$SUPABASE_PROJECT_REF"               --use-api               --no-verify-jwt
+          done
+          echo "✅ Existing WAOUH Chat function slots updated."
+          echo "ℹ️ No new Edge Function slug is created; admin reconcile uses authenticated RPC."
+
+      - name: Safety reminder
+        run: |
+          echo "chat_writer_v2 remains OFF after migration."
+          echo "chat_reconcile automation remains OFF after migration."
+          echo "Historical backfill is NOT executed by this workflow."

@@ -13,6 +13,18 @@ import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identit
 import { geminiJson } from "../_shared/gemini.ts";
 import { bindThreadState } from "../_shared/waouh-thread.ts";
 import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
+import { chatWriterV2Enabled, recordChatMessage } from "../_shared/waouh-chat-writer.ts";
+import {
+  buyerPaymentActions as registryBuyerPaymentActions,
+  negotiationActions as registryNegotiationActions,
+  sellerAvailabilityActions as registrySellerAvailabilityActions,
+} from "../_shared/waouh-commands.ts";
+import {
+  canAcceptOffer,
+  type NegotiationIntent,
+  parseNegotiationIntent,
+  sanitizeAiIntent,
+} from "../_shared/waouh-negotiation-intent.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -22,20 +34,10 @@ const COMMISSION_RATE = Math.max(
 );
 
 const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
-const negotiationActions = (negId: string) => [
-  { id: `accepter:${negId}`, label: "✅ Accepter" },
-  { id: `contre-proposition:${negId}`, label: "💬 Contre-proposer" },
-  { id: `refuser:${negId}`, label: "❌ Refuser" },
-];
-const buyerPaymentActions = (dealId: string) => [
-  { id: `payer-mobile:${dealId}`, label: "📱 Mobile Money à la livraison" },
-  { id: `paiement-livraison:${dealId}`, label: "💵 Cash à la livraison" },
-  { id: `annuler:${dealId}`, label: "❌ Annuler" },
-];
-const sellerAvailabilityActions = (dealId: string) => [
-  { id: `confirmer-disponibilite:${dealId}`, label: "✅ Article disponible" },
-  { id: `annuler:${dealId}`, label: "❌ Indisponible" },
-];
+// Registre unique des boutons (_shared/waouh-commands.ts) : mêmes ids, mêmes libellés.
+const negotiationActions = registryNegotiationActions;
+const buyerPaymentActions = registryBuyerPaymentActions;
+const sellerAvailabilityActions = registrySellerAvailabilityActions;
 
 function directReachablePhone(raw: string | null | undefined): string | null {
   const value = String(raw || "").trim();
@@ -50,25 +52,18 @@ function directReachablePhone(raw: string | null | undefined): string | null {
 }
 
 
-async function aiIntent(text: string): Promise<{ kind: "yes"|"no"|"price"|"other"; price?: number }> {
-  const lower = (text || "").toLowerCase();
-  // Déterministe d'abord
-  if (/^(?:non|no|refuse|refus[eé]|refuser)(?::|\b)/i.test(lower)) {
-    return { kind: "no" };
-  }
-  if (/^(?:oui|ok|d'?accord|j'accepte|accept|accept[eé]|accepter|yes)(?::|\b)/i.test(lower) && !/propos/.test(lower)) {
-    return { kind: "yes" };
-  }
-  const m = lower.match(/(?:proposer|propose|contre-proposition|contre proposition|counter)\s*[:=]?\s*(\d{3,9})/i)
-        || lower.match(/(\d{2,3}(?:[\s.,]?\d{3})+|\d{3,9})\s*(?:f|fcfa|cfa)/i)
-        || lower.match(/(?:propose|offre|prix|à|a)\s*(\d{3,9})/i);
-  if (m) return { kind: "price", price: parseInt(m[1].replace(/\D/g, ""), 10) };
+// Lecture déterministe d'abord (_shared/waouh-negotiation-intent.ts, testée),
+// IA seulement si le texte reste ambigu — et sortie IA validée.
+async function aiIntent(text: string, buttonPayload?: string | null): Promise<NegotiationIntent> {
+  const deterministic = parseNegotiationIntent(text, buttonPayload);
+  if (deterministic) return deterministic;
   try {
-    return await geminiJson(
+    const raw = await geminiJson(
       'Classifie une réponse de négociation FR/local. JSON: {"kind":"yes"|"no"|"price"|"other","price":number?}.',
       text,
       { kind: "other" as const },
-    ) as { kind: "yes"|"no"|"price"|"other"; price?: number };
+    );
+    return sanitizeAiIntent(raw);
   } catch {
     return { kind: "other" };
   }
@@ -103,7 +98,33 @@ Deno.serve(async (req) => {
     if (!target) return;
     if (target.id === payload?.from_user_id) return;
     let insertedMsgId: string | null = null;
-    if (target.id) {
+
+    // Chemin v2 (interrupteur chat_writer_v2) : ligne rattachée au thread,
+    // contrepartie et rôle dérivés du thread (corrige les messages rangés
+    // dans la mauvaise fenêtre quand l'acteur écrit depuis une autre
+    // identité — WhatsApp vs Web). Notification + WhatsApp inchangés.
+    const v2ThreadId = (payload as any)?.thread_id ?? (directMeta as any)?.thread_id ?? null;
+    if (v2ThreadId && await chatWriterV2Enabled(sb)) {
+      const written = await recordChatMessage({
+        sb,
+        threadId: v2ThreadId,
+        recipientUserId: target.id,
+        text: directText,
+        attachments,
+        intent: (directMeta as any)?.intent ?? template,
+        template,
+        actions,
+        payloadExtra: {
+          ...(directMeta || {}),
+          from_user_id: (payload as any)?.from_user_id ?? null,
+          transaction_id: transactionId ?? directMeta?.transaction_id ?? null,
+        },
+        enqueueWhatsapp: false,
+      });
+      if (written.ok) insertedMsgId = written.recipientMessageId;
+    }
+
+    if (target.id && !insertedMsgId) {
       const articleIdCol = (payload as any)?.article_id ?? (directMeta as any)?.article_id ?? null;
       // Canal aligné sur pushSyncedEvent : web > app > system, pour que les
       // utilisateurs App (B/C) sans session web voient bien le message dans
@@ -195,7 +216,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { phone, text, user_id, thread_id, negotiation_id } = await req.json();
+    const { phone, text, user_id, thread_id, negotiation_id, button_payload } = await req.json();
 
     let user: any = null;
     if (user_id) ({ data: user } = await sb.from("waouh_users").select("*").eq("id", user_id).maybeSingle());
@@ -242,7 +263,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true, reply: "🤔 Aucune négociation ouverte. Cherchez un produit puis dites *intéressé 1*." }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const intent = await aiIntent(text || "");
+    let intent = await aiIntent(text || "", button_payload ?? null);
     const activeThreadId: string | null = neg.thread_id ?? thread_id ?? null;
     if (thread_id && neg.thread_id && neg.thread_id !== thread_id) {
       return new Response(JSON.stringify({ ok: false, reason: "negotiation/thread mismatch" }), {
@@ -277,8 +298,26 @@ Deno.serve(async (req) => {
       await sb.from("waouh_negotiations").update({ thread_id: activeThreadId }).eq("id", neg.id);
     }
     const isBuyer = siblingIds.includes(neg.buyer_user_id);
+    const isSeller = siblingIds.includes(neg.seller_user_id);
+    if (isBuyer === isSeller) {
+      return new Response(JSON.stringify({
+        ok: false,
+        reason: "actor_not_unambiguous_party",
+        reply: "⚠️ Cette négociation ne peut pas être modifiée depuis cette identité.",
+        negotiation_id: neg.id,
+        thread_id: activeThreadId,
+      }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const actorRole: "buyer" | "seller" = isBuyer ? "buyer" : "seller";
     const otherUserId = isBuyer ? neg.seller_user_id : neg.buyer_user_id;
     const amount = Number(neg.last_offer_price || 0);
+    // "ok pour 7500" alors que 7500 est déjà l'offre en cours = acceptation.
+    if (intent.kind === "price" && intent.affirmative && amount > 0 && intent.price === amount) {
+      intent = { kind: "yes" };
+    }
     const { data: articleContext } = await sb.from("waouh_articles")
       .select("id,title,description,category,condition,price,currency,photos,city,market_price_min,market_price_max,status")
       .eq("id", neg.article_id).maybeSingle();
@@ -312,6 +351,42 @@ Deno.serve(async (req) => {
       negotiation_id: neg.id,
       actions,
     });
+
+    // Règle métier : on n'accepte pas sa propre offre (l'acheteur voyait les
+    // boutons « Accepter le prix » sur l'écho de sa propre offre, et le
+    // routeur créait alors le deal sans l'accord du vendeur).
+    if (intent.kind === "yes" && ["proposed", "countered"].includes(neg.state) &&
+        !canAcceptOffer(neg.last_actor, actorRole)) {
+      return new Response(JSON.stringify({
+        ok: true,
+        reply: `⏳ Cette offre de ${fmt(amount)} est la vôtre : ${isBuyer ? "le vendeur" : "l'acheteur"} doit l'accepter, la refuser ou contre-proposer. Vous pouvez aussi proposer un autre montant.`,
+        intent: "negotiation_awaiting_counterparty",
+        workflow_state: "awaiting_counterparty",
+        negotiation_id: neg.id,
+        thread_id: activeThreadId,
+        article_id: neg.article_id,
+        actions: [],
+        products: [stateProduct("awaiting_counterparty", actorRole, [], amount)],
+        attachments: contextAttachments,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // Bouton « Contre-proposer » ou « je propose » sans montant : on demande
+    // le montant au lieu de deviner (plus de faux prix tirés d'un identifiant).
+    if (intent.kind === "counter_prompt") {
+      return new Response(JSON.stringify({
+        ok: true,
+        reply: `💬 Indiquez votre montant, par exemple : *je propose ${fmt(Math.max(100, Math.round((amount || Number(articleContext?.price || 0)) * 0.9)))}*.`,
+        intent: "negotiation_counter_prompt",
+        workflow_state: neg.state,
+        negotiation_id: neg.id,
+        thread_id: activeThreadId,
+        article_id: neg.article_id,
+        actions: negotiationActions(neg.id).filter((action) => !action.id.startsWith("contre-proposition:")),
+        products: [stateProduct("negotiating", actorRole, [], amount)],
+        attachments: contextAttachments,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
     if (intent.kind === "yes") {
       // 🎉 Accord conclu : on crée un "deal" (livraison médiée).
@@ -444,7 +519,24 @@ Deno.serve(async (req) => {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
-        throw atomicError;
+        // Erreur technique inattendue : réponse explicite (409 = issue
+        // conversationnelle, déjà convertie en réponse par waouh-channel-in)
+        // au lieu d'un 500 qui laissait l'utilisateur sans réponse.
+        console.error("[neg-router] accept atomic failed", atomicError);
+        return new Response(JSON.stringify({
+          ok: false,
+          code: "negotiation_accept_failed",
+          reply: "⚠️ L'accord n'a pas pu être enregistré suite à une erreur technique. Rien n'a été validé : réessayez dans un instant.",
+          intent: "negotiation_accept_failed",
+          workflow_state: neg.state,
+          negotiation_id: neg.id,
+          thread_id: activeThreadId,
+          article_id: neg.article_id,
+          actions: negotiationActions(neg.id),
+        }), {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       const acceptance = (atomicResult || {}) as any;
