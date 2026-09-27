@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - feat/waouh-chat-v2-thread-canonical-20260927
-    paths:
-      - ".github/workflows/waouh-chat-v2-validate.yml"
 
 permissions:
   contents: read
