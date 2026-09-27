@@ -82,6 +82,9 @@ jobs:
       - name: Build Web
         run: npm run build
 
+      - name: WAOUH Chat v3 Web regressions
+        run: npx vitest run src/components/waouh/__tests__/waouh-chat-sync-flow.lock.test.ts src/lib/waouh/__tests__/commerceAction.test.ts
+
       - name: Verify Flutter/Web route and navigation parity
         run: node scripts/verify-waouh-web-parity.mjs
 
@@ -96,8 +99,18 @@ jobs:
       - name: Check NEXUS Edge Function
         run: deno check supabase/functions/waouh-agentic-core/index.ts
 
+      - name: WAOUH Chat v3 shared tests
+        run: |
+          deno test supabase/functions/_shared/waouh-deal-open-test.ts
+          deno test supabase/functions/_shared/waouh-interest-fastpath-test.ts
+          deno test supabase/functions/_shared/waouh-message-catalog-test.ts
+          deno test supabase/functions/_shared/waouh-commerce-v3-test.ts
+
       - name: Check WAOUH Chat Channel
         run: deno check supabase/functions/waouh-channel-in/index.ts
+
+      - name: Check WAOUH Commerce Action v3
+        run: deno check supabase/functions/waouh-commerce-action/index.ts
 
       - name: Check WAOUH Negotiation Router
         run: deno check supabase/functions/waouh-negotiation-router/index.ts
