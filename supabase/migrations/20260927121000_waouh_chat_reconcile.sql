@@ -268,6 +268,38 @@ BEGIN
 END;
 $$;
 
+-- Quota-safe admin entry point: avoids requiring a new Edge Function slot.
+-- Authenticated admins may run report/apply; commission for R6 still comes only
+-- from chat_reconcile.metadata.commission_rate configured by an administrator.
+CREATE OR REPLACE FUNCTION public.waouh_admin_reconcile_chat(
+  p_mode text DEFAULT 'report'
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $
+DECLARE
+  v_uid uuid := auth.uid();
+  v_is_admin boolean := false;
+BEGIN
+  IF v_uid IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='admin_required';
+  END IF;
+  SELECT COALESCE(public.has_role(v_uid, 'admin'::app_role), false)
+      OR COALESCE(public.has_role(v_uid, 'super_admin'::app_role), false)
+    INTO v_is_admin;
+  IF NOT v_is_admin THEN
+    RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='admin_required';
+  END IF;
+  RETURN public.waouh_reconcile_chat_integrity(p_mode, NULL);
+END;
+$;
+
+REVOKE ALL ON FUNCTION public.waouh_admin_reconcile_chat(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.waouh_admin_reconcile_chat(text) FROM anon;
+GRANT EXECUTE ON FUNCTION public.waouh_admin_reconcile_chat(text) TO authenticated;
+
 COMMENT ON FUNCTION public.waouh_reconcile_chat_integrity(text, numeric) IS
   'Réconciliation du parcours chat WAOUH (plan du 27/09/2026). report = lecture seule ; '
   'apply = réparations idempotentes journalisées ; auto = selon l''interrupteur chat_reconcile.';

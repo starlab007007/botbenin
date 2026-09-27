@@ -110,7 +110,7 @@ const AdminWaouhHealthCheckPage: React.FC = () => {
     )) return;
     setReconciling(mode);
     try {
-      const { data: res, error: err } = await supabase.functions.invoke("waouh-chat-reconcile", { body: { mode } });
+      const { data: res, error: err } = await supabase.rpc("waouh_admin_reconcile_chat", { p_mode: mode });
       if (err) throw err;
       const payload = res as (ChatIntegrity & { ok?: boolean; error?: string }) | null;
       if (payload?.ok === false) throw new Error(payload.error || "failed");

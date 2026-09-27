@@ -35,7 +35,6 @@ MIGRATIONS=(
 # (waouh-sync.ts : payment, buyer-interest, deal-dispatch, notify-dispatch).
 # Toutes sont en verify_jwt = false dans supabase/config.toml : on conserve.
 FUNCTIONS=(
-  waouh-chat-reconcile
   waouh-match-history
   waouh-negotiation-router
   waouh-deal-ops

@@ -54,7 +54,7 @@ Légende : **A** = toujours actif dès le déploiement (correctif ciblé) · **V
 | `waouh-buyer-interest` | Plus de boutons de décision pour l'acheteur sur sa propre offre ; 2 erreurs de typage préexistantes corrigées. | A |
 | `waouh-match-history` | Le thread demandé fait foi (règle déjà appliquée par Flutter) ; un cycle ouvert prime sur un cycle clos. | A |
 | `waouh-health-check` | Inchangé : aucune télémétrie d'intégrité supplémentaire n'est exposée publiquement. | — |
-| `waouh-chat-reconcile` (nouvelle) | Réconciliation à la demande, **admin uniquement**. | — |
+| `waouh_admin_reconcile_chat()` (RPC) | Réconciliation à la demande, **admin uniquement**, sans consommer de nouveau slot Edge Function. | — |
 | `src/components/waouh/WaouhMatchChatWindow.tsx` | Temps réel : le thread canonique fait foi (parité Flutter), resynchronisation si un autre cycle arrive. | A |
 | `src/pages/admin/AdminWaouhHealthCheckPage.tsx` | Carte « Réconciliation du chat » : Analyser / Réparer maintenant. | A |
 | `src/components/admin/WaouhAdminCommandCenter.tsx` | Les 2 nouveaux modules, avec bascule d'automatisation. | A |
@@ -68,7 +68,7 @@ Légende : **A** = toujours actif dès le déploiement (correctif ciblé) · **V
 1. **Appliquer le lot** sur une branche partie de `prod` (voir `README` du paquet), relire le diff, ouvrir une PR, fusionner.
 2. **Déployer** : `SUPABASE_PROJECT_REF=… ./scripts/waouh-chat/deploy.sh` (plan) puis `--apply`.
    État après déploiement : correctifs **A** actifs, chemin **V2** inactif, réconciliation en **rapport**.
-3. **Mesurer (J0)** : Admin › Health Check › « Réconciliation du chat » › *Analyser*. La carte appelle directement `waouh-chat-reconcile` avec contrôle admin ; aucune télémétrie v2 supplémentaire n’est exposée par `waouh-health-check`. Noter les compteurs.
+3. **Mesurer (J0)** : Admin › Health Check › « Réconciliation du chat » › *Analyser*. La carte appelle directement le RPC `waouh_admin_reconcile_chat()` avec contrôle de rôle admin ; aucune télémétrie v2 supplémentaire n’est exposée par `waouh-health-check`. Noter les compteurs.
 4. **Backfill historique optionnel et contrôlé** : lancer d’abord `scripts/waouh-chat/backfill.sh` (rapport uniquement). Après validation, utiliser `WAOUH_BACKFILL_BATCH_SIZE=100 WAOUH_BACKFILL_MAX_BATCHES=1 scripts/waouh-chat/backfill.sh --apply`, puis augmenter progressivement si les compteurs restent cohérents.
 5. **Activer l'écrivain unique** : Command Center › « Chat — écrivain unique (v2) » › activer le module **et** l'automatisation.
    Effet en moins de 30 s (cache par instance). Tester un parcours complet sur un article de test :
