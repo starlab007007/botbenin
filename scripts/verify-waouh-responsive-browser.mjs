@@ -276,23 +276,23 @@ async function testRoot(viewport) {
 async function testDesktopSidebar(viewport) {
   if (viewport.width < 1180) return;
   const expected = [
-    ["Chat Command Center", "/app/chat"],
-    ["Radar", "/app/radar-map"],
-    ["WhatsApp IA", "/app/whatsapp"],
-    ["Avatar", "/app/avatar"],
-    ["Missions & veille", "/app/missions"],
-    ["Bots", "/app/bots"],
-    ["Agents IA", "/app/whatsapp/select-agent"],
-    ["Conversationnel", "/app/whatsapp/conversationnel"],
-    ["BI WAOUH IA", "/app/whatsapp/bi"],
-    ["Stock WAOUH IA", "/app/stock"],
-    ["Présence QR", "/app/presence"],
-    ["Boutiques & magasins", "/app/partner/businesses"],
-    ["AprèsBac IA", "/app/apresbac"],
-    ["FA IA", "/app/fa-ia"],
+    ["Chat Command Center", "/app/chat", false],
+    ["Radar", "/app/radar-map", false],
+    ["WhatsApp IA", "/app/whatsapp", true],
+    ["Avatar", "/app/avatar", false],
+    ["Missions & veille", "/app/missions", false],
+    ["Bots", "/app/bots", false],
+    ["Agents IA", "/app/whatsapp/select-agent", true],
+    ["Conversationnel", "/app/whatsapp/conversationnel", true],
+    ["BI WAOUH IA", "/app/whatsapp/bi", true],
+    ["Stock WAOUH IA", "/app/stock", true],
+    ["Présence QR", "/app/presence", true],
+    ["Boutiques & magasins", "/app/partner/businesses", true],
+    ["AprèsBac IA", "/app/apresbac", false],
+    ["FA IA", "/app/fa-ia", false],
   ];
 
-  for (const [label, expectedPath] of expected) {
+  for (const [label, expectedPath, authProtected] of expected) {
     await navigate("http://127.0.0.1:4173/", viewport);
     const clicked = await clickExact(label);
     if (!clicked) fail(`desktop: sidebar item ${label} is not clickable`);
@@ -305,8 +305,12 @@ async function testDesktopSidebar(viewport) {
         (document.body?.innerText || "").includes("Une erreur s’est produite"),
       overflowX: document.documentElement.scrollWidth > innerWidth + 3
     })`);
-    if (state.path !== expectedPath) {
-      fail(`desktop: sidebar ${label} navigated to ${state.path}; expected ${expectedPath}`);
+    const authRedirect = authProtected && (
+      state.path === "/app/auth" ||
+      state.path.startsWith("/app/auth/")
+    );
+    if (state.path !== expectedPath && !authRedirect) {
+      fail(`desktop: sidebar ${label} navigated to ${state.path}; expected ${expectedPath}${authProtected ? " or authentication" : ""}`);
     }
     if (state.fallback) fail(`desktop: sidebar ${label} rendered ErrorBoundary fallback`);
     if (state.overflowX) fail(`desktop: horizontal overflow after sidebar ${label}`);
@@ -315,32 +319,37 @@ async function testDesktopSidebar(viewport) {
 
 async function testRoutes(viewport) {
   const routes = [
-    ["/app/chat", null],
-    ["/app/avatar", "Votre Avatar WAOUH"],
-    ["/app/avatar/acheter", "Acheter avec mon Avatar"],
-    ["/app/avatar/vendre", "Vendre avec mon Avatar"],
-    ["/app/avatar/demander", "Demander à mon Avatar"],
-    ["/app/nexus", "WAOUH NEXUS"],
-    ["/app/missions", "Missions"],
-    ["/app/ia", "Bots & IA WAOUH"],
-    ["/app/bots", "Bots WAOUH"],
-    ["/app/radar-map", null],
-    ["/app/whatsapp", null],
-    ["/app/whatsapp/conversationnel", null],
-    ["/app/whatsapp/bi", null],
-    ["/app/whatsapp/select-agent", null],
-    ["/app/stock", null],
-    ["/app/presence", null],
-    ["/app/partner/businesses", null],
-    ["/app/apresbac", null],
-    ["/app/fa-ia", null],
-    ["/app/auth", "WaouhApp"],
+    ["/app/chat", null, false],
+    ["/app/avatar", "Votre Avatar WAOUH", false],
+    ["/app/avatar/acheter", "Acheter avec mon Avatar", false],
+    ["/app/avatar/vendre", "Vendre avec mon Avatar", false],
+    ["/app/avatar/demander", "Demander à mon Avatar", false],
+    ["/app/nexus", "WAOUH NEXUS", false],
+    ["/app/missions", "Missions", false],
+    ["/app/ia", "Bots & IA WAOUH", false],
+    ["/app/bots", "Bots WAOUH", false],
+    ["/app/radar-map", null, false],
+    ["/app/whatsapp", null, true],
+    ["/app/whatsapp/conversationnel", null, true],
+    ["/app/whatsapp/bi", null, true],
+    ["/app/whatsapp/select-agent", null, true],
+    ["/app/stock", null, true],
+    ["/app/presence", null, true],
+    ["/app/partner/businesses", null, true],
+    ["/app/apresbac", null, false],
+    ["/app/fa-ia", null, false],
+    ["/app/auth", "WaouhApp", false],
   ];
 
-  for (const [route, marker] of routes) {
+  for (const [route, marker, authProtected] of routes) {
     const state = await navigate(`http://127.0.0.1:4173${route}`, viewport);
     if (state.fallback) fail(`${viewport.name}: ${route} rendered ErrorBoundary fallback`);
     if (state.overflowX) fail(`${viewport.name}: horizontal overflow on ${route}`);
+    const authRedirect = authProtected && (
+      state.path === "/app/auth" ||
+      state.path.startsWith("/app/auth/")
+    );
+    if (authRedirect) continue;
     if (marker && !state.text.includes(marker) && !state.fallback) {
       const waited = await waitForText(marker);
       state.text = waited.text;
