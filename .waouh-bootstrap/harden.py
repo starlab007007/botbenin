@@ -187,7 +187,61 @@ text = text.replace(
 )
 write(path, text)
 
-# 8) Safety assertions
+# 8) SQL verification explicitly executes the manual backfill in the LOCAL test DB.
+path = "scripts/waouh-chat/verify/20_backfill_reconcile.sql"
+text = read(path)
+marker = "-- B1 — backfill : sûr uniquement, identités multiples comprises.\n"
+if marker not in text:
+    raise SystemExit("SQL backfill test marker missing")
+manual_test = """-- Le backfill production est volontairement manuel. Le banc LOCAL l'exécute
+-- explicitement afin de vérifier son comportement sans réintroduire une
+-- mutation automatique dans la migration.
+SELECT public.waouh_backfill_message_threads(5000, NULL);
+
+"""
+text = text.replace(marker, manual_test + marker, 1)
+write(path, text)
+
+# 9) Existing Web parity CI must understand canonical route constants.
+path = "scripts/verify-waouh-web-parity.mjs"
+text = read(path)
+old = """for (const [label, route] of canonicalDesktopRoutes) {
+  must(sidebar, `label: '${label}', to: '${route}'`, `Desktop canonical route mismatch: ${label} -> ${route}`);
+}
+"""
+new = """for (const [label, route] of canonicalDesktopRoutes) {
+  const literal = `label: '${label}', to: '${route}'`;
+  const chatViaConstant =
+    label === "Chat Command Center" &&
+    route === "/app/chat" &&
+    sidebar.includes("const CHAT_PATH = '/app/chat';") &&
+    sidebar.includes("label: 'Chat Command Center', to: CHAT_PATH");
+  if (!sidebar.includes(literal) && !chatViaConstant) {
+    fail(`Desktop canonical route mismatch: ${label} -> ${route}`);
+  }
+}
+"""
+if old not in text:
+    raise SystemExit("web parity canonical route anchor missing")
+text = text.replace(old, new, 1)
+write(path, text)
+
+# 10) Compatibility checkpoint: server-side Chat v2 changes require no Flutter
+# runtime change, but this marker intentionally triggers the existing Flutter CI
+# after merge so the APK is rebuilt from the exact integrated prod commit.
+compat = """# WAOUH Chat v2 — server compatibility checkpoint
+
+This marker documents that the 27/09/2026 canonical-thread / single-writer
+server integration is compatible with the Flutter production entry point
+`lib/live/live_app_production.dart`.
+
+No Flutter runtime code is changed by this lot. Its presence under
+`flutter_waouh_app/` intentionally triggers the existing Flutter CI so an
+optimized ARM64 APK is rebuilt from the exact integrated production commit.
+"""
+write("flutter_waouh_app/WAOUH_CHAT_V2_SERVER_COMPATIBILITY.md", compat)
+
+# 11) Safety assertions
 backfill = read("supabase/migrations/20260927120500_waouh_chat_messages_thread_backfill.sql")
 assert "v_res := public.waouh_backfill_message_threads(5000, v_cursor)" not in backfill
 assert "public.waouh_same_person(m.user_id, t.buyer_user_id)" in backfill
@@ -196,4 +250,7 @@ assert "r4_threads_ambiguous_deals" in read("supabase/migrations/20260927121000_
 assert "chat_integrity: chatIntegrity" not in read("supabase/functions/waouh-health-check/index.ts")
 assert "actor_not_unambiguous_party" in read("supabase/functions/waouh-negotiation-router/index.ts")
 assert "negotiation_actor_invalid" in read("supabase/functions/waouh-webhook/index.ts")
+assert "SELECT public.waouh_backfill_message_threads(5000, NULL);" in read("scripts/waouh-chat/verify/20_backfill_reconcile.sql")
+assert "chatViaConstant" in read("scripts/verify-waouh-web-parity.mjs")
+assert Path("flutter_waouh_app/WAOUH_CHAT_V2_SERVER_COMPATIBILITY.md").exists()
 print("WAOUH Chat v2 hardening recommendations applied.")
