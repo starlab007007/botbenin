@@ -6,8 +6,13 @@
 // Body: { article_id: string, source?: "match"|"radar"|"chat"|"card" }
 // Auth: requires Authorization Bearer <user JWT>.
 
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-waouh-session, x-session-id",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
 import { bindThreadState, resolveProductThread } from "../_shared/waouh-thread.ts";
 import { sellerOfferDecisionActions } from "../_shared/waouh-commands.ts";
