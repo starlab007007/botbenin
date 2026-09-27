@@ -144,7 +144,15 @@ const canonicalDesktopRoutes = [
   ["FA IA", "/app/fa-ia"],
 ];
 for (const [label, route] of canonicalDesktopRoutes) {
-  must(sidebar, `label: '${label}', to: '${route}'`, `Desktop canonical route mismatch: ${label} -> ${route}`);
+  const literal = `label: '${label}', to: '${route}'`;
+  const chatViaConstant =
+    label === "Chat Command Center" &&
+    route === "/app/chat" &&
+    sidebar.includes("const CHAT_PATH = '/app/chat';") &&
+    sidebar.includes("label: 'Chat Command Center', to: CHAT_PATH");
+  if (!sidebar.includes(literal) && !chatViaConstant) {
+    fail(`Desktop canonical route mismatch: ${label} -> ${route}`);
+  }
 }
 
 must(sw, "const VERSION = 'v8';", "Service worker cache version must be v8");

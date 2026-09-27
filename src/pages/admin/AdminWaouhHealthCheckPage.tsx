@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Activity, AlertTriangle, CheckCircle2, Database, Loader2, RefreshCw } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, Database, Loader2, RefreshCw, Wrench } from "lucide-react";
+import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -35,8 +36,42 @@ type Health = {
     deals_waiting_courier: number;
     accepted_threadless_legacy: number;
   };
+  // Réconciliation du chat (plan du 27/09/2026) — absente avant migration.
+  chat_integrity?: ChatIntegrity;
   generated_at: string;
 };
+
+type ChatIntegrity = {
+  available?: boolean;
+  mode?: "report" | "apply";
+  r1_messages_linkable_30d?: number;
+  r1_messages_ambiguous_30d?: number;
+  r1_messages_linked?: number;
+  r2_open_negotiations_linkable?: number;
+  r2_open_negotiations_without_thread_remaining?: number;
+  r3_deals_thread_repairable?: number;
+  r4_threads_missing_deal_link?: number;
+  r5_threads_stale_status?: number;
+  r6_accepted_without_deal_7d?: number;
+  r6_deals_created?: number;
+  r6_skipped?: string;
+  r6_errors?: Array<{ negotiation_id: string; error: string }>;
+  info_deals_waiting_courier_2h?: number;
+  info_outbound_failed_24h?: number;
+  info_outbound_pending_15min?: number;
+};
+
+const CHAT_INTEGRITY_ROWS: Array<{ key: keyof ChatIntegrity; label: string; repairable: boolean }> = [
+  { key: "r1_messages_linkable_30d", label: "Messages rattachables à leur thread", repairable: true },
+  { key: "r2_open_negotiations_linkable", label: "Négos ouvertes rattachables", repairable: true },
+  { key: "r3_deals_thread_repairable", label: "Deals sans thread (réparables)", repairable: true },
+  { key: "r4_threads_missing_deal_link", label: "Threads sans lien deal", repairable: true },
+  { key: "r5_threads_stale_status", label: "Threads à clôturer", repairable: true },
+  { key: "r6_accepted_without_deal_7d", label: "Accords sans deal (7 j)", repairable: true },
+  { key: "r1_messages_ambiguous_30d", label: "Messages ambigus (revue)", repairable: false },
+  { key: "info_deals_waiting_courier_2h", label: "Livreur attendu > 2 h", repairable: false },
+  { key: "info_outbound_pending_15min", label: "WhatsApp en attente > 15 min", repairable: false },
+];
 
 const AdminWaouhHealthCheckPage: React.FC = () => {
   const [hours, setHours] = useState<number>(24);
@@ -64,6 +99,29 @@ const AdminWaouhHealthCheckPage: React.FC = () => {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const [reconciling, setReconciling] = useState<"report" | "apply" | null>(null);
+  const [reconcileResult, setReconcileResult] = useState<ChatIntegrity | null>(null);
+  const runReconcile = useCallback(async (mode: "report" | "apply") => {
+    if (mode === "apply" && !window.confirm(
+      "Appliquer les réparations sûres (rattachements thread, clôtures, deals manquants) ? Chaque action est journalisée.",
+    )) return;
+    setReconciling(mode);
+    try {
+      const { data: res, error: err } = await supabase.functions.invoke("waouh-chat-reconcile", { body: { mode } });
+      if (err) throw err;
+      const payload = res as (ChatIntegrity & { ok?: boolean; error?: string }) | null;
+      if (payload?.ok === false) throw new Error(payload.error || "failed");
+      setReconcileResult(payload);
+      toast.success(mode === "apply" ? "Réparations appliquées" : "Analyse terminée");
+      if (mode === "apply") void load();
+    } catch (e: unknown) {
+      toast.error(e instanceof Error && e.message ? e.message : "Réconciliation impossible");
+    } finally {
+      setReconciling(null);
+    }
+  }, [load]);
+  const chatIntegrity: ChatIntegrity | null = reconcileResult ?? (data?.chat_integrity?.available ? data.chat_integrity : null);
 
   const lastWebhookAgo = data?.last_webhook_at
     ? formatDistanceToNow(new Date(data.last_webhook_at), { addSuffix: true, locale: fr })
@@ -190,6 +248,58 @@ const AdminWaouhHealthCheckPage: React.FC = () => {
             Historique legacy : {data!.commerce_integrity.accepted_threadless_legacy} accord(s) accepted sans thread canonique.
             Les nouveaux parcours sont bloqués par les invariants E2E V3.
           </p>
+        )}
+      </Card>
+
+      <Card className="p-4">
+        <div className="flex flex-wrap items-center gap-2 mb-3">
+          <Wrench className="w-4 h-4 text-violet-600" />
+          <h2 className="font-semibold">Réconciliation du chat</h2>
+          <Badge variant="outline" className="text-xs">
+            {chatIntegrity?.mode === "apply" ? "réparations appliquées" : "rapport"}
+          </Badge>
+          <div className="ml-auto flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => void runReconcile("report")} disabled={!!reconciling}>
+              {reconciling === "report" ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              <span className="ml-2">Analyser</span>
+            </Button>
+            <Button size="sm" onClick={() => void runReconcile("apply")} disabled={!!reconciling}>
+              {reconciling === "apply" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wrench className="w-4 h-4" />}
+              <span className="ml-2">Réparer maintenant</span>
+            </Button>
+          </div>
+        </div>
+        {!chatIntegrity ? (
+          <p className="text-xs text-muted-foreground">
+            Réconciliation indisponible : migrations du 27/09/2026 non appliquées, ou analyse non lancée.
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+              {CHAT_INTEGRITY_ROWS.map((row) => {
+                const value = Number(chatIntegrity[row.key] ?? 0);
+                return (
+                  <div key={row.key} className="rounded-lg border p-3">
+                    <div className="text-xs text-muted-foreground">{row.label}</div>
+                    <div className={`text-xl font-bold ${value > 0 && row.repairable ? "text-amber-600" : ""}`}>{value}</div>
+                  </div>
+                );
+              })}
+            </div>
+            {chatIntegrity.r6_skipped === "commission_rate_required" && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Accords sans deal non réparés : taux de commission requis (WAOUH_COMMISSION_RATE côté edge function).
+              </p>
+            )}
+            {(chatIntegrity.r6_errors?.length ?? 0) > 0 && (
+              <p className="mt-3 text-xs text-destructive">
+                {chatIntegrity.r6_errors!.length} accord(s) non réparable(s) automatiquement (article vendu/réservé…) — arbitrage manuel.
+              </p>
+            )}
+            <p className="mt-3 text-xs text-muted-foreground">
+              Le cron (15 min) ne répare que si l'automatisation « Chat — réconciliation automatique » est activée dans le Command Center.
+            </p>
+          </>
         )}
       </Card>
 

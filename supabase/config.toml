@@ -217,6 +217,9 @@ verify_jwt = false
 [functions.waouh-health-check]
 verify_jwt = false
 
+[functions.waouh-chat-reconcile]
+verify_jwt = false
+
 [functions.waouh-historique]
 verify_jwt = false
 
