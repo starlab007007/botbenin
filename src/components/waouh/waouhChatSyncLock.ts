@@ -327,6 +327,14 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
         "checkOperatorDealTransition(deal.status, status)",
       ],
     },
+    chatRouterV2Delegation: {
+      file: "supabase/functions/waouh-webhook/index.ts",
+      mustContain: [
+        "chatRouterV2Enabled(sb)",
+        "negotiation_actor_invalid",
+        "/functions/v1/waouh-negotiation-router",
+      ],
+    },
     channelInNeverSilent: {
       file: "supabase/functions/waouh-channel-in/index.ts",
       mustContain: [

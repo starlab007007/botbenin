@@ -189,10 +189,16 @@ const moduleMeta: Record<string, { icon: any; detail: (cc: CommandCenter) => str
     manage: "/admin/waouh/historique",
     automation: true,
   },
-  // Chat v2 (plan du 27/09/2026) : automatisation = bascule effective.
+  // Chat v2 : écrivain et routeur basculent séparément pour un rollback fin.
   chat_writer_v2: {
     icon: MessagesSquare,
-    detail: () => "Écrivain unique + routage négociation unifié (automatisation = activé)",
+    detail: () => "Écrivain unique thread canonique (automatisation = activé)",
+    manage: "/admin/waouh/health-check",
+    automation: true,
+  },
+  chat_router_v2: {
+    icon: Workflow,
+    detail: () => "OUI / NON / contre-offres via le routeur canonique (rollback indépendant)",
     manage: "/admin/waouh/health-check",
     automation: true,
   },
