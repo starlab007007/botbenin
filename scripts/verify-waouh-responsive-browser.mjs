@@ -56,7 +56,14 @@ let runtimeExceptions = [];
 function send(method, params = {}) {
   return new Promise((resolve, reject) => {
     const id = nextId++;
-    pending.set(id, { resolve, reject });
+    const timer = setTimeout(() => {
+      pending.delete(id);
+      reject(new Error(`CDP timeout: ${method}`));
+    }, 15000);
+    pending.set(id, {
+      resolve: (value) => { clearTimeout(timer); resolve(value); },
+      reject: (error) => { clearTimeout(timer); reject(error); },
+    });
     ws.send(JSON.stringify({ id, method, params }));
   });
 }
@@ -293,6 +300,7 @@ async function testDesktopSidebar(viewport) {
   ];
 
   for (const [label, expectedPath, authProtected] of expected) {
+    console.log(`WAOUH responsive smoke: ${viewport.name} sidebar -> ${label}`);
     await navigate("http://127.0.0.1:4173/", viewport);
     const clicked = await clickExact(label);
     if (!clicked) fail(`desktop: sidebar item ${label} is not clickable`);
@@ -342,6 +350,7 @@ async function testRoutes(viewport) {
   ];
 
   for (const [route, marker, authProtected] of routes) {
+    console.log(`WAOUH responsive smoke: ${viewport.name} route -> ${route}`);
     const state = await navigate(`http://127.0.0.1:4173${route}`, viewport);
     if (state.fallback) fail(`${viewport.name}: ${route} rendered ErrorBoundary fallback`);
     if (state.overflowX) fail(`${viewport.name}: horizontal overflow on ${route}`);
