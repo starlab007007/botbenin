@@ -1,0 +1,107 @@
+name: Apply WAOUH Chat V3 staged patches
+
+on:
+  push:
+    branches:
+      - tmp/waouh-chat-v3-import-20260927
+    paths:
+      - ".waouh-import/**"
+      - ".github/workflows/apply-waouh-v3-import.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Rebuild and verify the three signed patch payloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, gzip, hashlib
+          from pathlib import Path
+
+          specs = {
+              "p1": {
+                  "expected_b64": 46696,
+                  "gz_sha": "d54d29097714ddfd1383885c3fb2246592a71ddec8443e0b8ef73a6bc5b54ea3",
+                  "raw_sha": "9576c436b49c7894378fdd40cc8e9d90ba22ca8d98d2a1e23f9287e7ecb4076b",
+              },
+              "p2": {
+                  "expected_b64": 53424,
+                  "gz_sha": "0703af1fcd0deb7cd800fbd7a43e336ad63577d60dde7d66ed532c4153c7df0e",
+                  "raw_sha": "42048d53a80121946b0f698f87ee970147f9d3e5591967846a172494408fee7f",
+              },
+              "p3": {
+                  "expected_b64": 8160,
+                  "gz_sha": "7f377b83a8fb642cf5008a5b5e72697ca6ef539e7841d0b512ebbf7d9d40f034",
+                  "raw_sha": "b11ec934dc0952e02ba716aba8e110ab6a18312e7cdcfffa06a4c20d815bfc22",
+              },
+          }
+
+          def decode_exact(s, spec):
+              try:
+                  gz = base64.b64decode(s, validate=True)
+              except Exception:
+                  return None
+              if hashlib.sha256(gz).hexdigest() != spec["gz_sha"]:
+                  return None
+              raw = gzip.decompress(gz)
+              if hashlib.sha256(raw).hexdigest() != spec["raw_sha"]:
+                  return None
+              return raw
+
+          for key, spec in specs.items():
+              parts = sorted(Path(".waouh-import").glob(f"{key}.*.b64"))
+              if not parts:
+                  raise SystemExit(f"Missing staged chunks for {key}")
+              s = "".join(p.read_text().strip() for p in parts)
+              raw = decode_exact(s, spec)
+
+              # Defensive bridge repair: if one accidental staging character
+              # was introduced while transporting a base64 chunk, remove only
+              # the unique character that restores the signed gzip checksum.
+              if raw is None and len(s) == spec["expected_b64"] + 1:
+                  print(f"{key}: one extra staging character detected; locating it safely")
+                  repaired = None
+                  for i in range(len(s)):
+                      candidate = s[:i] + s[i+1:]
+                      raw = decode_exact(candidate, spec)
+                      if raw is not None:
+                          repaired = (i, raw)
+                          break
+                  if repaired is None:
+                      raise SystemExit(f"{key}: payload checksum mismatch; refusing import")
+                  print(f"{key}: repaired transport-only character at offset {repaired[0]}")
+                  raw = repaired[1]
+
+              if raw is None:
+                  raise SystemExit(f"{key}: payload checksum mismatch; refusing import")
+
+              out = Path(f"/tmp/{key}.patch")
+              out.write_bytes(raw)
+              print(f"{key}: verified {len(raw)} bytes sha256={spec['raw_sha']}")
+          PY
+
+      - name: Apply V3 commits on exact production base
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin prod feat/waouh-chat-v3-20260927
+          test "$(git rev-parse origin/prod)" = "9be01e74e777800d8a93f548722ea9c197c424ed" || {
+            echo "Production base moved; refusing automatic patch import."
+            exit 1
+          }
+          git checkout -B feat/waouh-chat-v3-20260927 origin/prod
+          git am /tmp/p1.patch /tmp/p2.patch /tmp/p3.patch
+          git log -4 --oneline
+          git push origin feat/waouh-chat-v3-20260927
