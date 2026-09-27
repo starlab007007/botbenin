@@ -37,7 +37,6 @@ MIGRATIONS=(
 FUNCTIONS=(
   waouh-chat-reconcile
   waouh-match-history
-  waouh-health-check
   waouh-negotiation-router
   waouh-deal-ops
   waouh-buyer-interest
@@ -62,7 +61,7 @@ echo "  ⚠️  'supabase db push' applique TOUTES les migrations en attente, pa
 echo "      celles de ce lot. Contrôler la liste avant d'appliquer :"
 run supabase migration list --linked
 
-step "2/4 Simulation puis application des migrations (additives, interrupteurs OFF)"
+step "2/4 Simulation puis application des migrations (additives, interrupteurs OFF, sans backfill historique automatique)"
 run supabase db push --linked --dry-run
 if $APPLY; then
   read -r -p "  La simulation ne liste-t-elle QUE les 3 migrations du 27/09 (ou des migrations attendues) ? [oui/NON] " answer
@@ -78,7 +77,7 @@ done
 step "4/4 Contrôle"
 echo "  • Admin > WAOUH > Health Check : carte « Réconciliation du chat » visible, bouton « Analyser »."
 echo "  • Command Center : modules « Chat — écrivain unique (v2) » (OFF) et « Chat — réconciliation automatique »."
-echo "  • Activation progressive : voir docs/WAOUH_CHAT_THREAD_MIGRATION.md, section « Activation »."
+echo "  • Backfill historique : script séparé scripts/waouh-chat/backfill.sh (plan par défaut)."\necho "  • Activation progressive : voir docs/WAOUH_CHAT_THREAD_MIGRATION.md, section « Activation »."
 if ! $APPLY; then
   echo
   echo "Plan affiché uniquement. Relancer avec --apply pour exécuter."

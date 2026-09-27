@@ -68,22 +68,23 @@ Légende : **A** = toujours actif dès le déploiement (correctif ciblé) · **V
 1. **Appliquer le lot** sur une branche partie de `prod` (voir `README` du paquet), relire le diff, ouvrir une PR, fusionner.
 2. **Déployer** : `SUPABASE_PROJECT_REF=… ./scripts/waouh-chat/deploy.sh` (plan) puis `--apply`.
    État après déploiement : correctifs **A** actifs, chemin **V2** inactif, réconciliation en **rapport**.
-3. **Mesurer (J0)** : Admin › Health Check › « Réconciliation du chat » › *Analyser*. Noter les compteurs.
-4. **Activer l'écrivain unique** : Command Center › « Chat — écrivain unique (v2) » › activer le module **et** l'automatisation.
+3. **Mesurer (J0)** : Admin › Health Check › « Réconciliation du chat » › *Analyser*. La carte appelle directement `waouh-chat-reconcile` avec contrôle admin ; aucune télémétrie v2 supplémentaire n’est exposée par `waouh-health-check`. Noter les compteurs.
+4. **Backfill historique optionnel et contrôlé** : lancer d’abord `scripts/waouh-chat/backfill.sh` (rapport uniquement). Après validation, utiliser `WAOUH_BACKFILL_BATCH_SIZE=100 WAOUH_BACKFILL_MAX_BATCHES=1 scripts/waouh-chat/backfill.sh --apply`, puis augmenter progressivement si les compteurs restent cohérents.
+5. **Activer l'écrivain unique** : Command Center › « Chat — écrivain unique (v2) » › activer le module **et** l'automatisation.
    Effet en moins de 30 s (cache par instance). Tester un parcours complet sur un article de test :
    intérêt → contre-offre (web et WhatsApp) → accord → confirmation vendeur → choix de paiement → livreur → livré → payé.
    Vérifier côté **vendeur** que les étapes de livraison et de paiement apparaissent dans la fenêtre du produit.
-5. **Observer 48 h** : messages de Deal Room écrits sans thread (replis sur l'ancien chemin) :
+6. **Observer 48 h** : messages de Deal Room écrits sans thread (replis sur l'ancien chemin) :
    ```sql
    select count(*) from public.waouh_messages
    where thread_id is null and created_at > now() - interval '48 hours'
      and ((meta->>'deal_id') is not null or (meta->>'negotiation_id') is not null);
    ```
    Doit tendre vers 0 (hors négociations historiques sans thread, que R2 rattache).
-6. **Activer la réparation automatique** : Command Center › « Chat — réconciliation automatique » › automatisation.
+7. **Activer la réparation automatique** : Command Center › « Chat — réconciliation automatique » › automatisation.
    Pour la règle R6 (accord sans deal), renseigner le taux de commission dans les métadonnées du module
    (`{"commission_rate": 0.05}` — même valeur que `WAOUH_COMMISSION_RATE`) ; sans taux, R6 reste en rapport.
-7. **Phase 6** (facultative, après 48 h propres) : §7.
+8. **Phase 6** (facultative, après 48 h propres) : §7.
 
 ## 5. Retour arrière
 
@@ -102,7 +103,7 @@ Légende : **A** = toujours actif dès le déploiement (correctif ciblé) · **V
 | R1 | Messages de Deal Room sans thread, rattachables sans ambiguïté | Rattache (même règle que le backfill) |
 | R2 | Négociations ouvertes sans thread, un seul thread actif exact | Rattache négociation ↔ thread |
 | R3 | Deals sans thread alors que la négociation en a un | Rattache |
-| R4 | Thread qui ne connaît pas son deal actif | Rattache |
+| R4 | Thread qui ne connaît pas son deal actif | Rattache **uniquement s'il existe exactement un deal non annulé** ; plusieurs deals restent en rapport |
 | R5 | Thread « actif » alors que le deal est terminé/annulé | Clôt le thread (libère la relation) |
 | R6 | Accord (7 j) sans deal | Rejoue `waouh_accept_negotiation_atomic` (idempotente, refuse d'elle-même un article vendu/réservé) — **seulement avec un taux de commission explicite** |
 | Info | Livreur attendu > 2 h, file WhatsApp en échec / en attente > 15 min | Rapport seul |

@@ -51,6 +51,7 @@ type ChatIntegrity = {
   r2_open_negotiations_without_thread_remaining?: number;
   r3_deals_thread_repairable?: number;
   r4_threads_missing_deal_link?: number;
+  r4_threads_ambiguous_deals?: number;
   r5_threads_stale_status?: number;
   r6_accepted_without_deal_7d?: number;
   r6_deals_created?: number;
@@ -66,6 +67,7 @@ const CHAT_INTEGRITY_ROWS: Array<{ key: keyof ChatIntegrity; label: string; repa
   { key: "r2_open_negotiations_linkable", label: "Négos ouvertes rattachables", repairable: true },
   { key: "r3_deals_thread_repairable", label: "Deals sans thread (réparables)", repairable: true },
   { key: "r4_threads_missing_deal_link", label: "Threads sans lien deal", repairable: true },
+  { key: "r4_threads_ambiguous_deals", label: "Threads avec plusieurs deals actifs", repairable: false },
   { key: "r5_threads_stale_status", label: "Threads à clôturer", repairable: true },
   { key: "r6_accepted_without_deal_7d", label: "Accords sans deal (7 j)", repairable: true },
   { key: "r1_messages_ambiguous_30d", label: "Messages ambigus (revue)", repairable: false },
@@ -121,7 +123,7 @@ const AdminWaouhHealthCheckPage: React.FC = () => {
       setReconciling(null);
     }
   }, [load]);
-  const chatIntegrity: ChatIntegrity | null = reconcileResult ?? (data?.chat_integrity?.available ? data.chat_integrity : null);
+  const chatIntegrity: ChatIntegrity | null = reconcileResult;
 
   const lastWebhookAgo = data?.last_webhook_at
     ? formatDistanceToNow(new Date(data.last_webhook_at), { addSuffix: true, locale: fr })
