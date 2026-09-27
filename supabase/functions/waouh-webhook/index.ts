@@ -10,7 +10,7 @@ import {
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 import { resolveProductThread, bindThreadState } from "../_shared/waouh-thread.ts";
-import { chatWriterV2Enabled, recordChatMessage, resolveThreadIdForEvent } from "../_shared/waouh-chat-writer.ts";
+import { chatRouterV2Enabled, chatWriterV2Enabled, recordChatMessage, resolveThreadIdForEvent } from "../_shared/waouh-chat-writer.ts";
 import { findRadarOutreachContext, findRadarSellerOutreachContext } from "../_shared/waouh-radar.ts";
 import { extractFallbackKeywords, expandKeywordVariants, escapeIlikeToken, matchesAnyKeyword, scoreRelevance, normalizeCategorySafe } from "../_shared/waouh-keywords.ts";
 import { compareMarketPrice, shortMarketLine } from "../_shared/waouh-price.ts";
@@ -281,7 +281,7 @@ async function delegateToNegotiationRouter(
   command: { text: string; buttonPayload?: string | null },
 ): Promise<Record<string, any> | null> {
   if (!neg?.id || !neg?.thread_id) return null;
-  if (!(await chatWriterV2Enabled(sb))) return null;
+  if (!(await chatRouterV2Enabled(sb))) return null;
   const url = Deno.env.get("SUPABASE_URL");
   const srv = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !srv) return null;
