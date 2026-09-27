@@ -1,0 +1,68 @@
+name: WAOUH Chat v2 Validation
+
+on:
+  push:
+    branches:
+      - feat/waouh-chat-v2-thread-canonical-20260927
+    paths:
+      - ".github/workflows/waouh-chat-v2-validate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/waouh-chat-v2-thread-canonical-20260927
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps --no-audit --no-fund
+
+      - name: Build Web
+        run: npm run build
+
+      - name: Web sync-lock regression
+        run: npx --yes vitest@2.1.9 run src/components/waouh/__tests__/waouh-chat-sync-flow.lock.test.ts
+
+      - name: Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Canonical chat unit tests
+        run: |
+          deno test --allow-env --allow-net --allow-read             supabase/functions/_shared/waouh-chat-writer-test.ts             supabase/functions/_shared/waouh-commands-test.ts             supabase/functions/_shared/waouh-commerce-states-test.ts             supabase/functions/_shared/waouh-negotiation-intent-test.ts             supabase/functions/waouh-negotiation-router/aiIntent.test.ts
+
+      - name: Deno check modified Edge Functions
+        run: |
+          for f in             supabase/functions/waouh-buyer-interest/index.ts             supabase/functions/waouh-channel-in/index.ts             supabase/functions/waouh-chat-reconcile/index.ts             supabase/functions/waouh-deal-ops/index.ts             supabase/functions/waouh-match-history/index.ts             supabase/functions/waouh-negotiation-router/index.ts             supabase/functions/waouh-webhook/index.ts; do
+            deno check "$f"
+          done
+
+      - name: SQL migration/reconciliation scenarios
+        env:
+          PGPASSWORD: postgres
+          PSQL: psql -h localhost -U postgres
+        run: bash scripts/waouh-chat/verify/run-sql-tests.sh
