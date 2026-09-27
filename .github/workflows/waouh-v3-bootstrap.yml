@@ -1,0 +1,51 @@
+name: WAOUH V3 Bootstrap
+
+on:
+  push:
+    branches:
+      - feat/waouh-chat-v3-20260927
+    paths:
+      - ".github/workflows/waouh-v3-bootstrap.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout integration branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Rebuild and verify exact V3 bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > /tmp/waouh-chat-v3.bundle.b64
+          for i in $(seq 1 11); do
+            test -s ".waouh-v3/bundle.part${i}.b64"
+            cat ".waouh-v3/bundle.part${i}.b64" >> /tmp/waouh-chat-v3.bundle.b64
+          done
+          base64 -d /tmp/waouh-chat-v3.bundle.b64 > /tmp/waouh-chat-v3.bundle
+          echo "2aa01fca1db7a7c1866a6423bf0fcb30403a9a4c4fed009d52556732756b67d6  /tmp/waouh-chat-v3.bundle" | sha256sum -c -
+          git bundle verify /tmp/waouh-chat-v3.bundle
+
+      - name: Import and apply the three package commits
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch /tmp/waouh-chat-v3.bundle HEAD:refs/remotes/v3/package
+
+          git cherry-pick 78a3e801e0c7e54fd7b773b2df1a6b120b2602c8
+          git cherry-pick 23e8a94a56bbd565ae41c146c9dd587d577b82bd
+          git cherry-pick 4073b9f663e527b518a44dcf50e772bccc4919a9
+
+          rm -rf .waouh-v3
+          rm -f .github/workflows/waouh-v3-bootstrap.yml
+          git add -A
+          git commit -m "chore(waouh-chat): remove v3 bootstrap staging"
+          git push origin HEAD:feat/waouh-chat-v3-20260927
