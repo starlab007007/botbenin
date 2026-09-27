@@ -83,7 +83,7 @@ jobs:
         run: npm run build
 
       - name: WAOUH Chat v3 Web regressions
-        run: npx vitest run src/components/waouh/__tests__/waouh-chat-sync-flow.lock.test.ts src/lib/waouh/__tests__/commerceAction.test.ts
+        run: npx --yes vitest@2.1.9 run src/components/waouh/__tests__/waouh-chat-sync-flow.lock.test.ts src/lib/waouh/__tests__/commerceAction.test.ts
 
       - name: Verify Flutter/Web route and navigation parity
         run: node scripts/verify-waouh-web-parity.mjs
