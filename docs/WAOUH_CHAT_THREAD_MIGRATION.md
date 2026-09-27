@@ -10,7 +10,7 @@ Parcours concerné : Intérêt → Négociation → Accord → Préparation → 
 - **Une seule mécanique de décision** : le moteur principal (`waouh-webhook`) confie ses OUI/NON/contre-offres au routeur canonique (transition atomique) au lieu de les traiter lui-même.
 - **Plus de silence** : toute issue (action refusée, erreur, bouton périmé) produit une réponse explicite, sur le web comme sur WhatsApp.
 - **Détecter → réparer** : `waouh_reconcile_chat_integrity()` mesure et répare, avec un mode rapport par défaut et un bouton admin.
-- **Tout est réversible sans redéploiement** : les changements d'architecture sont derrière l'interrupteur `chat_writer_v2`, livré **désactivé**.
+- **Tout est réversible sans redéploiement** : l’écrivain (`chat_writer_v2`) et le routeur de décision (`chat_router_v2`) sont indépendants et livrés **désactivés**.
 
 ## 2. Ce que l'audit a établi
 
@@ -38,7 +38,8 @@ Légende : **A** = toujours actif dès le déploiement (correctif ciblé) · **V
 
 | Fichier | Changement | Mode |
 |---|---|---|
-| `supabase/migrations/20260927120000_…_thread_base.sql` | Filets défensifs (no-op en prod), index, interrupteurs `chat_writer_v2` (OFF) et `chat_reconcile` (rapport), `waouh_same_person()`, écrivain `waouh_record_chat_message()`, accès réservé à `service_role`. | — |
+| `supabase/migrations/20260927120000_…_thread_base.sql` | Filets défensifs, index, `chat_writer_v2`, `chat_reconcile`, `waouh_same_person()`, écrivain `waouh_record_chat_message()`. | — |
+| `supabase/migrations/20260927123000_waouh_chat_router_rollout.sql` | Ajoute `chat_router_v2` OFF par défaut pour séparer le rollback du routeur et de l’écrivain. | — |
 | `supabase/migrations/20260927120500_…_backfill.sql` | Installe le backfill et la vue de suivi, **sans exécuter automatiquement le backfill**. L'historique est traité ensuite par lots audités et uniquement sans ambiguïté. | — |
 | `supabase/migrations/20260927121000_waouh_chat_reconcile.sql` | `waouh_reconcile_chat_integrity(mode, taux)` + tick pg_cron 15 min en mode `auto`. | — |
 | `supabase/deferred/20260927130000_…_constraint.sql` | Phase 6, **hors** `migrations/` : à exécuter à la main (§7). | — |
@@ -71,26 +72,28 @@ Légende : **A** = toujours actif dès le déploiement (correctif ciblé) · **V
 3. **Mesurer (J0)** : Admin › Health Check › « Réconciliation du chat » › *Analyser*. La carte appelle directement le RPC `waouh_admin_reconcile_chat()` avec contrôle de rôle admin ; aucune télémétrie v2 supplémentaire n’est exposée par `waouh-health-check`. Noter les compteurs.
 4. **Backfill historique optionnel et contrôlé** : lancer d’abord `scripts/waouh-chat/backfill.sh` (rapport uniquement). Après validation, utiliser `WAOUH_BACKFILL_BATCH_SIZE=100 WAOUH_BACKFILL_MAX_BATCHES=1 scripts/waouh-chat/backfill.sh --apply`, puis augmenter progressivement si les compteurs restent cohérents.
 5. **Activer l'écrivain unique** : Command Center › « Chat — écrivain unique (v2) » › activer le module **et** l'automatisation.
-   Effet en moins de 30 s (cache par instance). Tester un parcours complet sur un article de test :
+   Effet en moins de 5 s pendant le rollout (cache par instance). Tester un parcours complet sur un article de test :
    intérêt → contre-offre (web et WhatsApp) → accord → confirmation vendeur → choix de paiement → livreur → livré → payé.
    Vérifier côté **vendeur** que les étapes de livraison et de paiement apparaissent dans la fenêtre du produit.
-6. **Observer 48 h** : messages de Deal Room écrits sans thread (replis sur l'ancien chemin) :
+6. **Activer le routeur canonique séparément** : Command Center › « Chat — routeur de négociation unique (v2) ». Tester OUI/NON/contre-offre sur Web, Flutter et WhatsApp.
+7. **Observer 48 h** : messages de Deal Room écrits sans thread (replis sur l'ancien chemin) :
    ```sql
    select count(*) from public.waouh_messages
    where thread_id is null and created_at > now() - interval '48 hours'
      and ((meta->>'deal_id') is not null or (meta->>'negotiation_id') is not null);
    ```
    Doit tendre vers 0 (hors négociations historiques sans thread, que R2 rattache).
-7. **Activer la réparation automatique** : Command Center › « Chat — réconciliation automatique » › automatisation.
+8. **Activer la réparation automatique** : Command Center › « Chat — réconciliation automatique » › automatisation.
    Pour la règle R6 (accord sans deal), renseigner le taux de commission dans les métadonnées du module
    (`{"commission_rate": 0.05}` — même valeur que `WAOUH_COMMISSION_RATE`) ; sans taux, R6 reste en rapport.
-8. **Phase 6** (facultative, après 48 h propres) : §7.
+9. **Phase 6** (facultative, après 48 h propres) : §7.
 
 ## 5. Retour arrière
 
 | Niveau | Action | Délai |
 |---|---|---|
-| Écrivain unique / routage unifié | Command Center › désactiver « Chat — écrivain unique (v2) ». Tous les appelants reprennent l'ancien chemin, inchangé. | ≤ 30 s |
+| Écrivain unique | Désactiver « Chat — écrivain unique (v2) ». Les écrivains reprennent l’ancien chemin. | ≤ 5 s |
+| Routeur unifié | Désactiver « Chat — routeur de négociation unique (v2) ». Le moteur historique reste disponible. | ≤ 5 s |
 | Réparations automatiques | Command Center › couper l'automatisation « Chat — réconciliation automatique » (retour en rapport) ou le module (arrêt). | immédiat |
 | Correctifs toujours actifs (A) | Redéployer la version précédente de la fonction concernée (`supabase functions deploy` depuis `prod` @ `8c909bae`). | minutes |
 | Base de données | Rien à défaire en urgence : les migrations sont additives et inactives. Si besoin : `drop function waouh_record_chat_message(...)`, `waouh_reconcile_chat_integrity(...)`, `select cron.unschedule('waouh-chat-reconcile-tick')`. | — |
