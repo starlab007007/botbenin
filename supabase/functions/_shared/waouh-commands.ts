@@ -21,12 +21,16 @@ export type WaouhCommandKind =
   | "payment_preference_cash"
   | "confirm_payment_cash"
   | "confirm_payment_mobile"
-  | "cancel";
+  | "cancel"
+  // Parcours v3 : boutons portés par une fiche produit (cible = article).
+  | "open_deal"
+  | "offer_prompt"
+  | "ask";
 
 export interface ParsedWaouhCommand {
   kind: WaouhCommandKind;
   targetId: string;
-  scope: "negotiation" | "deal";
+  scope: "negotiation" | "deal" | "article";
   raw: string;
 }
 
@@ -58,9 +62,17 @@ const COMMAND_ALIASES: Record<string, WaouhCommandKind> = {
   "annuler": "cancel",
   "cancel": "cancel",
   "cancel_deal": "cancel",
+  // v3 — fiche produit : « Je le veux », « Proposer un prix », « Poser une question ».
+  "je-veux": "open_deal",
+  "open_deal": "open_deal",
+  "proposer-prix": "offer_prompt",
+  "offer_prompt": "offer_prompt",
+  "poser-question": "ask",
+  "ask": "ask",
 };
 
 const NEGOTIATION_KINDS = new Set<WaouhCommandKind>(["accept", "reject", "counter"]);
+const ARTICLE_KINDS = new Set<WaouhCommandKind>(["open_deal", "offer_prompt", "ask"]);
 
 export function commandKindFromAlias(alias: string | null | undefined): WaouhCommandKind | null {
   const key = String(alias || "").trim().toLowerCase();
@@ -77,7 +89,7 @@ export function parseActionPayload(payload: string | null | undefined): ParsedWa
   return {
     kind,
     targetId: match[2].toLowerCase(),
-    scope: NEGOTIATION_KINDS.has(kind) ? "negotiation" : "deal",
+    scope: NEGOTIATION_KINDS.has(kind) ? "negotiation" : ARTICLE_KINDS.has(kind) ? "article" : "deal",
     raw,
   };
 }
@@ -107,6 +119,56 @@ export const buyerPaymentActions = (dealId: string): WaouhAction[] => [
 export const sellerAvailabilityActions = (dealId: string): WaouhAction[] => [
   { id: `confirmer-disponibilite:${dealId}`, label: "✅ Article disponible" },
   { id: `annuler:${dealId}`, label: "❌ Indisponible" },
+];
+
+// ---------------------------------------------------------------------------
+// Parcours v3 (catalogue unifié, docs « WAOUH Chat — Parcours unifié v3 »).
+// Mêmes identifiants que ci-dessus : seuls les libellés changent (courts, sans
+// emoji, 3 boutons maximum). Utilisés quand l'interrupteur chat_catalog_v3
+// est actif ; les générateurs historiques restent la valeur par défaut.
+// ---------------------------------------------------------------------------
+export const formatFcfaV3 = (n: number | null | undefined): string => {
+  const v = Math.round(Number(n || 0));
+  // Espace fine insécable comme séparateur de milliers : « 2 450 FCFA ».
+  return `${String(v).replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f")} FCFA`;
+};
+
+/** Fiche produit : ouvrir la discussion depuis un résultat de recherche. */
+export const articleEntryActionsV3 = (articleId: string, price?: number | null): WaouhAction[] => [
+  { id: `je-veux:${articleId}`, label: price && price > 0 ? `Je le veux à ${formatFcfaV3(price)}` : "Je le veux" },
+  { id: `proposer-prix:${articleId}`, label: "Proposer un prix" },
+  { id: `poser-question:${articleId}`, label: "Poser une question" },
+];
+
+/**
+ * Décision sur l'offre de l'autre partie. `acceptFirst` : l'écart est faible,
+ * « Accepter » passe en premier (meilleure action prédite).
+ */
+export const negotiationActionsV3 = (
+  negotiationId: string,
+  opts: { amount?: number | null; acceptFirst?: boolean } = {},
+): WaouhAction[] => {
+  const accept = { id: `accepter:${negotiationId}`, label: opts.amount ? `Accepter ${formatFcfaV3(opts.amount)}` : "Accepter" };
+  const counter = { id: `contre-proposition:${negotiationId}`, label: "Contre-offre" };
+  const reject = { id: `refuser:${negotiationId}`, label: "Refuser" };
+  return opts.acceptFirst === false ? [counter, accept, reject] : [accept, counter, reject];
+};
+
+export const buyerPaymentActionsV3 = (dealId: string): WaouhAction[] => [
+  { id: `payer-mobile:${dealId}`, label: "Mobile Money" },
+  { id: `paiement-livraison:${dealId}`, label: "Cash" },
+  { id: `annuler:${dealId}`, label: "Annuler" },
+];
+
+export const sellerAvailabilityActionsV3 = (dealId: string): WaouhAction[] => [
+  { id: `confirmer-disponibilite:${dealId}`, label: "Article disponible" },
+  { id: `annuler:${dealId}`, label: "Indisponible" },
+];
+
+export const paymentConfirmActionsV3 = (dealId: string, method: "cash" | "mobile_money"): WaouhAction[] => [
+  method === "cash"
+    ? { id: `confirmer-paiement-cash:${dealId}`, label: "Confirmer le paiement" }
+    : { id: `confirmer-paiement-mobile:${dealId}`, label: "Confirmer le paiement" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -155,11 +217,21 @@ export const KNOWN_ACTION_LABELS: ReadonlySet<string> = new Set(
     { id: "x", label: "💵 Cash livraison" },
     { id: "x", label: "✅ Confirmer Mobile Money" },
     { id: "x", label: "✅ Confirmer paiement" },
+    // v3 (libellés sans montant ; ceux avec montant sont retrouvés par
+    // findActionIdByLabel dans les dernières actions envoyées).
+    ...articleEntryActionsV3("x"),
+    ...negotiationActionsV3("x"),
+    ...buyerPaymentActionsV3("x"),
+    ...sellerAvailabilityActionsV3("x"),
+    ...paymentConfirmActionsV3("x", "cash"),
   ].map((action) => normalizeActionLabel(action.label)),
 );
 
+const AMOUNT_LABEL_RE = /^(?:accepter|je le veux à)\s+\d[\d\s\u202f\u00a0.,]*\s*fcfa$/;
+
 export function looksLikeActionLabel(text: string | null | undefined): boolean {
-  return KNOWN_ACTION_LABELS.has(normalizeActionLabel(text));
+  const normalized = normalizeActionLabel(text);
+  return KNOWN_ACTION_LABELS.has(normalized) || AMOUNT_LABEL_RE.test(normalized);
 }
 
 /**

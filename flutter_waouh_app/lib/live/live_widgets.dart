@@ -391,6 +391,21 @@ Map<String, dynamic> liveCommercePayloadMeta(String payload) {
     ...query,
   };
   final legacyReference = liveCommerceLegacyReference(payload);
+  // Parcours v3 : boutons de fiche produit, la cible est un ARTICLE.
+  final articleScope = RegExp(
+    r'^(je-veux|proposer-prix|poser-question):',
+    caseSensitive: false,
+  ).firstMatch(command)?.group(1)?.toLowerCase();
+  if (articleScope != null && legacyReference != null) {
+    result['commerce_reference'] = legacyReference;
+    result['article_id'] = legacyReference;
+    result['commerce_action'] = articleScope == 'je-veux'
+        ? 'open_deal'
+        : articleScope == 'proposer-prix'
+            ? 'offer_prompt'
+            : 'ask';
+    return result;
+  }
   if (legacyReference != null) {
     result['commerce_reference'] = legacyReference;
     if (kind == LiveCommerceActionKind.counter &&

@@ -208,6 +208,25 @@ const moduleMeta: Record<string, { icon: any; detail: (cc: CommandCenter) => str
     manage: "/admin/waouh/health-check",
     automation: true,
   },
+  // Parcours v3 : chaque brique bascule seule (rollback immédiat).
+  chat_interest_fastpath: {
+    icon: MessagesSquare,
+    detail: () => "Un message avec article ouvre la Deal Room et renvoie son fil",
+    manage: "/admin/waouh/health-check",
+    automation: true,
+  },
+  chat_catalog_v3: {
+    icon: MessagesSquare,
+    detail: () => "Textes courts + 3 boutons, identiques Web / Flutter / WhatsApp",
+    manage: "/admin/waouh/health-check",
+    automation: true,
+  },
+  commerce_action_v3: {
+    icon: Workflow,
+    detail: () => "waouh-commerce-action : contrat v3, texte libre strict, prédictif",
+    manage: "/admin/waouh/health-check",
+    automation: true,
+  },
 };
 
 const severityMeta: Record<Severity, { label: string; cls: string }> = {

@@ -6,11 +6,15 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { bindThreadState } from "../_shared/waouh-thread.ts";
 import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
-import { chatWriterV2Enabled, recordChatMessage } from "../_shared/waouh-chat-writer.ts";
+import { chatCatalogV3Enabled, chatWriterV2Enabled, recordChatMessage } from "../_shared/waouh-chat-writer.ts";
+import { renderCatalog } from "../_shared/waouh-message-catalog.ts";
 import { checkOperatorDealTransition, OPERATOR_DEAL_STATUSES } from "../_shared/waouh-commerce-states.ts";
 import {
   buyerPaymentActions as registryBuyerPaymentActions,
+  buyerPaymentActionsV3,
+  paymentConfirmActionsV3,
   sellerAvailabilityActions as registrySellerAvailabilityActions,
+  sellerAvailabilityActionsV3,
 } from "../_shared/waouh-commands.ts";
 
 const corsHeaders = {
@@ -490,8 +494,10 @@ async function handleAssign(sb: any, body: any) {
     `⏱️ ETA acheteur : ${etaMin} min\n\nÉtapes : appeler le vendeur → récupérer le colis → marquer « collecté » → livrer → encaisser.`;
   if (courier.phone_number) results.courier_wa = await sendWhatsApp(`${courier.phone_number}@c.us`, courierText);
 
-  const buyerText =
-    `🛵 *Livreur en route !*\n📦 ${title}\n💰 ${fmt(amount)}\n\n⏱️ Délai estimé : *~${etaMin} min*\n💵 Préparez le paiement (cash ou Mobile Money).\n\n🔒 WAOUH coordonne — vous n'avez pas besoin du contact du vendeur.\n— WAOUH ✨`;
+  const v3 = await chatCatalogV3Enabled(sb);
+  const buyerText = v3
+    ? renderCatalog("courier_assigned", { etaMinutes: etaMin }).text
+    : `🛵 *Livreur en route !*\n📦 ${title}\n💰 ${fmt(amount)}\n\n⏱️ Délai estimé : *~${etaMin} min*\n💵 Préparez le paiement (cash ou Mobile Money).\n\n🔒 WAOUH coordonne — vous n'avez pas besoin du contact du vendeur.\n— WAOUH ✨`;
   if (buyer.phone_number && !/@lid$/i.test(buyer.phone_number)) {
     results.buyer_wa = await sendWhatsApp(`${buyer.phone_number}@c.us`, buyerText);
   }
@@ -499,8 +505,9 @@ async function handleAssign(sb: any, body: any) {
     deal_id, article_id: deal.article_id, role: "buyer", eta_minutes: etaMin, eta_at: etaAt,
   });
 
-  const sellerText =
-    `🛵 *Livreur en route pour la collecte*\n📦 ${title}\n\nUn livreur WAOUH vous appellera dans ~${etaMin} min.\n🔒 Le contact de l'acheteur reste confidentiel.\n— WAOUH ✨`;
+  const sellerText = v3
+    ? `*Livreur en route*\nCollecte de « ${title.slice(0, 40)} » dans environ ${etaMin} min.`
+    : `🛵 *Livreur en route pour la collecte*\n📦 ${title}\n\nUn livreur WAOUH vous appellera dans ~${etaMin} min.\n🔒 Le contact de l'acheteur reste confidentiel.\n— WAOUH ✨`;
   if (seller.phone_number && !/@lid$/i.test(seller.phone_number)) {
     results.seller_wa = await sendWhatsApp(`${seller.phone_number}@c.us`, sellerText);
   }
@@ -508,7 +515,9 @@ async function handleAssign(sb: any, body: any) {
     deal_id, article_id: deal.article_id, role: "seller", eta_minutes: etaMin,
   });
 
-  const chatLine = `🛵 Livreur assigné — ETA ~${etaMin} min (à ${hhmm()}).`;
+  const chatLine = v3
+    ? renderCatalog("courier_assigned", { etaMinutes: etaMin }).text
+    : `🛵 Livreur assigné — ETA ~${etaMin} min (à ${hhmm()}).`;
   await Promise.all([
     pushDealChatEvent(sb, deal.buyer_user_id, deal.article_id, chatLine, { deal_id, event: "assigned", eta_minutes: etaMin }),
     pushDealChatEvent(sb, deal.seller_user_id, deal.article_id, chatLine, { deal_id, event: "assigned", eta_minutes: etaMin }),
@@ -569,6 +578,7 @@ async function handleStatus(sb: any, body: any) {
   ]);
   const title = article?.title || "votre article";
   const amount = Number(deal.amount || 0);
+  const v3 = await chatCatalogV3Enabled(sb);
 
   const sendBoth = async (kindBuyer: string, kindSeller: string, buyerText: string, sellerText: string, chatLine: string, payloadExtra: any = {}) => {
     await Promise.all([
@@ -584,18 +594,24 @@ async function handleStatus(sb: any, body: any) {
   if (status === "picked_up") {
     await sendBoth(
       "deal_picked_up", "deal_picked_up",
-      `📦 *Colis collecté !*\nLe livreur WAOUH a récupéré « ${title} » et se met en route.`,
-      `✅ *Colis remis au livreur*\n« ${title} » a quitté votre point. Merci !`,
-      `📦 Colis collecté par le livreur à ${hh}.`,
+      v3 ? renderCatalog("picked_up").text : `📦 *Colis collecté !*\nLe livreur WAOUH a récupéré « ${title} » et se met en route.`,
+      v3 ? renderCatalog("picked_up").text : `✅ *Colis remis au livreur*\n« ${title} » a quitté votre point. Merci !`,
+      v3 ? renderCatalog("picked_up").text : `📦 Colis collecté par le livreur à ${hh}.`,
       { workflow_state: "picked_up" },
     );
   } else if (status === "delivered") {
     const preferred = deal.payment_method === "mobile_money" ? "mobile_money" : "cash";
-    const paymentActions = preferred === "mobile_money"
-      ? [{ id: `confirmer-paiement-mobile:${deal_id}`, label: "✅ Confirmer Mobile Money" }]
-      : [{ id: `confirmer-paiement-cash:${deal_id}`, label: "✅ Confirmer paiement cash" }];
-    const buyerText = `🎁 *Colis livré !*\n« ${title} » — ${fmt(amount)}.\n\nConfirmez maintenant le paiement effectué au livreur.`;
-    const sellerText = `📬 *Colis livré à l'acheteur*\n« ${title} » a été remis. Le paiement est en cours de confirmation.`;
+    const paymentActions = v3
+      ? paymentConfirmActionsV3(deal_id, preferred)
+      : preferred === "mobile_money"
+        ? [{ id: `confirmer-paiement-mobile:${deal_id}`, label: "✅ Confirmer Mobile Money" }]
+        : [{ id: `confirmer-paiement-cash:${deal_id}`, label: "✅ Confirmer paiement cash" }];
+    const buyerText = v3
+      ? renderCatalog("delivered", { amount }).text
+      : `🎁 *Colis livré !*\n« ${title} » — ${fmt(amount)}.\n\nConfirmez maintenant le paiement effectué au livreur.`;
+    const sellerText = v3
+      ? "*Article livré*\nL'acheteur confirme le paiement."
+      : `📬 *Colis livré à l'acheteur*\n« ${title} » a été remis. Le paiement est en cours de confirmation.`;
     await Promise.all([
       insertInAppNotif(sb, deal.buyer_user_id, deal.article_id, "deal_payment_request", buyerText, {
         deal_id, role: "buyer", requires_confirmation: true, amount, actions: paymentActions, workflow_state: "delivered",
@@ -603,20 +619,22 @@ async function handleStatus(sb: any, body: any) {
       insertInAppNotif(sb, deal.seller_user_id, deal.article_id, "deal_delivered", sellerText, {
         deal_id, role: "seller", workflow_state: "delivered",
       }),
-      pushDealChatEvent(sb, deal.buyer_user_id, deal.article_id, `📬 Livraison confirmée à ${hh}. Confirmez le paiement.`, {
+      pushDealChatEvent(sb, deal.buyer_user_id, deal.article_id, v3 ? buyerText : `📬 Livraison confirmée à ${hh}. Confirmez le paiement.`, {
         deal_id, event: "delivered", role: "buyer", actions: paymentActions, workflow_state: "delivered", payment_method: preferred,
       }),
-      pushDealChatEvent(sb, deal.seller_user_id, deal.article_id, `📬 Colis livré à l'acheteur à ${hh}. Paiement en attente.`, {
+      pushDealChatEvent(sb, deal.seller_user_id, deal.article_id, v3 ? sellerText : `📬 Colis livré à l'acheteur à ${hh}. Paiement en attente.`, {
         deal_id, event: "delivered", role: "seller", workflow_state: "delivered",
       }),
       buyer.phone_number && !/@lid$/i.test(buyer.phone_number) ? sendWhatsApp(`${buyer.phone_number}@c.us`, buyerText, paymentActions) : Promise.resolve(),
       seller.phone_number && !/@lid$/i.test(seller.phone_number) ? sendWhatsApp(`${seller.phone_number}@c.us`, sellerText) : Promise.resolve(),
     ]);
   } else if (status === "cancelled") {
-    const message = `⚠️ *Livraison annulée* pour « ${title} ».${reason ? `\nRaison : ${reason}` : ""}\nL'article redevient disponible si aucune autre réservation n'est active.`;
+    const message = v3
+      ? renderCatalog("deal_cancelled").text
+      : `⚠️ *Livraison annulée* pour « ${title} ».${reason ? `\nRaison : ${reason}` : ""}\nL'article redevient disponible si aucune autre réservation n'est active.`;
     await sendBoth(
       "deal_cancelled", "deal_cancelled", message, message,
-      `⚠️ Livraison annulée à ${hh}${reason ? ` — ${reason}` : ""}.`,
+      v3 ? message : `⚠️ Livraison annulée à ${hh}${reason ? ` — ${reason}` : ""}.`,
       { reason: reason || null, workflow_state: "cancelled" },
     );
   }
@@ -684,7 +702,10 @@ async function handleSellerConfirm(sb: any, body: any, actor: DealActor) {
   const advanced = await advanceReadyDeal(sb, deal_id);
   const workflow = advanced?.status || deal.status;
 
-  const text = ["assigned", "picked_up", "delivered", "completed"].includes(workflow)
+  const v3 = await chatCatalogV3Enabled(sb);
+  const text = v3
+    ? renderCatalog("seller_confirmed").text
+    : ["assigned", "picked_up", "delivered", "completed"].includes(workflow)
     ? "✅ Disponibilité confirmée. WAOUH a poursuivi automatiquement la livraison."
     : workflow === "pending_assignment"
       ? "✅ Disponibilité confirmée. WAOUH cherche maintenant un livreur."
@@ -694,8 +715,10 @@ async function handleSellerConfirm(sb: any, body: any, actor: DealActor) {
   });
 
   if (!deal.buyer_payment_selected_at && !["assigned", "picked_up", "delivered", "completed"].includes(workflow)) {
-    const actions = buyerPaymentActions(deal_id);
-    const prompt = "💳 Le vendeur a confirmé la disponibilité. Choisissez votre mode de paiement à la livraison.";
+    const actions = v3 ? buyerPaymentActionsV3(deal_id) : buyerPaymentActions(deal_id);
+    const prompt = v3
+      ? "*Article confirmé*\nChoisissez votre paiement à la livraison."
+      : "💳 Le vendeur a confirmé la disponibilité. Choisissez votre mode de paiement à la livraison.";
     const buyer = await resolveContact(sb, deal.buyer_user_id);
     await Promise.all([
       insertInAppNotif(sb, deal.buyer_user_id, deal.article_id, "deal_payment_preference_required", prompt, {
@@ -764,7 +787,10 @@ async function handlePaymentPreference(sb: any, body: any, actor: DealActor) {
   const advanced = await advanceReadyDeal(sb, deal_id);
   const workflow = advanced?.status || deal.status;
   const methodLabel = method === "mobile_money" ? "Mobile Money à la livraison" : "cash à la livraison";
-  const text = ["assigned", "picked_up", "delivered", "completed"].includes(workflow)
+  const v3 = await chatCatalogV3Enabled(sb);
+  const text = v3
+    ? renderCatalog("pay_mode_chosen", { method: method === "cash" ? "cash" : "mobile_money" }).text
+    : ["assigned", "picked_up", "delivered", "completed"].includes(workflow)
     ? `✅ ${methodLabel} sélectionné. WAOUH a poursuivi automatiquement la livraison.`
     : workflow === "pending_assignment"
       ? `✅ ${methodLabel} sélectionné. WAOUH cherche maintenant un livreur.`
@@ -775,8 +801,10 @@ async function handlePaymentPreference(sb: any, body: any, actor: DealActor) {
   });
 
   if (!deal.seller_confirmed_at && !["assigned", "picked_up", "delivered", "completed"].includes(workflow)) {
-    const actions = sellerAvailabilityActions(deal_id);
-    const prompt = "📦 L’acheteur a choisi son paiement. Confirmez que l’article est disponible.";
+    const actions = v3 ? sellerAvailabilityActionsV3(deal_id) : sellerAvailabilityActions(deal_id);
+    const prompt = v3
+      ? "*Paiement choisi*\nConfirmez que l'article est disponible."
+      : "📦 L’acheteur a choisi son paiement. Confirmez que l’article est disponible.";
     const seller = await resolveContact(sb, deal.seller_user_id);
     await Promise.all([
       insertInAppNotif(sb, deal.seller_user_id, deal.article_id, "deal_seller_confirmation_required", prompt, {
@@ -839,7 +867,9 @@ async function handleParticipantCancel(sb: any, body: any, actor: DealActor) {
     deal_id,
   });
 
-  const text = "❌ Accord annulé. L'article est libéré et peut redevenir disponible.";
+  const text = (await chatCatalogV3Enabled(sb))
+    ? renderCatalog("deal_cancelled").text
+    : "❌ Accord annulé. L'article est libéré et peut redevenir disponible.";
   await Promise.all([
     insertInAppNotif(sb, deal.buyer_user_id, deal.article_id, "deal_cancelled", text, { deal_id, role: "buyer", workflow_state: "cancelled" }),
     insertInAppNotif(sb, deal.seller_user_id, deal.article_id, "deal_cancelled", text, { deal_id, role: "seller", workflow_state: "cancelled" }),
@@ -934,15 +964,20 @@ async function handlePayment(sb: any, body: any, actor: DealActor) {
   ]);
   const title = article?.title || "votre article";
   const methodLbl = method === "cash" ? "espèces" : "Mobile Money";
-  const buyerText = `✅ *Paiement confirmé* (${methodLbl}) — ${fmt(amount)}.\nTransaction WAOUH terminée.`;
-  const sellerText = `💰 *Vente finalisée* — ${fmt(amount)} pour « ${title} ». Commission WAOUH : ${fmt(commission)}.`;
+  const v3 = await chatCatalogV3Enabled(sb);
+  const buyerText = v3
+    ? renderCatalog("payment_confirmed", { amount }).text
+    : `✅ *Paiement confirmé* (${methodLbl}) — ${fmt(amount)}.\nTransaction WAOUH terminée.`;
+  const sellerText = v3
+    ? `*Vente terminée*\n${fmt(amount)} encaissés. Commission WAOUH : ${fmt(commission)}.`
+    : `💰 *Vente finalisée* — ${fmt(amount)} pour « ${title} ». Commission WAOUH : ${fmt(commission)}.`;
   const opsText = `💸 Deal #${String(deal_id).slice(0, 8)} terminé — ${fmt(amount)} · commission ${fmt(commission)}.`;
 
   await Promise.all([
     insertInAppNotif(sb, deal.buyer_user_id, deal.article_id, "deal_paid", buyerText, { deal_id, method, amount, commission, workflow_state: "completed" }),
     insertInAppNotif(sb, deal.seller_user_id, deal.article_id, "deal_paid", sellerText, { deal_id, method, amount, commission, workflow_state: "completed" }),
-    pushDealChatEvent(sb, deal.buyer_user_id, deal.article_id, "✅ Paiement confirmé. Transaction terminée.", { deal_id, event: "completed", role: "buyer", workflow_state: "completed" }),
-    pushDealChatEvent(sb, deal.seller_user_id, deal.article_id, "✅ Paiement confirmé. Vente terminée.", { deal_id, event: "completed", role: "seller", workflow_state: "completed" }),
+    pushDealChatEvent(sb, deal.buyer_user_id, deal.article_id, v3 ? buyerText : "✅ Paiement confirmé. Transaction terminée.", { deal_id, event: "completed", role: "buyer", workflow_state: "completed" }),
+    pushDealChatEvent(sb, deal.seller_user_id, deal.article_id, v3 ? sellerText : "✅ Paiement confirmé. Vente terminée.", { deal_id, event: "completed", role: "seller", workflow_state: "completed" }),
     buyer.phone_number && !/@lid$/i.test(buyer.phone_number) ? sendWhatsApp(`${buyer.phone_number}@c.us`, buyerText) : Promise.resolve(),
     seller.phone_number && !/@lid$/i.test(seller.phone_number) ? sendWhatsApp(`${seller.phone_number}@c.us`, sellerText) : Promise.resolve(),
     WAOUH_OPS_WHATSAPP ? sendWhatsApp(`${WAOUH_OPS_WHATSAPP}@c.us`, opsText) : Promise.resolve(),
@@ -956,7 +991,7 @@ async function handlePayment(sb: any, body: any, actor: DealActor) {
   });
 
   return json({
-    success: true, ok: true, reply: "✅ Livraison et paiement confirmés. Transaction WAOUH terminée.",
+    success: true, ok: true, reply: v3 ? buyerText : "✅ Livraison et paiement confirmés. Transaction WAOUH terminée.",
     intent: "deal_completed", workflow_state: "completed", deal_id,
     article_id: deal.article_id, thread_id: deal.thread_id, transaction_id: tx?.id ?? null,
     commission, commission_rate: rate, actions: [],

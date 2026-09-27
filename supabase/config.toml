@@ -238,6 +238,10 @@ verify_jwt = false
 [functions.waouh-buyer-interest]
 verify_jwt = false
 
+# Parcours v3 : authentification JWT OU session invitée signée, vérifiée dans la fonction.
+[functions.waouh-commerce-action]
+verify_jwt = false
+
 [functions.waouh-deal-dispatch]
 verify_jwt = false
 

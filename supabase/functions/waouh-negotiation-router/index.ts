@@ -13,11 +13,16 @@ import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identit
 import { geminiJson } from "../_shared/gemini.ts";
 import { bindThreadState } from "../_shared/waouh-thread.ts";
 import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
-import { chatWriterV2Enabled, recordChatMessage } from "../_shared/waouh-chat-writer.ts";
+import { chatCatalogV3Enabled, chatWriterV2Enabled, recordChatMessage } from "../_shared/waouh-chat-writer.ts";
+import { renderCatalog } from "../_shared/waouh-message-catalog.ts";
+import { acceptFirst as predictAcceptFirst, suggestPrice } from "../_shared/waouh-predictive.ts";
 import {
   buyerPaymentActions as registryBuyerPaymentActions,
+  buyerPaymentActionsV3,
   negotiationActions as registryNegotiationActions,
+  negotiationActionsV3,
   sellerAvailabilityActions as registrySellerAvailabilityActions,
+  sellerAvailabilityActionsV3,
 } from "../_shared/waouh-commands.ts";
 import {
   canAcceptOffer,
@@ -34,10 +39,8 @@ const COMMISSION_RATE = Math.max(
 );
 
 const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
-// Registre unique des boutons (_shared/waouh-commands.ts) : mêmes ids, mêmes libellés.
-const negotiationActions = registryNegotiationActions;
-const buyerPaymentActions = registryBuyerPaymentActions;
-const sellerAvailabilityActions = registrySellerAvailabilityActions;
+// Registre unique des boutons (_shared/waouh-commands.ts) : mêmes ids ;
+// libellés historiques ou v3 selon l'interrupteur (voir le handler).
 
 function directReachablePhone(raw: string | null | undefined): string | null {
   const value = String(raw || "").trim();
@@ -217,6 +220,13 @@ Deno.serve(async (req) => {
 
   try {
     const { phone, text, user_id, thread_id, negotiation_id, button_payload } = await req.json();
+    // Parcours v3 : textes courts + boutons du catalogue (interrupteur
+    // chat_catalog_v3). Coupé : textes et boutons historiques, à l'identique.
+    const v3 = await chatCatalogV3Enabled(sb);
+    const negotiationActions = (id: string, amount?: number | null, first?: boolean) =>
+      v3 ? negotiationActionsV3(id, { amount: amount ?? null, acceptFirst: first }) : registryNegotiationActions(id);
+    const buyerPaymentActions = (id: string) => v3 ? buyerPaymentActionsV3(id) : registryBuyerPaymentActions(id);
+    const sellerAvailabilityActions = (id: string) => v3 ? sellerAvailabilityActionsV3(id) : registrySellerAvailabilityActions(id);
 
     let user: any = null;
     if (user_id) ({ data: user } = await sb.from("waouh_users").select("*").eq("id", user_id).maybeSingle());
@@ -260,7 +270,7 @@ Deno.serve(async (req) => {
     }
 
     if (!neg) {
-      return new Response(JSON.stringify({ ok: true, reply: "🤔 Aucune négociation ouverte. Cherchez un produit puis dites *intéressé 1*." }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ ok: true, intent: "no_open_negotiation", reply: v3 ? renderCatalog("no_open_deal").text : "🤔 Aucune négociation ouverte. Cherchez un produit puis dites *intéressé 1*." }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     let intent = await aiIntent(text || "", button_payload ?? null);
@@ -359,7 +369,9 @@ Deno.serve(async (req) => {
         !canAcceptOffer(neg.last_actor, actorRole)) {
       return new Response(JSON.stringify({
         ok: true,
-        reply: `⏳ Cette offre de ${fmt(amount)} est la vôtre : ${isBuyer ? "le vendeur" : "l'acheteur"} doit l'accepter, la refuser ou contre-proposer. Vous pouvez aussi proposer un autre montant.`,
+        reply: v3
+          ? renderCatalog("awaiting_counterparty", { amount, role: actorRole }).text
+          : `⏳ Cette offre de ${fmt(amount)} est la vôtre : ${isBuyer ? "le vendeur" : "l'acheteur"} doit l'accepter, la refuser ou contre-proposer. Vous pouvez aussi proposer un autre montant.`,
         intent: "negotiation_awaiting_counterparty",
         workflow_state: "awaiting_counterparty",
         negotiation_id: neg.id,
@@ -374,9 +386,19 @@ Deno.serve(async (req) => {
     // Bouton « Contre-proposer » ou « je propose » sans montant : on demande
     // le montant au lieu de deviner (plus de faux prix tirés d'un identifiant).
     if (intent.kind === "counter_prompt") {
+      const suggested = suggestPrice({
+        buyerOffer: isBuyer ? null : amount,
+        sellerOffer: isBuyer ? amount : null,
+        listPrice: Number(articleContext?.price || 0) || null,
+        marketMin: articleContext?.market_price_min ?? null,
+        marketMax: articleContext?.market_price_max ?? null,
+      });
       return new Response(JSON.stringify({
         ok: true,
-        reply: `💬 Indiquez votre montant, par exemple : *je propose ${fmt(Math.max(100, Math.round((amount || Number(articleContext?.price || 0)) * 0.9)))}*.`,
+        reply: v3
+          ? renderCatalog("counter_prompt", { suggested }).text
+          : `💬 Indiquez votre montant, par exemple : *je propose ${fmt(Math.max(100, Math.round((amount || Number(articleContext?.price || 0)) * 0.9)))}*.`,
+        suggest: { price: suggested },
         intent: "negotiation_counter_prompt",
         workflow_state: neg.state,
         negotiation_id: neg.id,
@@ -447,7 +469,9 @@ Deno.serve(async (req) => {
         console.log("[neg-router] yes ignoré (déjà accepté)", { neg_id: neg.id, deal_id: existingDeal?.id, state: neg.state });
         return new Response(JSON.stringify({
           ok: true,
-          reply: isBuyer
+          reply: v3
+            ? renderCatalog("agreement", { amount: Number(existingDeal?.amount || neg.last_offer_price || 0), role: isBuyer ? "buyer" : "seller" }).text
+            : isBuyer
             ? "✅ Accord déjà enregistré. Choisissez comment vous paierez après livraison."
             : "✅ Accord déjà enregistré. Confirmez la disponibilité de l'article.",
           intent: "deal_already_accepted",
@@ -491,7 +515,9 @@ Deno.serve(async (req) => {
           return new Response(JSON.stringify({
             ok: false,
             code: "article_unavailable",
-            reply: "⏳ Cet article vient d’être réservé par un autre acheteur. Votre Deal Room reste dans l’historique et WAOUH pourra vous reproposer une alternative.",
+            reply: v3
+              ? renderCatalog("article_reserved").text
+              : "⏳ Cet article vient d’être réservé par un autre acheteur. Votre Deal Room reste dans l’historique et WAOUH pourra vous reproposer une alternative.",
             intent: "article_unavailable",
             workflow_state: "waiting_availability",
             negotiation_id: neg.id,
@@ -526,7 +552,9 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({
           ok: false,
           code: "negotiation_accept_failed",
-          reply: "⚠️ L'accord n'a pas pu être enregistré suite à une erreur technique. Rien n'a été validé : réessayez dans un instant.",
+          reply: v3
+            ? renderCatalog("technical_error").text
+            : "⚠️ L'accord n'a pas pu être enregistré suite à une erreur technique. Rien n'a été validé : réessayez dans un instant.",
           intent: "negotiation_accept_failed",
           workflow_state: neg.state,
           negotiation_id: neg.id,
@@ -582,7 +610,9 @@ Deno.serve(async (req) => {
       const myActions = dealId
         ? (isBuyer ? buyerPaymentActions(dealId) : sellerAvailabilityActions(dealId))
         : [];
-      const myReply = isBuyer
+      const myReply = v3
+        ? renderCatalog("agreement", { amount: finalAmount, role: isBuyer ? "buyer" : "seller" }).text
+        : isBuyer
         ? `🎉 Accord conclu à ${fmt(finalAmount)}. Choisissez comment vous paierez après livraison.`
         : `🎉 Accord conclu à ${fmt(finalAmount)}. Confirmez que l'article est disponible.`;
 
@@ -592,7 +622,9 @@ Deno.serve(async (req) => {
         const otherActions = otherIsBuyer
           ? buyerPaymentActions(dealId)
           : sellerAvailabilityActions(dealId);
-        const otherText = otherIsBuyer
+        const otherText = v3
+          ? renderCatalog("agreement", { amount: finalAmount, role: otherRole }).text
+          : otherIsBuyer
           ? `🎉 Accord conclu à ${fmt(finalAmount)}. Choisissez comment vous paierez après livraison.`
           : `🎉 Accord conclu à ${fmt(finalAmount)}. Confirmez que l'article est disponible.`;
         await pushToOther(
@@ -655,10 +687,10 @@ Deno.serve(async (req) => {
       await sb.from("waouh_negotiations").update({ state: "closed", last_actor: isBuyer ? "buyer" : "seller" }).eq("id", neg.id);
       if (otherUserId) {
         const otherRole = isBuyer ? "seller" : "buyer";
-        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, article_id: neg.article_id, thread_id: activeThreadId, buyer_user_id: neg.buyer_user_id, seller_user_id: neg.seller_user_id, closed: true, from_user_id: user.id, target_role: otherRole }, `❌ ${isBuyer ? "L'acheteur" : "Le vendeur"} a refusé. Négociation clôturée.`, { intent: "negotiation_closed", negotiation_id: neg.id, article_id: neg.article_id, thread_id: activeThreadId, buyer_user_id: neg.buyer_user_id, seller_user_id: neg.seller_user_id, products: [stateProduct("cancelled", otherRole)] }, null, [], `neg:${neg.id}:closed:${otherUserId}`, "negotiation_closed", contextAttachments);
+        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, article_id: neg.article_id, thread_id: activeThreadId, buyer_user_id: neg.buyer_user_id, seller_user_id: neg.seller_user_id, closed: true, from_user_id: user.id, target_role: otherRole }, v3 ? renderCatalog("offer_refused_other", { role: otherRole }).text : `❌ ${isBuyer ? "L'acheteur" : "Le vendeur"} a refusé. Négociation clôturée.`, { intent: "negotiation_closed", negotiation_id: neg.id, article_id: neg.article_id, thread_id: activeThreadId, buyer_user_id: neg.buyer_user_id, seller_user_id: neg.seller_user_id, products: [stateProduct("cancelled", otherRole)] }, null, [], `neg:${neg.id}:closed:${otherUserId}`, "negotiation_closed", contextAttachments);
       }
       await bindThreadState(sb, activeThreadId, { status: "cancelled", negotiation_id: neg.id });
-      return new Response(JSON.stringify({ ok: true, reply: "OK, négociation fermée. Merci !", intent: "negotiation_closed", workflow_state: "closed", negotiation_id: neg.id, actions: [], thread_id: activeThreadId, article_id: neg.article_id, products: [stateProduct("cancelled", isBuyer ? "buyer" : "seller")], attachments: contextAttachments }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ ok: true, reply: v3 ? renderCatalog("offer_refused_actor").text : "OK, négociation fermée. Merci !", intent: "negotiation_closed", workflow_state: "closed", negotiation_id: neg.id, actions: [], thread_id: activeThreadId, article_id: neg.article_id, products: [stateProduct("cancelled", isBuyer ? "buyer" : "seller")], attachments: contextAttachments }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (intent.kind === "price" && intent.price) {
@@ -675,12 +707,18 @@ Deno.serve(async (req) => {
         }).eq("id", neg.transaction_id);
       }
       if (otherUserId) {
+        // Meilleure action prédite pour le destinataire : écart ≤ 3 % avec sa
+        // propre dernière offre => « Accepter » en premier.
+        const recipientOwnOffer = String(neg.last_actor || "") === (isBuyer ? "seller" : "buyer") ? amount : null;
+        const otherActions = negotiationActions(neg.id, intent.price, predictAcceptFirst(intent.price, recipientOwnOffer));
         await pushToOther(otherUserId, "negotiation_open",
           { neg_id: neg.id, article_id: neg.article_id, thread_id: activeThreadId, buyer_user_id: neg.buyer_user_id, seller_user_id: neg.seller_user_id, offer: intent.price, transaction_id: neg.transaction_id, from_user_id: user.id, target_role: isBuyer ? "seller" : "buyer" },
-          `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(intent.price)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant ( Ex: je propose ${fmt(intent.price)} CFA).`,
-          { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: neg.transaction_id, article_id: neg.article_id, thread_id: activeThreadId, buyer_user_id: neg.buyer_user_id, seller_user_id: neg.seller_user_id, products: [stateProduct("negotiating", isBuyer ? "seller" : "buyer", negotiationActions(neg.id), intent.price)] },
+          v3
+            ? renderCatalog("offer_received", { amount: intent.price, previous: amount || null, title: articleContext?.title }).text
+            : `🤝 *Nouvelle ${isBuyer ? "offre acheteur" : "contre-offre vendeur"}*\n\n💰 *Montant proposé* : ${fmt(intent.price)}\n\nRépondez *OUI* pour accepter, *NON* pour refuser, ou proposez un autre montant ( Ex: je propose ${fmt(intent.price)} CFA).`,
+          { intent: "negotiation_open", negotiation_id: neg.id, transaction_id: neg.transaction_id, article_id: neg.article_id, thread_id: activeThreadId, buyer_user_id: neg.buyer_user_id, seller_user_id: neg.seller_user_id, products: [stateProduct("negotiating", isBuyer ? "seller" : "buyer", otherActions, intent.price)] },
           neg.transaction_id,
-          negotiationActions(neg.id),
+          otherActions,
           `neg:${neg.id}:offer:${intent.price}:${otherUserId}`,
           "negotiation_counter",
           contextAttachments);
@@ -692,12 +730,12 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ limit: 20 }),
       }).catch(() => {});
       await bindThreadState(sb, activeThreadId, { status: "negotiating", negotiation_id: neg.id, transaction_id: neg.transaction_id });
-      return new Response(JSON.stringify({ ok: true, reply: `Contre-offre ${fmt(intent.price)} transmise.`, intent: "negotiation_counter_sent", workflow_state: "awaiting_counterparty", negotiation_id: neg.id, thread_id: activeThreadId, article_id: neg.article_id, transaction_id: neg.transaction_id, actions: [], products: [stateProduct("awaiting_counterparty", isBuyer ? "buyer" : "seller", [], intent.price)], attachments: contextAttachments }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ ok: true, reply: v3 ? renderCatalog("offer_sent", { amount: intent.price, title: articleContext?.title, role: actorRole }).text : `Contre-offre ${fmt(intent.price)} transmise.`, intent: "negotiation_counter_sent", workflow_state: "awaiting_counterparty", negotiation_id: neg.id, thread_id: activeThreadId, article_id: neg.article_id, transaction_id: neg.transaction_id, actions: [], products: [stateProduct("awaiting_counterparty", isBuyer ? "buyer" : "seller", [], intent.price)], attachments: contextAttachments }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     return new Response(JSON.stringify({
       ok: true,
-      reply: "Choisissez Accepter, Refuser, ou saisissez un montant pour contre-proposer.",
+      reply: v3 ? renderCatalog("not_understood").text : "Choisissez Accepter, Refuser, ou saisissez un montant pour contre-proposer.",
       intent: "negotiation_decision",
       workflow_state: neg.state,
       negotiation_id: neg.id,

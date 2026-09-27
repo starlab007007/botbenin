@@ -1,0 +1,176 @@
+// Tests du Lot 2 : contrat d'action, texte libre strict, prédictif.
+import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import {
+  actionEcho,
+  type DealState,
+  nextActions,
+  turnFor,
+  validateActionRequest,
+} from "./waouh-commerce-contract.ts";
+import {
+  classifyDeterministic,
+  classifyFreeText,
+  resolveResultReference,
+  sanitizeModelOutput,
+} from "./waouh-free-text.ts";
+import {
+  acceptFirst,
+  followUpPlan,
+  medianResponseMinutes,
+  preselectPayment,
+  purchaseIntent,
+  responseSamples,
+  suggestPrice,
+} from "./waouh-predictive.ts";
+import { fcfa } from "./waouh-message-catalog.ts";
+import { parseActionPayload } from "./waouh-commands.ts";
+
+const ART = "3f2c1b0a-0000-4000-8000-00000000a001";
+const NEG = "a1b2c3d4-0000-4000-8000-00000000abcd";
+const DEAL = "0f9e8d7c-1111-4111-8111-111111111111";
+const IDEM = "idem-0001-abcdef";
+
+// --------------------------------------------------------------- contrat
+Deno.test("contrat : actions valides et refus explicites", () => {
+  assertEquals(validateActionRequest({ action: "open_deal", idem: IDEM, article_id: ART }).ok, true);
+  assertEquals(validateActionRequest({ action: "offer", idem: IDEM, negotiation_id: NEG, amount: "2 300" }).ok, false);
+  assertEquals(validateActionRequest({ action: "offer", idem: IDEM, negotiation_id: NEG, amount: 2300 }).ok, true);
+  const cases: Array<[Record<string, unknown>, string]> = [
+    [{ action: "hack", idem: IDEM }, "unknown_action"],
+    [{ action: "open_deal", idem: "x" }, "idem_required"],
+    [{ action: "open_deal", idem: IDEM }, "article_id_required"],
+    [{ action: "open_deal", idem: IDEM, article_id: "pas-un-uuid" }, "invalid_article_id"],
+    [{ action: "offer", idem: IDEM, negotiation_id: NEG }, "amount_required"],
+    [{ action: "offer", idem: IDEM, negotiation_id: NEG, amount: 50 }, "invalid_amount"],
+    [{ action: "pay_mode", idem: IDEM, deal_id: DEAL }, "method_required"],
+    [{ action: "seller_confirm", idem: IDEM }, "deal_id_required"],
+    [{ action: "ask", idem: IDEM, article_id: ART }, "text_required"],
+  ];
+  for (const [body, error] of cases) {
+    const r = validateActionRequest(body);
+    assertEquals(r.ok ? "ok" : r.error, error, JSON.stringify(body));
+  }
+});
+
+const base: DealState = {
+  articleId: ART, articlePrice: 2500, negotiationId: null, negotiationState: null, lastActor: null,
+  lastOfferPrice: null, dealId: null, dealStatus: null, sellerConfirmed: false, paymentSelected: false, paymentMethod: null,
+};
+
+Deno.test("tour et boutons : l'acheteur ne décide jamais de sa propre offre", () => {
+  const neg: DealState = { ...base, negotiationId: NEG, negotiationState: "proposed", lastActor: "buyer", lastOfferPrice: 2300 };
+  assertEquals(turnFor(neg), "seller");
+  assertEquals(nextActions(neg, "buyer"), []);
+  assertEquals(nextActions(neg, "seller").map((a) => parseActionPayload(a.id)?.kind), ["accept", "counter", "reject"]);
+  const countered: DealState = { ...neg, negotiationState: "countered", lastActor: "seller", lastOfferPrice: 2400 };
+  assertEquals(turnFor(countered), "buyer");
+  assertEquals(nextActions(countered, "buyer", { acceptFirst: false }).map((a) => parseActionPayload(a.id)?.kind), ["counter", "accept", "reject"]);
+});
+
+Deno.test("étapes suivantes : accord, livraison, fiche", () => {
+  const agreement: DealState = { ...base, negotiationId: NEG, negotiationState: "accepted", dealId: DEAL, dealStatus: "awaiting_confirmation" };
+  assertEquals(nextActions(agreement, "buyer").map((a) => parseActionPayload(a.id)?.kind), ["payment_preference_mobile", "payment_preference_cash", "cancel"]);
+  assertEquals(nextActions(agreement, "seller").map((a) => parseActionPayload(a.id)?.kind), ["seller_confirm", "cancel"]);
+  const paid: DealState = { ...agreement, paymentSelected: true };
+  assertEquals(nextActions(paid, "buyer"), []);
+  const delivered: DealState = { ...agreement, dealStatus: "delivered", paymentMethod: "mobile_money" };
+  assertEquals(nextActions(delivered, "buyer").map((a) => parseActionPayload(a.id)?.kind), ["confirm_payment_mobile"]);
+  assertEquals(nextActions(base, "buyer").map((a) => parseActionPayload(a.id)?.kind), ["open_deal", "offer_prompt", "ask"]);
+  for (const s of [base, agreement, delivered]) for (const r of ["buyer", "seller"] as const) assert(nextActions(s, r).length <= 3);
+});
+
+Deno.test("écho de l'action (bulle de l'utilisateur)", () => {
+  const echo = actionEcho({ action: "offer", idem: IDEM, amount: 2300 }, fcfa).replace(/ /g, " ");
+  assertEquals(echo, "Je propose 2 300 FCFA");
+  assertEquals(actionEcho({ action: "pay_mode", idem: IDEM, method: "cash" }, fcfa), "Paiement cash à la livraison");
+});
+
+// --------------------------------------------------------------- texte libre
+Deno.test("texte libre : règles déterministes exécutées", () => {
+  const neg = { stage: "negotiation" as const, role: "buyer" as const };
+  assertEquals(classifyDeterministic("je propose 2300", neg)?.action, "offer");
+  assertEquals(classifyDeterministic("je propose 2300", neg)?.execute, true);
+  assertEquals(classifyDeterministic("ok", neg)?.action, "accept");
+  assertEquals(classifyDeterministic("non merci", neg)?.action, "reject");
+  assertEquals(classifyDeterministic("Il est neuf ?", neg)?.action, "ask");
+  assertEquals(classifyDeterministic("momo", { stage: "agreement", role: "buyer" })?.method, "mobile_money");
+  assertEquals(classifyDeterministic("il est disponible", { stage: "agreement", role: "seller" })?.action, "seller_confirm");
+});
+
+Deno.test("texte libre : paiement et annulation déduits d'une phrase => confirmation obligatoire", () => {
+  const paid = classifyDeterministic("j'ai payé", { stage: "delivery", role: "buyer" });
+  assertEquals([paid?.action, paid?.execute, paid?.needsConfirm], ["confirm_payment", false, true]);
+  const cancel = classifyDeterministic("j'annule", { stage: "agreement", role: "buyer" });
+  assertEquals([cancel?.action, cancel?.execute], ["cancel", false]);
+});
+
+Deno.test("références au contexte : « le 2 », « le deuxième », « celui à 2 500 »", () => {
+  const results = [
+    { index: 1, articleId: "a1", price: 1500 },
+    { index: 2, articleId: "a2", price: 2500 },
+  ];
+  assertEquals(resolveResultReference("le 2", results)?.articleId, "a2");
+  assertEquals(resolveResultReference("le deuxième", results)?.articleId, "a2");
+  assertEquals(resolveResultReference("celui à 2 500", results)?.articleId, "a2");
+  assertEquals(resolveResultReference("le 9", results), null);
+  assertEquals(classifyDeterministic("le 1", { stage: "interest", role: "buyer", lastResults: results })?.articleId, "a1");
+});
+
+Deno.test("modèle : schéma fermé, seuils, argent jamais exécuté sans tap", async () => {
+  const ctx = { stage: "negotiation" as const, role: "buyer" as const };
+  const high = sanitizeModelOutput({ action: "accept", confidence: 0.97 }, ctx);
+  assertEquals([high.action, high.execute, high.needsConfirm], ["accept", false, true]);
+  const ask = sanitizeModelOutput({ action: "ask", confidence: 0.9, question: "Couleur ?" }, ctx);
+  assertEquals([ask.action, ask.execute], ["ask", true]);
+  const mid = sanitizeModelOutput({ action: "ask", confidence: 0.7 }, ctx);
+  assertEquals([mid.execute, mid.needsConfirm], [false, true]);
+  const low = sanitizeModelOutput({ action: "reject", confidence: 0.4 }, ctx);
+  assertEquals([low.execute, low.needsConfirm], [false, false]);
+  assertEquals(sanitizeModelOutput({ action: "drop_table", confidence: 1 }, ctx).action, "none");
+  assertEquals(sanitizeModelOutput({ action: "offer", confidence: 1, amount: 12 }, ctx).action, "none");
+  assertEquals(sanitizeModelOutput({ action: "pay_mode", confidence: 1, method: "cash" }, ctx).action, "none", "hors étape");
+  // Le modèle n'est consulté que si les règles ne tranchent pas.
+  let calls = 0;
+  const r = await classifyFreeText("je propose 2000", ctx, () => { calls += 1; return Promise.resolve({}); });
+  assertEquals([r.action, calls], ["offer", 0]);
+  const r2 = await classifyFreeText("bof pas trop", ctx, () => { calls += 1; return Promise.resolve({ action: "none", confidence: 0.9 }); });
+  assertEquals([r2.action, calls], ["none", 1]);
+});
+
+// --------------------------------------------------------------- prédictif
+Deno.test("prix suggéré : milieu des offres, borné, arrondi à 25", () => {
+  assertEquals(suggestPrice({ buyerOffer: 2000, sellerOffer: 2500 }), 2250);
+  assertEquals(suggestPrice({ buyerOffer: 2010, sellerOffer: 2500 }), 2250);
+  assertEquals(suggestPrice({ sellerOffer: 2500 }), 2250);
+  assertEquals(suggestPrice({ buyerOffer: 1000, sellerOffer: 1200, marketMin: 1500, marketMax: 1800 }), 1500);
+  assertEquals(suggestPrice({}), null);
+});
+
+Deno.test("meilleure action : écart ≤ 3 % => Accepter en premier", () => {
+  assertEquals(acceptFirst(2450, 2400), true);
+  assertEquals(acceptFirst(2600, 2400), false);
+  assertEquals(acceptFirst(2600, null), true);
+});
+
+Deno.test("délai médian : null sous 5 échantillons", () => {
+  assertEquals(medianResponseMinutes([5, 10, 15, 20]), null);
+  assertEquals(medianResponseMinutes([5, 10, 15, 20, 90]), 15);
+  const t = (m: number) => new Date(Date.UTC(2026, 8, 27, 10, m)).toISOString();
+  const samples = responseSamples([
+    { at: t(0), role: "buyer" }, { at: t(12), role: "seller" },
+    { at: t(20), role: "buyer" }, { at: t(21), role: "buyer" }, { at: t(30), role: "seller" },
+  ], "seller");
+  assertEquals(samples, [12, 10]);
+});
+
+Deno.test("relances 2 h / 24 h, expiration 72 h, paiement présélectionné, intention", () => {
+  const start = Date.UTC(2026, 8, 27, 10, 0);
+  const plan = followUpPlan(start, start + 3 * 3600_000);
+  assertEquals(plan.followUps.length, 2);
+  assertEquals(plan.nextFollowUpAt, new Date(start + 24 * 3600_000).toISOString());
+  assertEquals(followUpPlan(start, start + 73 * 3600_000).expired, true);
+  assertEquals(preselectPayment(["cash", "cash", "mobile_money"]), "cash");
+  assertEquals(preselectPayment(["cash"]), null);
+  assert(purchaseIntent({ asked: true, offered: true, offerToListRatio: 0.9 }) > purchaseIntent({}));
+  assert(purchaseIntent({ asked: true, offered: true, offerToListRatio: 5, returnVisits: 99 }) <= 100);
+});

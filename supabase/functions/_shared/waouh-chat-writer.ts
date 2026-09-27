@@ -88,6 +88,25 @@ export async function chatRouterV2Enabled(sb: any): Promise<boolean> {
   return moduleFlagEnabled(sb, "chat_router_v2");
 }
 
+/**
+ * Parcours v3 — ouverture directe de la Deal Room quand un message porte un
+ * article (intérêt, prix, bouton de fiche). Correctif du Lot 1 : la migration
+ * l'installe ACTIVÉ ; le couper rétablit l'ancien comportement.
+ */
+export async function chatInterestFastPathEnabled(sb: any): Promise<boolean> {
+  return moduleFlagEnabled(sb, "chat_interest_fastpath");
+}
+
+/** Parcours v3 — textes et boutons du catalogue unifié (fermé par défaut). */
+export async function chatCatalogV3Enabled(sb: any): Promise<boolean> {
+  return moduleFlagEnabled(sb, "chat_catalog_v3");
+}
+
+/** Parcours v3 — point d'entrée waouh-commerce-action (fermé par défaut). */
+export async function commerceActionV3Enabled(sb: any): Promise<boolean> {
+  return moduleFlagEnabled(sb, "commerce_action_v3");
+}
+
 /** Tests uniquement. */
 export function __resetChatWriterFlagCache() {
   flagCache.clear();

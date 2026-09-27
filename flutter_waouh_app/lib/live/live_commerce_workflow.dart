@@ -176,6 +176,11 @@ String liveCommerceOutboundText(String payload) {
       }
       return liveCommerceRawCommand(payload);
     case LiveCommerceActionKind.unknown:
+      // Parcours v3 : libellés lisibles pour les boutons de fiche produit.
+      final command = liveCommerceRawCommand(payload).toLowerCase();
+      if (command.startsWith('je-veux:')) return 'Je le veux';
+      if (command.startsWith('proposer-prix:')) return 'Proposer un prix';
+      if (command.startsWith('poser-question:')) return 'Poser une question';
       return liveCommerceRawCommand(payload);
   }
 }

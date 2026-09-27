@@ -5,11 +5,13 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+import 'live_commerce_action_client.dart';
 import 'live_controller.dart';
 import 'live_commerce_agent_ui.dart';
 import 'live_commerce_workflow.dart';
 import 'live_controller_extensions.dart';
 import 'live_controller_match_actions.dart';
+import 'live_deal_journey.dart';
 import 'live_models.dart';
 import 'live_match_navigation.dart';
 import 'live_smart_timeline.dart';
@@ -40,6 +42,14 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
   late final LiveWaouhController _controller;
   bool _promotionScheduled = false;
   String? _promotedThreadId;
+  // Reprises silencieuses tant que l'écran est ouvert (plafond 30 s entre
+  // deux essais) ; chaque message envoyé relance aussi la confirmation.
+  static const int _maxSilentResolveCycles = 40;
+  // Parcours v3 : « Poser une question » → le prochain message part au vendeur.
+  bool _askMode = false;
+  // Un seul appel serveur à la fois (double tap = une seule action).
+  bool _actionInFlight = false;
+  List<LiveMessage> _lastMerged = const <LiveMessage>[];
 
   @override
   void initState() {
@@ -168,11 +178,17 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
         _resolving = false;
         _resolveError = error;
       });
-      if (seed != null && _automaticResolveCycles < 2) {
-        final repairSubmission = _automaticResolveCycles == 0;
+      // Parcours v3 : plus de bandeau « Mode provisoire ». La confirmation du
+      // fil se poursuit en silence (3 s, 6 s, 12 s, 24 s, puis 30 s) ; le
+      // serveur renvoie désormais thread_id dès l'ouverture, ces reprises ne
+      // servent qu'en cas de réseau lent. Les messages restent envoyables.
+      if (seed != null && _automaticResolveCycles < _maxSilentResolveCycles) {
+        final repairSubmission = _automaticResolveCycles.isEven;
+        final backoff = 3 << _automaticResolveCycles;
+        final delaySeconds = backoff > 30 ? 30 : backoff;
         _automaticResolveCycles += 1;
         _resolveRetryTimer?.cancel();
-        _resolveRetryTimer = Timer(const Duration(seconds: 3), () {
+        _resolveRetryTimer = Timer(Duration(seconds: delaySeconds), () {
           if (mounted) {
             unawaited(_resolve(repairSubmission: repairSubmission));
           }
@@ -207,21 +223,70 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
 
   void _handlePayload(String payload) {
     final kind = liveCommerceActionKind(payload);
-    if (kind == LiveCommerceActionKind.counter) {
-      final suggestedRaw = liveCommerceQuery(payload)['suggested_price'] ??
-          liveCommerceLegacyReference(payload) ??
-          '';
-      final suggested = suggestedRaw.replaceAll(RegExp(r'\D'), '');
-      _composer.text =
-          suggested.isEmpty ? 'Je propose  FCFA' : 'Je propose $suggested FCFA';
+    final articleScope = liveArticleScopeKind(payload);
+    if (kind == LiveCommerceActionKind.counter || articleScope == 'proposer-prix') {
+      // Composeur pré-rempli : prix suggéré du bouton, sinon calculé
+      // (milieu des offres / 90 % de l'offre en cours, arrondi à 25 FCFA).
+      final explicit = (liveCommerceQuery(payload)['suggested_price'] ?? '')
+          .replaceAll(RegExp(r'\D'), '');
+      final computed = liveSuggestedCounterPrice(
+        currentOffer: liveLatestOffer(_lastMerged),
+        listPrice: _match?.price,
+      );
+      final amount = explicit.isNotEmpty ? int.tryParse(explicit) : computed;
+      _composer.text = amount == null
+          ? 'Je propose  FCFA'
+          : 'Je propose ${liveFormatFcfa(amount)}';
       _composer.selection = TextSelection.collapsed(
-        offset:
-            suggested.isEmpty ? 'Je propose '.length : _composer.text.length,
+        offset: amount == null ? 'Je propose '.length : _composer.text.length,
       );
       _focus.requestFocus();
       return;
     }
-    _send(payload);
+    if (articleScope == 'poser-question') {
+      setState(() => _askMode = true);
+      _focus.requestFocus();
+      return;
+    }
+    if (_actionInFlight) return;
+    unawaited(_runServerAction(payload));
+  }
+
+  /// Parcours v3 : bouton serveur → contrat d'action unique. Repli sur
+  /// l'envoi historique si l'interrupteur est coupé ou hors ligne.
+  Future<void> _runServerAction(String payload) async {
+    final request = liveCommerceRequestFromPayload(
+      payload,
+      threadId: _match?.threadId,
+    );
+    if (request == null) {
+      _send(payload);
+      return;
+    }
+    Map<String, dynamic>? response;
+    _actionInFlight = true;
+    try {
+      response = await _controller.sendCommerceAction(request);
+    } catch (_) {
+      response = null;
+    } finally {
+      _actionInFlight = false;
+    }
+    if (!mounted) return;
+    if (response == null) {
+      _send(payload);
+      return;
+    }
+    // Le fil serveur (bulle de l'utilisateur + réponse courte) arrive par le
+    // flux habituel ; seul un refus est signalé tout de suite.
+    if (response['ok'] == false) {
+      final reply = liveMap(response['reply']);
+      final title = liveText(reply['title'], 'Action indisponible');
+      final detail = liveText(reply['detail']);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(detail.isEmpty ? title : '$title · $detail')),
+      );
+    }
   }
 
   void _send([String? payload]) {
@@ -233,7 +298,13 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
     final actionMeta = payload == null
         ? <String, dynamic>{}
         : liveCommercePayloadMeta(payload);
-    if (payload == null) {
+    final askingQuestion = payload == null && _askMode;
+    if (askingQuestion) {
+      actionMeta['commerce_action'] = 'ask';
+      setState(() => _askMode = false);
+    }
+    // Une question commençant par « Oui… » ou « Non… » reste une question.
+    if (payload == null && !askingQuestion) {
       final normalized = text.trim().toLowerCase();
       if (RegExp(r'^\s*(je\s+)?propose\b', caseSensitive: false)
           .hasMatch(text)) {
@@ -411,9 +482,8 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
     return Scaffold(
       appBar: LiveHeader(
         title: 'WAOUH One',
-        subtitle: pendingThread
-            ? 'Deal Room · synchronisation…'
-            : 'Deal Room · ${match.title}${match.city == null ? '' : ' · ${match.city}'}',
+        subtitle:
+            'Deal Room · ${match.title}${match.city == null ? '' : ' · ${match.city}'}',
         back: true,
         actions: pendingThread
             ? const <Widget>[]
@@ -430,52 +500,25 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
               ],
       ),
       body: Column(children: [
-        if (pendingThread && _resolving)
-          const LinearProgressIndicator(minHeight: 2),
+        // Seul indicateur pendant la confirmation du fil : une barre fine.
         if (pendingThread)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(10, 5, 8, 5),
-            color: const Color(0xFFE7F6F0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _resolving
-                        ? 'Envoi de votre intérêt et synchronisation du fil exact…'
-                        : _resolveError == null
-                            ? 'Discussion synchronisée.'
-                            : 'Mode provisoire actif : historique et messages restent disponibles pendant la confirmation du fil exact.',
-                    style: const TextStyle(
-                      color: Color(0xFF53698E),
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                if (_resolveError != null)
-                  TextButton(
-                    onPressed: _resolving
-                        ? null
-                        : () => _resolve(
-                              repairSubmission: true,
-                              replayAcceptedSubmission: true,
-                            ),
-                    child: const Text('Réessayer'),
-                  ),
-              ],
-            ),
-          ),
+          const LinearProgressIndicator(minHeight: 2),
         Expanded(
           child: StreamBuilder<List<LiveMessage>>(
             stream: _messageStream,
             builder: (_, snapshot) {
               final merged =
                   _merge(snapshot.data ?? const <LiveMessage>[]);
+              _lastMerged = merged;
               final waiting = _optimistic
                   .any((item) => item.meta['delivery_state'] == 'sending');
               return Column(
                 children: [
+                  // Parcours v3 : progression en 7 étapes.
+                  LiveDealStepper(
+                    stage: liveLatestStage(merged) ??
+                        (match.negotiationId != null ? 'negotiation' : null),
+                  ),
                   LiveDealRoomBanner(
                     match: match,
                     messages: merged,
@@ -493,7 +536,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                       onPayload: _handlePayload,
                       showAssistantHint: waiting,
                       emptyMessage: pendingThread
-                          ? 'Deal Room ouverte. WAOUH synchronise le fil exact.'
+                          ? 'Deal Room ouverte. Votre offre part au vendeur.'
                           : match.isSearch
                               ? 'Poursuivez cette recherche avec votre Avatar.'
                               : 'Commencez la discussion sur ce produit.',
@@ -564,9 +607,13 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                     textInputAction: TextInputAction.send,
                     onSubmitted: (_) => _send(),
                     decoration: InputDecoration(
-                      hintText: match.role == 'seller'
-                          ? 'Répondre à l’acheteur…'
-                          : 'Répondre au vendeur…',
+                      hintText: _askMode
+                          ? (match.role == 'seller'
+                              ? 'Votre question à l’acheteur…'
+                              : 'Votre question au vendeur…')
+                          : match.role == 'seller'
+                              ? 'Répondre à l’acheteur…'
+                              : 'Répondre au vendeur…',
                       filled: false,
                       border: InputBorder.none,
                       enabledBorder: InputBorder.none,
