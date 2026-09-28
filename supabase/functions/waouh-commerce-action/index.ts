@@ -81,28 +81,39 @@ async function canonicalProductRef(
 
   if (articleId) {
     const { data: article } = await sb.from("waouh_articles")
-      .select("id").eq("id", articleId).maybeSingle();
-    if (article?.id) return { articleId, catalogId, sourceId, promoted: false };
-
-    // Compatibilité avec les builds qui envoyaient un catalog_id comme article_id.
-    const { data: catalog } = await sb.from("waouh_unified_catalog")
-      .select("id,promoted_article_id")
-      .eq("id", articleId)
-      .maybeSingle();
-    if (catalog?.id) {
-      catalogId = catalog.id;
-      articleId = catalog.promoted_article_id ?? null;
+      .select("id,status").eq("id", articleId).maybeSingle();
+    if (article?.id) {
+      const terminal = new Set(["sold", "reserved", "archived", "deleted"]);
+      if (!(catalogId && terminal.has(String(article.status || "").toLowerCase()))) {
+        return { articleId, catalogId, sourceId, promoted: false };
+      }
+      // Une carte catalogue encore active peut porter l'ancien article déjà
+      // conclu. Forcer la rematérialisation via catalog_id.
+      articleId = null;
+    } else {
+      // Compatibilité avec les builds qui envoyaient un catalog_id comme article_id.
+      const legacyProductId = articleId;
+      const { data: catalog } = await sb.from("waouh_unified_catalog")
+        .select("id")
+        .eq("id", legacyProductId)
+        .maybeSingle();
+      if (catalog?.id) {
+        catalogId = catalog.id;
+        articleId = null;
+      }
     }
   }
 
   if (!catalogId && sourceId) {
     const { data: catalog } = await sb.from("waouh_unified_catalog")
-      .select("id,promoted_article_id")
+      .select("id")
       .eq("id", sourceId)
       .maybeSingle();
     if (catalog?.id) {
       catalogId = catalog.id;
-      articleId = articleId ?? catalog.promoted_article_id ?? null;
+      // Ne pas réinjecter promoted_article_id ici : promoteCatalogToArticle
+      // vérifie son état et remplace les références terminales.
+      articleId = null;
     }
   }
 
