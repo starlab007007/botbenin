@@ -1,0 +1,32 @@
+name: TEMP WAOUH Bic100 E2E Screenshots
+
+on:
+  push:
+    branches:
+      - prod
+    paths:
+      - ".github/workflows/temp-waouh-bic100-e2e.yml"
+      - "scripts/waouh-e2e-bic100-screenshots.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run production E2E capture
+        run: node scripts/waouh-e2e-bic100-screenshots.mjs
+      - name: Upload screenshots and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: waouh-bic100-e2e-screenshots
+          path: e2e-artifacts/bic100
+          if-no-files-found: error
+          retention-days: 7
