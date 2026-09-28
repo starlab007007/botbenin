@@ -805,7 +805,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                 )}
 
                 {rich.results.length > 0 && (
-                  <WaouhProductResults results={rich.results} onAction={sending ? undefined : (txt) => { void sendCore(txt, []).catch(() => {}); }} />
+                  <WaouhProductResults results={rich.results} onAction={sending ? undefined : (txt, meta) => { void sendCore(txt, [], null, meta ?? {}).catch(() => {}); }} />
                 )}
 
                 {rich.blocks.length > 0 && (
