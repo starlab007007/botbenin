@@ -79,7 +79,8 @@ num? liveLatestOffer(List<LiveMessage> messages) {
   return null;
 }
 
-/// Prix suggéré : milieu des offres, sinon 90 % de l'offre en cours, arrondi à 25 FCFA.
+/// Prix suggéré : milieu des offres, sinon 90 % de l'offre en cours.
+/// Parité Web : pas de 5 FCFA sous 500 FCFA, 25 FCFA au-delà.
 int? liveSuggestedCounterPrice({num? currentOffer, num? ownLastOffer, num? listPrice}) {
   num? positive(num? n) => n != null && n > 0 ? n : null;
   final current = positive(currentOffer) ?? positive(listPrice);
@@ -90,7 +91,8 @@ int? liveSuggestedCounterPrice({num? currentOffer, num? ownLastOffer, num? listP
           ? current * 0.9
           : null;
   if (raw == null) return null;
-  final rounded = (raw / 25).round() * 25;
+  final step = (current ?? raw) < 500 ? 5 : 25;
+  final rounded = (raw / step).round() * step;
   return rounded > 0 ? rounded : null;
 }
 
