@@ -160,6 +160,10 @@ Deno.serve(async (req) => {
     // Normalisation partenaires -> même forme que waouh_articles
     const normalizedPartners = partnerRows.map((p: any) => ({
       id: p.id,
+      // Identité explicite : id reste visuel, catalog_id est transactionnel.
+      article_id: null,
+      catalog_id: p.id,
+      source_id: p.id,
       title: p.titre,
       brand: null,
       model: null,
@@ -177,7 +181,14 @@ Deno.serve(async (req) => {
       source: 'partner',
     }));
 
-    const combined = [...(articles || []), ...normalizedPartners];
+    const normalizedArticles = (articles || []).map((a: any) => ({
+      ...a,
+      article_id: a.id,
+      catalog_id: null,
+      source_id: a.id,
+      source: a.source || 'waouh',
+    }));
+    const combined = [...normalizedArticles, ...normalizedPartners];
 
     // Filtre local strict : un mot-clé doit apparaître comme MOT ENTIER dans
     // les champs produit. Empêche PostgREST de renvoyer des lignes hors-sujet.
