@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { once } from "node:events";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -15,7 +16,12 @@ const chrome = [
 ].find((candidate) => candidate && fs.existsSync(candidate));
 if (!chrome) fail("Chrome/Chromium is not available on the CI runner");
 
-const preview = spawn("npm", ["run", "preview", "--", "--host", "127.0.0.1", "--port", "4173"], {
+const preview = spawn(process.execPath, [
+  "node_modules/vite/bin/vite.js",
+  "preview",
+  "--host", "127.0.0.1",
+  "--port", "4173",
+], {
   stdio: ["ignore", "pipe", "pipe"],
   env: process.env,
 });
@@ -393,7 +399,27 @@ try {
 
   console.log("WAOUH browser smoke: desktop + tablet + mobile OK");
 } finally {
-  try { ws?.close(); } catch {}
-  chromeProcess.kill("SIGTERM");
-  preview.kill("SIGTERM");
+  try {
+    if (ws && ws.readyState < 2) {
+      ws.close();
+      await Promise.race([
+        new Promise((resolve) => ws.addEventListener("close", resolve, { once: true })),
+        sleep(1000),
+      ]);
+    }
+  } catch {}
+
+  const stopChild = async (child) => {
+    if (!child || child.exitCode !== null || child.signalCode) return;
+    child.kill("SIGTERM");
+    await Promise.race([once(child, "exit"), sleep(1500)]).catch(() => {});
+    if (child.exitCode === null && !child.signalCode) {
+      child.kill("SIGKILL");
+      await Promise.race([once(child, "exit"), sleep(750)]).catch(() => {});
+    }
+  };
+
+  await stopChild(chromeProcess);
+  await stopChild(preview);
+  try { fs.rmSync(profile, { recursive: true, force: true }); } catch {}
 }
