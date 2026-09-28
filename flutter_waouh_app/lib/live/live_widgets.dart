@@ -398,7 +398,18 @@ Map<String, dynamic> liveCommercePayloadMeta(String payload) {
   ).firstMatch(command)?.group(1)?.toLowerCase();
   if (articleScope != null && legacyReference != null) {
     result['commerce_reference'] = legacyReference;
-    result['article_id'] = legacyReference;
+    final source = '${query['source'] ?? query['origin_surface'] ?? ''}'
+        .trim()
+        .toLowerCase();
+    final externalIdentity = query['catalog_id']?.trim().isNotEmpty == true ||
+        query['radar_signal_id']?.trim().isNotEmpty == true ||
+        (query['source_id']?.trim().isNotEmpty == true &&
+            (source.contains('partner') ||
+                source.contains('catalog') ||
+                source.contains('radar')));
+    // Sur une carte partenaire, le UUID du bouton désigne le catalogue et
+    // ne doit jamais être injecté comme waouh_articles.id.
+    if (!externalIdentity) result['article_id'] = legacyReference;
     result['commerce_action'] = articleScope == 'je-veux'
         ? 'open_deal'
         : articleScope == 'proposer-prix'
@@ -1109,6 +1120,8 @@ _SmartMessageAction _premiumScopedAction({
   for (final key in const <String>[
     'thread_id',
     'article_id',
+    'catalog_id',
+    'source_id',
     'buyer_user_id',
     'seller_user_id',
     'search_request_id',
@@ -1145,9 +1158,29 @@ _SmartMessageAction _premiumScopedAction({
   }
   if (params['article_id'] == null) {
     final source = (_premiumString(row['source']) ?? '').toLowerCase();
-    final articleId =
-        source.contains('radar') ? null : _premiumString(row['id']);
-    if (articleId != null) params['article_id'] = articleId;
+    final explicitArticleId = _premiumString(row['article_id']);
+    if (explicitArticleId != null) {
+      params['article_id'] = explicitArticleId;
+    } else if (source.contains('partner') || source.contains('catalog')) {
+      final catalogId = _premiumString(row['catalog_id'] ?? row['id']);
+      if (catalogId != null) {
+        params['catalog_id'] = catalogId;
+        params['source_id'] = catalogId;
+      }
+      params.remove('article_id');
+    } else if (source.contains('radar')) {
+      final sourceId = _premiumString(
+        row['radar_signal_id'] ?? row['source_id'] ?? row['id'],
+      );
+      if (sourceId != null) {
+        params['source_id'] = sourceId;
+        params['radar_signal_id'] = sourceId;
+      }
+      params.remove('article_id');
+    } else {
+      final articleId = _premiumString(row['id']);
+      if (articleId != null) params['article_id'] = articleId;
+    }
   }
 
   void visibleParam(String key, dynamic value) {
