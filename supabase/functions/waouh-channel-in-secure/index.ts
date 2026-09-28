@@ -5,6 +5,7 @@ import {
   requireAuthOrGuestSession,
   waouhCorsHeaders,
 } from "../_shared/waouh-auth.ts";
+import { handleCommerceAction } from "../_shared/waouh-commerce-action-handler.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -12,6 +13,13 @@ const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: waouhCorsHeaders });
   if (req.method !== "POST") return jsonError(405, "method_not_allowed");
+
+  // Bridge quota-safe : le contrat Commerce V3 partage cet endpoint sécurisé
+  // tant que le projet Supabase ne peut pas créer le slug dédié.
+  const probe = await req.clone().json().catch(() => ({} as any));
+  if (probe?.__waouh_mode === "commerce_action_v3") {
+    return handleCommerceAction(req);
+  }
 
   try {
     const raw = await req.json().catch(() => ({}));
