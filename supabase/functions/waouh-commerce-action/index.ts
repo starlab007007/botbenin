@@ -499,15 +499,23 @@ Deno.serve(async (req) => {
     if (finalThread) {
       const actorOnThread = finalRole === "buyer" ? finalThread.buyer_user_id : finalThread.seller_user_id;
       const echo = actionEcho(request, fcfa);
-      if (echo && !freeTextKey) {
+      // Une offre libre en attente de confirmation est tout de même une vraie
+      // bulle utilisateur. On l'écrit sans exécuter la mutation de prix.
+      if (echo && (!freeTextKey || pending)) {
         await writeBubble(sb, { threadId: finalThread.id, userId: actorOnThread, direction: "in", text: echo,
-          articleId: finalThread.article_id, intent: `action_${request.action}`, channel: "web",
-          extra: { idem: request.idem, source: request.source } });
+          articleId: finalThread.article_id, intent: pending ? "offer_confirmation_requested" : `action_${request.action}`, channel: "web",
+          extra: { idem: request.idem, source: request.source, pending: pending ?? null } });
       }
       if (!outcome.engineWroteReply) {
         await writeBubble(sb, { threadId: finalThread.id, userId: actorOnThread, direction: "out", text: message.text,
           articleId: finalThread.article_id, intent: `commerce_${outcome.key}`, actions: responseActions, channel: "web",
-          extra: { stage, workflow_state: state?.dealStatus ?? state?.negotiationState ?? null, negotiation_id: state?.negotiationId, deal_id: state?.dealId } });
+          extra: {
+            stage,
+            workflow_state: state?.dealStatus ?? state?.negotiationState ?? null,
+            negotiation_id: state?.negotiationId,
+            deal_id: state?.dealId,
+            pending: pending ?? null,
+          } });
       }
     }
 
