@@ -2,6 +2,8 @@
 // waouh_articles row so the negotiation tunnel (which requires article_id)
 // works for items posted by partners. Idempotent.
 
+import { ensureWaouhVendorStub } from "./waouh-phone.ts";
+
 export interface PromoteResult {
   article_id: string | null;
   catalog_id: string;
@@ -40,13 +42,60 @@ export async function promoteCatalogToArticle(
 
   const { data: cat, error: selErr } = await sb
     .from("waouh_unified_catalog")
-    .select("id, source, source_ref_id, titre, description, categorie, prix_min, prix_max, devise, ville, vendeur_whatsapp, vendeur_phone, vendeur_nom, partner_id, promoted_article_id, photos")
+    .select("id, source, source_ref_id, titre, description, categorie, prix_min, prix_max, devise, ville, vendeur_whatsapp, vendeur_phone, vendeur_nom, partner_id, promoted_article_id, photos, is_active")
     .eq("id", catalog_id)
     .maybeSingle();
 
   if (!cat) return { article_id: null, catalog_id, created: false, reason: `catalog row missing: ${selErr?.message ?? "no data"}` };
+  if (cat.is_active === false) {
+    return { article_id: null, catalog_id, created: false, reason: "catalog inactive" };
+  }
+
+  // Une offre partenaire doit avoir un interlocuteur canonique avant d'entrer
+  // dans le tunnel transactionnel. Si nécessaire, matérialiser un vendeur
+  // WhatsApp à partir du contact réel du catalogue.
+  let sellerId = overrides.seller_id ?? null;
+  if (!sellerId) {
+    const stub = await ensureWaouhVendorStub(
+      sb,
+      cat.vendeur_whatsapp || cat.vendeur_phone || null,
+      {
+        display_name: cat.vendeur_nom || cat.titre || "Vendeur partenaire",
+        city: cat.ville || null,
+        stub_origin: cat.source === "partner" ? "partner" : "catalog",
+      },
+    );
+    sellerId = stub?.id ?? null;
+  }
+
   if (cat.promoted_article_id) {
-    return { article_id: cat.promoted_article_id, catalog_id, created: false };
+    const { data: promoted } = await sb.from("waouh_articles")
+      .select("id,seller_id,status")
+      .eq("id", cat.promoted_article_id)
+      .maybeSingle();
+
+    const unavailable = new Set(["sold", "reserved", "archived", "deleted"]);
+    const promotedStatus = String(promoted?.status || "").toLowerCase();
+
+    // Les anciens articles promus restent une source d'identité vendeur
+    // fiable, même quand leur cycle transactionnel est terminé.
+    if (!sellerId && promoted?.seller_id) {
+      sellerId = promoted.seller_id;
+    }
+
+    // Le catalogue reste l'autorité. Une fiche catalogue active ne doit pas
+    // réutiliser un ancien article transactionnel déjà vendu/réservé.
+    if (promoted?.id && !unavailable.has(promotedStatus)) {
+      if (sellerId && !promoted.seller_id) {
+        await sb.from("waouh_articles")
+          .update({ seller_id: sellerId })
+          .eq("id", promoted.id)
+          .is("seller_id", null);
+      }
+      return { article_id: promoted.id, catalog_id, created: false };
+    }
+    // Article absent ou terminal : continuer ci-dessous et matérialiser une
+    // nouvelle fiche canonique, puis remplacer promoted_article_id.
   }
 
   const price = cat.prix_min ?? cat.prix_max ?? null;
@@ -66,7 +115,7 @@ export async function promoteCatalogToArticle(
   const { data: article, error } = await sb
     .from("waouh_articles")
     .insert({
-      seller_id: overrides.seller_id ?? null,
+      seller_id: sellerId,
       title: cat.titre || "Article partenaire",
       description: cat.description || null,
       category: normalizedCategory,

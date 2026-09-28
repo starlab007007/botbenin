@@ -59,6 +59,9 @@ Map<String, dynamic>? liveCommerceRequestFromPayload(
   final raw = payload.trim();
   final queryAt = raw.indexOf('?');
   final command = (queryAt < 0 ? raw : raw.substring(0, queryAt)).trim();
+  final query = queryAt < 0
+      ? const <String, String>{}
+      : Uri.splitQueryString(raw.substring(queryAt + 1));
   final match = RegExp(r'^([a-z_-]+):([0-9a-f-]{36})$', caseSensitive: false)
       .firstMatch(command);
   if (match == null) return null;
@@ -75,8 +78,35 @@ Map<String, dynamic>? liveCommerceRequestFromPayload(
     case 'refuser':
     case 'reject':
       return withThread(<String, dynamic>{'action': 'reject', 'negotiation_id': target});
-    case 'je-veux':
+    case 'je-veux': {
+      final source = (query['source'] ?? '').trim().toLowerCase();
+      final catalogId = (query['catalog_id'] ?? '').trim();
+      final explicitSourceId =
+          (query['source_id'] ?? query['radar_signal_id'] ?? '').trim();
+      final externalSource = source == 'partner' ||
+          source == 'catalog' ||
+          source == 'radar' ||
+          catalogId.isNotEmpty ||
+          explicitSourceId.isNotEmpty;
+      if (externalSource) {
+        return <String, dynamic>{
+          'action': 'open_deal',
+          if (catalogId.isNotEmpty) 'catalog_id': catalogId,
+          if (explicitSourceId.isNotEmpty) 'source_id': explicitSourceId,
+          if (catalogId.isEmpty &&
+              explicitSourceId.isEmpty &&
+              (source == 'partner' || source == 'catalog'))
+            'catalog_id': target,
+          if (catalogId.isEmpty &&
+              explicitSourceId.isEmpty &&
+              source != 'partner' &&
+              source != 'catalog')
+            'source_id': target,
+          if (source.isNotEmpty) 'source': source,
+        };
+      }
       return <String, dynamic>{'action': 'open_deal', 'article_id': target};
+    }
     case 'confirmer-disponibilite':
       return <String, dynamic>{'action': 'seller_confirm', 'deal_id': target};
     case 'payer-mobile':

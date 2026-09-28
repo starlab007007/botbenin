@@ -419,6 +419,18 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
 
   void _send([String? payload, bool bypassCommerceOffer = false]) {
     final match = _match;
+    if (match != null &&
+        _pendingSeed != null &&
+        liveIsProvisionalInterestedMatch(_pendingSeed!)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Connexion sécurisée au vendeur en cours…'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      unawaited(_resolve(repairSubmission: true));
+      return;
+    }
     final text = payload == null
         ? _composer.text.trim()
         : liveCommercePayloadText(payload);
@@ -623,8 +635,9 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
     return Scaffold(
       appBar: LiveHeader(
         title: 'WAOUH One',
-        subtitle:
-            'Deal Room · ${match.title}${match.city == null ? '' : ' · ${match.city}'}',
+        subtitle: pendingThread
+            ? 'Connexion sécurisée · ${match.title}${match.city == null ? '' : ' · ${match.city}'}'
+            : 'Deal Room · ${match.title}${match.city == null ? '' : ' · ${match.city}'}',
         back: true,
         actions: pendingThread
             ? const <Widget>[]
@@ -671,37 +684,70 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                       match: match,
                     ),
                   ),
-                  LiveSmartComposerBar(
-                    messages: merged,
-                    busy: waiting,
-                    onPrompt: (value) {
-                      _composer.text = value;
-                      _composer.selection = TextSelection.collapsed(
-                        offset: _composer.text.length,
-                      );
-                      _focus.requestFocus();
-                    },
-                    onSell: () {
-                      _composer.text = 'Je propose ';
-                      _composer.selection = TextSelection.collapsed(
-                        offset: _composer.text.length,
-                      );
-                      _focus.requestFocus();
-                    },
-                    onMuse: () => showLiveUnifiedIntelligenceSheet(
-                      context,
+                  if (pendingThread)
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF3F8FF),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: const Color(0xFFD9E7FF)),
+                      ),
+                      child: const Row(
+                        children: [
+                          SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2.2),
+                          ),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'WAOUH relie cette fiche au vendeur et sécurise le fil. Les actions s’activent automatiquement dès que le Deal Room canonique est prêt.',
+                              style: TextStyle(
+                                color: Color(0xFF31527A),
+                                fontSize: 11.5,
+                                height: 1.3,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    LiveSmartComposerBar(
                       messages: merged,
                       busy: waiting,
-                      match: match,
+                      onPrompt: (value) {
+                        _composer.text = value;
+                        _composer.selection = TextSelection.collapsed(
+                          offset: _composer.text.length,
+                        );
+                        _focus.requestFocus();
+                      },
+                      onSell: () {
+                        _composer.text = 'Je propose ';
+                        _composer.selection = TextSelection.collapsed(
+                          offset: _composer.text.length,
+                        );
+                        _focus.requestFocus();
+                      },
+                      onMuse: () => showLiveUnifiedIntelligenceSheet(
+                        context,
+                        messages: merged,
+                        busy: waiting,
+                        match: match,
+                      ),
                     ),
-                  ),
                   Expanded(
                     child: LiveSmartTimeline(
                       messages: merged,
                       onPayload: _handlePayload,
                       showAssistantHint: waiting,
                       emptyMessage: pendingThread
-                          ? 'Deal Room ouverte. Votre offre part au vendeur.'
+                          ? 'Connexion au vendeur… Le Deal Room s’active dès que le fil canonique est prêt.'
                           : match.isSearch
                               ? 'Poursuivez cette recherche avec votre Avatar.'
                               : 'Commencez la discussion sur ce produit.',
@@ -738,7 +784,8 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 PopupMenuButton<ImageSource>(
-                  tooltip: 'Ajouter',
+                  enabled: !pendingThread,
+                  tooltip: pendingThread ? 'Connexion en cours' : 'Ajouter',
                   icon: const Icon(
                     Icons.add_circle_rounded,
                     color: Color(0xFF4F7FFF),
@@ -767,12 +814,17 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                   child: TextField(
                     controller: _composer,
                     focusNode: _focus,
+                    enabled: !pendingThread,
                     minLines: 1,
                     maxLines: 4,
                     textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _send(),
+                    onSubmitted: (_) {
+                      if (!pendingThread) _send();
+                    },
                     decoration: InputDecoration(
-                      hintText: _askMode
+                      hintText: pendingThread
+                          ? 'Connexion au vendeur…'
+                          : _askMode
                           ? (match.role == 'seller'
                               ? 'Votre question à l’acheteur…'
                               : 'Votre question au vendeur…')
@@ -800,8 +852,13 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                       borderRadius: BorderRadius.circular(15),
                     ),
                   ),
-                  onPressed: _send,
-                  child: const Icon(Icons.arrow_upward_rounded, size: 20),
+                  onPressed: pendingThread ? null : _send,
+                  child: Icon(
+                    pendingThread
+                        ? Icons.lock_clock_rounded
+                        : Icons.arrow_upward_rounded,
+                    size: 20,
+                  ),
                 ),
               ],
             ),

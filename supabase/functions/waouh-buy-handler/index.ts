@@ -1,8 +1,13 @@
-import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { rehostPhotos, normalizeBeninPhone } from '../_shared/waouhContact.ts';
 import { distanceKm, formatDistance } from '../_shared/waouh-format.ts';
 import { extractFallbackKeywords, expandKeywordVariants, escapeIlikeToken, matchesAnyKeyword, scoreRelevance, normalizeCategorySafe } from '../_shared/waouh-keywords.ts';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-waouh-session',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -141,7 +146,7 @@ Deno.serve(async (req) => {
     let partnerRows: any[] = [];
     try {
       let pq = supabase.from('waouh_unified_catalog')
-        .select('id,titre,description,categorie,prix_min,prix_max,ville,quartier,vendeur_nom,vendeur_phone,vendeur_whatsapp,photos,source,partner_id,business_id,lat,lng')
+        .select('id,titre,description,categorie,prix_min,prix_max,ville,quartier,vendeur_nom,vendeur_phone,vendeur_whatsapp,photos,source,partner_id,business_id,lat,lng,promoted_article_id')
         .eq('type', 'offer')
         .eq('is_active', true);
       if (q.price_max) pq = pq.lte('prix_min', q.price_max);
@@ -160,6 +165,10 @@ Deno.serve(async (req) => {
     // Normalisation partenaires -> même forme que waouh_articles
     const normalizedPartners = partnerRows.map((p: any) => ({
       id: p.id,
+      // Identité explicite : id reste visuel, catalog_id est transactionnel.
+      article_id: null,
+      catalog_id: p.id,
+      source_id: p.id,
       title: p.titre,
       brand: null,
       model: null,
@@ -177,7 +186,14 @@ Deno.serve(async (req) => {
       source: 'partner',
     }));
 
-    const combined = [...(articles || []), ...normalizedPartners];
+    const normalizedArticles = (articles || []).map((a: any) => ({
+      ...a,
+      article_id: a.id,
+      catalog_id: null,
+      source_id: a.id,
+      source: a.source || 'waouh',
+    }));
+    const combined = [...normalizedArticles, ...normalizedPartners];
 
     // Filtre local strict : un mot-clé doit apparaître comme MOT ENTIER dans
     // les champs produit. Empêche PostgREST de renvoyer des lignes hors-sujet.

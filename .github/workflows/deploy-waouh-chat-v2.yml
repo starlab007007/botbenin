@@ -22,11 +22,14 @@ on:
       - "supabase/functions/_shared/waouh-commerce-contract.ts"
       - "supabase/functions/_shared/waouh-free-text.ts"
       - "supabase/functions/_shared/waouh-predictive.ts"
+      - "supabase/functions/_shared/waouh-promote.ts"
+      - "supabase/functions/_shared/waouh-phone.ts"
       - "supabase/functions/waouh-commerce-action/**"
       - "supabase/functions/waouh-match-history/**"
       - "supabase/functions/waouh-negotiation-router/**"
       - "supabase/functions/waouh-deal-ops/**"
       - "supabase/functions/waouh-buyer-interest/**"
+      - "supabase/functions/waouh-buy-handler/**"
       - "supabase/functions/waouh-payment/**"
       - "supabase/functions/waouh-deal-dispatch/**"
       - "supabase/functions/waouh-notify-dispatch/**"
@@ -178,6 +181,7 @@ jobs:
             waouh-negotiation-router
             waouh-deal-ops
             waouh-buyer-interest
+            waouh-buy-handler
             waouh-payment
             waouh-deal-dispatch
             waouh-notify-dispatch

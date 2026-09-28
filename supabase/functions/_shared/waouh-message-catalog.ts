@@ -43,6 +43,7 @@ export type CatalogKey =
   | "stale_button"
   | "out_of_stage"
   | "technical_error"
+  | "article_missing"
   | "article_reserved"
   | "negotiation_paused"
   | "not_understood"
@@ -202,6 +203,10 @@ const BUILDERS: Record<CatalogKey, Builder> = {
   technical_error: () => ({
     title: "Rien n'a été validé",
     detail: "Un incident technique est survenu. Réessayez dans un instant.",
+  }),
+  article_missing: () => ({
+    title: "Annonce indisponible",
+    detail: "Cette fiche n'est plus active. Actualisez les résultats pour continuer.",
   }),
   article_reserved: () => ({
     title: "Article déjà réservé",

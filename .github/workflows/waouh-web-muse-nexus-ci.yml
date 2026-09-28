@@ -21,6 +21,9 @@ on:
       - "src/app-mobile/components/ChatRightPane.tsx"
       - "supabase/functions/waouh-agentic-core/**"
       - "supabase/functions/waouh-channel-in/**"
+      - "supabase/functions/waouh-webhook/**"
+      - "supabase/functions/_shared/waouh-promote.ts"
+      - "supabase/functions/_shared/waouh-phone.ts"
       - "supabase/functions/waouh-negotiation-router/**"
       - "supabase/functions/waouh-deal-ops/**"
       - "supabase/functions/waouh-commerce-action/**"
@@ -54,6 +57,9 @@ on:
       - "src/app-mobile/components/ChatRightPane.tsx"
       - "supabase/functions/waouh-agentic-core/**"
       - "supabase/functions/waouh-channel-in/**"
+      - "supabase/functions/waouh-webhook/**"
+      - "supabase/functions/_shared/waouh-promote.ts"
+      - "supabase/functions/_shared/waouh-phone.ts"
       - "supabase/functions/waouh-negotiation-router/**"
       - "supabase/functions/waouh-deal-ops/**"
       - "supabase/functions/waouh-commerce-action/**"
@@ -109,6 +115,12 @@ jobs:
 
       - name: Check WAOUH Chat Channel
         run: deno check supabase/functions/waouh-channel-in/index.ts
+
+      - name: Check WAOUH Chat Orchestrator
+        run: deno check supabase/functions/waouh-webhook/index.ts
+
+      - name: Check WAOUH Buy Handler
+        run: deno check supabase/functions/waouh-buy-handler/index.ts
 
       - name: Check WAOUH Negotiation Router
         run: deno check supabase/functions/waouh-negotiation-router/index.ts

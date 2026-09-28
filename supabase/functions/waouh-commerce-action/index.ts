@@ -16,6 +16,7 @@ import { jsonResponse, requireAuthOrGuestSession, waouhCorsHeaders } from "../_s
 import { commerceActionV3Enabled, chatWriterV2Enabled, recordChatMessage } from "../_shared/waouh-chat-writer.ts";
 import { resolveSiblingUserIds } from "../_shared/waouh-identity.ts";
 import { openBuyerDeal, publicPhotos } from "../_shared/waouh-deal-open.ts";
+import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 import { renderCatalog, type CatalogKey, fcfa, stageFor } from "../_shared/waouh-message-catalog.ts";
 import {
   actionEcho,
@@ -61,6 +62,82 @@ interface EngineOutcome {
   pending?: Partial<CommerceActionRequest> | null;
   engineIntent?: string | null;
   httpStatus?: number;
+}
+
+interface CanonicalProductRef {
+  articleId: string | null;
+  catalogId: string | null;
+  sourceId: string | null;
+  promoted: boolean;
+}
+
+async function canonicalProductRef(
+  sb: any,
+  req: CommerceActionRequest,
+): Promise<CanonicalProductRef> {
+  let articleId = req.article_id ?? null;
+  let catalogId = req.catalog_id ?? null;
+  const sourceId = req.source_id ?? null;
+
+  if (articleId) {
+    const { data: article } = await sb.from("waouh_articles")
+      .select("id,status").eq("id", articleId).maybeSingle();
+    if (article?.id) {
+      const terminal = new Set(["sold", "reserved", "archived", "deleted"]);
+      if (!(catalogId && terminal.has(String(article.status || "").toLowerCase()))) {
+        return { articleId, catalogId, sourceId, promoted: false };
+      }
+      // Une carte catalogue encore active peut porter l'ancien article déjà
+      // conclu. Forcer la rematérialisation via catalog_id.
+      articleId = null;
+    } else {
+      // Compatibilité avec les builds qui envoyaient un catalog_id comme article_id.
+      const legacyProductId = articleId;
+      const { data: catalog } = await sb.from("waouh_unified_catalog")
+        .select("id")
+        .eq("id", legacyProductId)
+        .maybeSingle();
+      if (catalog?.id) {
+        catalogId = catalog.id;
+        articleId = null;
+      }
+    }
+  }
+
+  if (!catalogId && sourceId) {
+    const { data: catalog } = await sb.from("waouh_unified_catalog")
+      .select("id")
+      .eq("id", sourceId)
+      .maybeSingle();
+    if (catalog?.id) {
+      catalogId = catalog.id;
+      // Ne pas réinjecter promoted_article_id ici : promoteCatalogToArticle
+      // vérifie son état et remplace les références terminales.
+      articleId = null;
+    }
+  }
+
+  if (catalogId && !articleId) {
+    const promoted = await promoteCatalogToArticle(sb, catalogId);
+    if (promoted.article_id) {
+      return {
+        articleId: promoted.article_id,
+        catalogId,
+        sourceId,
+        promoted: true,
+      };
+    }
+  }
+
+  if (!articleId && sourceId) {
+    const { data: signal } = await sb.from("waouh_radar_signals")
+      .select("promoted_article_id")
+      .eq("id", sourceId)
+      .maybeSingle();
+    if (signal?.promoted_article_id) articleId = signal.promoted_article_id;
+  }
+
+  return { articleId, catalogId, sourceId, promoted: false };
 }
 
 async function callInternal(fn: string, body: Record<string, unknown>) {
@@ -230,6 +307,7 @@ async function execute(ctx: Ctx, thread: any, role: Role | null): Promise<Engine
       if (!opened.ok) {
         const key: CatalogKey = opened.code === "self" ? "self_article"
           : opened.code === "article_unavailable" ? "article_reserved"
+          : opened.code === "article_not_found" ? "article_missing"
           : opened.code === "invalid_offer" ? "out_of_stage"
           : "technical_error";
         return { ok: false, key, articleId };
@@ -261,7 +339,19 @@ async function execute(ctx: Ctx, thread: any, role: Role | null): Promise<Engine
           supabaseUrl: SUPABASE_URL, serviceRole: SERVICE_ROLE, notifySeller: "never",
           openNegotiation: false, catalogV3: true,
         });
-        if (!opened.ok) return { ok: false, key: opened.code === "self" ? "self_article" : "technical_error", articleId };
+        if (!opened.ok) {
+          return {
+            ok: false,
+            key: opened.code === "self"
+              ? "self_article"
+              : opened.code === "article_not_found"
+                ? "article_missing"
+                : opened.code === "article_unavailable"
+                  ? "article_reserved"
+                  : "technical_error",
+            articleId,
+          };
+        }
         threadId = opened.threadId;
         counterpart = opened.sellerUserId;
       }
@@ -391,6 +481,39 @@ Deno.serve(async (req) => {
     const { data: actorRow } = await sb.from("waouh_users")
       .select("id,auth_user_id,phone_number,web_session_id").eq("id", actorId).maybeSingle();
     const siblings = await resolveSiblingUserIds(sb, actorRow ?? { id: actorId });
+
+    const productRef = await canonicalProductRef(sb, request);
+    if (productRef.articleId && productRef.articleId !== request.article_id) {
+      request = {
+        ...request,
+        article_id: productRef.articleId,
+        catalog_id: productRef.catalogId ?? request.catalog_id ?? null,
+        source_id: productRef.sourceId ?? request.source_id ?? null,
+      };
+    }
+
+    const unresolvedExternalProduct =
+      !request.thread_id &&
+      !request.negotiation_id &&
+      !request.article_id &&
+      !!(request.catalog_id || request.source_id);
+    if (unresolvedExternalProduct) {
+      const m = renderCatalog("article_missing");
+      const payload = {
+        ok: false,
+        code: "article_missing",
+        schema: "waouh.commerce_action.v3",
+        idem: request.idem,
+        article_id: null,
+        catalog_id: request.catalog_id ?? null,
+        source_id: request.source_id ?? null,
+        reply: { title: m.title, detail: m.detail, text: m.text, key: m.key },
+        actions: [],
+        refresh_results: true,
+      };
+      return finish(jsonResponse(payload, 409), "done", payload, null);
+    }
+
     const ctx: Ctx = { sb, actorId, siblings, req: request };
 
     let thread = await loadThread(sb, await resolveThreadId(ctx));
@@ -542,6 +665,8 @@ Deno.serve(async (req) => {
       negotiation_id: state?.negotiationId ?? outcome.negotiationId ?? null,
       deal_id: state?.dealId ?? outcome.dealId ?? null,
       article_id: finalThread?.article_id ?? outcome.articleId ?? request.article_id ?? null,
+      catalog_id: request.catalog_id ?? null,
+      source_id: request.source_id ?? null,
       stage,
       role: finalRole,
       turn: state ? turnFor(state) : "buyer",
