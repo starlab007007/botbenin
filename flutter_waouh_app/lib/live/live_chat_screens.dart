@@ -417,51 +417,77 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
                       _visibleMessages(snapshot.data ?? const <LiveMessage>[]);
                   final waiting = optimistic
                       .any((item) => item.meta['delivery_state'] == 'sending');
-                  return Column(children: [
-                    LiveSmartComposerBar(
-                      messages: messages,
-                      busy: waiting,
-                      onPrompt: (value) {
-                        composer.text = value;
-                        composer.selection = TextSelection.collapsed(
-                          offset: composer.text.length,
-                        );
-                        composerFocus.requestFocus();
-                      },
-                      onSell: _openSellForm,
-                      onMuse: () => showLiveUnifiedIntelligenceSheet(
+                  final hasGoal = messages.any(
+                    (item) => item.outgoing && item.text.trim().isNotEmpty,
+                  );
+
+                  void seedGoal(String value) {
+                    composer.text = value;
+                    composer.selection = TextSelection.collapsed(
+                      offset: composer.text.length,
+                    );
+                    composerFocus.requestFocus();
+                  }
+
+                  void openIntelligence() => showLiveUnifiedIntelligenceSheet(
                         context,
                         messages: messages,
                         busy: waiting,
                         missionCount: controller.agentic.activeMissionCount,
                         watchCount: controller.agentic.activeWatchCount,
                         approvalCount: controller.agentic.pendingApprovalCount,
-                        onNewGoal: () { unawaited(_newChat()); },
-                        onOpenAgentic: () { unawaited(_openAgenticWorkspace()); },
+                        onNewGoal: () {
+                          unawaited(_newChat());
+                        },
+                        onOpenAgentic: () {
+                          unawaited(_openAgenticWorkspace());
+                        },
+                      );
+
+                  return Column(children: [
+                    if (!hasGoal)
+                      _LiveObjectiveLauncher(
+                        avatarName: avatar.name,
+                        onBuy: () => seedGoal('Je veux acheter '),
+                        onSell: _openSellForm,
+                        onSearch: () => seedGoal('Je cherche '),
+                        onCompare: () =>
+                            seedGoal('Compare les meilleures options pour '),
+                        onNegotiate: () =>
+                            seedGoal('Je souhaite négocier '),
+                        onAvatar: () => context.push('/app/avatar'),
+                      )
+                    else ...[
+                      LiveCommerceAgentBar(
+                        messages: messages,
+                        busy: waiting,
+                        compact: true,
+                        onTap: openIntelligence,
                       ),
-                      onLocation: () async {
-                        await controller.useDeviceLocation();
-                        if (!mounted) return;
-                        final position = controller.position;
-                        _notice(position.available
-                            ? 'Position ajoutée au prochain message.'
-                            : (position.errorMessage ??
-                                'Position GPS indisponible.'));
-                      },
-                    ),
-                    LiveAvatarPresenceStrip(
-                      busy: waiting,
-                      missionCount: controller.agentic.activeMissionCount,
-                      watchCount: controller.agentic.activeWatchCount,
-                      approvalCount: controller.agentic.pendingApprovalCount,
-                    ),
+                      LiveSmartComposerBar(
+                        messages: messages,
+                        busy: waiting,
+                        onPrompt: seedGoal,
+                        onSell: _openSellForm,
+                        onMuse: openIntelligence,
+                        onLocation: () async {
+                          await controller.useDeviceLocation();
+                          if (!mounted) return;
+                          final position = controller.position;
+                          _notice(position.available
+                              ? 'Position ajoutée au prochain message.'
+                              : (position.errorMessage ??
+                                  'Position GPS indisponible.'));
+                        },
+                      ),
+                    ],
                     Expanded(
                       child: LiveSmartTimeline(
                         messages: messages,
                         onPayload: _handlePayload,
                         showAssistantHint: waiting,
                         emptyMessage:
-                            'Dites simplement ce que vous voulez acheter ou vendre.',
+                            'Choisissez un objectif ou dites simplement ce que vous voulez.',
                       ),
                     ),
                   ]);
@@ -577,6 +603,229 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
 
 
 }
+
+class _LiveObjectiveLauncher extends StatelessWidget {
+  const _LiveObjectiveLauncher({
+    required this.avatarName,
+    required this.onBuy,
+    required this.onSell,
+    required this.onSearch,
+    required this.onCompare,
+    required this.onNegotiate,
+    required this.onAvatar,
+  });
+
+  final String avatarName;
+  final VoidCallback onBuy;
+  final VoidCallback onSell;
+  final VoidCallback onSearch;
+  final VoidCallback onCompare;
+  final VoidCallback onNegotiate;
+  final VoidCallback onAvatar;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.fromLTRB(10, 8, 10, 4),
+        padding: const EdgeInsets.fromLTRB(14, 13, 14, 12),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [
+              Color(0xFFFFFFFF),
+              Color(0xFFF0F8FF),
+              Color(0xFFF1FFF9),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFFDDE8F5)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF496B9C).withValues(alpha: .08),
+              blurRadius: 22,
+              offset: const Offset(0, 9),
+              spreadRadius: -8,
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const LiveMuseAvatar(size: 56),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Quel est votre objectif ?',
+                        style: TextStyle(
+                          color: Color(0xFF132B25),
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -.2,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '$avatarName vous accompagne de la demande jusqu’au deal.',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF667A73),
+                          fontSize: 10.5,
+                          height: 1.25,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Mon Avatar',
+                  onPressed: onAvatar,
+                  icon: const Icon(
+                    Icons.face_retouching_natural_rounded,
+                    color: Color(0xFF4F7FFF),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 11),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: [
+                _ObjectiveChip(
+                  label: 'Acheter',
+                  icon: Icons.shopping_cart_outlined,
+                  onTap: onBuy,
+                ),
+                _ObjectiveChip(
+                  label: 'Vendre',
+                  icon: Icons.sell_outlined,
+                  onTap: onSell,
+                ),
+                _ObjectiveChip(
+                  label: 'Chercher',
+                  icon: Icons.travel_explore_rounded,
+                  onTap: onSearch,
+                ),
+                _ObjectiveChip(
+                  label: 'Comparer',
+                  icon: Icons.compare_arrows_rounded,
+                  onTap: onCompare,
+                ),
+                _ObjectiveChip(
+                  label: 'Négocier',
+                  icon: Icons.handshake_outlined,
+                  onTap: onNegotiate,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            const Row(
+              children: [
+                _JourneyPill(label: 'Objectif', icon: Icons.flag_outlined),
+                _JourneyArrow(),
+                _JourneyPill(label: 'NEXUS', icon: Icons.hub_outlined),
+                _JourneyArrow(),
+                _JourneyPill(
+                  label: 'Signal',
+                  icon: Icons.auto_graph_rounded,
+                ),
+                _JourneyArrow(),
+                _JourneyPill(label: 'Deal', icon: Icons.handshake_outlined),
+              ],
+            ),
+          ],
+        ),
+      );
+}
+
+class _ObjectiveChip extends StatelessWidget {
+  const _ObjectiveChip({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => ActionChip(
+        avatar: Icon(icon, size: 16, color: const Color(0xFF3F6FE5)),
+        label: Text(label),
+        onPressed: onTap,
+        backgroundColor: Colors.white.withValues(alpha: .92),
+        side: const BorderSide(color: Color(0xFFDDE6F5)),
+        labelStyle: const TextStyle(
+          color: Color(0xFF263A35),
+          fontSize: 10.8,
+          fontWeight: FontWeight.w800,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(999),
+        ),
+      );
+}
+
+class _JourneyPill extends StatelessWidget {
+  const _JourneyPill({required this.label, required this.icon});
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+        child: Container(
+          height: 30,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: .78),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: const Color(0xFFE3EAF5)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 12, color: const Color(0xFF5A729C)),
+              const SizedBox(width: 3),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFF5A729C),
+                    fontSize: 8.8,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+}
+
+class _JourneyArrow extends StatelessWidget {
+  const _JourneyArrow();
+
+  @override
+  Widget build(BuildContext context) => const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 2),
+        child: Icon(
+          Icons.chevron_right_rounded,
+          size: 14,
+          color: Color(0xFFA8B5C8),
+        ),
+      );
+}
+
 
 class LiveConversationScreen extends StatefulWidget {
   const LiveConversationScreen({super.key, required this.conversationId});
