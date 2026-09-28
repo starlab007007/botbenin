@@ -18,6 +18,14 @@ const WAHA_SESSION = Deno.env.get("WAHA_SESSION") || "WaouhApp";
 const WAOUH_BUSINESS_PHONE = normalizeBeninPhone(Deno.env.get("WAOUH_BUSINESS_PHONE") || "65653468") || "22965653468";
 
 const MAX_ATTEMPTS_DEFAULT = 5;
+const WAHA_REQUEST_TIMEOUT_MS = 8_000;
+
+async function wahaFetch(url: string, init: RequestInit = {}) {
+  return fetch(url, {
+    ...init,
+    signal: AbortSignal.timeout(WAHA_REQUEST_TIMEOUT_MS),
+  });
+}
 
 async function requestIsAdmin(req: Request, sb: any) {
   const auth = req.headers.get("Authorization") || "";
@@ -112,14 +120,14 @@ function beninPhoneCandidates(canonical: string): string[] {
 
 async function sendWahaText(base: string, session: string, chatId: string, text: string, headers: Record<string, string>) {
   const payload = JSON.stringify({ session, chatId, text });
-  let r = await fetch(`${base}/api/sendText`, { method: "POST", headers, body: payload });
+  let r = await wahaFetch(`${base}/api/sendText`, { method: "POST", headers, body: payload });
   if (r.ok) return r;
-  r = await fetch(`${base}/api/${session}/sendText`, { method: "POST", headers, body: JSON.stringify({ chatId, text }) });
+  r = await wahaFetch(`${base}/api/${session}/sendText`, { method: "POST", headers, body: JSON.stringify({ chatId, text }) });
   return r;
 }
 
 async function sendWahaImage(base: string, session: string, chatId: string, imageUrl: string, caption: string, headers: Record<string, string>) {
-  let r = await fetch(`${base}/api/sendImage`, {
+  let r = await wahaFetch(`${base}/api/sendImage`, {
     method: "POST",
     headers,
     body: JSON.stringify({ session, chatId, file: { url: imageUrl }, caption }),
@@ -129,7 +137,7 @@ async function sendWahaImage(base: string, session: string, chatId: string, imag
   // Certaines installations WAHA n'exposent pas sendImage sur ce chemin.
   // On tente la route session, puis on dégrade TOUJOURS vers le texte :
   // une photo indisponible ne doit jamais faire perdre une notification métier.
-  r = await fetch(`${base}/api/${session}/sendImage`, {
+  r = await wahaFetch(`${base}/api/${session}/sendImage`, {
     method: "POST",
     headers,
     body: JSON.stringify({ chatId, file: { url: imageUrl }, caption }),
@@ -152,14 +160,14 @@ async function sendWahaButtons(base: string, session: string, chatId: string, te
   const richBody: any = { session, chatId, body: text, footer: footer || "WAOUH • bot.bj", buttons: richButtons };
   if (title) richBody.header = title;
   if (imageUrl) richBody.header = { image: { url: imageUrl } };
-  let r = await fetch(`${base}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify(richBody) });
+  let r = await wahaFetch(`${base}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify(richBody) });
   if (r.ok) return r;
-  r = await fetch(`${base}/api/${session}/sendButtons`, { method: "POST", headers, body: JSON.stringify({ ...richBody, session: undefined }) });
+  r = await wahaFetch(`${base}/api/${session}/sendButtons`, { method: "POST", headers, body: JSON.stringify({ ...richBody, session: undefined }) });
   if (r.ok) return r;
   // Legacy simple format (boutons WAHA encore acceptés). Si échec, on tombe en
   // texte simple SANS jamais ré-injecter de liste numérotée « 1./2./3. ».
   const buttons = actions.slice(0, 3).map((a) => ({ id: a.id, text: a.label }));
-  r = await fetch(`${base}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify({ session, chatId, text, buttons }) });
+  r = await wahaFetch(`${base}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify({ session, chatId, text, buttons }) });
   if (r.ok) return r;
   if (imageUrl) return sendWahaImage(base, session, chatId, imageUrl, text, headers);
   return sendWahaText(base, session, chatId, text, headers);
@@ -435,7 +443,7 @@ Deno.serve(async (req) => {
         let mappedChatId: string | null = null;
         for (const path of [`/api/${WAHA_SESSION}/contacts/check-exists?phone=${encodeURIComponent(candidate)}`, `/api/contacts/check-exists?phone=${encodeURIComponent(candidate)}&session=${encodeURIComponent(WAHA_SESSION)}`]) {
           try {
-            const cr = await fetch(`${wahaBase}${path}`, { headers: wahaHeaders });
+            const cr = await wahaFetch(`${wahaBase}${path}`, { headers: wahaHeaders });
             if (!cr.ok) { await cr.text().catch(() => ""); continue; }
             const cj = await cr.json().catch(() => null);
             if (cj && (cj.numberExists === true || cj.exists === true) && typeof cj.chatId === "string") {
