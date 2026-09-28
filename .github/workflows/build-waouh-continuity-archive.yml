@@ -22,13 +22,6 @@ jobs:
           path: source
           fetch-depth: 1
 
-      - name: Download APK from matching production run
-        uses: actions/download-artifact@v4
-        with:
-          name: waouh-muse-nexus-arm64-test
-          path: source/_continuity/latest-apk
-          github-token: \${{ github.token }}
-          run-id: 36488352552
 
       - name: Add continuity handoff
         shell: bash
@@ -109,9 +102,10 @@ jobs:
           - Verify PrivatAI Agent Demo Live #126: SUCCESS
           - Verify FA IA Production #412: FAILURE (workflow distinct, hors Chat WAOUH)
 
-          ## APK inclus
-          Le dossier _continuity/latest-apk contient l'artefact ARM64 construit par la CI #187
-          sur ce même commit de production.
+          ## APK de référence
+          Le dernier APK ARM64 de ce même commit a été construit par la CI #187
+          (workflow run 36488352552, artifact waouh-muse-nexus-arm64-test).
+          Il n'est pas embarqué dans cette archive source afin de garder le paquet de reprise léger.
 
           ## Instruction de reprise
           Pour continuer dans un nouveau chat:
