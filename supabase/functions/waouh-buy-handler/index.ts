@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
     const normalizedPartners = partnerRows.map((p: any) => ({
       id: p.id,
       // Identité explicite : id reste visuel, catalog_id est transactionnel.
-      article_id: p.promoted_article_id || null,
+      article_id: null,
       catalog_id: p.id,
       source_id: p.id,
       title: p.titre,
