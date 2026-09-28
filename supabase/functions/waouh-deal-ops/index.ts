@@ -528,6 +528,20 @@ async function findDealTransaction(sb: any, deal: any) {
   return data || null;
 }
 
+/** Annulation avant paiement : le deal et sa transaction doivent finir dans
+ * le même état. Une transaction déjà payée/terminée n'est jamais annulée ici :
+ * elle relève du parcours remboursement/litige. */
+async function cancelPendingDealTransaction(sb: any, deal: any) {
+  const tx = await findDealTransaction(sb, deal);
+  if (!tx?.id || !["initiated", "payment_pending"].includes(String(tx.status || ""))) return tx ?? null;
+  const { error } = await sb.from("waouh_transactions")
+    .update({ status: "cancelled" })
+    .eq("id", tx.id)
+    .in("status", ["initiated", "payment_pending"]);
+  if (error) console.error("[waouh-deal-ops] transaction cancel failed", error);
+  return tx;
+}
+
 // ───────── Action handlers ─────────
 
 async function handleAssign(sb: any, body: any) {
@@ -669,6 +683,7 @@ async function handleStatus(sb: any, body: any) {
     },
   });
   if (status === "cancelled") {
+    await cancelPendingDealTransaction(sb, deal);
     await bindThreadState(sb, deal.thread_id, { status: "cancelled", negotiation_id: deal.negotiation_id, deal_id });
   }
 
@@ -948,6 +963,7 @@ async function handleParticipantCancel(sb: any, body: any, actor: DealActor) {
     commission_status: "void",
     notes: reason ? `[Annulation utilisateur] ${reason}` : deal.notes,
   }).eq("id", deal_id);
+  await cancelPendingDealTransaction(sb, deal);
 
   await recordCommerceEvent(sb, {
     event_type: "deal_cancelled",
