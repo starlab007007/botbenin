@@ -1,0 +1,165 @@
+name: Build WAOUH Continuity Archive
+
+on:
+  push:
+    branches:
+      - archive/waouh-continuity-b58aed-20260928
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact production snapshot
+        uses: actions/checkout@v4
+        with:
+          ref: b58aedc094c39e4d2493e96d3357306482ac233e
+          path: source
+          fetch-depth: 1
+
+      - name: Download APK from matching production run
+        uses: actions/download-artifact@v4
+        with:
+          name: waouh-muse-nexus-arm64-test
+          path: source/_continuity/latest-apk
+          github-token: \${{ github.token }}
+          run-id: 36488352552
+
+      - name: Add continuity handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p source/_continuity
+          cat > source/_continuity/README_CONTINUITY.md <<'EOF'
+          # WAOUH — Archive de continuité
+
+          ## Référence canonique
+          - Repository: starlab007007/botbenin
+          - Branch: prod
+          - Production commit: b58aedc094c39e4d2493e96d3357306482ac233e
+          - Commit title: Merge Flutter canonical Chat Center premium flow
+          - Date: 2026-09-28
+          - Flutter version: 18.18.0+1786092806
+          - Supabase Bot.Bj project ref: mvynepqulhflxtyymtzs
+
+          ## Etat du Chat
+          Le Web https://bot.bj/app/chat est la référence fonctionnelle du parcours WAOUH Chat.
+          Le Flutter mobile a désormais repris le parcours canonique du Chat Center:
+          1. Centre des conversations
+             - WAOUH One
+             - Deal Rooms en cours
+             - Conversations existantes
+          2. WAOUH One
+             - Acheter
+             - Vendre
+             - Chercher
+             - Comparer
+             - Négocier
+          3. Compréhension intention
+          4. NEXUS
+          5. Signal Fabric
+          6. Cartes produits / opportunités
+          7. Intéressé / Je le veux / Proposer un prix / Poser une question
+          8. Création/récupération du thread canonique
+          9. Deal Room
+          10. Offre / contre-proposition / question / acceptation / refus
+          11. Accord
+          12. Confirmation vendeur
+          13. Préparation
+          14. Affectation livreur
+          15. Enlèvement
+          16. Livraison
+          17. Paiement / clôture
+          18. Cycle terminé
+
+          ## Moteur partagé à préserver
+          - waouh-channel-in-secure
+          - waouh-channel-in
+          - waouh-commerce-action
+          - waouh-negotiation-router
+          - waouh-deal-ops
+          - waouh-history
+          - waouh-match-history
+          - waouh-chat-writer
+          - waouh_chat_threads
+          - waouh_messages
+          - waouh_negotiations
+          - waouh_deals
+          - waouh_transactions
+          - Supabase Realtime
+
+          ## Invariants
+          - Le Web et Flutter utilisent le même backend et le même thread canonique.
+          - Pas de moteur métier parallèle en Dart.
+          - Une action monétaire en texte libre requiert confirmation.
+          - Un cycle fermé ne doit pas être réutilisé comme cycle actif.
+          - Un clic bouton doit être rattaché au thread canonique.
+          - Les micro-offres à partir de 1 FCFA sont supportées.
+          - Idempotence via waouh_commerce_actions.
+          - Le paiement réel n'a pas été refondu dans les lots précédents.
+
+          ## Etat CI du commit
+          - WAOUH Flutter Muse NEXUS CI #187: SUCCESS
+          - Deploy React App botbj #2215: SUCCESS
+          - Verify PrivatAI Agent Demo Live #126: SUCCESS
+          - Verify FA IA Production #412: FAILURE (workflow distinct, hors Chat WAOUH)
+
+          ## APK inclus
+          Le dossier _continuity/latest-apk contient l'artefact ARM64 construit par la CI #187
+          sur ce même commit de production.
+
+          ## Instruction de reprise
+          Pour continuer dans un nouveau chat:
+          1. prendre ce ZIP comme source de vérité;
+          2. rester sur prod / commit b58aedc094c39e4d2493e96d3357306482ac233e;
+          3. ne pas revenir aux anciens commits UI;
+          4. conserver le parcours Chat Center Flutter canonique déjà fusionné;
+          5. appliquer toute nouvelle correction sur une branche dédiée depuis ce commit;
+          6. exiger flutter analyze + tests + APK ARM64 avant fusion.
+
+          ## Secrets
+          Aucun secret GitHub/Supabase n'est inclus dans cette archive.
+          Les secrets restent gérés dans GitHub Environment production.
+          EOF
+
+          cat > source/_continuity/RESUME_REPRISE.txt <<'EOF'
+          WAOUH CONTINUITY
+          =================
+          prod=b58aedc094c39e4d2493e96d3357306482ac233e
+          flutter=18.18.0+1786092806
+          supabase=mvynepqulhflxtyymtzs
+          web=https://bot.bj/app/chat
+          canonical_flow=Chat Center -> WAOUH One -> NEXUS -> Signal Fabric -> Cards -> Thread -> Deal Room -> Negotiation -> Agreement -> Fulfillment -> Delivery -> Payment/Close
+          latest_flutter_ci=36488352552
+          latest_flutter_ci_number=187
+          latest_web_deploy=2215
+          EOF
+
+      - name: Remove local git metadata
+        run: rm -rf source/.git
+
+      - name: Build archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="WAOUH-CONTINUITY-b58aed-20260928.zip"
+          cd source
+          zip -qr "../$ZIP" .
+          cd ..
+          sha256sum "$ZIP" | tee "$ZIP.sha256"
+          ls -lh "$ZIP" "$ZIP.sha256"
+
+      - name: Upload continuity archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: WAOUH-CONTINUITY-b58aed-20260928
+          path: |
+            WAOUH-CONTINUITY-b58aed-20260928.zip
+            WAOUH-CONTINUITY-b58aed-20260928.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
