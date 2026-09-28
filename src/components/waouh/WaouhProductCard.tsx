@@ -197,9 +197,17 @@ function productIdentityMeta(result: WaouhResultCard): Record<string, unknown> {
   const explicitArticle = String(result.article_id || "").trim();
   const catalogId = String(result.catalog_id || ((source === "partner" || source === "catalog") ? result.id : "")).trim();
   const sourceId = String(result.source_id || result.radar_signal_id || (source === "radar" ? result.id : "")).trim();
+  if (explicitArticle) {
+    return {
+      article_id: explicitArticle,
+      ...(catalogId ? { catalog_id: catalogId } : {}),
+      ...(sourceId ? { source_id: sourceId } : {}),
+      source,
+    };
+  }
   if (catalogId) return { catalog_id: catalogId, source_id: sourceId || catalogId, source };
   if (sourceId && source === "radar") return { source_id: sourceId, source };
-  return { article_id: explicitArticle || result.id, source };
+  return { article_id: result.id, source };
 }
 
 function shouldOpenOptimistically(result: WaouhResultCard): boolean {
