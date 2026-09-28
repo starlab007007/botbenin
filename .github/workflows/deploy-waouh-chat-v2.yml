@@ -150,6 +150,25 @@ jobs:
           # than repairing production history automatically.
           supabase db push --linked --password "$SUPABASE_DB_PASSWORD" --yes
 
+      - name: Prepare minimal Edge deployment config
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp supabase/config.toml /tmp/waouh-config.original.toml
+          cat > supabase/config.toml <<EOF
+          project_id = "$SUPABASE_PROJECT_REF"
+
+          [api]
+          enabled = true
+          port = 54321
+
+          [edge_runtime]
+          enabled = true
+          policy = "per_worker"
+          deno_version = 2
+          EOF
+          echo "✅ Minimal Supabase Edge config prepared for CI deployment."
+
       - name: Deploy existing WAOUH Chat functions
         shell: bash
         run: |
@@ -189,3 +208,4 @@ jobs:
           echo "Feature flags are NOT changed by this workflow."
           echo "Historical backfill is NOT executed by this workflow."
           echo "Database migration history is never auto-repaired in production."
+          echo "The CI-only minimal Edge config does not modify the repository config.toml."
