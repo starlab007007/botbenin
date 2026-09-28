@@ -354,7 +354,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
     final articleScope = liveArticleScopeKind(payload);
     if (kind == LiveCommerceActionKind.counter || articleScope == 'proposer-prix') {
       // Composeur pré-rempli : prix suggéré du bouton, sinon calculé
-      // (milieu des offres / 90 % de l'offre en cours, arrondi à 25 FCFA).
+      // (milieu des offres / 90 %, pas de 5 FCFA sous 500, 25 au-delà).
       final explicit = (liveCommerceQuery(payload)['suggested_price'] ?? '')
           .replaceAll(RegExp(r'\D'), '');
       final computed = liveSuggestedCounterPrice(
