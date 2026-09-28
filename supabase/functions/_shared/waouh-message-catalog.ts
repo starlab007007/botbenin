@@ -127,7 +127,7 @@ const BUILDERS: Record<CatalogKey, Builder> = {
   }),
   offer_sent: (v) => ({
     title: "Offre envoyée",
-    detail: `${fcfa(v.amount)} pour ${shortTitle(v.title)}.${responseHint(v.responseMinutes) || ` En attente de ${other(v.role)}.`}`,
+    detail: `${fcfa(v.amount)} pour ${shortTitle(v.title)}.${responseHint(v.responseMinutes) || ` En attente ${v.role === "seller" ? "de l'acheteur" : "du vendeur"}.`}`,
   }),
   offer_received: (v) => ({
     title: "Nouvelle offre",
@@ -217,7 +217,7 @@ const BUILDERS: Record<CatalogKey, Builder> = {
   }),
   confirm_money_action: (v) => ({
     title: "Confirmez-vous ?",
-    detail: `${shortTitle(v.label || "Action", 40)}${v.amount ? ` : ${fcfa(v.amount)}` : ""}.`,
+    detail: `${shortTitle(v.label || "Action", 40)}${v.amount ? ` · ${fcfa(v.amount)}` : ""}.`,
   }),
   self_article: () => ({
     title: "Votre propre article",
