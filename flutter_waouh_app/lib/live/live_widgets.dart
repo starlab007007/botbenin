@@ -834,7 +834,7 @@ double? _premiumMarketMedian(String? marketComparison) {
       .allMatches(normalizedMarket)
       .map((match) => _premiumAmount(match.group(0)))
       .whereType<double>()
-      .where((amount) => amount >= 100)
+      .where((amount) => amount > 0)
       .toList();
   if (amounts.length >= 2) return (amounts[0] + amounts[1]) / 2;
   return amounts.isEmpty ? null : amounts.first;

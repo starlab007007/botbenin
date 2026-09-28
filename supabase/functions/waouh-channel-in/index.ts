@@ -258,7 +258,7 @@ function chatBudgetMax(text: string, mode: ChatNexusMode): number | null {
   if (!candidate) return null;
   const digits = candidate.replace(/[^\d]/g, "");
   const value = Number(digits);
-  return Number.isFinite(value) && value >= 100 ? value : null;
+  return Number.isFinite(value) && value >= 1 ? value : null;
 }
 
 function chatSignalPhoto(signal: any): string[] {

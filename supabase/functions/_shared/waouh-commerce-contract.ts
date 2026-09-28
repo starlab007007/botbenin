@@ -74,7 +74,7 @@ export function validateActionRequest(body: unknown): ValidationResult {
   let amount: number | null = null;
   if (b.amount != null && b.amount !== "") {
     const n = Number(b.amount);
-    if (!Number.isFinite(n) || n < 100 || n > 100_000_000) return { ok: false, error: "invalid_amount" };
+    if (!Number.isFinite(n) || n < 1 || n > 100_000_000) return { ok: false, error: "invalid_amount" };
     amount = Math.round(n);
   }
   const method = b.method === "cash" || b.method === "mobile_money" ? b.method : null;
