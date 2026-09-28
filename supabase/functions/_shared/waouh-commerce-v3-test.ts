@@ -35,13 +35,14 @@ Deno.test("contrat : actions valides et refus explicites", () => {
   assertEquals(validateActionRequest({ action: "open_deal", idem: IDEM, article_id: ART }).ok, true);
   assertEquals(validateActionRequest({ action: "offer", idem: IDEM, negotiation_id: NEG, amount: "2 300" }).ok, false);
   assertEquals(validateActionRequest({ action: "offer", idem: IDEM, negotiation_id: NEG, amount: 2300 }).ok, true);
+  assertEquals(validateActionRequest({ action: "offer", idem: IDEM, negotiation_id: NEG, amount: 80 }).ok, true);
   const cases: Array<[Record<string, unknown>, string]> = [
     [{ action: "hack", idem: IDEM }, "unknown_action"],
     [{ action: "open_deal", idem: "x" }, "idem_required"],
     [{ action: "open_deal", idem: IDEM }, "article_id_required"],
     [{ action: "open_deal", idem: IDEM, article_id: "pas-un-uuid" }, "invalid_article_id"],
     [{ action: "offer", idem: IDEM, negotiation_id: NEG }, "amount_required"],
-    [{ action: "offer", idem: IDEM, negotiation_id: NEG, amount: 50 }, "invalid_amount"],
+    [{ action: "offer", idem: IDEM, negotiation_id: NEG, amount: 0 }, "invalid_amount"],
     [{ action: "pay_mode", idem: IDEM, deal_id: DEAL }, "method_required"],
     [{ action: "seller_confirm", idem: IDEM }, "deal_id_required"],
     [{ action: "ask", idem: IDEM, article_id: ART }, "text_required"],
