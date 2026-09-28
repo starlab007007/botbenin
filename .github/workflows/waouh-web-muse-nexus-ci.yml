@@ -133,3 +133,17 @@ jobs:
       - name: Responsive browser smoke — desktop tablet mobile
         timeout-minutes: 12
         run: node scripts/verify-waouh-responsive-browser.mjs
+
+      - name: E2E Bic 100 — production screenshots
+        if: github.event_name == 'pull_request' && github.head_ref == 'test/waouh-bic100-e2e-screenshots'
+        timeout-minutes: 12
+        run: node scripts/waouh-e2e-bic100-screenshots.mjs
+
+      - name: Upload Bic 100 E2E screenshots
+        if: always() && github.event_name == 'pull_request' && github.head_ref == 'test/waouh-bic100-e2e-screenshots'
+        uses: actions/upload-artifact@v4
+        with:
+          name: waouh-bic100-e2e-screenshots
+          path: e2e-artifacts/bic100
+          if-no-files-found: error
+          retention-days: 7
