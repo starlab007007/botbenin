@@ -6,8 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
- import 'avatar/live_avatar_widgets.dart';
-import 'agentic/live_agentic_models.dart';
+ import 'agentic/live_agentic_models.dart';
 import 'agentic/live_agentic_workspace.dart';
 import 'live_controller.dart';
 import 'live_commerce_agent_ui.dart';
