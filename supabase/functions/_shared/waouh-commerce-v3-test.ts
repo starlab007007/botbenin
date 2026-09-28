@@ -33,6 +33,18 @@ const IDEM = "idem-0001-abcdef";
 // --------------------------------------------------------------- contrat
 Deno.test("contrat : actions valides et refus explicites", () => {
   assertEquals(validateActionRequest({ action: "open_deal", idem: IDEM, article_id: ART }).ok, true);
+  const catalogOpen = validateActionRequest({
+    action: "open_deal",
+    idem: IDEM,
+    catalog_id: ART,
+    source_id: ART,
+  });
+  assertEquals(catalogOpen.ok, true);
+  if (catalogOpen.ok) {
+    assertEquals(catalogOpen.request.catalog_id, ART);
+    assertEquals(catalogOpen.request.source_id, ART);
+    assertEquals(catalogOpen.request.article_id, null);
+  }
   assertEquals(validateActionRequest({ action: "offer", idem: IDEM, negotiation_id: NEG, amount: "2 300" }).ok, false);
   assertEquals(validateActionRequest({ action: "offer", idem: IDEM, negotiation_id: NEG, amount: 2300 }).ok, true);
   assertEquals(validateActionRequest({ action: "offer", idem: IDEM, negotiation_id: NEG, amount: 80 }).ok, true);
