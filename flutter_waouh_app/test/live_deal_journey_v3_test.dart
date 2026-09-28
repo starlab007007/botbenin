@@ -73,6 +73,13 @@ void main() {
           {'action': 'accept', 'negotiation_id': _neg, 'thread_id': 't1'});
       expect(liveCommerceRequestFromPayload('refuser:$_neg')?['action'], 'reject');
       expect(liveCommerceRequestFromPayload('je-veux:$_art')?['action'], 'open_deal');
+      final partner = liveCommerceRequestFromPayload(
+        'je-veux:$_art?source=partner&catalog_id=$_art&source_id=$_art',
+      );
+      expect(partner?['action'], 'open_deal');
+      expect(partner?['catalog_id'], _art);
+      expect(partner?['source_id'], _art);
+      expect(partner?.containsKey('article_id'), isFalse);
       expect(liveCommerceRequestFromPayload('payer-mobile:$_deal')?['method'], 'mobile_money');
       expect(liveCommerceRequestFromPayload('paiement-livraison:$_deal')?['method'], 'cash');
       expect(liveCommerceRequestFromPayload('annuler:$_deal')?['action'], 'cancel');
@@ -84,6 +91,12 @@ void main() {
       expect(liveArticleScopeKind('proposer-prix:$_art'), 'proposer-prix');
       final meta = liveCommercePayloadMeta('je-veux:$_art');
       expect(meta['article_id'], _art);
+      final partnerMeta = liveCommercePayloadMeta(
+        'je-veux:$_art?source=partner&catalog_id=$_art&source_id=$_art',
+      );
+      expect(partnerMeta['catalog_id'], _art);
+      expect(partnerMeta['source_id'], _art);
+      expect(partnerMeta.containsKey('article_id'), isFalse);
       expect(meta['commerce_action'], 'open_deal');
       expect(meta.containsKey('negotiation_id'), isFalse);
       expect(liveCommerceOutboundText('je-veux:$_art'), 'Je le veux');
