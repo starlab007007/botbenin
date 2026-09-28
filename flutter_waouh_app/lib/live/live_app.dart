@@ -83,8 +83,9 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
     ShellRoute(
       builder: (_, state, child) => LiveShell(path: state.uri.path, child: child),
       routes: [
-        GoRoute(path: '/app/chat', builder: (_, __) => const LiveInboxScreenV2()),
-        GoRoute(path: '/app/chat/waouh', builder: (_, __) => const LiveMainChatScreen()),
+        GoRoute(path: '/app/chat', builder: (_, __) => const LiveMainChatScreen()),
+        GoRoute(path: '/app/chat/waouh', redirect: (_, __) => '/app/chat'),
+        GoRoute(path: '/app/chat/inbox', builder: (_, __) => const LiveInboxScreenV2()),
         GoRoute(path: '/app/chat/match/:key', builder: (_, state) => LiveMatchChatV2(matchKey: state.pathParameters['key']!, initial: state.extra as LiveMatch?)),
         GoRoute(path: '/app/chat/:id', builder: (_, state) => LiveConversationScreen(conversationId: state.pathParameters['id']!)),
         GoRoute(path: '/app/notifications', builder: (_, __) => const LiveNotificationsScreenV2()),
@@ -127,9 +128,9 @@ class LiveShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final focused = path.startsWith('/app/chat/') || path.startsWith('/app/profile') || path.startsWith('/app/partner/businesses/');
+    final focused = path == '/app/chat' || path.startsWith('/app/chat/') || path.startsWith('/app/profile') || path.startsWith('/app/partner/businesses/');
     final waouh = context.watch<LiveWaouhController>();
-    final showAvatarDock = !path.startsWith('/app/avatar');
+    final showAvatarDock = !path.startsWith('/app/avatar') && !path.startsWith('/app/chat');
     return Scaffold(
       body: Column(
         children: [
