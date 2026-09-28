@@ -141,7 +141,7 @@ Deno.serve(async (req) => {
     let partnerRows: any[] = [];
     try {
       let pq = supabase.from('waouh_unified_catalog')
-        .select('id,titre,description,categorie,prix_min,prix_max,ville,quartier,vendeur_nom,vendeur_phone,vendeur_whatsapp,photos,source,partner_id,business_id,lat,lng')
+        .select('id,titre,description,categorie,prix_min,prix_max,ville,quartier,vendeur_nom,vendeur_phone,vendeur_whatsapp,photos,source,partner_id,business_id,lat,lng,promoted_article_id')
         .eq('type', 'offer')
         .eq('is_active', true);
       if (q.price_max) pq = pq.lte('prix_min', q.price_max);
@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
     const normalizedPartners = partnerRows.map((p: any) => ({
       id: p.id,
       // Identité explicite : id reste visuel, catalog_id est transactionnel.
-      article_id: null,
+      article_id: p.promoted_article_id || null,
       catalog_id: p.id,
       source_id: p.id,
       title: p.titre,
