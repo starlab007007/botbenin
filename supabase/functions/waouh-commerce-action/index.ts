@@ -482,7 +482,7 @@ Deno.serve(async (req) => {
 
     const message = renderCatalog(outcome.key, {
       title: loaded?.article?.title,
-      amount: (outcome.vars?.amount as number | undefined) ?? state?.lastOfferPrice ?? null,
+      amount: (outcome.vars?.amount as number | undefined) ?? pending?.amount ?? state?.lastOfferPrice ?? null,
       role: finalRole,
       suggested,
       responseMinutes,
