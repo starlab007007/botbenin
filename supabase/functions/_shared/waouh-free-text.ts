@@ -58,7 +58,15 @@ function finalize(r: Omit<FreeTextResult, "needsConfirm" | "execute">): FreeText
   }
   const money = MONEY_ACTIONS.has(r.action);
   const fromModel = r.source === "model";
-  const execute = r.confidence >= EXECUTE_THRESHOLD && !(money && fromModel);
+  // Une offre/contre-offre saisie librement modifie un prix : elle exige
+  // toujours un tap explicite, même quand une règle déterministe la reconnaît
+  // avec une forte confiance. Les boutons structurés `action:"offer"` ne
+  // passent pas par ce classifieur et restent exécutés en un seul tap.
+  //
+  // IMPORTANT : le comportement paiement / confirmation paiement reste
+  // volontairement inchangé dans ce lot.
+  const freeTextOffer = r.action === "offer";
+  const execute = r.confidence >= EXECUTE_THRESHOLD && !freeTextOffer && !(money && fromModel);
   return { ...r, needsConfirm: !execute, execute };
 }
 
