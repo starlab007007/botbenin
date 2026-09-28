@@ -12,7 +12,8 @@
 #
 # Ordre : base (interrupteurs) → fonctions. Après ce script :
 #   - Lot 1 actif (chat_interest_fastpath installé ACTIVÉ) ;
-#   - Lot 2 déployé mais COUPÉ (chat_catalog_v3, commerce_action_v3).
+#   - Lot 2 déployé mais COUPÉ (chat_catalog_v3, commerce_action_v3) ;
+#     Commerce V3 est servi par waouh-channel-in-secure (bridge quota-safe).
 # Activation du Lot 2 : scripts/waouh-chat-v3/flags.sql (étapes commentées).
 # =============================================================================
 set -euo pipefail
@@ -38,7 +39,7 @@ FUNCTIONS=(
   waouh-deal-ops
   waouh-webhook
   waouh-channel-in
-  waouh-commerce-action
+  waouh-channel-in-secure
 )
 
 step() { echo; echo "▶ $*"; }
@@ -68,6 +69,7 @@ done
 step "4/4 Contrôles"
 echo "  • Command Center : « Chat — ouverture directe de la Deal Room (v3) » = ACTIVÉ ;"
 echo "    « catalogue unifié (v3) » et « point d'entrée unique (v3) » = COUPÉS."
+echo "  • Commerce V3 utilise waouh-channel-in-secure ; aucun nouveau slot Edge Function requis."
 echo "  • Scénarios : scripts/waouh-chat-v3/smoke.sh (captures 1 et 2)."
 echo "  • Web : build + déploiement habituels (Deal Room, fiches produit)."
 echo "  • Flutter : flutter analyze && flutter test, puis build de l'application."

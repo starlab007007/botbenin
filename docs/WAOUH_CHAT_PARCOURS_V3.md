@@ -35,7 +35,7 @@ sans redéploiement.
 
 | Brique | Fichiers |
 |---|---|
-| Point d'entrée unique, idempotent | `supabase/functions/waouh-commerce-action/index.ts`, migration `20260927201000_waouh_commerce_actions.sql` |
+| Point d'entrée unique, idempotent | logique canonique `waouh-commerce-action`, servie en production par `waouh-channel-in-secure` en mode `commerce_action_v3` tant que le quota Edge Function bloque un nouveau slug ; migration `20260927201000_waouh_commerce_actions.sql` |
 | Contrat v3, tour, boutons calculés | `_shared/waouh-commerce-contract.ts` |
 | Texte libre strict (règles → contexte → modèle contraint) | `_shared/waouh-free-text.ts` |
 | Prédictif (prix suggéré, meilleure action, délai médian, relances, expiration, paiement) | `_shared/waouh-predictive.ts` |
@@ -57,6 +57,8 @@ export SUPABASE_PROJECT_REF=...
 ./scripts/waouh-chat-v3/deploy.sh          # plan
 ./scripts/waouh-chat-v3/deploy.sh --apply  # migrations puis 6 fonctions
 ```
+
+En production Bot.Bj, le contrat Commerce V3 passe par `waouh-channel-in-secure` afin de ne consommer aucun nouveau slot Edge Function. Le wrapper `waouh-commerce-action` reste canonique dans le dépôt et pourra être déployé plus tard sans changer le handler partagé.
 
 Puis build Web et Flutter habituels. Flutter n'a pas pu être compilé dans
 l'environnement de préparation : lancer `flutter analyze` et `flutter test`

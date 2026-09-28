@@ -1,6 +1,6 @@
 // WAOUH — Client du parcours unifié v3 (Web).
 //
-// - Boutons serveur → requête du contrat d'action v3 (waouh-commerce-action).
+// - Boutons serveur → contrat d'action v3 via le bridge sécurisé quota-safe.
 // - Repli automatique sur l'ancien chemin (waouh-channel-in-secure) tant que
 //   l'interrupteur commerce_action_v3 est coupé : aucune régression possible.
 // - Étapes du parcours et prix suggéré, identiques au serveur
@@ -168,9 +168,9 @@ export async function sendCommerceAction(
 ): Promise<CommerceActionResponse | null> {
   if (Date.now() < disabledUntil) return null;
   const payload: CommerceActionBody = { ...body, idem: body.idem ?? newIdem(), session_id: sessionId, source: body.source ?? "web" };
-  const { data, error } = await supabase.functions.invoke("waouh-commerce-action", {
+  const { data, error } = await supabase.functions.invoke("waouh-channel-in-secure", {
     headers: sessionId ? { "x-waouh-session": sessionId } : {},
-    body: payload,
+    body: { ...payload, __waouh_mode: "commerce_action_v3" },
   });
   if (error) {
     const status = (error as { context?: { status?: number } })?.context?.status;

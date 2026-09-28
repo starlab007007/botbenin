@@ -1,6 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Client du contrat d'action v3 (edge function `waouh-commerce-action`).
+/// Client du contrat d'action v3 via `waouh-channel-in-secure`.
 ///
 /// Tant que l'interrupteur `commerce_action_v3` est coupé, [send] renvoie
 /// `null` et l'appelant garde son chemin historique (waouh-channel-in-secure).
@@ -21,13 +21,14 @@ class LiveCommerceActionClient {
     if (temporarilyDisabled) return null;
     try {
       final response = await client.functions.invoke(
-        'waouh-commerce-action',
+        'waouh-channel-in-secure',
         headers: <String, String>{'x-waouh-session': sessionId},
         body: <String, dynamic>{
           ...request,
           'idem': idem,
           'session_id': sessionId,
           'source': request['source'] ?? 'flutter_deal_room',
+          '__waouh_mode': 'commerce_action_v3',
         },
       );
       final data = response.data;

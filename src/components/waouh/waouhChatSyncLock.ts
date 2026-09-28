@@ -335,7 +335,7 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
     // jamais exécuté depuis le texte libre sans tap, catalogue derrière son
     // interrupteur (textes historiques intacts quand il est coupé).
     commerceActionContract: {
-      file: "supabase/functions/waouh-commerce-action/index.ts",
+      file: "supabase/functions/_shared/waouh-commerce-action-handler.ts",
       mustContain: [
         "commerceActionV3Enabled(sb)",
         "waouh_commerce_actions",
