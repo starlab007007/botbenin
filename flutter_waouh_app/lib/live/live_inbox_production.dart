@@ -116,7 +116,9 @@ class _LiveInboxProductionScreenState extends State<LiveInboxProductionScreen> {
           appBar: _InboxAppBar(
             displayName: _displayName(fullName),
             imageUrl: auth.profile?.avatarUrl,
-            onlineLabel: auth.signedIn ? 'WAOUH actif' : 'Mode invité',
+            onlineLabel: auth.signedIn
+                ? 'Centre des conversations · WAOUH actif'
+                : 'Centre des conversations · Mode invité',
             notificationCountStream: controller.notificationItems(),
             onProfile: () => context.go('/app/profile'),
             onNotifications: () => context.go('/app/notifications'),
@@ -700,6 +702,11 @@ class _ProductionDiscussionFeed extends StatelessWidget {
                       onOpenWaouh('Compare les meilleures options pour '),
                   onNegotiate: () => onOpenWaouh('Je souhaite négocier '),
                 ),
+                const SizedBox(height: 10),
+                _CanonicalChatJourney(
+                  activeDealCount: currentMatches.length,
+                  conversationCount: currentConversations.length,
+                ),
                 const SizedBox(height: 18),
                 _ChatSectionHeader(
                   icon: Icons.handshake_outlined,
@@ -1049,6 +1056,195 @@ class _ChatEmptyLine extends StatelessWidget {
       );
 }
 
+
+class _CanonicalChatJourney extends StatelessWidget {
+  const _CanonicalChatJourney({
+    required this.activeDealCount,
+    required this.conversationCount,
+  });
+
+  final int activeDealCount;
+  final int conversationCount;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFBFCFF),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFE2EAF6)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(
+                  Icons.route_rounded,
+                  size: 16,
+                  color: Color(0xFF4F7FFF),
+                ),
+                const SizedBox(width: 6),
+                const Expanded(
+                  child: Text(
+                    'Parcours WAOUH',
+                    style: TextStyle(
+                      color: WaouhPalette.ink,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                if (activeDealCount > 0)
+                  _JourneyCount(
+                    label: activeDealCount.toString() +
+                        ' deal' +
+                        (activeDealCount > 1 ? 's' : ''),
+                    accent: const Color(0xFF16A879),
+                  ),
+                if (conversationCount > 0) ...[
+                  const SizedBox(width: 5),
+                  _JourneyCount(
+                    label: conversationCount.toString() +
+                        ' chat' +
+                        (conversationCount > 1 ? 's' : ''),
+                    accent: const Color(0xFF4F7FFF),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 9),
+            const Row(
+              children: [
+                Expanded(
+                  child: _JourneyNode(
+                    icon: Icons.auto_awesome_rounded,
+                    label: 'WAOUH One',
+                    active: true,
+                  ),
+                ),
+                _JourneyMiniArrow(),
+                Expanded(
+                  child: _JourneyNode(
+                    icon: Icons.hub_outlined,
+                    label: 'NEXUS',
+                  ),
+                ),
+                _JourneyMiniArrow(),
+                Expanded(
+                  child: _JourneyNode(
+                    icon: Icons.view_carousel_outlined,
+                    label: 'Opportunités',
+                  ),
+                ),
+                _JourneyMiniArrow(),
+                Expanded(
+                  child: _JourneyNode(
+                    icon: Icons.handshake_outlined,
+                    label: 'Deal Room',
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+}
+
+class _JourneyNode extends StatelessWidget {
+  const _JourneyNode({
+    required this.icon,
+    required this.label,
+    this.active = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: active
+                  ? const Color(0xFFE8F2FF)
+                  : const Color(0xFFF1F5FA),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: active
+                    ? const Color(0xFFC9DDF8)
+                    : const Color(0xFFE2E8F0),
+              ),
+            ),
+            child: Icon(
+              icon,
+              size: 15,
+              color: active
+                  ? const Color(0xFF3B6EA8)
+                  : const Color(0xFF718196),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: active
+                  ? const Color(0xFF274F7B)
+                  : const Color(0xFF667A73),
+              fontSize: 8.7,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      );
+}
+
+class _JourneyMiniArrow extends StatelessWidget {
+  const _JourneyMiniArrow();
+
+  @override
+  Widget build(BuildContext context) => const Padding(
+        padding: EdgeInsets.only(bottom: 14),
+        child: Icon(
+          Icons.chevron_right_rounded,
+          size: 14,
+          color: Color(0xFFB2BECC),
+        ),
+      );
+}
+
+class _JourneyCount extends StatelessWidget {
+  const _JourneyCount({required this.label, required this.accent});
+
+  final String label;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: .08),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: accent.withValues(alpha: .18)),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: accent,
+            fontSize: 8.5,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      );
+}
+
 class _MatchTile extends StatelessWidget {
   const _MatchTile({required this.match, required this.archived});
 
@@ -1124,23 +1320,58 @@ class _MatchTile extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF7FF),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: const Color(0xFFD9E8FA),
+                            ),
+                          ),
+                          child: const Text(
+                            'Deal Room',
+                            style: TextStyle(
+                              color: Color(0xFF356596),
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            match.participantLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: WaouhPalette.muted,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
                     Text(
-                      match.role == 'seller'
-                          ? 'Acheteur intéressé'
-                          : 'Nouvelle annonce correspondante',
+                      [
+                        if (match.price != null)
+                          match.price!.round().toString() + ' FCFA',
+                        if (match.city?.trim().isNotEmpty == true)
+                          match.city!.trim(),
+                        _compactTime(match.lastAt),
+                      ].join(' · '),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: WaouhPalette.muted,
-                        fontSize: 12.5,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      _compactTime(match.lastAt),
-                      style: const TextStyle(
-                        color: WaouhPalette.muted,
-                        fontSize: 11.5,
+                        fontSize: 10.8,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
