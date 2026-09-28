@@ -356,9 +356,14 @@ bool liveCanPromoteInterestedMatch({
 
   final seedArticle = seed.articleId.trim();
   final resolvedArticle = resolved.articleId.trim();
+  final seedSource = (seed.source ?? '').trim().toLowerCase();
+  final seedMayRequireCanonicalization = seedSource.contains('partner') ||
+      seedSource.contains('catalog') ||
+      seedSource.contains('radar');
   if (seedArticle.isNotEmpty &&
       resolvedArticle.isNotEmpty &&
-      seedArticle != resolvedArticle) {
+      seedArticle != resolvedArticle &&
+      !seedMayRequireCanonicalization) {
     return false;
   }
 
@@ -445,6 +450,7 @@ LiveMatch _buildInterestedMatch({
   final idempotency = liveText(requestMeta['idempotency_key']).trim();
   final sourceIdentity = liveText(
     requestMeta['source_id'] ??
+        requestMeta['catalog_id'] ??
         requestMeta['status_id'] ??
         requestMeta['radar_item_id'],
   ).trim();
