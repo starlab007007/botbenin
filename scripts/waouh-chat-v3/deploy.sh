@@ -25,8 +25,8 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 MIGRATIONS=(
-  supabase/migrations/20260927200000_waouh_chat_v3_flags.sql
-  supabase/migrations/20260927201000_waouh_commerce_actions.sql
+  supabase/migrations/20260928092242_waouh_chat_v3_flags.sql
+  supabase/migrations/20260928092245_waouh_commerce_actions.sql
 )
 
 # Fonctions dont le comportement change. Les autres fonctions qui importent
