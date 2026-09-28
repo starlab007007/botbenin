@@ -340,7 +340,8 @@ class LiveProductionShell extends StatelessWidget {
         path.startsWith('/app/profile') ||
         path.startsWith('/app/partner/businesses/');
     final waouh = context.watch<LiveWaouhController>();
-    final showAvatarDock = !path.startsWith('/app/avatar');
+    final showAvatarDock =
+        !path.startsWith('/app/avatar') && !path.startsWith('/app/chat');
     return Scaffold(
       body: Column(
         children: [
