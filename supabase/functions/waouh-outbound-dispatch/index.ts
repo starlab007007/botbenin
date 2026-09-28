@@ -125,11 +125,22 @@ async function sendWahaImage(base: string, session: string, chatId: string, imag
     body: JSON.stringify({ session, chatId, file: { url: imageUrl }, caption }),
   });
   if (r.ok) return r;
-  return fetch(`${base}/api/${session}/sendImage`, {
+
+  // Certaines installations WAHA n'exposent pas sendImage sur ce chemin.
+  // On tente la route session, puis on dégrade TOUJOURS vers le texte :
+  // une photo indisponible ne doit jamais faire perdre une notification métier.
+  r = await fetch(`${base}/api/${session}/sendImage`, {
     method: "POST",
     headers,
     body: JSON.stringify({ chatId, file: { url: imageUrl }, caption }),
   });
+  if (r.ok) return r;
+
+  console.warn("[waouh-outbound-dispatch] image delivery unavailable; falling back to text", {
+    chatId,
+    status: r.status,
+  });
+  return sendWahaText(base, session, chatId, caption, headers);
 }
 
 async function sendWahaButtons(base: string, session: string, chatId: string, text: string, actions: Array<{ id: string; label: string; url?: string; phone?: string }>, headers: Record<string, string>, footer?: string, title?: string, imageUrl?: string | null) {
