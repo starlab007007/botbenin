@@ -62,7 +62,7 @@ void main() {
   });
   test('promotion partner accepte le passage catalog_id vers article canonique', () {
     final seed = LiveMatch(
-      key: 'pending_partner_identity',
+      key: 'pending_interest_partner_identity',
       articleId: 'catalog-legacy-id',
       role: 'buyer',
       title: 'Produit partenaire',
