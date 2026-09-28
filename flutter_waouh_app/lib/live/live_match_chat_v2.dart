@@ -671,6 +671,30 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                       match: match,
                     ),
                   ),
+                  LiveSmartComposerBar(
+                    messages: merged,
+                    busy: waiting,
+                    onPrompt: (value) {
+                      _composer.text = value;
+                      _composer.selection = TextSelection.collapsed(
+                        offset: _composer.text.length,
+                      );
+                      _focus.requestFocus();
+                    },
+                    onSell: () {
+                      _composer.text = 'Je propose ';
+                      _composer.selection = TextSelection.collapsed(
+                        offset: _composer.text.length,
+                      );
+                      _focus.requestFocus();
+                    },
+                    onMuse: () => showLiveUnifiedIntelligenceSheet(
+                      context,
+                      messages: merged,
+                      busy: waiting,
+                      match: match,
+                    ),
+                  ),
                   Expanded(
                     child: LiveSmartTimeline(
                       messages: merged,
