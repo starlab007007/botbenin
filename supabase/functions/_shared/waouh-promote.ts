@@ -2,6 +2,8 @@
 // waouh_articles row so the negotiation tunnel (which requires article_id)
 // works for items posted by partners. Idempotent.
 
+import { ensureWaouhVendorStub } from "./waouh-phone.ts";
+
 export interface PromoteResult {
   article_id: string | null;
   catalog_id: string;
@@ -45,7 +47,37 @@ export async function promoteCatalogToArticle(
     .maybeSingle();
 
   if (!cat) return { article_id: null, catalog_id, created: false, reason: `catalog row missing: ${selErr?.message ?? "no data"}` };
+
+  // Une offre partenaire doit avoir un interlocuteur canonique avant d'entrer
+  // dans le tunnel transactionnel. Si nécessaire, matérialiser un vendeur
+  // WhatsApp à partir du contact réel du catalogue.
+  let sellerId = overrides.seller_id ?? null;
+  if (!sellerId) {
+    const stub = await ensureWaouhVendorStub(
+      sb,
+      cat.vendeur_whatsapp || cat.vendeur_phone || null,
+      {
+        display_name: cat.vendeur_nom || cat.titre || "Vendeur partenaire",
+        city: cat.ville || null,
+        stub_origin: cat.source === "partner" ? "partner" : "catalog",
+      },
+    );
+    sellerId = stub?.id ?? null;
+  }
+
   if (cat.promoted_article_id) {
+    if (sellerId) {
+      const { data: promoted } = await sb.from("waouh_articles")
+        .select("id,seller_id")
+        .eq("id", cat.promoted_article_id)
+        .maybeSingle();
+      if (promoted?.id && !promoted.seller_id) {
+        await sb.from("waouh_articles")
+          .update({ seller_id: sellerId })
+          .eq("id", promoted.id)
+          .is("seller_id", null);
+      }
+    }
     return { article_id: cat.promoted_article_id, catalog_id, created: false };
   }
 
@@ -66,7 +98,7 @@ export async function promoteCatalogToArticle(
   const { data: article, error } = await sb
     .from("waouh_articles")
     .insert({
-      seller_id: overrides.seller_id ?? null,
+      seller_id: sellerId,
       title: cat.titre || "Article partenaire",
       description: cat.description || null,
       category: normalizedCategory,
