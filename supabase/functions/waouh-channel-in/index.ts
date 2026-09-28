@@ -22,6 +22,7 @@ import {
   recordChatMessage,
 } from "../_shared/waouh-chat-writer.ts";
 import { dealProductCard, openBuyerDeal, publicPhotos } from "../_shared/waouh-deal-open.ts";
+import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 import {
   decideFastPath,
   isExplicitOfferText,
@@ -72,6 +73,97 @@ const OPEN_NEG_COLUMNS = "id, article_id, thread_id, buyer_user_id, seller_user_
 const WAOUH_BUSINESS_PHONE = normalizeBeninPhone(Deno.env.get("WAOUH_BUSINESS_PHONE") || "65653468") || "22965653468";
 
 type WaouhAction = { id: string; label: string };
+
+/**
+ * Canonicalise l'identité d'une carte avant toute écriture/routage.
+ * Compatibilité : certaines anciennes builds envoyaient catalog_id dans
+ * article_id ; le serveur répare ce cas vers waouh_articles.id.
+ */
+async function canonicalizeClientProductMeta(sb: any, meta: Record<string, any>) {
+  const legacyArticleId =
+    typeof meta.article_id === "string" ? meta.article_id.trim() : "";
+  let catalogId =
+    typeof meta.catalog_id === "string" ? meta.catalog_id.trim() : "";
+  const sourceId =
+    typeof meta.source_id === "string" ? meta.source_id.trim() : "";
+  let articleId = legacyArticleId;
+
+  if (articleId) {
+    const { data: article } = await sb.from("waouh_articles")
+      .select("id").eq("id", articleId).maybeSingle();
+    if (!article?.id) {
+      const { data: catalog } = await sb.from("waouh_unified_catalog")
+        .select("id,promoted_article_id")
+        .eq("id", articleId)
+        .maybeSingle();
+      if (catalog?.id) {
+        catalogId = catalog.id;
+        articleId = catalog.promoted_article_id ?? "";
+      } else {
+        articleId = "";
+      }
+    }
+  }
+
+  if (!catalogId && sourceId) {
+    const source = String(meta.source ?? meta.origin_surface ?? "").toLowerCase();
+    if (source.includes("partner") || source.includes("catalog")) {
+      const { data: catalog } = await sb.from("waouh_unified_catalog")
+        .select("id,promoted_article_id")
+        .eq("id", sourceId)
+        .maybeSingle();
+      if (catalog?.id) {
+        catalogId = catalog.id;
+        articleId = articleId || catalog.promoted_article_id || "";
+      }
+    }
+  }
+
+  if (catalogId && !articleId) {
+    try {
+      const promoted = await promoteCatalogToArticle(sb, catalogId);
+      articleId = promoted.article_id ?? "";
+    } catch (error) {
+      console.warn(
+        "[waouh-channel-in] catalog promotion",
+        String((error as any)?.message || error),
+      );
+    }
+  }
+
+  if (!articleId && sourceId) {
+    const { data: signal } = await sb.from("waouh_radar_signals")
+      .select("promoted_article_id")
+      .eq("id", sourceId)
+      .maybeSingle();
+    if (signal?.promoted_article_id) articleId = signal.promoted_article_id;
+  }
+
+  if (catalogId) meta.catalog_id = catalogId;
+  if (articleId) {
+    if (legacyArticleId && legacyArticleId !== articleId) {
+      meta.legacy_product_id = legacyArticleId;
+    }
+    meta.article_id = articleId;
+
+    const rawButton = String(meta.button_payload ?? "");
+    const queryAt = rawButton.indexOf("?");
+    const command = queryAt < 0 ? rawButton : rawButton.slice(0, queryAt);
+    const suffix = queryAt < 0 ? "" : rawButton.slice(queryAt);
+    const m = /^(je-veux|proposer-prix|poser-question):([0-9a-f-]{36})$/i
+      .exec(command.trim());
+    if (
+      m &&
+      (!legacyArticleId ||
+        m[2].toLowerCase() === legacyArticleId.toLowerCase() ||
+        m[2].toLowerCase() === catalogId.toLowerCase())
+    ) {
+      meta.button_payload = `${m[1]}:${articleId}${suffix}`;
+    }
+  } else if (legacyArticleId && catalogId) {
+    delete meta.article_id;
+  }
+}
 
 function beninPhoneCandidates(value: string | null | undefined): string[] {
   const canon = normalizeBeninPhone(String(value || ""));
@@ -604,6 +696,9 @@ serve(async (req) => {
     const city = raw.city ?? "Cotonou";
     const authUserId: string | null = raw.authUserId ?? null;
     const clientMeta: Record<string, any> = (raw.meta && typeof raw.meta === "object") ? raw.meta : {};
+
+    // Toutes les surfaces voient désormais le même article canonique.
+    await canonicalizeClientProductMeta(sb, clientMeta);
 
     const surface = String(
       clientMeta.origin_surface ?? clientMeta.source ?? raw.origin_surface ?? raw.source ?? "",
