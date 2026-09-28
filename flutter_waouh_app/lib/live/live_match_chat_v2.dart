@@ -221,7 +221,135 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
     }
   }
 
+  Map<String, dynamic>? _latestPendingOffer() {
+    for (final message in _lastMerged.reversed) {
+      final pending = liveMap(message.meta['pending']);
+      if (pending['action'] == 'offer') return pending;
+    }
+    return null;
+  }
+
+  Future<void> _confirmPendingOffer(Map<String, dynamic> pending) async {
+    if (_actionInFlight) return;
+    _actionInFlight = true;
+    try {
+      final response = await _controller.sendCommerceAction(<String, dynamic>{
+        ...pending,
+        'source': 'flutter_deal_room',
+      });
+      if (!mounted) return;
+      if (response == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Confirmation indisponible. Réessayez.')),
+        );
+      } else if (response['ok'] == false) {
+        final reply = liveMap(response['reply']);
+        final title = liveText(reply['title'], 'Action indisponible');
+        final detail = liveText(reply['detail']);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(detail.isEmpty ? title : '$title · $detail')),
+        );
+      }
+    } finally {
+      _actionInFlight = false;
+    }
+  }
+
+  Future<void> _sendTypedOfferV3(LiveMatch match, String text) async {
+    if (_actionInFlight) return;
+    _actionInFlight = true;
+    Map<String, dynamic>? response;
+    try {
+      response = await _controller.sendCommerceAction(<String, dynamic>{
+        'action': 'text',
+        'text': text,
+        'article_id': match.articleId,
+        if (match.threadId?.trim().isNotEmpty == true) 'thread_id': match.threadId,
+        if (match.negotiationId?.trim().isNotEmpty == true)
+          'negotiation_id': match.negotiationId,
+        'source': 'flutter_deal_room',
+      });
+    } catch (_) {
+      response = null;
+    } finally {
+      _actionInFlight = false;
+    }
+    if (!mounted) return;
+    if (response == null) {
+      // V3 coupé / indisponible : comportement historique inchangé.
+      _send(null, true);
+      return;
+    }
+
+    setState(() => _composer.clear());
+    _focus.requestFocus();
+    final pending = liveMap(response['pending']);
+    if (pending['action'] != 'offer') {
+      if (response['ok'] == false) {
+        final reply = liveMap(response['reply']);
+        final title = liveText(reply['title'], 'Action indisponible');
+        final detail = liveText(reply['detail']);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(detail.isEmpty ? title : '$title · $detail')),
+        );
+      }
+      return;
+    }
+
+    final reply = liveMap(response['reply']);
+    final title = liveText(reply['title'], 'Confirmer l’offre');
+    final detail = liveText(reply['detail']);
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: Text(detail.isEmpty ? text : detail),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Modifier'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Confirmer'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (confirm == true) {
+      await _confirmPendingOffer(pending);
+    } else {
+      final amount = int.tryParse('${pending['amount'] ?? ''}');
+      setState(() {
+        _composer.text = amount != null && amount > 0
+            ? 'Je propose ${liveFormatFcfa(amount)}'
+            : text;
+        _composer.selection =
+            TextSelection.collapsed(offset: _composer.text.length);
+      });
+      _focus.requestFocus();
+    }
+  }
+
   void _handlePayload(String payload) {
+    if (payload == 'confirm' || payload == 'dismiss') {
+      final pending = _latestPendingOffer();
+      if (pending != null) {
+        if (payload == 'confirm') {
+          unawaited(_confirmPendingOffer(pending));
+        } else {
+          final amount = int.tryParse('${pending['amount'] ?? ''}');
+          _composer.text = amount != null && amount > 0
+              ? 'Je propose ${liveFormatFcfa(amount)}'
+              : 'Je propose ';
+          _composer.selection =
+              TextSelection.collapsed(offset: _composer.text.length);
+          _focus.requestFocus();
+        }
+        return;
+      }
+    }
     final kind = liveCommerceActionKind(payload);
     final articleScope = liveArticleScopeKind(payload);
     if (kind == LiveCommerceActionKind.counter || articleScope == 'proposer-prix') {
@@ -289,7 +417,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
     }
   }
 
-  void _send([String? payload]) {
+  void _send([String? payload, bool bypassCommerceOffer = false]) {
     final match = _match;
     final text = payload == null
         ? _composer.text.trim()
@@ -303,6 +431,19 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
       actionMeta['commerce_action'] = 'ask';
       setState(() => _askMode = false);
     }
+
+    final typedOffer = payload == null &&
+        !askingQuestion &&
+        !bypassCommerceOffer &&
+        media.isEmpty &&
+        RegExp(r'^\s*(je\s+)?(propose|contre[-\s]?propose)\b',
+                caseSensitive: false)
+            .hasMatch(text);
+    if (match != null && typedOffer) {
+      unawaited(_sendTypedOfferV3(match, text));
+      return;
+    }
+
     // Une question commençant par « Oui… » ou « Non… » reste une question.
     if (payload == null && !askingQuestion) {
       final normalized = text.trim().toLowerCase();
