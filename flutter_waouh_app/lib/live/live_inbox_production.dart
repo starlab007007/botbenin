@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
 import 'avatar/live_avatar_controller.dart';
+import 'avatar/live_avatar_widgets.dart';
 import 'brand_mark.dart';
 import 'live_controller.dart';
 import 'live_guest_action_gate.dart';
@@ -633,7 +634,8 @@ class _ProductionDiscussionFeed extends StatelessWidget {
                         '${item.title} ${item.city ?? ''} ${item.seedText ?? ''}',
                       ),
                     )
-                    .toList();
+                    .toList()
+                  ..sort((a, b) => b.lastAt.compareTo(a.lastAt));
             final archivedMatches =
                 (archivedMatchesSnapshot.data ?? const <LiveMatch>[])
                     .where(
@@ -641,7 +643,8 @@ class _ProductionDiscussionFeed extends StatelessWidget {
                         '${item.title} ${item.city ?? ''} ${item.seedText ?? ''}',
                       ),
                     )
-                    .toList();
+                    .toList()
+                  ..sort((a, b) => b.lastAt.compareTo(a.lastAt));
             final currentConversations = (currentConversationsSnapshot.data ??
                     const <LiveConversation>[])
                 .where(
@@ -649,80 +652,100 @@ class _ProductionDiscussionFeed extends StatelessWidget {
                     '${item.phoneNumber ?? ''} ${item.lastMessage ?? ''}',
                   ),
                 )
-                .toList();
-            final items = archives ? archivedMatches : currentMatches;
+                .toList()
+              ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
             final unread = currentMatches.fold<int>(
               0,
               (sum, item) => sum + item.unreadCount,
             );
+
+            if (archives) {
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+                children: [
+                  _ChatSectionHeader(
+                    icon: Icons.archive_outlined,
+                    title: 'ARCHIVES',
+                    subtitle: '${archivedMatches.length} Deal Room(s)',
+                    trailing: OutlinedButton.icon(
+                      onPressed: onToggleArchives,
+                      icon: const Icon(Icons.forum_outlined, size: 17),
+                      label: const Text('Actives'),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (archivedMatches.isNotEmpty)
+                    ...archivedMatches.map(
+                      (item) => _MatchTile(match: item, archived: true),
+                    )
+                  else
+                    _DiscussionEmpty(
+                      archived: true,
+                      onNewChat: onNewChat,
+                    ),
+                ],
+              );
+            }
+
             return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+              padding: const EdgeInsets.fromLTRB(16, 5, 16, 32),
               children: [
                 _WaouhAssistantCard(
                   onDiscuss: () => onOpenWaouh(''),
-                  onBuy: () => onOpenWaouh('Je cherche '),
+                  onBuy: () => onOpenWaouh('Je veux acheter '),
                   onSell: () => onOpenWaouh('Je vends : '),
+                  onSearch: () => onOpenWaouh('Je cherche '),
+                  onCompare: () =>
+                      onOpenWaouh('Compare les meilleures options pour '),
                   onNegotiate: () => onOpenWaouh('Je souhaite négocier '),
                 ),
                 const SizedBox(height: 18),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            archives ? 'ARCHIVES' : 'CONVERSATIONS',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 13,
-                              color: WaouhPalette.muted,
-                              letterSpacing: .25,
-                            ),
-                          ),
-                          if (!archives && unread > 0)
-                            Text(
-                              '$unread message${unread > 1 ? 's' : ''} non lu${unread > 1 ? 's' : ''}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF08756A),
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: onToggleArchives,
-                      icon: Icon(
-                        archives
-                            ? Icons.forum_outlined
-                            : Icons.archive_outlined,
-                        size: 17,
-                      ),
-                      label: Text(
-                        archives
-                            ? 'Actives'
-                            : 'Archives (${archivedMatches.length})',
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size(0, 42),
-                        foregroundColor: WaouhPalette.blue,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                if (items.isNotEmpty)
-                  ...items.map(
-                    (item) => _MatchTile(match: item, archived: archives),
+                _ChatSectionHeader(
+                  icon: Icons.handshake_outlined,
+                  title: 'DEAL ROOMS EN COURS',
+                  subtitle: currentMatches.isEmpty
+                      ? 'Aucune négociation active'
+                      : '${currentMatches.length} active(s)'
+                          '${unread > 0 ? ' · $unread non lu(s)' : ''}',
+                  trailing: OutlinedButton.icon(
+                    onPressed: onToggleArchives,
+                    icon: const Icon(Icons.archive_outlined, size: 17),
+                    label: Text('Archives (${archivedMatches.length})'),
                   ),
-                if (!archives && currentConversations.isNotEmpty)
+                ),
+                const SizedBox(height: 9),
+                if (currentMatches.isNotEmpty)
+                  ...currentMatches.map(
+                    (item) => _MatchTile(match: item, archived: false),
+                  )
+                else
+                  const _ChatEmptyLine(
+                    icon: Icons.handshake_outlined,
+                    text:
+                        'Les négociations ouvertes depuis WAOUH apparaîtront ici.',
+                  ),
+                const SizedBox(height: 18),
+                _ChatSectionHeader(
+                  icon: Icons.forum_outlined,
+                  title: 'CONVERSATIONS EXISTANTES',
+                  subtitle: currentConversations.isEmpty
+                      ? 'Aucune conversation directe'
+                      : '${currentConversations.length} conversation(s)',
+                ),
+                const SizedBox(height: 9),
+                if (currentConversations.isNotEmpty)
                   ...currentConversations.map(
                     (item) => _ConversationTile(conversation: item),
+                  )
+                else
+                  _ChatEmptyLine(
+                    icon: Icons.chat_bubble_outline_rounded,
+                    text:
+                        'Commencez par WAOUH One pour rechercher, comparer ou négocier.',
+                    actionLabel: 'Ouvrir WAOUH One',
+                    onAction: onNewChat,
                   ),
-                if (items.isEmpty && (archives || currentConversations.isEmpty))
-                  _DiscussionEmpty(archived: archives, onNewChat: onNewChat),
               ],
             );
           },
@@ -737,104 +760,166 @@ class _WaouhAssistantCard extends StatelessWidget {
     required this.onDiscuss,
     required this.onSell,
     required this.onBuy,
+    required this.onSearch,
+    required this.onCompare,
     required this.onNegotiate,
   });
 
   final VoidCallback onDiscuss;
   final VoidCallback onSell;
   final VoidCallback onBuy;
+  final VoidCallback onSearch;
+  final VoidCallback onCompare;
   final VoidCallback onNegotiate;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          gradient: WaouhGradients.airHero,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: const Color(0xFFDDE7F7)),
-          boxShadow: WaouhShadows.card,
-        ),
-        child: Column(
-          children: [
-            Row(
-              children: [
+  Widget build(BuildContext context) {
+    final avatar = context.watch<LiveAvatarController>();
+    final avatarReady = avatar.loaded && avatar.profile.configured;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 13),
+      decoration: BoxDecoration(
+        gradient: WaouhGradients.airHero,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: const Color(0xFFD9E5F6)),
+        boxShadow: WaouhShadows.card,
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              if (avatarReady)
+                LiveAvatarVisual(
+                  preset: avatar.profile.preset,
+                  state: LiveAvatarPresenceState.idle,
+                  size: 52,
+                  showStatusBadge: true,
+                )
+              else
                 Container(
-                  width: 48,
-                  height: 48,
-                  padding: const EdgeInsets.all(8),
+                  width: 52,
+                  height: 52,
+                  padding: const EdgeInsets.all(9),
                   decoration: BoxDecoration(
                     color: Colors.white70,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(17),
                     border: Border.all(color: const Color(0xFFE1E9F7)),
                   ),
-                  child: const BrandMark(size: 30, semanticLabel: 'WAOUH IA'),
+                  child:
+                      const BrandMark(size: 32, semanticLabel: 'WAOUH One IA'),
                 ),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'WAOUH One',
-                        style: TextStyle(
-                          color: WaouhPalette.ink,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Flexible(
+                          child: Text(
+                            'WAOUH One',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: WaouhPalette.ink,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -.25,
+                            ),
+                          ),
                         ),
-                      ),
-                      SizedBox(height: 3),
-                      Text(
-                        'Parlez. Cherchez. Négociez.',
-                        style: TextStyle(
-                          color: WaouhPalette.muted,
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w600,
+                        const SizedBox(width: 6),
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF20C997),
+                            shape: BoxShape.circle,
+                          ),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      avatarReady
+                          ? '${avatar.name} comprend votre objectif et vous accompagne jusqu’au deal.'
+                          : 'Achetez, vendez, cherchez, comparez et négociez.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: WaouhPalette.muted,
+                        fontSize: 10.5,
+                        height: 1.25,
+                        fontWeight: FontWeight.w600,
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+              ),
+              FilledButton(
+                onPressed: onDiscuss,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(0, 40),
+                  padding: const EdgeInsets.symmetric(horizontal: 13),
+                ),
+                child: const Text('Ouvrir'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              _AssistantQuickAction(
+                label: 'Acheter',
+                icon: Icons.shopping_cart_outlined,
+                onTap: onBuy,
+              ),
+              _AssistantQuickAction(
+                label: 'Vendre',
+                icon: Icons.sell_outlined,
+                onTap: onSell,
+              ),
+              _AssistantQuickAction(
+                label: 'Chercher',
+                icon: Icons.travel_explore_rounded,
+                onTap: onSearch,
+              ),
+              _AssistantQuickAction(
+                label: 'Comparer',
+                icon: Icons.compare_arrows_rounded,
+                onTap: onCompare,
+              ),
+              _AssistantQuickAction(
+                label: 'Négocier',
+                icon: Icons.handshake_outlined,
+                onTap: onNegotiate,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Row(
+            children: [
+              Icon(Icons.hub_outlined, size: 14, color: Color(0xFF5A6F94)),
+              SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  'NEXUS recherche · Signal Fabric classe · votre Avatar vous assiste',
+                  style: TextStyle(
+                    color: Color(0xFF5A6F94),
+                    fontSize: 9.6,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                FilledButton(
-                  onPressed: onDiscuss,
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(0, 40),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                  ),
-                  child: const Text('Ouvrir'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 11),
-            Row(
-              children: [
-                Expanded(
-                  child: _AssistantQuickAction(
-                    label: 'Acheter',
-                    icon: Icons.search_rounded,
-                    onTap: onBuy,
-                  ),
-                ),
-                const SizedBox(width: 7),
-                Expanded(
-                  child: _AssistantQuickAction(
-                    label: 'Vendre',
-                    icon: Icons.sell_outlined,
-                    onTap: onSell,
-                  ),
-                ),
-                const SizedBox(width: 7),
-                Expanded(
-                  child: _AssistantQuickAction(
-                    label: 'Négocier',
-                    icon: Icons.handshake_outlined,
-                    onTap: onNegotiate,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _AssistantQuickAction extends StatelessWidget {
@@ -849,26 +934,116 @@ class _AssistantQuickAction extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => OutlinedButton(
+  Widget build(BuildContext context) => ActionChip(
+        avatar: Icon(icon, size: 16, color: WaouhPalette.blue),
+        label: Text(label),
         onPressed: onTap,
-        style: OutlinedButton.styleFrom(
-          backgroundColor: Colors.white70,
-          minimumSize: const Size(0, 40),
-          padding: const EdgeInsets.symmetric(horizontal: 6),
-          side: const BorderSide(color: Color(0xFFDDE6F5)),
+        backgroundColor: Colors.white.withValues(alpha: .82),
+        side: const BorderSide(color: Color(0xFFDDE6F5)),
+        labelStyle: const TextStyle(
+          color: WaouhPalette.ink,
+          fontSize: 10.5,
+          fontWeight: FontWeight.w800,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(999),
+        ),
+      );
+}
+
+class _ChatSectionHeader extends StatelessWidget {
+  const _ChatSectionHeader({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0F5FF),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, size: 17, color: WaouhPalette.blue),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: WaouhPalette.ink,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: .2,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: WaouhPalette.muted,
+                    fontSize: 10.2,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (trailing != null) trailing!,
+        ],
+      );
+}
+
+class _ChatEmptyLine extends StatelessWidget {
+  const _ChatEmptyLine({
+    required this.icon,
+    required this.text,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final IconData icon;
+  final String text;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.fromLTRB(12, 11, 10, 11),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: WaouhPalette.line),
+        ),
+        child: Row(
           children: [
-            Icon(icon, size: 16, color: WaouhPalette.blue),
-            const SizedBox(height: 2),
-            FittedBox(
-              fit: BoxFit.scaleDown,
+            Icon(icon, size: 20, color: WaouhPalette.muted),
+            const SizedBox(width: 9),
+            Expanded(
               child: Text(
-                label,
-                style: const TextStyle(fontSize: 10.5),
+                text,
+                style: const TextStyle(
+                  color: WaouhPalette.muted,
+                  fontSize: 10.8,
+                  height: 1.25,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
+            if (actionLabel != null && onAction != null)
+              TextButton(onPressed: onAction, child: Text(actionLabel!)),
           ],
         ),
       );
