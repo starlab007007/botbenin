@@ -42,11 +42,14 @@ export async function promoteCatalogToArticle(
 
   const { data: cat, error: selErr } = await sb
     .from("waouh_unified_catalog")
-    .select("id, source, source_ref_id, titre, description, categorie, prix_min, prix_max, devise, ville, vendeur_whatsapp, vendeur_phone, vendeur_nom, partner_id, promoted_article_id, photos")
+    .select("id, source, source_ref_id, titre, description, categorie, prix_min, prix_max, devise, ville, vendeur_whatsapp, vendeur_phone, vendeur_nom, partner_id, promoted_article_id, photos, is_active")
     .eq("id", catalog_id)
     .maybeSingle();
 
   if (!cat) return { article_id: null, catalog_id, created: false, reason: `catalog row missing: ${selErr?.message ?? "no data"}` };
+  if (cat.is_active === false) {
+    return { article_id: null, catalog_id, created: false, reason: "catalog inactive" };
+  }
 
   // Une offre partenaire doit avoir un interlocuteur canonique avant d'entrer
   // dans le tunnel transactionnel. Si nécessaire, matérialiser un vendeur
@@ -66,19 +69,27 @@ export async function promoteCatalogToArticle(
   }
 
   if (cat.promoted_article_id) {
-    if (sellerId) {
-      const { data: promoted } = await sb.from("waouh_articles")
-        .select("id,seller_id")
-        .eq("id", cat.promoted_article_id)
-        .maybeSingle();
-      if (promoted?.id && !promoted.seller_id) {
+    const { data: promoted } = await sb.from("waouh_articles")
+      .select("id,seller_id,status")
+      .eq("id", cat.promoted_article_id)
+      .maybeSingle();
+
+    const unavailable = new Set(["sold", "reserved", "archived", "deleted"]);
+    const promotedStatus = String(promoted?.status || "").toLowerCase();
+
+    // Le catalogue reste l'autorité. Une fiche catalogue active ne doit pas
+    // réutiliser un ancien article transactionnel déjà vendu/réservé.
+    if (promoted?.id && !unavailable.has(promotedStatus)) {
+      if (sellerId && !promoted.seller_id) {
         await sb.from("waouh_articles")
           .update({ seller_id: sellerId })
           .eq("id", promoted.id)
           .is("seller_id", null);
       }
+      return { article_id: promoted.id, catalog_id, created: false };
     }
-    return { article_id: cat.promoted_article_id, catalog_id, created: false };
+    // Article absent ou terminal : continuer ci-dessous et matérialiser une
+    // nouvelle fiche canonique, puis remplacer promoted_article_id.
   }
 
   const price = cat.prix_min ?? cat.prix_max ?? null;
