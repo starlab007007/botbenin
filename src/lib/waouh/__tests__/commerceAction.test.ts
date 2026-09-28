@@ -64,9 +64,10 @@ describe("parcours v3 — client Web", () => {
     const r = await sendCommerceAction({ action: "offer", negotiation_id: NEG, amount: 2300 }, "s1");
     expect(r?.ok).toBe(true);
     const [name, options] = invoke.mock.calls[0];
-    expect(name).toBe("waouh-commerce-action");
+    expect(name).toBe("waouh-channel-in-secure");
     expect(options.headers).toEqual({ "x-waouh-session": "s1" });
     expect(options.body.idem).toMatch(/^web-/);
     expect(options.body.session_id).toBe("s1");
+    expect(options.body.__waouh_mode).toBe("commerce_action_v3");
   });
 });
