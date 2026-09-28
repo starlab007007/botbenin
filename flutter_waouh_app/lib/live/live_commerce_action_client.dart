@@ -93,11 +93,15 @@ Map<String, dynamic>? liveCommerceRequestFromPayload(
           'action': 'open_deal',
           if (catalogId.isNotEmpty) 'catalog_id': catalogId,
           if (explicitSourceId.isNotEmpty) 'source_id': explicitSourceId,
-          if (catalogId.isEmpty && explicitSourceId.isEmpty)
-            if (source == 'partner' || source == 'catalog')
-              'catalog_id': target
-            else
-              'source_id': target,
+          if (catalogId.isEmpty &&
+              explicitSourceId.isEmpty &&
+              (source == 'partner' || source == 'catalog'))
+            'catalog_id': target,
+          if (catalogId.isEmpty &&
+              explicitSourceId.isEmpty &&
+              source != 'partner' &&
+              source != 'catalog')
+            'source_id': target,
           if (source.isNotEmpty) 'source': source,
         };
       }
