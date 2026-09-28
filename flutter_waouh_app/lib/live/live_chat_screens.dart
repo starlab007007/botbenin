@@ -692,56 +692,71 @@ class _LiveConversationScreenState extends State<LiveConversationScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-      appBar: const LiveHeader(
-          title: 'WAOUH One',
+        backgroundColor: const Color(0xFFF7FAF8),
+        appBar: const LiveWebParityChatHeader(
+          back: true,
           subtitle: 'Conversation directe · Contact protégé',
-          back: true),
-      body: Column(children: [
-        Expanded(
-            child: StreamBuilder<List<LiveMessage>>(
+          phase: LiveMusePhase.contacting,
+        ),
+        body: Column(
+          children: [
+            const LiveWebParityChatTabs(activeKey: ''),
+            Expanded(
+              child: StreamBuilder<List<LiveMessage>>(
                 stream: _messages,
                 builder: (_, snapshot) => LiveSmartTimeline(
-                    messages: _merge(snapshot.data ?? const <LiveMessage>[]),
-                    onPayload: _handlePayload,
-                    showAssistantHint: optimistic.any(
-                        (item) => item.meta['delivery_state'] == 'sending'),
-                    emptyMessage: 'Commencez la discussion.'))),
-        SafeArea(
-            top: false,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(top: BorderSide(color: Color(0xFFE1E9E6))),
+                  messages: _merge(snapshot.data ?? const <LiveMessage>[]),
+                  onPayload: _handlePayload,
+                  showAssistantHint: optimistic.any(
+                    (item) => item.meta['delivery_state'] == 'sending',
+                  ),
+                  emptyMessage: 'Commencez la discussion.',
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
+                ),
               ),
-              padding: const EdgeInsets.fromLTRB(8, 7, 8, 9),
-              child: Row(children: [
-                Expanded(
+            ),
+            LiveWebParityComposerFrame(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
                     child: TextField(
-                        controller: composer,
-                        focusNode: focus,
-                        minLines: 1,
-                        maxLines: 4,
-                        textInputAction: TextInputAction.send,
-                        onSubmitted: (_) => _send(),
-                        decoration: InputDecoration(
-                          filled: true,
-                          fillColor: const Color(0xFFF5F8F7),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            borderSide: BorderSide.none,
-                          ),
-                          hintText: 'Votre réponse…',
-                        ))),
-                const SizedBox(width: 6),
-                FilledButton(
+                      controller: composer,
+                      focusNode: focus,
+                      minLines: 1,
+                      maxLines: 4,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _send(),
+                      decoration: const InputDecoration(
+                        filled: false,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        hintText: 'Votre réponse…',
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  FilledButton(
                     style: FilledButton.styleFrom(
-                      minimumSize: const Size(48, 48),
+                      minimumSize: const Size(44, 44),
+                      maximumSize: const Size(44, 44),
                       padding: EdgeInsets.zero,
                       backgroundColor: const Color(0xFF08745D),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
                     ),
                     onPressed: _send,
-                    child: const Icon(Icons.send_rounded))
-              ]),
-            )),
-      ]));
+                    child: const Icon(Icons.arrow_upward_rounded, size: 20),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
 }
