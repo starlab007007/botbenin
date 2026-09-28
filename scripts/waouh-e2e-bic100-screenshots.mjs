@@ -342,3 +342,5 @@ try {
   await sleep(500);
   try { fs.rmSync(profile, { recursive: true, force: true }); } catch {}
 }
+
+// trigger PR synchronize for E2E capture
