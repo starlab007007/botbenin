@@ -303,14 +303,15 @@ export function WaouhProductCard({
 
   const listPrice = Number(result.price ?? result.price_min ?? result.price_max ?? 0) || null;
   const openOffer = () => {
-    const suggested = listPrice ? Math.max(100, Math.round((listPrice * 0.9) / 25) * 25) : null;
+    const step = listPrice && listPrice < 500 ? 5 : 25;
+    const suggested = listPrice ? Math.max(1, Math.round((listPrice * 0.9) / step) * step) : null;
     setOffer(suggested ? String(suggested) : "");
     setOffering((o) => !o);
     setAsking(false);
   };
   const submitOffer = () => {
     const amount = Number(offer.replace(/\D/g, ""));
-    if (!onAction || !Number.isFinite(amount) || amount < 100) return;
+    if (!onAction || !Number.isFinite(amount) || amount < 1) return;
     openDedicatedWindowFromResult(result);
     onAction(`Je propose ${fmt(amount)}`, { article_id: result.id, commerce_action: "offer", offer_price: amount });
     setOffering(false);
