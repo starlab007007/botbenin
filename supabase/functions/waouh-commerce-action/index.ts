@@ -480,15 +480,28 @@ Deno.serve(async (req) => {
     }
     const plan = loaded?.neg?.updated_at && turnFor(state!) !== finalRole ? followUpPlan(loaded.neg.updated_at) : null;
 
+    const confirmationLabel = pending
+      ? pending.action === "offer" ? "Proposer ce prix"
+        : pending.action === "cancel" ? "Annuler la commande"
+        : pending.action === "seller_confirm" ? "Confirmer la disponibilité"
+        : pending.action === "pay_mode" ? "Choisir ce paiement"
+        : pending.action === "confirm_payment" ? "Confirmer le paiement"
+        : "Confirmer cette action"
+      : null;
     const message = renderCatalog(outcome.key, {
       title: loaded?.article?.title,
-      amount: (outcome.vars?.amount as number | undefined) ?? state?.lastOfferPrice ?? null,
+      // Une action texte libre en attente doit afficher le NOUVEAU montant,
+      // jamais l'ancienne offre courante du thread.
+      amount: (pending?.amount as number | undefined)
+        ?? (outcome.vars?.amount as number | undefined)
+        ?? state?.lastOfferPrice
+        ?? null,
       role: finalRole,
       suggested,
       responseMinutes,
       method: (outcome.vars?.method as any) ?? request.method ?? null,
       reason: (outcome.vars?.reason as string | undefined) ?? null,
-      label: pending ? actionEcho(pending as CommerceActionRequest, fcfa) : null,
+      label: confirmationLabel,
     });
     const responseActions = pending
       ? [{ id: "confirm", label: "Confirmer" }, { id: "dismiss", label: "Modifier" }]

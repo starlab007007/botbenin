@@ -19,11 +19,11 @@ export type NegotiationIntent =
   | { kind: "counter_prompt" }
   | { kind: "other" };
 
-export const MIN_OFFER_FCFA = 100;
+export const MIN_OFFER_FCFA = 1;
 export const MAX_OFFER_FCFA = 100_000_000;
 
 // Groupe de milliers : espace normale, insécable, fine insécable, point, virgule.
-const AMOUNT = String.raw`(\d{1,3}(?:[\s  .,]\d{3})+|\d{3,9})`;
+const AMOUNT = String.raw`(\d{1,3}(?:[\s  .,]\d{3})+|\d{1,9})`;
 const CURRENCY_RE = new RegExp(String.raw`(?:^|[^\p{L}\p{N}])${AMOUNT}\s*(?:f\s?cfa|fcfa|cfa|xof|f)(?![\p{L}\p{N}])`, "iu");
 // Le mot-clé doit être séparé du montant par un espace ou « : » / « = » :
 // sinon "-a345-" (morceau d'identifiant) serait lu « à 345 ».

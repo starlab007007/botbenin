@@ -127,7 +127,9 @@ Deno.test("modèle : schéma fermé, seuils, argent jamais exécuté sans tap", 
   const low = sanitizeModelOutput({ action: "reject", confidence: 0.4 }, ctx);
   assertEquals([low.execute, low.needsConfirm], [false, false]);
   assertEquals(sanitizeModelOutput({ action: "drop_table", confidence: 1 }, ctx).action, "none");
-  assertEquals(sanitizeModelOutput({ action: "offer", confidence: 1, amount: 12 }, ctx).action, "none");
+  const micro = sanitizeModelOutput({ action: "offer", confidence: 1, amount: 12 }, ctx);
+  assertEquals([micro.action, micro.amount, micro.execute, micro.needsConfirm], ["offer", 12, false, true]);
+  assertEquals(sanitizeModelOutput({ action: "offer", confidence: 1, amount: 0 }, ctx).action, "none");
   assertEquals(sanitizeModelOutput({ action: "pay_mode", confidence: 1, method: "cash" }, ctx).action, "none", "hors étape");
   // Le modèle n'est consulté que si les règles ne tranchent pas.
   let calls = 0;

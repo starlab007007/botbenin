@@ -10,6 +10,7 @@ import { resolveProductThread } from "../_shared/waouh-thread.ts";
 import {
   buttonIdFromWahaPayload,
   findActionIdByLabel,
+  isSellerAvailabilityText,
   looksLikeActionLabel,
   parseActionPayload,
   parseDealCommand,
@@ -921,7 +922,27 @@ serve(async (req) => {
     const siblingIds = await resolveSiblingUserIds(sb, user);
 
     // Deterministic post-agreement commands. These never pass through the LLM.
-    const dealCommand = parseDealCommand(text, clientMeta);
+    let dealCommand = parseDealCommand(text, clientMeta);
+
+    // Texte naturel vendeur : « je confirme », « article disponible », etc.
+    // On ne l'interprète que si UN SEUL deal du vendeur attend sa confirmation,
+    // éventuellement déjà borné par le thread/article fourni par le client.
+    if (!dealCommand && isSellerAvailabilityText(text)) {
+      let q: any = sb.from("waouh_deals")
+        .select("id,thread_id,article_id,negotiation_id")
+        .in("seller_user_id", siblingIds)
+        .is("seller_confirmed_at", null)
+        .in("status", ["awaiting_confirmation", "pending_assignment"]);
+      if (metaThreadId) q = q.eq("thread_id", metaThreadId);
+      if (metaArticleId) q = q.eq("article_id", metaArticleId);
+      const { data: candidates } = await q
+        .order("created_at", { ascending: false })
+        .limit(2);
+      if ((candidates || []).length === 1) {
+        dealCommand = { action: "seller_confirm", dealId: candidates[0].id };
+      }
+    }
+
     if (dealCommand) {
       const dealBody: Record<string, any> = {
         action: dealCommand.action,
@@ -953,6 +974,16 @@ serve(async (req) => {
       const dealActions: WaouhAction[] = Array.isArray(dealData?.actions) ? dealData.actions : [];
       const dealThreadId = dealData?.thread_id ?? metaThreadId ?? null;
       const dealArticleId = dealData?.article_id ?? metaArticleId ?? null;
+
+      // L'entrée utilisateur (clic bouton ou texte naturel) doit appartenir au
+      // même fil canonique que la réponse. Avant, les boutons post-accord
+      // conservaient thread_id=NULL côté message entrant.
+      if (inboundMessageId && dealThreadId) {
+        await sb.from("waouh_messages")
+          .update({ thread_id: dealThreadId, article_id: dealArticleId })
+          .eq("id", inboundMessageId)
+          .is("thread_id", null);
+      }
 
       let dealRow: { id: string } | null = null;
       if (dealThreadId && await chatWriterV2Enabled(sb)) {
