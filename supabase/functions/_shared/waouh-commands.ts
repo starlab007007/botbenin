@@ -234,6 +234,13 @@ export function looksLikeActionLabel(text: string | null | undefined): boolean {
   return KNOWN_ACTION_LABELS.has(normalized) || AMOUNT_LABEL_RE.test(normalized);
 }
 
+/** Confirmation naturelle du vendeur, utilisée seulement quand un deal unique
+ * en attente de disponibilité peut être résolu de façon non ambiguë. */
+export function isSellerAvailabilityText(text: string | null | undefined): boolean {
+  const normalized = normalizeActionLabel(text);
+  return /^(?:je confirme(?: la disponibilit[ée])?|article disponible|(?:toujours |encore )?disponible|oui[ ,:-]*(?:c['’]est )?(?:toujours |encore )?disponible)$/iu.test(normalized);
+}
+
 /**
  * Retrouve l'identifiant d'un bouton à partir de son seul libellé, en le
  * cherchant dans les dernières actions proposées à cet utilisateur.
