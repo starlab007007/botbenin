@@ -125,7 +125,7 @@ jobs:
           deno test supabase/functions/_shared/waouh-interest-fastpath-test.ts
           deno test supabase/functions/_shared/waouh-message-catalog-test.ts
           deno test supabase/functions/_shared/waouh-commerce-v3-test.ts
-          npx vitest run src/lib/waouh/__tests__/commerceAction.test.ts src/components/waouh/__tests__/waouh-chat-sync-flow.lock.test.ts
+          npm exec --yes --package=vitest@2.1.9 -- vitest run src/lib/waouh/__tests__/commerceAction.test.ts src/components/waouh/__tests__/waouh-chat-sync-flow.lock.test.ts
 
       - name: Check WAOUH Outbound Dispatcher
         run: deno check supabase/functions/waouh-outbound-dispatch/index.ts
