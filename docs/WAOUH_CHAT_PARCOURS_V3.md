@@ -27,7 +27,7 @@ sans redéploiement.
 | `supabase/functions/_shared/waouh-message-catalog.ts` | Catalogue unifié (utilisé seulement si `chat_catalog_v3`) |
 | `supabase/functions/_shared/waouh-commands.ts` | Boutons de fiche `je-veux:` `proposer-prix:` `poser-question:` + libellés v3 |
 | `flutter_waouh_app/lib/live/live_match_chat_v2.dart` | Bandeau provisoire et sous-titre « synchronisation… » supprimés |
-| `supabase/migrations/20260927200000_waouh_chat_v3_flags.sql` | Interrupteurs v3 |
+| `supabase/migrations/20260928092242_waouh_chat_v3_flags.sql` | Interrupteurs v3 |
 | `src/components/admin/WaouhAdminCommandCenter.tsx` | Libellés Command Center |
 | `src/components/waouh/waouhChatSyncLock.ts` | Verrou v15 (invariants v3) |
 
@@ -35,7 +35,7 @@ sans redéploiement.
 
 | Brique | Fichiers |
 |---|---|
-| Point d'entrée unique, idempotent | `supabase/functions/waouh-commerce-action/index.ts`, migration `20260927201000_waouh_commerce_actions.sql` |
+| Point d'entrée unique, idempotent | `supabase/functions/waouh-commerce-action/index.ts`, migration `20260928092245_waouh_commerce_actions.sql` |
 | Contrat v3, tour, boutons calculés | `_shared/waouh-commerce-contract.ts` |
 | Texte libre strict (règles → contexte → modèle contraint) | `_shared/waouh-free-text.ts` |
 | Prédictif (prix suggéré, meilleure action, délai médian, relances, expiration, paiement) | `_shared/waouh-predictive.ts` |
