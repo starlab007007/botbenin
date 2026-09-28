@@ -1247,9 +1247,9 @@ serve(async (req) => {
     // WhatsApp et le fallback historique Web/Flutter si le contrat V3 est
     // momentanément indisponible. Elle ne touche pas aux étapes de paiement.
     const actorRoleForNegotiation: "buyer" | "seller" | null = openNeg
-      ? (siblingIds.includes(openNeg.seller_user_id)
+      ? (openNeg.seller_user_id && siblingIds.includes(openNeg.seller_user_id)
         ? "seller"
-        : siblingIds.includes(openNeg.buyer_user_id)
+        : openNeg.buyer_user_id && siblingIds.includes(openNeg.buyer_user_id)
           ? "buyer"
           : metaRole)
       : metaRole;
