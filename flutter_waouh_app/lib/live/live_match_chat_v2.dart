@@ -628,7 +628,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
         phase:
             pendingThread ? LiveMusePhase.searching : LiveMusePhase.negotiating,
         subtitle:
-            'Deal Room · \${match.title}\${match.city == null ? '' : ' · \${match.city}'}',
+            'Deal Room · ${match.title}${match.city == null ? '' : ' · ${match.city}'}',
         trailing: pendingThread
             ? const <Widget>[]
             : [
