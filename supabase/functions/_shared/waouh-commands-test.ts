@@ -4,6 +4,7 @@ import {
   buttonIdFromWahaPayload,
   buyerPaymentActions,
   findActionIdByLabel,
+  isSellerAvailabilityText,
   looksLikeActionLabel,
   negotiationActions,
   parseActionPayload,
@@ -104,4 +105,14 @@ Deno.test("WhatsApp : bouton reçu par son seul libellé", () => {
   assertEquals(findActionIdByLabel(recent, "💵 Cash à la livraison"), `paiement-livraison:${DEAL}`);
   assertEquals(findActionIdByLabel(recent, "💬 Contre-proposer"), `contre-proposition:${NEG}`);
   assertEquals(findActionIdByLabel(recent, "inconnu"), null);
+});
+
+
+Deno.test("confirmation naturelle vendeur : formes sûres reconnues", () => {
+  for (const text of ["je confirme", "Je confirme la disponibilité", "article disponible", "disponible", "toujours disponible", "oui disponible"]) {
+    assertEquals(isSellerAvailabilityText(text), true, text);
+  }
+  for (const text of ["est-ce disponible ?", "je confirme le paiement", "oui", "bonjour"]) {
+    assertEquals(isSellerAvailabilityText(text), false, text);
+  }
 });
