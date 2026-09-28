@@ -39,6 +39,8 @@ const cases: Array<[string, unknown]> = [
   ["non", { kind: "no" }],
   ["nope", { kind: "no" }],
   ["pas d'accord", { kind: "no" }],
+  ["je propose 80", { kind: "price", price: 80 }],
+  ["80 FCFA", { kind: "price", price: 80 }],
   ["je propose 400", { kind: "price", price: 400 }],
   ["Je propose 5000 FCFA", { kind: "price", price: 5000 }],
   ["contre-offre 12000", { kind: "price", price: 12000 }],
@@ -51,7 +53,7 @@ const cases: Array<[string, unknown]> = [
   ["pour 7500", { kind: "price", price: 7500 }],
   ["je propose", { kind: "counter_prompt" }],
   ["", { kind: "other" }],
-  ["12", null],          // < 100 : ni prix ni décision → IA
+  ["12", { kind: "price", price: 12 }],
   ["bonjour", null],     // ambigu → IA
 ];
 for (const [input, expected] of cases) {
@@ -68,7 +70,8 @@ Deno.test("« ok pour 7500 » = offre à 7500, pas acceptation de l'ancien prix"
 Deno.test("sortie IA validée", () => {
   assertEquals(sanitizeAiIntent({ kind: "yes" }), { kind: "yes" });
   assertEquals(sanitizeAiIntent({ kind: "price", price: 15000 }), { kind: "price", price: 15000 });
-  assertEquals(sanitizeAiIntent({ kind: "price", price: 12 }), { kind: "other" });
+  assertEquals(sanitizeAiIntent({ kind: "price", price: 12 }), { kind: "price", price: 12 });
+  assertEquals(sanitizeAiIntent({ kind: "price", price: 0 }), { kind: "other" });
   assertEquals(sanitizeAiIntent({ kind: "price" }), { kind: "other" });
   assertEquals(sanitizeAiIntent({ kind: "delete_everything" }), { kind: "other" });
   assertEquals(sanitizeAiIntent(null), { kind: "other" });
