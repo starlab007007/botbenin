@@ -8,6 +8,7 @@ import '../main.dart' as legacy;
 import 'agentic/live_agentic_controller.dart';
 import 'agentic/live_agentic_repository.dart';
 import 'live_chat_service.dart';
+import 'live_commerce_action_client.dart';
 import 'live_connectivity.dart';
 import 'live_location.dart';
 import 'live_media.dart';
@@ -40,6 +41,7 @@ class LiveWaouhController extends ChangeNotifier {
     media = LiveMediaService(legacy.supabase);
     status = LiveStatusService(legacy.supabase, media);
     notifications = LiveNotificationService(chat, session);
+    commerceActions = LiveCommerceActionClient(legacy.supabase);
     offline = LiveOfflineStore();
     connectivity = LiveConnectivity(_onConnectivityChanged);
     agentic = LiveAgenticController(
@@ -56,6 +58,7 @@ class LiveWaouhController extends ChangeNotifier {
   late final LiveMediaService media;
   late final LiveStatusService status;
   late final LiveNotificationService notifications;
+  late final LiveCommerceActionClient commerceActions;
   late final LiveOfflineStore offline;
   late final LiveConnectivity connectivity;
   late final LiveAgenticController agentic;
@@ -95,6 +98,22 @@ class LiveWaouhController extends ChangeNotifier {
   LiveLocation get position => _position;
   bool get isOnline => connectivity.online;
   String newIdempotencyKey() => _waouhUuidV4();
+
+  /// Parcours v3 : action serveur (contrat unique). `null` = interrupteur
+  /// coupé ou hors ligne : l'appelant utilise l'envoi historique.
+  Future<Map<String, dynamic>?> sendCommerceAction(
+    Map<String, dynamic> request,
+  ) async {
+    if (!isOnline) return null;
+    final sid = await session.sessionId;
+    final response = await commerceActions.send(
+      request: request,
+      sessionId: sid,
+      idem: 'app-${_waouhUuidV4()}',
+    );
+    if (response != null) notifyListeners();
+    return response;
+  }
 
   Future<void> initialize() {
     if (_initialized) return Future<void>.value();
