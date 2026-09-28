@@ -390,8 +390,8 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF6F9FF),
       appBar: LiveHeader(
-        title: '${avatar.name} · WAOUH',
-        subtitle: 'Votre Avatar · NEXUS + Signal + Contact',
+        title: 'WAOUH One',
+        subtitle: '${avatar.name} · Avatar IA · NEXUS + Signal + Contact',
         back: true,
         actions: [
           IconButton(
