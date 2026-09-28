@@ -132,15 +132,11 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
           routes: [
             GoRoute(
               path: '/app/chat',
-              builder: (_, __) => const LiveMainChatScreen(),
+              builder: (_, __) => const LiveInboxProductionScreen(),
             ),
             GoRoute(
               path: '/app/chat/waouh',
-              redirect: (_, __) => '/app/chat',
-            ),
-            GoRoute(
-              path: '/app/chat/inbox',
-              builder: (_, __) => const LiveInboxProductionScreen(),
+              builder: (_, __) => const LiveMainChatScreen(),
             ),
             GoRoute(
               path: '/app/chat/match/:key',
@@ -340,13 +336,11 @@ class LiveProductionShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final focused = path == '/app/chat' ||
-        path.startsWith('/app/chat/') ||
+    final focused = path.startsWith('/app/chat/') ||
         path.startsWith('/app/profile') ||
         path.startsWith('/app/partner/businesses/');
     final waouh = context.watch<LiveWaouhController>();
-    final showAvatarDock =
-        !path.startsWith('/app/avatar') && !path.startsWith('/app/chat');
+    final showAvatarDock = !path.startsWith('/app/avatar');
     return Scaffold(
       body: Column(
         children: [
