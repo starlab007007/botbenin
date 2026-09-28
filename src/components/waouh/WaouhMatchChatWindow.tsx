@@ -21,6 +21,14 @@ import "@/app-mobile/theme/chat-bg.css";
 import { engageWaouhChatSyncLock } from "./waouhChatSyncLock";
 import { correlationIdFor, traceUi } from "./waouhCorrelation";
 import type { WaouhWorkspaceDealState } from "@/lib/waouh/workspaceState";
+import { WaouhDealStepper } from "./WaouhDealStepper";
+import {
+  commerceRequestFromButton,
+  formatFcfa,
+  latestStage,
+  sendCommerceAction,
+  suggestCounterPrice,
+} from "@/lib/waouh/commerceAction";
 
 export type MatchChatMeta = {
   key: string;
@@ -112,6 +120,8 @@ export function WaouhMatchChatWindow({
   const initialCached = getCached?.(match.key) ?? [];
   const [messages, setMessagesState] = useState<Msg[]>(() => initialCached);
   const [input, setInput] = useState("");
+  // Parcours v3 : « Poser une question » → le prochain message part au vendeur.
+  const [askMode, setAskMode] = useState(false);
   const [sending, setSending] = useState(false);
   const [agentAction, setAgentAction] = useState<AgenticAction | null>(null);
   const [seedNotif, setSeedNotif] = useState<SeedNotif | null>(() => {
@@ -617,6 +627,7 @@ export function WaouhMatchChatWindow({
             role: match.kind,
             product_title: match.title,
             correlation_id: correlationId,
+            ...(askMode && overrideText == null ? { commerce_action: "ask" } : {}),
             ...overrideMeta,
           },
         },
@@ -654,7 +665,37 @@ export function WaouhMatchChatWindow({
     }
   };
 
-  const send = () => { void sendMessage(); };
+  const send = () => { void sendMessage().finally(() => setAskMode(false)); };
+
+  // Parcours v3 : composeur pré-rempli avec le prix suggéré (arrondi à 25 FCFA).
+  const prefillOffer = (currentOffer?: number | null) => {
+    const suggested = suggestCounterPrice({ currentOffer: currentOffer ?? null, listPrice: match.price ?? null });
+    setInput(suggested ? `Je propose ${formatFcfa(suggested)}` : "Je propose ");
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  };
+
+  // Parcours v3 : bouton serveur → contrat d'action unique ; repli automatique
+  // sur l'ancien chemin tant que l'interrupteur commerce_action_v3 est coupé.
+  const runServerAction = async (
+    actionId: string,
+    scope: { thread_id?: string | null; negotiation_id?: string | null; deal_id?: string | null },
+  ): Promise<boolean> => {
+    const request = commerceRequestFromButton(actionId, { ...scope, article_id: match.article_id });
+    if (!request || sending || closed) return false;
+    setSending(true);
+    try {
+      const response = await sendCommerceAction({ ...request, source: "web_deal_room" }, sessionId);
+      if (!response) return false;
+      if (!response.ok && response.reply?.text) toast.message(response.reply.title, { description: response.reply.detail });
+      window.dispatchEvent(new CustomEvent("waouh:match-updated", { detail: { article_id: match.article_id } }));
+      return true;
+    } catch {
+      toast.error("Rien n'a été validé. Réessayez.");
+      return true;
+    } finally {
+      setSending(false);
+    }
+  };
 
   const Icon = match.kind === "buyer" ? Target : ShoppingBag;
   const matchLabel = formatMatchLabel({
@@ -803,6 +844,12 @@ export function WaouhMatchChatWindow({
         </div>
       </div>
 
+      {/* Parcours v3 : progression en 7 étapes. */}
+      <WaouhDealStepper
+        stage={latestStage(messages as Array<{ meta?: Record<string, unknown> | null }>) ?? (latestCommerceScope.negotiation_id ? "negotiation" : null)}
+        className="shrink-0 border-b bg-white/80"
+      />
+
       {/* Résumé IA disponible à la demande afin de préserver la hauteur du fil. */}
       <details className="mx-2 mt-1 shrink-0 rounded-xl border border-emerald-100 bg-white/90">
         <summary className="cursor-pointer select-none px-3 py-1.5 text-[10px] font-bold text-emerald-800">
@@ -913,7 +960,7 @@ export function WaouhMatchChatWindow({
             {rich.blocks.length > 0 && <WaouhAgentBlocks blocks={rich.blocks} onAction={authUserId ? handleAgentAction : undefined} busy={!!agentAction} />}
             {m.direction === "out" && m.id === latestActionMessageId && Array.isArray(m.meta?.actions) && m.meta.actions.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {(m.meta.actions as Array<{ id?: string; label?: string }>).slice(0, 4).map((action, index) => {
+                {(m.meta.actions as Array<{ id?: string; label?: string }>).slice(0, 3).map((action, index) => {
                   const actionId = String(action.id || "").trim();
                   const label = String(action.label || actionId || "Choisir").trim();
                   return (
@@ -924,12 +971,23 @@ export function WaouhMatchChatWindow({
                       variant="secondary"
                       className="h-7 rounded-xl text-xs"
                       disabled={sending || !actionId}
-                      onClick={() => {
-                        if (/contre-proposition|counter/i.test(actionId)) {
-                          setInput("Je propose ");
+                      onClick={async () => {
+                        if (/contre-proposition|counter|^proposer-prix:/i.test(actionId)) {
+                          const offer = Number(m.meta?.products?.[0]?.price ?? m.meta?.offer ?? match.price ?? 0) || null;
+                          prefillOffer(offer);
+                          return;
+                        }
+                        if (/^poser-question:/i.test(actionId)) {
+                          setAskMode(true);
                           setTimeout(() => textareaRef.current?.focus(), 0);
                           return;
                         }
+                        const handled = await runServerAction(actionId, {
+                          thread_id: m.meta?.thread_id ?? latestCommerceScope.thread_id ?? serverThreadId ?? null,
+                          negotiation_id: m.meta?.negotiation_id ?? latestCommerceScope.negotiation_id ?? null,
+                          deal_id: m.meta?.deal_id ?? latestCommerceScope.deal_id ?? null,
+                        });
+                        if (handled) return;
                         const isDealAction = /^(?:payer-mobile|paiement-livraison|confirmer-disponibilite|confirmer-paiement-cash|confirmer-paiement-mobile|annuler):/i.test(actionId);
                         const visibleText = isDealAction
                           ? label
@@ -937,7 +995,9 @@ export function WaouhMatchChatWindow({
                             ? "OUI"
                             : /refuser|^non/i.test(actionId)
                               ? "NON"
-                              : actionId;
+                              : /^je-veux:/i.test(actionId)
+                                ? label
+                                : actionId;
                         const normalizedAction = actionId.split(":")[0].toLowerCase();
                         void sendMessage(visibleText, {
                           button_payload: actionId,
@@ -996,7 +1056,9 @@ export function WaouhMatchChatWindow({
                 send();
               }
             }}
-            placeholder={match.kind === "buyer" ? "Votre réponse au vendeur…" : "Votre réponse à l’acheteur…"}
+            placeholder={askMode
+              ? (match.kind === "buyer" ? "Votre question au vendeur…" : "Votre question à l’acheteur…")
+              : match.kind === "buyer" ? "Votre réponse au vendeur…" : "Votre réponse à l’acheteur…"}
             rows={1}
             className="resize-none min-h-[40px] max-h-32 text-sm flex-1 rounded-2xl"
           />
