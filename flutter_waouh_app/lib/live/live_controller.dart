@@ -1265,10 +1265,17 @@ class LiveWaouhController extends ChangeNotifier {
       ...responseAttachments.map((item) => item.url),
     }.where((url) => url.trim().isNotEmpty).toList();
 
+    final productSource = liveText(
+      firstProduct['source'] ?? requestMeta['source'],
+    ).trim().toLowerCase();
+    final externalProduct = productSource.contains('partner') ||
+        productSource.contains('catalog') ||
+        productSource.contains('radar');
     final articleId = liveText(
       liveFlowValue(normalized, const ['article_id']) ??
+          liveMap(normalized['card'])['article_id'] ??
           firstProduct['article_id'] ??
-          firstProduct['id'] ??
+          (!externalProduct ? firstProduct['id'] : null) ??
           requestMeta['article_id'],
     ).trim();
     final rawTitle = liveText(
