@@ -119,6 +119,9 @@ jobs:
       - name: Check WAOUH Chat Orchestrator
         run: deno check supabase/functions/waouh-webhook/index.ts
 
+      - name: Check WAOUH Buy Handler
+        run: deno check supabase/functions/waouh-buy-handler/index.ts
+
       - name: Check WAOUH Negotiation Router
         run: deno check supabase/functions/waouh-negotiation-router/index.ts
 
