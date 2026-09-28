@@ -993,17 +993,25 @@ class LiveDealRoomBanner extends StatelessWidget {
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Wrap(spacing: 5, runSpacing: 4, children: [
-              const _AgentPill(text: 'WAOUH Deal Room', icon: Icons.auto_awesome_rounded, tone: Color(0xFF08745D)),
+              _AgentPill(
+                text: pending ? 'Connexion sécurisée' : 'WAOUH Deal Room',
+                icon: pending
+                    ? Icons.sync_lock_rounded
+                    : Icons.auto_awesome_rounded,
+                tone: const Color(0xFF08745D),
+              ),
               if (contact != null) LiveContactabilityBadge(level: contact, showCode: true),
             ]),
             const SizedBox(height: 1),
             Text(match.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF15372F), fontSize: 12)),
             Text(
-              [
-                if (match.price != null) '${match.price} FCFA',
-                if (match.city?.trim().isNotEmpty == true) match.city!,
-                match.participantLabel,
-              ].join(' · '),
+              pending
+                  ? 'WAOUH vérifie l’annonce, le vendeur et le fil canonique'
+                  : [
+                      if (match.price != null) '${match.price} FCFA',
+                      if (match.city?.trim().isNotEmpty == true) match.city!,
+                      match.participantLabel,
+                    ].join(' · '),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: Color(0xFF60746E), fontSize: 9.5, fontWeight: FontWeight.w600),
