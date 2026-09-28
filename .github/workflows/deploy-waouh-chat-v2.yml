@@ -35,6 +35,12 @@ on:
       - ".github/workflows/deploy-waouh-chat-v2.yml"
       - ".github/workflows/deploy-waouh-native-messaging.yml"
   workflow_dispatch:
+    inputs:
+      apply_migrations:
+        description: "Apply WAOUH database migrations explicitly"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -62,6 +68,8 @@ jobs:
     steps:
       - name: Checkout integrated prod
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
@@ -91,18 +99,55 @@ jobs:
           set -euo pipefail
           supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
 
+      - name: Detect WAOUH migration changes
+        id: migration_gate
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          MANUAL_APPLY_MIGRATIONS: ${{ inputs.apply_migrations || false }}
+        run: |
+          set -euo pipefail
+          APPLY=false
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ "$MANUAL_APPLY_MIGRATIONS" = "true" ]; then
+              APPLY=true
+            fi
+          elif [ "$EVENT_NAME" = "push" ]; then
+            BEFORE="${EVENT_BEFORE:-}"
+            if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
+              if git diff --name-only "$BEFORE" "$GITHUB_SHA" --                 supabase/migrations/20260927120000_waouh_chat_messages_thread_base.sql                 supabase/migrations/20260927120500_waouh_chat_messages_thread_backfill.sql                 supabase/migrations/20260927121000_waouh_chat_reconcile.sql                 supabase/migrations/20260928092242_waouh_chat_v3_flags.sql                 supabase/migrations/20260928092245_waouh_commerce_actions.sql                 | grep -q .; then
+                APPLY=true
+              fi
+            fi
+          fi
+
+          echo "apply_migrations=$APPLY" >> "$GITHUB_OUTPUT"
+          echo "WAOUH migration push requested: $APPLY"
+
+      - name: Skip database push when migrations are unchanged
+        if: steps.migration_gate.outputs.apply_migrations != 'true'
+        run: |
+          echo "ℹ️ No WAOUH migration file changed in this deployment."
+          echo "ℹ️ Skipping db push so unrelated historical migration drift cannot block Edge Function deployment."
+
       - name: Preview additive Chat v2 migrations
+        if: steps.migration_gate.outputs.apply_migrations == 'true'
         shell: bash
         run: |
           set -euo pipefail
           supabase db push --linked --password "$SUPABASE_DB_PASSWORD" --dry-run
 
       - name: Apply pending migrations
+        if: steps.migration_gate.outputs.apply_migrations == 'true'
         shell: bash
         run: |
           set -euo pipefail
           # The 27/09 backfill migration only INSTALLS the batch function.
           # It never mutates historical messages automatically.
+          # If migration history is out of sync, this step must fail rather
+          # than repairing production history automatically.
           supabase db push --linked --password "$SUPABASE_DB_PASSWORD" --yes
 
       - name: Deploy existing WAOUH Chat functions
@@ -130,18 +175,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Parcours v3 (Lot 2) : nouveau point d'entrée. Déployé mais inactif
-          # tant que commerce_action_v3 reste coupé (réponse 503, les clients
-          # gardent leur chemin historique).
+          # Parcours v3 (Lot 2) : déploie le point d'entrée canonique.
+          # Ce workflow ne modifie aucun feature flag ; l'état des flags reste
+          # celui contrôlé depuis l'administration / la base de production.
           supabase functions deploy waouh-commerce-action \
             --project-ref "$SUPABASE_PROJECT_REF" \
             --use-api \
             --no-verify-jwt
-          echo "✅ waouh-commerce-action deployed (flag commerce_action_v3 OFF)."
+          echo "✅ waouh-commerce-action deployed; feature flags unchanged."
 
       - name: Safety reminder
         run: |
-          echo "chat_writer_v2 remains OFF after migration."
-          echo "v3: chat_interest_fastpath ON (Lot 1); chat_catalog_v3 and commerce_action_v3 OFF (Lot 2)."
-          echo "chat_reconcile automation remains OFF after migration."
+          echo "Feature flags are NOT changed by this workflow."
           echo "Historical backfill is NOT executed by this workflow."
+          echo "Database migration history is never auto-repaired in production."
