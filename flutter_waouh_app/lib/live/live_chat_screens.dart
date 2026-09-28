@@ -1,15 +1,17 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
- import 'agentic/live_agentic_models.dart';
+import 'avatar/live_avatar_controller.dart';
+import 'avatar/live_avatar_widgets.dart';
+import 'agentic/live_agentic_models.dart';
 import 'agentic/live_agentic_workspace.dart';
 import 'live_controller.dart';
 import 'live_commerce_agent_ui.dart';
-import 'live_chat_web_parity.dart';
 import 'live_guest_action_gate.dart';
 import 'live_match_navigation.dart';
 import 'live_models.dart';
@@ -384,200 +386,192 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<LiveWaouhController>();
+    final avatar = context.watch<LiveAvatarController>();
     return Scaffold(
-      backgroundColor: const Color(0xFFF7FAF8),
-      appBar: LiveWebParityChatHeader(
-        subtitle: 'Muse · NEXUS + Signal + Contact',
-        onNewGoal: () => unawaited(_newChat()),
+      backgroundColor: const Color(0xFFF6F9FF),
+      appBar: LiveHeader(
+        title: '${avatar.name} · WAOUH',
+        subtitle: 'Votre Avatar · NEXUS + Signal + Contact',
+        back: true,
+        actions: [
+          IconButton(
+              tooltip: 'Mon Avatar',
+              onPressed: () => context.push('/app/avatar'),
+              icon: const Icon(Icons.face_retouching_natural_rounded)),
+          IconButton(
+              tooltip: 'Nouvel objectif',
+              onPressed: _newChat,
+              icon: const Icon(Icons.add_comment_outlined)),
+          IconButton(
+              tooltip: 'Notifications',
+              onPressed: () => context.go('/app/notifications'),
+              icon: const Icon(Icons.notifications_none_rounded)),
+        ],
       ),
-      body: StreamBuilder<List<LiveMessage>>(
-        stream: _messageStream,
-        builder: (_, snapshot) {
-          final messages =
-              _visibleMessages(snapshot.data ?? const <LiveMessage>[]);
-          final waiting = optimistic
-              .any((item) => item.meta['delivery_state'] == 'sending');
-
-          void openIntelligence() => showLiveUnifiedIntelligenceSheet(
-                context,
-                messages: messages,
-                busy: waiting,
-                missionCount: controller.agentic.activeMissionCount,
-                watchCount: controller.agentic.activeWatchCount,
-                approvalCount: controller.agentic.pendingApprovalCount,
-                onNewGoal: () => unawaited(_newChat()),
-                onOpenAgentic: () => unawaited(_openAgenticWorkspace()),
-              );
-
-          return Column(
-            children: [
-              const LiveWebParityChatTabs(activeKey: 'main'),
-              LiveCommerceAgentBar(
-                messages: messages,
-                busy: waiting,
-                compact: true,
-                onTap: openIntelligence,
-              ),
-              Expanded(
-                child: LiveSmartTimeline(
-                  messages: messages,
-                  onPayload: _handlePayload,
-                  showAssistantHint: waiting,
-                  emptyMessage:
-                      'Dites simplement ce que vous voulez acheter ou vendre.',
-                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
-                ),
-              ),
-              if (pendingMeta.isNotEmpty)
-                Container(
-                  margin: const EdgeInsets.fromLTRB(10, 0, 10, 5),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF8EE),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFF3DEC0)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.link_rounded,
-                        size: 16,
-                        color: legacy.WaouhColors.orange,
+      body: Column(children: [
+        Expanded(
+            child: StreamBuilder<List<LiveMessage>>(
+                stream: _messageStream,
+                builder: (_, snapshot) {
+                  final messages =
+                      _visibleMessages(snapshot.data ?? const <LiveMessage>[]);
+                  final waiting = optimistic
+                      .any((item) => item.meta['delivery_state'] == 'sending');
+                  return Column(children: [
+                    LiveSmartComposerBar(
+                      messages: messages,
+                      busy: waiting,
+                      onPrompt: (value) {
+                        composer.text = value;
+                        composer.selection = TextSelection.collapsed(
+                          offset: composer.text.length,
+                        );
+                        composerFocus.requestFocus();
+                      },
+                      onSell: _openSellForm,
+                      onMuse: () => showLiveUnifiedIntelligenceSheet(
+                        context,
+                        messages: messages,
+                        busy: waiting,
+                        missionCount: controller.agentic.activeMissionCount,
+                        watchCount: controller.agentic.activeWatchCount,
+                        approvalCount: controller.agentic.pendingApprovalCount,
+                        onNewGoal: () { unawaited(_newChat()); },
+                        onOpenAgentic: () { unawaited(_openAgenticWorkspace()); },
                       ),
-                      const SizedBox(width: 7),
-                      Expanded(
-                        child: Text(
-                          pendingMeta['article_id'] == null
-                              ? 'Contexte WAOUH actif'
-                              : 'Contexte produit actif',
-                          style: const TextStyle(
-                            fontSize: 10.8,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF6B5637),
-                          ),
-                        ),
-                      ),
-                      InkWell(
-                        onTap: () => setState(() => pendingMeta = const {}),
-                        child: const Padding(
-                          padding: EdgeInsets.all(3),
-                          child: Icon(Icons.close_rounded, size: 16),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              LiveAttachmentStrip(
-                items: attachments,
-                onRemove: (item) => setState(() => attachments.remove(item)),
-              ),
-              LiveSmartComposerBar(
-                messages: messages,
-                busy: waiting,
-                onPrompt: (value) {
-                  composer.text = value;
-                  composer.selection = TextSelection.collapsed(
-                    offset: composer.text.length,
-                  );
-                  composerFocus.requestFocus();
-                },
-                onSell: _openSellForm,
-                onMuse: openIntelligence,
-                onLocation: () async {
-                  await controller.useDeviceLocation();
-                  if (!mounted) return;
-                  final position = controller.position;
-                  _notice(
-                    position.available
-                        ? 'Position ajoutée au prochain message.'
-                        : (position.errorMessage ??
-                            'Position GPS indisponible.'),
-                  );
-                },
-              ),
-              LiveWebParityComposerFrame(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    PopupMenuButton<ImageSource>(
-                      tooltip: 'Ajouter',
-                      icon: const Icon(
-                        Icons.add_circle_rounded,
-                        color: Color(0xFF08745D),
-                      ),
-                      onSelected: _attach,
-                      itemBuilder: (_) => const [
-                        PopupMenuItem(
-                          value: ImageSource.camera,
-                          child: ListTile(
-                            dense: true,
-                            leading: Icon(Icons.camera_alt_outlined),
-                            title: Text('Photo'),
-                          ),
-                        ),
-                        PopupMenuItem(
-                          value: ImageSource.gallery,
-                          child: ListTile(
-                            dense: true,
-                            leading: Icon(Icons.photo_library_outlined),
-                            title: Text('Galerie'),
-                          ),
-                        ),
-                      ],
+                      onLocation: () async {
+                        await controller.useDeviceLocation();
+                        if (!mounted) return;
+                        final position = controller.position;
+                        _notice(position.available
+                            ? 'Position ajoutée au prochain message.'
+                            : (position.errorMessage ??
+                                'Position GPS indisponible.'));
+                      },
+                    ),
+                    LiveAvatarPresenceStrip(
+                      busy: waiting,
+                      missionCount: controller.agentic.activeMissionCount,
+                      watchCount: controller.agentic.activeWatchCount,
+                      approvalCount: controller.agentic.pendingApprovalCount,
                     ),
                     Expanded(
-                      child: TextField(
-                        controller: composer,
-                        focusNode: composerFocus,
-                        minLines: 1,
-                        maxLines: 4,
-                        textInputAction: TextInputAction.send,
-                        onSubmitted: (_) => _send(),
-                        decoration: const InputDecoration(
-                          hintText: 'Écrire à WAOUH…',
-                          filled: false,
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 12,
-                          ),
-                        ),
+                      child: LiveSmartTimeline(
+                        messages: messages,
+                        onPayload: _handlePayload,
+                        showAssistantHint: waiting,
+                        emptyMessage:
+                            'Dites simplement ce que vous voulez acheter ou vendre.',
                       ),
                     ),
-                    const SizedBox(width: 5),
-                    FilledButton(
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(44, 44),
-                        maximumSize: const Size(44, 44),
-                        padding: EdgeInsets.zero,
-                        backgroundColor: const Color(0xFF08745D),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15),
-                        ),
+                  ]);
+                })),
+        if (pendingMeta.isNotEmpty)
+          Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              color: const Color(0xFFFFF8EE),
+              child: Row(children: [
+                const Icon(Icons.link_rounded,
+                    size: 18, color: legacy.WaouhColors.orange),
+                const SizedBox(width: 8),
+                Expanded(
+                    child: Text(
+                        pendingMeta['article_id'] == null
+                            ? 'Réponse liée au statut.'
+                            : 'Réponse liée à un produit WAOUH.',
+                        style: const TextStyle(fontWeight: FontWeight.w700))),
+                IconButton(
+                    onPressed: () => setState(() => pendingMeta = const {}),
+                    icon: const Icon(Icons.close, size: 18))
+              ])),
+        LiveAttachmentStrip(
+            items: attachments,
+            onRemove: (item) => setState(() => attachments.remove(item))),
+        SafeArea(
+          top: false,
+          minimum: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(7, 7, 7, 7),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0xFFE2EAF6)),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF456795).withValues(alpha: .10),
+                  blurRadius: 26,
+                  offset: const Offset(0, 10),
+                  spreadRadius: -8,
+                ),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                PopupMenuButton<ImageSource>(
+                  tooltip: 'Ajouter',
+                  icon: const Icon(
+                    Icons.add_circle_rounded,
+                    color: Color(0xFF4F7FFF),
+                  ),
+                  onSelected: _attach,
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: ImageSource.camera,
+                      child: ListTile(
+                        dense: true,
+                        leading: Icon(Icons.camera_alt_outlined),
+                        title: Text('Photo'),
                       ),
-                      onPressed: waiting ? null : _send,
-                      child: waiting
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.arrow_upward_rounded, size: 20),
+                    ),
+                    PopupMenuItem(
+                      value: ImageSource.gallery,
+                      child: ListTile(
+                        dense: true,
+                        leading: Icon(Icons.photo_library_outlined),
+                        title: Text('Galerie'),
+                      ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          );
-        },
-      ),
+                Expanded(
+                  child: TextField(
+                    controller: composer,
+                    focusNode: composerFocus,
+                    minLines: 1,
+                    maxLines: 4,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _send(),
+                    decoration: const InputDecoration(
+                      hintText: 'Écrire à WAOUH…',
+                      filled: false,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 5),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(44, 44),
+                    maximumSize: const Size(44, 44),
+                    padding: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                  ),
+                  onPressed: _send,
+                  child: const Icon(Icons.arrow_upward_rounded, size: 20),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ]),
     );
   }
 
@@ -690,71 +684,56 @@ class _LiveConversationScreenState extends State<LiveConversationScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        backgroundColor: const Color(0xFFF7FAF8),
-        appBar: const LiveWebParityChatHeader(
-          back: true,
+      appBar: const LiveHeader(
+          title: 'WAOUH One',
           subtitle: 'Conversation directe · Contact protégé',
-          phase: LiveMusePhase.contacting,
-        ),
-        body: Column(
-          children: [
-            const LiveWebParityChatTabs(activeKey: ''),
-            Expanded(
-              child: StreamBuilder<List<LiveMessage>>(
+          back: true),
+      body: Column(children: [
+        Expanded(
+            child: StreamBuilder<List<LiveMessage>>(
                 stream: _messages,
                 builder: (_, snapshot) => LiveSmartTimeline(
-                  messages: _merge(snapshot.data ?? const <LiveMessage>[]),
-                  onPayload: _handlePayload,
-                  showAssistantHint: optimistic.any(
-                    (item) => item.meta['delivery_state'] == 'sending',
-                  ),
-                  emptyMessage: 'Commencez la discussion.',
-                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
-                ),
+                    messages: _merge(snapshot.data ?? const <LiveMessage>[]),
+                    onPayload: _handlePayload,
+                    showAssistantHint: optimistic.any(
+                        (item) => item.meta['delivery_state'] == 'sending'),
+                    emptyMessage: 'Commencez la discussion.'))),
+        SafeArea(
+            top: false,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                border: Border(top: BorderSide(color: Color(0xFFE1E9E6))),
               ),
-            ),
-            LiveWebParityComposerFrame(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
+              padding: const EdgeInsets.fromLTRB(8, 7, 8, 9),
+              child: Row(children: [
+                Expanded(
                     child: TextField(
-                      controller: composer,
-                      focusNode: focus,
-                      minLines: 1,
-                      maxLines: 4,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _send(),
-                      decoration: const InputDecoration(
-                        filled: false,
-                        border: InputBorder.none,
-                        enabledBorder: InputBorder.none,
-                        focusedBorder: InputBorder.none,
-                        hintText: 'Votre réponse…',
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 5),
-                  FilledButton(
+                        controller: composer,
+                        focusNode: focus,
+                        minLines: 1,
+                        maxLines: 4,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _send(),
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: const Color(0xFFF5F8F7),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: BorderSide.none,
+                          ),
+                          hintText: 'Votre réponse…',
+                        ))),
+                const SizedBox(width: 6),
+                FilledButton(
                     style: FilledButton.styleFrom(
-                      minimumSize: const Size(44, 44),
-                      maximumSize: const Size(44, 44),
+                      minimumSize: const Size(48, 48),
                       padding: EdgeInsets.zero,
                       backgroundColor: const Color(0xFF08745D),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
-                      ),
                     ),
                     onPressed: _send,
-                    child: const Icon(Icons.arrow_upward_rounded, size: 20),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
+                    child: const Icon(Icons.send_rounded))
+              ]),
+            )),
+      ]));
 }

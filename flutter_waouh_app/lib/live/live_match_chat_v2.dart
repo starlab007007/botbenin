@@ -8,7 +8,6 @@ import 'package:provider/provider.dart';
 import 'live_commerce_action_client.dart';
 import 'live_controller.dart';
 import 'live_commerce_agent_ui.dart';
-import 'live_chat_web_parity.dart';
 import 'live_commerce_workflow.dart';
 import 'live_controller_extensions.dart';
 import 'live_controller_match_actions.dart';
@@ -557,11 +556,10 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
     final match = _match;
     if (match == null) {
       return Scaffold(
-        backgroundColor: const Color(0xFFF7FAF8),
-        appBar: const LiveWebParityChatHeader(
+        appBar: const LiveHeader(
+          title: 'Discussion produit',
+          subtitle: 'Ouverture de la conversation…',
           back: true,
-          subtitle: 'Synchronisation du thread canonique…',
-          phase: LiveMusePhase.searching,
         ),
         body: Center(
           child: ConstrainedBox(
@@ -571,9 +569,16 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const LiveMuseAvatar(
-                    phase: LiveMusePhase.searching,
-                    size: 62,
+                  Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0F6FF),
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                    child: const Center(
+                      child: CircularProgressIndicator(strokeWidth: 3),
+                    ),
                   ),
                   const SizedBox(height: 18),
                   Text(
@@ -583,8 +588,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      color: Color(0xFF15372F),
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                   const SizedBox(height: 7),
@@ -614,22 +618,15 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
         ),
       );
     }
-
     final pendingThread =
         _pendingSeed != null && liveIsProvisionalInterestedMatch(_pendingSeed!);
-    final mode =
-        match.role == 'seller' ? LiveMuseMode.seller : LiveMuseMode.buyer;
-
     return Scaffold(
-      backgroundColor: const Color(0xFFF7FAF8),
-      appBar: LiveWebParityChatHeader(
-        back: true,
-        mode: mode,
-        phase:
-            pendingThread ? LiveMusePhase.searching : LiveMusePhase.negotiating,
+      appBar: LiveHeader(
+        title: 'WAOUH One',
         subtitle:
             'Deal Room · ${match.title}${match.city == null ? '' : ' · ${match.city}'}',
-        trailing: pendingThread
+        back: true,
+        actions: pendingThread
             ? const <Widget>[]
             : [
                 IconButton(
@@ -637,175 +634,156 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                   onPressed: () async {
                     await controller.archiveMatch(match, true);
                     if (!mounted) return;
-                    context.go('/app/chat');
+                    Navigator.of(context).pop();
                   },
-                  icon: const Icon(Icons.archive_outlined, size: 20),
+                  icon: const Icon(Icons.archive_outlined),
                 ),
               ],
       ),
-      body: Column(
-        children: [
-          LiveWebParityChatTabs(activeKey: match.key),
-          if (pendingThread) const LinearProgressIndicator(minHeight: 2),
-          Expanded(
-            child: StreamBuilder<List<LiveMessage>>(
-              stream: _messageStream,
-              builder: (_, snapshot) {
-                final merged = _merge(snapshot.data ?? const <LiveMessage>[]);
-                _lastMerged = merged;
-                final waiting = _optimistic
-                    .any((item) => item.meta['delivery_state'] == 'sending');
-
-                void openIntelligence() => showLiveUnifiedIntelligenceSheet(
+      body: Column(children: [
+        // Seul indicateur pendant la confirmation du fil : une barre fine.
+        if (pendingThread)
+          const LinearProgressIndicator(minHeight: 2),
+        Expanded(
+          child: StreamBuilder<List<LiveMessage>>(
+            stream: _messageStream,
+            builder: (_, snapshot) {
+              final merged =
+                  _merge(snapshot.data ?? const <LiveMessage>[]);
+              _lastMerged = merged;
+              final waiting = _optimistic
+                  .any((item) => item.meta['delivery_state'] == 'sending');
+              return Column(
+                children: [
+                  // Parcours v3 : progression en 7 étapes.
+                  LiveDealStepper(
+                    stage: liveLatestStage(merged) ??
+                        (match.negotiationId != null ? 'negotiation' : null),
+                  ),
+                  LiveDealRoomBanner(
+                    match: match,
+                    messages: merged,
+                    pending: pendingThread,
+                    onIntelligence: () => showLiveUnifiedIntelligenceSheet(
                       context,
                       messages: merged,
                       busy: waiting,
                       match: match,
-                    );
-
-                return Column(
-                  children: [
-                    LiveDealStepper(
-                      stage: liveLatestStage(merged) ??
-                          (match.negotiationId != null ? 'negotiation' : null),
                     ),
-                    LiveDealRoomBanner(
-                      match: match,
+                  ),
+                  Expanded(
+                    child: LiveSmartTimeline(
                       messages: merged,
-                      pending: pendingThread,
-                      onIntelligence: openIntelligence,
+                      onPayload: _handlePayload,
+                      showAssistantHint: waiting,
+                      emptyMessage: pendingThread
+                          ? 'Deal Room ouverte. Votre offre part au vendeur.'
+                          : match.isSearch
+                              ? 'Poursuivez cette recherche avec votre Avatar.'
+                              : 'Commencez la discussion sur ce produit.',
+                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
                     ),
-                    Expanded(
-                      child: LiveSmartTimeline(
-                        messages: merged,
-                        onPayload: _handlePayload,
-                        showAssistantHint: waiting,
-                        emptyMessage: pendingThread
-                            ? 'Deal Room ouverte. Votre offre part au vendeur.'
-                            : match.isSearch
-                                ? 'Poursuivez cette recherche avec votre Avatar.'
-                                : 'Commencez la discussion sur ce produit.',
-                        padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+        LiveAttachmentStrip(
+            items: _attachments,
+            onRemove: (item) => setState(() => _attachments.remove(item))),
+        SafeArea(
+          top: false,
+          minimum: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+          child: Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0xFFE2EAF6)),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF456795).withValues(alpha: .10),
+                  blurRadius: 26,
+                  offset: const Offset(0, 10),
+                  spreadRadius: -8,
+                ),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                PopupMenuButton<ImageSource>(
+                  tooltip: 'Ajouter',
+                  icon: const Icon(
+                    Icons.add_circle_rounded,
+                    color: Color(0xFF4F7FFF),
+                  ),
+                  onSelected: _pick,
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: ImageSource.camera,
+                      child: ListTile(
+                        dense: true,
+                        leading: Icon(Icons.camera_alt_outlined),
+                        title: Text('Photo'),
                       ),
                     ),
-                    LiveAttachmentStrip(
-                      items: _attachments,
-                      onRemove: (item) =>
-                          setState(() => _attachments.remove(item)),
-                    ),
-                    LiveSmartComposerBar(
-                      messages: merged,
-                      busy: waiting,
-                      onPrompt: (value) {
-                        _composer.text = value;
-                        _composer.selection = TextSelection.collapsed(
-                          offset: _composer.text.length,
-                        );
-                        _focus.requestFocus();
-                      },
-                      onSell: () {
-                        _composer.text = 'Je propose ';
-                        _composer.selection = TextSelection.collapsed(
-                          offset: _composer.text.length,
-                        );
-                        _focus.requestFocus();
-                      },
-                      onMuse: openIntelligence,
-                    ),
-                    LiveWebParityComposerFrame(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          PopupMenuButton<ImageSource>(
-                            tooltip: 'Ajouter',
-                            icon: const Icon(
-                              Icons.add_circle_rounded,
-                              color: Color(0xFF08745D),
-                            ),
-                            onSelected: _pick,
-                            itemBuilder: (_) => const [
-                              PopupMenuItem(
-                                value: ImageSource.camera,
-                                child: ListTile(
-                                  dense: true,
-                                  leading: Icon(Icons.camera_alt_outlined),
-                                  title: Text('Photo'),
-                                ),
-                              ),
-                              PopupMenuItem(
-                                value: ImageSource.gallery,
-                                child: ListTile(
-                                  dense: true,
-                                  leading: Icon(Icons.photo_library_outlined),
-                                  title: Text('Galerie'),
-                                ),
-                              ),
-                            ],
-                          ),
-                          Expanded(
-                            child: TextField(
-                              controller: _composer,
-                              focusNode: _focus,
-                              minLines: 1,
-                              maxLines: 4,
-                              textInputAction: TextInputAction.send,
-                              onSubmitted: (_) => _send(),
-                              decoration: InputDecoration(
-                                hintText: _askMode
-                                    ? (match.role == 'seller'
-                                        ? 'Votre question à l’acheteur…'
-                                        : 'Votre question au vendeur…')
-                                    : match.role == 'seller'
-                                        ? 'Répondre à l’acheteur…'
-                                        : 'Répondre au vendeur…',
-                                filled: false,
-                                border: InputBorder.none,
-                                enabledBorder: InputBorder.none,
-                                focusedBorder: InputBorder.none,
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 12,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                          FilledButton(
-                            style: FilledButton.styleFrom(
-                              minimumSize: const Size(44, 44),
-                              maximumSize: const Size(44, 44),
-                              padding: EdgeInsets.zero,
-                              backgroundColor: const Color(0xFF08745D),
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(15),
-                              ),
-                            ),
-                            onPressed: waiting ? null : _send,
-                            child: waiting
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2.2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Icon(
-                                    Icons.arrow_upward_rounded,
-                                    size: 20,
-                                  ),
-                          ),
-                        ],
+                    PopupMenuItem(
+                      value: ImageSource.gallery,
+                      child: ListTile(
+                        dense: true,
+                        leading: Icon(Icons.photo_library_outlined),
+                        title: Text('Galerie'),
                       ),
                     ),
                   ],
-                );
-              },
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _composer,
+                    focusNode: _focus,
+                    minLines: 1,
+                    maxLines: 4,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _send(),
+                    decoration: InputDecoration(
+                      hintText: _askMode
+                          ? (match.role == 'seller'
+                              ? 'Votre question à l’acheteur…'
+                              : 'Votre question au vendeur…')
+                          : match.role == 'seller'
+                              ? 'Répondre à l’acheteur…'
+                              : 'Répondre au vendeur…',
+                      filled: false,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 12,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 5),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(44, 44),
+                    maximumSize: const Size(44, 44),
+                    padding: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                  ),
+                  onPressed: _send,
+                  child: const Icon(Icons.arrow_upward_rounded, size: 20),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+      ]),
     );
   }
 }
