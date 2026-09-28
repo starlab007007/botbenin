@@ -9,6 +9,7 @@ import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
 import { chatCatalogV3Enabled, chatWriterV2Enabled, recordChatMessage } from "../_shared/waouh-chat-writer.ts";
 import { renderCatalog } from "../_shared/waouh-message-catalog.ts";
 import { checkOperatorDealTransition, OPERATOR_DEAL_STATUSES } from "../_shared/waouh-commerce-states.ts";
+import { beninPhoneCandidates } from "../_shared/waouh-phone.ts";
 import {
   buyerPaymentActions as registryBuyerPaymentActions,
   buyerPaymentActionsV3,
@@ -297,6 +298,97 @@ async function requireAdmin(req: Request, sb: any) {
 }
 
 
+/**
+ * Les changements de statut logistique sont autorisés soit à un admin, soit
+ * au livreur réellement affecté au deal. Le livreur est identifié par le
+ * numéro de téléphone vérifié de Supabase Auth et le numéro du registre
+ * waouh_couriers. Les métadonnées utilisateur ne sont jamais utilisées pour
+ * l'autorisation.
+ *
+ * Un livreur ne peut poser que picked_up / delivered. L'annulation reste une
+ * action d'administration.
+ */
+function strictCourierPhoneCandidates(value: string | null | undefined): string[] {
+  const original = String(value || "").trim();
+  if (!original || /[A-Za-z]/.test(original)) return [];
+  let digits = original.replace(/\D/g, "");
+  if (digits.startsWith("00229")) digits = digits.slice(2);
+
+  // Autorisation : pas de récupération permissive par « derniers 8 chiffres ».
+  // On accepte uniquement un numéro Bénin explicitement formé ou un local
+  // Bénin exact (8 chiffres historique / 10 chiffres commençant par 01).
+  let canonical: string | null = null;
+  if (/^229\d{8}$/.test(digits) || /^22901\d{8}$/.test(digits)) canonical = digits;
+  else if (/^\d{8}$/.test(digits)) canonical = `229${digits}`;
+  else if (/^01\d{8}$/.test(digits)) canonical = `229${digits}`;
+  if (!canonical) return [];
+
+  return beninPhoneCandidates(canonical).filter((candidate) => /^229(?:\d{8}|01\d{8})$/.test(candidate));
+}
+
+async function requireAdminOrAssignedCourier(req: Request, sb: any, body: any) {
+  const authHeader = req.headers.get("Authorization") || "";
+  if (!authHeader.startsWith("Bearer ")) {
+    return { ok: false, status: 401, error: "Missing Authorization header" };
+  }
+  try {
+    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: authData } = await userClient.auth.getUser();
+    const user = authData?.user;
+    if (!user) return { ok: false, status: 401, error: "Invalid session" };
+
+    const [{ data: isAdmin }, { data: isSuperAdmin }] = await Promise.all([
+      sb.rpc("has_role", { _user_id: user.id, _role_name: "admin" }),
+      sb.rpc("has_role", { _user_id: user.id, _role_name: "super_admin" }),
+    ]);
+    if (isAdmin || isSuperAdmin) {
+      return { ok: true, kind: "admin", userId: user.id, courierId: null };
+    }
+
+    const targetStatus = String(body?.status || "");
+    if (!["picked_up", "delivered"].includes(targetStatus)) {
+      return { ok: false, status: 403, error: "Admin role required" };
+    }
+    const dealId = String(body?.deal_id || "");
+    if (!dealId) return { ok: false, status: 400, error: "deal_id required" };
+
+    const { data: deal } = await sb.from("waouh_deals")
+      .select("id,courier_user_id")
+      .eq("id", dealId)
+      .maybeSingle();
+    if (!deal?.courier_user_id) {
+      return { ok: false, status: 403, error: "No courier assigned to this deal" };
+    }
+
+    const { data: courier } = await sb.from("waouh_couriers")
+      .select("id,phone_number,active")
+      .eq("id", deal.courier_user_id)
+      .eq("active", true)
+      .maybeSingle();
+    if (!courier) {
+      return { ok: false, status: 403, error: "Assigned courier unavailable" };
+    }
+
+    const authPhones = strictCourierPhoneCandidates(user.phone);
+    const courierPhones = strictCourierPhoneCandidates(courier.phone_number);
+    if (!authPhones.length || !courierPhones.length) {
+      return { ok: false, status: 403, error: "Courier phone identity required" };
+    }
+    const authCandidates = new Set(authPhones);
+    const phoneMatches = courierPhones.some((candidate) => authCandidates.has(candidate));
+    if (!phoneMatches) {
+      return { ok: false, status: 403, error: "Courier not assigned to this deal" };
+    }
+
+    return { ok: true, kind: "courier", userId: user.id, courierId: courier.id };
+  } catch (e) {
+    return { ok: false, status: 401, error: String(e) };
+  }
+}
+
+
 type DealActor = {
   ok: boolean;
   status?: number;
@@ -553,7 +645,11 @@ async function handleStatus(sb: any, body: any) {
     updates.commission_status = "void";
     if (reason) updates.notes = `[Annulation ${hh}] ${reason}`;
   }
-  await sb.from("waouh_deals").update(updates).eq("id", deal_id);
+  const { error: statusUpdateError } = await sb.from("waouh_deals").update(updates).eq("id", deal_id);
+  if (statusUpdateError) {
+    console.error("[waouh-deal-ops] status update failed", statusUpdateError);
+    return json({ error: "deal_status_update_failed" }, 500);
+  }
 
   await recordCommerceEvent(sb, {
     event_type: `deal_${status}`,
@@ -565,7 +661,12 @@ async function handleStatus(sb: any, body: any) {
     deal_id,
     previous_state: deal.status,
     next_state: status,
-    payload: reason ? { reason } : {},
+    payload: {
+      ...(reason ? { reason } : {}),
+      operator_kind: body?.operator_kind ?? "admin",
+      operator_courier_id: body?.operator_courier_id ?? null,
+      operator_auth_user_id: body?.operator_auth_user_id ?? null,
+    },
   });
   if (status === "cancelled") {
     await bindThreadState(sb, deal.thread_id, { status: "cancelled", negotiation_id: deal.negotiation_id, deal_id });
@@ -1007,14 +1108,22 @@ Deno.serve(async (req) => {
     if (!action) return json({ error: "action required" }, 400);
 
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
-    const adminActions = ["assign", "status", "update_eta"];
+    const adminActions = ["assign", "update_eta"];
+    const operatorActions = ["assign", "status", "update_eta"];
     if (adminActions.includes(action)) {
       const guard = await requireAdmin(req, sb);
       if (!guard.ok) return json({ error: guard.error }, guard.status);
     }
+    if (action === "status") {
+      const guard = await requireAdminOrAssignedCourier(req, sb, body);
+      if (!guard.ok) return json({ error: guard.error }, guard.status);
+      body.operator_kind = guard.kind;
+      body.operator_courier_id = guard.courierId ?? null;
+      body.operator_auth_user_id = guard.userId ?? null;
+    }
 
     const dealControl = await getWaouhModuleControl(sb, "deals");
-    if (!dealControl.enabled && !adminActions.includes(action)) {
+    if (!dealControl.enabled && !operatorActions.includes(action)) {
       return json({
         error: "deals_paused",
         message: dealControl.maintenance_message || "Le Deal Graph WAOUH est temporairement suspendu.",

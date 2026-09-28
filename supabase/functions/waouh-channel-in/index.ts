@@ -1241,6 +1241,153 @@ serve(async (req) => {
       /^(?:oui|ok|d['’]?accord|j['’]?accepte|accepte|yes|non|no|je\s+refuse|refuse|je\s+propose|propose|contre[-\s]?proposition|contre[-\s]?proposer|accepter|refuser)(?:\b|:)/i.test(text.trim()) ||
       /^\d[\d\s.,]{2,}\s*(?:fcfa|cfa|f)?$/i.test(text.trim());
 
+    // Sécurité UX commerce : une offre/contre-offre saisie librement dans une
+    // négociation existante ne modifie jamais le prix au premier envoi.
+    // Le serveur demande d'abord « CONFIRMER ». Cette protection couvre aussi
+    // WhatsApp et le fallback historique Web/Flutter si le contrat V3 est
+    // momentanément indisponible. Elle ne touche pas aux étapes de paiement.
+    const actorRoleForNegotiation: "buyer" | "seller" | null = openNeg
+      ? (openNeg.seller_user_id && siblingIds.includes(openNeg.seller_user_id)
+        ? "seller"
+        : openNeg.buyer_user_id && siblingIds.includes(openNeg.buyer_user_id)
+          ? "buyer"
+          : metaRole)
+      : metaRole;
+    let confirmedPendingOffer: { amount: number; negotiationId: string; threadId: string } | null = null;
+    const confirmOfferText = /^confirmer(?:\s+(?:l['’]?offre|cette\s+offre))?[.!]?$/i.test(String(text || "").trim());
+    if (confirmOfferText && openNeg?.thread_id) {
+      try {
+        const { data: recentPrompts } = await sb.from("waouh_messages")
+          .select("created_at,meta")
+          .eq("thread_id", openNeg.thread_id)
+          .eq("user_id", user.id)
+          .eq("direction", "out")
+          .order("created_at", { ascending: false })
+          .limit(10);
+        const cutoff = Date.now() - 15 * 60_000;
+        for (const row of recentPrompts || []) {
+          const pendingOffer = (row?.meta as any)?.pending_offer;
+          if (!pendingOffer || (row?.meta as any)?.intent !== "offer_confirmation_required") continue;
+          if (new Date(row.created_at).getTime() < cutoff) continue;
+          if (String(pendingOffer.negotiation_id || "") !== String(openNeg.id)) continue;
+          const amount = Number(pendingOffer.amount || 0);
+          if (!Number.isFinite(amount) || amount <= 0) continue;
+          confirmedPendingOffer = { amount: Math.round(amount), negotiationId: openNeg.id, threadId: openNeg.thread_id };
+          break;
+        }
+      } catch (e) {
+        console.warn("[waouh-channel-in] pending offer lookup failed", e);
+      }
+    }
+
+    const typedOfferForConfirmation = extractOfferAmount(text);
+    const sameOwnOffer =
+      !!openNeg &&
+      typedOfferForConfirmation != null &&
+      Number(openNeg.last_offer_price || 0) === typedOfferForConfirmation &&
+      String(openNeg.last_actor || "").toLowerCase() === String(actorRoleForNegotiation || "").toLowerCase();
+
+    if (
+      openNeg?.thread_id &&
+      typedOfferForConfirmation != null &&
+      isExplicitOfferText(text) &&
+      !sameOwnOffer &&
+      !confirmedPendingOffer &&
+      !String(clientMeta?.button_payload || "").trim()
+    ) {
+      const amount = Math.round(typedOfferForConfirmation);
+      const prompt = `Confirmez-vous l'offre de ${amount.toLocaleString("fr-FR")} FCFA ? Répondez « CONFIRMER » pour l'envoyer, ou saisissez un autre montant.`;
+      const pendingOffer = {
+        action: "offer",
+        amount,
+        negotiation_id: openNeg.id,
+        thread_id: openNeg.thread_id,
+        article_id: openNeg.article_id,
+        confirmed: true,
+      };
+
+      if (inboundMessageId) {
+        await sb.from("waouh_messages")
+          .update({ thread_id: openNeg.thread_id, article_id: openNeg.article_id })
+          .eq("id", inboundMessageId);
+      }
+
+      let confirmationMessageId: string | null = null;
+      if (await chatWriterV2Enabled(sb)) {
+        const written = await recordChatMessage({
+          sb,
+          threadId: openNeg.thread_id,
+          recipientUserId: user.id,
+          text: prompt,
+          channel,
+          intent: "offer_confirmation_required",
+          actions: [],
+          correlationId,
+          payloadExtra: {
+            pending_offer: pendingOffer,
+            negotiation_id: openNeg.id,
+            workflow_state: openNeg.state,
+          },
+          enqueueWhatsapp: false,
+          conversationId: convId,
+          phoneNumber: phone,
+        });
+        if (written.ok) confirmationMessageId = written.recipientMessageId;
+      }
+      if (!confirmationMessageId) {
+        const { data: confirmationRow } = await sb.from("waouh_messages").insert({
+          conversation_id: convId,
+          thread_id: openNeg.thread_id,
+          user_id: user.id,
+          channel,
+          direction: "out",
+          text: prompt,
+          web_session_id: sessionId,
+          phone_number: phone,
+          article_id: openNeg.article_id,
+          attachments: [],
+          meta: {
+            intent: "offer_confirmation_required",
+            pending_offer: pendingOffer,
+            negotiation_id: openNeg.id,
+            thread_id: openNeg.thread_id,
+            article_id: openNeg.article_id,
+            role: actorRoleForNegotiation,
+            actions: [],
+            correlation_id: correlationId,
+          },
+        }).select("id").maybeSingle();
+        confirmationMessageId = confirmationRow?.id ?? null;
+      }
+
+      if (channel === "whatsapp" && phone && WAHA_BASE_URL) {
+        try {
+          await sendWahaReply(WAHA_BASE_URL, wahaSession, replyChatIds, prompt, []);
+        } catch (e) {
+          console.error("[waouh-channel-in] offer confirmation WAHA failed", e);
+        }
+      }
+
+      return new Response(JSON.stringify({
+        ok: true,
+        intent: "offer_confirmation_required",
+        commerce_event: "offer_pending_confirmation",
+        reply: prompt,
+        pending: pendingOffer,
+        actions: [],
+        thread_id: openNeg.thread_id,
+        negotiation_id: openNeg.id,
+        article_id: openNeg.article_id,
+        stage: "negotiation",
+        workflow_state: openNeg.state,
+        inbound_message_id: inboundMessageId,
+        outbound_message_id: confirmationMessageId,
+        conversation_id: convId,
+        user_id: user.id,
+        correlation_id: correlationId,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     // =====================================================================
     // Parcours v3 — Lot 1 : ouverture directe de la Deal Room.
     // Un message qui porte un article (bouton de fiche, intérêt, prix) ouvre
@@ -1250,6 +1397,16 @@ serve(async (req) => {
     // =====================================================================
     let routerTextOverride: string | null = null;
     let forceRouter = false;
+    if (confirmedPendingOffer && openNeg) {
+      forceRouter = true;
+      routerTextOverride = `je propose ${confirmedPendingOffer.amount}`;
+      // Le « CONFIRMER » appartient au même fil que l'offre en attente.
+      if (inboundMessageId) {
+        await sb.from("waouh_messages")
+          .update({ thread_id: confirmedPendingOffer.threadId, article_id: openNeg.article_id })
+          .eq("id", inboundMessageId);
+      }
+    }
     {
       const articleButton = payloadCommand?.scope === "article" ? payloadCommand : null;
       const fastArticleId: string | null = articleButton?.targetId ?? metaArticleId;
@@ -1264,7 +1421,7 @@ serve(async (req) => {
       }
       const decision = decideFastPath({
         // Un bouton de négociation ou de deal garde son propre chemin.
-        enabled: fastPathEnabled && payloadCommand?.scope !== "negotiation" && payloadCommand?.scope !== "deal",
+        enabled: !confirmedPendingOffer && fastPathEnabled && payloadCommand?.scope !== "negotiation" && payloadCommand?.scope !== "deal",
         articleId: fastArticleId,
         actorIsSeller: sellerOfArticle,
         metaRole,

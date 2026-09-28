@@ -600,6 +600,47 @@ export function WaouhMatchChatWindow({
   ) => {
     const text = (overrideText ?? input).trim();
     if (!text || sending || closed) return;
+
+    // Une offre/contre-offre tapée dans le composeur passe d'abord par le
+    // contrat V3 afin d'obtenir pending + « Confirmer ». Les autres messages
+    // (questions, oui/non, discussion générale, paiement) gardent exactement
+    // le chemin historique de cette fenêtre.
+    const typedOffer =
+      overrideText == null &&
+      !askMode &&
+      /^\s*(?:je\s+)?(?:propose|contre[-\s]?propose)\b/i.test(text);
+    if (typedOffer) {
+      setSending(true);
+      try {
+        const response = await sendCommerceAction({
+          action: "text",
+          text,
+          article_id: match.article_id,
+          thread_id: latestCommerceScope.thread_id ?? serverThreadId ?? null,
+          negotiation_id: latestCommerceScope.negotiation_id ?? null,
+          deal_id: latestCommerceScope.deal_id ?? null,
+          source: "web_deal_room",
+        }, sessionId);
+        if (response) {
+          setInput("");
+          if (response.pending?.action === "offer") {
+            toast.message(response.reply.title, { description: response.reply.detail });
+          } else if (!response.ok && response.reply?.text) {
+            toast.message(response.reply.title, { description: response.reply.detail });
+          }
+          window.dispatchEvent(new CustomEvent("waouh:match-updated", { detail: { article_id: match.article_id } }));
+          return;
+        }
+        // Endpoint V3 indisponible/503 : repli sans régression sur le canal
+        // historique ci-dessous.
+      } catch {
+        toast.error("Rien n'a été validé. Réessayez.");
+        return;
+      } finally {
+        setSending(false);
+      }
+    }
+
     setSending(true);
     const tempId = `temp-in-${crypto.randomUUID()}`;
     const now = new Date().toISOString();
@@ -972,6 +1013,39 @@ export function WaouhMatchChatWindow({
                       className="h-7 rounded-xl text-xs"
                       disabled={sending || !actionId}
                       onClick={async () => {
+                        // Confirmation persistée par waouh-commerce-action.
+                        // Ce lot ne prend en charge ici QUE les offres : aucun
+                        // changement du paiement / confirmation paiement.
+                        if (actionId === "confirm" && m.meta?.pending?.action === "offer") {
+                          setSending(true);
+                          try {
+                            const pending = m.meta.pending as Record<string, unknown>;
+                            const response = await sendCommerceAction({
+                              ...(pending as any),
+                              thread_id: (pending.thread_id as string | null | undefined) ?? m.meta?.thread_id ?? latestCommerceScope.thread_id ?? serverThreadId ?? null,
+                              negotiation_id: (pending.negotiation_id as string | null | undefined) ?? m.meta?.negotiation_id ?? latestCommerceScope.negotiation_id ?? null,
+                              article_id: (pending.article_id as string | null | undefined) ?? match.article_id,
+                              source: "web_deal_room",
+                            }, sessionId);
+                            if (!response) {
+                              toast.error("Confirmation indisponible. Réessayez.");
+                            } else if (!response.ok) {
+                              toast.message(response.reply.title, { description: response.reply.detail });
+                            }
+                            window.dispatchEvent(new CustomEvent("waouh:match-updated", { detail: { article_id: match.article_id } }));
+                          } catch {
+                            toast.error("Rien n'a été validé. Réessayez.");
+                          } finally {
+                            setSending(false);
+                          }
+                          return;
+                        }
+                        if (actionId === "dismiss" && m.meta?.pending?.action === "offer") {
+                          const amount = Number(m.meta?.pending?.amount ?? 0);
+                          setInput(amount > 0 ? `Je propose ${formatFcfa(amount)}` : "Je propose ");
+                          setTimeout(() => textareaRef.current?.focus(), 0);
+                          return;
+                        }
                         if (/contre-proposition|counter|^proposer-prix:/i.test(actionId)) {
                           const offer = Number(m.meta?.products?.[0]?.price ?? m.meta?.offer ?? match.price ?? 0) || null;
                           prefillOffer(offer);
