@@ -86,10 +86,10 @@ Deno.test("écho de l'action (bulle de l'utilisateur)", () => {
 });
 
 // --------------------------------------------------------------- texte libre
-Deno.test("texte libre : règles déterministes exécutées", () => {
+Deno.test("texte libre : offre confirmée, autres règles déterministes conservées", () => {
   const neg = { stage: "negotiation" as const, role: "buyer" as const };
-  assertEquals(classifyDeterministic("je propose 2300", neg)?.action, "offer");
-  assertEquals(classifyDeterministic("je propose 2300", neg)?.execute, true);
+  const offer = classifyDeterministic("je propose 2300", neg);
+  assertEquals([offer?.action, offer?.execute, offer?.needsConfirm], ["offer", false, true]);
   assertEquals(classifyDeterministic("ok", neg)?.action, "accept");
   assertEquals(classifyDeterministic("non merci", neg)?.action, "reject");
   assertEquals(classifyDeterministic("Il est neuf ?", neg)?.action, "ask");
