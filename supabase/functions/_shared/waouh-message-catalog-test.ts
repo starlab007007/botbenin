@@ -98,3 +98,17 @@ Deno.test("étape du parcours à partir des états stockés", () => {
   assertEquals(stageFor({ dealStatus: "delivered" }), "delivery");
   assertEquals(stageFor({ dealStatus: "completed" }), "payment");
 });
+
+
+Deno.test("confirmation d'offre : le montant confirmé est explicite une seule fois", () => {
+  const m = renderCatalog("confirm_money_action", { label: "Proposer ce prix", amount: 120 });
+  assertEquals(m.detail.replace(/ /g, " "), "Proposer ce prix · 120 FCFA.");
+});
+
+Deno.test("offre envoyée : grammaire vendeur/acheteur correcte", () => {
+  const buyer = renderCatalog("offer_sent", { title: "Bic", amount: 100, role: "buyer" });
+  const seller = renderCatalog("offer_sent", { title: "Bic", amount: 120, role: "seller" });
+  assert(buyer.detail.includes("En attente du vendeur."));
+  assert(seller.detail.includes("En attente de l'acheteur."));
+  assert(!buyer.detail.includes("de le vendeur"));
+});
