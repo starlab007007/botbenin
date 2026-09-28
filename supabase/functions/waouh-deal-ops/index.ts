@@ -9,7 +9,7 @@ import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
 import { chatCatalogV3Enabled, chatWriterV2Enabled, recordChatMessage } from "../_shared/waouh-chat-writer.ts";
 import { renderCatalog } from "../_shared/waouh-message-catalog.ts";
 import { checkOperatorDealTransition, OPERATOR_DEAL_STATUSES } from "../_shared/waouh-commerce-states.ts";
-import { beninPhoneCandidates, normalizeBeninPhone } from "../_shared/waouh-phone.ts";
+import { beninPhoneCandidates } from "../_shared/waouh-phone.ts";
 import {
   buyerPaymentActions as registryBuyerPaymentActions,
   buyerPaymentActionsV3,
@@ -308,6 +308,24 @@ async function requireAdmin(req: Request, sb: any) {
  * Un livreur ne peut poser que picked_up / delivered. L'annulation reste une
  * action d'administration.
  */
+function strictCourierPhoneCandidates(value: string | null | undefined): string[] {
+  const original = String(value || "").trim();
+  if (!original || /[A-Za-z]/.test(original)) return [];
+  let digits = original.replace(/\D/g, "");
+  if (digits.startsWith("00229")) digits = digits.slice(2);
+
+  // Autorisation : pas de récupération permissive par « derniers 8 chiffres ».
+  // On accepte uniquement un numéro Bénin explicitement formé ou un local
+  // Bénin exact (8 chiffres historique / 10 chiffres commençant par 01).
+  let canonical: string | null = null;
+  if (/^229\d{8}$/.test(digits) || /^22901\d{8}$/.test(digits)) canonical = digits;
+  else if (/^\d{8}$/.test(digits)) canonical = `229${digits}`;
+  else if (/^01\d{8}$/.test(digits)) canonical = `229${digits}`;
+  if (!canonical) return [];
+
+  return beninPhoneCandidates(canonical).filter((candidate) => /^229(?:\d{8}|01\d{8})$/.test(candidate));
+}
+
 async function requireAdminOrAssignedCourier(req: Request, sb: any, body: any) {
   const authHeader = req.headers.get("Authorization") || "";
   if (!authHeader.startsWith("Bearer ")) {
@@ -353,13 +371,13 @@ async function requireAdminOrAssignedCourier(req: Request, sb: any, body: any) {
       return { ok: false, status: 403, error: "Assigned courier unavailable" };
     }
 
-    const authPhone = normalizeBeninPhone(user.phone);
-    const courierPhone = normalizeBeninPhone(courier.phone_number);
-    if (!authPhone || !courierPhone) {
+    const authPhones = strictCourierPhoneCandidates(user.phone);
+    const courierPhones = strictCourierPhoneCandidates(courier.phone_number);
+    if (!authPhones.length || !courierPhones.length) {
       return { ok: false, status: 403, error: "Courier phone identity required" };
     }
-    const authCandidates = new Set(beninPhoneCandidates(authPhone));
-    const phoneMatches = beninPhoneCandidates(courierPhone).some((candidate) => authCandidates.has(candidate));
+    const authCandidates = new Set(authPhones);
+    const phoneMatches = courierPhones.some((candidate) => authCandidates.has(candidate));
     if (!phoneMatches) {
       return { ok: false, status: 403, error: "Courier not assigned to this deal" };
     }
@@ -1091,6 +1109,7 @@ Deno.serve(async (req) => {
 
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
     const adminActions = ["assign", "update_eta"];
+    const operatorActions = ["assign", "status", "update_eta"];
     if (adminActions.includes(action)) {
       const guard = await requireAdmin(req, sb);
       if (!guard.ok) return json({ error: guard.error }, guard.status);
@@ -1104,7 +1123,7 @@ Deno.serve(async (req) => {
     }
 
     const dealControl = await getWaouhModuleControl(sb, "deals");
-    if (!dealControl.enabled && !adminActions.includes(action)) {
+    if (!dealControl.enabled && !operatorActions.includes(action)) {
       return json({
         error: "deals_paused",
         message: dealControl.maintenance_message || "Le Deal Graph WAOUH est temporairement suspendu.",
