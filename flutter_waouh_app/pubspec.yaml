@@ -1,7 +1,7 @@
 name: waouh_app_native
 description: WaouhApp native Flutter application connected to the existing Bot.BJ Supabase backend.
 publish_to: "none"
-version: 18.17.0+1786092805
+version: 18.18.0+1786092806
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
