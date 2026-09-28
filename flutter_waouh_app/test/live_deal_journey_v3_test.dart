@@ -42,7 +42,9 @@ void main() {
   });
 
   group('Parcours v3 — prix suggéré', () {
-    test('milieu des offres, 90 % sinon, arrondi à 25 FCFA', () {
+    test('parité Web : pas 5 FCFA sur micro-prix, 25 FCFA au-delà', () {
+      expect(liveSuggestedCounterPrice(currentOffer: 100), 90);
+      expect(liveSuggestedCounterPrice(currentOffer: 120, ownLastOffer: 80), 100);
       expect(liveSuggestedCounterPrice(currentOffer: 2500, ownLastOffer: 2000), 2250);
       expect(liveSuggestedCounterPrice(currentOffer: 2500), 2250);
       expect(liveSuggestedCounterPrice(listPrice: 10000), 9000);
