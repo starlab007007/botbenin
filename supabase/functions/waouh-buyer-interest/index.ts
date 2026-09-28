@@ -13,10 +13,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-waouh-session, x-session-id",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
-import { bindThreadState, resolveProductThread } from "../_shared/waouh-thread.ts";
-import { sellerOfferDecisionActions } from "../_shared/waouh-commands.ts";
 import { requestSessionId, requireAuthOrGuestSession } from "../_shared/waouh-auth.ts";
+import { openBuyerDeal } from "../_shared/waouh-deal-open.ts";
+import { chatCatalogV3Enabled } from "../_shared/waouh-chat-writer.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -34,7 +33,6 @@ Deno.serve(async (req) => {
 
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // 🆕 Promotion catalog → article si nécessaire (tunnel partenaire)
     if (!article_id && catalog_id) {
       const { promoteCatalogToArticle } = await import("../_shared/waouh-promote.ts");
       const promo = await promoteCatalogToArticle(sb, catalog_id);
@@ -46,9 +44,6 @@ Deno.serve(async (req) => {
       article_id = promo.article_id;
     }
 
-    // Resolve the caller without regressing guest Web sessions. Internal
-    // service-role calls may explicitly provide buyer_user_id; browser/mobile
-    // callers are resolved from a verified JWT or the signed WAOUH guest session.
     const auth = req.headers.get("Authorization") ?? "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
     const trustedInternal = token === SERVICE_ROLE;
@@ -63,7 +58,6 @@ Deno.serve(async (req) => {
       ? null
       : (requestAuth?.authUser?.id ?? null);
 
-    // Resolve buyer waouh_users id from the authoritative caller identity.
     let buyerUserId: string | null = trustedInternal ? (explicitBuyerUserId || null) : null;
     if (!buyerUserId && authUserId) {
       const { data } = await sb.from("waouh_users")
@@ -87,244 +81,50 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Load article + seller
-    const { data: article } = await sb
-      .from("waouh_articles")
-      .select("id,seller_id,title,description,category,condition,price,currency,photos,city,market_price_min,market_price_max,status")
-      .eq("id", article_id)
-      .maybeSingle();
-    if (!article) {
-      return new Response(JSON.stringify({ error: "article not found" }), {
-        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const requestedOfferRaw = offer_price ?? initial_offer_amount ?? null;
-    const requestedOffer = requestedOfferRaw == null || requestedOfferRaw === ""
-      ? null
-      : Number(requestedOfferRaw);
-    if (requestedOffer != null && (!Number.isFinite(requestedOffer) || requestedOffer <= 0)) {
-      return new Response(JSON.stringify({ error: "invalid offer_price" }), {
-        status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const initialOffer = requestedOffer ?? (Number((article as any).price ?? 0) || null);
-
-    if (article.seller_id && buyerUserId && article.seller_id === buyerUserId) {
-      // Seller cannot be interested in own article
-      return new Response(JSON.stringify({ ok: true, skipped: "self" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const { data: buyerActor } = await sb.from("waouh_users")
-      .select("id,auth_user_id,phone_number,web_session_id")
-      .eq("id", buyerUserId)
-      .single();
-    const thread = await resolveProductThread({
+    const catalogV3 = await chatCatalogV3Enabled(sb);
+    const opened = await openBuyerDeal({
       sb,
       articleId: article_id,
-      actorUser: buyerActor,
-      role: "buyer",
-      counterpartUserId: article.seller_id,
       buyerUserId,
-      sellerUserId: article.seller_id,
       source,
+      offer: offer_price ?? initial_offer_amount ?? null,
+      supabaseUrl: SUPABASE_URL,
+      serviceRole: SERVICE_ROLE,
+      notifySeller: "always",
+      echoBuyer: true,
+      catalogV3,
     });
-    if (!thread?.id) {
-      return new Response(JSON.stringify({ error: "thread creation failed" }), {
-        status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    if (!opened.ok) {
+      if (opened.code === "self") {
+        return new Response(JSON.stringify({ ok: true, skipped: "self" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const status = opened.code === "article_not_found" ? 404
+        : opened.code === "invalid_offer" ? 422
+        : 409;
+      const error = opened.code === "article_not_found" ? "article not found"
+        : opened.code === "invalid_offer" ? "invalid offer_price"
+        : "thread creation failed";
+      return new Response(JSON.stringify({ error }), {
+        status, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const threadId = thread.id;
-
-    // Insert interest (dedupe on (article, buyer))
-    const { error: insErr } = await sb.from("waouh_interests").upsert({
-      thread_id: threadId,
-      article_id,
-      buyer_user_id: buyerUserId,
-      seller_user_id: article.seller_id ?? null,
-      source,
-      payload: { thread_id: threadId, source },
-    }, { onConflict: "article_id,buyer_user_id,thread_id", ignoreDuplicates: true });
-    const isDuplicate =
-      insErr && ((insErr as any).code === "23505" || /duplicate/i.test((insErr as any).message || ""));
-    if (insErr && !isDuplicate) {
-      console.error("[waouh-buyer-interest] insert error", insErr);
-    }
-
-    // 🤝 Ensure an OPEN negotiation exists so the buyer can immediately reply
-    // OUI / NON / "je propose X" via waouh-negotiation-router. Without this
-    // the router answers "Aucune négociation en cours".
-    let negotiationId: string | null = null;
-    if (buyerUserId && article.seller_id) {
-      try {
-        const { data: openNeg } = await sb
-          .from("waouh_negotiations")
-          .select("id, state")
-          .eq("thread_id", threadId)
-          .in("state", ["proposed", "countered"])
-          .order("updated_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (!openNeg) {
-          const { data: createdNeg, error: createdNegError } = await sb.from("waouh_negotiations").insert({
-            thread_id: threadId,
-            article_id,
-            buyer_user_id: buyerUserId,
-            seller_user_id: article.seller_id,
-            state: "proposed",
-            last_offer_price: initialOffer,
-            last_actor: "buyer",
-            meta: { opened_via: "buyer_interest", source, initial_offer_amount: initialOffer },
-          }).select("id").single();
-          if (createdNegError) throw createdNegError;
-          negotiationId = createdNeg?.id ?? null;
-        } else {
-          negotiationId = openNeg.id;
-        }
-      } catch (e) {
-        console.warn("[waouh-buyer-interest] open negotiation failed", e);
-      }
-    }
-    await bindThreadState(sb, threadId, {
-      status: "negotiating",
-      negotiation_id: negotiationId,
-    });
-    if (negotiationId) {
-      try {
-        await sb.rpc("waouh_record_commerce_event", {
-        p_event_type: "buyer_interest_opened",
-        p_entity_type: "negotiation",
-        p_entity_id: negotiationId,
-        p_thread_id: threadId,
-        p_article_id: article_id,
-        p_negotiation_id: negotiationId,
-        p_actor_user_id: buyerUserId,
-        p_actor_role: "buyer",
-        p_previous_state: null,
-        p_next_state: "proposed",
-        p_payload: { source },
-      })
-      } catch (_) { /* ledger is best-effort for legacy recovery */ }
-    }
-    // Boutons de décision : pour le VENDEUR uniquement (registre unique).
-    const decisionActions = negotiationId ? sellerOfferDecisionActions(negotiationId) : [];
-
-
-    // Always dispatch the seller notification. The dispatcher has its own
-    // per-day dedupe_key, so a re-click won't create twin notifications, but
-    // a legitimate retry after a previous failure WILL go through.
-    let dispatched = false;
-    try {
-      await fetch(`${SUPABASE_URL}/functions/v1/waouh-notify-dispatch`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${SERVICE_ROLE}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          kind: "new_buyer",
-          article_id,
-          thread_id: threadId,
-          buyer_user_id: buyerUserId,
-          seller_user_id: article.seller_id,
-          counterpart_user_id: buyerUserId,
-          recipient: "seller",
-          negotiation_id: negotiationId,
-          actions: decisionActions,
-          extra_text: `📩 Nouvel acheteur intéressé\n\n📦 ${(article as any).title || "Annonce"}\n💰 Offre proposée : ${Number(initialOffer || (article as any).price || 0).toLocaleString("fr-FR")} FCFA\n\nAcceptez le prix, faites une contre-offre ou refusez.`,
-        }),
-      });
-      dispatched = true;
-    } catch (e) {
-      console.warn("[waouh-buyer-interest] dispatch failed", e);
-    }
-
-    // 🔁 Écho côté acheteur : bulle chat + WhatsApp (si numéro acheteur résolu)
-    if (buyerUserId) {
-      try {
-        const { data: buyerUser } = await sb
-          .from("waouh_users")
-          .select("id, phone_number, web_session_id, auth_user_id")
-          .eq("id", buyerUserId)
-          .maybeSingle();
-        if (buyerUser) {
-          const title = (article as any)?.title || "votre annonce";
-          const photos = Array.isArray((article as any)?.photos)
-            ? (article as any).photos.filter((url: unknown) => typeof url === "string" && /^https?:\/\//i.test(url as string))
-            : [];
-          // L'acheteur ne décide pas de sa propre offre : pas de bouton
-          // « Accepter le prix » sur son écho (sinon deal créé sans le vendeur).
-          const actions: typeof decisionActions = [];
-          await pushSyncedEvent({
-            sb,
-            user: buyerUser,
-            role: "buyer",
-            articleId: article_id,
-            negotiationId,
-            threadId,
-            buyerUserId,
-            sellerUserId: article.seller_id,
-            counterpartUserId: article.seller_id,
-            text: `✅ Offre envoyée au vendeur\n\n📦 ${title}\n💰 ${Number(initialOffer || (article as any)?.price || 0).toLocaleString("fr-FR")} FCFA\n\nVotre Avatar suit la réponse et vous guidera jusqu’à l’accord.`,
-            intent: "buyer_interest",
-            eventType: "buyer_interest",
-            template: "buyer_interest_ack",
-            dedupSuffix: "actor",
-            attachments: photos.slice(0, 6).map((url: string, index: number) => ({
-              url,
-              type: "image/jpeg",
-              caption: `${title} — photo ${index + 1}/${photos.length}`,
-            })),
-            imageUrl: photos[0] ?? null,
-            payloadExtra: {
-              source,
-              workflow_state: "proposed",
-              initial_offer_amount: initialOffer,
-              negotiation_id: negotiationId,
-              actions,
-              products: [{
-                id: article_id,
-                article_id,
-                title,
-                description: (article as any)?.description,
-                category: (article as any)?.category,
-                condition: (article as any)?.condition,
-                price: Number((article as any)?.price || 0),
-                currency: (article as any)?.currency || "XOF",
-                photos,
-                city: (article as any)?.city,
-                market_price_min: (article as any)?.market_price_min,
-                market_price_max: (article as any)?.market_price_max,
-                availability: (article as any)?.status === "sold" ? "Vendu" : "Disponible",
-                workflow_state: "negotiating",
-                role: "buyer",
-                thread_id: threadId,
-                buyer_user_id: buyerUserId,
-                seller_user_id: (article as any)?.seller_id,
-                negotiation_id: negotiationId,
-                actions,
-              }],
-            },
-          });
-        }
-      } catch (e) {
-        console.warn("[waouh-buyer-interest] buyer echo failed", e);
-      }
-    }
-
+    const negotiationId = opened.negotiationId;
+    const threadId = opened.threadId;
 
     return new Response(JSON.stringify({
       ok: true,
-      duplicate: !!isDuplicate,
-      seller_notified: dispatched,
+      duplicate: opened.duplicateInterest,
+      seller_notified: opened.sellerNotified,
       negotiation_id: negotiationId,
       workflow_state: negotiationId ? "proposed" : "interest_recorded",
-      // Réponse adressée à l'acheteur : aucune décision à prendre sur sa propre offre.
       actions: [],
       thread_id: threadId,
       article_id,
-      offer_price: initialOffer,
+      offer_price: opened.offerPrice,
+      stage: negotiationId ? "negotiation" : "interest",
+      created: opened.created,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error("[waouh-buyer-interest] error", e);
