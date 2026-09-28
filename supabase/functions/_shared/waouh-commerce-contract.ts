@@ -33,6 +33,10 @@ export interface CommerceActionRequest {
   action: CommerceAction;
   idem: string;
   article_id?: string | null;
+  /** Identité catalogue brute (waouh_unified_catalog.id), jamais un article. */
+  catalog_id?: string | null;
+  /** Identité source brute avant matérialisation en article. */
+  source_id?: string | null;
   thread_id?: string | null;
   negotiation_id?: string | null;
   deal_id?: string | null;
@@ -66,7 +70,7 @@ export function validateActionRequest(body: unknown): ValidationResult {
   if (!IDEM_RE.test(idem)) return { ok: false, error: "idem_required" };
 
   const ids: Record<string, string | null> = {};
-  for (const key of ["article_id", "thread_id", "negotiation_id", "deal_id"]) {
+  for (const key of ["article_id", "catalog_id", "source_id", "thread_id", "negotiation_id", "deal_id"]) {
     const v = optUuid(b[key]);
     if (v === "invalid") return { ok: false, error: `invalid_${key}` };
     ids[key] = v;
@@ -83,12 +87,16 @@ export function validateActionRequest(body: unknown): ValidationResult {
   switch (action) {
     case "open_deal":
     case "ask":
-      if (!ids.article_id && !ids.thread_id) return { ok: false, error: "article_id_required" };
+      if (!ids.article_id && !ids.catalog_id && !ids.source_id && !ids.thread_id) {
+        return { ok: false, error: "article_id_required" };
+      }
       if (action === "ask" && !text) return { ok: false, error: "text_required" };
       break;
     case "offer":
       if (!amount) return { ok: false, error: "amount_required" };
-      if (!ids.negotiation_id && !ids.thread_id && !ids.article_id) return { ok: false, error: "context_required" };
+      if (!ids.negotiation_id && !ids.thread_id && !ids.article_id && !ids.catalog_id && !ids.source_id) {
+        return { ok: false, error: "context_required" };
+      }
       break;
     case "accept":
     case "reject":
@@ -116,6 +124,8 @@ export function validateActionRequest(body: unknown): ValidationResult {
       action,
       idem,
       article_id: ids.article_id,
+      catalog_id: ids.catalog_id,
+      source_id: ids.source_id,
       thread_id: ids.thread_id,
       negotiation_id: ids.negotiation_id,
       deal_id: ids.deal_id,
