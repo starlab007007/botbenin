@@ -99,9 +99,6 @@ jobs:
       - name: Verify Flutter/Web route and navigation parity
         run: node scripts/verify-waouh-web-parity.mjs
 
-      - name: Responsive browser smoke — desktop tablet mobile
-        run: node scripts/verify-waouh-responsive-browser.mjs
-
       - name: Deno
         uses: denoland/setup-deno@v2
         with:
@@ -132,3 +129,7 @@ jobs:
 
       - name: Check WAOUH Outbound Dispatcher
         run: deno check supabase/functions/waouh-outbound-dispatch/index.ts
+
+      - name: Responsive browser smoke — desktop tablet mobile
+        timeout-minutes: 12
+        run: node scripts/verify-waouh-responsive-browser.mjs
