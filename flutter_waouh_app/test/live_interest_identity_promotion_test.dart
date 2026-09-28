@@ -60,4 +60,34 @@ void main() {
       isFalse,
     );
   });
+  test('promotion partner accepte le passage catalog_id vers article canonique', () {
+    final seed = LiveMatch(
+      key: 'pending_partner_identity',
+      articleId: 'catalog-legacy-id',
+      role: 'buyer',
+      title: 'Produit partenaire',
+      lastAt: DateTime(2026, 9, 28),
+      source: 'partner',
+      sellerUserId: 'seller-1',
+      counterpartUserId: 'seller-1',
+    );
+    final resolved = LiveMatch(
+      key: 'resolved_partner',
+      articleId: 'canonical-article-id',
+      role: 'buyer',
+      title: 'Produit partenaire',
+      lastAt: DateTime(2026, 9, 28),
+      source: 'waouh',
+      threadId: 'thread-1',
+      buyerUserId: 'buyer-1',
+      sellerUserId: 'seller-1',
+      counterpartUserId: 'seller-1',
+    );
+
+    expect(
+      liveCanPromoteInterestedMatch(seed: seed, resolved: resolved),
+      isTrue,
+    );
+  });
+
 }
