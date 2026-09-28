@@ -77,6 +77,12 @@ export async function promoteCatalogToArticle(
     const unavailable = new Set(["sold", "reserved", "archived", "deleted"]);
     const promotedStatus = String(promoted?.status || "").toLowerCase();
 
+    // Les anciens articles promus restent une source d'identité vendeur
+    // fiable, même quand leur cycle transactionnel est terminé.
+    if (!sellerId && promoted?.seller_id) {
+      sellerId = promoted.seller_id;
+    }
+
     // Le catalogue reste l'autorité. Une fiche catalogue active ne doit pas
     // réutiliser un ancien article transactionnel déjà vendu/réservé.
     if (promoted?.id && !unavailable.has(promotedStatus)) {
