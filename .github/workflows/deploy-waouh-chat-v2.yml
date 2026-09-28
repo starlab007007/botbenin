@@ -23,6 +23,8 @@ on:
       - "supabase/functions/_shared/waouh-free-text.ts"
       - "supabase/functions/_shared/waouh-predictive.ts"
       - "supabase/functions/waouh-commerce-action/**"
+      - "supabase/functions/_shared/waouh-commerce-action-handler.ts"
+      - "supabase/functions/waouh-channel-in-secure/**"
       - "supabase/functions/waouh-match-history/**"
       - "supabase/functions/waouh-negotiation-router/**"
       - "supabase/functions/waouh-deal-ops/**"
@@ -119,6 +121,7 @@ jobs:
             waouh-notify-dispatch
             waouh-webhook
             waouh-channel-in
+            waouh-channel-in-secure
           )
           for fn in "${functions[@]}"; do
             echo "🚀 Deploying $fn"
@@ -126,18 +129,10 @@ jobs:
           done
           echo "✅ Existing WAOUH Chat function slots updated."
 
-      - name: Deploy WAOUH Chat v3 commerce action
-        shell: bash
+      - name: Commerce V3 quota-safe bridge
         run: |
-          set -euo pipefail
-          # Parcours v3 (Lot 2) : nouveau point d'entrée. Déployé mais inactif
-          # tant que commerce_action_v3 reste coupé (réponse 503, les clients
-          # gardent leur chemin historique).
-          supabase functions deploy waouh-commerce-action \
-            --project-ref "$SUPABASE_PROJECT_REF" \
-            --use-api \
-            --no-verify-jwt
-          echo "✅ waouh-commerce-action deployed (flag commerce_action_v3 OFF)."
+          echo "✅ Commerce V3 is served by waouh-channel-in-secure."
+          echo "ℹ️ The canonical waouh-commerce-action source remains in the repo for a future dedicated slot."
 
       - name: Safety reminder
         run: |
