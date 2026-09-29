@@ -1,7 +1,13 @@
 # Changelog plateforme Bot.bj / WAOUH
 
-Format de version plateforme : `YYYY.MM.PATCH` (proposition, voir docs/PLAN_HARMONISATION.md).
+Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
+
+## 2026.09.29.1 (branche claude/harmonisation-phase-0-1, non déployé)
+- Backend uniquement : embeddings alignés sur `gemini-embedding-2` (768 dimensions, normalisés) — voir docs/EMBEDDINGS_GEMINI_2.md.
+- Rapatriement dans le dépôt de 22 fonctions Supabase déployées sans source (dont `a`, avec `a/agent-ai-studio.ts`) — voir supabase/functions/DEPLOYED_MANIFEST.md.
+- Web : aucun changement de code, pas de nouvelle version. Flutter : aucun changement, reste en 18.19.0+1786092819.
+- À faire au déploiement : redéployer `waouh-agent-ingest`, `waouh-agent-chat`, `waouh-agent-webhook`, puis `scripts/supabase/reindex-agent-chunks.mjs --apply`.
 
 ## 2026.09.29
 - Base : `prod` @ f9b240e (identité canonique des produits, Deal Room premium).

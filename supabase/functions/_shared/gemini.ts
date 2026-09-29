@@ -78,7 +78,7 @@ export async function geminiJson<T extends Record<string, unknown> = Record<stri
 
 export async function geminiEmbedding(text: string): Promise<number[]> {
   const response = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent",
     {
       method: "POST",
       headers: {

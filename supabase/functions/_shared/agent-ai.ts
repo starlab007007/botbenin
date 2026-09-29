@@ -3,7 +3,13 @@
 
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 const DEFAULT_CHAT_MODEL = "gemini-2.5-flash-lite";
-const EMBEDDING_MODEL = "gemini-embedding-001";
+// Modèle d'embeddings unique de la plateforme (aligné sur le Web Chat public `a`).
+// Les vecteurs stockés (waouh_ai_agent_chunks.embedding) sont en 768 dimensions ;
+// un changement de modèle impose de ré-indexer les fragments existants
+// (scripts/supabase/reindex-agent-chunks.mjs, voir docs/EMBEDDINGS_GEMINI_2.md).
+export const EMBEDDING_MODEL = "gemini-embedding-2";
+export const EMBEDDING_DIMENSIONS = 768;
+export type EmbeddingTaskType = "RETRIEVAL_QUERY" | "RETRIEVAL_DOCUMENT" | "SEMANTIC_SIMILARITY";
 
 export function getGeminiKey(): string {
   const key = Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_API_KEY");
@@ -130,7 +136,10 @@ export async function visionCompletion(opts: {
   return answer;
 }
 
-export async function embedText(text: string): Promise<number[]> {
+export async function embedText(
+  text: string,
+  taskType: EmbeddingTaskType = "RETRIEVAL_QUERY",
+): Promise<number[]> {
   const response = await fetch(`${GEMINI_API_BASE}/${EMBEDDING_MODEL}:embedContent`, {
     method: "POST",
     headers: {
@@ -140,8 +149,8 @@ export async function embedText(text: string): Promise<number[]> {
     body: JSON.stringify({
       model: `models/${EMBEDDING_MODEL}`,
       content: { parts: [{ text: String(text || "").slice(0, 12000) }] },
-      taskType: "RETRIEVAL_QUERY",
-      outputDimensionality: 768,
+      taskType,
+      outputDimensionality: EMBEDDING_DIMENSIONS,
     }),
   });
   const raw = await response.text();
@@ -149,7 +158,14 @@ export async function embedText(text: string): Promise<number[]> {
   const data = JSON.parse(raw);
   const values = data?.embedding?.values;
   if (!Array.isArray(values)) throw new Error("Embedding Gemini vide");
-  return values as number[];
+  if (values.length !== EMBEDDING_DIMENSIONS) {
+    throw new Error(`Embedding Gemini invalide : ${values.length} dimensions au lieu de ${EMBEDDING_DIMENSIONS}`);
+  }
+  // Une sortie tronquée à 768 dimensions n'est pas normalisée : on la normalise (L2).
+  const norm = Math.sqrt((values as number[]).reduce((sum, value) => sum + Number(value) ** 2, 0));
+  return norm > 0 && Number.isFinite(norm)
+    ? (values as number[]).map((value) => Number(value) / norm)
+    : (values as number[]);
 }
 
 export function chunkText(text: string, size = 800, overlap = 100): string[] {
