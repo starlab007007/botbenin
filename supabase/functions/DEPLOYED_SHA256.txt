@@ -10,7 +10,6 @@ d930210d843249dcd81eed1ba74d027b5cb4135369499e7ab0700c1d7fecada5  waouh-stock-in
 c41b17b0cafdf868db4404e19ef324f04c88a8303de4f3a4365930aa9b965491  waouh-stock-query/index.ts
 9139a7492cf03f33adcbe123841b7cb286fffeda873bb7f066fd5bac29355199  waouh-diffusion-suggest/index.ts
 dcd2ef03b0b59e2b75de89b80352b33ba917a78d322ad821d43f01d6f6306b38  waouh-studio-pair-code-v21462/index.ts
-92ecc0154cbce635773588a438fa4f1476c54d64e53ef92ef494e4e3da7d3c9f  waouh-studio-e2e-v21465/index.ts
 6ffdd5f4a5498d0c00427867649772fa7c47505864945e3c4762f2b4c681f1b7  waouh-studio-user-api/index.ts
 59117d5bb3adbfa8f3543e9c7dbf84b4543a233f0cefd8968f58001e2ab0f77c  waouh-apresbac-chat/index.ts
 016c881639dda37ba2bb5d1fd0fdb2743227ac574f56cdff2e4d1c6ce920f6f0  waha-agent-bridge/index.ts
@@ -22,3 +21,4 @@ f9cda8f8cf4cf5a8e9e34fb54ab51957f63f5bc57d5fc84f53b49447ecfffe0b  waouh-studio-p
 e44cbe9da860c383b4eb614dca35bd8da36f9e8e1eb5cabfbfaaafc90c52ef53  waouh-studio-agent-webhook-v2146/index.ts
 c8809947fd7032ca1e50bf09d32afb8d94d25114ae64021ea149328c20e7e639  a/index.ts
 845546bd2453da859ec8a4289ba32316856d90c3ec0f658dfa98740593eb63f2  a/agent-ai-studio.ts
+fe6e2ca36c5adf58e3642002dc588822444446662d31ea264e62d87902e7b0d3  waouh-studio-e2e-v21465/index.ts

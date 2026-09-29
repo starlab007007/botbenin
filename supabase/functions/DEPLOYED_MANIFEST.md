@@ -3,8 +3,9 @@
 Relevé du 29/09/2026 — projet `mvynepqulhflxtyymtzs`. Lecture seule : rien n'a été modifié en production.
 ## État du rapatriement (29/09/2026)
 Sources ajoutées dans `supabase/functions/` à partir du code lu sur le projet (Supabase MCP, lecture seule) :
-- **Copie exacte, extraite par programme (aucune retranscription)** : `waouh-studio-e2e-v21465`, `waouh-studio-user-api`,
-  `waouh-apresbac-chat`. Les 8 fichiers `_shared/` embarqués dans leur bundle sont **identiques** à ceux du dépôt.
+- **Copie exacte, extraite par programme (aucune retranscription)** : `waouh-studio-user-api`, `waouh-apresbac-chat`.
+  `waouh-studio-e2e-v21465` était aussi une copie exacte, mais **identique à `waouh-agentic-core/index.ts`** (0 ligne de différence) :
+  c'est un alias. Le dossier ne contient plus qu'un import de `../waouh-agentic-core/index.ts` (pas de doublon de 162 Ko). Les 8 fichiers `_shared/` embarqués dans leur bundle sont **identiques** à ceux du dépôt.
 - **Retranscrites à la main** (la lecture ne pouvait pas être écrite directement) : `_shared/presence.ts`, `waouh-presence-*`
   (5 fonctions), `waouh-radar-nearby`, `waouh-stock-alert-send`, `waouh-stock-ingest`, `waouh-stock-query`,
   `waouh-diffusion-suggest`, `waouh-studio-pair-code-v21462`, `waha-agent-bridge`, `waha-session-mobile`,
@@ -25,6 +26,16 @@ Sources ajoutées dans `supabase/functions/` à partir du code lu sur le projet 
   (= `waouh-native-messaging-settings`, déjà dans le dépôt).
 - `verify_jwt = false` ajouté dans `supabase/config.toml` pour les 13 fonctions concernées (les fonctions à JWT actif gardent le défaut).
 - **Ne pas déployer ces fichiers avant confirmation par diff.**
+
+## Alias de production (quota de fonctions Edge)
+Source : `src/lib/waouh/runtimeEndpoints.ts` (« aliases temporaires… tant que le projet est au quota de fonctions Edge »).
+| Slug déployé (utilisé par Web et Flutter) | Code réel | Dans le dépôt |
+|---|---|---|
+| `waouh-studio-e2e-v21465` | moteur agentique (`agenticCore`) | `waouh-agentic-core/` (identique) |
+| `waouh-bots-backend-health-v1` | réglages Native Messaging | `waouh-native-messaging-settings/` |
+| `waouh-chat-health` | messages ouverts (Native Messaging) | `waouh-tel-open-messages/` (import distant figé) |
+| `chat-webhook` | simulateur Native Messaging | `waouh-native-simulator/` |
+Conséquence : le nom du slug ne dit rien du code. Toute évolution de ces fonctions doit être déployée **sous le slug alias**.
 
 ## Attention : le nom (slug) déployé n'est pas toujours le nom du code
 | Slug déployé | v | JWT | Maj (UTC) | Contenu réel | Remarque |
