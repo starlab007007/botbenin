@@ -140,6 +140,11 @@ export const articleEntryActionsV3 = (articleId: string, price?: number | null):
   { id: `poser-question:${articleId}`, label: "Poser une question" },
 ];
 
+// Boutons « pas votre tour » : une fenêtre de négociation ne reste jamais sans action.
+export const askQuestionAction = (articleId: string): WaouhAction => ({ id: `poser-question:${articleId}`, label: "Poser une question" });
+export const modifyOfferAction = (articleId: string): WaouhAction => ({ id: `proposer-prix:${articleId}`, label: "Modifier mon offre" });
+export const cancelOrderAction = (dealId: string): WaouhAction => ({ id: `annuler:${dealId}`, label: "Annuler la commande" });
+
 /**
  * Décision sur l'offre de l'autre partie. `acceptFirst` : l'écart est faible,
  * « Accepter » passe en premier (meilleure action prédite).

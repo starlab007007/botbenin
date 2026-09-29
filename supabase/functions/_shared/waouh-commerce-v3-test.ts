@@ -73,7 +73,8 @@ const base: DealState = {
 Deno.test("tour et boutons : l'acheteur ne décide jamais de sa propre offre", () => {
   const neg: DealState = { ...base, negotiationId: NEG, negotiationState: "proposed", lastActor: "buyer", lastOfferPrice: 2300 };
   assertEquals(turnFor(neg), "seller");
-  assertEquals(nextActions(neg, "buyer"), []);
+  // Pas son tour : jamais de fenêtre froide — l'acheteur peut modifier son offre ou poser une question.
+  assertEquals(nextActions(neg, "buyer").map((a) => parseActionPayload(a.id)?.kind), ["offer_prompt", "ask"]);
   assertEquals(nextActions(neg, "seller").map((a) => parseActionPayload(a.id)?.kind), ["accept", "counter", "reject"]);
   const countered: DealState = { ...neg, negotiationState: "countered", lastActor: "seller", lastOfferPrice: 2400 };
   assertEquals(turnFor(countered), "buyer");
@@ -85,7 +86,8 @@ Deno.test("étapes suivantes : accord, livraison, fiche", () => {
   assertEquals(nextActions(agreement, "buyer").map((a) => parseActionPayload(a.id)?.kind), ["payment_preference_mobile", "payment_preference_cash", "cancel"]);
   assertEquals(nextActions(agreement, "seller").map((a) => parseActionPayload(a.id)?.kind), ["seller_confirm", "cancel"]);
   const paid: DealState = { ...agreement, paymentSelected: true };
-  assertEquals(nextActions(paid, "buyer"), []);
+  // Son action est faite : on attend le vendeur, avec de quoi le relancer ou annuler.
+  assertEquals(nextActions(paid, "buyer").map((a) => parseActionPayload(a.id)?.kind), ["ask", "cancel"]);
   const delivered: DealState = { ...agreement, dealStatus: "delivered", paymentMethod: "mobile_money" };
   assertEquals(nextActions(delivered, "buyer").map((a) => parseActionPayload(a.id)?.kind), ["confirm_payment_mobile"]);
   assertEquals(nextActions(base, "buyer").map((a) => parseActionPayload(a.id)?.kind), ["open_deal", "offer_prompt", "ask"]);
@@ -188,4 +190,39 @@ Deno.test("relances 2 h / 24 h, expiration 72 h, paiement présélectionné, int
   assertEquals(preselectPayment(["cash"]), null);
   assert(purchaseIntent({ asked: true, offered: true, offerToListRatio: 0.9 }) > purchaseIntent({}));
   assert(purchaseIntent({ asked: true, offered: true, offerToListRatio: 5, returnVisits: 99 }) <= 100);
+});
+
+Deno.test("aucune fenêtre froide : chaque état actif propose au moins une action", () => {
+  const neg: DealState = { ...base, negotiationId: NEG, negotiationState: "proposed", lastActor: "buyer", lastOfferPrice: 2300 };
+  const agreement: DealState = { ...base, negotiationId: NEG, negotiationState: "accepted", dealId: DEAL, dealStatus: "awaiting_confirmation" };
+  const sellerDone: DealState = { ...agreement, sellerConfirmed: true };
+  const states: Array<[string, DealState]> = [
+    ["interest", base],
+    ["négociation", neg],
+    ["accord", agreement],
+    ["accord, vendeur confirmé", sellerDone],
+    ["préparation", { ...agreement, dealStatus: "pending_assignment" }],
+    ["livreur en route", { ...agreement, dealStatus: "assigned" }],
+    ["livré", { ...agreement, dealStatus: "delivered", paymentMethod: "cash" }],
+  ];
+  for (const [label, state] of states) {
+    for (const role of ["buyer", "seller"] as const) {
+      if (label === "interest" && role === "seller") continue; // le vendeur n'a rien à faire avant l'offre
+      const actions = nextActions(state, role);
+      assert(actions.length >= 1 && actions.length <= 3, `${label}/${role}: ${actions.length} bouton(s)`);
+    }
+  }
+});
+
+Deno.test("accord tombé (commande annulée) : l'acheteur retrouve les boutons d'entrée", () => {
+  const cancelled: DealState = { ...base, negotiationId: NEG, negotiationState: "accepted", dealId: null, dealStatus: null };
+  assertEquals(nextActions(cancelled, "buyer").map((a) => parseActionPayload(a.id)?.kind), ["open_deal", "offer_prompt", "ask"]);
+  assertEquals(nextActions(cancelled, "seller"), []);
+});
+
+Deno.test("boutons d'attente : identifiants reconnus par les clients (poser-question, proposer-prix, annuler)", () => {
+  const neg: DealState = { ...base, negotiationId: NEG, negotiationState: "proposed", lastActor: "buyer", lastOfferPrice: 2300 };
+  for (const a of nextActions(neg, "buyer")) assert(parseActionPayload(a.id), a.id);
+  const paid: DealState = { ...base, negotiationId: NEG, negotiationState: "accepted", dealId: DEAL, dealStatus: "awaiting_confirmation", paymentSelected: true };
+  for (const a of nextActions(paid, "buyer")) assert(parseActionPayload(a.id), a.id);
 });

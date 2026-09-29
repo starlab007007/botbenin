@@ -8,6 +8,7 @@ import {
   renderCatalog,
   stageFor,
   TITLE_MAX_WORDS,
+  isUnavailableStatus,
   unavailableKey,
 } from "./waouh-message-catalog.ts";
 import {
@@ -22,7 +23,7 @@ const ALL_KEYS: CatalogKey[] = [
   "question_received", "offer_sent", "offer_received", "awaiting_counterparty", "counter_prompt",
   "agreement", "offer_refused_actor", "offer_refused_other", "seller_confirmed", "pay_mode_chosen",
   "courier_assigned", "picked_up", "delivered", "payment_confirmed", "deal_cancelled", "no_open_deal",
-  "multiple_open_deals", "stale_button", "out_of_stage", "technical_error", "article_reserved", "article_sold",
+  "multiple_open_deals", "stale_button", "out_of_stage", "technical_error", "article_reserved", "article_sold", "competitor_reserved", "article_available_again",
   "negotiation_paused", "not_understood", "confirm_money_action", "self_article", "results_found",
 ];
 
@@ -138,4 +139,14 @@ Deno.test("E2 : « Le vendeur est prévenu » n'est promis que si la notificatio
 Deno.test("E2 : la formulation d'échec tient dans la limite avec un long titre et un gros montant", () => {
   const m = renderCatalog("deal_opened", { title: LONG_TITLE, amount: 100_000_000, sellerNotified: false });
   assert(m.detail.length <= DETAIL_MAX_CHARS, m.detail);
+});
+
+Deno.test("E10/E11 : messages des acheteurs évincés et statuts indisponibles", () => {
+  assertEquals(renderCatalog("competitor_reserved").title, "Article réservé");
+  assert(renderCatalog("competitor_reserved").detail.includes("prévenu s'il revient"));
+  const back = renderCatalog("article_available_again", { title: LONG_TITLE, price: 100_000_000 });
+  assertEquals(back.title, "De nouveau disponible");
+  assert(back.detail.length <= DETAIL_MAX_CHARS, back.detail);
+  for (const status of ["sold", "reserved", "archived", "deleted", " SOLD "]) assertEquals(isUnavailableStatus(status), true, status);
+  for (const status of ["active", "", null, undefined]) assertEquals(isUnavailableStatus(status), false, String(status));
 });

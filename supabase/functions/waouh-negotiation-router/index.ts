@@ -12,6 +12,7 @@ import { contactExchangeText, waouhHeader, waouhFooter, waouhSep, distanceKm, fo
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 import { geminiJson } from "../_shared/gemini.ts";
 import { bindThreadState } from "../_shared/waouh-thread.ts";
+import { closeCompetingNegotiations } from "../_shared/waouh-evict.ts";
 import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
 import { chatCatalogV3Enabled, chatWriterV2Enabled, recordChatMessage } from "../_shared/waouh-chat-writer.ts";
 import { renderCatalog } from "../_shared/waouh-message-catalog.ts";
@@ -573,6 +574,17 @@ Deno.serve(async (req) => {
       const finalAmount = Number(acceptance.amount ?? amount ?? 0);
       const dealId: string | null = acceptance.deal_id ?? null;
       const transactionId: string | null = acceptance.transaction_id ?? null;
+
+      // Les autres acheteurs de l'article ne restent pas en attente : négociations fermées,
+      // acheteurs prévenus, boutons périmés retirés. Jamais bloquant pour l'accord lui-même.
+      if (acceptance.idempotent !== true && neg.article_id) {
+        try {
+          const evicted = await closeCompetingNegotiations(sb, { articleId: neg.article_id, winnerNegotiationId: neg.id });
+          if (evicted.closed > 0) console.log("[neg-router] acheteurs évincés", JSON.stringify(evicted));
+        } catch (error) {
+          console.warn("[neg-router] clôture des négociations concurrentes impossible", error);
+        }
+      }
 
       const [
         { data: buyer },

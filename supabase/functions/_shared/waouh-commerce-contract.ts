@@ -6,7 +6,10 @@
 
 import {
   articleEntryActionsV3,
+  askQuestionAction,
   buyerPaymentActionsV3,
+  cancelOrderAction,
+  modifyOfferAction,
   negotiationActionsV3,
   paymentConfirmActionsV3,
   sellerAvailabilityActionsV3,
@@ -195,17 +198,36 @@ export function nextActions(
     case "interest":
       return role === "buyer" && state.articleId ? clampActions(articleEntryActionsV3(state.articleId, state.articlePrice)) : [];
     case "negotiation":
-      if (!state.negotiationId || turn !== role) return [];
-      return clampActions(negotiationActionsV3(state.negotiationId, { amount: state.lastOfferPrice, acceptFirst: opts.acceptFirst }));
+      if (!state.negotiationId) return [];
+      if (turn === role) {
+        return clampActions(negotiationActionsV3(state.negotiationId, { amount: state.lastOfferPrice, acceptFirst: opts.acceptFirst }));
+      }
+      // En attente de l'autre partie : jamais de fenêtre froide.
+      if (!state.articleId) return [];
+      return clampActions(role === "buyer"
+        ? [modifyOfferAction(state.articleId), askQuestionAction(state.articleId)]
+        : [askQuestionAction(state.articleId)]);
     case "agreement":
-      if (!state.dealId) return [];
+      if (!state.dealId) {
+        // Accord tombé (commande annulée) : l'acheteur peut relancer tout de suite.
+        return role === "buyer" && state.articleId
+          ? clampActions(articleEntryActionsV3(state.articleId, state.articlePrice))
+          : [];
+      }
       if (role === "buyer" && !state.paymentSelected) return clampActions(buyerPaymentActionsV3(state.dealId));
       if (role === "seller" && !state.sellerConfirmed) return clampActions(sellerAvailabilityActionsV3(state.dealId));
-      return [];
+      // Son action est faite : on attend l'autre, avec de quoi relancer ou annuler.
+      return clampActions([
+        ...(state.articleId ? [askQuestionAction(state.articleId)] : []),
+        ...(role === "buyer" ? [cancelOrderAction(state.dealId)] : []),
+      ]);
+    case "preparation":
+    case "courier":
+      // Livreur en route : les deux parties peuvent encore échanger.
+      return state.articleId ? clampActions([askQuestionAction(state.articleId)]) : [];
     case "delivery":
-      return role === "buyer" && state.dealId
-        ? clampActions(paymentConfirmActionsV3(state.dealId, state.paymentMethod ?? "cash"))
-        : [];
+      if (role === "buyer" && state.dealId) return clampActions(paymentConfirmActionsV3(state.dealId, state.paymentMethod ?? "cash"));
+      return state.articleId ? clampActions([askQuestionAction(state.articleId)]) : [];
     default:
       return [];
   }

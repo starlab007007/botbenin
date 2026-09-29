@@ -17,7 +17,7 @@ import { commerceActionV3Enabled, chatWriterV2Enabled, recordChatMessage } from 
 import { resolveSiblingUserIds } from "../_shared/waouh-identity.ts";
 import { openBuyerDeal, publicPhotos } from "../_shared/waouh-deal-open.ts";
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
-import { renderCatalog, type CatalogKey, fcfa, stageFor, unavailableKey } from "../_shared/waouh-message-catalog.ts";
+import { renderCatalog, type CatalogKey, fcfa, isUnavailableStatus, stageFor, unavailableKey } from "../_shared/waouh-message-catalog.ts";
 import { classifyInternalFailure, shouldEchoBeforeExecute } from "../_shared/waouh-internal-call.ts";
 import {
   actionEcho,
@@ -307,6 +307,13 @@ async function execute(ctx: Ctx, thread: any, role: Role | null): Promise<Engine
         ? (await sb.from("waouh_negotiations").select("id,state").eq("id", thread.negotiation_id)
           .in("state", ["proposed", "countered"]).maybeSingle()).data?.id ?? null
         : null;
+      // Une offre sur un article déjà réservé ou vendu ne doit ni être enregistrée ni notifier le vendeur.
+      if (req.action === "offer" && thread?.article_id) {
+        const { data: offered } = await sb.from("waouh_articles").select("status").eq("id", thread.article_id).maybeSingle();
+        if (isUnavailableStatus(offered?.status)) {
+          return { ok: false, key: unavailableKey(offered?.status), articleId: thread.article_id, threadId: thread.id };
+        }
+      }
       if (openNegId && req.action === "offer" && thread) {
         return mapRouter(await router({ text: `je propose ${req.amount}` }, openNegId, thread.id), "offer_sent", { amount: req.amount, role });
       }
@@ -617,7 +624,9 @@ Deno.serve(async (req) => {
       marketMin: loaded?.article?.market_price_min, marketMax: loaded?.article?.market_price_max,
     });
     const ownLast = finalRole === "buyer" ? buyerOffer : sellerOffer;
-    const actions = state
+    // Article pris par un autre acheteur (ce fil n'a pas de deal) : pas de bouton qui échouerait.
+    const articleGone = isUnavailableStatus(loaded?.article?.status) && !state?.dealId;
+    const actions = state && !articleGone
       ? nextActions(state, finalRole, { acceptFirst: acceptFirst(state.lastOfferPrice, ownLast) })
       : [];
     let paymentPreselect: string | null = null;

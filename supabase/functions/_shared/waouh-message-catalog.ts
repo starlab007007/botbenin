@@ -46,6 +46,8 @@ export type CatalogKey =
   | "article_missing"
   | "article_reserved"
   | "article_sold"
+  | "competitor_reserved"
+  | "article_available_again"
   | "negotiation_paused"
   | "not_understood"
   | "confirm_money_action"
@@ -83,6 +85,11 @@ export const DETAIL_MAX_CHARS = 90;
 
 const other = (role: CatalogRole | null | undefined) => (role === "seller" ? "l'acheteur" : "le vendeur");
 const Other = (role: CatalogRole | null | undefined) => (role === "seller" ? "L'acheteur" : "Le vendeur");
+
+/** Un article dans l'un de ces statuts ne peut plus recevoir d'offre. */
+export function isUnavailableStatus(status: unknown): boolean {
+  return ["sold", "reserved", "archived", "deleted"].includes(String(status ?? "").trim().toLowerCase());
+}
 
 /** Clé de message pour un article indisponible : « vendu » ne se dit pas « réservé ». */
 export function unavailableKey(status: unknown): CatalogKey {
@@ -223,6 +230,16 @@ const BUILDERS: Record<CatalogKey, Builder> = {
   article_sold: () => ({
     title: "Article vendu",
     detail: "Cet article a déjà été vendu. Voici des articles proches.",
+  }),
+  // Acheteur en attente dont l'article vient d'être réservé par un autre acheteur.
+  competitor_reserved: () => ({
+    title: "Article réservé",
+    detail: "Un autre acheteur l'a réservé. Vous serez prévenu s'il revient.",
+  }),
+  // L'accord conclu avec un autre acheteur est tombé : l'article revient à la vente.
+  article_available_again: (v) => ({
+    title: "De nouveau disponible",
+    detail: `${shortTitle(v.title)} · ${fcfa(v.amount ?? v.price)}. Vous le voulez ?`,
   }),
   negotiation_paused: (v) => ({
     title: "Discussion en pause",
