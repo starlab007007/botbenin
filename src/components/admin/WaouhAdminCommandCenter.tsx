@@ -227,6 +227,12 @@ const moduleMeta: Record<string, { icon: any; detail: (cc: CommandCenter) => str
     manage: "/admin/waouh/health-check",
     automation: true,
   },
+  nexus_direct_deal: {
+    icon: Workflow,
+    detail: () => "Résultat Nexus externe → Deal Room directe ; envoi au tiers sur tap, politique C0–C5",
+    manage: "/admin/waouh/health-check",
+    automation: true,
+  },
 };
 
 const severityMeta: Record<Severity, { label: string; cls: string }> = {

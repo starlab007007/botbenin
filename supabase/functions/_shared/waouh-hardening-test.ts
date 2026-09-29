@@ -110,3 +110,9 @@ Deno.test("avatar guide : identité issue du jeton uniquement, tick réservé au
   const core = Deno.readTextFileSync(new URL("./waouh-avatar-briefing-core.ts", import.meta.url));
   assert(!core.includes("transmitExternalOffer") && !core.includes("nexus.contact.send") && !core.includes("waouh-outbound"), "le guide écrit dans le chat, il n'envoie rien à un tiers");
 });
+
+Deno.test("pointage public : bcryptjs importé en espace de noms (l'import nommé a provoqué un BOOT_ERROR au redéploiement)", () => {
+  const src = Deno.readTextFileSync(new URL("../waouh-presence-public-page/index.ts", import.meta.url));
+  assert(!/import\s*\{[^}]*compareSync[^}]*\}\s*from\s*["']https:\/\/esm\.sh\/bcryptjs/.test(src), "import nommé de compareSync interdit");
+  assert(/import \* as bcryptModule from "https:\/\/esm\.sh\/bcryptjs@2\.4\.3"/.test(src));
+});
