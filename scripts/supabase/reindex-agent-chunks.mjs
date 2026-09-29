@@ -38,7 +38,7 @@ const rest = (path, init = {}) =>
 
 async function embed(text) {
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:embedContent`,
+    `${process.env.GEMINI_API_BASE || "https://generativelanguage.googleapis.com/v1beta"}/models/${MODEL}:embedContent`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey },
