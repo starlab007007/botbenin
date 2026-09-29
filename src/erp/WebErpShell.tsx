@@ -40,6 +40,8 @@ import { useMobileProfile } from '@/app-mobile/hooks/useMobileProfile';
 import { CenterCanvas } from './CenterCanvas';
 import { ErpBrickCanvas, preloadBrick, type BrickId } from './ErpBrickCanvas';
 
+import { unreadBadge } from '@/app-mobile/utils/chatSpaceLayout';
+
 import './erp-theme.css';
 
 type WebErpShellProps = {
@@ -54,6 +56,8 @@ type NavigationItem = {
   /** When set, the item swaps the central canvas instead of navigating. */
   brick?: BrickId;
   accent?: 'chat' | 'ai' | 'stock' | 'bi' | 'store';
+  /** Page publique hors de l'espace de travail : s'ouvre dans un nouvel onglet. */
+  external?: boolean;
 };
 
 type NavigationSection = {
@@ -85,6 +89,7 @@ const navigationSections: NavigationSection[] = [
       { label: 'BI WAOUH IA', to: '/app/whatsapp/bi', icon: BarChart3, brick: 'bi', accent: 'bi' },
       { label: 'Stock WAOUH IA', to: '/app/stock', icon: Package, brick: 'stock', accent: 'stock' },
       { label: 'Présence QR', to: '/app/presence', icon: QrCode, brick: 'presence' },
+      { label: 'PrivatAI (IA locale)', to: '/privatia', icon: ShieldCheck, external: true },
     ],
   },
   {
@@ -311,6 +316,10 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
   };
 
   const selectItem = (item: NavigationItem) => {
+    if (item.external) {
+      window.open(item.to, '_blank', 'noopener,noreferrer');
+      return;
+    }
     navigate(item.to);
   };
 
@@ -350,7 +359,8 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
                   : itemPath === HOME_PATH
                     ? isHome
                     : location.pathname === itemPath;
-                const badge = !item.brick && unreadChat > 0 ? unreadChat : 0;
+                // Pastille de non-lu seulement sur le chat (les autres entrées n'ont rien de « non lu »).
+                const badge = item.to === CHAT_PATH ? unreadBadge(unreadChat) : null;
 
                 return (
                   <button
@@ -370,9 +380,7 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
 
                     <span className="waouh-erp-nav__icon"><Icon size={19} /></span>
                     {!collapsed && <span className="waouh-erp-nav__text">{item.label}</span>}
-                    {badge > 0 && (
-                      <span className="waouh-erp-nav__badge">{badge > 99 ? '99+' : badge}</span>
-                    )}
+                    {badge && <span className="waouh-erp-nav__badge">{badge}</span>}
                   </button>
                 );
               })}
@@ -443,7 +451,7 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
               aria-label="Notifications"
             >
               <Bell size={19} />
-              {unreadChat > 0 && <span>{unreadChat > 99 ? '99+' : unreadChat}</span>}
+              {unreadBadge(unreadChat) && <span>{unreadBadge(unreadChat)}</span>}
             </button>
 
             <button

@@ -3,6 +3,11 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.29.11 (branche claude/harmonisation-phase-0-1)
+- Web /app/chat dégagé : la conversation occupe tout l'espace ; Échanges, Statuts et Radar passent dans un tiroir à gauche (boutons dans l'en-tête, lien `?tab=radar|statuses`), épinglable à côté du chat dès 1280 px (choix mémorisé).
+  Tablette / portable 13" (768–1279 px) : chat pleine largeur, tiroir par-dessus, boutons tactiles ; téléphone : parcours mobile inchangé. Un seul en-tête (le bouton du tiroir rejoint l'en-tête de Muse).
+  La carte PrivatAI quitte le chat pour le menu « Agents IA » ; les pastilles « 99+ » deviennent un chiffre (≤ 9, sinon « 9+ ») et seulement sur le Chat. Aucun changement Flutter ni Supabase. Détail : docs/CHAT_ESPACE_DEGAGE_2026-09-29.md.
+
 ## 2026.09.29.10 (branche claude/harmonisation-phase-0-1)
 - Avatar ACTIF (Web + Flutter) : tableau de mission en direct dans la barre du guide (à vous · recherches · contacts · négociations · veilles · commandes),
   points qui parlent des recherches, contacts et négociations en cours et rappellent l'objectif d'une mission ; nouvelle action `status` de `waouh-avatar-briefing`.

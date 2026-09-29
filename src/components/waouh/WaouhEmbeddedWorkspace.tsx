@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Handshake, Sparkles } from "lucide-react";
 import WaouhWebChat, { type WaouhWebChatHandle } from "./WaouhWebChat";
 import { WaouhMatchChatWindow } from "./WaouhMatchChatWindow";
@@ -21,11 +21,16 @@ export function WaouhEmbeddedWorkspace({
   authUserId,
   matchChats,
   newWaouhCounter = 0,
+  headerLeading,
+  headerTrailing,
 }: {
   sessionId: string;
   authUserId: string | null;
   matchChats: MatchChats;
   newWaouhCounter?: number;
+  /** Boutons de l'en-tête (tiroir Échanges / Radar / Statuts) : un seul en-tête au lieu de deux. */
+  headerLeading?: ReactNode;
+  headerTrailing?: ReactNode;
 }) {
   const {
     matches,
@@ -82,7 +87,8 @@ export function WaouhEmbeddedWorkspace({
   return (
     <div className="flex h-full min-h-0 w-full overflow-hidden bg-[#f4f7f6]">
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-white">
-        <div className="flex h-10 shrink-0 items-center gap-2 border-b border-slate-200/80 bg-white/95 px-2.5">
+        <div className="flex h-10 shrink-0 items-center gap-2 border-b border-slate-200/80 bg-white/95 px-2.5 [@media(pointer:coarse)]:h-12">
+          {headerLeading}
           <Sheet>
             <SheetTrigger asChild>
               <button
@@ -120,6 +126,7 @@ export function WaouhEmbeddedWorkspace({
               />
             </SheetContent>
           </Sheet>
+          {headerTrailing}
         </div>
         {matches.length > 0 && (
           <WaouhChatTabs
