@@ -16,6 +16,7 @@ import 'live_commerce_agent_ui.dart';
 import 'live_thread_flow.dart';
 import 'live_hot_labels.dart';
 import 'live_avatar_progress.dart';
+import 'live_avatar_guide.dart';
 
 class LiveHeader extends StatelessWidget implements PreferredSizeWidget {
   const LiveHeader({
@@ -173,6 +174,21 @@ class LiveMessageBubble extends StatelessWidget {
     // make the complete timeline fail when a payload contained an unexpected
     // value.  Rich text and attachments remain available; structured cards
     // are enabled only after a non-empty, validated product list is produced.
+    // Point de l'avatar (accueil, activités, veilles, prochaines étapes) : carte dédiée, jamais une bulle de texte brut.
+    if (!message.outgoing && '${message.meta['intent'] ?? ''}' == 'avatar_briefing') {
+      final briefing = liveParseAvatarBriefing(message.meta['avatar_briefing']);
+      if (briefing != null) {
+        final fresh = DateTime.now().difference(briefing.generatedAt) < const Duration(minutes: 30);
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: LiveAvatarBriefingCard(
+            briefing: briefing,
+            collapsed: !fresh,
+            onAction: actionsEnabled ? onPayload : null,
+          ),
+        );
+      }
+    }
     final displayText = liveVisibleText(message.text);
     final products = _safePremiumProducts(message);
     final actions = actionsEnabled

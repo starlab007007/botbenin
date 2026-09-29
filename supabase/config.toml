@@ -411,3 +411,6 @@ verify_jwt = false
 
 [functions.waouh-nexus-followup]
 verify_jwt = false
+
+[functions.waouh-avatar-briefing]
+verify_jwt = false

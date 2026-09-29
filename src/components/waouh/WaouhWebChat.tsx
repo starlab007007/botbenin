@@ -30,6 +30,10 @@ import type { WaouhWorkspaceAgentState } from "@/lib/waouh/workspaceState";
 import { NativeSellSheet } from "./NativeSellSheet";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { WaouhAvatarBriefingCard } from "@/components/waouh/WaouhAvatarBriefingCard";
+import { WaouhAvatarGuideBar } from "@/components/waouh/WaouhAvatarGuideBar";
+import { openAvatarBriefing, parseAvatarBriefing, shouldAutoOpenNow, type AvatarPrefs, type BriefingAction } from "@/lib/waouh/avatarGuide";
+import { commerceRequestFromButton, sendCommerceAction } from "@/lib/waouh/commerceAction";
 
 type Att = { url: string; type: string; caption?: string };
 type WaouhAction = { id: string; label: string; url?: string };
@@ -143,6 +147,70 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   const { geo, loading: geoLoading, setCity, refresh } = useWaouhGeolocation();
   const { user } = useAuth();
   const { toast } = useToast();
+
+  // --- Avatar guide : accueil + point à l'ouverture, « Faire le point », réglages.
+  const [avatarPrefs, setAvatarPrefs] = useState<AvatarPrefs | null>(null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarSettingsSignal, setAvatarSettingsSignal] = useState(0);
+
+  const runAvatarPoint = async (action: "open" | "now") => {
+    if (!user?.id) return;
+    setAvatarBusy(true);
+    try {
+      const result = await openAvatarBriefing(action, sessionId);
+      if (!result) { if (action === "now") toast({ title: "L'avatar est momentanément indisponible", description: "Réessayez dans un instant." }); return; }
+      if (result.prefs) setAvatarPrefs(result.prefs);
+      if (result.message) setMessages((prev) => mergeMessages(prev, [result.message as unknown as Msg]));
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!user?.id || !shouldAutoOpenNow()) return;
+    void runAvatarPoint("open");
+    // Une ouverture par montage authentifié ; le serveur limite en plus à un accueil par 30 min.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  const latestBriefingId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const m: any = messages[i];
+      if (m.direction === "out" && m.meta?.intent === "avatar_briefing" && parseAvatarBriefing(m.meta?.avatar_briefing)) return m.id as string;
+    }
+    return null;
+  }, [messages]);
+
+  const handleBriefingAction = async (a: BriefingAction) => {
+    const id = a.id;
+    if (id === "avatar:point") { void runAvatarPoint("now"); return; }
+    if (id === "avatar:reglages") { setAvatarSettingsSignal((n) => n + 1); return; }
+    if (id === "aide:acheter") { setInput("Je cherche "); setTimeout(() => inputRef.current?.focus(), 0); return; }
+    if (id === "aide:vendre") { setSellOpen(true); return; }
+    if (id.startsWith("ouvrir-deal:")) {
+      const detail = {
+        article_id: a.article_id, counterpart_user_id: null, seller_user_id: null, kind: a.role === "seller" ? "seller" : "buyer",
+        title: a.title || "Annonce", price: null, city: null, photo: null, source: "avatar_briefing",
+      };
+      window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));
+      window.setTimeout(() => window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail })), 120);
+      return;
+    }
+    // Boutons de suivi (relancer, envoyer l'offre, veille) : action serveur, jamais d'envoi sans ce tap.
+    const request = commerceRequestFromButton(id, { thread_id: a.thread_id, article_id: a.article_id });
+    if (!request) return;
+    setAvatarBusy(true);
+    try {
+      const response = await sendCommerceAction({ ...request, source: "web_avatar_briefing" }, sessionId);
+      if (!response) { toast({ title: "Action indisponible", description: "Réessayez dans un instant." }); return; }
+      toast({ title: response.reply.title, description: response.reply.detail });
+      window.dispatchEvent(new CustomEvent("waouh:match-updated", { detail: { article_id: a.article_id } }));
+    } catch {
+      toast({ title: "Rien n'a été envoyé", description: "Réessayez." });
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
 
   const commerceAgent = useMemo(() => {
     const reversed = [...messages].reverse();
@@ -706,6 +774,16 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         />
       )}
 
+      {user?.id && (
+        <WaouhAvatarGuideBar
+          prefs={avatarPrefs}
+          busy={avatarBusy}
+          settingsOpenSignal={avatarSettingsSignal}
+          onPoint={() => void runAvatarPoint("now")}
+          onPrefsChange={setAvatarPrefs}
+        />
+      )}
+
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-2 sm:p-3 space-y-1.5 sm:space-y-2 waouh-chat-bg min-h-0">
         {hasMore && (
           <div ref={topSentinelRef} className="flex items-center justify-center py-2 text-xs text-muted-foreground">
@@ -728,6 +806,19 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         )}
 
         {messages.map((m) => {
+          const briefing = m.direction === "out" && (m as any).meta?.intent === "avatar_briefing" ? parseAvatarBriefing((m as any).meta?.avatar_briefing) : null;
+          if (briefing) {
+            return (
+              <div key={m.id} className="flex items-start justify-start">
+                <WaouhAvatarBriefingCard
+                  briefing={briefing}
+                  collapsed={m.id !== latestBriefingId}
+                  busy={avatarBusy}
+                  onAction={(a) => void handleBriefingAction(a)}
+                />
+              </div>
+            );
+          }
           const rich = normalizeChatReply(m);
           return (
           <div

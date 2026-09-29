@@ -3,6 +3,11 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.29.8 (branche claude/harmonisation-phase-0-1, NON déployé en production)
+- L'avatar guide (Web + Flutter) : accueil et point à chaque ouverture (2 à 3 phrases, aide « Je peux aussi »), « Faire le point » à la demande, points réguliers réglables (jamais / 1 h / 4 h / jour / semaine)
+  avec heures calmes, carte premium (activités, veilles, contacts, prochaines étapes, boutons), barre du guide et réglages ; jamais d'envoi à un tiers.
+  Nouveau : fonction `waouh-avatar-briefing`, migration `20260929160000` (`waouh_avatar_prefs`, installeur `waouh_schedule_avatar_briefing`). Détail : docs/AVATAR_GUIDE_2026-09-29.md.
+
 ## 2026.09.29.7 (branche claude/harmonisation-phase-0-1, NON déployé en production)
 - Deal Room vivante : politique de contact C0–C5 sans impasse (`_shared/waouh-contact-path.ts`, le consentement du tiers n'est jamais contourné : veille de l'avatar quand l'envoi n'est pas possible),
   points d'avancement et synthèse de l'avatar (Web + Flutter), suivi `waouh-nexus-followup` (notes et boutons, aucun envoi automatique), relance manuelle limitée à 1/24 h, migration d'installation du suivi.

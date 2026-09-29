@@ -1,7 +1,7 @@
 # Runbook de déploiement en production — lot chat v3 (E1–E6, E10/E11, fenêtres chaudes, Nexus direct)
 
 **Préparé, NON exécuté.** Projet de production : `mvynepqulhflxtyymtzs`. Projet de test déjà à jour : `ljzwqyzaovnandpyfpgc`.
-**Deux migrations dans ce lot** : `20260929140000_waouh_presence_pin_attempts.sql` (table de limitation des essais de PIN, RLS sans politique, additive) et `20260929150000_waouh_nexus_followup_cron.sql` (définit seulement `waouh_schedule_nexus_followup()`, ne planifie rien). Les migrations 20260929065700/065715/131943 sont déjà en base (versions identiques, P2 résolu par renommage).
+**Trois migrations dans ce lot** (la troisième : `20260929160000_waouh_avatar_prefs.sql`, table des réglages de l'avatar, RLS par utilisateur ; définit aussi `waouh_schedule_avatar_briefing()`, sans rien planifier) : `20260929140000_waouh_presence_pin_attempts.sql` (table de limitation des essais de PIN, RLS sans politique, additive) et `20260929150000_waouh_nexus_followup_cron.sql` (définit seulement `waouh_schedule_nexus_followup()`, ne planifie rien). Les migrations 20260929065700/065715/131943 sont déjà en base (versions identiques, P2 résolu par renommage).
 
 > **Attention — déploiement automatique** : le workflow `.github/workflows/deploy-waouh-chat-v2.yml` se déclenche au **push sur `prod`** (donc à la fusion de la PR) : il applique la migration PIN puis déploie les fonctions listées au §2 (sans toucher aux interrupteurs). Fusionner = déployer. Ne fusionner qu'après le §0 et la fenêtre choisie ; sinon utiliser `workflow_dispatch`.
 
@@ -37,7 +37,8 @@ Toutes avec `--use-api` ; `--no-verify-jwt` **sauf** `waouh-studio-e2e-v21465` (
 5. `waouh-channel-in`, `waouh-webhook` (messages « vendu/réservé », `sellerNotified`)
 6. Durcissement E7–E9 : `waouh-status-publish`, `waouh-sell-handler`/`waouh-buy-handler`/`waouh-negotiate-handler` (retirés : HTTP 410), `waouh-presence-public-page` (PIN limité à 5 essais/matricule et 20/client sur 15 min → HTTP 429), `waouh-stock-ingest` (garde SSRF). Le workflow les déploie tous en `--no-verify-jwt` (déjà `verify_jwt=false` en prod).
 7. Avatar : `waouh-nexus-followup` (suivi horaire, service seulement, inactif tant que `nexus_direct_deal` est coupé). Planification **manuelle** : créer les secrets Vault `waouh_nexus_followup_url` et `waouh_service_key`, puis `select public.waouh_schedule_nexus_followup();` (retourne `true`). Arrêt : `select cron.unschedule('waouh-nexus-followup-hourly');`.
-8. Optionnel : `waouh-studio-e2e-v21465` à partir de `waouh-agentic-core/index.ts` (libellé « Proposer mon offre »).
+8. Avatar guide : `waouh-avatar-briefing` (jeton utilisateur ; `tick` réservé au service). Points réguliers planifiés **manuellement** : secrets Vault `waouh_avatar_briefing_url` et `waouh_service_key`, puis `select public.waouh_schedule_avatar_briefing();`. Arrêt : `select cron.unschedule('waouh-avatar-briefing-hourly');`. L'accueil à l'ouverture fonctionne sans planification.
+9. Optionnel : `waouh-studio-e2e-v21465` à partir de `waouh-agentic-core/index.ts` (libellé « Proposer mon offre »).
 
 Après chaque fonction : `curl` OPTIONS/POST vide → pas de 5xx, puis journaux (`get_logs`) pendant 2 minutes.
 
