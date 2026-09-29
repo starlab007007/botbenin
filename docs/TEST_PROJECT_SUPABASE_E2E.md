@@ -78,5 +78,32 @@ Constats :
 - Message inexact : un article **vendu** répond « Article déjà réservé » (statuts `sold` et `reserved` traités par la même clé `article_reserved` dans `waouh-deal-open`). À corriger côté catalogue de messages si on veut afficher « vendu ».
 - Le fan-out vers les acheteurs (`waouh-notify-buyers`, appel « fire & forget » de `waouh-status-publish`) n'est pas déployé sur le projet de test : non testé.
 
+## Parcours acheteur (A) / vendeur (B) avec contre-proposition — point des erreurs (29/09/2026)
+Script : `scripts/waouh-chat/test-project/journey-buyer-seller-counter.mjs` — A = acheteur, B = vendeur, vraies edge functions.
+Simulé : compte admin de test (`has_role` limité à ce compte) et livreur au registre `waouh_couriers`. Assignation, ramassage et livraison passent par `waouh-deal-ops` réel. La livraison n'est donc plus simulée en SQL.
+Prérequis découverts : `waouh-notify-dispatch` (+ table `waouh_buyer_profiles`), `waouh-negotiation-router`, `waouh-deal-ops`, `waouh-status-publish`.
+
+| Étape | Résultat |
+|---|---|
+| B publie (réel) ; A ouvre l'article (fiche renvoyée) ; A → Intéressé | PASS |
+| B reçoit la notification « Nouvel acheteur » (message dans le fil + notification `waouh_app`) | PASS (une fois `waouh-notify-dispatch` déployé) |
+| A propose 250 000 → B reçoit « Nouvelle offre » avec Accepter / Contre-offre / Refuser | PASS |
+| B contre-propose 280 000 → A reçoit « Nouvelle offre 280 000 (avant 250 000) » avec Accepter | PASS |
+| A accepte → Accord (deal 280 000) ; B informé | PASS |
+| B confirme la disponibilité ; A choisit cash → Préparation → livreur assigné | PASS |
+| Ramassage, livraison, A confirme le paiement → Terminé (commission 14 000 = 5 %) | PASS |
+
+### Erreurs constatées
+| # | Gravité | Constat | Preuve | Correction proposée |
+|---|---|---|---|---|
+| E1 | majeur | La notification « Nouvel acheteur » reçue par le vendeur n'a **aucun bouton** (Accepter / Contre-offre / Refuser). `waouh-deal-open` calcule et envoie `actions`, `thread_id`, `negotiation_id`, mais `waouh-notify-dispatch` les ignore : `actions: []` codé en dur dans la file WhatsApp et aucun passage à `pushSyncedEvent`. Le vendeur ne peut répondre qu'après la première offre de prix. | J3b : `boutons=[]` ; code `waouh-notify-dispatch/index.ts` l.226 et appel `pushSyncedEvent` | Transmettre `actions`, `thread_id`, `negotiation_id` reçus jusqu'à `pushSyncedEvent` et à la file sortante |
+| E2 | moyen | `waouh-deal-open` met `sellerNotified = true` après un `fetch` **sans vérifier `response.ok`**. Si la fonction de notification est absente ou en erreur (404/500), l'acheteur lit quand même « Le vendeur est prévenu ». Observé : sans `waouh-notify-dispatch`, le vendeur n'a rien reçu à « Intéressé ». | premier passage J3 (0 message côté vendeur) et texte « Offre envoyée … Le vendeur est prévenu. » | Tester `res.ok`, sinon `sellerNotified = false` et ne pas afficher la promesse |
+| E3 | moyen | **Ordre de la chronologie** : pour `seller_confirm`, `pay_mode` et `confirm_payment` (passant par `waouh-deal-ops`), le message d'écho de l'action de l'utilisateur est écrit **après** les réponses du système (ex. « Vente terminée » 13,69 s, « Je confirme le paiement » 14,91 s). Un fil trié par date affiche la réponse avant l'action qui l'a déclenchée. Les chemins `offer` et `accept` sont dans le bon ordre. | J14 : 3 échecs (écho #10 après réponse #9, etc.) | Écrire l'écho avant d'appeler le moteur (ou horodater l'écho à l'arrivée de la requête) |
+| E4 | mineur | Un article **vendu** répond « Article déjà réservé » (même clé `article_reserved` pour `sold` et `reserved`). | test précédent | Clé distincte `article_sold` dans le catalogue |
+| E5 | sécurité | `waouh-match-history` prend l'identité du lecteur dans `auth_user_id` du corps de la requête, avec la clé service. | lecture du code | Dériver l'identité du JWT |
+
+Comportements normaux (pas des erreurs) : le livreur est assigné automatiquement dès que le paiement est choisi lorsqu'un livreur actif est au registre ; l'assignation manuelle répond alors 409 `already assigned`.
+Non testé : Web et Flutter (interfaces), WhatsApp réel, recherche par l'acheteur, fan-out `waouh-notify-buyers`, `waouh-outbound-dispatch` (volontairement non déployé : rien ne part).
+
 ## Reste à faire
 Faire pointer le Web et Flutter vers le projet de test, installer le trigger de synchronisation d'article, tester la publication réelle.
