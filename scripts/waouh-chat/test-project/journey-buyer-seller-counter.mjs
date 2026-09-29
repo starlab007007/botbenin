@@ -86,6 +86,24 @@ for (const [label, h, echo, reply] of [
   ["A · confirmation du paiement", hA, /Je confirme le paiement/, /Vente terminée/],
   ["B · disponibilité confirmée", hB, /Article disponible/, /Article confirmé/],
 ]) { const o = ord(h, echo, reply); step(`J14 ordre de la chronologie — ${label}`, o.ok, `écho #${o.e}, réponse #${o.p}${o.ok ? "" : " (la réponse s'affiche avant l'action qui l'a déclenchée)"}`, "moyen"); }
+// E4 : un article vendu répond « vendu », pas « réservé ».
+r = await call("waouh-commerce-action", A, { action: "open_deal", idem: `resale-${run}`, article_id: article });
+step("E4 article vendu : message « Article vendu » (et non « réservé »)", r.j.ok === false && r.j.reply?.key === "article_sold" && /vendu/i.test(r.j.reply?.title ?? ""), `clé=${r.j.reply?.key}, titre=« ${r.j.reply?.title} »`, "mineur");
+// E5 : l'identité du lecteur vient du jeton.
+const rawHistory = async (bearer, body, sid) => {
+  const rr = await fetch(`${SB_URL}/functions/v1/waouh-match-history`, { method: "POST", headers: { apikey: SB_ANON, Authorization: `Bearer ${bearer}`, "Content-Type": "application/json", ...(sid ? { "x-waouh-session": sid } : {}) }, body: JSON.stringify(body) });
+  let jj; try { jj = await rr.json(); } catch { jj = {}; } return { status: rr.status, j: jj };
+};
+let h = await rawHistory(B.t, { article_id: article, thread_id: thread, auth_user_id: A.uid, role: "seller" });
+step("E5a jeton du vendeur + authUserId de l'acheteur = 403 (usurpation refusée)", h.status === 403 && h.j.error === "auth_user_mismatch", `http ${h.status}, ${h.j.error}`, "sécurité");
+h = await rawHistory(SB_ANON, { article_id: article, thread_id: thread, auth_user_id: A.uid, role: "buyer" });
+step("E5b sans jeton, authUserId seul = 401 (aucun historique)", h.status === 401 && !(h.j.messages?.length), `http ${h.status}, ${h.j.error}, messages=${h.j.messages?.length ?? 0}`, "sécurité");
+h = await rawHistory(SB_ANON, { article_id: article, thread_id: thread, auth_user_id: A.uid, session_id: `web_intrus_${run}`, role: "buyer" });
+step("E5c sans jeton, authUserId + session inconnue : aucun historique de l'acheteur", !(h.j.messages?.length), `http ${h.status}, ${h.j.error ?? "ok"}, messages=${h.j.messages?.length ?? 0}`, "sécurité");
+h = await rawHistory(SB_ANON, { article_id: article, session_id: "x,user_id.neq.0", role: "buyer" });
+step("E5d session avec caractères de filtre = 400 (injection refusée)", h.status === 400 && h.j.error === "invalid_session_id", `http ${h.status}, ${h.j.error}`, "sécurité");
+h = await rawHistory(A.t, { article_id: article, thread_id: thread, auth_user_id: A.uid, role: "buyer" });
+step("E5e lecteur légitime (jeton + son identifiant) : historique servi", h.status === 200 && h.j.ok === true && (h.j.messages?.length ?? 0) > 0, `http ${h.status}, messages=${h.j.messages?.length ?? 0}`);
 console.log(JSON.stringify({ article, thread, neg, deal }));
 console.log(`\n${results.filter((x) => x.ok).length}/${results.length} étapes passées`);
 if (errors.length) { console.log("ERREURS :"); for (const e of errors) console.log(` - [${e.severity}] ${e.id} : ${e.detail}`); }

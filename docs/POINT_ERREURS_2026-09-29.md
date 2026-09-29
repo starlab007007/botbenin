@@ -3,6 +3,9 @@
 Sources : parcours réels sur le projet de test `botbj-test-e2e` (scripts `scripts/waouh-chat/test-project/`), lecture du code, audit de production en lecture seule.
 Légende « preuve » : **observé** = constaté à l'exécution ; **code** = lu dans le dépôt, non exécuté en production ; **déduit** = conséquence logique, à confirmer.
 
+## 0. Suivi des corrections
+E1, E2, E3, E4, E5 et E6 sont **corrigés dans le dépôt** et vérifiés sur le projet de test (29/29 étapes du parcours) : voir `docs/RAPPORT_CORRECTIONS_E1-E6_2026-09-29.md`. **Non déployés en production.** Restent ouverts : E7, E8, la nouvelle observation E9 (`waouh-notify-dispatch` sans authentification de l'appelant), P2 et les constats de l'audit.
+
 ## 1. Production
 | # | Erreur | État |
 |---|---|---|
