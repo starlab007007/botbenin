@@ -19,6 +19,7 @@ import { openBuyerDeal, publicPhotos } from "../_shared/waouh-deal-open.ts";
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 import { renderCatalog, type CatalogKey, fcfa, isUnavailableStatus, stageFor, unavailableKey } from "../_shared/waouh-message-catalog.ts";
 import { classifyInternalFailure, shouldEchoBeforeExecute } from "../_shared/waouh-internal-call.ts";
+import { evictedNegotiationKey } from "../_shared/waouh-evict.ts";
 import {
   actionEcho,
   type CommerceActionRequest,
@@ -401,6 +402,18 @@ async function execute(ctx: Ctx, thread: any, role: Role | null): Promise<Engine
       if (!thread) return { ok: false, key: "no_open_deal" };
       const negId = req.negotiation_id ?? thread.negotiation_id;
       if (!negId) return { ok: false, key: "stale_button" };
+      // Négociation fermée parce qu'un autre acheteur a été retenu : réponse explicite, pas « Action indisponible ».
+      const { data: negRow } = await sb.from("waouh_negotiations").select("state,meta").eq("id", negId).maybeSingle();
+      if (negRow?.state === "closed") {
+        const { data: artRow } = await sb.from("waouh_articles").select("status").eq("id", thread.article_id).maybeSingle();
+        const evictedKey = evictedNegotiationKey(negRow, artRow?.status);
+        if (evictedKey) {
+          // Le fil peut avoir rouvert une négociation depuis (nouvelle offre après reprise) : le routeur la retrouve.
+          const { data: stillOpen } = await sb.from("waouh_negotiations").select("id")
+            .eq("thread_id", thread.id).in("state", ["proposed", "countered"]).limit(1).maybeSingle();
+          if (!stillOpen) return { ok: false, key: evictedKey, threadId: thread.id, articleId: thread.article_id };
+        }
+      }
       const payload = `${req.action === "accept" ? "accepter" : "refuser"}:${negId}`;
       return mapRouter(
         await router({ text: req.action === "accept" ? "OUI" : "NON", button_payload: payload }, negId, thread.id),

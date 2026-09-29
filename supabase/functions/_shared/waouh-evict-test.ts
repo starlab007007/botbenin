@@ -1,7 +1,7 @@
 // deno-lint-ignore-file no-explicit-any -- base simulée.
 // E10 — acheteurs évincés : négociations fermées, acheteurs prévenus, boutons périmés retirés, reprise.
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { closeCompetingNegotiations, expireDecisionButtons, notifyArticleReopened, type EvictMessage } from "./waouh-evict.ts";
+import { closeCompetingNegotiations, evictedNegotiationKey, expireDecisionButtons, notifyArticleReopened, type EvictMessage } from "./waouh-evict.ts";
 
 type Row = Record<string, any>;
 const ART = "3f2c1b0a-0000-4000-8000-00000000a001";
@@ -122,4 +122,17 @@ Deno.test("reprise : article encore réservé ou vendu → aucune notification",
     await closeCompetingNegotiations(db, { articleId: ART, winnerNegotiationId: WIN }, async () => {});
     assertEquals((await notifyArticleReopened(db, { articleId: ART }, async () => {})).notified, 0, status);
   }
+});
+
+Deno.test("E10 : action sur une négociation fermée pour cause de réservation → « réservé/vendu », jamais « Action indisponible »", () => {
+  const closed = { state: "closed", meta: { closed_reason: "article_reserved" } };
+  assertEquals(evictedNegotiationKey(closed, "reserved"), "article_reserved");
+  assertEquals(evictedNegotiationKey(closed, "sold"), "article_sold");
+  assertEquals(evictedNegotiationKey(closed, "active"), "stale_button", "article revenu à la vente : bouton périmé");
+});
+
+Deno.test("E10 : les autres négociations closes ou ouvertes ne sont pas concernées", () => {
+  assertEquals(evictedNegotiationKey({ state: "closed", meta: {} }, "reserved"), null);
+  assertEquals(evictedNegotiationKey({ state: "proposed", meta: { closed_reason: "article_reserved" } }, "reserved"), null);
+  assertEquals(evictedNegotiationKey(null, "reserved"), null);
 });

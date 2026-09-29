@@ -12,8 +12,21 @@
 // Testé par waouh-evict-test.ts.
 
 import { articleEntryActionsV3 } from "./waouh-commands.ts";
-import { renderCatalog } from "./waouh-message-catalog.ts";
+import { type CatalogKey, isUnavailableStatus, renderCatalog, unavailableKey } from "./waouh-message-catalog.ts";
 import { chatWriterV2Enabled, recordChatMessage } from "./waouh-chat-writer.ts";
+
+/**
+ * Une action arrive sur une négociation déjà fermée parce qu'un autre acheteur a été retenu :
+ * la bonne réponse est « article réservé/vendu » (ou « bouton périmé » si l'article est revenu),
+ * jamais « Action indisponible ». Pure — testée.
+ */
+export function evictedNegotiationKey(
+  negotiation: { state?: string | null; meta?: Record<string, unknown> | null } | null | undefined,
+  articleStatus: unknown,
+): CatalogKey | null {
+  if (!negotiation || negotiation.state !== "closed" || negotiation.meta?.closed_reason !== "article_reserved") return null;
+  return isUnavailableStatus(articleStatus) ? unavailableKey(articleStatus) : "stale_button";
+}
 
 export interface EvictMessage {
   threadId: string;

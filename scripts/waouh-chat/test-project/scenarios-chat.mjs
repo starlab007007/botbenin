@@ -21,7 +21,14 @@ const raw = async (fn, bearer, body, sid, extraHeaders = {}) => {
   let j; try { j = await r.json(); } catch { j = {}; } return { status: r.status, j };
 };
 let seq = 0;
-const act = (who, body) => raw("waouh-commerce-action", who.t, { idem: `${who.name}-${run}-${++seq}`, ...body, session_id: who.sid }, who.sid);
+const cold = [];
+const act = async (who, body) => {
+  const r = await raw("waouh-commerce-action", who.t, { idem: `${who.name}-${run}-${++seq}`, ...body, session_id: who.sid }, who.sid);
+  const j = r.j, n = (j.actions ?? []).length;
+  // Fenêtre froide : réponse réussie dans un état actif, sans aucun bouton pour l'acteur (hors fin de vente et hors vendeur avant toute offre).
+  if (r.status === 200 && j.ok === true && n === 0 && j.stage !== "payment" && !(j.role === "seller" && j.stage === "interest") && body.action !== "cancel") cold.push(`${who.name}/${body.action}/${j.stage}/${j.reply?.key}`);
+  return r;
+};
 const publish = async (seller, title, price) => (await raw("waouh-status-publish", seller.t, { type: "sell", title: `${title} ${run}`, caption: "scénario", price_fcfa: price, location: "Cotonou" }, seller.sid)).j.article_id;
 const hist = async (who, role, thread, article) => {
   const r = await raw("waouh-match-history", who.t, { article_id: article, thread_id: thread, auth_user_id: who.uid, role, limit: 200 }, who.sid);
@@ -61,6 +68,8 @@ const loserIdx = ra.j.ok && ra.j.deal_id ? 1 : 0, winIdx = 1 - loserIdx;
 check("2b le perdant reçoit un refus explicite « réservé/vendu »", !!wins.length && /article_(reserved|sold)/.test(key([ra, rb][loserIdx])), `clé=${key([ra, rb][loserIdx])}`, "majeur");
 const hEv = await hist(B3, "buyer", T[2], art);
 check("2c l'acheteur évincé (B3, fil intact) est prévenu dès l'accord d'un autre acheteur", has(hEv, /r[ée]serv|plus disponible|vendu|indisponible|un autre acheteur/i), `dernier message de B3 : « ${(hEv.msgs.at(-1)?.text ?? "").replace(/\s+/g, " ").slice(0, 70)} »`, "majeur");
+const hsEv = await hist(S1, "seller", T[2], art);
+check("2d les boutons « Accepter » périmés du vendeur sont retirés du fil évincé", !hsEv.msgs.some((m) => m.actions.includes("accepter")), `boutons restants : ${hsEv.msgs.flatMap((m) => m.actions).join(",") || "aucun"}`, "majeur");
 const winnerBuyer = [B1, B2][winIdx], loserBuyer = [B1, B2][loserIdx], winnerThread = T[winIdx], loserThread = T[loserIdx], winnerDeal = [ra, rb][winIdx].j.deal_id;
 
 scenario("3. Après l'accord avec un acheteur, les autres ne peuvent plus acheter");
@@ -74,6 +83,8 @@ check("3c ouvrir l'article réservé est refusé", r.j.ok === false && key(r) ==
 scenario("4. Annulation par l'acheteur retenu puis reprise par un autre acheteur");
 r = await act(winnerBuyer, { action: "cancel", deal_id: winnerDeal });
 check("4a l'acheteur annule la commande", r.j.ok === true, `clé=${key(r)}`);
+const hRe = await hist(B3, "buyer", T[2], art);
+check("4d l'acheteur évincé (B3) est prévenu que l'article est de nouveau disponible, avec des boutons", has(hRe, /De nouveau disponible/) && hRe.msgs.some((m) => m.actions.includes("je-veux")), `dernier : « ${(hRe.msgs.at(-1)?.text ?? "").replace(/\s+/g, " ").slice(0, 60)} » boutons=${hRe.msgs.at(-1)?.actions.join(",")}`, "majeur");
 r = await act(loserBuyer, { action: "offer", thread_id: loserThread, negotiation_id: [N[0], N[1]][loserIdx], amount: 255000 });
 check("4b l'article revient à la vente : un autre acheteur peut de nouveau négocier", r.j.ok === true, `clé=${key(r)}`, "majeur");
 r = await act(S1, { action: "accept", thread_id: loserThread, negotiation_id: [N[0], N[1]][loserIdx] });
@@ -153,6 +164,23 @@ r = await raw("waouh-commerce-action", "jeton.invalide.xyz", { idem: `bad2-${run
 check("7m jeton invalide = refusé", r.status >= 400, `http ${r.status}`, "sécurité");
 
 // ---------------------------------------------------------------- 8. Négociation longue et refus
+scenario("7bis. Aucune fenêtre froide : boutons quand on attend l'autre partie");
+art = await newArticle(S1, "TEST Guitare", 90000);
+const w0 = await act(B1, { action: "open_deal", article_id: art });
+const ids = (rr) => (rr.j.actions ?? []).map((a) => String(a.id).split(":")[0]);
+check("7bis-a acheteur qui attend le vendeur : « Modifier mon offre » + « Poser une question »", ids(w0).includes("proposer-prix") && ids(w0).includes("poser-question"), `boutons=${ids(w0)}`, "majeur");
+const W = { thread_id: w0.j.thread_id, negotiation_id: w0.j.negotiation_id };
+const w1 = await act(B1, { action: "offer", ...W, amount: 80000 });
+check("7bis-b après une offre, l'acheteur garde des boutons d'action", ids(w1).length >= 1, `boutons=${ids(w1)}`, "majeur");
+const w2 = await act(S1, { action: "accept", ...W });
+check("7bis-c le vendeur, accord conclu : bouton « Article disponible »", ids(w2).some((k) => k.startsWith("confirmer-disponibilite")), `boutons=${ids(w2)}`, "majeur");
+const w3 = await act(S1, { action: "seller_confirm", deal_id: w2.j.deal_id });
+check("7bis-d le vendeur, après confirmation : « Poser une question » (plus de liste vide)", ids(w3).includes("poser-question"), `boutons=${ids(w3)}`, "majeur");
+const w4 = await act(B1, { action: "pay_mode", deal_id: w2.j.deal_id, method: "cash" });
+check("7bis-e l'acheteur, livreur assigné : bouton d'échange disponible", ids(w4).length >= 1, `étape=${w4.j.stage}, boutons=${ids(w4)}`, "majeur");
+const w5 = await act(B2, { action: "open_deal", article_id: art });
+check("7bis-f article réservé, acheteur non concerné : refus explicite et aucun bouton qui échouerait", w5.j.ok === false && ids(w5).length === 0, `clé=${key(w5)}, boutons=${ids(w5)}`, "majeur");
+
 scenario("8. Négociation en plusieurs tours puis accord au dernier prix");
 art = await newArticle(S1, "TEST Ordinateur", 300000);
 const g = await act(B1, { action: "open_deal", article_id: art });
@@ -223,6 +251,8 @@ check("11h double confirmation de paiement sans effet de bord", r.status === 200
 r = await act(S2, { action: "cancel", deal_id: deal11 });
 check("11i annuler une commande terminée est refusé", r.j.ok === false, `clé=${key(r)}`, "majeur");
 
+scenario("Bilan des fenêtres froides");
+check("Z aucune réponse réussie sans bouton dans un état actif", cold.length === 0, cold.length ? cold.slice(0, 8).join(" | ") : "0 sur toutes les actions de la batterie", "majeur");
 console.log("\n=== BILAN ===");
 const groups = {};
 for (const x of results) (groups[x.sc] ||= []).push(x);
