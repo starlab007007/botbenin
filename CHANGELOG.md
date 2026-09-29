@@ -3,6 +3,12 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.29.3 (branche claude/harmonisation-phase-0-1, correctif NON appliqué en production)
+- Défaut trouvé par le test de bout en bout : le garde-fou `waouh_resolve_message_thread` (migration 20260929065700) utilise `min(id)` sur un uuid,
+  agrégat inexistant : les insertions concernées échouent (11 erreurs relevées en production le 29/09). Correctif :
+  supabase/migrations/20260929130000_waouh_v3_thread_guard_fix_uuid_min.sql. Détail : docs/E2E_PARCOURS_VENDEUR_ACHETEUR_2026-09-29.md.
+- Ajout du banc `scripts/waouh-chat/verify/run-journey-e2e.sh` (parcours vendeur A / acheteur B sur Postgres local).
+
 ## 2026.09.29.2 (branche claude/harmonisation-phase-0-1, non déployé)
 - Flutter 18.20.0+1786092821 : parité du chat avec le Web (`/app/chat`, référence) — boutons serveur via `waouh-commerce-action`,
   historique par `waouh-match-history`, verrou des conversations clôturées, requête d'envoi alignée (`product_title`, `correlation_id`),
