@@ -1,9 +1,22 @@
 # Manifeste des fonctions déployées sans source dans `supabase/functions/`
 
 Relevé du 29/09/2026 — projet `mvynepqulhflxtyymtzs`. Lecture seule : rien n'a été modifié en production.
-Les sources ne sont **pas** copiées ici à la main : la copie fidèle se fait avec
-`scripts/supabase/pull-deployed-functions.sh` (téléchargement exact via la CLI Supabase),
-puis en relisant le diff avant commit.
+## État du rapatriement (29/09/2026)
+Sources ajoutées dans `supabase/functions/` à partir du code lu sur le projet (Supabase MCP, lecture seule) :
+- **Copie exacte, extraite par programme (aucune retranscription)** : `waouh-studio-e2e-v21465`, `waouh-studio-user-api`,
+  `waouh-apresbac-chat`. Les 8 fichiers `_shared/` embarqués dans leur bundle sont **identiques** à ceux du dépôt.
+- **Retranscrites à la main** (la lecture ne pouvait pas être écrite directement) : `_shared/presence.ts`, `waouh-presence-*`
+  (5 fonctions), `waouh-radar-nearby`, `waouh-stock-alert-send`, `waouh-stock-ingest`, `waouh-stock-query`,
+  `waouh-diffusion-suggest`, `waouh-studio-pair-code-v21462`, `waha-agent-bridge`, `waha-session-mobile`,
+  `setup-test-accounts`, et 4 fichiers d'une ligne. Chaque fichier a passé une vérification de syntaxe (esbuild),
+  **mais aucune comparaison octet à octet n'a été possible** : à confirmer avec `scripts/supabase/pull-deployed-functions.sh`
+  puis `diff -r .pulled-functions supabase/functions`. Les sommes SHA-256 des fichiers versionnés sont dans `DEPLOYED_SHA256.txt`.
+- **Non ajoutées** : `chat-webhook` (= `waouh-native-simulator`, déjà dans le dépôt), `waouh-bots-backend-health-v1`
+  (= `waouh-native-messaging-settings`, déjà dans le dépôt), et `a` : son bundle embarque une version de
+  `_shared/agent-ai.ts` (`STUDIO_AI_VERSION` 21.4.6.24, ~20 Ko) **différente** de celle du dépôt (14 571 octets) ;
+  la versionner telle quelle sans cette copie changerait son comportement au prochain déploiement.
+- `verify_jwt = false` ajouté dans `supabase/config.toml` pour les 12 fonctions concernées (les fonctions à JWT actif gardent le défaut).
+- **Ne pas déployer ces fichiers avant confirmation par diff.**
 
 ## Attention : le nom (slug) déployé n'est pas toujours le nom du code
 | Slug déployé | v | JWT | Maj (UTC) | Contenu réel | Remarque |
