@@ -59,5 +59,24 @@ Script : `scripts/waouh-chat/test-project/journey-real-functions.mjs` (refuse to
 - `waouh-match-history` identifie le lecteur par `auth_user_id` fourni dans le corps de la requête, avec la clé service : voir la note de sécurité dans `DEPLOYED_MANIFEST.md` à traiter avant tout déploiement large.
 - Non testé : Web `/app/chat` et application Flutter sur ce projet, publication réelle, WhatsApp.
 
+## Test « le vendeur vend un produit » — publication réelle (29/09/2026)
+Ajouts sur le projet de test : fonction `waouh-status-publish` (chemin de publication du Web et de Flutter) et triggers `trg_waouh_guard_new_deal_reservation` / `trg_waouh_sync_article_after_deal` (migration `20260925130000`, déjà actifs en production).
+
+| Étape | Résultat | Nature |
+|---|---|---|
+| A publie « Samsung Galaxy S23 », 320 000 (`waouh-status-publish`) | PASS — article `active`, statut 24 h lié | **réel** |
+| B contacte, propose 130 000, A accepte, rejeu `idem`, A confirme, B choisit cash, garde-fous | PASS (12/12) | réel |
+| Livraison par le livreur | `status='delivered'` en SQL | **simulé** |
+| B confirme le paiement | PASS — « Vente terminée » | réel |
+| Article après la vente | `sold` (trigger) | réel |
+| Deuxième achat sur l'article vendu | refusé (`article_reserved`, « Article déjà réservé ») | réel |
+
+État final : deal `completed` / `paid` / cash, 130 000 dont commission 6 500, fil `concluded` (clé active libérée, 0 fil actif), 20 messages dont 0 sans thread, 1 seul deal pour l'article.
+
+Constats :
+- L'offre du script (130 000) est codée en dur : l'article affichait 320 000, ce qui n'est pas réaliste mais valide le montant négocié (montant du deal = dernière offre).
+- Message inexact : un article **vendu** répond « Article déjà réservé » (statuts `sold` et `reserved` traités par la même clé `article_reserved` dans `waouh-deal-open`). À corriger côté catalogue de messages si on veut afficher « vendu ».
+- Le fan-out vers les acheteurs (`waouh-notify-buyers`, appel « fire & forget » de `waouh-status-publish`) n'est pas déployé sur le projet de test : non testé.
+
 ## Reste à faire
 Faire pointer le Web et Flutter vers le projet de test, installer le trigger de synchronisation d'article, tester la publication réelle.

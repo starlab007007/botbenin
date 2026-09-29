@@ -24,12 +24,19 @@ A.t = await login("vendeur.a.test@botbj-test.invalid", PW_A); B.t = await login(
 step("S0 connexions Auth A et B", true, "jetons obtenus");
 const ca = (who, body) => fn("waouh-commerce-action", who.t, body, who.sid);
 let threadId = THREAD_ID, dealId = DEAL_ID, negId, r;
+let ARTICLE = ARTICLE_ID;
+if (PHASE !== "finish" && !ARTICLE) {
+  // Publication RÉELLE par le vendeur A (même fonction que le Web et Flutter : waouh-status-publish).
+  r = await fn("waouh-status-publish", A.t, { type: "sell", title: `TEST Samsung Galaxy S23 ${run}`, caption: "Neuf sous emballage, garantie 1 an", price_fcfa: 320000, location: "Cotonou", author_name: "TEST Vendeur A" }, A.sid);
+  ARTICLE = r.j.article_id;
+  step("S0b A publie son produit (waouh-status-publish)", r.status === 200 && r.j.ok === true && !!ARTICLE && r.j.article?.status === "active", `http ${r.status}, article=${ARTICLE}, statut=${r.j.article?.status}, prix=${r.j.article?.price}`);
+}
 
 if (PHASE !== "finish") {
-  r = await ca(B, { action: "open_deal", idem: `open-${run}`, article_id: ARTICLE_ID, source: "test_e2e" });
+  r = await ca(B, { action: "open_deal", idem: `open-${run}`, article_id: ARTICLE, source: "test_e2e" });
   threadId = r.j.thread_id; negId = r.j.negotiation_id;
   step("S1 B contacte le vendeur (open_deal)", r.status === 200 && r.j.ok === true && !!threadId && !!negId, `http ${r.status}, thread=${threadId}`);
-  r = await ca(B, { action: "offer", idem: `offer-${run}`, thread_id: threadId, negotiation_id: negId, article_id: ARTICLE_ID, amount: 130000, confirmed: true });
+  r = await ca(B, { action: "offer", idem: `offer-${run}`, thread_id: threadId, negotiation_id: negId, article_id: ARTICLE, amount: 130000, confirmed: true });
   step("S2 B propose 130000 (offer)", r.status === 200 && r.j.ok === true, `http ${r.status}, ok=${r.j.ok}, clé=${r.j.reply?.key ?? ""}`);
   r = await ca(A, { action: "accept", idem: `accept-${run}`, negotiation_id: negId, thread_id: threadId });
   dealId = r.j.deal_id;
@@ -49,7 +56,7 @@ if (PHASE !== "finish") {
   step("S9 B confirme le paiement après livraison", r.status === 200 && r.j.ok === true, `http ${r.status}, étape=${r.j.stage}, ${JSON.stringify(r.j.reply?.title)}`);
 }
 for (const [who, role] of [[A, "seller"], [B, "buyer"]]) {
-  r = await fn("waouh-match-history", who.t, { thread_id: threadId, article_id: ARTICLE_ID, auth_user_id: who.uid, role }, who.sid);
+  r = await fn("waouh-match-history", who.t, { thread_id: threadId, article_id: ARTICLE, auth_user_id: who.uid, role }, who.sid);
   const n = (r.j.messages || r.j.items || []).length;
   step(`S10 historique du fil côté ${role}`, r.status === 200 && n > 0, `http ${r.status}, ${n} messages`);
 }
