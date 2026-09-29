@@ -3,6 +3,13 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.29.2 (branche claude/harmonisation-phase-0-1, non déployé)
+- Flutter 18.20.0+1786092821 : parité du chat avec le Web (`/app/chat`, référence) — boutons serveur via `waouh-commerce-action`,
+  historique par `waouh-match-history`, verrou des conversations clôturées, requête d'envoi alignée (`product_title`, `correlation_id`),
+  libellés de la liste. Détail et écarts restants : docs/PARITY_CHAT_WEB_FLUTTER.md.
+- Tests de parité communs Web/Flutter (docs/contracts/chat/parity-fixtures.json).
+- Web : aucun changement de code.
+
 ## 2026.09.29.1 (branche claude/harmonisation-phase-0-1, non déployé)
 - Backend uniquement : embeddings alignés sur `gemini-embedding-2` (768 dimensions, normalisés) — voir docs/EMBEDDINGS_GEMINI_2.md.
 - Rapatriement dans le dépôt de 22 fonctions Supabase déployées sans source (dont `a`, avec `a/agent-ai-studio.ts`) — voir supabase/functions/DEPLOYED_MANIFEST.md.
@@ -29,3 +36,4 @@ Chaque entrée relie Web, Flutter et Supabase.
 | 18.17.0 / 18.18.0 | 2026-09-28 21:59 / 22:35 | Chat Center canonique |
 | 18.19.0 | 2026-09-28 23:55 | Identités catalogue/article séparées, Deal Room premium |
 | 18.19.1 | 2026-09-29 | Montée de version seule (nouvel APK de test, backend embeddings gemini-embedding-2) |
+| 18.20.0 | 2026-09-29 | Parité du chat avec le Web (boutons v3, historique serveur, conversation clôturée, requête d'envoi) |

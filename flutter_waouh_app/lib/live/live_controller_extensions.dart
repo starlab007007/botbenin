@@ -10,6 +10,10 @@ import 'live_models.dart';
 final Map<String, List<LiveMessage>> _waouhScopeMessageCache =
     <String, List<LiveMessage>>{};
 
+/// Statut de l'article renvoyé par waouh-match-history (source de vérité,
+/// comme le Web) : sert à verrouiller les conversations clôturées.
+final Map<String, String> _waouhArticleStatusCache = <String, String>{};
+
 List<LiveMessage> _isolatedMessages(
   List<LiveMessage> values,
   LiveMatch match, {
@@ -41,6 +45,14 @@ List<LiveMessage> _isolatedMessages(
 }
 
 extension LiveWaouhControllerMatches on LiveWaouhController {
+  /// Statut de l'article de la Deal Room (dernier renvoi de waouh-match-history).
+  String? matchArticleStatus(LiveMatch match) =>
+      _waouhArticleStatusCache[liveMatchMessageCacheKey(
+        match: match,
+        authUserId: auth.user?.id,
+        controllerIdentity: identityHashCode(this),
+      )];
+
   Future<LiveMatch?> resolveMatch(String key) async {
     final cached = notifications.cachedMatch(key);
     if (cached != null) return cached;
@@ -91,6 +103,10 @@ extension LiveWaouhControllerMatches on LiveWaouhController {
           match: effectiveMatch,
           authUserId: auth.user?.id,
         );
+        final articleStatus = result.articleStatus?.trim() ?? '';
+        if (articleStatus.isNotEmpty) {
+          _waouhArticleStatusCache[cacheKey] = articleStatus;
+        }
         final resolvedThread = result.resolvedThreadId?.trim() ?? '';
         if (resolvedThread.isNotEmpty &&
             effectiveMatch.threadId?.trim() != resolvedThread) {
@@ -154,8 +170,11 @@ extension LiveWaouhControllerMatches on LiveWaouhController {
               },
             )
             .subscribe();
+        // Le Web n'a aucun polling : le temps réel suffit. Sur mobile on garde
+        // un filet de sûreté, mais espacé car la lecture passe désormais
+        // toujours par la fonction serveur autoritaire.
         safetyPoll = Timer.periodic(
-          const Duration(seconds: 4),
+          const Duration(seconds: 15),
           (_) => unawaited(refresh()),
         );
       },

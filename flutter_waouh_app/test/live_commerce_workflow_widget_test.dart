@@ -99,7 +99,10 @@ void main() {
     expect(find.text('💵 À la livraison'), findsOneWidget);
     await tester.tap(find.text('💳 Mobile Money'));
     await tester.pump();
-    expect(selected, 'payer-mobile:deal-1');
+    // Parité Web : la timeline émet le payload canonique, converti ensuite en
+    // requête waouh-commerce-action (pay_mode / mobile_money).
+    expect(selected, contains('waouh:payment_preference_mobile?'));
+    expect(selected, contains('deal_id=deal-1'));
   });
 
   testWidgets(

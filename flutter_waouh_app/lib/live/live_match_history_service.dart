@@ -127,6 +127,39 @@ class LiveMatchHistoryService {
     final sessionId = await session.sessionId;
     final threadId = match.threadId?.trim() ?? '';
 
+    // Parité Web : la fonction serveur est la source de vérité (thread résolu,
+    // statut de l'article, message d'amorce). La lecture directe de la table
+    // ne sert plus que de repli si la fonction est injoignable.
+    try {
+      final response = await client.functions.invoke(
+        'waouh-match-history',
+        body: <String, dynamic>{
+          'threadId': threadId.isEmpty ? null : threadId,
+          'matchKey': match.key,
+          'articleId': match.articleId,
+          'sessionId': sessionId,
+          'authUserId': authUserId,
+          'role': match.role,
+          'notificationId': match.notificationIds.isEmpty
+              ? null
+              : match.notificationIds.first,
+          'counterpartUserId': match.counterpartUserId,
+          'buyerUserId': match.buyerUserId,
+          'sellerUserId': match.sellerUserId,
+          'before': before,
+          'limit': limit,
+          'includeMeta': true,
+        },
+      );
+      final result = LiveMatchHistoryResult.fromResponse(
+        response.data,
+        match: match,
+      );
+      if (result.ok) return result;
+    } catch (_) {
+      // Le flux conserve le cache local et réessaie par le polling de sûreté.
+    }
+
     if (threadId.isNotEmpty) {
       try {
         var directQuery = client
@@ -163,39 +196,8 @@ class LiveMatchHistoryService {
           );
         }
       } catch (_) {
-        // La fonction Edge autoritaire reste le repli quand la RLS refuse la
-        // lecture directe ou lorsque les anciennes lignes n'ont pas thread_id.
+        // Dernier repli hors ligne : le flux garde le cache local.
       }
-    }
-
-    try {
-      final response = await client.functions.invoke(
-        'waouh-match-history',
-        body: <String, dynamic>{
-          'threadId': threadId.isEmpty ? null : threadId,
-          'matchKey': match.key,
-          'articleId': match.articleId,
-          'sessionId': sessionId,
-          'authUserId': authUserId,
-          'role': match.role,
-          'notificationId': match.notificationIds.isEmpty
-              ? null
-              : match.notificationIds.first,
-          'counterpartUserId': match.counterpartUserId,
-          'buyerUserId': match.buyerUserId,
-          'sellerUserId': match.sellerUserId,
-          'before': before,
-          'limit': limit,
-          'includeMeta': true,
-        },
-      );
-      final result = LiveMatchHistoryResult.fromResponse(
-        response.data,
-        match: match,
-      );
-      if (result.ok) return result;
-    } catch (_) {
-      // Le flux conserve le cache local et réessaie par le polling de sûreté.
     }
 
     return LiveMatchHistoryResult(

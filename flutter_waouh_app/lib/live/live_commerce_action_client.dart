@@ -62,6 +62,17 @@ Map<String, dynamic>? liveCommerceRequestFromPayload(
   final query = queryAt < 0
       ? const <String, String>{}
       : Uri.splitQueryString(raw.substring(queryAt + 1));
+  // Boutons serveur affichés par la timeline : `waouh:<action>?negotiation_id=…`.
+  // Même correspondance que `commerceRequestFromButton` côté Web, afin que
+  // Accepter / Refuser / paiement / annulation passent par waouh-commerce-action
+  // et non plus par l'ancien chemin waouh-channel-in-secure.
+  if (command.toLowerCase().startsWith('waouh:')) {
+    return _liveCommerceRequestFromCanonical(
+      command.substring(6).toLowerCase(),
+      query,
+      threadId,
+    );
+  }
   final match = RegExp(r'^([a-z_-]+):([0-9a-f-]{36})$', caseSensitive: false)
       .firstMatch(command);
   if (match == null) return null;
@@ -120,5 +131,48 @@ Map<String, dynamic>? liveCommerceRequestFromPayload(
     case 'annuler':
       return <String, dynamic>{'action': 'cancel', 'deal_id': target};
   }
+  return null;
+}
+
+Map<String, dynamic>? _liveCommerceRequestFromCanonical(
+  String action,
+  Map<String, String> query,
+  String? threadId,
+) {
+  String value(String key) => (query[key] ?? '').trim();
+  final thread = (threadId != null && threadId.trim().isNotEmpty)
+      ? threadId.trim()
+      : value('thread_id');
+  final negotiationId = value('negotiation_id');
+  final dealId = value('deal_id');
+  Map<String, dynamic> negotiation(String name) => <String, dynamic>{
+        'action': name,
+        'negotiation_id': negotiationId,
+        if (thread.isNotEmpty) 'thread_id': thread,
+      };
+  Map<String, dynamic> deal(String name, [String? method]) => <String, dynamic>{
+        'action': name,
+        'deal_id': dealId,
+        if (method != null) 'method': method,
+      };
+  switch (action) {
+    case 'accept':
+      return negotiationId.isEmpty ? null : negotiation('accept');
+    case 'reject':
+      return negotiationId.isEmpty ? null : negotiation('reject');
+    case 'payment_preference_mobile':
+      return dealId.isEmpty ? null : deal('pay_mode', 'mobile_money');
+    case 'payment_preference_cod':
+      return dealId.isEmpty ? null : deal('pay_mode', 'cash');
+    case 'seller_confirm_available':
+      return dealId.isEmpty ? null : deal('seller_confirm');
+    case 'confirm_payment_cash':
+      return dealId.isEmpty ? null : deal('confirm_payment', 'cash');
+    case 'confirm_payment_mobile':
+      return dealId.isEmpty ? null : deal('confirm_payment', 'mobile_money');
+    case 'cancel_deal':
+      return dealId.isEmpty ? null : deal('cancel');
+  }
+  // counter / interest / unknown : composeur ou chemin historique (comme le Web).
   return null;
 }
