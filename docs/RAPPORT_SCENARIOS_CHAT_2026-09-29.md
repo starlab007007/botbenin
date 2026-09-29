@@ -1,6 +1,6 @@
 # Rapport de scénarios du chat — 29/09/2026
 
-**Conclusion : le parcours n'est PAS terminé ni conforme dans tous les scénarios.** 62 vérifications sur 64 passent ; 2 échecs sont de vrais défauts (E10, E11), reproduits deux fois. Des pans entiers du chat ne sont pas testés (liste en fin de document).
+**Mise à jour (fin de journée) : E10 et E11 sont corrigés ; la batterie étendue passe 73/73 sur le projet de test** (voir `docs/RAPPORT_FENETRES_CHAUDES_2026-09-29.md`). Le texte ci-dessous est le constat initial : 62 vérifications sur 64, 2 défauts (E10, E11). Des pans entiers du chat ne sont toujours pas testés (liste en fin de document).
 
 Cadre : vraies edge functions sur le projet de test `botbj-test-e2e`, 6 comptes (vendeurs S1 S2 ; acheteurs B1 B2 B3 ; admin de test pour la livraison). Script : `scripts/waouh-chat/test-project/scenarios-chat.mjs`. Les corrections E1 à E6 sont déployées sur le projet de test, pas en production.
 

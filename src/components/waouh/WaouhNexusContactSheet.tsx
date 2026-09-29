@@ -16,6 +16,7 @@ import {
   type NexusOpportunityJourney,
 } from "@/lib/waouh/nexus";
 import { WaouhContactabilityBadge } from "./WaouhCommerceAgentBar";
+import { contactabilityActionLabel, findChannelLabel, interestMessage, SEND_OFFER_LABEL } from "@/lib/waouh/hotLabels";
 
 type Prepared = Awaited<ReturnType<typeof prepareNexusContact>>;
 
@@ -67,9 +68,7 @@ export function WaouhNexusContactSheet({
       }
       setJourney(started);
       setPrepared(contact);
-      setMessage(
-        `Bonjour, mon Avatar WAOUH vous contacte au sujet de « ${title} ». Est-ce toujours disponible ? Nous pouvons poursuivre dans WAOUH.`,
-      );
+      setMessage(interestMessage(title));
     } catch (error) {
       toast({ title: "Avatar poursuit la démarche", description: errorText(error) });
     } finally {
@@ -157,12 +156,7 @@ export function WaouhNexusContactSheet({
     return [...new Set(values)];
   }, [journey?.masked_contact, prepared?.contacts]);
 
-  const label =
-    level === "C5" ? "Négocier dans WAOUH" :
-    level === "C4" ? "Suivre le contact" :
-    level === "C3" || level === "C2" ? "Contacter avec WAOUH" :
-    level === "C1" ? "Vérifier le contact" :
-    "Trouver un moyen de contacter";
+  const label = contactabilityActionLabel(level);
 
   return (
     <Sheet open={open} onOpenChange={(value) => {
@@ -256,7 +250,7 @@ export function WaouhNexusContactSheet({
                 </p>
                 <Button className="mt-3" size="sm" disabled={enriching} onClick={() => void enrich()}>
                   {enriching ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Search className="mr-1 h-4 w-4" />}
-                  {level === "C0" ? "Trouver un moyen de contacter" : "Vérifier le meilleur canal"}
+                  {findChannelLabel(level)}
                 </Button>
               </div>
             )}
@@ -267,7 +261,7 @@ export function WaouhNexusContactSheet({
                 <Textarea value={message} onChange={(event) => setMessage(event.target.value)} rows={3} />
                 <Button size="sm" disabled={busy || !message.trim()} onClick={() => void send()}>
                   {busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Send className="mr-1 h-3.5 w-3.5" />}
-                  Contacter avec WAOUH
+                  {SEND_OFFER_LABEL}
                 </Button>
               </div>
             )}

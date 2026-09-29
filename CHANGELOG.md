@@ -3,7 +3,17 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
-## 2026.09.29.3 (branche claude/harmonisation-phase-0-1, correctif NON appliqué en production)
+## 2026.09.29.4 (branche claude/harmonisation-phase-0-1, NON déployé en production)
+- Corrections E1–E6 du parcours (boutons de la notification vendeur, notification vérifiée, ordre de l'écho, « article vendu », identité du lecteur
+  par le jeton, erreurs internes tracées) — docs/RAPPORT_CORRECTIONS_E1-E6_2026-09-29.md.
+- E10/E11 : les acheteurs évincés sont prévenus (négociation fermée, boutons périmés retirés, reprise « De nouveau disponible » si l'accord tombe) ;
+  une offre sur un article réservé/vendu est refusée. Nouveau module `_shared/waouh-evict.ts`.
+- Fenêtres chaudes : boutons dans tous les états d'attente (Modifier mon offre, Poser une question, Annuler la commande) ; cartes produit avec
+  bouton de prix intelligent (« Proposer 270 000 FCFA », un geste) ; libellés « contacter / trouver un moyen de contacter » remplacés partout
+  (Web, Flutter 18.21.0, `waouh-agentic-core`) par un vocabulaire d'action commun (`docs/contracts/chat/hot-labels-fixtures.json`) avec garde-fou de test.
+- Flutter 18.21.0+1786179221.
+
+## 2026.09.29.3 (correctif appliqué en production le 29/09 avec l'accord de l'utilisateur, versionné 20260929131943 en base)
 - Défaut trouvé par le test de bout en bout : le garde-fou `waouh_resolve_message_thread` (migration 20260929065700) utilise `min(id)` sur un uuid,
   agrégat inexistant : les insertions concernées échouent (11 erreurs relevées en production le 29/09). Correctif :
   supabase/migrations/20260929130000_waouh_v3_thread_guard_fix_uuid_min.sql. Détail : docs/E2E_PARCOURS_VENDEUR_ACHETEUR_2026-09-29.md.

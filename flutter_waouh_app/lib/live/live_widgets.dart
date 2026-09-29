@@ -14,6 +14,7 @@ import 'live_nexus_service.dart';
 import 'live_commerce_workflow.dart';
 import 'live_commerce_agent_ui.dart';
 import 'live_thread_flow.dart';
+import 'live_hot_labels.dart';
 
 class LiveHeader extends StatelessWidget implements PreferredSizeWidget {
   const LiveHeader({
@@ -2198,19 +2199,7 @@ class _PremiumProductCard extends StatelessWidget {
                       product,
                     ),
                     icon: const Icon(Icons.shield_outlined),
-                    label: Text(
-                      product.contactability == 'C5'
-                          ? 'Négocier dans WAOUH'
-                          : product.contactability == 'C4'
-                              ? 'Suivre le contact'
-                              : product.contactability == 'C3'
-                                  ? 'Contacter avec WAOUH'
-                                  : product.contactability == 'C2'
-                                      ? 'Transmettre via WAOUH'
-                                  : product.contactability == 'C1'
-                                      ? 'Vérifier le contact'
-                                      : 'Trouver un moyen de contacter',
-                    ),
+                    label: Text(liveContactabilityActionLabel(product.contactability)),
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF08745D),
                       foregroundColor: Colors.white,
@@ -2980,11 +2969,7 @@ class _PremiumNexusContactSheetState
                           ),
                         )
                       : const Icon(Icons.manage_search_rounded),
-                  label: Text(
-                    level == 'C0'
-                        ? 'Trouver un moyen de contacter'
-                        : 'Vérifier le meilleur canal',
-                  ),
+                  label: Text(liveFindChannelLabel(level)),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(48),
                   ),
@@ -3066,7 +3051,7 @@ class _PremiumNexusContactSheetState
                           ),
                         )
                       : const Icon(Icons.send_rounded),
-                  label: const Text('Contacter avec WAOUH'),
+                  label: const Text(liveSendOfferLabel),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(48),
                   ),

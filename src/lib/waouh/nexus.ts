@@ -137,7 +137,7 @@ export async function expressNexusInterest(item: Pick<NexusSearchItem, "article_
     ? { article_id: item.article_id, source: "nexus", intent: "interest" }
     : { catalog_id: item.catalog_id, source: "nexus", intent: "interest" };
   const { data, error } = await supabase.functions.invoke("waouh-buyer-interest", { body });
-  if (error) throw new Error(error.message || "Impossible de contacter le vendeur.");
+  if (error) throw new Error(error.message || "Votre intérêt n'a pas pu être envoyé. Réessayez.");
   if (data?.error) throw new Error(String(data.error));
   return data as { ok?: boolean; duplicate?: boolean; seller_notified?: boolean };
 }

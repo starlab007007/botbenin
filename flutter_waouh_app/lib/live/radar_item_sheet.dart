@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'live_radar_models.dart';
+import 'live_hot_labels.dart';
 
 enum RadarProductAction { interested, negotiate, contact }
 
@@ -120,7 +121,7 @@ class _Actions extends StatelessWidget {
           );
           final contact = _ActionButton.primary(
             icon: Icons.chat_bubble_outline_rounded,
-            label: 'Contacter',
+            label: liveRadarPrimaryLabel(buyRequest: item.type == LiveRadarItemType.buy),
             onPressed: () => Navigator.pop(context, RadarProductAction.contact),
           );
 

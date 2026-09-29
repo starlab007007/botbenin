@@ -26,6 +26,7 @@ import { isImageReady, preloadImage, prefetchNeighbours } from "@/components/wao
 import { cn } from "@/lib/utils";
 import { WaouhContactabilityBadge } from "./WaouhCommerceAgentBar";
 import { WaouhNexusContactSheet } from "./WaouhNexusContactSheet";
+import { smartOfferAmount } from "@/lib/waouh/hotLabels";
 
 /**
  * Fiche produit d'un résultat de recherche WAOUH.
@@ -261,7 +262,14 @@ export function WaouhProductCard({
   const [offering, setOffering] = useState(false);
   const [offer, setOffer] = useState("");
   const serverActions = Array.isArray(result.actions) ? result.actions.filter((a) => a?.id && a?.label).slice(0, 3) : [];
-  const v3Entry = serverActions.find((a) => /^je-veux:/i.test(a.id)) ?? null;
+  // Carte « chaude » : sans boutons fournis par le serveur, on synthétise l'entrée du parcours v3
+  // (« Je le veux à X » + « Proposer un prix » + « Poser une question ») dès que l'identité du produit
+  // est connue — jamais un simple « contacter ». Pas pour les demandes d'achat ni les fiches sans action.
+  const entryPrice = Number(result.price ?? result.price_min ?? result.price_max ?? 0) || null;
+  const synthesizedEntry = !serverActions.length && result.id && result.action !== null && !isBuyerOpportunity(result)
+    ? { id: `je-veux:${result.id}`, label: entryPrice ? `Je le veux à ${fmt(entryPrice)}` : "Je le veux" }
+    : null;
+  const v3Entry = serverActions.find((a) => /^je-veux:/i.test(a.id)) ?? synthesizedEntry;
   const gallery = photos.map((url) => ({ url, caption: result.title }));
   const interestAction = result.action === null ? null : (result.action || defaultInterestAction(result));
   const opportunity = isBuyerOpportunity(result);
@@ -325,8 +333,7 @@ export function WaouhProductCard({
 
   const listPrice = Number(result.price ?? result.price_min ?? result.price_max ?? 0) || null;
   const openOffer = () => {
-    const step = listPrice && listPrice < 500 ? 5 : 25;
-    const suggested = listPrice ? Math.max(1, Math.round((listPrice * 0.9) / step) * step) : null;
+    const suggested = smartOfferAmount(listPrice);
     setOffer(suggested ? String(suggested) : "");
     setOffering((o) => !o);
     setAsking(false);
@@ -336,6 +343,13 @@ export function WaouhProductCard({
     if (!onAction || !Number.isFinite(amount) || amount < 1) return;
     openDedicatedWindowFromResult(result);
     onAction(`Je propose ${fmt(amount)}`, { ...productIdentityMeta(result), commerce_action: "offer", offer_price: amount });
+    setOffering(false);
+  };
+  const smartAmount = smartOfferAmount(listPrice);
+  const sendSmartOffer = () => {
+    if (!onAction || !smartAmount) return;
+    openDedicatedWindowFromResult(result);
+    onAction(`Je propose ${fmt(smartAmount)}`, { ...productIdentityMeta(result), commerce_action: "offer", offer_price: smartAmount });
     setOffering(false);
   };
   const handleWant = () => {
@@ -511,14 +525,20 @@ export function WaouhProductCard({
               {v3Entry.label}
             </Button>
             <div className="grid grid-cols-2 gap-1.5">
-              <Button size="sm" variant="outline" className="h-8 min-w-0 px-2 text-[11px]" onClick={openOffer}>
-                <span className="truncate">Proposer un prix</span>
+              {/* Bouton intelligent : le prix suggéré est dans le libellé et part en un geste dans la fenêtre de négociation. */}
+              <Button size="sm" variant="outline" className="h-8 min-w-0 px-2 text-[11px]" onClick={smartAmount ? sendSmartOffer : openOffer}>
+                <span className="truncate">{smartAmount ? `Proposer ${fmt(smartAmount)}` : "Proposer un prix"}</span>
               </Button>
               <Button size="sm" variant="outline" className="h-8 min-w-0 px-2 text-[11px]" onClick={() => { setAsking((a) => !a); setOffering(false); }}>
                 <MessageCircleQuestion className="h-3.5 w-3.5 mr-1 shrink-0" />
                 <span className="truncate">Poser une question</span>
               </Button>
             </div>
+            {smartAmount && !offering && (
+              <button type="button" className="w-full text-center text-[11px] font-medium text-muted-foreground underline-offset-2 hover:underline" onClick={openOffer}>
+                Autre montant
+              </button>
+            )}
             {offering && (
               <div className="flex items-center gap-1.5">
                 <Input

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'live_radar_models.dart';
+import 'live_hot_labels.dart';
 
 enum RadarItemAction { interested, negotiate, contact }
 
@@ -124,7 +125,7 @@ Future<RadarItemAction?> showRadarItemSheet(BuildContext context, LiveRadarItem 
               const SizedBox(width: 8),
               Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(context, RadarItemAction.negotiate), child: const Text('Négocier'))),
               const SizedBox(width: 8),
-              Expanded(child: FilledButton(onPressed: () => Navigator.pop(context, RadarItemAction.contact), child: const Text('Contacter'))),
+              Expanded(child: FilledButton(onPressed: () => Navigator.pop(context, RadarItemAction.contact), child: Text(liveRadarPrimaryLabel(buyRequest: item.type == LiveRadarItemType.buy)))),
             ]),
           ]),
         ),

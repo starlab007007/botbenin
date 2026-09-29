@@ -11,6 +11,7 @@ import 'live_models.dart';
 import 'live_thread_flow.dart';
 import 'live_theme.dart';
 import 'live_widgets.dart';
+import 'live_hot_labels.dart';
 
 enum LiveAvatarCommerceMode { buy, sell, ask }
 
@@ -1434,15 +1435,9 @@ class _OpportunityCard extends StatelessWidget {
               label: Text(
                 item.internalArticle
                     ? 'Je suis intéressé · proposer un prix'
-                    : item.contactPolicy.level == 'C0'
-                        ? 'Trouver un moyen de contacter'
-                        : item.contactPolicy.level == 'C1'
-                            ? 'Vérifier le meilleur contact'
-                            : item.contactPolicy.level == 'C4'
-                                ? 'Suivre le contact'
-                                : item.contactPolicy.level == 'C5'
-                                    ? 'Continuer vers l’accord'
-                                    : 'Contacter avec WAOUH',
+                    : item.contactPolicy.level == 'C5'
+                        ? 'Continuer vers l’accord'
+                        : liveContactabilityActionLabel(item.contactPolicy.level),
               ),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(48),

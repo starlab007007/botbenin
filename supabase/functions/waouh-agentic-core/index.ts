@@ -1144,7 +1144,7 @@ function journeyNextAction(stage: string, level: string) {
   if (stage === "negotiating" || level === "C5") return "Négocier dans WAOUH";
   if (stage === "waiting_reply" || level === "C4") return "Attendre la réponse · Avatar relance si nécessaire";
   if (stage === "contacting") return "Suivre l’envoi";
-  if (["C2","C3"].includes(level)) return "Contacter avec WAOUH";
+  if (["C2","C3"].includes(level)) return "Proposer mon offre";
   return "Avatar recherche un canal de contact";
 }
 

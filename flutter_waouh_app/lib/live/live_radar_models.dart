@@ -298,7 +298,7 @@ class LiveRadarItem {
       'actions': type == LiveRadarItemType.buy
           ? <Map<String, String>>[
               {'id': 'proposer:${articleId ?? sourceId}', 'label': '📦 Proposer mon article'},
-              {'id': 'contacter:${articleId ?? sourceId}', 'label': '💬 Contacter'},
+              {'id': 'negocier:${articleId ?? sourceId}', 'label': '💰 Proposer mon prix'},
             ]
           : <Map<String, String>>[
               {'id': 'interesse:${articleId ?? sourceId}', 'label': '✅ Je suis intéressé'},
