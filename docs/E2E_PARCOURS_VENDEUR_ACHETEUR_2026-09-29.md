@@ -22,7 +22,7 @@ production, aucun message WhatsApp, aucune application lancée. Rejouer :
 (version de production). Le trigger `BEFORE INSERT` sur `waouh_messages` fait alors **échouer l'insertion** de tout message
 portant `article_id` et `user_id` sans `thread_id` ni contexte résolvable (`meta.thread_id`, `negotiation_id`, `deal_id`).
 Constaté dans les journaux de production : 9 erreurs entre 07:27 et 07:38 UTC le 29/09 (dont une rafale de 7 en 30 s).
-Correctif prêt, **non appliqué** : `supabase/migrations/20260929130000_waouh_v3_thread_guard_fix_uuid_min.sql`
+Correctif prêt, **non appliqué** : `supabase/migrations/20260929131943_waouh_v3_thread_guard_fix_uuid_min.sql`
 (`(array_agg(id order by id))[1]`, même comportement).
 
 ## Ce que ce test ne couvre pas

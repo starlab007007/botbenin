@@ -12,7 +12,7 @@ Aucune donnée de production copiée. Ne jamais y brancher WhatsApp ni un jeton 
 | Étape | Résultat |
 |---|---|
 | Garde-fou de production, message article+utilisateur sans thread | **ERREUR** `function min(uuid) does not exist` (défaut reproduit) |
-| Même insertion après `20260929130000_…_uuid_min` | thread résolu (J1) |
+| Même insertion après `20260929131943_…_uuid_min` | thread résolu (J1) |
 | Écrivain canonique acheteur → miroir vendeur | rôle `buyer`, ligne vendeur créée (J2) |
 | Acceptation atomique | `awaiting_confirmation`, article `reserved`, chaîne thread→négociation→deal→transaction complète, montant 130000 (J3) |
 | Rejeu de l'acceptation | `idempotent: true` (J4) |

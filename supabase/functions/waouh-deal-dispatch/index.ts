@@ -10,7 +10,7 @@
 // le miroir chat + WhatsApp + trace + dedup.
 
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;

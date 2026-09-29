@@ -4,13 +4,13 @@ Sources : parcours réels sur le projet de test `botbj-test-e2e` (scripts `scrip
 Légende « preuve » : **observé** = constaté à l'exécution ; **code** = lu dans le dépôt, non exécuté en production ; **déduit** = conséquence logique, à confirmer.
 
 ## 0. Suivi des corrections
-E1, E2, E3, E4, E5 et E6 sont **corrigés dans le dépôt** et vérifiés sur le projet de test (29/29 étapes du parcours) : voir `docs/RAPPORT_CORRECTIONS_E1-E6_2026-09-29.md`. **Non déployés en production.** Restent ouverts : E7, E8, la nouvelle observation E9 (`waouh-notify-dispatch` sans authentification de l'appelant), P2 et les constats de l'audit.
+E1, E2, E3, E4, E5 et E6 sont **corrigés dans le dépôt** et vérifiés sur le projet de test (29/29 étapes du parcours) : voir `docs/RAPPORT_CORRECTIONS_E1-E6_2026-09-29.md`. **Non déployés en production.** E7, E8, E9 et P2 sont corrigés (voir `docs/RAPPORT_DURCISSEMENT_E7-E9_2026-09-29.md`). Restent ouverts uniquement les points listés dans « Limites » de ce rapport.
 
 ## 1. Production
 | # | Erreur | État |
 |---|---|---|
 | P1 | Garde-fou de thread : `min(uuid)` n'existe pas ; 11 insertions de messages en échec en prod le 29/09. | **Corrigé en prod**, définition vérifiée. Pas de vrai message rejoué en prod. |
-| P2 | Migration numérotée `20260929131943` en prod, `20260929130000` dans le dépôt. | Ouvert : à aligner avant tout `db push`. |
+| P2 | Migration numérotée `20260929131943` en prod, `20260929130000` dans le dépôt (avant renommage). | **Résolu** : le fichier du dépôt est renommé `20260929131943_…` (même version qu'en base). |
 
 ## 2. Erreurs de code (dépôt, ouvertes)
 | # | Gravité | Erreur | Preuve |
@@ -21,8 +21,8 @@ E1, E2, E3, E4, E5 et E6 sont **corrigés dans le dépôt** et vérifiés sur le
 | E4 | mineur | **Message inexact** : un article **vendu** répond « Article déjà réservé ». Les statuts `sold` et `reserved` partagent la même clé `article_reserved` dans `waouh-deal-open` (jeu `UNAVAILABLE_STATUSES`, l. 71) ; même regroupement dans `waouh-commerce-action` (l. 86) et `waouh-promote` (l. 77). Correction : clé distincte `article_sold` (« vendu »). Non corrigé, en attente de ta décision. | observé + code |
 | E5 | sécurité | `waouh-match-history` prend l'identité du lecteur dans `auth_user_id` du corps, avec la clé service. | code + observé |
 | E6 | moyen | Une fonction interne absente est masquée en « Action indisponible » (`out_of_stage`) : tout retour non OK du routeur est traité pareil. | observé |
-| E7 | moyen | **Échecs silencieux en arrière-plan** : la publication (`waouh-status-publish`) lance `waouh-notify-buyers` en « fire & forget » avec `.catch(() => {})` ; elle répond `ok: true` même si la notification des acheteurs n'a pas eu lieu. | code (déduit pour le résultat) |
-| E8 | faible | Chemin de publication historique `waouh-sell-handler` : dépend de `LOVABLE_API_KEY` et d'une colonne `phone` qui n'existe plus (`phone_number`). Il ne semble pas utilisé par le Web ni Flutter. À confirmer puis retirer ou documenter. | code |
+| E7 (**corrigé le 29/09**) | moyen | **Échecs silencieux en arrière-plan** : la publication (`waouh-status-publish`) lance `waouh-notify-buyers` en « fire & forget » avec `.catch(() => {})` ; elle répond `ok: true` même si la notification des acheteurs n'a pas eu lieu. | code (déduit pour le résultat) |
+| E8 (**corrigé le 29/09**) | faible | Chemin de publication historique `waouh-sell-handler` : dépend de `LOVABLE_API_KEY` et d'une colonne `phone` qui n'existe plus (`phone_number`). Il ne semble pas utilisé par le Web ni Flutter. À confirmer puis retirer ou documenter. | code |
 
 Rappel : la publication de l'appli (Web **et** Flutter) passe par `waouh-status-publish` ; c'est elle qui crée l'article (`status: active`, `origin: status`) et le statut 24 h, puis déclenche la notification des acheteurs.
 

@@ -1,7 +1,7 @@
 // WAOUH_V25_7_1_AUTH_ACTOR_STABLE
 // WAOUH Negotiation Router — pilote l'échange acheteur↔vendeur après un match,
 // puis ouvre le workflow paiement/livraison sans partager les coordonnées.
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

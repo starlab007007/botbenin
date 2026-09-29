@@ -1,5 +1,5 @@
 // Shared admin guard for WAOUH ops edge functions.
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 
 export async function requireAdmin(req: Request, sb: any): Promise<{ ok: true; userId: string } | { ok: false; status: number; error: string }> {
   const authHeader = req.headers.get("Authorization") || "";

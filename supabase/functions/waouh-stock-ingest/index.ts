@@ -1,3 +1,4 @@
+import { assertPostgresTarget, assertResolvesPublic, assertSupabaseApiUrl } from "../_shared/waouh-egress-guard.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import postgres from "npm:postgres@3.4.5";
 
@@ -346,7 +347,7 @@ function parseCsv(content: string): JsonMap[] {
 async function fetchGoogleRows(configuration: JsonMap): Promise<JsonMap[]> {
   const raw = cleanText(configuration.url);
   if (!raw) throw new Error("URL Google Sheets obligatoire.");
-  const response = await fetch(googleCsvUrl(raw));
+  const response = await fetch(googleCsvUrl(raw), { redirect: "follow" });
   if (!response.ok) {
     throw new Error(
       `Google Sheets inaccessible (${response.status}). Partagez la feuille en lecture par lien.`,
@@ -370,6 +371,9 @@ async function fetchPostgresRows(
   const schema = safeIdentifier(configuration.schema ?? "public", "Schéma");
   const table = safeIdentifier(configuration.table, "Table");
   const sslMode = String(configuration.ssl_mode ?? "require");
+  // SSRF : hôte public, ports 5432/6543, résolution DNS publique.
+  assertPostgresTarget(host, port);
+  await assertResolvesPublic(host);
 
   const sql = postgres({
     host,
@@ -396,7 +400,9 @@ async function fetchSupabaseRows(
   configuration: JsonMap,
   credentials: JsonMap,
 ): Promise<JsonMap[]> {
-  const baseUrl = cleanText(configuration.url)?.replace(/\/+$/, "");
+  const rawUrl = cleanText(configuration.url);
+  // SSRF + fuite de clé : uniquement https://<projet>.supabase.co ; jamais d'hôte arbitraire.
+  const baseUrl = rawUrl ? assertSupabaseApiUrl(rawUrl) : null;
   const apiKey = cleanText(credentials.api_key);
   const schema = safeIdentifier(configuration.schema ?? "public", "Schéma");
   const table = safeIdentifier(configuration.table, "Table");
@@ -411,6 +417,7 @@ async function fetchSupabaseRows(
         Authorization: `Bearer ${apiKey}`,
         "Accept-Profile": schema,
       },
+      redirect: "error",
     },
   );
   const raw = await response.text();

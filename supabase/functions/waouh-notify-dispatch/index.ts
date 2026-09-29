@@ -23,6 +23,7 @@ import {
 } from "../_shared/waouh-format.ts";
 import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
+import { isServiceCaller } from "../_shared/waouh-internal-auth.ts";
 import { optionalUuid, sanitizeActions } from "../_shared/waouh-notify-actions.ts";
 
 const corsHeaders = {
@@ -105,6 +106,12 @@ function buildText(kind: string, article: any, buyerProfile: any, recipient: str
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  // E9 : appel interne uniquement (clé service). Tous les appelants du dépôt l'envoient déjà.
+  if (!isServiceCaller(req, SERVICE)) {
+    return new Response(JSON.stringify({ ok: false, code: "service_role_required" }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   try {
     const body = await req.json();

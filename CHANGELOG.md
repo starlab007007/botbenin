@@ -3,6 +3,12 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.29.6 (branche claude/harmonisation-phase-0-1, NON déployé en production)
+- E7 : la publication rend l'issue du fan-out acheteurs (`buyers_notified`), plus d'échec silencieux. E8 : `waouh-sell/buy/negotiate-handler` retirés (HTTP 410), Flutter route tout vers `waouh-channel-in`.
+  E9 : `waouh-notify-dispatch` réservé à la clé service. Pointage public : PIN limité (migration `20260929140000`, HTTP 429). `waouh-stock-ingest` : garde SSRF.
+  P2 : migration renommée `20260929131943_…` (identique à la base). Imports supabase-js épinglés sur la chaîne du chat. Workflow « Deploy WAOUH Chat v2 » étendu.
+  Détail : docs/RAPPORT_DURCISSEMENT_E7-E9_2026-09-29.md.
+
 ## 2026.09.29.5 (branche claude/harmonisation-phase-0-1, NON déployé en production)
 - Résultats Nexus sans article → Deal Room directe (matérialisation d'un vendeur stub, action `transmit_offer` « Envoyer mon offre », politique de contact C0–C5 conservée, interrupteur `nexus_direct_deal`) — docs/NEXUS_DEAL_ROOM_DIRECTE_2026-09-29.md.
 - Runbook de déploiement production (préparé, non exécuté) — docs/RUNBOOK_DEPLOIEMENT_PROD_2026-09-29.md.
@@ -20,7 +26,7 @@ Chaque entrée relie Web, Flutter et Supabase.
 ## 2026.09.29.3 (correctif appliqué en production le 29/09 avec l'accord de l'utilisateur, versionné 20260929131943 en base)
 - Défaut trouvé par le test de bout en bout : le garde-fou `waouh_resolve_message_thread` (migration 20260929065700) utilise `min(id)` sur un uuid,
   agrégat inexistant : les insertions concernées échouent (11 erreurs relevées en production le 29/09). Correctif :
-  supabase/migrations/20260929130000_waouh_v3_thread_guard_fix_uuid_min.sql. Détail : docs/E2E_PARCOURS_VENDEUR_ACHETEUR_2026-09-29.md.
+  supabase/migrations/20260929131943_waouh_v3_thread_guard_fix_uuid_min.sql. Détail : docs/E2E_PARCOURS_VENDEUR_ACHETEUR_2026-09-29.md.
 - Ajout du banc `scripts/waouh-chat/verify/run-journey-e2e.sh` (parcours vendeur A / acheteur B sur Postgres local).
 
 ## 2026.09.29.2 (branche claude/harmonisation-phase-0-1, non déployé)

@@ -1,3 +1,4 @@
+import { clearPinFailures, clientAddress, currentPinLock, recordPinFailure } from "../_shared/waouh-pin-throttle.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { compareSync } from "https://esm.sh/bcryptjs@2.4.3";
@@ -239,6 +240,7 @@ async function preview(
 async function checkin(
   admin: AdminClient,
   body: JsonRecord,
+  clientKey: string,
 ) {
   const token = String(body.token ?? "").trim();
   const context = await loadContext(admin, token);
@@ -284,6 +286,13 @@ async function checkin(
     throw new Error("PIN_REQUIRED");
   }
 
+  // Force brute : verrou temporaire après 5 échecs par matricule ou 20 par client (15 min).
+  const clientHash = (await digestHex(`presence-pin:${clientKey}`)).slice(0, 32);
+  if (site.require_pin !== false) {
+    const lock = await currentPinLock(admin, site.id, employeeCode, clientHash);
+    if (lock.locked) throw new Error(`PIN_LOCKED:${lock.retryAfterSec}`);
+  }
+
   const membersResult = await admin
     .from("waouh_presence_members")
     .select(
@@ -303,6 +312,7 @@ async function checkin(
   );
 
   if (!member) {
+    if (site.require_pin !== false) await recordPinFailure(admin, site.id, employeeCode, clientHash);
     throw new Error("EMPLOYEE_IDENTITY_INVALID");
   }
 
@@ -313,8 +323,10 @@ async function checkin(
       !pinHash ||
       !compareSync(pin, pinHash)
     ) {
+      await recordPinFailure(admin, site.id, employeeCode, clientHash);
       throw new Error("EMPLOYEE_IDENTITY_INVALID");
     }
+    await clearPinFailures(admin, site.id, employeeCode);
   }
 
   let distance: number | null = null;
@@ -1048,7 +1060,7 @@ serve(async (request) => {
 
     return jsonResponse(
       200,
-      await checkin(admin, body),
+      await checkin(admin, body, clientAddress(request.headers)),
     );
   } catch (error) {
     console.error(
@@ -1056,6 +1068,16 @@ serve(async (request) => {
       error,
     );
 
+    const locked = /PIN_LOCKED:(\d+)/.exec(cleanError(error));
+    if (locked) {
+      const minutes = Math.max(1, Math.ceil(Number(locked[1]) / 60));
+      return jsonResponse(429, {
+        ok: false,
+        error: "PIN_LOCKED",
+        retry_after_seconds: Number(locked[1]),
+        message: `Trop d’essais. Réessayez dans ${minutes} min ou contactez votre responsable.`,
+      });
+    }
     return jsonResponse(400, {
       ok: false,
       error: cleanError(error),

@@ -1,7 +1,9 @@
 # Runbook de déploiement en production — lot chat v3 (E1–E6, E10/E11, fenêtres chaudes, Nexus direct)
 
 **Préparé, NON exécuté.** Projet de production : `mvynepqulhflxtyymtzs`. Projet de test déjà à jour : `ljzwqyzaovnandpyfpgc`.
-Aucune migration SQL dans ce lot (les migrations 20260929065700/065715/130000 sont déjà en base ou hors périmètre : vérifier avec `list_migrations`, voir P2).
+**Une migration dans ce lot** : `20260929140000_waouh_presence_pin_attempts.sql` (table de limitation des essais de PIN, RLS sans politique, additive). Les migrations 20260929065700/065715/131943 sont déjà en base (versions identiques, P2 résolu par renommage).
+
+> **Attention — déploiement automatique** : le workflow `.github/workflows/deploy-waouh-chat-v2.yml` se déclenche au **push sur `prod`** (donc à la fusion de la PR) : il applique la migration PIN puis déploie les fonctions listées au §2 (sans toucher aux interrupteurs). Fusionner = déployer. Ne fusionner qu'après le §0 et la fenêtre choisie ; sinon utiliser `workflow_dispatch`.
 
 ## 0. Avant de commencer
 1. Révoquer le jeton Supabase `sbp_…` et faire pivoter la clé Gemini partagés dans la conversation ; en créer de nouveaux pour ce déploiement.
@@ -27,12 +29,14 @@ Sauvegarder le code déployé de chacune (`get_edge_function`) dans un dossier d
 
 ## 2. Ordre de déploiement (dépendances d'abord)
 Toutes avec `--use-api` ; `--no-verify-jwt` **sauf** `waouh-studio-e2e-v21465` (garder `verify_jwt = true`).
-1. `waouh-notify-dispatch` (boutons `actions`, E1)
+0. **Migration** `20260929140000` (avant toute fonction ; la protection PIN est inactive et journalisée tant qu'elle manque, le pointage reste disponible).
+1. `waouh-notify-dispatch` (boutons `actions`, E1 ; **E9 : réservé à la clé service** — déployer avant/avec les appelants n'est pas nécessaire, ils l'envoient tous déjà)
 2. `waouh-negotiation-router`, `waouh-deal-ops` (éviction E10, `article_status`)
 3. `waouh-match-history` (identité par le jeton, E5)
 4. `waouh-commerce-action` (E2–E6, E10/E11, boutons chauds, Nexus direct)
 5. `waouh-channel-in`, `waouh-webhook` (messages « vendu/réservé », `sellerNotified`)
-6. Optionnel : `waouh-studio-e2e-v21465` à partir de `waouh-agentic-core/index.ts` (libellé « Proposer mon offre »).
+6. Durcissement E7–E9 : `waouh-status-publish`, `waouh-sell-handler`/`waouh-buy-handler`/`waouh-negotiate-handler` (retirés : HTTP 410), `waouh-presence-public-page` (PIN limité à 5 essais/matricule et 20/client sur 15 min → HTTP 429), `waouh-stock-ingest` (garde SSRF). Le workflow les déploie tous en `--no-verify-jwt` (déjà `verify_jwt=false` en prod).
+7. Optionnel : `waouh-studio-e2e-v21465` à partir de `waouh-agentic-core/index.ts` (libellé « Proposer mon offre »).
 
 Après chaque fonction : `curl` OPTIONS/POST vide → pas de 5xx, puis journaux (`get_logs`) pendant 2 minutes.
 
@@ -52,7 +56,11 @@ Après chaque fonction : `curl` OPTIONS/POST vide → pas de 5xx, puis journaux 
 - Redéployer la version sauvegardée de la fonction fautive (inverse de l'ordre du §2). Aucune migration à annuler.
 - Les articles `nexus_external` créés peuvent rester (inertes) ou être archivés : `update waouh_articles set status='paused' where origin='nexus_external'`.
 
-## 6. Non traité par ce lot (à savoir avant de dire « terminé »)
-E7 (`waouh-status-publish` : appels asynchrones sans suivi), E8 (`waouh-sell-handler` historique), E9 (`waouh-notify-dispatch` sans authentification d'appelant),
-P2 (numérotation des migrations), 19 fonctions retranscrites à la main non comparées au déployé, SSRF `waouh-stock-ingest`, force brute PIN `waouh-presence-public-page`,
-imports distants. WhatsApp réel et interface non exécutés.
+Vérifications propres au durcissement (compte de test) : `notify-dispatch` avec clé anon ou jeton utilisateur → 401 ; publication → `buyers_notified` présent ; 6 échecs de PIN
+consécutifs sur un matricule de test → 429 puis reprise après 15 min ; une URL Supabase `https://evil.com` dans une source de stock → refusée. Anciens gestionnaires : plus aucun appelant
+(Flutter route désormais tout vers `waouh-channel-in`) ; surveiller les 410 dans les journaux.
+
+## 6. Non traité (à savoir avant de dire « terminé »)
+Comparaison code déployé / dépôt de **toutes** les fonctions : non faite ici (le jeton fourni n'a pas accès à la production ; seule `waouh-status-publish` a été relue via MCP, sans écart).
+À faire à la main au §0.3. Épinglage des imports : fait pour la chaîne du chat (test de garde), pas pour les ~140 autres fonctions ni via un `deno.lock`.
+WhatsApp réel, envoi Nexus réel et interface (Web/Flutter) non exécutés.

@@ -390,11 +390,9 @@ extension WaouhIntentCopy on WaouhIntent {
     WaouhIntent.negotiate => Icons.handshake_outlined,
   };
 
-  String get edgeFunction => switch (this) {
-    WaouhIntent.sell => 'waouh-sell-handler',
-    WaouhIntent.buy => 'waouh-buy-handler',
-    WaouhIntent.negotiate => 'waouh-negotiate-handler',
-  };
+  /// Les anciens gestionnaires par intention (waouh-sell/buy/negotiate-handler) sont retirés (HTTP 410) :
+  /// tout passe par le chemin canonique, comme le Web.
+  String get edgeFunction => 'waouh-channel-in';
 
   String prompt() => switch (this) {
     WaouhIntent.sell => 'Je vends : ',

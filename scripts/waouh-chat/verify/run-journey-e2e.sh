@@ -18,7 +18,7 @@ run -f "$VERIFY/00_prod_like_schema.sql"
 for f in 20260926023000_waouh_admin_command_center.sql 20260926190000_waouh_commerce_e2e_v3.sql \
          20260927120000_waouh_chat_messages_thread_base.sql 20260927120500_waouh_chat_messages_thread_backfill.sql \
          20260927121000_waouh_chat_reconcile.sql 20260929065700_waouh_v3_canonical_thread_guard.sql \
-         20260929065715_waouh_v3_commerce_events_rls_lockdown.sql 20260929130000_waouh_v3_thread_guard_fix_uuid_min.sql; do
+         20260929065715_waouh_v3_commerce_events_rls_lockdown.sql 20260929131943_waouh_v3_thread_guard_fix_uuid_min.sql; do
   echo "== migration $f"; run -f "$MIG/$f" 2>&1 | grep -vE "^(NOTICE|psql:.*NOTICE)" || true
 done
 echo "== Parcours vendeur A / acheteur B"

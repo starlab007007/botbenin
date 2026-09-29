@@ -1,7 +1,7 @@
 // WAOUH Payment - Qosic Mobile Money escrow flow
 // Actions: init (request from buyer), status (poll), release (deposit to seller)
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { contactExchangeText } from "../_shared/waouh-format.ts";
 import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
 

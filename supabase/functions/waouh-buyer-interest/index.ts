@@ -6,7 +6,7 @@
 // Body: { article_id: string, source?: "match"|"radar"|"chat"|"card" }
 // Auth: requires Authorization Bearer <user JWT>.
 
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

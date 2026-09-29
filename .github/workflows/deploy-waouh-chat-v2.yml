@@ -11,6 +11,7 @@ on:
       - "supabase/migrations/20260927121000_waouh_chat_reconcile.sql"
       - "supabase/migrations/20260928092242_waouh_chat_v3_flags.sql"
       - "supabase/migrations/20260928092245_waouh_commerce_actions.sql"
+      - "supabase/migrations/20260929140000_waouh_presence_pin_attempts.sql"
       - "supabase/functions/_shared/waouh-chat-writer.ts"
       - "supabase/functions/_shared/waouh-commands.ts"
       - "supabase/functions/_shared/waouh-commerce-states.ts"
@@ -24,6 +25,18 @@ on:
       - "supabase/functions/_shared/waouh-predictive.ts"
       - "supabase/functions/_shared/waouh-promote.ts"
       - "supabase/functions/_shared/waouh-phone.ts"
+      - "supabase/functions/_shared/waouh-evict.ts"
+      - "supabase/functions/_shared/waouh-nexus-deal.ts"
+      - "supabase/functions/_shared/waouh-internal-auth.ts"
+      - "supabase/functions/_shared/waouh-fanout.ts"
+      - "supabase/functions/_shared/waouh-legacy-handler.ts"
+      - "supabase/functions/_shared/waouh-egress-guard.ts"
+      - "supabase/functions/_shared/waouh-pin-throttle.ts"
+      - "supabase/functions/waouh-status-publish/**"
+      - "supabase/functions/waouh-sell-handler/**"
+      - "supabase/functions/waouh-negotiate-handler/**"
+      - "supabase/functions/waouh-presence-public-page/**"
+      - "supabase/functions/waouh-stock-ingest/**"
       - "supabase/functions/waouh-commerce-action/**"
       - "supabase/functions/waouh-match-history/**"
       - "supabase/functions/waouh-negotiation-router/**"
@@ -120,7 +133,7 @@ jobs:
           elif [ "$EVENT_NAME" = "push" ]; then
             BEFORE="${EVENT_BEFORE:-}"
             if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
-              if git diff --name-only "$BEFORE" "$GITHUB_SHA" --                 supabase/migrations/20260927120000_waouh_chat_messages_thread_base.sql                 supabase/migrations/20260927120500_waouh_chat_messages_thread_backfill.sql                 supabase/migrations/20260927121000_waouh_chat_reconcile.sql                 supabase/migrations/20260928092242_waouh_chat_v3_flags.sql                 supabase/migrations/20260928092245_waouh_commerce_actions.sql                 | grep -q .; then
+              if git diff --name-only "$BEFORE" "$GITHUB_SHA" --                 supabase/migrations/20260927120000_waouh_chat_messages_thread_base.sql                 supabase/migrations/20260927120500_waouh_chat_messages_thread_backfill.sql                 supabase/migrations/20260927121000_waouh_chat_reconcile.sql                 supabase/migrations/20260928092242_waouh_chat_v3_flags.sql                 supabase/migrations/20260928092245_waouh_commerce_actions.sql                 supabase/migrations/20260929140000_waouh_presence_pin_attempts.sql                 | grep -q .; then
                 APPLY=true
               fi
             fi
@@ -187,6 +200,11 @@ jobs:
             waouh-notify-dispatch
             waouh-webhook
             waouh-channel-in
+            waouh-status-publish
+            waouh-sell-handler
+            waouh-negotiate-handler
+            waouh-presence-public-page
+            waouh-stock-ingest
           )
           for fn in "${functions[@]}"; do
             echo "🚀 Deploying $fn"

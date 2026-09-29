@@ -11,7 +11,7 @@
 //      1 à 3 boutons calculés et suggestions prédictives.
 // Interrupteur : commerce_action_v3 (coupé => 503, le client garde l'ancien chemin).
 
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { jsonResponse, requireAuthOrGuestSession, waouhCorsHeaders } from "../_shared/waouh-auth.ts";
 import { commerceActionV3Enabled, chatWriterV2Enabled, nexusDirectDealEnabled, recordChatMessage } from "../_shared/waouh-chat-writer.ts";
 import { resolveSiblingUserIds } from "../_shared/waouh-identity.ts";

@@ -3,7 +3,7 @@
 // Deal Graph lifecycle: seller confirmation + payment preference -> delivery -> payment -> settlement.
 //   action: "seller_confirm" | "payment_preference" | "cancel" | "assign" | "status" | "update_eta" | "payment"
 // Consolidated from waouh-deal-{assign,status,update-eta,payment} to fit edge-function quota.
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { bindThreadState } from "../_shared/waouh-thread.ts";
 import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
 import { chatCatalogV3Enabled, chatWriterV2Enabled, recordChatMessage } from "../_shared/waouh-chat-writer.ts";
