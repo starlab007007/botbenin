@@ -8,7 +8,8 @@ Tag de sauvegarde `baseline-2026-09-29` sur f9b240e (à poser après validation)
 ## Phase 1 — Supabase = dépôt
 1. Migrations du 29/09 versionnées (fait ici).
 2. Réconcilier l'historique (`supabase migration repair`), contrôle par `db diff` hors production.
-3. Rapatrier les 24 fonctions absentes (`supabase functions download`), sans les modifier.
+3. Rapatrier les 24 fonctions absentes : manifeste fait (`supabase/functions/DEPLOYED_MANIFEST.md`) ; copie exacte via
+   `scripts/supabase/pull-deployed-functions.sh` (CLI, token requis), relecture du diff, puis commit. Corriger les slugs trompeurs.
 4. Décider des 16 fonctions non déployées ; déployer d'abord `waouh-chat-reconcile`.
 ## Phase 2 — versioning
 Version plateforme `YYYY.MM.PATCH` (fichier VERSION), tags `platform/…`, `flutter/…`, `web/…`.

@@ -44,7 +44,20 @@ send-qualification-email-resend, waouh-agentic-core, waouh-chat-reconcile,
 waouh-native-messaging-settings, waouh-native-simulator, waouh-payment-handler, waouh-tel-command,
 waouh-tel-dispatch, waouh-tel-ingress, waouh-tel-invite, waouh-tel-open-messages,
 waouh-tel-receipts, waouh-tel-room.
-Point prioritaire : `chat_reconcile` est activé alors que `waouh-chat-reconcile` n'est pas déployée.
+### Point `chat_reconcile` — vérifié : pas d'anomalie de production
+La réconciliation s'exécute **dans la base** : `waouh_reconcile_chat_integrity('auto')` est appelée toutes les 15 min par pg_cron
+(`waouh-chat-reconcile-tick`, actif ; 165 exécutions réussies sur les 2 derniers jours, dernière le 29/09 09:45 UTC).
+`chat_reconcile` = activé, automatisation = désactivée : le cron ne fait que **mesurer** (mode `report`, aucune écriture).
+Une seule réparation journalisée (`chat_reconcile_negotiation_thread`, 28/09 11:00 UTC).
+La fonction Edge `waouh-chat-reconcile` n'est qu'une enveloppe HTTP administrateur optionnelle (diagnostic / bouton admin),
+et aucun client Web ou Flutter ne l'appelle. Elle n'est pas déployée : impact nul aujourd'hui.
+La RPC `waouh_admin_reconcile_chat(p_mode)` existe en base. À décider : déployer l'enveloppe ou la retirer du dépôt.
+
+### Correction : plusieurs fonctions « absentes » du dépôt sont déployées sous un autre nom
+Voir `supabase/functions/DEPLOYED_MANIFEST.md` : `chat-webhook` (= `waouh-native-simulator`),
+`waouh-bots-backend-health-v1` (= `waouh-native-messaging-settings`), `waouh-chat-health` et
+`waouh-studio-pair-code-v2145` (imports distants de `waouh-tel-open-messages` / `waouh-tel-ingress` au commit 6bf9025).
+Certaines des 16 fonctions « non déployées » le sont donc en réalité sous un autre slug.
 
 ## Dépôt
 - 103 branches distantes (38 feat, 29 fix, 12 backup, 5 edit, 3 release, tmp, test, local, main, prod…), aucun tag.
