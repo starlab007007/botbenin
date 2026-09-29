@@ -4,7 +4,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { getRequestUser, jsonResponse, waouhCorsHeaders } from "../_shared/waouh-auth.ts";
 import { isServiceCaller } from "../_shared/waouh-internal-auth.ts";
-import { deliverBriefing, loadPrefs, runAvatarBriefingTick, savePrefs } from "../_shared/waouh-avatar-briefing-core.ts";
+import { deliverBriefing, loadMissionBoard, loadPrefs, runAvatarBriefingTick, savePrefs } from "../_shared/waouh-avatar-briefing-core.ts";
 import { nextBriefingAt } from "../_shared/waouh-avatar-briefing.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -36,6 +36,10 @@ Deno.serve(async (req) => {
     const now = new Date();
 
     if (action === "get_prefs") return jsonResponse({ ok: true, prefs: publicPrefs(await loadPrefs(sb, user.id), now) });
+    if (action === "status") {
+      const r = await loadMissionBoard(sb, user.id, now);
+      return jsonResponse({ ok: true, board: r?.board ?? null, prefs: publicPrefs(await loadPrefs(sb, user.id), now) });
+    }
     if (action === "set_prefs") {
       const prefs = await savePrefs(sb, user.id, body?.prefs);
       return jsonResponse({ ok: true, prefs: publicPrefs(prefs, now) });

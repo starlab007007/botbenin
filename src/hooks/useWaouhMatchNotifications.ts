@@ -26,6 +26,7 @@ const TEMPLATE_TITLES: Record<string, string> = {
   sale_published: "✅ Annonce publiée",
   new_buyer: "🛒 Nouvel acheteur intéressé",
   match: "🎯 Annonce trouvée pour vous",
+  avatar_point: "✨ Votre avatar",
 };
 
 

@@ -202,3 +202,52 @@ export function shouldAutoOpenNow(now: number = Date.now(), storage: Pick<Storag
 function safeStorage(): Storage | null {
   try { return typeof localStorage !== "undefined" ? localStorage : null; } catch { return null; }
 }
+
+// ---------------------------------------------------------------------------
+// Tableau de mission : ce que l'avatar fait MAINTENANT (recherches, contacts, négociations…)
+// ---------------------------------------------------------------------------
+export interface MissionBoard {
+  searches: number;
+  missions: number;
+  contacted: number;
+  negotiations: number;
+  watching: number;
+  deals: number;
+  toAnswer: number;
+  needsYou: number;
+}
+
+export const EMPTY_BOARD: MissionBoard = { searches: 0, missions: 0, contacted: 0, negotiations: 0, watching: 0, deals: 0, toAnswer: 0, needsYou: 0 };
+
+/** Lecture défensive : compteurs entiers ≥ 0 (plafonnés), tout le reste ignoré. */
+export function parseMissionBoard(value: unknown): MissionBoard | null {
+  if (!value || typeof value !== "object") return null;
+  const v = value as Record<string, unknown>;
+  const n = (x: unknown) => (typeof x === "number" && Number.isFinite(x) && x > 0 ? Math.min(Math.floor(x), 9999) : 0);
+  return {
+    searches: n(v.searches), missions: n(v.missions), contacted: n(v.contacted), negotiations: n(v.negotiations),
+    watching: n(v.watching), deals: n(v.deals), toAnswer: n(v.toAnswer), needsYou: n(v.needsYou),
+  };
+}
+
+export interface BoardChip { key: keyof MissionBoard; icon: string; label: string; count: number }
+
+const plural = (n: number, one: string, many: string) => (n > 1 ? many : one);
+
+/** Pastilles affichables : seulement ce qui est non nul, « à vous » d'abord. */
+export function boardChips(b: MissionBoard): BoardChip[] {
+  const chips: BoardChip[] = [
+    { key: "needsYou", icon: "⚡", label: "à vous", count: b.needsYou },
+    { key: "searches", icon: "🔎", label: plural(b.searches + b.missions, "recherche", "recherches"), count: b.searches + b.missions },
+    { key: "contacted", icon: "📨", label: plural(b.contacted, "contact", "contacts"), count: b.contacted },
+    { key: "negotiations", icon: "🤝", label: plural(b.negotiations, "négociation", "négociations"), count: b.negotiations },
+    { key: "watching", icon: "👁", label: plural(b.watching, "veille", "veilles"), count: b.watching },
+    { key: "deals", icon: "📦", label: plural(b.deals, "commande", "commandes"), count: b.deals },
+  ];
+  return chips.filter((c) => c.count > 0);
+}
+
+export async function fetchMissionBoard(): Promise<{ board: MissionBoard | null; prefs: AvatarPrefs | null } | null> {
+  const data = await call({ action: "status" });
+  return data ? { board: parseMissionBoard(data.board), prefs: parseAvatarPrefs(data.prefs) } : null;
+}

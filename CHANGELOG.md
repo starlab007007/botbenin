@@ -3,6 +3,12 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.29.10 (branche claude/harmonisation-phase-0-1)
+- Avatar ACTIF (Web + Flutter) : tableau de mission en direct dans la barre du guide (à vous · recherches · contacts · négociations · veilles · commandes),
+  points qui parlent des recherches, contacts et négociations en cours et rappellent l'objectif d'une mission ; nouvelle action `status` de `waouh-avatar-briefing`.
+  Notification dans l'application pour tout message spontané (point planifié, relance, voie de contact ouverte) : ligne `waouh_notifications` (`avatar_point`) reçue en même temps par le Web (cloche, toast, notification navigateur)
+  et par Flutter (bannière premium, tap = ouvre le chat), même si l'autre client est ouvert. Aucune migration. Détail : docs/AVATAR_LIVE_CHAT_2026-09-29.md.
+
 ## 2026.09.29.9 (branche claude/harmonisation-phase-0-1)
 - L'avatar PARLE dans le chat : accueil, points, rapports et prochaines étapes arrivent comme 2 à 3 bulles de conversation déjà lisibles (plus de carte à ouvrir), avec « l'avatar écrit… » et apparition séquencée en direct
   (l'historique s'affiche d'un coup), boutons sur la dernière bulle. Ouverture sans nouveauté : une seule phrase courte, jamais le même point répété.

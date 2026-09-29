@@ -250,6 +250,71 @@ class LiveAvatarTypingRow extends StatelessWidget {
       );
 }
 
+/// Tableau de mission : ce que l'avatar fait MAINTENANT (parité Web : `MissionBoard`).
+class LiveMissionBoard {
+  const LiveMissionBoard({
+    this.searches = 0,
+    this.missions = 0,
+    this.contacted = 0,
+    this.negotiations = 0,
+    this.watching = 0,
+    this.deals = 0,
+    this.toAnswer = 0,
+    this.needsYou = 0,
+  });
+  final int searches;
+  final int missions;
+  final int contacted;
+  final int negotiations;
+  final int watching;
+  final int deals;
+  final int toAnswer;
+  final int needsYou;
+}
+
+/// Lecture défensive : compteurs entiers ≥ 0 (plafonnés), tout le reste ignoré.
+LiveMissionBoard? liveParseMissionBoard(Object? value) {
+  if (value is! Map) return null;
+  int n(Object? v) {
+    final x = v is num ? v : null;
+    if (x == null || !x.isFinite || x <= 0) return 0;
+    return x.floor().clamp(0, 9999);
+  }
+
+  return LiveMissionBoard(
+    searches: n(value['searches']),
+    missions: n(value['missions']),
+    contacted: n(value['contacted']),
+    negotiations: n(value['negotiations']),
+    watching: n(value['watching']),
+    deals: n(value['deals']),
+    toAnswer: n(value['toAnswer']),
+    needsYou: n(value['needsYou']),
+  );
+}
+
+class LiveBoardChip {
+  const LiveBoardChip(this.key, this.icon, this.label, this.count);
+  final String key;
+  final String icon;
+  final String label;
+  final int count;
+}
+
+/// Pastilles affichables : seulement ce qui est non nul, « à vous » d'abord.
+List<LiveBoardChip> liveBoardChips(LiveMissionBoard b) {
+  String plural(int n, String one, String many) => n > 1 ? many : one;
+  final searches = b.searches + b.missions;
+  return [
+    LiveBoardChip('needsYou', '⚡', 'à vous', b.needsYou),
+    LiveBoardChip('searches', '🔎', plural(searches, 'recherche', 'recherches'), searches),
+    LiveBoardChip('contacted', '📨', plural(b.contacted, 'contact', 'contacts'), b.contacted),
+    LiveBoardChip('negotiations', '🤝', plural(b.negotiations, 'négociation', 'négociations'), b.negotiations),
+    LiveBoardChip('watching', '👁', plural(b.watching, 'veille', 'veilles'), b.watching),
+    LiveBoardChip('deals', '📦', plural(b.deals, 'commande', 'commandes'), b.deals),
+  ].where((c) => c.count > 0).toList();
+}
+
 /// Ouverture du briefing : au plus une fois par fenêtre de 30 min dans ce processus (le serveur limite aussi).
 DateTime? _lastAutoOpen;
 bool liveShouldAutoOpenAvatar({DateTime? now}) {
@@ -297,6 +362,8 @@ class LiveAvatarGuideService {
       prefs: liveParseAvatarPrefs(data['prefs']),
     );
   }
+
+  Future<LiveMissionBoard?> status() async => liveParseMissionBoard((await _safe({'action': 'status'}))?['board']);
 
   Future<LiveAvatarPrefs?> getPrefs() async => liveParseAvatarPrefs((await _safe({'action': 'get_prefs'}))?['prefs']);
 
@@ -545,16 +612,37 @@ class LiveAvatarGuideBar extends StatefulWidget {
 class LiveAvatarGuideBarState extends State<LiveAvatarGuideBar> {
   LiveAvatarPrefs? prefs;
   bool busy = false;
+  LiveMissionBoard? board;
+  bool boardLoaded = false;
+  Timer? _boardTimer;
+
+  /// Tableau de mission vivant : à l'ouverture, après chaque point, puis toutes les 60 s.
+  Future<void> refreshBoard() async {
+    final b = await widget.service.status();
+    if (!mounted) return;
+    setState(() {
+      boardLoaded = true;
+      if (b != null) board = b;
+    });
+  }
+
+  @override
+  void dispose() {
+    _boardTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
+    _boardTimer = Timer.periodic(const Duration(seconds: 60), (_) => unawaited(refreshBoard()));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (widget.autoOpen && liveShouldAutoOpenAvatar()) {
         unawaited(runPoint('open'));
       } else {
         unawaited(_loadPrefs());
+        unawaited(refreshBoard());
       }
     });
   }
@@ -578,6 +666,7 @@ class LiveAvatarGuideBarState extends State<LiveAvatarGuideBar> {
     } finally {
       if (mounted) setState(() => busy = false);
     }
+    unawaited(refreshBoard());
   }
 
   Future<void> openSettings() async {
@@ -602,13 +691,16 @@ class LiveAvatarGuideBarState extends State<LiveAvatarGuideBar> {
   @override
   Widget build(BuildContext context) {
     final p = prefs;
+    final chips = board == null ? const <LiveBoardChip>[] : liveBoardChips(board!);
     return Container(
       key: const ValueKey('avatar-guide-bar'),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: const BoxDecoration(
         gradient: LinearGradient(colors: [Color(0xFFECFDF5), Colors.white, Color(0xFFECFEFF)]),
         border: Border(bottom: BorderSide(color: Color(0xFFD1FAE5))),
       ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       child: Row(children: [
         LiveAvatarOrb(size: 22, active: !busy),
         const SizedBox(width: 10),
@@ -636,6 +728,45 @@ class LiveAvatarGuideBarState extends State<LiveAvatarGuideBar> {
           onPressed: openSettings,
           icon: const Icon(Icons.tune_rounded, size: 20, color: Color(0xFF64748B)),
         ),
+      ]),
+      ),
+      SizedBox(
+        key: const ValueKey('avatar-mission-board'),
+        height: 30,
+        child: chips.isEmpty
+            ? Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    boardLoaded ? 'Aucune mission active — dites « Je cherche… » ou « Je vends… » et je m\'en occupe.' : 'Je regarde où j\'en suis…',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B)),
+                  ),
+                ),
+              )
+            : ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+                itemCount: chips.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 6),
+                itemBuilder: (_, i) {
+                  final c = chips[i];
+                  final urgent = c.key == 'needsYou';
+                  return ActionChip(
+                    key: ValueKey('avatar-chip-${c.key}'),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    padding: EdgeInsets.zero,
+                    backgroundColor: urgent ? const Color(0xFFFFFBEB) : Colors.white,
+                    side: BorderSide(color: urgent ? const Color(0xFFFCD34D) : const Color(0xFFA7F3D0)),
+                    label: Text('${c.icon} ${c.count} ${c.label}', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: urgent ? const Color(0xFF78350F) : const Color(0xFF064E3B))),
+                    onPressed: busy ? null : () => runPoint('now'),
+                  );
+                },
+              ),
+      ),
       ]),
     );
   }

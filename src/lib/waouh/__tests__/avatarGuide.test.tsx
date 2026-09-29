@@ -169,3 +169,25 @@ describe("avatar guide — l'avatar écrit dans le chat", () => {
     expect(html).toContain("avatar-guide-bar");
   });
 });
+
+import { boardChips, fetchMissionBoard, parseMissionBoard } from "../avatarGuide";
+
+describe("avatar guide — tableau de mission vivant", () => {
+  it("lecture défensive : compteurs entiers positifs, le reste ignoré", () => {
+    expect(parseMissionBoard(null)).toBeNull();
+    const b = parseMissionBoard({ searches: 3, contacted: "12", negotiations: -2, watching: 1.9, deals: 99999, needsYou: 2 });
+    expect(b).toEqual({ searches: 3, missions: 0, contacted: 0, negotiations: 0, watching: 1, deals: 9999, toAnswer: 0, needsYou: 2 });
+  });
+  it("pastilles : seulement le non nul, « à vous » d'abord, pluriels justes, recherches + missions cumulées", () => {
+    const chips = boardChips({ searches: 2, missions: 1, contacted: 1, negotiations: 0, watching: 4, deals: 0, toAnswer: 0, needsYou: 2 });
+    expect(chips.map((c) => `${c.count} ${c.label}`)).toEqual(["2 à vous", "3 recherches", "1 contact", "4 veilles"]);
+    expect(boardChips(parseMissionBoard({})!)).toEqual([]);
+  });
+  it("fetchMissionBoard : action status, réseau coupé → null sans exception", async () => {
+    invoke.mockResolvedValueOnce({ data: { ok: true, board: { searches: 1 }, prefs: {} }, error: null });
+    expect((await fetchMissionBoard())?.board?.searches).toBe(1);
+    expect(invoke).toHaveBeenLastCalledWith("waouh-avatar-briefing", { body: { action: "status" } });
+    invoke.mockRejectedValueOnce(new Error("réseau"));
+    expect(await fetchMissionBoard()).toBeNull();
+  });
+});

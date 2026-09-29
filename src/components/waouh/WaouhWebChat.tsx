@@ -195,6 +195,8 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
   const hiddenBubbleTimes = (messages as any[]).map((m) => revealAtRef.current.get(m.id) ?? 0).filter((t) => t > revealNow);
   const nextRevealAt = hiddenBubbleTimes.length ? Math.min(...hiddenBubbleTimes) : 0;
   const avatarTyping = hiddenBubbleTimes.length > 0;
+  // Nombre de bulles de l'avatar reçues : rafraîchit le tableau de mission dès qu'elles arrivent.
+  const avatarBubbleCount = (messages as any[]).filter((m) => avatarBubbleInfo(m?.meta)).length;
   useEffect(() => {
     if (!nextRevealAt) return;
     const t = window.setTimeout(() => bumpReveal((n) => n + 1), Math.max(30, nextRevealAt - Date.now()));
@@ -799,6 +801,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           prefs={avatarPrefs}
           busy={avatarBusy}
           settingsOpenSignal={avatarSettingsSignal}
+          refreshSignal={avatarBubbleCount}
           onPoint={() => void runAvatarPoint("now")}
           onPrefsChange={setAvatarPrefs}
         />

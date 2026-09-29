@@ -193,12 +193,12 @@ void main() {
     expect(find.textContaining('Prochain point dans'), findsOneWidget);
     await tester.tap(find.text('Faire le point'));
     await settle(tester);
-    expect(fake.calls.map((c) => c['action']), ['open', 'now']);
+    expect(fake.calls.map((c) => c['action']).where((a) => a != 'status'), ['open', 'now']);
     // Deuxième instance dans la fenêtre de 30 min : pas de second accueil automatique.
     final other = FakeInvoke()..handler = (b) => {'ok': true, 'prefs': {'cadence': 'daily'}};
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: LiveAvatarGuideBar(service: LiveAvatarGuideService(other.call)))));
     await settle(tester);
-    expect(other.calls.map((c) => c['action']), ['get_prefs']);
+    expect(other.calls.map((c) => c['action']), ['get_prefs', 'status']);
   });
 
   testWidgets('réglages : choisir une cadence enregistre le patch ; refus serveur → réglage annulé et message d\'erreur', (tester) async {

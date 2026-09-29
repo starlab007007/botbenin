@@ -4,12 +4,13 @@
 
 import { resolveSiblingUserIds } from "./waouh-identity.ts";
 import {
-  activityDigest, composeBriefing, composeBubbles, emptyActivity, mergePrefs, nextBriefingAt, normalizePrefs, shouldBrief, briefingText,
-  type Activity, type AvatarPrefs, type Briefing, type Trigger,
+  activityDigest, boardFromActivity, composeBriefing, composeBubbles, emptyActivity, mergePrefs, nextBriefingAt, normalizePrefs, shouldBrief, briefingText,
+  type Activity, type AvatarPrefs, type Briefing, type MissionBoard, type Trigger,
 } from "./waouh-avatar-briefing.ts";
 import { nudgeAllowed } from "./waouh-avatar-notes.ts";
 import { externalContactState, loadExternalTimeline, NEXUS_ORIGIN } from "./waouh-nexus-deal.ts";
 import { resolveContactPath } from "./waouh-contact-path.ts";
+import { notifyInApp } from "./waouh-avatar-inapp.ts";
 
 export interface PrefsRow extends AvatarPrefs { lastBriefingAt: Date | null; lastDigest: string | null; exists: boolean }
 
@@ -73,6 +74,7 @@ export async function collectActivity(sb: any, user: { id: string; auth_user_id?
       const neg = negByThread.get(t.id);
       const deal = dealByThread.get(t.id);
       const ref = { threadId: t.id, articleId: t.article_id ?? null, negotiationId: neg?.id ?? t.negotiation_id ?? null };
+      if (neg && OPEN_NEG.has(neg.state)) activity.negotiationsOpen += 1;
 
       if (deal && !["completed", "cancelled"].includes(String(deal.status))) {
         activity.dealsInProgress.push({ ...ref, title, role: buyer ? "buyer" : "seller", status: String(deal.status) });
@@ -102,6 +104,27 @@ export async function collectActivity(sb: any, user: { id: string; auth_user_id?
       }
     }
   }
+  // Recherches, missions et contacts (comptes bornés, une requête chacun ; une panne d'une source ne bloque pas le point).
+  const headCount = async (q: () => PromiseLike<{ count: number | null }>) => { try { return (await q()).count ?? 0; } catch { return 0; } };
+  const authId = user.auth_user_id ?? null;
+  // Missions actives : le nombre ET les deux plus récentes (intitulé), en une requête.
+  const missionsWithGoals = async () => {
+    try {
+      const r = await sb.from("waouh_agent_missions").select("goal", { count: "exact" }).eq("status", "active").eq("owner_id", authId)
+        .order("created_at", { ascending: false }).limit(2);
+      activity.missionGoals = ((r.data ?? []) as Array<{ goal?: string }>).map((m) => String(m.goal ?? "").trim()).filter(Boolean).slice(0, 2);
+      return r.count ?? 0;
+    } catch { return 0; }
+  };
+  const [profiles, watches, missions, contacted] = await Promise.all([
+    headCount(() => sb.from("waouh_buyer_profiles").select("id", { count: "exact", head: true }).eq("is_active", true).in("user_id", ids)),
+    authId ? headCount(() => sb.from("waouh_watchlists").select("id", { count: "exact", head: true }).eq("status", "active").eq("owner_id", authId)) : Promise.resolve(0),
+    authId ? missionsWithGoals() : Promise.resolve(0),
+    authId ? headCount(() => sb.from("waouh_opportunity_journeys").select("id", { count: "exact", head: true }).eq("owner_id", authId).not("last_contact_at", "is", null).is("completed_at", null)) : Promise.resolve(0),
+  ]);
+  activity.searches = profiles + watches;
+  activity.missions = missions;
+  activity.contacted = contacted;
   const since = new Date(now.getTime() - 7 * 24 * 3600_000).toISOString();
   const { count } = await sb.from("waouh_deals").select("id", { count: "exact", head: true })
     .eq("status", "completed").gte("updated_at", since).or(`buyer_user_id.in.(${list}),seller_user_id.in.(${list})`);
@@ -172,6 +195,13 @@ export async function deliverBriefing(sb: any, args: {
   }
   const messages = ([...inserted] as AvatarMessageRow[]).sort((a, b) =>
     Number((a.meta as any)?.avatar_bubble?.seq ?? 0) - Number((b.meta as any)?.avatar_bubble?.seq ?? 0));
+  // Message spontané (point planifié) : notification dans l'application, Web et Flutter, même si le chat est fermé.
+  if (args.trigger === "tick") {
+    await notifyInApp(sb, {
+      userId: user.id, text: bubbles.map((b) => b.text).join(" "), actions: briefing.actions.map((a) => ({ id: a.id, label: a.label })),
+      dedupeKey: `avatar_briefing:${briefingId}`, now,
+    });
+  }
   // WhatsApp : bilans seulement si l'utilisateur l'a demandé (les évènements d'offre ont leur propre réglage).
   if (args.trigger === "tick" && prefs.notifyDigest && user.phone_number) {
     const last = messages[messages.length - 1];
@@ -213,4 +243,15 @@ export async function runAvatarBriefingTick(sb: any, opts: { now?: Date; limit?:
     }
   }
   return out;
+}
+
+
+/** Tableau de mission de l'utilisateur (compteurs en direct). Aucune écriture, aucun point envoyé. */
+export async function loadMissionBoard(sb: any, authUserId: string, now: Date = new Date()): Promise<{ board: MissionBoard; needsYou: number } | null> {
+  const { data: users } = await sb.from("waouh_users").select("id,auth_user_id,phone_number,web_session_id,display_name")
+    .eq("auth_user_id", authUserId).order("created_at", { ascending: true }).limit(1);
+  const user = users?.[0];
+  if (!user) return null;
+  const board = boardFromActivity(await collectActivity(sb, user, now));
+  return { board, needsYou: board.needsYou };
 }

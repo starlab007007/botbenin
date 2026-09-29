@@ -1,7 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
 // Livraison des points de l'avatar et tick planifié (base simulée) : cadence, heures calmes, dédoublonnage, isolation des erreurs.
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { deliverBriefing, loadPrefs, runAvatarBriefingTick, savePrefs } from "./waouh-avatar-briefing-core.ts";
+import { deliverBriefing, loadMissionBoard, loadPrefs, runAvatarBriefingTick, savePrefs } from "./waouh-avatar-briefing-core.ts";
 
 type Row = Record<string, any>;
 const AUTH = "auth-1";
@@ -13,18 +13,19 @@ const ago = (from: Date, h: number) => new Date(from.getTime() - h * 3600_000).t
 function fakeDb(seed: Record<string, Row[]> = {}) {
   const tables: Record<string, Row[]> = {
     waouh_avatar_prefs: [], waouh_users: [{ id: "u1", auth_user_id: AUTH, display_name: "Zime Songbian", created_at: "2026-01-01" }],
-    waouh_chat_threads: [], waouh_messages: [], waouh_deals: [], waouh_negotiations: [], waouh_articles: [], ...seed,
+    waouh_chat_threads: [], waouh_messages: [], waouh_notifications: [], waouh_buyer_profiles: [], waouh_watchlists: [], waouh_agent_missions: [], waouh_opportunity_journeys: [], waouh_deals: [], waouh_negotiations: [], waouh_articles: [], ...seed,
   };
   const from = (t: string) => {
     let rows = [...(tables[t] ?? [])];
     let mode: "select" | "insert" | "upsert" = "select";
     let payload: any = null;
     let head = false;
+    let wantCount = false;
     const api: any = {
-      select: (_c?: string, o?: any) => { head = !!o?.head; return api; },
+      select: (_c?: string, o?: any) => { head = !!o?.head; wantCount = !!o?.count; return api; },
       eq: (c: string, v: unknown) => { rows = rows.filter((r) => r[c] === v); return api; },
       neq: (c: string, v: unknown) => { rows = rows.filter((r) => r[c] !== v); return api; },
-      in: () => api, not: () => api, or: () => api, gte: () => api, order: () => api, limit: () => api,
+      in: () => api, not: () => api, is: () => api, or: () => api, gte: () => api, order: () => api, limit: () => api,
       insert: (p: Row) => { mode = "insert"; payload = p; return api; },
       upsert: (p: Row) => { mode = "upsert"; payload = p; return api; },
       maybeSingle: () => Promise.resolve({ data: rows[0] ?? null, error: null }),
@@ -43,7 +44,7 @@ function fakeDb(seed: Record<string, Row[]> = {}) {
           if (existing) Object.assign(existing, payload); else tables[t].push({ ...payload });
           return res({ data: null, error: null });
         }
-        return res({ data: head ? null : rows, count: head ? rows.length : undefined, error: null });
+        return res({ data: head ? null : rows, count: head || wantCount ? rows.length : undefined, error: null });
       },
     };
     return api;
@@ -179,4 +180,50 @@ Deno.test("réglages de notification : évènements actifs par défaut, bilans c
   await savePrefs(db, AUTH, { notify_digest: true, notify_events: false });
   const p1 = await savePrefs(db, AUTH, { notify_digest: "oui", notify_events: 1 });
   assertEquals([p1.notifyEvents, p1.notifyDigest], [false, true]);
+});
+
+const missionSeed = () => ({
+  waouh_buyer_profiles: [{ id: "p1", user_id: "u1", is_active: true }, { id: "p2", user_id: "u1", is_active: true }, { id: "p3", user_id: "u1", is_active: false }],
+  waouh_watchlists: [{ id: "w1", owner_id: AUTH, status: "active" }],
+  waouh_agent_missions: [{ id: "m1", owner_id: AUTH, status: "active", goal: "Trouver un iPhone 13 à moins de 300 000 FCFA" }, { id: "m2", owner_id: "autre", status: "active" }],
+  waouh_opportunity_journeys: [{ id: "j1", owner_id: AUTH, last_contact_at: "2026-09-29", completed_at: null }, { id: "j2", owner_id: "autre", last_contact_at: "2026-09-29", completed_at: null }],
+});
+
+Deno.test("tableau de mission : recherches, missions, contacts comptés pour CET utilisateur seulement", async () => {
+  const db = fakeDb(missionSeed());
+  const r = await loadMissionBoard(db, AUTH, MORNING);
+  assertEquals([r?.board.searches, r?.board.missions, r?.board.contacted], [3, 1, 1]); // 2 profils actifs + 1 veille prix ; 1 mission ; 1 contact
+  assertEquals(await loadMissionBoard(db, "inconnu", MORNING), null);
+});
+
+Deno.test("le point parle des recherches, contacts et négociations en cours ; une source en panne ne bloque pas le point", async () => {
+  const db = fakeDb({ ...missionSeed(), waouh_avatar_prefs: [{ auth_user_id: AUTH, welcome: true, cadence: "daily", quiet_start: 21, quiet_end: 7, last_briefing_at: ago(MORNING, 30), last_digest: "obsolète" }] });
+  const r = await deliverBriefing(db, { authUserId: AUTH, trigger: "manual", now: MORNING });
+  const all = r.messages.map((m) => m.text).join(" ");
+  assert(all.includes("3 recherches actives") || all.includes("4 recherches actives"), all);
+  assert(all.includes("1 contact en cours"), all);
+  assert(all.includes("Objectif en cours : « Trouver un iPhone 13"), all);
+  const broken = fakeDb(missionSeed());
+  const realFrom = broken.from;
+  (broken as any).from = (t: string) => { if (t === "waouh_agent_missions") throw new Error("panne"); return realFrom(t); };
+  assertEquals((await deliverBriefing(broken, { authUserId: AUTH, trigger: "manual", now: MORNING })).sent, true);
+});
+
+Deno.test("notification dans l'application : point planifié seulement, jamais à l'ouverture ; une seule fois par point", async () => {
+  const seed = { waouh_avatar_prefs: [{ auth_user_id: AUTH, welcome: true, cadence: "every_4h", quiet_start: 21, quiet_end: 7, last_briefing_at: ago(MORNING, 5), last_digest: "obsolète" }] };
+  const db = fakeDb(seed);
+  await runAvatarBriefingTick(db, { now: MORNING });
+  assertEquals(db.tables.waouh_notifications.length, 1);
+  const n = db.tables.waouh_notifications[0];
+  assertEquals([n.user_id, n.notification_type, n.channel, n.payload.intent], ["u1", "avatar_point", "waouh_app", "avatar_briefing"]);
+  assert(String(n.dedupe_key).startsWith("avatar_briefing:"));
+  assert(n.payload.text.length > 0 && n.payload.actions.length <= 3);
+  await runAvatarBriefingTick(db, { now: new Date(MORNING.getTime() + 60_000) });
+  assertEquals(db.tables.waouh_notifications.length, 1, "pas de doublon");
+  const open = fakeDb();
+  await deliverBriefing(open, { authUserId: AUTH, trigger: "open", now: MORNING });
+  assertEquals(open.tables.waouh_notifications.length, 0, "à l'ouverture l'utilisateur est déjà dans le chat");
+  const manual = fakeDb();
+  await deliverBriefing(manual, { authUserId: AUTH, trigger: "manual", now: MORNING });
+  assertEquals(manual.tables.waouh_notifications.length, 0);
 });

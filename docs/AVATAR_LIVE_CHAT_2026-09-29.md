@@ -15,3 +15,11 @@ L'avatar n'écrit jamais à un tiers sans tap de l'utilisateur (politique C0–C
 
 ## Déploiement
 Migration additive `20260929180000_waouh_avatar_notify_prefs.sql` (deux colonnes) → puis fonctions `waouh-avatar-briefing` et `waouh-nexus-followup` → puis Web. Ordre important : l'ancienne fonction ignore les nouvelles colonnes, la nouvelle les exige.
+
+## Avatar actif : tableau de mission et notifications dans l'application
+- `waouh-avatar-briefing` action `status` (jeton utilisateur) : compteurs `searches` (profils acheteur actifs + veilles de prix), `missions`, `contacted` (parcours avec un premier contact non terminé), `negotiations` (offres proposées / contre-offres), `watching`, `deals`, `toAnswer`, `needsYou`. Chaque source est comptée indépendamment : une panne n'empêche pas le point.
+- Barre du guide (Web + Flutter) : pastilles en direct (ouverture, chaque bulle reçue, puis toutes les 60 s) ; sans mission, invitation « Je cherche… / Je vends… ». Un tap sur une pastille = « faire le point ».
+- Le point cite les recherches, contacts et négociations en cours et l'intitulé de la mission active quand rien de plus urgent ne l'emporte.
+- Notification dans l'application : ligne `waouh_notifications` (`notification_type='avatar_point'`, canal `waouh_app`, clé `avatar_briefing:<id>`) pour les points planifiés et les évènements d'offre (relance possible, voie ouverte, clôture) — jamais à l'ouverture de l'app ni sur « Faire le point » (l'utilisateur est déjà dans le chat).
+  Web : cloche + toast + notification navigateur (hook existant, titre « ✨ Votre avatar »). Flutter : bannière en haut de l'écran (7 s, tap = chat), absente sur le chat lui-même. Les deux clients ouverts la reçoivent en même temps.
+- Limite connue : pas de notification système (push) quand l'application est fermée — le projet n'a pas d'émetteur FCM côté serveur ; WhatsApp reste le canal hors application.
