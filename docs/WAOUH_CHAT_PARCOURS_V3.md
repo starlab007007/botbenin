@@ -31,7 +31,9 @@ sans redéploiement.
 | `src/components/admin/WaouhAdminCommandCenter.tsx` | Libellés Command Center |
 | `src/components/waouh/waouhChatSyncLock.ts` | Verrou v15 (invariants v3) |
 
-## Lot 2 — parcours unifié (déployé coupé)
+## Lot 2 — parcours unifié (déployé coupé à l'origine ; ACTIVÉ en production depuis le 28/09/2026)
+
+> État constaté le 29/09/2026 dans `waouh_admin_module_controls` (projet `mvynepqulhflxtyymtzs`) : `chat_catalog_v3` activé le 28/09 10:59 UTC et `commerce_action_v3` activé le 28/09 12:45 UTC. Voir `docs/AUDIT_HARMONISATION_2026-09-29.md`.
 
 | Brique | Fichiers |
 |---|---|
