@@ -1,7 +1,14 @@
 import { clearPinFailures, clientAddress, currentPinLock, recordPinFailure } from "../_shared/waouh-pin-throttle.ts";
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
-import { compareSync } from "https://esm.sh/bcryptjs@2.4.3";
+import * as bcryptModule from "https://esm.sh/bcryptjs@2.4.3";
+
+// bcryptjs est un module CommonJS : selon la date de résolution, esm.sh l'expose en export nommé OU seulement en `default`.
+// Un import nommé (`import { compareSync }`) a fait échouer le démarrage de la fonction au redéploiement (BOOT_ERROR du 29/09).
+const bcrypt = ((bcryptModule as { default?: unknown }).default ?? bcryptModule) as {
+  compareSync: (plain: string, hash: string) => boolean;
+};
+const compareSync = (plain: string, hash: string): boolean => bcrypt.compareSync(plain, hash);
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
