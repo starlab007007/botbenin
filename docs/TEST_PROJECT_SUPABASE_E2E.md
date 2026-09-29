@@ -30,5 +30,34 @@ Aucune donnée de production copiée. Ne jamais y brancher WhatsApp ni un jeton 
 - Comptes Auth de test créés par SQL (réseau vers l'API Auth bloqué) : `vendeur.a.test@botbj-test.invalid` et `acheteur.b.test@botbj-test.invalid`, e-mails confirmés, liés à `profiles` et `waouh_users`. Mots de passe aléatoires, hors dépôt.
 - Fonctions non déployées : recopier ~200 Ko (21 fichiers) à la main sans pouvoir les appeler ensuite serait risqué ; à faire par CLI (`supabase functions deploy`, `supabase secrets set GEMINI_API_KEY`) une fois `*.supabase.co` / `api.supabase.com` autorisés et un jeton d'accès fourni.
 
+## Parcours avec les VRAIES edge functions (29/09/2026, soir)
+Fonctions déployées sur le projet de test (CLI `supabase functions deploy --use-api`, mêmes fichiers que le dépôt) : `waouh-commerce-action`, `waouh-negotiation-router`, `waouh-deal-ops`, `waouh-match-history`, `waouh-history`, `waouh-channel-in-secure`.
+Secrets posés : `GEMINI_API_KEY`, `WAOUH_COMMISSION_RATE=0.05`. **Aucun secret WAHA** : aucun envoi WhatsApp possible.
+Script : `scripts/waouh-chat/test-project/journey-real-functions.mjs` (refuse tout autre projet ; secrets par variables d'environnement).
+
+| Étape | Résultat | Nature |
+|---|---|---|
+| S0 connexion Auth vendeur A / acheteur B | PASS | réel |
+| Publication de l'article par A | insertion SQL | **simulé** (aucune de ces fonctions ne publie) |
+| S1 B contacte le vendeur (`open_deal`) | PASS — thread + négociation créés | réel |
+| S2 B propose 130 000 (`offer`) | PASS — `offer_sent` | réel |
+| S3 A accepte | PASS — deal créé | réel |
+| S4 rejeu de la même clé `idem` | PASS — même réponse, `replayed: true` | réel |
+| S5 A confirme la disponibilité | PASS | réel |
+| S6 B choisit le paiement à la livraison | PASS — étape `preparation`, tour `courier` | réel |
+| S7 le vendeur ne peut pas confirmer le paiement | PASS (refus `out_of_stage`) | réel |
+| S8 paiement refusé avant livraison | PASS (refus `out_of_stage`) | réel |
+| Livraison par le livreur | `status='delivered'` en SQL | **simulé** |
+| S9 B confirme le paiement | PASS — « Vente terminée » | réel |
+| S10 historique du fil, côté vendeur et acheteur | PASS (8 et 12 messages) | réel |
+
+État final en base : thread `concluded` (clé active libérée), chaîne thread→négociation→deal→transaction complète, deal `completed` / `paid` / cash, 130 000 dont commission 6 500 (`earned`), 20 messages dont 0 sans thread, 7 types d'événements dans le registre, 2 notifications au vendeur, 8 lignes en file sortante `pending` (rien envoyé).
+
+Écarts / constats :
+- L'article reste `reserved` sur le projet de test : le trigger `trg_waouh_sync_article_after_deal` (migration `20260925130000_waouh_deal_graph_e2e`) n'y est pas installé. Il est présent et actif en production.
+- Un acceptation avant correction du routeur interne (`waouh-negotiation-router`, `waouh-deal-ops` absents) renvoyait `out_of_stage` : c'était une dépendance de déploiement, pas un défaut de logique.
+- `waouh-match-history` identifie le lecteur par `auth_user_id` fourni dans le corps de la requête, avec la clé service : voir la note de sécurité dans `DEPLOYED_MANIFEST.md` à traiter avant tout déploiement large.
+- Non testé : Web `/app/chat` et application Flutter sur ce projet, publication réelle, WhatsApp.
+
 ## Reste à faire
-Edge functions (`waouh-commerce-action`, `waouh-match-history`, `waouh-history`, `waouh-channel-in-secure`), secrets, comptes Auth vendeur A / acheteur B, puis parcours Web et Flutter sur ce projet.
+Faire pointer le Web et Flutter vers le projet de test, installer le trigger de synchronisation d'article, tester la publication réelle.
