@@ -10,6 +10,8 @@ import 'avatar/live_avatar_controller.dart';
 import 'avatar/live_avatar_widgets.dart';
 import 'agentic/live_agentic_models.dart';
 import 'agentic/live_agentic_workspace.dart';
+import 'live_avatar_guide.dart';
+import 'live_commerce_action_client.dart';
 import 'live_controller.dart';
 import 'live_commerce_agent_ui.dart';
 import 'live_guest_action_gate.dart';
@@ -36,6 +38,12 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
   late final LiveWaouhController _controller;
   bool _interestInFlight = false;
   bool _interestNavigationFailed = false;
+  final _avatarBarKey = GlobalKey<LiveAvatarGuideBarState>();
+  late final LiveAvatarGuideService _avatarService = LiveAvatarGuideService((body) async {
+    final response = await legacy.supabase.functions.invoke('waouh-avatar-briefing', body: body);
+    final data = response.data;
+    return data is Map ? Map<String, dynamic>.from(data) : null;
+  });
 
   @override
   void initState() {
@@ -110,7 +118,67 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
     _notice('Nouvelle conversation WAOUH commencée.', success: true);
   }
 
+  /// Boutons de l'avatar guide : point, réglages, aide, ouverture d'une Deal Room, suivi des offres.
+  /// Rien n'est envoyé à un tiers sans ce tap (les actions passent par waouh-commerce-action).
+  Future<bool> _handleAvatarPayload(String payload) async {
+    final command = payload.trim().toLowerCase();
+    if (command == 'avatar:point') {
+      await _avatarBarKey.currentState?.runPoint('now');
+      return true;
+    }
+    if (command == 'avatar:reglages') {
+      await _avatarBarKey.currentState?.openSettings();
+      return true;
+    }
+    if (command == 'aide:acheter') {
+      composer.text = composer.text.trim().isEmpty ? 'Je cherche ' : composer.text;
+      composerFocus.requestFocus();
+      return true;
+    }
+    if (command == 'aide:vendre') {
+      await _openSellForm();
+      return true;
+    }
+    if (command.startsWith('ouvrir-deal:')) {
+      final rest = payload.trim().substring('ouvrir-deal:'.length);
+      final query = rest.indexOf('?');
+      final threadId = (query < 0 ? rest : rest.substring(0, query)).trim();
+      final role = rest.contains('role=seller') ? 'seller' : 'buyer';
+      if (threadId.isNotEmpty && mounted) {
+        unawaited(livePushMatchChat(
+          context,
+          LiveMatch(
+            key: 'meet_$threadId',
+            articleId: '',
+            role: role,
+            title: 'Discussion produit',
+            lastAt: DateTime.now(),
+            threadId: threadId,
+          ),
+        ));
+      }
+      return true;
+    }
+    if (command.startsWith('relancer:') || command.startsWith('envoyer-offre:') || command.startsWith('veille:')) {
+      final request = liveCommerceRequestFromPayload(payload);
+      if (request == null) return true;
+      try {
+        final response = await _controller.sendCommerceAction(request);
+        if (!mounted) return true;
+        final reply = response?['reply'];
+        _notice(reply is Map
+            ? '${reply['title'] ?? ''} · ${reply['detail'] ?? ''}'
+            : 'Action indisponible pour le moment. Réessayez.');
+      } catch (_) {
+        if (mounted) _notice('Rien n\'a été envoyé. Réessayez.');
+      }
+      return true;
+    }
+    return false;
+  }
+
   Future<void> _handlePayload(String payload) async {
+    if (await _handleAvatarPayload(payload)) return;
     final command = payload.trim().toLowerCase();
     if (command.startsWith('waouh:watch')) {
       await showWaouhWatchDialog(
@@ -409,6 +477,12 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
         ],
       ),
       body: Column(children: [
+        if (context.watch<legacy.AuthController>().signedIn)
+          LiveAvatarGuideBar(
+            key: _avatarBarKey,
+            service: _avatarService,
+            sessionId: () async => await _controller.session.sessionId,
+          ),
         Expanded(
             child: StreamBuilder<List<LiveMessage>>(
                 stream: _messageStream,

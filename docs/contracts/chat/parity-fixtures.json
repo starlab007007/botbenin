@@ -1,0 +1,32 @@
+{
+  "_doc": "Données de référence communes Web / Flutter (le Web fait foi). Utilisées par src/components/waouh/__tests__/waouhChatParity.test.ts et flutter_waouh_app/test/live_web_parity_chat_test.dart.",
+  "correlation": [
+    { "article": "3f2c1b0a-0000-4000-8000-00000000a001", "role": "buyer", "counterpart": "abcd1234-ef56-7890", "expected": "corr_3f2c1b0a_buyer_abcd1234" },
+    { "article": "3f2c1b0a-0000-4000-8000-00000000a001", "role": "seller", "counterpart": null, "expected": "corr_3f2c1b0a_seller_any" },
+    { "article": null, "role": "buyer", "counterpart": null, "expected": "corr_noart_buyer_any" },
+    { "article": "ab!cd@efgh1234", "role": "seller", "counterpart": "x_y z", "expected": "corr_abcdefgh_seller_xyz" },
+    { "article": "abc", "role": "buyer", "counterpart": "", "expected": "corr_abc_buyer_any" }
+  ],
+  "buttons": {
+    "scope": { "thread_id": "thread-1" },
+    "cases": [
+      { "id": "accepter:a1b2c3d4-0000-4000-8000-00000000abcd", "request": { "action": "accept", "negotiation_id": "a1b2c3d4-0000-4000-8000-00000000abcd", "thread_id": "thread-1" } },
+      { "id": "refuser:a1b2c3d4-0000-4000-8000-00000000abcd", "request": { "action": "reject", "negotiation_id": "a1b2c3d4-0000-4000-8000-00000000abcd", "thread_id": "thread-1" } },
+      { "id": "payer-mobile:0f9e8d7c-1111-4111-8111-111111111111", "request": { "action": "pay_mode", "deal_id": "0f9e8d7c-1111-4111-8111-111111111111", "method": "mobile_money" } },
+      { "id": "paiement-livraison:0f9e8d7c-1111-4111-8111-111111111111", "request": { "action": "pay_mode", "deal_id": "0f9e8d7c-1111-4111-8111-111111111111", "method": "cash" } },
+      { "id": "confirmer-disponibilite:0f9e8d7c-1111-4111-8111-111111111111", "request": { "action": "seller_confirm", "deal_id": "0f9e8d7c-1111-4111-8111-111111111111" } },
+      { "id": "confirmer-paiement-cash:0f9e8d7c-1111-4111-8111-111111111111", "request": { "action": "confirm_payment", "deal_id": "0f9e8d7c-1111-4111-8111-111111111111", "method": "cash" } },
+      { "id": "confirmer-paiement-mobile:0f9e8d7c-1111-4111-8111-111111111111", "request": { "action": "confirm_payment", "deal_id": "0f9e8d7c-1111-4111-8111-111111111111", "method": "mobile_money" } },
+      { "id": "annuler:0f9e8d7c-1111-4111-8111-111111111111", "request": { "action": "cancel", "deal_id": "0f9e8d7c-1111-4111-8111-111111111111" } }
+    ],
+    "composerOnly": [
+      "contre-proposition:a1b2c3d4-0000-4000-8000-00000000abcd",
+      "proposer-prix:3f2c1b0a-0000-4000-8000-00000000a001",
+      "poser-question:3f2c1b0a-0000-4000-8000-00000000a001"
+    ]
+  },
+  "closedStatuses": {
+    "closed": ["sold", "closed", "finalized", "completed", "vendu", "SOLD", " Vendu "],
+    "open": ["active", "published", "negotiating", "", null]
+  }
+}

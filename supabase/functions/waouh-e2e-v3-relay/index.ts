@@ -1,0 +1,1 @@
+Deno.serve(() => Response.json({ok:false,code:"e2e_relay_disabled"},{status:410}));

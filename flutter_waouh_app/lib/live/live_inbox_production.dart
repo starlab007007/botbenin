@@ -456,11 +456,8 @@ class _SearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hint = switch (tab) {
-      1 => 'Rechercher un statut',
-      2 => 'Rechercher dans Radar',
-      _ => 'Rechercher',
-    };
+    // Parité Web (ChatListScreen) : même libellé sur les trois onglets.
+    const hint = 'Rechercher échanges, statuts, radar…';
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 3),
       child: TextField(
@@ -514,7 +511,7 @@ class _InboxTabs extends StatelessWidget {
               Expanded(
                 child: _InboxTabButton(
                   selected: value == 0,
-                  label: 'Discussions',
+                  label: 'Échanges',
                   icon: Icons.forum_outlined,
                   onTap: () => onChanged(0),
                 ),
@@ -522,7 +519,7 @@ class _InboxTabs extends StatelessWidget {
               Expanded(
                 child: _InboxTabButton(
                   selected: value == 1,
-                  label: 'Statuts',
+                  label: 'Statuts · 24h',
                   icon: Icons.auto_awesome_outlined,
                   badge: statusCount,
                   onTap: () => onChanged(1),
@@ -531,7 +528,7 @@ class _InboxTabs extends StatelessWidget {
               Expanded(
                 child: _InboxTabButton(
                   selected: value == 2,
-                  label: 'Radar',
+                  label: '📡 Radar',
                   icon: Icons.radar_rounded,
                   onTap: () => onChanged(2),
                 ),

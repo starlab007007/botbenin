@@ -73,7 +73,8 @@ const base: DealState = {
 Deno.test("tour et boutons : l'acheteur ne décide jamais de sa propre offre", () => {
   const neg: DealState = { ...base, negotiationId: NEG, negotiationState: "proposed", lastActor: "buyer", lastOfferPrice: 2300 };
   assertEquals(turnFor(neg), "seller");
-  assertEquals(nextActions(neg, "buyer"), []);
+  // Pas son tour : jamais de fenêtre froide — l'acheteur peut modifier son offre ou poser une question.
+  assertEquals(nextActions(neg, "buyer").map((a) => parseActionPayload(a.id)?.kind), ["offer_prompt", "ask"]);
   assertEquals(nextActions(neg, "seller").map((a) => parseActionPayload(a.id)?.kind), ["accept", "counter", "reject"]);
   const countered: DealState = { ...neg, negotiationState: "countered", lastActor: "seller", lastOfferPrice: 2400 };
   assertEquals(turnFor(countered), "buyer");
@@ -85,7 +86,8 @@ Deno.test("étapes suivantes : accord, livraison, fiche", () => {
   assertEquals(nextActions(agreement, "buyer").map((a) => parseActionPayload(a.id)?.kind), ["payment_preference_mobile", "payment_preference_cash", "cancel"]);
   assertEquals(nextActions(agreement, "seller").map((a) => parseActionPayload(a.id)?.kind), ["seller_confirm", "cancel"]);
   const paid: DealState = { ...agreement, paymentSelected: true };
-  assertEquals(nextActions(paid, "buyer"), []);
+  // Son action est faite : on attend le vendeur, avec de quoi le relancer ou annuler.
+  assertEquals(nextActions(paid, "buyer").map((a) => parseActionPayload(a.id)?.kind), ["ask", "cancel"]);
   const delivered: DealState = { ...agreement, dealStatus: "delivered", paymentMethod: "mobile_money" };
   assertEquals(nextActions(delivered, "buyer").map((a) => parseActionPayload(a.id)?.kind), ["confirm_payment_mobile"]);
   assertEquals(nextActions(base, "buyer").map((a) => parseActionPayload(a.id)?.kind), ["open_deal", "offer_prompt", "ask"]);
@@ -188,4 +190,77 @@ Deno.test("relances 2 h / 24 h, expiration 72 h, paiement présélectionné, int
   assertEquals(preselectPayment(["cash"]), null);
   assert(purchaseIntent({ asked: true, offered: true, offerToListRatio: 0.9 }) > purchaseIntent({}));
   assert(purchaseIntent({ asked: true, offered: true, offerToListRatio: 5, returnVisits: 99 }) <= 100);
+});
+
+Deno.test("aucune fenêtre froide : chaque état actif propose au moins une action", () => {
+  const neg: DealState = { ...base, negotiationId: NEG, negotiationState: "proposed", lastActor: "buyer", lastOfferPrice: 2300 };
+  const agreement: DealState = { ...base, negotiationId: NEG, negotiationState: "accepted", dealId: DEAL, dealStatus: "awaiting_confirmation" };
+  const sellerDone: DealState = { ...agreement, sellerConfirmed: true };
+  const states: Array<[string, DealState]> = [
+    ["interest", base],
+    ["négociation", neg],
+    ["accord", agreement],
+    ["accord, vendeur confirmé", sellerDone],
+    ["préparation", { ...agreement, dealStatus: "pending_assignment" }],
+    ["livreur en route", { ...agreement, dealStatus: "assigned" }],
+    ["livré", { ...agreement, dealStatus: "delivered", paymentMethod: "cash" }],
+  ];
+  for (const [label, state] of states) {
+    for (const role of ["buyer", "seller"] as const) {
+      if (label === "interest" && role === "seller") continue; // le vendeur n'a rien à faire avant l'offre
+      const actions = nextActions(state, role);
+      assert(actions.length >= 1 && actions.length <= 3, `${label}/${role}: ${actions.length} bouton(s)`);
+    }
+  }
+});
+
+Deno.test("accord tombé (commande annulée) : l'acheteur retrouve les boutons d'entrée", () => {
+  const cancelled: DealState = { ...base, negotiationId: NEG, negotiationState: "accepted", dealId: null, dealStatus: null };
+  assertEquals(nextActions(cancelled, "buyer").map((a) => parseActionPayload(a.id)?.kind), ["open_deal", "offer_prompt", "ask"]);
+  assertEquals(nextActions(cancelled, "seller"), []);
+});
+
+Deno.test("boutons d'attente : identifiants reconnus par les clients (poser-question, proposer-prix, annuler)", () => {
+  const neg: DealState = { ...base, negotiationId: NEG, negotiationState: "proposed", lastActor: "buyer", lastOfferPrice: 2300 };
+  for (const a of nextActions(neg, "buyer")) assert(parseActionPayload(a.id), a.id);
+  const paid: DealState = { ...base, negotiationId: NEG, negotiationState: "accepted", dealId: DEAL, dealStatus: "awaiting_confirmation", paymentSelected: true };
+  for (const a of nextActions(paid, "buyer")) assert(parseActionPayload(a.id), a.id);
+});
+
+// --- Résultats Nexus externes -------------------------------------------------------------------
+const EXT_UUID = "d1a00000-0000-4000-8000-000000000001";
+const extState = {
+  articleId: "a1", articlePrice: 150000, negotiationId: "n1", negotiationState: "proposed", lastActor: "buyer",
+  lastOfferPrice: 130000, dealId: null, dealStatus: null, sellerConfirmed: false, paymentSelected: false,
+  paymentMethod: null, externalSeller: true, externalTransmitted: false,
+} as const;
+
+Deno.test("nexus : fabric_id external:/article: accepté, buyer: et format libre refusés", () => {
+  const ok = validateActionRequest({ action: "open_deal", idem: "idem-nexus-01", fabric_id: `EXTERNAL:${EXT_UUID.toUpperCase()}` });
+  assert(ok.ok && ok.request.fabric_id === `external:${EXT_UUID}`);
+  assertEquals(validateActionRequest({ action: "open_deal", idem: "idem-nexus-02", fabric_id: `buyer:${EXT_UUID}` }), { ok: false, error: "invalid_fabric_id" });
+  assertEquals(validateActionRequest({ action: "open_deal", idem: "idem-nexus-03", fabric_id: "external:abc" }), { ok: false, error: "invalid_fabric_id" });
+  assertEquals(validateActionRequest({ action: "offer", idem: "idem-nexus-04", amount: 5000, fabric_id: `external:${EXT_UUID}` }).ok, true);
+});
+
+Deno.test("nexus : transmit_offer exige une négociation ou un fil", () => {
+  assertEquals(validateActionRequest({ action: "transmit_offer", idem: "idem-nexus-05" }), { ok: false, error: "negotiation_id_required" });
+  assertEquals(validateActionRequest({ action: "transmit_offer", idem: "idem-nexus-06", negotiation_id: EXT_UUID }).ok, true);
+});
+
+Deno.test("nexus : offre prête → « Envoyer mon offre » en premier, jamais de bouton vendeur", () => {
+  const buyer = nextActions({ ...extState }, "buyer");
+  assertEquals(buyer.map((a) => a.id), ["envoyer-offre:n1", "proposer-prix:a1"]);
+  assertEquals(nextActions({ ...extState }, "seller"), []);
+});
+
+Deno.test("nexus : offre transmise → plus de bouton d'envoi, l'acheteur peut encore modifier", () => {
+  const after = nextActions({ ...extState, externalTransmitted: true }, "buyer");
+  assertEquals(after.map((a) => a.id), ["proposer-prix:a1"]);
+});
+
+Deno.test("nexus : l'alias envoyer-offre est reconnu par le parseur unique", () => {
+  const cmd = parseActionPayload("envoyer-offre:d1a00000-0000-4000-8000-000000000001");
+  assertEquals(cmd?.kind, "transmit_offer");
+  assertEquals(cmd?.scope, "negotiation");
 });

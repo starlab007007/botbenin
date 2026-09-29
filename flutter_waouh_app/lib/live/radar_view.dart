@@ -10,6 +10,7 @@ import 'live_radar_service.dart';
 import 'radar_filters.dart';
 import 'radar_hero.dart';
 import 'radar_results.dart';
+import 'live_hot_labels.dart';
 
 class RadarView extends StatefulWidget {
   const RadarView({super.key});
@@ -141,7 +142,9 @@ class _RadarViewState extends State<RadarView>
       action == RadarItemAction.negotiate
           ? 'Je souhaite négocier « ${item.title} » à ${item.distanceLabel}.'
           : action == RadarItemAction.contact
-              ? 'Je souhaite contacter le vendeur de « ${item.title} ».'
+              ? (isBuyerRequest
+                  ? 'Je peux vous proposer un article pour « ${item.title} ».'
+                  : liveRadarInterestSeed(item.title))
               : 'Je suis intéressé par « ${item.title} » à ${item.distanceLabel}.',
       meta: {
         'source': 'flutter_radar_backend',

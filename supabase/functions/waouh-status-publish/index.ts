@@ -18,8 +18,9 @@
 // }
 // Auth: requires Authorization Bearer <user JWT>.
 
+import { runFanout } from "../_shared/waouh-fanout.ts";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -169,16 +170,19 @@ Deno.serve(async (req) => {
       .single();
     if (sErr) throw sErr;
 
-    // Fan-out to existing matching buyers (fire & forget)
+    // Fan-out to existing matching buyers : issue attendue (délai borné), journalisée et renvoyée (E7).
+    // La publication réussit même si la notification échoue, mais le client le sait.
+    let buyers_notified: { ok: boolean; status: number } | null = null;
     if (articleId) {
-      fetch(`${SUPABASE_URL}/functions/v1/waouh-notify-buyers`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ article_id: articleId }),
-      }).catch(() => {});
+      const fan = await runFanout(
+        `${SUPABASE_URL}/functions/v1/waouh-notify-buyers`,
+        { headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" }, body: { article_id: articleId } },
+        { label: "waouh-status-publish/notify-buyers" },
+      );
+      buyers_notified = { ok: fan.ok, status: fan.status };
     }
 
-    return new Response(JSON.stringify({ ok: true, status, article, article_id: articleId }), {
+    return new Response(JSON.stringify({ ok: true, status, article, article_id: articleId, buyers_notified }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

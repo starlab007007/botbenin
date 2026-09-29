@@ -25,7 +25,11 @@ export type WaouhCommandKind =
   // Parcours v3 : boutons portés par une fiche produit (cible = article).
   | "open_deal"
   | "offer_prompt"
-  | "ask";
+  | "ask"
+  // Résultat Nexus externe : l'acheteur transmet son offre au vendeur tiers (politique de contact appliquée).
+  | "transmit_offer"
+  // Avatar : mise en veille de l'offre (sans envoi) et relance manuelle (un tap, jamais automatique).
+  | "watch_offer";
 
 export interface ParsedWaouhCommand {
   kind: WaouhCommandKind;
@@ -69,9 +73,14 @@ const COMMAND_ALIASES: Record<string, WaouhCommandKind> = {
   "offer_prompt": "offer_prompt",
   "poser-question": "ask",
   "ask": "ask",
+  "envoyer-offre": "transmit_offer",
+  "transmit_offer": "transmit_offer",
+  "relancer": "transmit_offer",
+  "veille": "watch_offer",
+  "watch_offer": "watch_offer",
 };
 
-const NEGOTIATION_KINDS = new Set<WaouhCommandKind>(["accept", "reject", "counter"]);
+const NEGOTIATION_KINDS = new Set<WaouhCommandKind>(["accept", "reject", "counter", "transmit_offer", "watch_offer"]);
 const ARTICLE_KINDS = new Set<WaouhCommandKind>(["open_deal", "offer_prompt", "ask"]);
 
 export function commandKindFromAlias(alias: string | null | undefined): WaouhCommandKind | null {
@@ -139,6 +148,17 @@ export const articleEntryActionsV3 = (articleId: string, price?: number | null):
   { id: `proposer-prix:${articleId}`, label: "Proposer un prix" },
   { id: `poser-question:${articleId}`, label: "Poser une question" },
 ];
+
+// Boutons « pas votre tour » : une fenêtre de négociation ne reste jamais sans action.
+export const askQuestionAction = (articleId: string): WaouhAction => ({ id: `poser-question:${articleId}`, label: "Poser une question" });
+export const modifyOfferAction = (articleId: string): WaouhAction => ({ id: `proposer-prix:${articleId}`, label: "Modifier mon offre" });
+/** Résultat Nexus externe : bouton d'envoi explicite de l'offre (jamais automatique). */
+export const transmitOfferAction = (negotiationId: string): WaouhAction => ({ id: `envoyer-offre:${negotiationId}`, label: "Envoyer mon offre" });
+/** Relance d'une offre transmise : proposée par l'avatar quand elle est due, envoyée sur tap. */
+export const followUpOfferAction = (negotiationId: string): WaouhAction => ({ id: `relancer:${negotiationId}`, label: "Relancer le vendeur" });
+/** Garder l'offre en veille : l'avatar recontrôle la joignabilité et prévient dès qu'une voie s'ouvre. */
+export const watchOfferAction = (negotiationId: string): WaouhAction => ({ id: `veille:${negotiationId}`, label: "Garder en veille" });
+export const cancelOrderAction = (dealId: string): WaouhAction => ({ id: `annuler:${dealId}`, label: "Annuler la commande" });
 
 /**
  * Décision sur l'offre de l'autre partie. `acceptFirst` : l'écart est faible,

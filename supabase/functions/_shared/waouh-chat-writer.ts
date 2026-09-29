@@ -107,6 +107,15 @@ export async function commerceActionV3Enabled(sb: any): Promise<boolean> {
   return moduleFlagEnabled(sb, "commerce_action_v3");
 }
 
+/**
+ * Résultats Nexus externes → Deal Room directe (matérialisation d'un article « stub »).
+ * Fermé par défaut : sans la ligne `nexus_direct_deal` (activée + automatisation), les clients
+ * gardent la fiche de contact de l'Avatar.
+ */
+export async function nexusDirectDealEnabled(sb: any): Promise<boolean> {
+  return moduleFlagEnabled(sb, "nexus_direct_deal");
+}
+
 /** Tests uniquement. */
 export function __resetChatWriterFlagCache() {
   flagCache.clear();

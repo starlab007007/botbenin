@@ -231,7 +231,9 @@ void main() {
     expect(find.text('👥 Opportunité acheteur'), findsOneWidget);
     expect(find.text('Match 94%'), findsOneWidget);
     expect(find.textContaining('Contact privé protégé'), findsOneWidget);
-    expect(find.text('Transmettre via WAOUH'), findsOneWidget);
+    // Fenêtre chaude : le vendeur qui répond à une demande d'achat propose son offre (plus de « Transmettre via WAOUH »).
+    expect(find.text('Proposer mon offre'), findsOneWidget);
+    expect(find.text('Transmettre via WAOUH'), findsNothing);
     expect(find.text('Je suis intéressé'), findsNothing);
   });
 

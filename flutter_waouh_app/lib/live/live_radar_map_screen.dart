@@ -16,6 +16,7 @@ import 'live_radar_models.dart';
 import 'live_radar_service.dart';
 import 'live_widgets.dart';
 import 'live_theme.dart';
+import 'live_hot_labels.dart';
 
 /// Carte Radar native : GPS réel, rayons 1/5/20/100 km et résultats Supabase.
 class LiveRadarMapScreen extends StatefulWidget {
@@ -252,7 +253,7 @@ class _LiveRadarMapScreenState extends State<LiveRadarMapScreen>
         'Je souhaite négocier « ${item.title} » à ${item.distanceLabel}. ',
       _MapRadarAction.contact => item.type == LiveRadarItemType.buy
           ? 'Je vends un article correspondant à « ${item.title} ». '
-          : 'Bonjour, je souhaite en savoir plus sur « ${item.title} ». ',
+          : '${liveRadarInterestSeed(item.title)} ',
     };
 
     final controller = context.read<LiveWaouhController>();
@@ -1119,7 +1120,7 @@ class _MapRadarActions extends StatelessWidget {
                   child: FilledButton(
                     onPressed: () =>
                         Navigator.pop(context, _MapRadarAction.contact),
-                    child: const Text('Contacter'),
+                    child: const Text('Je le veux'),
                   ),
                 ),
                 const SizedBox(height: 9),
@@ -1184,7 +1185,7 @@ class _MapRadarActions extends StatelessWidget {
                   onPressed: () =>
                       Navigator.pop(context, _MapRadarAction.contact),
                   child: const Text(
-                    'Contacter',
+                    'Je le veux',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),

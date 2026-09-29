@@ -11,6 +11,7 @@ import 'live_controller.dart';
 import 'live_nexus_service.dart';
 import 'live_widgets.dart';
 import 'live_theme.dart';
+import 'live_hot_labels.dart';
 
 class LiveNexusScreen extends StatefulWidget {
   const LiveNexusScreen({super.key});
@@ -1154,13 +1155,7 @@ class _DiscoveryCard extends StatelessWidget {
                     child: FilledButton.icon(
                       onPressed: onContact,
                       icon: const Icon(Icons.chat_bubble_outline_rounded),
-                      label: Text(
-                        item.contactPolicy.level == 'C0'
-                            ? 'Voir contact'
-                            : item.contactPolicy.level == 'C2'
-                                ? 'Répondre via WAOUH'
-                                : 'Contacter',
-                      ),
+                      label: Text(liveContactabilityActionLabel(item.contactPolicy.level)),
                     ),
                   ),
                 ],

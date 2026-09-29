@@ -31,7 +31,7 @@ import {
 } from "../_shared/waouh-interest-fastpath.ts";
 import { extractOfferAmount } from "../_shared/waouh-negotiation-intent.ts";
 import { negotiationActionsV3 } from "../_shared/waouh-commands.ts";
-import { renderCatalog } from "../_shared/waouh-message-catalog.ts";
+import { renderCatalog, unavailableKey } from "../_shared/waouh-message-catalog.ts";
 import {
   contactabilityPolicy,
   scoreFabricSignal,
@@ -1846,7 +1846,7 @@ serve(async (req) => {
           if (code === "article_unavailable") {
             return await respond({
               reply: catalogV3
-                ? renderCatalog("article_reserved").text
+                ? renderCatalog(unavailableKey(opened.article?.status)).text
                 : "⏳ Cet article n'est plus disponible. Relancez une recherche pour voir des articles proches.",
               intent: "article_unavailable", commerceEvent: "article_unavailable",
               threadId: null, negotiationId: null, article: opened.article,
@@ -1902,7 +1902,7 @@ serve(async (req) => {
           } else if (opened.created) {
             return await respond({
               reply: catalogV3
-                ? renderCatalog("deal_opened", { title, amount: opened.offerPrice }).text
+                ? renderCatalog("deal_opened", { title, amount: opened.offerPrice, sellerNotified: opened.sellerNotified }).text
                 : `✅ Offre envoyée au vendeur\n\n📦 ${title}\n💰 ${legacyAmount(opened.offerPrice)}\n\nLe vendeur a été prévenu. Sa réponse arrivera ici.`,
               intent: "match_buyer",
               commerceEvent: "deal_opened",

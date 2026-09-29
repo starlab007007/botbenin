@@ -14,6 +14,9 @@ import 'live_nexus_service.dart';
 import 'live_commerce_workflow.dart';
 import 'live_commerce_agent_ui.dart';
 import 'live_thread_flow.dart';
+import 'live_hot_labels.dart';
+import 'live_avatar_progress.dart';
+import 'live_avatar_guide.dart';
 
 class LiveHeader extends StatelessWidget implements PreferredSizeWidget {
   const LiveHeader({
@@ -171,6 +174,21 @@ class LiveMessageBubble extends StatelessWidget {
     // make the complete timeline fail when a payload contained an unexpected
     // value.  Rich text and attachments remain available; structured cards
     // are enabled only after a non-empty, validated product list is produced.
+    // Point de l'avatar (accueil, activités, veilles, prochaines étapes) : carte dédiée, jamais une bulle de texte brut.
+    if (!message.outgoing && '${message.meta['intent'] ?? ''}' == 'avatar_briefing') {
+      final briefing = liveParseAvatarBriefing(message.meta['avatar_briefing']);
+      if (briefing != null) {
+        final fresh = DateTime.now().difference(briefing.generatedAt) < const Duration(minutes: 30);
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: LiveAvatarBriefingCard(
+            briefing: briefing,
+            collapsed: !fresh,
+            onAction: actionsEnabled ? onPayload : null,
+          ),
+        );
+      }
+    }
     final displayText = liveVisibleText(message.text);
     final products = _safePremiumProducts(message);
     final actions = actionsEnabled
@@ -254,6 +272,7 @@ class LiveMessageBubble extends StatelessWidget {
                 SelectionArea(
                   child: _LivePremiumMessageContent(text: displayText),
                 ),
+              if (products.isEmpty && !outgoing) liveAvatarBlocks(message.meta),
               if (products.isNotEmpty) ...[
                 if (_premiumIntro(displayText).isNotEmpty) ...[
                   SelectionArea(
@@ -2198,19 +2217,7 @@ class _PremiumProductCard extends StatelessWidget {
                       product,
                     ),
                     icon: const Icon(Icons.shield_outlined),
-                    label: Text(
-                      product.contactability == 'C5'
-                          ? 'Négocier dans WAOUH'
-                          : product.contactability == 'C4'
-                              ? 'Suivre le contact'
-                              : product.contactability == 'C3'
-                                  ? 'Contacter avec WAOUH'
-                                  : product.contactability == 'C2'
-                                      ? 'Transmettre via WAOUH'
-                                  : product.contactability == 'C1'
-                                      ? 'Vérifier le contact'
-                                      : 'Trouver un moyen de contacter',
-                    ),
+                    label: Text(liveContactabilityActionLabel(product.contactability)),
                     style: FilledButton.styleFrom(
                       backgroundColor: const Color(0xFF08745D),
                       foregroundColor: Colors.white,
@@ -2980,11 +2987,7 @@ class _PremiumNexusContactSheetState
                           ),
                         )
                       : const Icon(Icons.manage_search_rounded),
-                  label: Text(
-                    level == 'C0'
-                        ? 'Trouver un moyen de contacter'
-                        : 'Vérifier le meilleur canal',
-                  ),
+                  label: Text(liveFindChannelLabel(level)),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(48),
                   ),
@@ -3066,7 +3069,7 @@ class _PremiumNexusContactSheetState
                           ),
                         )
                       : const Icon(Icons.send_rounded),
-                  label: const Text('Contacter avec WAOUH'),
+                  label: const Text(liveSendOfferLabel),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(48),
                   ),

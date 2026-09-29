@@ -367,3 +367,50 @@ verify_jwt = false
 
 [functions.waouh-tel-room]
 verify_jwt = false
+# --- Fonctions déployées rapatriées le 29/09/2026 (voir supabase/functions/DEPLOYED_MANIFEST.md) ---
+# verify_jwt relevé sur le projet mvynepqulhflxtyymtzs ; les fonctions avec JWT actif gardent la valeur par défaut.
+
+[functions.waouh-presence-public-page]
+verify_jwt = false
+
+[functions.waouh-stock-ingest]
+verify_jwt = false
+
+[functions.waouh-stock-query]
+verify_jwt = false
+
+[functions.waouh-diffusion-suggest]
+verify_jwt = false
+
+[functions.waouh-studio-pair-code-v21462]
+verify_jwt = false
+
+[functions.waouh-studio-user-api]
+verify_jwt = false
+
+[functions.waouh-apresbac-chat]
+verify_jwt = false
+
+[functions.waha-agent-bridge]
+verify_jwt = false
+
+[functions.waouh-e2e-v3-relay]
+verify_jwt = false
+
+[functions.waouh-chat-health]
+verify_jwt = false
+
+[functions.waouh-studio-pair-code-v2145]
+verify_jwt = false
+
+[functions.waouh-studio-agent-webhook-v2146]
+verify_jwt = false
+
+[functions.a]
+verify_jwt = false
+
+[functions.waouh-nexus-followup]
+verify_jwt = false
+
+[functions.waouh-avatar-briefing]
+verify_jwt = false

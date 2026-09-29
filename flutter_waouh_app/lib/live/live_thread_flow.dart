@@ -418,8 +418,45 @@ Map<String, dynamic> liveCanonicalMatchMeta({
   canonical('transaction_id', match.transactionId);
   result['role'] = match.role;
   result['match_key'] = match.key;
+  // Parité Web (WaouhMatchChatWindow) : titre produit et corrélation bout en bout.
+  canonical('product_title', match.title);
+  if (!match.isSearch) {
+    result['correlation_id'] = liveCorrelationIdFor(
+      match.articleId,
+      match.role,
+      match.counterpartUserId,
+    );
+  }
   return result;
 }
+
+String _liveCorrelationShort(String? id, String fallback) {
+  final value = (id ?? '').replaceAll(RegExp(r'[^a-zA-Z0-9-]'), '');
+  if (value.isEmpty) return fallback;
+  return value.length > 8 ? value.substring(0, 8) : value;
+}
+
+/// Identique à `correlationIdFor` du Web (src/components/waouh/waouhCorrelation.ts) :
+/// `corr_<article8>_<rôle>_<interlocuteur8|any>`.
+String liveCorrelationIdFor(
+  String? articleId,
+  String role,
+  String? counterpartId,
+) =>
+    'corr_${_liveCorrelationShort(articleId, 'noart')}_${role}_${_liveCorrelationShort(counterpartId, 'any')}';
+
+const Set<String> _liveClosedArticleStatuses = <String>{
+  'sold',
+  'closed',
+  'finalized',
+  'completed',
+  'vendu',
+};
+
+/// Même règle que le Web (CLOSED_STATUSES) : conversation clôturée quand
+/// l'article est vendu / finalisé.
+bool liveIsClosedArticleStatus(String? status) =>
+    _liveClosedArticleStatuses.contains((status ?? '').trim().toLowerCase());
 
 String _safePendingKey(String value) {
   final sanitized = value.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');

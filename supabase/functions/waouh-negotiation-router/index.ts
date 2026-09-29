@@ -1,7 +1,7 @@
 // WAOUH_V25_7_1_AUTH_ACTOR_STABLE
 // WAOUH Negotiation Router — pilote l'échange acheteur↔vendeur après un match,
 // puis ouvre le workflow paiement/livraison sans partager les coordonnées.
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,6 +12,7 @@ import { contactExchangeText, waouhHeader, waouhFooter, waouhSep, distanceKm, fo
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 import { geminiJson } from "../_shared/gemini.ts";
 import { bindThreadState } from "../_shared/waouh-thread.ts";
+import { closeCompetingNegotiations } from "../_shared/waouh-evict.ts";
 import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
 import { chatCatalogV3Enabled, chatWriterV2Enabled, recordChatMessage } from "../_shared/waouh-chat-writer.ts";
 import { renderCatalog } from "../_shared/waouh-message-catalog.ts";
@@ -504,6 +505,7 @@ Deno.serve(async (req) => {
         const reason = String((atomicError as any)?.message || "");
         const unavailable = /article_(?:reserved|sold)/i.test(reason);
         if (unavailable) {
+          const soldNow = /article_sold/i.test(reason);
           await sb.from("waouh_negotiations").update({
             state: "closed",
             closed_at: new Date().toISOString(),
@@ -516,8 +518,9 @@ Deno.serve(async (req) => {
             ok: false,
             code: "article_unavailable",
             reply: v3
-              ? renderCatalog("article_reserved").text
+              ? renderCatalog(soldNow ? "article_sold" : "article_reserved").text
               : "⏳ Cet article vient d’être réservé par un autre acheteur. Votre Deal Room reste dans l’historique et WAOUH pourra vous reproposer une alternative.",
+            article_status: soldNow ? "sold" : "reserved",
             intent: "article_unavailable",
             workflow_state: "waiting_availability",
             negotiation_id: neg.id,
@@ -571,6 +574,17 @@ Deno.serve(async (req) => {
       const finalAmount = Number(acceptance.amount ?? amount ?? 0);
       const dealId: string | null = acceptance.deal_id ?? null;
       const transactionId: string | null = acceptance.transaction_id ?? null;
+
+      // Les autres acheteurs de l'article ne restent pas en attente : négociations fermées,
+      // acheteurs prévenus, boutons périmés retirés. Jamais bloquant pour l'accord lui-même.
+      if (acceptance.idempotent !== true && neg.article_id) {
+        try {
+          const evicted = await closeCompetingNegotiations(sb, { articleId: neg.article_id, winnerNegotiationId: neg.id });
+          if (evicted.closed > 0) console.log("[neg-router] acheteurs évincés", JSON.stringify(evicted));
+        } catch (error) {
+          console.warn("[neg-router] clôture des négociations concurrentes impossible", error);
+        }
+      }
 
       const [
         { data: buyer },

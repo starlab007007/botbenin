@@ -3,11 +3,12 @@
 // Deal Graph lifecycle: seller confirmation + payment preference -> delivery -> payment -> settlement.
 //   action: "seller_confirm" | "payment_preference" | "cancel" | "assign" | "status" | "update_eta" | "payment"
 // Consolidated from waouh-deal-{assign,status,update-eta,payment} to fit edge-function quota.
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { bindThreadState } from "../_shared/waouh-thread.ts";
 import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
 import { chatCatalogV3Enabled, chatWriterV2Enabled, recordChatMessage } from "../_shared/waouh-chat-writer.ts";
 import { renderCatalog } from "../_shared/waouh-message-catalog.ts";
+import { notifyArticleReopened } from "../_shared/waouh-evict.ts";
 import { checkOperatorDealTransition, OPERATOR_DEAL_STATUSES } from "../_shared/waouh-commerce-states.ts";
 import { beninPhoneCandidates } from "../_shared/waouh-phone.ts";
 import {
@@ -993,6 +994,15 @@ async function handleParticipantCancel(sb: any, body: any, actor: DealActor) {
     pushDealChatEvent(sb, deal.buyer_user_id, deal.article_id, text, { deal_id, event: "cancelled", role: "buyer", workflow_state: "cancelled" }),
     pushDealChatEvent(sb, deal.seller_user_id, deal.article_id, text, { deal_id, event: "cancelled", role: "seller", workflow_state: "cancelled" }),
   ]);
+
+  // L'article revient à la vente : les acheteurs évincés sont prévenus, avec des boutons d'action.
+  if (deal.article_id) {
+    try {
+      await notifyArticleReopened(sb, { articleId: deal.article_id });
+    } catch (error) {
+      console.warn("[waouh-deal-ops] reprise des acheteurs évincés impossible", error);
+    }
+  }
 
   return json({
     success: true, ok: true, reply: text, intent: "deal_cancelled",

@@ -383,6 +383,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
   /// Parcours v3 : bouton serveur → contrat d'action unique. Repli sur
   /// l'envoi historique si l'interrupteur est coupé ou hors ligne.
   Future<void> _runServerAction(String payload) async {
+    if (_isClosed(_match)) return;
     final request = liveCommerceRequestFromPayload(
       payload,
       threadId: _match?.threadId,
@@ -417,8 +418,13 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
     }
   }
 
+  bool _isClosed(LiveMatch? match) =>
+      match != null &&
+      liveIsClosedArticleStatus(_controller.matchArticleStatus(match));
+
   void _send([String? payload, bool bypassCommerceOffer = false]) {
     final match = _match;
+    if (_isClosed(match)) return;
     if (match != null &&
         _pendingSeed != null &&
         liveIsProvisionalInterestedMatch(_pendingSeed!)) {
@@ -456,30 +462,9 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
       return;
     }
 
-    // Une question commençant par « Oui… » ou « Non… » reste une question.
-    if (payload == null && !askingQuestion) {
-      final normalized = text.trim().toLowerCase();
-      if (RegExp(r'^\s*(je\s+)?propose\b', caseSensitive: false)
-          .hasMatch(text)) {
-        actionMeta['action'] = 'counter';
-        actionMeta['intent'] = 'negotiation_counter';
-        actionMeta['commerce_action'] = 'counter_offer';
-      } else if (RegExp(
-        r"^(oui|ok|d[’']?accord|j[’']?accepte|accepte|yes)\b",
-        caseSensitive: false,
-      ).hasMatch(normalized)) {
-        actionMeta['action'] = 'accept';
-        actionMeta['intent'] = 'negotiation_accept';
-        actionMeta['commerce_action'] = 'accept_offer';
-      } else if (RegExp(
-        r'^(non|no|je refuse|refuse)\b',
-        caseSensitive: false,
-      ).hasMatch(normalized)) {
-        actionMeta['action'] = 'reject';
-        actionMeta['intent'] = 'negotiation_reject';
-        actionMeta['commerce_action'] = 'reject_offer';
-      }
-    }
+    // Parité Web : le texte tapé part tel quel (« Oui », « Non », « Je propose… »
+    // sont interprétés par le serveur d'après le fil). Aucune classification
+    // locale n'est ajoutée aux métadonnées.
     actionMeta.putIfAbsent(
       'idempotency_key',
       context.read<LiveWaouhController>().newIdempotencyKey,
@@ -759,6 +744,34 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
             },
           ),
         ),
+        if (_isClosed(match))
+          SafeArea(
+            top: false,
+            minimum: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F4F8),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFFE2EAF6)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.lock_outline_rounded,
+                      size: 18, color: Color(0xFF667A73)),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Cette conversation est clôturée — la vente a été finalisée.',
+                      style: TextStyle(color: Color(0xFF667A73), fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else ...[
         LiveAttachmentStrip(
             items: _attachments,
             onRemove: (item) => setState(() => _attachments.remove(item))),
@@ -864,6 +877,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
             ),
           ),
         ),
+        ],
       ]),
     );
   }

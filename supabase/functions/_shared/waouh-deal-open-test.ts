@@ -1,7 +1,7 @@
 // deno-lint-ignore-file no-explicit-any -- base simulée.
 // Tests de l'ouverture commune de discussion (Lot 1), sur une base simulée.
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { normalizeOffer, openBuyerDeal } from "./waouh-deal-open.ts";
+import { dispatchSucceeded, normalizeOffer, openBuyerDeal } from "./waouh-deal-open.ts";
 
 const ART = "3f2c1b0a-0000-4000-8000-00000000a001";
 const BUYER = "b0000000-0000-4000-8000-000000000001";
@@ -136,4 +136,62 @@ Deno.test("refus : propre article, article vendu, offre invalide, article absent
   assertEquals((await openBuyerDeal({ sb, articleId: "absent", buyerUserId: BUYER, source: "t", supabaseUrl: "x", serviceRole: "k" })).code, "article_not_found");
   const sold = seed({ waouh_articles: [{ id: ART, seller_id: SELLER, title: "X", price: 1, status: "sold" }] });
   assertEquals((await openBuyerDeal({ sb: sold, articleId: ART, buyerUserId: BUYER, source: "t", supabaseUrl: "x", serviceRole: "k", rejectUnavailable: true })).code, "article_unavailable");
+});
+
+Deno.test("E2 : dispatchSucceeded — 2xx sans erreur seulement", () => {
+  assertEquals(dispatchSucceeded(200, { success: true }), true);
+  assertEquals(dispatchSucceeded(200, {}), true);
+  assertEquals(dispatchSucceeded(404, { code: "NOT_FOUND" }), false);
+  assertEquals(dispatchSucceeded(500, { error: "boom" }), false);
+  assertEquals(dispatchSucceeded(200, { error: "x" }), false);
+  assertEquals(dispatchSucceeded(200, { success: false }), false);
+  assertEquals(dispatchSucceeded(200, null), true);
+});
+
+function stubFetchStatus(status: number, body: unknown) {
+  const sent: any[] = [];
+  globalThis.fetch = ((_url: string, init?: RequestInit) => {
+    sent.push(JSON.parse(String(init?.body ?? "{}")));
+    return Promise.resolve(new Response(JSON.stringify(body), { status }));
+  }) as typeof fetch;
+  return sent;
+}
+
+Deno.test("E2 : notification vendeur en 404 (fonction absente) → sellerNotified = false, l'ouverture réussit", async () => {
+  stubFetchStatus(404, { code: "NOT_FOUND", message: "Requested function was not found" });
+  try {
+    const r = await openBuyerDeal({ sb: seed(), articleId: ART, buyerUserId: BUYER, source: "t", offer: 2300, supabaseUrl: "http://x", serviceRole: "k", notifySeller: "on_create" });
+    assertEquals(r.ok, true);
+    assertEquals(r.sellerNotified, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test("E2 : notification vendeur en 500 → sellerNotified = false", async () => {
+  stubFetchStatus(500, { error: "boom" });
+  try {
+    const r = await openBuyerDeal({ sb: seed(), articleId: ART, buyerUserId: BUYER, source: "t", offer: 2300, supabaseUrl: "http://x", serviceRole: "k", notifySeller: "on_create" });
+    assertEquals(r.ok, true);
+    assertEquals(r.sellerNotified, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test("E2 : notification vendeur réussie → sellerNotified = true", async () => {
+  stubFetchStatus(200, { success: true });
+  try {
+    const r = await openBuyerDeal({ sb: seed(), articleId: ART, buyerUserId: BUYER, source: "t", offer: 2300, supabaseUrl: "http://x", serviceRole: "k", notifySeller: "on_create" });
+    assertEquals(r.sellerNotified, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test("E4 : article vendu → article_unavailable avec le statut « sold » exposé", async () => {
+  const sold = seed({ waouh_articles: [{ id: ART, seller_id: SELLER, title: "X", price: 1, status: "sold" }] });
+  const r = await openBuyerDeal({ sb: sold, articleId: ART, buyerUserId: BUYER, source: "t", supabaseUrl: "x", serviceRole: "k", rejectUnavailable: true });
+  assertEquals(r.code, "article_unavailable");
+  assertEquals(r.article?.status, "sold");
 });

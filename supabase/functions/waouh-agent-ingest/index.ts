@@ -107,7 +107,7 @@ serve(async (req) => {
     let inserted = 0;
     for (const c of chunks) {
       try {
-        const emb = await embedText(c);
+        const emb = await embedText(c, "RETRIEVAL_DOCUMENT");
         const { error } = await supabase.from("waouh_ai_agent_chunks").insert({
           agent_id, user_id: user.id, source_type: source_type || "text",
           content: c, embedding: emb as any,

@@ -45,11 +45,29 @@ export type CatalogKey =
   | "technical_error"
   | "article_missing"
   | "article_reserved"
+  | "article_sold"
+  | "competitor_reserved"
+  | "article_available_again"
   | "negotiation_paused"
   | "not_understood"
   | "confirm_money_action"
   | "self_article"
-  | "results_found";
+  | "results_found"
+  // Résultats Nexus externes (vendeur sans compte WAOUH).
+  | "external_offer_ready"
+  | "external_offer_sent"
+  | "external_not_permitted"
+  | "external_no_channel"
+  | "external_unavailable"
+  // Avatar : synthèse, veille, suivi.
+  | "avatar_synthesis"
+  | "avatar_watching"
+  | "avatar_reachable"
+  | "avatar_nudge_due"
+  | "avatar_expired"
+  | "avatar_watch_expired"
+  | "external_nudge_sent"
+  | "nudge_too_soon";
 
 export interface CatalogVars {
   title?: string | null;
@@ -65,6 +83,12 @@ export interface CatalogVars {
   count?: number | null;
   label?: string | null;
   question?: string | null;
+  /** false = la notification du vendeur a échoué : on ne promet pas qu'il est prévenu. */
+  sellerNotified?: boolean | null;
+  /** Écart en % au prix affiché (négatif = sous le prix). */
+  gapPct?: number | null;
+  /** Heures écoulées (relances). */
+  hours?: number | null;
 }
 
 export interface CatalogMessage {
@@ -80,6 +104,16 @@ export const DETAIL_MAX_CHARS = 90;
 
 const other = (role: CatalogRole | null | undefined) => (role === "seller" ? "l'acheteur" : "le vendeur");
 const Other = (role: CatalogRole | null | undefined) => (role === "seller" ? "L'acheteur" : "Le vendeur");
+
+/** Un article dans l'un de ces statuts ne peut plus recevoir d'offre. */
+export function isUnavailableStatus(status: unknown): boolean {
+  return ["sold", "reserved", "archived", "deleted"].includes(String(status ?? "").trim().toLowerCase());
+}
+
+/** Clé de message pour un article indisponible : « vendu » ne se dit pas « réservé ». */
+export function unavailableKey(status: unknown): CatalogKey {
+  return String(status ?? "").trim().toLowerCase() === "sold" ? "article_sold" : "article_reserved";
+}
 
 /** Titre court d'un article, pour tenir dans la ligne de détail. */
 export function shortTitle(title: string | null | undefined, max = 32): string {
@@ -98,9 +132,61 @@ function responseHint(minutes: number | null | undefined): string {
 type Builder = (v: CatalogVars) => { title: string; detail: string };
 
 const BUILDERS: Record<CatalogKey, Builder> = {
+  avatar_synthesis: (v) => ({
+    title: "Synthèse de l'avatar",
+    detail: `${fcfa(v.amount)} pour ${fcfa(v.price)} affiché${v.gapPct != null ? ` (${v.gapPct} %)` : ""}. Suivi actif, point sous 24 h.`,
+  }),
+  avatar_watching: () => ({
+    title: "Avatar en veille",
+    detail: "Offre gardée. Je vous préviens dès qu'une voie de contact s'ouvre.",
+  }),
+  avatar_reachable: () => ({
+    title: "Vendeur joignable",
+    detail: "Une voie de contact vient de s'ouvrir. Envoyez votre offre d'un tap.",
+  }),
+  avatar_nudge_due: (v) => ({
+    title: "Toujours sans réponse",
+    detail: `Offre transmise il y a ${v.hours ?? 24} h. Relancer ou ajuster votre prix ?`,
+  }),
+  avatar_expired: () => ({
+    title: "Offre sans réponse",
+    detail: "Aucune réponse en 7 jours. Ajustez votre prix ou laissez l'avatar clore.",
+  }),
+  avatar_watch_expired: () => ({
+    title: "Veille terminée",
+    detail: "Aucune voie de contact en 14 jours. Ajustez votre offre ou explorez d'autres annonces.",
+  }),
+  external_nudge_sent: () => ({
+    title: "Relance envoyée",
+    detail: "Réponse attendue ici. Prochain point de l'avatar sous 48 h.",
+  }),
+  nudge_too_soon: () => ({
+    title: "Un peu tôt",
+    detail: "Dernier envoi il y a moins de 24 h. Avatar vous prévient au bon moment.",
+  }),
+  external_offer_ready: (v) => ({
+    title: "Offre prête",
+    detail: `${shortTitle(v.title)} · ${fcfa(v.amount ?? v.price)}. Envoyez-la quand vous voulez.`,
+  }),
+  external_offer_sent: (v) => ({
+    title: "Offre transmise",
+    detail: `${fcfa(v.amount)} pour ${shortTitle(v.title, 28)}. Réponse attendue ici.`,
+  }),
+  external_not_permitted: () => ({
+    title: "Envoi non autorisé",
+    detail: "Contact direct refusé par ce vendeur. Gardez votre offre ou posez une question.",
+  }),
+  external_no_channel: () => ({
+    title: "Aucun contact disponible",
+    detail: "Vendeur injoignable. Relancez la recherche pour d'autres offres.",
+  }),
+  external_unavailable: () => ({
+    title: "Annonce indisponible",
+    detail: "Cette annonce n'est plus active. Relancez la recherche.",
+  }),
   deal_opened: (v) => ({
     title: "Offre envoyée",
-    detail: `${shortTitle(v.title)} · ${fcfa(v.amount ?? v.price)}.${responseHint(v.responseMinutes) || " Le vendeur est prévenu."}`,
+    detail: `${shortTitle(v.title)} · ${fcfa(v.amount ?? v.price)}.${responseHint(v.responseMinutes) || (v.sellerNotified === false ? " Le vendeur n'est pas encore prévenu." : " Le vendeur est prévenu.")}`,
   }),
   deal_already_open: (v) => ({
     title: "Discussion déjà ouverte",
@@ -211,6 +297,20 @@ const BUILDERS: Record<CatalogKey, Builder> = {
   article_reserved: () => ({
     title: "Article déjà réservé",
     detail: "Un autre acheteur l'a obtenu. Voici des articles proches.",
+  }),
+  article_sold: () => ({
+    title: "Article vendu",
+    detail: "Cet article a déjà été vendu. Voici des articles proches.",
+  }),
+  // Acheteur en attente dont l'article vient d'être réservé par un autre acheteur.
+  competitor_reserved: () => ({
+    title: "Article réservé",
+    detail: "Un autre acheteur l'a réservé. Vous serez prévenu s'il revient.",
+  }),
+  // L'accord conclu avec un autre acheteur est tombé : l'article revient à la vente.
+  article_available_again: (v) => ({
+    title: "De nouveau disponible",
+    detail: `${shortTitle(v.title)} · ${fcfa(v.amount ?? v.price)}. Vous le voulez ?`,
   }),
   negotiation_paused: (v) => ({
     title: "Discussion en pause",
