@@ -408,3 +408,6 @@ verify_jwt = false
 
 [functions.a]
 verify_jwt = false
+
+[functions.waouh-nexus-followup]
+verify_jwt = false

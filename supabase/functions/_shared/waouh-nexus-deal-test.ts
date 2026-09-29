@@ -3,6 +3,7 @@
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   classifyTransmission,
+  externalContactState,
   externalOfferMessage,
   materializeExternalSignal,
   NEXUS_ORIGIN,
@@ -207,4 +208,39 @@ Deno.test("C0 : la transmission n'est jamais tentée ; C1 à C5 peuvent l'être 
   assertEquals(transmissionMayBePermitted("C0"), false);
   assertEquals(transmissionMayBePermitted(null), false);
   for (const level of ["C1", "C2", "C3", "C4", "C5"]) assertEquals(transmissionMayBePermitted(level), true, level);
+});
+
+Deno.test("état de contact : signal C1 sans entité → non joignable ; avec contact public → joignable ; jamais de coordonnée renvoyée", async () => {
+  const stubKey = stubSessionKey(SIG);
+  const mk = (extraSignal: Record<string, unknown>, contacts: Record<string, unknown>[]) => {
+    const tables: Record<string, Row[]> = {
+      waouh_articles: [{ id: "a1", seller_id: "u1", origin: NEXUS_ORIGIN }],
+      waouh_users: [{ id: "u1", web_session_id: stubKey }],
+      waouh_external_commerce_signals: [{ ...base, ...extraSignal }],
+      waouh_entity_contacts: contacts as Row[],
+    };
+    const from = (t: string) => {
+      let rows = [...(tables[t] ?? [])];
+      const api: any = {
+        select: () => api,
+        eq: (c: string, v: unknown) => { rows = rows.filter((r) => r[c] === v); return api; },
+        in: () => api, limit: () => api,
+        maybeSingle: () => Promise.resolve({ data: rows[0] ?? null, error: null }),
+        then: (res: (v: any) => void) => res({ data: rows, error: null }),
+      };
+      return api;
+    };
+    return { from };
+  };
+  const cold = await externalContactState(mk({}, []), "a1", NOW);
+  assertEquals([cold.reachable, cold.level, cold.unavailable, cold.signalId], [false, "C1", null, SIG]);
+  const warm = await externalContactState(mk({ entity_id: "e1" }, [{ entity_id: "e1", channel: "whatsapp", value_encrypted: "x", is_public_business: true, contactability_level: "C1" }]), "a1", NOW);
+  assertEquals(warm.reachable, true);
+  assert(!JSON.stringify(warm).includes("value_encrypted"), "aucune coordonnée dans l'état");
+  const priv = await externalContactState(mk({ entity_id: "e1" }, [{ entity_id: "e1", channel: "whatsapp", value_encrypted: "x", is_public_business: false, consent_state: "unknown", contactability_level: "C1" }]), "a1", NOW);
+  assertEquals(priv.reachable, false, "C1 : un contact non public ne compte pas");
+  const gone = await externalContactState(mk({ status: "expired" }, []), "a1", NOW);
+  assertEquals(gone.unavailable, "signal_unavailable");
+  const c2 = await externalContactState(mk({ contactability_level: "C2", submitted_by: "auth-1" }, []), "a1", NOW);
+  assertEquals(c2.relayAvailable, true);
 });

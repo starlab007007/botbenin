@@ -79,7 +79,7 @@ Deno.test("chaîne du chat : aucun import supabase-js flottant (@2) — versions
   const critical = [
     "waouh-match-history", "waouh-negotiation-router", "waouh-deal-ops", "waouh-buyer-interest", "waouh-payment", "waouh-deal-dispatch",
     "waouh-notify-dispatch", "waouh-webhook", "waouh-channel-in", "waouh-commerce-action", "waouh-status-publish", "waouh-notify-buyers",
-    "waouh-presence-public-page", "waouh-stock-ingest",
+    "waouh-presence-public-page", "waouh-stock-ingest", "waouh-nexus-followup",
   ];
   const floating = /from ['"](https:\/\/esm\.sh\/|npm:)@supabase\/supabase-js@2['"]/;
   for (const name of critical) {
@@ -87,4 +87,18 @@ Deno.test("chaîne du chat : aucun import supabase-js flottant (@2) — versions
     assert(!floating.test(text), `${name} importe supabase-js@2 sans version précise`);
   }
   assert(!floating.test(Deno.readTextFileSync(new URL("./waouh-deal.ts", import.meta.url))));
+});
+
+Deno.test("suivi de l'avatar : appel réservé à la clé service et jamais d'envoi automatique au tiers", () => {
+  const fn = Deno.readTextFileSync(new URL("../waouh-nexus-followup/index.ts", import.meta.url));
+  assert(fn.includes("isServiceCaller") && fn.includes("nexusDirectDealEnabled"));
+  const core = Deno.readTextFileSync(new URL("./waouh-nexus-followup-core.ts", import.meta.url));
+  assert(!core.includes("transmitExternalOffer") && !core.includes("nexus.contact.send"), "le suivi n'envoie rien : il écrit des notes");
+});
+
+Deno.test("le double de test du cœur agentique n'est pas dans les fonctions déployables", () => {
+  let found = false;
+  try { Deno.statSync(new URL("../waouh-studio-e2e-v21465/index.ts", import.meta.url)); found = true; } catch { /* attendu */ }
+  // waouh-studio-e2e-v21465 est l'alias de production du cœur agentique : il ne doit contenir aucune trace du double.
+  if (found) assert(!Deno.readTextFileSync(new URL("../waouh-studio-e2e-v21465/index.ts", import.meta.url)).includes("DOUBLE DE TEST"));
 });

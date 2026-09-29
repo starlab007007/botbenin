@@ -20,13 +20,22 @@ import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 import { renderCatalog, type CatalogKey, fcfa, isUnavailableStatus, stageFor, unavailableKey } from "../_shared/waouh-message-catalog.ts";
 import { classifyInternalFailure, shouldEchoBeforeExecute } from "../_shared/waouh-internal-call.ts";
 import { evictedNegotiationKey } from "../_shared/waouh-evict.ts";
+import { resolveContactPath, type ContactPath } from "../_shared/waouh-contact-path.ts";
 import {
+  externalFollowUpMessage,
+  nudgeAllowed,
+  progressFor,
+  progressLine,
+  synthesizeOffer,
+  type ExternalTimeline,
+} from "../_shared/waouh-avatar-notes.ts";
+import {
+  externalContactState,
   externalOfferMessage,
+  loadExternalTimeline,
   materializeExternalSignal,
   NEXUS_ORIGIN,
   parseFabricId,
-  signalUnavailableReason,
-  transmissionMayBePermitted,
   transmitExternalOffer,
 } from "../_shared/waouh-nexus-deal.ts";
 import {
@@ -35,6 +44,7 @@ import {
   type DealState,
   nextActions,
   turnFor,
+  withExternalOutcome,
   validateActionRequest,
 } from "../_shared/waouh-commerce-contract.ts";
 import { classifyFreeText } from "../_shared/waouh-free-text.ts";
@@ -75,6 +85,8 @@ interface EngineOutcome {
   pending?: Partial<CommerceActionRequest> | null;
   engineIntent?: string | null;
   httpStatus?: number;
+  /** Bulles supplémentaires écrites APRÈS la réponse du tour (ex. synthèse de l'avatar). */
+  afterBubbles?: Array<{ text: string; intent: string; extra?: Record<string, unknown> }>;
 }
 
 interface CanonicalProductRef {
@@ -203,7 +215,9 @@ async function resolveThreadId(ctx: Ctx): Promise<string | null> {
   return null;
 }
 
-async function loadState(sb: any, thread: any): Promise<{ state: DealState; neg: any; deal: any; article: any }> {
+interface ExternalContext { path: ContactPath; timeline: ExternalTimeline; listPrice: number | null }
+
+async function loadState(sb: any, thread: any, signedIn = false): Promise<{ state: DealState; neg: any; deal: any; article: any; external: ExternalContext | null }> {
   const [{ data: neg }, { data: deal }, { data: article }] = await Promise.all([
     sb.from("waouh_negotiations").select("*").eq("thread_id", thread.id)
       .order("updated_at", { ascending: false }).limit(1).maybeSingle(),
@@ -214,11 +228,14 @@ async function loadState(sb: any, thread: any): Promise<{ state: DealState; neg:
       .eq("id", thread.article_id).maybeSingle(),
   ]);
   const externalSeller = article?.origin === NEXUS_ORIGIN;
-  let externalTransmitted = false;
+  let external: ExternalContext | null = null;
   if (externalSeller) {
-    const { data: sent } = await sb.from("waouh_messages").select("id")
-      .eq("thread_id", thread.id).eq("direction", "out").contains("meta", { intent: "commerce_external_offer_sent" }).limit(1);
-    externalTransmitted = Array.isArray(sent) && sent.length > 0;
+    const [contact, timeline] = await Promise.all([externalContactState(sb, thread.article_id), loadExternalTimeline(sb, thread.id)]);
+    external = {
+      path: resolveContactPath({ level: contact.level, reachable: contact.reachable, signedIn, relayAvailable: contact.relayAvailable }),
+      timeline,
+      listPrice: article?.price != null ? Number(article.price) : null,
+    };
   }
   const state: DealState = {
     articleId: thread.article_id ?? null,
@@ -233,9 +250,13 @@ async function loadState(sb: any, thread: any): Promise<{ state: DealState; neg:
     paymentSelected: !!deal?.buyer_payment_selected_at,
     paymentMethod: deal?.payment_method === "mobile_money" ? "mobile_money" : deal?.payment_method === "cash" ? "cash" : null,
     externalSeller,
-    externalTransmitted,
+    externalTransmitted: !!external?.timeline.transmittedAt,
+    externalMode: external?.path.mode,
+    externalWatching: !!external?.timeline.watchingSince && !external?.timeline.transmittedAt,
+    // Relance proposée dès qu'elle est permise (≥ 24 h depuis le dernier envoi) ; l'envoi reste un tap.
+    externalNudgeDue: !!external?.timeline.lastSentAt && nudgeAllowed({ lastSentAt: external.timeline.lastSentAt, now: new Date() }),
   };
-  return { state, neg, deal, article };
+  return { state, neg, deal, article, external };
 }
 
 function roleIn(thread: any, siblings: string[]): Role | null {
@@ -474,36 +495,64 @@ async function execute(ctx: Ctx, thread: any, role: Role | null): Promise<Engine
       return { ok: true, key, vars: { method: req.method }, engineWroteReply: true, dealId: req.deal_id, threadId: r.data?.thread_id ?? thread?.id ?? null };
     }
 
+    case "watch_offer": {
+      if (!thread || role !== "buyer") return { ok: false, key: "no_open_deal" };
+      const { data: art } = await sb.from("waouh_articles").select("id,origin").eq("id", thread.article_id).maybeSingle();
+      if (!art || art.origin !== NEXUS_ORIGIN) return { ok: false, key: "out_of_stage", articleId: thread.article_id, threadId: thread.id };
+      const timeline = await loadExternalTimeline(sb, thread.id);
+      if (timeline.transmittedAt) return { ok: false, key: "out_of_stage", vars: { reason: "Votre offre est déjà transmise : l'avatar assure le suivi." }, articleId: art.id, threadId: thread.id };
+      return { ok: true, key: "avatar_watching", articleId: art.id, threadId: thread.id, negotiationId: thread.negotiation_id ?? null };
+    }
+
     case "transmit_offer": {
       if (!thread || role !== "buyer") return { ok: false, key: "no_open_deal" };
       if (!(await nexusDirectDealEnabled(sb))) return { ok: false, key: "out_of_stage", vars: { reason: "Envoi indisponible pour le moment." } };
-      const { data: art } = await sb.from("waouh_articles").select("id,title,origin,seller_id").eq("id", thread.article_id).maybeSingle();
+      const { data: art } = await sb.from("waouh_articles").select("id,title,origin,seller_id,price").eq("id", thread.article_id).maybeSingle();
       if (!art || art.origin !== NEXUS_ORIGIN) return { ok: false, key: "out_of_stage", articleId: thread.article_id, threadId: thread.id };
-      const { data: stub } = await sb.from("waouh_users").select("web_session_id").eq("id", art.seller_id).maybeSingle();
-      const signalId = String(stub?.web_session_id || "").replace(/^nexus-ext\|/, "");
-      const { data: signal } = signalId
-        ? await sb.from("waouh_external_commerce_signals").select("*").eq("id", signalId).maybeSingle()
-        : { data: null };
       const base = { articleId: art.id, threadId: thread.id, negotiationId: thread.negotiation_id ?? null };
-      if (!signal || signalUnavailableReason(signal)) return { ok: false, key: "external_unavailable", ...base };
-      // C0 (aucun canal public) : jamais tenté ; l'invité sans JWT ne peut pas passer la politique de contact.
-      if (!transmissionMayBePermitted(signal.contactability_level) || !ctx.userAuthHeader) {
-        return { ok: false, key: "external_not_permitted", ...base };
-      }
-      const { data: negRow } = await sb.from("waouh_negotiations").select("last_offer_price,offer_price")
+      const contact = await externalContactState(sb, art.id);
+      if (contact.unavailable) return { ok: false, key: "external_unavailable", ...base };
+      const timeline = await loadExternalTimeline(sb, thread.id);
+      const now = new Date();
+      const followUp = req.follow_up === true;
+      const { data: negRow } = await sb.from("waouh_negotiations").select("last_offer_price")
         .eq("thread_id", thread.id).order("updated_at", { ascending: false }).limit(1).maybeSingle();
-      const amount = Number(negRow?.last_offer_price ?? negRow?.offer_price ?? req.amount ?? 0) || null;
+      const amount = Number(negRow?.last_offer_price ?? req.amount ?? 0) || null;
+
+      if (followUp) {
+        if (!timeline.lastSentAt) return { ok: false, key: "no_open_deal", ...base };
+        if (!nudgeAllowed({ lastSentAt: timeline.lastSentAt, now })) return { ok: false, key: "nudge_too_soon", ...base };
+      } else if (timeline.transmittedAt) {
+        // Déjà transmise : jamais de second envoi au tiers par un double tap (le suivi est assuré par l'avatar).
+        // Clé distincte de « offre transmise » : la chronologie de l'avatar ne doit compter qu'un seul envoi.
+        return { ok: true, key: "awaiting_counterparty", vars: { amount, role: "buyer" }, ...base };
+      }
+
+      // Politique C0–C5 (consentement du tiers jamais contourné) : sans voie d'envoi maintenant,
+      // l'avatar garde l'offre en veille au lieu d'un refus sec.
+      const path = resolveContactPath({
+        level: contact.level, reachable: contact.reachable, signedIn: !!ctx.userAuthHeader, relayAvailable: contact.relayAvailable,
+      });
+      if (!path.canSendNow) return { ok: true, key: "avatar_watching", ...base };
+
       const sent = await transmitExternalOffer({
         supabaseUrl: SUPABASE_URL,
-        authHeader: ctx.userAuthHeader,
+        authHeader: ctx.userAuthHeader!,
         anonKey: Deno.env.get("SUPABASE_ANON_KEY") ?? null,
-        fabricId: `external:${signalId}`,
-        message: externalOfferMessage(art.title, amount),
+        fabricId: `external:${contact.signalId}`,
+        message: followUp ? externalFollowUpMessage(art.title, amount) : externalOfferMessage(art.title, amount),
       });
-      if (sent.state === "queued") return { ok: true, key: "external_offer_sent", vars: { amount }, ...base };
-      if (sent.state === "not_permitted") return { ok: false, key: "external_not_permitted", ...base };
-      if (sent.state === "no_channel") return { ok: false, key: "external_no_channel", ...base };
-      return { ok: false, key: "technical_error", ...base };
+      if (sent.state === "not_permitted" || sent.state === "no_channel") return { ok: true, key: "avatar_watching", ...base };
+      if (sent.state !== "queued") return { ok: false, key: "technical_error", ...base };
+      if (followUp) return { ok: true, key: "external_nudge_sent", vars: { amount }, ...base };
+
+      // Première transmission : l'avatar synthétise les points notés.
+      const synthesis = synthesizeOffer({ offer: amount, listPrice: art.price != null ? Number(art.price) : null, path, now });
+      const message = renderCatalog("avatar_synthesis", { amount, price: synthesis.listPrice, gapPct: synthesis.gapPct });
+      return {
+        ok: true, key: "external_offer_sent", vars: { amount }, ...base,
+        afterBubbles: [{ text: message.text, intent: "commerce_avatar_synthesis", extra: { avatar_synthesis: synthesis } }],
+      };
     }
 
     case "courier_update":
@@ -651,7 +700,7 @@ Deno.serve(async (req) => {
     let pending: Partial<CommerceActionRequest> | null = null;
     let freeTextKey: CatalogKey | null = null;
     if (request.action === "text") {
-      const current = thread ? (await loadState(sb, thread)).state : null;
+      const current = thread ? (await loadState(sb, thread, !!userAuthHeader)).state : null;
       const stage = current ? stageFor({ negotiationState: current.negotiationState, dealStatus: current.dealStatus }) : "interest";
       const verdict = await classifyFreeText(String(request.text), { stage, role: role ?? "buyer", currentOffer: current?.lastOfferPrice ?? null },
         (system, user) => geminiJson(system, user, { action: "none", confidence: 0 }));
@@ -704,8 +753,16 @@ Deno.serve(async (req) => {
     const threadId = outcome.threadId ?? thread?.id ?? null;
     const finalThread = threadId ? (thread?.id === threadId ? thread : await loadThread(sb, threadId)) : null;
     const finalRole: Role = (finalThread ? roleIn(finalThread, siblings) : role) ?? "buyer";
-    const loaded = finalThread ? await loadState(sb, finalThread) : null;
-    const state = loaded?.state ?? null;
+    const loaded = finalThread ? await loadState(sb, finalThread, !!userAuthHeader) : null;
+    const state = loaded?.state ? withExternalOutcome(loaded.state, outcome.key) : null;
+    const avatarProgress = state?.externalSeller
+      ? progressFor({
+        hasOffer: !!state.lastOfferPrice,
+        transmitted: !!state.externalTransmitted,
+        watching: !!state.externalWatching,
+        replied: false,
+      })
+      : null;
     const stage = state ? stageFor({ negotiationState: state.negotiationState, dealStatus: state.dealStatus }) : "interest";
 
     // Prédictif (null quand les données manquent — rien n'est inventé).
@@ -790,7 +847,15 @@ Deno.serve(async (req) => {
             negotiation_id: state?.negotiationId,
             deal_id: state?.dealId,
             pending: pending ?? null,
+            // Le stepper accompagne la DERNIÈRE bulle du tour (la synthèse quand elle existe) : un seul par tour.
+            ...(avatarProgress && !(outcome.afterBubbles ?? []).length ? { avatar_progress: avatarProgress, avatar_progress_line: progressLine(avatarProgress) } : {}),
           } });
+        // Notes de l'avatar écrites après la réponse du tour (synthèse), dans l'ordre du fil.
+        for (const extra of outcome.afterBubbles ?? []) {
+          await writeBubble(sb, { threadId: finalThread.id, userId: actorOnThread, direction: "out", text: extra.text,
+            articleId: finalThread.article_id, intent: extra.intent, actions: [], channel: "web",
+            extra: { stage, ...(avatarProgress ? { avatar_progress: avatarProgress, avatar_progress_line: progressLine(avatarProgress) } : {}), ...(extra.extra ?? {}) } });
+        }
       }
     }
 
@@ -822,6 +887,16 @@ Deno.serve(async (req) => {
         : null,
       actions: responseActions,
       pending,
+      avatar: avatarProgress
+        ? {
+          progress: avatarProgress,
+          line: progressLine(avatarProgress),
+          contact: loaded?.external
+            ? { level: loaded.external.path.level, mode: outcome.key === "avatar_watching" ? "watch" : loaded.external.path.mode, label: loaded.external.path.label, eta_hours: loaded.external.path.etaHours }
+            : null,
+          synthesis: (outcome.afterBubbles ?? []).find((b) => b.intent === "commerce_avatar_synthesis")?.extra?.avatar_synthesis ?? null,
+        }
+        : null,
       suggest: {
         price: suggested,
         best_action: responseActions[0]?.id ?? null,

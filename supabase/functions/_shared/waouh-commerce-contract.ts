@@ -13,7 +13,9 @@ import {
   negotiationActionsV3,
   paymentConfirmActionsV3,
   sellerAvailabilityActionsV3,
+  followUpOfferAction,
   transmitOfferAction,
+  watchOfferAction,
   type WaouhAction,
 } from "./waouh-commands.ts";
 import { clampActions, type JourneyStepKey, stageFor } from "./waouh-message-catalog.ts";
@@ -32,6 +34,8 @@ export const COMMERCE_ACTIONS = [
   "text",
   // Résultat Nexus externe : l'acheteur confirme l'envoi de son offre (politique de contact appliquée).
   "transmit_offer",
+  // Avatar : garder l'offre en veille (sans envoi).
+  "watch_offer",
 ] as const;
 export type CommerceAction = typeof COMMERCE_ACTIONS[number];
 
@@ -55,6 +59,8 @@ export interface CommerceActionRequest {
   confirmed?: boolean;
   source?: string | null;
   session_id?: string | null;
+  /** transmit_offer : relance d'une offre déjà transmise (au plus une par 24 h). */
+  follow_up?: boolean;
 }
 
 export type ValidationResult =
@@ -118,6 +124,7 @@ export function validateActionRequest(body: unknown): ValidationResult {
       }
       break;
     case "transmit_offer":
+    case "watch_offer":
       if (!ids.negotiation_id && !ids.thread_id) return { ok: false, error: "negotiation_id_required" };
       break;
     case "accept":
@@ -156,6 +163,7 @@ export function validateActionRequest(body: unknown): ValidationResult {
       method,
       text,
       confirmed: b.confirmed === true,
+      follow_up: b.follow_up === true,
       source: typeof b.source === "string" ? b.source.slice(0, 40) : null,
       session_id: typeof b.session_id === "string" ? b.session_id : (typeof b.sessionId === "string" ? b.sessionId : null),
     },
@@ -176,8 +184,14 @@ export interface DealState {
   paymentMethod: "cash" | "mobile_money" | null;
   /** Article matérialisé depuis un résultat Nexus externe : le vendeur n'a pas de compte WAOUH. */
   externalSeller?: boolean;
-  /** L'offre a déjà été transmise au tiers (ou refusée par la politique de contact). */
+  /** L'offre a déjà été transmise au tiers. */
   externalTransmitted?: boolean;
+  /** Voie de contact résolue (politique C0–C5) : « watch » = pas d'envoi possible maintenant. */
+  externalMode?: "send_on_tap" | "approval_relay" | "watch";
+  /** L'avatar garde l'offre en veille. */
+  externalWatching?: boolean;
+  /** Une relance est due (l'avatar l'a notée ; envoi sur tap). */
+  externalNudgeDue?: boolean;
 }
 
 export type Turn = "buyer" | "seller" | "courier" | "none";
@@ -226,8 +240,14 @@ export function nextActions(
       if (state.externalSeller) {
         // Aucun tour vendeur : l'acheteur envoie son offre au tiers quand il le décide, ou la modifie.
         if (role !== "buyer" || !state.articleId) return [];
-        return clampActions(state.externalTransmitted
-          ? [modifyOfferAction(state.articleId)]
+        if (state.externalTransmitted) {
+          return clampActions(state.externalNudgeDue
+            ? [followUpOfferAction(state.negotiationId), modifyOfferAction(state.articleId)]
+            : [modifyOfferAction(state.articleId)]);
+        }
+        // Jamais d'impasse : sans voie de contact, l'avatar garde l'offre en veille au lieu d'un bouton qui échouerait.
+        return clampActions(state.externalMode === "watch"
+          ? (state.externalWatching ? [modifyOfferAction(state.articleId)] : [watchOfferAction(state.negotiationId), modifyOfferAction(state.articleId)])
           : [transmitOfferAction(state.negotiationId), modifyOfferAction(state.articleId)]);
       }
       if (turn === role) {
@@ -264,6 +284,18 @@ export function nextActions(
   }
 }
 
+/**
+ * Les boutons sont calculés AVANT l'écriture de la réponse du tour : ils doivent déjà refléter l'action qui vient d'aboutir
+ * (envoi, relance, mise en veille), sinon « Envoyer mon offre » réapparaîtrait juste après l'envoi.
+ */
+export function withExternalOutcome(state: DealState, key: string): DealState {
+  if (!state.externalSeller) return state;
+  if (key === "external_offer_sent") return { ...state, externalTransmitted: true, externalNudgeDue: false, externalWatching: false };
+  if (key === "external_nudge_sent") return { ...state, externalNudgeDue: false };
+  if (key === "avatar_watching") return { ...state, externalWatching: true, externalMode: "watch" };
+  return state;
+}
+
 /** Libellé humain de l'action de l'utilisateur (bulle affichée dans le fil). */
 export function actionEcho(req: CommerceActionRequest, fmt: (n: number) => string): string {
   switch (req.action) {
@@ -275,7 +307,8 @@ export function actionEcho(req: CommerceActionRequest, fmt: (n: number) => strin
     case "pay_mode": return req.method === "cash" ? "Paiement cash à la livraison" : "Paiement Mobile Money à la livraison";
     case "confirm_payment": return "Je confirme le paiement";
     case "cancel": return "J'annule";
-    case "transmit_offer": return "J'envoie mon offre";
+    case "transmit_offer": return req.follow_up ? "Je relance le vendeur" : "J'envoie mon offre";
+    case "watch_offer": return "Je garde l'offre en veille";
     case "ask":
     case "text": return String(req.text || "");
     default: return "";

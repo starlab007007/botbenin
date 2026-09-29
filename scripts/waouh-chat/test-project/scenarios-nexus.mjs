@@ -20,20 +20,22 @@ const ids = (r) => (r.j.actions ?? []).map((a) => String(a.id).split(":")[0]);
 
 let r = await act({ action: "open_deal", fabric_id: `external:${sig("c1")}`, amount: 130000 });
 check("N1 offre externe C1 → Deal Room ouverte (article + fil)", r.status === 200 && r.j.ok && r.j.article_id && r.j.thread_id && r.j.negotiation_id, `${r.status} ${key(r)}`);
-check("N1b message « Offre prête » + bouton « Envoyer mon offre » en premier", key(r) === "external_offer_ready" && ids(r)[0] === "envoyer-offre", `${key(r)} ${ids(r)}`);
+// Sans contact joignable (signal de test sans entité), la voie est « veille » : jamais un bouton d'envoi qui échouerait.
+// Rejoué sur la même annonce, la veille est déjà posée : il ne reste que « Modifier mon offre ».
+check("N1b « Offre prête » + première action utile (envoi, veille ou modification) — jamais d'impasse", key(r) === "external_offer_ready" && ["envoyer-offre", "veille", "proposer-prix"].includes(ids(r)[0]), `${key(r)} ${ids(r)}`);
 const { article_id: art, thread_id: th, negotiation_id: neg } = r.j;
 const again = await act({ action: "open_deal", fabric_id: `external:${sig("c1")}`, amount: 130000 });
 check("N2 rouvrir le même résultat réutilise article et fil (idempotent)", again.j.article_id === art && again.j.thread_id === th, `${again.j.article_id === art}/${again.j.thread_id === th}`);
 r = await act({ action: "ask", article_id: art, text: "Bonjour, c'est dispo ?" });
 check("N3 question vers un vendeur externe : pas de faux « question envoyée »", r.j.ok === false && key(r) === "out_of_stage", key(r));
 r = await act({ action: "transmit_offer", negotiation_id: neg, thread_id: th });
-check("N4 envoi de l'offre : jamais un faux succès (cœur agentique absent du projet de test → erreur technique relançable)", r.j.ok === false && key(r) === "technical_error", `${r.status} ${key(r)}`);
-check("N4b après échec, le bouton « Envoyer mon offre » reste proposé", ids(r).includes("envoyer-offre") || r.status === 200, ids(r).join(","));
+check("N4 C1 sans contact public joignable : pas de refus sec — l'avatar garde l'offre en veille", r.j.ok === true && key(r) === "avatar_watching", `${r.status} ${key(r)}`);
+check("N4b après la mise en veille, plus d'impasse : on peut encore modifier l'offre", ids(r).includes("proposer-prix") && !ids(r).includes("envoyer-offre"), ids(r).join(","));
 r = await act({ action: "open_deal", fabric_id: `external:${sig("c0")}` });
-check("N5 signal C0 : la Deal Room s'ouvre mais l'envoi est refusé par la politique", r.j.ok === true, key(r));
+check("N5 signal C0 : la Deal Room s'ouvre tout de suite (aucune autorisation requise côté acheteur)", r.j.ok === true, key(r));
 const c0 = r.j;
 r = await act({ action: "transmit_offer", negotiation_id: c0.negotiation_id, thread_id: c0.thread_id });
-check("N5b envoi C0 → « Envoi non autorisé », aucun appel au tiers", r.j.ok === false && key(r) === "external_not_permitted", key(r));
+check("N5b envoi C0 → l'avatar garde l'offre en veille, aucun appel au tiers", r.j.ok === true && key(r) === "avatar_watching", key(r));
 r = await act({ action: "open_deal", fabric_id: `external:${sig("b1")}` });
 check("N6 demande d'achat externe : pas de Deal Room acheteur", r.j.ok === false && key(r) === "external_unavailable", `${r.status} ${key(r)}`);
 r = await act({ action: "open_deal", fabric_id: `external:${sig("e1")}` });

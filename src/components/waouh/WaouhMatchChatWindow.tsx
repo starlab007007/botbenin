@@ -1,3 +1,4 @@
+import { WaouhAvatarProgress, WaouhAvatarSynthesis } from "./WaouhAvatarProgress";
 import { assertChatResponse, normalizeChatReply, mergeChatRows, reconcileChatResponse } from "@/lib/chatReply";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -572,6 +573,15 @@ export function WaouhMatchChatWindow({
 
   // Only the newest valid commerce action set is clickable. A newer workflow
   // stage without actions still invalidates every older negotiation button.
+  // Un seul stepper d'avatar dans le fil : celui du dernier message qui en porte un.
+  const latestAvatarProgressId = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message: any = messages[index] || {};
+      if (message.direction === "out" && Array.isArray(message.meta?.avatar_progress)) return message.id;
+    }
+    return null;
+  }, [messages]);
+
   const latestActionMessageId = useMemo(() => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       const message: any = messages[index] || {};
@@ -998,6 +1008,8 @@ export function WaouhMatchChatWindow({
               ))
             )}
             {rich.text && <div className="whitespace-pre-wrap">{rich.text}</div>}
+            {m.direction === "out" && m.id === latestAvatarProgressId && <WaouhAvatarProgress progress={m.meta.avatar_progress} />}
+            {m.direction === "out" && m.meta?.avatar_synthesis && <WaouhAvatarSynthesis synthesis={m.meta.avatar_synthesis} />}
             {rich.blocks.length > 0 && <WaouhAgentBlocks blocks={rich.blocks} onAction={authUserId ? handleAgentAction : undefined} busy={!!agentAction} />}
             {m.direction === "out" && m.id === latestActionMessageId && Array.isArray(m.meta?.actions) && m.meta.actions.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">

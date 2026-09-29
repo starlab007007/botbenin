@@ -130,6 +130,11 @@ Map<String, dynamic>? liveCommerceRequestFromPayload(
       return <String, dynamic>{'action': 'confirm_payment', 'deal_id': target, 'method': 'mobile_money'};
     case 'annuler':
       return <String, dynamic>{'action': 'cancel', 'deal_id': target};
+    case 'relancer':
+      return withThread(<String, dynamic>{'action': 'transmit_offer', 'negotiation_id': target, 'follow_up': true});
+    case 'veille':
+    case 'watch_offer':
+      return withThread(<String, dynamic>{'action': 'watch_offer', 'negotiation_id': target});
     case 'envoyer-offre':
     case 'transmit_offer':
       // Résultat Nexus externe : l'acheteur transmet son offre (politique de contact côté serveur).
@@ -178,6 +183,8 @@ Map<String, dynamic>? _liveCommerceRequestFromCanonical(
       return dealId.isEmpty ? null : deal('cancel');
     case 'transmit_offer':
       return negotiationId.isEmpty ? null : negotiation('transmit_offer');
+    case 'watch_offer':
+      return negotiationId.isEmpty ? null : negotiation('watch_offer');
   }
   // counter / interest / unknown : composeur ou chemin historique (comme le Web).
   return null;

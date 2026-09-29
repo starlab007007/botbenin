@@ -18,7 +18,8 @@ export type CommerceActionName =
   | "confirm_payment"
   | "cancel"
   | "text"
-  | "transmit_offer";
+  | "transmit_offer"
+  | "watch_offer";
 
 export interface CommerceActionBody {
   action: CommerceActionName;
@@ -35,6 +36,8 @@ export interface CommerceActionBody {
   confirmed?: boolean;
   source?: string;
   session_id?: string | null;
+  /** transmit_offer : relance d'une offre déjà transmise (une par 24 h). */
+  follow_up?: boolean;
 }
 
 export interface CommerceActionResponse {
@@ -59,6 +62,13 @@ export interface CommerceActionResponse {
     payment_method: string | null;
   };
   replayed?: boolean;
+  /** Avatar (offres vers vendeurs externes) : points d'avancement, voie de contact, synthèse. */
+  avatar?: {
+    progress: Array<{ key: string; label: string; state: "done" | "current" | "todo" }>;
+    line: string;
+    contact: { level: string; mode: "send_on_tap" | "approval_relay" | "watch"; label: string; eta_hours: number | null } | null;
+    synthesis: Record<string, unknown> | null;
+  } | null;
   /** Codes d'échec métier : `nexus_direct_deal_disabled` → garder la fiche de contact. */
   code?: string;
   fallback?: string;
@@ -156,6 +166,11 @@ export function commerceRequestFromButton(
     case "envoyer-offre":
     case "transmit_offer":
       return { action: "transmit_offer", negotiation_id: target, thread_id: scope.thread_id ?? null };
+    case "relancer":
+      return { action: "transmit_offer", negotiation_id: target, thread_id: scope.thread_id ?? null, follow_up: true };
+    case "veille":
+    case "watch_offer":
+      return { action: "watch_offer", negotiation_id: target, thread_id: scope.thread_id ?? null };
     default:
       return null; // contre-offre, question, prix : saisie dans le composeur
   }

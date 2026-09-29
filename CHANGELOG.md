@@ -3,6 +3,11 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.29.7 (branche claude/harmonisation-phase-0-1, NON déployé en production)
+- Deal Room vivante : politique de contact C0–C5 sans impasse (`_shared/waouh-contact-path.ts`, le consentement du tiers n'est jamais contourné : veille de l'avatar quand l'envoi n'est pas possible),
+  points d'avancement et synthèse de l'avatar (Web + Flutter), suivi `waouh-nexus-followup` (notes et boutons, aucun envoi automatique), relance manuelle limitée à 1/24 h, migration d'installation du suivi.
+  Corrige aussi : montant absent du message d'accroche (colonne inexistante), double envoi au double tap. Détail : docs/AVATAR_DEAL_ROOM_VIVANTE_2026-09-29.md.
+
 ## 2026.09.29.6 (branche claude/harmonisation-phase-0-1, NON déployé en production)
 - E7 : la publication rend l'issue du fan-out acheteurs (`buyers_notified`), plus d'échec silencieux. E8 : `waouh-sell/buy/negotiate-handler` retirés (HTTP 410), Flutter route tout vers `waouh-channel-in`.
   E9 : `waouh-notify-dispatch` réservé à la clé service. Pointage public : PIN limité (migration `20260929140000`, HTTP 429). `waouh-stock-ingest` : garde SSRF.

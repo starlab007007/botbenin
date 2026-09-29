@@ -15,6 +15,7 @@ import 'live_commerce_workflow.dart';
 import 'live_commerce_agent_ui.dart';
 import 'live_thread_flow.dart';
 import 'live_hot_labels.dart';
+import 'live_avatar_progress.dart';
 
 class LiveHeader extends StatelessWidget implements PreferredSizeWidget {
   const LiveHeader({
@@ -255,6 +256,7 @@ class LiveMessageBubble extends StatelessWidget {
                 SelectionArea(
                   child: _LivePremiumMessageContent(text: displayText),
                 ),
+              if (products.isEmpty && !outgoing) liveAvatarBlocks(message.meta),
               if (products.isNotEmpty) ...[
                 if (_premiumIntro(displayText).isNotEmpty) ...[
                   SelectionArea(

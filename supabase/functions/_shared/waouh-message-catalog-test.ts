@@ -26,6 +26,7 @@ const ALL_KEYS: CatalogKey[] = [
   "multiple_open_deals", "stale_button", "out_of_stage", "technical_error", "article_reserved", "article_sold", "competitor_reserved", "article_available_again",
   "negotiation_paused", "not_understood", "confirm_money_action", "self_article", "results_found",
   "external_offer_ready", "external_offer_sent", "external_not_permitted", "external_no_channel", "external_unavailable",
+  "avatar_synthesis", "avatar_watching", "avatar_reachable", "avatar_nudge_due", "avatar_expired", "avatar_watch_expired", "external_nudge_sent", "nudge_too_soon",
 ];
 
 const LONG_TITLE = "Téléphone Samsung Galaxy A54 5G 256 Go noir, très bon état avec facture et chargeur";

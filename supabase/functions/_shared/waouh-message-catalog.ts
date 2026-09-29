@@ -58,7 +58,16 @@ export type CatalogKey =
   | "external_offer_sent"
   | "external_not_permitted"
   | "external_no_channel"
-  | "external_unavailable";
+  | "external_unavailable"
+  // Avatar : synthèse, veille, suivi.
+  | "avatar_synthesis"
+  | "avatar_watching"
+  | "avatar_reachable"
+  | "avatar_nudge_due"
+  | "avatar_expired"
+  | "avatar_watch_expired"
+  | "external_nudge_sent"
+  | "nudge_too_soon";
 
 export interface CatalogVars {
   title?: string | null;
@@ -76,6 +85,10 @@ export interface CatalogVars {
   question?: string | null;
   /** false = la notification du vendeur a échoué : on ne promet pas qu'il est prévenu. */
   sellerNotified?: boolean | null;
+  /** Écart en % au prix affiché (négatif = sous le prix). */
+  gapPct?: number | null;
+  /** Heures écoulées (relances). */
+  hours?: number | null;
 }
 
 export interface CatalogMessage {
@@ -119,6 +132,38 @@ function responseHint(minutes: number | null | undefined): string {
 type Builder = (v: CatalogVars) => { title: string; detail: string };
 
 const BUILDERS: Record<CatalogKey, Builder> = {
+  avatar_synthesis: (v) => ({
+    title: "Synthèse de l'avatar",
+    detail: `${fcfa(v.amount)} pour ${fcfa(v.price)} affiché${v.gapPct != null ? ` (${v.gapPct} %)` : ""}. Suivi actif, point sous 24 h.`,
+  }),
+  avatar_watching: () => ({
+    title: "Avatar en veille",
+    detail: "Offre gardée. Je vous préviens dès qu'une voie de contact s'ouvre.",
+  }),
+  avatar_reachable: () => ({
+    title: "Vendeur joignable",
+    detail: "Une voie de contact vient de s'ouvrir. Envoyez votre offre d'un tap.",
+  }),
+  avatar_nudge_due: (v) => ({
+    title: "Toujours sans réponse",
+    detail: `Offre transmise il y a ${v.hours ?? 24} h. Relancer ou ajuster votre prix ?`,
+  }),
+  avatar_expired: () => ({
+    title: "Offre sans réponse",
+    detail: "Aucune réponse en 7 jours. Ajustez votre prix ou laissez l'avatar clore.",
+  }),
+  avatar_watch_expired: () => ({
+    title: "Veille terminée",
+    detail: "Aucune voie de contact en 14 jours. Ajustez votre offre ou explorez d'autres annonces.",
+  }),
+  external_nudge_sent: () => ({
+    title: "Relance envoyée",
+    detail: "Réponse attendue ici. Prochain point de l'avatar sous 48 h.",
+  }),
+  nudge_too_soon: () => ({
+    title: "Un peu tôt",
+    detail: "Dernier envoi il y a moins de 24 h. Avatar vous prévient au bon moment.",
+  }),
   external_offer_ready: (v) => ({
     title: "Offre prête",
     detail: `${shortTitle(v.title)} · ${fcfa(v.amount ?? v.price)}. Envoyez-la quand vous voulez.`,

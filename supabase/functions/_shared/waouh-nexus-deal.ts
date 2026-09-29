@@ -13,6 +13,7 @@
 // Testé par waouh-nexus-deal-test.ts.
 
 import { contactabilityPolicy, redactPublicContacts } from "./waouh-signal-fabric.ts";
+import { AVATAR_INTENT_LIST, externalTimeline, type ExternalTimeline } from "./waouh-avatar-notes.ts";
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 const FABRIC_RE = new RegExp(`^(external|article|buyer):(${UUID})$`, "i");
@@ -236,4 +237,48 @@ export async function transmitExternalOffer(args: TransmitArgs): Promise<{ state
 /** Niveau de contactabilité → la transmission a-t-elle une chance d'être permise ? (C0 : non, jamais tenté.) */
 export function transmissionMayBePermitted(level: unknown): boolean {
   return contactabilityPolicy(level).level !== "C0";
+}
+
+export interface ExternalContactState {
+  signalId: string | null;
+  signal: ExternalSignal & Record<string, any> | null;
+  /** null = joignable côté données ; sinon raison (signal absent, expiré…). */
+  unavailable: string | null;
+  level: string;
+  /** Un contact WhatsApp/téléphone utilisable existe (public pour C1). Même règle que `nexus.contact.send`. */
+  reachable: boolean;
+  /** C2 : un utilisateur WAOUH (annonceur) peut valider le relais. */
+  relayAvailable: boolean;
+}
+
+/** Signal, niveau et joignabilité réels d'un article matérialisé. Aucune coordonnée n'est lue ni renvoyée. */
+export async function externalContactState(sb: any, articleId: string, now: Date = new Date()): Promise<ExternalContactState> {
+  const none: ExternalContactState = { signalId: null, signal: null, unavailable: "signal_not_found", level: "C0", reachable: false, relayAvailable: false };
+  const { data: art } = await sb.from("waouh_articles").select("seller_id,origin").eq("id", articleId).maybeSingle();
+  if (!art || art.origin !== NEXUS_ORIGIN) return none;
+  const { data: stub } = await sb.from("waouh_users").select("web_session_id").eq("id", art.seller_id).maybeSingle();
+  const signalId = String(stub?.web_session_id || "").replace(/^nexus-ext\|/, "");
+  if (!signalId) return none;
+  const { data: signal } = await sb.from("waouh_external_commerce_signals").select("*").eq("id", signalId).maybeSingle();
+  if (!signal) return { ...none, signalId };
+  const level = String(signal.contactability_level ?? "C0");
+  const unavailable = signalUnavailableReason(signal, now);
+  let reachable = false;
+  if (signal.entity_id) {
+    const { data: contacts } = await sb.from("waouh_entity_contacts")
+      .select("value_encrypted,is_public_business,consent_state,contactability_level,channel")
+      .eq("entity_id", signal.entity_id).in("channel", ["whatsapp", "phone"])
+      .in("contactability_level", ["C1", "C2", "C3", "C4", "C5"]).limit(5);
+    reachable = (contacts ?? []).some((c: any) =>
+      !!c.value_encrypted && (level !== "C1" || c.is_public_business === true || c.consent_state === "public_business"));
+  }
+  return { signalId, signal, unavailable, level, reachable, relayAvailable: !!signal.submitted_by };
+}
+
+/** Chronologie de l'avatar d'un fil, reconstruite depuis ses messages (envois, relances, veille, notes). */
+export async function loadExternalTimeline(sb: any, threadId: string): Promise<ExternalTimeline> {
+  const { data } = await sb.from("waouh_messages").select("created_at,meta")
+    .eq("thread_id", threadId).eq("direction", "out").in("meta->>intent", AVATAR_INTENT_LIST)
+    .order("created_at", { ascending: true }).limit(200);
+  return externalTimeline((data ?? []).map((m: any) => ({ at: m.created_at, intent: String(m.meta?.intent ?? "") })));
 }
