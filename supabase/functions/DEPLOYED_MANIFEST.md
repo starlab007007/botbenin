@@ -11,11 +11,19 @@ Sources ajoutées dans `supabase/functions/` à partir du code lu sur le projet 
   `setup-test-accounts`, et 4 fichiers d'une ligne. Chaque fichier a passé une vérification de syntaxe (esbuild),
   **mais aucune comparaison octet à octet n'a été possible** : à confirmer avec `scripts/supabase/pull-deployed-functions.sh`
   puis `diff -r .pulled-functions supabase/functions`. Les sommes SHA-256 des fichiers versionnés sont dans `DEPLOYED_SHA256.txt`.
-- **Non ajoutées** : `chat-webhook` (= `waouh-native-simulator`, déjà dans le dépôt), `waouh-bots-backend-health-v1`
-  (= `waouh-native-messaging-settings`, déjà dans le dépôt), et `a` : son bundle embarque une version de
-  `_shared/agent-ai.ts` (`STUDIO_AI_VERSION` 21.4.6.24, ~20 Ko) **différente** de celle du dépôt (14 571 octets) ;
-  la versionner telle quelle sans cette copie changerait son comportement au prochain déploiement.
-- `verify_jwt = false` ajouté dans `supabase/config.toml` pour les 12 fonctions concernées (les fonctions à JWT actif gardent le défaut).
+- **`a` (Web Chat public d'agent IA)** : ajoutée avec sa propre copie de l'IA, `a/agent-ai-studio.ts`
+  (`STUDIO_AI_VERSION` 21.4.6.24, embeddings `gemini-embedding-2` en 768 dimensions).
+  Le `_shared/agent-ai.ts` du dépôt n'est **pas** une version antérieure mais une autre lignée
+  (`getGeminiKey`, `visionCompletion`, `gemini-embedding-001`, sans `STUDIO_AI_VERSION`, `geminiModel`,
+  `normalizeProfessionalReply` ni `toWhatsAppText`) : il est utilisé par `waouh-agentic-core`, `waouh-agent-webhook`,
+  `waouh-agent-parse-catalog`, `waouh-agent-ingest`, `waouh-agent-chat` et `waouh-studio-e2e-v21465`, et ne doit pas être remplacé.
+  **Écart volontaire avec le déployé** : l'import `../_shared/agent-ai.ts` devient `./agent-ai-studio.ts`, sinon
+  `a` ne se lierait plus (exports manquants). Retranscrit à la main, syntaxe vérifiée, diff à faire.
+  Point ouvert : `a` et les autres fonctions IA utilisent deux modèles d'embeddings différents (001 et 2) ;
+  à traiter avant toute réindexation.
+- **Non ajoutées** : `chat-webhook` (= `waouh-native-simulator`, déjà dans le dépôt) et `waouh-bots-backend-health-v1`
+  (= `waouh-native-messaging-settings`, déjà dans le dépôt).
+- `verify_jwt = false` ajouté dans `supabase/config.toml` pour les 13 fonctions concernées (les fonctions à JWT actif gardent le défaut).
 - **Ne pas déployer ces fichiers avant confirmation par diff.**
 
 ## Attention : le nom (slug) déployé n'est pas toujours le nom du code

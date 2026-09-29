@@ -405,3 +405,6 @@ verify_jwt = false
 
 [functions.waouh-studio-agent-webhook-v2146]
 verify_jwt = false
+
+[functions.a]
+verify_jwt = false
