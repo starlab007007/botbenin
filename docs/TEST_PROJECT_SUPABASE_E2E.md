@@ -25,5 +25,10 @@ Aucune donnée de production copiée. Ne jamais y brancher WhatsApp ni un jeton 
 - Migration command center : contrainte de clés et fonction admin omises (la production a d'autres clés).
 - Pas de FK vers `auth.users` sur `waouh_users`.
 
+## Complément (29/09/2026, soir)
+- 12 tables supplémentaires (profiles, waouh_commerce_actions, waouh_external_listings, waouh_interests, waouh_lid_phone_map, waouh_notifications, waouh_partners, waouh_partner_businesses, waouh_radar_signals, waouh_statuses, waouh_trace_events, waouh_unified_catalog) + enums `waouh_catalog_source/type`, RLS activée sans politique. Colonnes relevées en lecture seule sur la production.
+- Comptes Auth de test créés par SQL (réseau vers l'API Auth bloqué) : `vendeur.a.test@botbj-test.invalid` et `acheteur.b.test@botbj-test.invalid`, e-mails confirmés, liés à `profiles` et `waouh_users`. Mots de passe aléatoires, hors dépôt.
+- Fonctions non déployées : recopier ~200 Ko (21 fichiers) à la main sans pouvoir les appeler ensuite serait risqué ; à faire par CLI (`supabase functions deploy`, `supabase secrets set GEMINI_API_KEY`) une fois `*.supabase.co` / `api.supabase.com` autorisés et un jeton d'accès fourni.
+
 ## Reste à faire
 Edge functions (`waouh-commerce-action`, `waouh-match-history`, `waouh-history`, `waouh-channel-in-secure`), secrets, comptes Auth vendeur A / acheteur B, puis parcours Web et Flutter sur ce projet.
