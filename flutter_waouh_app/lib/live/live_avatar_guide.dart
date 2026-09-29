@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'live_models.dart';
+
 /// L'avatar guide (parité Web : `src/lib/waouh/avatarGuide.ts`) — accueil à l'ouverture, points réguliers, réglages.
 /// Le texte (2 à 3 phrases) et les boutons sont composés côté serveur (`waouh-avatar-briefing`) ; ici on les met en scène.
 
@@ -127,19 +129,29 @@ class LiveAvatarPrefs {
     this.cadence = 'daily',
     this.quietStart = 21,
     this.quietEnd = 7,
+    this.notifyEvents = true,
+    this.notifyDigest = false,
     this.nextBriefingAt,
   });
   final bool welcome;
   final String cadence;
   final int quietStart;
   final int quietEnd;
+
+  /// WhatsApp : évènements d'une offre (relance possible, voie ouverte, clôture). Actif par défaut.
+  final bool notifyEvents;
+
+  /// WhatsApp : bilans réguliers. Désactivé par défaut (le bilan reste dans le chat).
+  final bool notifyDigest;
   final DateTime? nextBriefingAt;
 
-  LiveAvatarPrefs copyWith({bool? welcome, String? cadence, int? quietStart, int? quietEnd}) => LiveAvatarPrefs(
+  LiveAvatarPrefs copyWith({bool? welcome, String? cadence, int? quietStart, int? quietEnd, bool? notifyEvents, bool? notifyDigest}) => LiveAvatarPrefs(
         welcome: welcome ?? this.welcome,
         cadence: cadence ?? this.cadence,
         quietStart: quietStart ?? this.quietStart,
         quietEnd: quietEnd ?? this.quietEnd,
+        notifyEvents: notifyEvents ?? this.notifyEvents,
+        notifyDigest: notifyDigest ?? this.notifyDigest,
         nextBriefingAt: nextBriefingAt,
       );
 }
@@ -157,6 +169,8 @@ LiveAvatarPrefs? liveParseAvatarPrefs(Object? value) {
     cadence: liveAvatarCadenceOptions.any((o) => o.value == cadence) ? cadence : 'daily',
     quietStart: hour(value['quiet_start'], 21),
     quietEnd: hour(value['quiet_end'], 7),
+    notifyEvents: value['notify_events'] is bool ? value['notify_events'] as bool : true,
+    notifyDigest: value['notify_digest'] is bool ? value['notify_digest'] as bool : false,
     nextBriefingAt: DateTime.tryParse('${value['next_briefing_at'] ?? ''}')?.toLocal(),
   );
 }
@@ -175,6 +189,66 @@ String liveNextPointLabel(DateTime? at, String cadence, {DateTime? now}) {
 }
 
 String liveHourLabel(int h) => '${h.toString().padLeft(2, '0')} h';
+
+/// Bulle de l'avatar dans le chat : seq (0…of-1) et of ; null pour tout autre message.
+({int seq, int of})? liveAvatarBubbleInfo(Map<String, dynamic> meta) {
+  if ('${meta['intent'] ?? ''}' != 'avatar_briefing') return null;
+  final b = meta['avatar_bubble'];
+  if (b is! Map) return null;
+  final seq = b['seq'] is num ? (b['seq'] as num).toInt() : int.tryParse('${b['seq']}');
+  final of = b['of'] is num ? (b['of'] as num).toInt() : int.tryParse('${b['of']}');
+  if (seq == null || of == null || seq < 0 || of < 1 || seq >= of) return null;
+  return (seq: seq, of: of);
+}
+
+/// Fenêtre « en direct » : au-delà, la bulle est de l'historique et s'affiche d'un coup.
+const Duration liveAvatarLiveWindow = Duration(seconds: 15);
+
+/// Délai avant d'afficher une bulle : l'avatar « écrit » (700 ms, puis 1,1 s de plus par bulle suivante).
+Duration liveAvatarRevealDelay(Map<String, dynamic> meta, DateTime createdAt, DateTime now) {
+  final info = liveAvatarBubbleInfo(meta);
+  if (info == null || now.difference(createdAt) > liveAvatarLiveWindow) return Duration.zero;
+  return Duration(milliseconds: 700 + info.seq * 1100);
+}
+
+/// Affichage séquencé des bulles de l'avatar (état conservé par l'écran de chat).
+class LiveAvatarReveal {
+  final Map<String, DateTime> _revealAt = {};
+
+  /// Messages visibles à `now` ; `nextAt` : prochain instant où une bulle apparaît (null si rien n'attend).
+  ({List<LiveMessage> visible, DateTime? nextAt}) filter(List<LiveMessage> messages, DateTime now) {
+    final visible = <LiveMessage>[];
+    DateTime? next;
+    for (final m in messages) {
+      final at = _revealAt.putIfAbsent(m.id, () => now.add(liveAvatarRevealDelay(m.meta, m.createdAt, now)));
+      if (!at.isAfter(now)) {
+        visible.add(m);
+      } else if (next == null || at.isBefore(next)) {
+        next = at;
+      }
+    }
+    return (visible: visible, nextAt: next);
+  }
+}
+
+/// « L'avatar écrit… » : trois points, sous la conversation, pendant que les bulles arrivent.
+class LiveAvatarTypingRow extends StatelessWidget {
+  const LiveAvatarTypingRow({super.key});
+  @override
+  Widget build(BuildContext context) => Padding(
+        key: const ValueKey('avatar-typing'),
+        padding: const EdgeInsets.fromLTRB(14, 2, 14, 6),
+        child: Row(children: [
+          const LiveAvatarOrb(size: 20),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE4EBF5))),
+            child: const Text('L\'avatar écrit…', semanticsLabel: 'L\'avatar écrit', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+          ),
+        ]),
+      );
+}
 
 /// Ouverture du briefing : au plus une fois par fenêtre de 30 min dans ce processus (le serveur limite aussi).
 DateTime? _lastAutoOpen;
@@ -628,6 +702,28 @@ class _LiveAvatarSettingsSheetState extends State<LiveAvatarSettingsSheet> {
             onChanged: (v) => _update(prefs.copyWith(welcome: v), {'welcome': v}),
             title: const Text('Accueil à chaque ouverture', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
             subtitle: const Text('Un mot de bienvenue et le point du moment.', style: TextStyle(fontSize: 11.5)),
+          ),
+          const SizedBox(height: 6),
+          const Text('Me joindre sur WhatsApp', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+          const Text('Tout ce que j\'écris arrive d\'abord dans ce chat. WhatsApp double seulement ce que vous choisissez.',
+              style: TextStyle(fontSize: 11, color: Color(0xFF64748B), height: 1.3)),
+          SwitchListTile(
+            key: const ValueKey('avatar-notify-events-switch'),
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            value: prefs.notifyEvents,
+            onChanged: (v) => _update(prefs.copyWith(notifyEvents: v), {'notify_events': v}),
+            title: const Text('Évènements de mes offres', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+            subtitle: const Text('Relance possible, vendeur joignable, offre clôturée.', style: TextStyle(fontSize: 11)),
+          ),
+          SwitchListTile(
+            key: const ValueKey('avatar-notify-digest-switch'),
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            value: prefs.notifyDigest,
+            onChanged: (v) => _update(prefs.copyWith(notifyDigest: v), {'notify_digest': v}),
+            title: const Text('Bilans réguliers', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+            subtitle: const Text('Le point de l\'avatar, sans ouvrir l\'app.', style: TextStyle(fontSize: 11)),
           ),
           const SizedBox(height: 6),
           const Text('Points réguliers', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),

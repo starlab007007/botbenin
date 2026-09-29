@@ -9,6 +9,10 @@ export interface AvatarPrefs {
   cadence: AvatarCadence;
   quiet_start: number;
   quiet_end: number;
+  /** WhatsApp : évènements d'une offre (relance possible, voie ouverte, clôture). Actif par défaut. */
+  notify_events: boolean;
+  /** WhatsApp : bilans réguliers. Désactivé par défaut (le bilan reste dans le chat). */
+  notify_digest: boolean;
   last_briefing_at: string | null;
   next_briefing_at: string | null;
 }
@@ -89,6 +93,8 @@ export function parseAvatarPrefs(value: unknown): AvatarPrefs | null {
     welcome: typeof v.welcome === "boolean" ? v.welcome : true,
     cadence: CADENCES.has(String(v.cadence)) ? (v.cadence as AvatarCadence) : "daily",
     quiet_start: hour(v.quiet_start, 21), quiet_end: hour(v.quiet_end, 7),
+    notify_events: typeof v.notify_events === "boolean" ? v.notify_events : true,
+    notify_digest: typeof v.notify_digest === "boolean" ? v.notify_digest : false,
     last_briefing_at: typeof v.last_briefing_at === "string" ? v.last_briefing_at : null,
     next_briefing_at: typeof v.next_briefing_at === "string" ? v.next_briefing_at : null,
   };
@@ -116,8 +122,38 @@ export interface BriefingResult {
   sent: boolean;
   reason: string;
   briefing: AvatarBriefing | null;
-  message: { id: string; direction: "in" | "out"; text: string; meta: Record<string, unknown>; created_at: string } | null;
+  message: AvatarChatRow | null;
+  /** Toutes les bulles du point (2 à 3), dans l'ordre d'affichage. */
+  messages: AvatarChatRow[];
   prefs: AvatarPrefs | null;
+}
+
+export type AvatarChatRow = { id: string; direction: "in" | "out"; text: string; meta: Record<string, unknown>; created_at: string };
+
+const isRow = (m: unknown): m is AvatarChatRow => !!m && typeof m === "object" && typeof (m as AvatarChatRow).id === "string" && typeof (m as AvatarChatRow).text === "string";
+
+/** Bulle de l'avatar dans le chat : { seq, of } ; null pour tout autre message. */
+export function avatarBubbleInfo(meta: unknown): { seq: number; of: number } | null {
+  const m = meta && typeof meta === "object" ? (meta as Record<string, any>) : null;
+  if (!m || m.intent !== "avatar_briefing") return null;
+  const b = m.avatar_bubble;
+  if (!b || typeof b !== "object") return null;
+  const seq = Number(b.seq), of = Number(b.of);
+  return Number.isInteger(seq) && Number.isInteger(of) && seq >= 0 && of >= 1 && seq < of ? { seq, of } : null;
+}
+
+/** Fenêtre « en direct » : au-delà, la bulle est de l'historique et s'affiche d'un coup. */
+export const AVATAR_LIVE_WINDOW_MS = 15_000;
+
+/**
+ * Délai avant d'afficher une bulle : l'avatar « écrit » (700 ms, puis 1,1 s de plus par bulle suivante).
+ * Historique (message ancien) ou message ordinaire : aucun délai. Ne dépend que du message reçu : sans état partagé.
+ */
+export function avatarRevealDelayMs(meta: unknown, createdAtMs: number, nowMs: number): number {
+  const info = avatarBubbleInfo(meta);
+  if (!info) return 0;
+  if (!Number.isFinite(createdAtMs) || nowMs - createdAtMs > AVATAR_LIVE_WINDOW_MS) return 0;
+  return 700 + info.seq * 1100;
 }
 
 async function call(body: Record<string, unknown>): Promise<Record<string, any> | null> {
@@ -137,7 +173,8 @@ export async function openAvatarBriefing(action: "open" | "now", sessionId: stri
     sent: data.sent === true,
     reason: String(data.reason ?? ""),
     briefing: parseAvatarBriefing(data.briefing),
-    message: data.message && typeof data.message === "object" ? (data.message as BriefingResult["message"]) : null,
+    message: isRow(data.message) ? data.message : null,
+    messages: Array.isArray(data.messages) ? data.messages.filter(isRow) : isRow(data.message) ? [data.message] : [],
     prefs: parseAvatarPrefs(data.prefs),
   };
 }
@@ -147,7 +184,7 @@ export async function fetchAvatarPrefs(): Promise<AvatarPrefs | null> {
   return data ? parseAvatarPrefs(data.prefs) : null;
 }
 
-export async function saveAvatarPrefs(patch: Partial<Pick<AvatarPrefs, "welcome" | "cadence" | "quiet_start" | "quiet_end">>): Promise<AvatarPrefs | null> {
+export async function saveAvatarPrefs(patch: Partial<Pick<AvatarPrefs, "welcome" | "cadence" | "quiet_start" | "quiet_end" | "notify_events" | "notify_digest">>): Promise<AvatarPrefs | null> {
   const data = await call({ action: "set_prefs", prefs: patch });
   return data ? parseAvatarPrefs(data.prefs) : null;
 }

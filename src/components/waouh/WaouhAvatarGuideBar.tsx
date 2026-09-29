@@ -40,7 +40,7 @@ export function WaouhAvatarGuideBar({
     return () => { alive = false; };
   }, [prefs]);
 
-  const update = async (patch: Partial<Pick<AvatarPrefs, "welcome" | "cadence" | "quiet_start" | "quiet_end">>) => {
+  const update = async (patch: Partial<Pick<AvatarPrefs, "welcome" | "cadence" | "quiet_start" | "quiet_end" | "notify_events" | "notify_digest">>) => {
     if (!prefs) return;
     const previous = prefs;
     setPrefs({ ...prefs, ...patch }); // réponse immédiate ; annulée si le serveur refuse
@@ -116,6 +116,25 @@ export function WaouhAvatarGuideBar({
               ))}
             </div>
           </fieldset>
+
+          <div>
+            <div className="mb-1 text-[13px] font-semibold text-slate-800">Me joindre sur WhatsApp</div>
+            <p className="mb-1 text-[10px] text-slate-500">Tout ce que j'écris arrive d'abord dans ce chat. WhatsApp double seulement ce que vous choisissez.</p>
+            <label className="flex items-center justify-between gap-3 py-1">
+              <span className="text-[12px] font-semibold text-slate-800">
+                Évènements de mes offres
+                <span className="block text-[10px] font-normal text-slate-500">Relance possible, vendeur joignable, offre clôturée.</span>
+              </span>
+              <Switch checked={prefs?.notify_events ?? true} disabled={!prefs} onCheckedChange={(v) => void update({ notify_events: v })} aria-label="Évènements de mes offres sur WhatsApp" />
+            </label>
+            <label className="flex items-center justify-between gap-3 py-1">
+              <span className="text-[12px] font-semibold text-slate-800">
+                Bilans réguliers
+                <span className="block text-[10px] font-normal text-slate-500">Le point de l'avatar, sans ouvrir l'app.</span>
+              </span>
+              <Switch checked={prefs?.notify_digest ?? false} disabled={!prefs} onCheckedChange={(v) => void update({ notify_digest: v })} aria-label="Bilans réguliers sur WhatsApp" />
+            </label>
+          </div>
 
           {cadence !== "off" && (
             <div>

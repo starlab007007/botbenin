@@ -4,7 +4,7 @@
 
 import { resolveSiblingUserIds } from "./waouh-identity.ts";
 import {
-  activityDigest, composeBriefing, emptyActivity, mergePrefs, nextBriefingAt, normalizePrefs, shouldBrief, briefingText,
+  activityDigest, composeBriefing, composeBubbles, emptyActivity, mergePrefs, nextBriefingAt, normalizePrefs, shouldBrief, briefingText,
   type Activity, type AvatarPrefs, type Briefing, type Trigger,
 } from "./waouh-avatar-briefing.ts";
 import { nudgeAllowed } from "./waouh-avatar-notes.ts";
@@ -31,7 +31,7 @@ export async function savePrefs(sb: any, authUserId: string, raw: unknown): Prom
   const next: AvatarPrefs = mergePrefs(current, input);
   await sb.from("waouh_avatar_prefs").upsert({
     auth_user_id: authUserId, welcome: next.welcome, cadence: next.cadence, quiet_start: next.quietStart, quiet_end: next.quietEnd,
-    updated_at: new Date().toISOString(),
+    notify_events: next.notifyEvents, notify_digest: next.notifyDigest, updated_at: new Date().toISOString(),
   }, { onConflict: "auth_user_id" });
   return loadPrefs(sb, authUserId);
 }
@@ -109,11 +109,16 @@ export async function collectActivity(sb: any, user: { id: string; auth_user_id?
   return activity;
 }
 
+export type AvatarMessageRow = { id: string; direction: "out"; text: string; meta: Record<string, unknown>; created_at: string };
+
 export interface DeliverResult {
   sent: boolean;
   reason: string;
   briefing: Briefing | null;
-  message: { id: string; direction: "out"; text: string; meta: Record<string, unknown>; created_at: string } | null;
+  /** Dernière bulle (compatibilité des anciens clients). */
+  message: AvatarMessageRow | null;
+  /** Toutes les bulles du point, dans l'ordre d'affichage. */
+  messages: AvatarMessageRow[];
   prefs: PrefsRow;
   nextBriefingAt: string | null;
 }
@@ -130,7 +135,7 @@ export async function deliverBriefing(sb: any, args: {
   const { data: users } = await sb.from("waouh_users").select("id,auth_user_id,phone_number,web_session_id,display_name")
     .eq("auth_user_id", args.authUserId).order("created_at", { ascending: true }).limit(1);
   const user = users?.[0];
-  const idle = (reason: string): DeliverResult => ({ sent: false, reason, briefing: null, message: null, prefs, nextBriefingAt: nextBriefingAt(prefs, prefs.lastBriefingAt, now)?.toISOString() ?? null });
+  const idle = (reason: string): DeliverResult => ({ sent: false, reason, briefing: null, message: null, messages: [], prefs, nextBriefingAt: nextBriefingAt(prefs, prefs.lastBriefingAt, now)?.toISOString() ?? null });
   if (!user) return idle("no_waouh_user");
 
   const activity = await collectActivity(sb, user, now);
@@ -143,25 +148,48 @@ export async function deliverBriefing(sb: any, args: {
   if (!decision.send || !decision.kind) return idle(decision.reason);
 
   const briefing = composeBriefing({ activity, kind: decision.kind, now });
-  const { data: inserted, error } = await sb.from("waouh_messages").insert({
+  // Ouverture sans nouveauté : une phrase courte, jamais le même point répété.
+  const unchanged = args.trigger === "open" && digest === prefs.lastDigest && !preview.hasActionable;
+  const bubbles = composeBubbles(briefing, { unchanged });
+  const briefingId = `${user.id}:${now.getTime()}`;
+  const rows = bubbles.map((b, i) => ({
     user_id: user.id,
     web_session_id: args.webSessionId ?? null,
     channel: "system",
     direction: "out",
-    text: briefingText(briefing),
-    meta: { intent: "avatar_briefing", avatar_briefing: briefing, actions: briefing.actions, trigger: args.trigger },
-  }).select("id,direction,text,meta,created_at").single();
-  if (error || !inserted) {
+    text: b.text,
+    // Les bulles s'ordonnent au millième : l'ordre d'affichage est celui de l'écriture, même en lecture temps réel.
+    created_at: new Date(now.getTime() + i * 250).toISOString(),
+    meta: {
+      intent: "avatar_briefing", briefing_id: briefingId, avatar_bubble: { seq: i, of: bubbles.length, kind: briefing.kind },
+      trigger: args.trigger, ...(b.actions.length ? { actions: b.actions } : {}),
+    },
+  }));
+  const { data: inserted, error } = await sb.from("waouh_messages").insert(rows).select("id,direction,text,meta,created_at");
+  if (error || !inserted?.length) {
     console.error("[avatar-briefing] écriture impossible", error);
     return idle("write_failed");
   }
+  const messages = ([...inserted] as AvatarMessageRow[]).sort((a, b) =>
+    Number((a.meta as any)?.avatar_bubble?.seq ?? 0) - Number((b.meta as any)?.avatar_bubble?.seq ?? 0));
+  // WhatsApp : bilans seulement si l'utilisateur l'a demandé (les évènements d'offre ont leur propre réglage).
+  if (args.trigger === "tick" && prefs.notifyDigest && user.phone_number) {
+    const last = messages[messages.length - 1];
+    const { error: qErr } = await sb.rpc("waouh_enqueue_outbound_v2", {
+      p_to_phone: user.phone_number, p_to_user_id: user.id, p_template: "avatar_briefing",
+      p_payload: { text: bubbles.map((b) => b.text).join(" "), message_id: last.id, briefing_id: briefingId },
+      p_web_session_id: user.web_session_id ?? null, p_channel: "whatsapp", p_message_id: last.id,
+      p_dedupe_key: `avatar_briefing:${briefingId}`, p_event_type: "avatar_briefing",
+    });
+    if (qErr) console.warn("[avatar-briefing] WhatsApp non mis en file", qErr.message);
+  }
   await sb.from("waouh_avatar_prefs").upsert({
     auth_user_id: args.authUserId, welcome: prefs.welcome, cadence: prefs.cadence, quiet_start: prefs.quietStart, quiet_end: prefs.quietEnd,
-    last_briefing_at: now.toISOString(), last_digest: digest, updated_at: now.toISOString(),
+    notify_events: prefs.notifyEvents, notify_digest: prefs.notifyDigest, last_briefing_at: now.toISOString(), last_digest: digest, updated_at: now.toISOString(),
   }, { onConflict: "auth_user_id" });
   const nextPrefs = { ...prefs, lastBriefingAt: now, lastDigest: digest, exists: true };
   return {
-    sent: true, reason: decision.reason, briefing, message: inserted, prefs: nextPrefs,
+    sent: true, reason: decision.reason, briefing, message: messages[messages.length - 1], messages, prefs: nextPrefs,
     nextBriefingAt: nextBriefingAt(nextPrefs, now, now)?.toISOString() ?? null,
   };
 }

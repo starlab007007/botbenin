@@ -18,7 +18,7 @@ function fakeDb(seed: Record<string, Row[]> = {}) {
   const from = (t: string) => {
     let rows = [...(tables[t] ?? [])];
     let mode: "select" | "insert" | "upsert" = "select";
-    let payload: Row | null = null;
+    let payload: any = null;
     let head = false;
     const api: any = {
       select: (_c?: string, o?: any) => { head = !!o?.head; return api; },
@@ -33,6 +33,11 @@ function fakeDb(seed: Record<string, Row[]> = {}) {
         return Promise.resolve({ data: rows[0] ?? null, error: null });
       },
       then: (res: (v: any) => void) => {
+        if (mode === "insert") {
+          const list = (Array.isArray(payload) ? payload : [payload]).map((r: any) => ({ id: crypto.randomUUID(), ...r }));
+          tables[t].push(...list);
+          return res({ data: list, error: null });
+        }
         if (mode === "upsert") {
           const existing = tables[t].find((r) => r.auth_user_id === payload!.auth_user_id);
           if (existing) Object.assign(existing, payload); else tables[t].push({ ...payload });
@@ -43,7 +48,8 @@ function fakeDb(seed: Record<string, Row[]> = {}) {
     };
     return api;
   };
-  return { tables, from };
+  const rpcCalls: Array<{ fn: string; args: Row }> = [];
+  return { tables, from, rpcCalls, rpc: (fn: string, args: Row) => { rpcCalls.push({ fn, args }); return Promise.resolve({ data: "q1", error: null }); } };
 }
 
 Deno.test("premier accueil : point « first » écrit dans le chat, préférences créées, dernier point mémorisé", async () => {
@@ -53,6 +59,16 @@ Deno.test("premier accueil : point « first » écrit dans le chat, préférence
   const msg = db.tables.waouh_messages[0];
   assertEquals([msg.user_id, msg.direction, msg.web_session_id, msg.meta.intent], ["u1", "out", "sess-123456", "avatar_briefing"]);
   assert(msg.text.includes("Bienvenue Zime"), msg.text);
+  // Le point arrive comme 3 bulles de chat, lisibles sans rien ouvrir ; les boutons sont sur la dernière seulement.
+  const bubbles = db.tables.waouh_messages;
+  assertEquals(bubbles.map((b) => b.meta.avatar_bubble.seq), [0, 1, 2]);
+  assertEquals(bubbles.map((b) => Array.isArray(b.meta.actions)), [false, false, true]);
+  assertEquals(new Set(bubbles.map((b) => b.meta.briefing_id)).size, 1);
+  assert(bubbles.every((b) => b.text.length > 0 && b.text.length < 160), "bulles courtes");
+  assert(bubbles.every((b) => b.meta.avatar_briefing === undefined), "plus de carte à ouvrir");
+  assertEquals(r.messages.length, 3);
+  const times = bubbles.map((b) => Date.parse(b.created_at));
+  assert(times[0] < times[1] && times[1] < times[2], "ordre d'affichage stable");
   assertEquals(db.tables.waouh_avatar_prefs[0].last_briefing_at, MORNING.toISOString());
 });
 
@@ -61,7 +77,7 @@ Deno.test("ouvertures rapprochées : un seul accueil (30 min) ; accueil désacti
   await deliverBriefing(db, { authUserId: AUTH, trigger: "open", now: MORNING });
   const soon = new Date(MORNING.getTime() + 10 * 60_000);
   assertEquals((await deliverBriefing(db, { authUserId: AUTH, trigger: "open", now: soon })).reason, "too_soon");
-  assertEquals(db.tables.waouh_messages.length, 1);
+  assertEquals(db.tables.waouh_messages.length, 3);
   await savePrefs(db, AUTH, { welcome: false });
   const later = new Date(MORNING.getTime() + 3 * 3600_000);
   assertEquals((await deliverBriefing(db, { authUserId: AUTH, trigger: "open", now: later })).reason, "welcome_off");
@@ -73,7 +89,7 @@ Deno.test("tick : point régulier à l'échéance, hors heures calmes, une seule
   const db = fakeDb({ waouh_avatar_prefs: [{ auth_user_id: AUTH, welcome: true, cadence: "every_4h", quiet_start: 21, quiet_end: 7, last_briefing_at: ago(MORNING, 5), last_digest: "obsolète" }] });
   const first = await runAvatarBriefingTick(db, { now: MORNING });
   assertEquals([first.scanned, first.sent, first.errors], [1, 1, 0]);
-  assertEquals(db.tables.waouh_messages[0].meta.avatar_briefing.kind, "digest");
+  assertEquals(db.tables.waouh_messages[0].meta.avatar_bubble.kind, "digest");
   const again = await runAvatarBriefingTick(db, { now: new Date(MORNING.getTime() + 60_000) });
   assertEquals([again.sent, again.skipped], [0, 1]);
   const off = fakeDb({ waouh_avatar_prefs: [{ auth_user_id: AUTH, cadence: "off", welcome: true, quiet_start: 21, quiet_end: 7, last_briefing_at: null }] });
@@ -122,4 +138,45 @@ Deno.test("réglages : valeurs invalides ignorées, relecture cohérente", async
   const p = await savePrefs(db, AUTH, { cadence: "toutes-les-secondes", quiet_start: 99, welcome: "oui" });
   assertEquals([p.cadence, p.quietStart, p.quietEnd, p.welcome], ["weekly", 22, 6, false]);
   assertEquals((await loadPrefs(db, "inconnu")).exists, false);
+});
+
+Deno.test("ouverture sans nouveauté : une seule bulle courte, jamais le point répété", async () => {
+  const db = fakeDb();
+  await deliverBriefing(db, { authUserId: AUTH, trigger: "open", now: MORNING });
+  const before = db.tables.waouh_messages.length;
+  const later = new Date(MORNING.getTime() + 8 * 3600_000 - 3 * 3600_000); // > 30 min, même empreinte, rien d'actionnable
+  const r = await deliverBriefing(db, { authUserId: AUTH, trigger: "open", now: later });
+  assertEquals(r.sent, true);
+  const added = db.tables.waouh_messages.slice(before);
+  assertEquals(added.length, 1);
+  assert(added[0].text.includes("Rien de nouveau"), added[0].text);
+  assertEquals(added[0].meta.avatar_bubble.of, 1);
+});
+
+Deno.test("WhatsApp : bilans coupés par défaut ; envoyés seulement sur demande, pour un utilisateur WhatsApp, une fois", async () => {
+  const seed = (extra: Row) => ({
+    waouh_users: [{ id: "u1", auth_user_id: AUTH, display_name: "Zime", phone_number: "22997000000", created_at: "2026-01-01" }],
+    waouh_avatar_prefs: [{ auth_user_id: AUTH, welcome: true, cadence: "every_4h", quiet_start: 21, quiet_end: 7, last_briefing_at: ago(MORNING, 5), last_digest: "obsolète", ...extra }],
+  });
+  const off = fakeDb(seed({}));
+  await runAvatarBriefingTick(off, { now: MORNING });
+  assertEquals(off.rpcCalls.length, 0, "bilan seulement dans le chat par défaut");
+  const on = fakeDb(seed({ notify_digest: true }));
+  await runAvatarBriefingTick(on, { now: MORNING });
+  assertEquals(on.rpcCalls.length, 1);
+  assertEquals(on.rpcCalls[0].args.p_to_phone, "22997000000");
+  assertEquals(on.rpcCalls[0].args.p_event_type, "avatar_briefing");
+  // Ouverture de l'app : jamais de WhatsApp (l'utilisateur est déjà dans le chat).
+  const open = fakeDb(seed({ notify_digest: true, last_briefing_at: null }));
+  await deliverBriefing(open, { authUserId: AUTH, trigger: "open", now: MORNING });
+  assertEquals(open.rpcCalls.length, 0);
+});
+
+Deno.test("réglages de notification : évènements actifs par défaut, bilans coupés, valeurs invalides ignorées", async () => {
+  const db = fakeDb();
+  const p0 = await loadPrefs(db, AUTH);
+  assertEquals([p0.notifyEvents, p0.notifyDigest], [true, false]);
+  await savePrefs(db, AUTH, { notify_digest: true, notify_events: false });
+  const p1 = await savePrefs(db, AUTH, { notify_digest: "oui", notify_events: 1 });
+  assertEquals([p1.notifyEvents, p1.notifyDigest], [false, true]);
 });

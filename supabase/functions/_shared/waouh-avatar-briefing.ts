@@ -12,8 +12,12 @@ export interface AvatarPrefs {
   cadence: Cadence;
   quietStart: number;
   quietEnd: number;
+  /** WhatsApp : prévenir des ÉVÈNEMENTS d'une offre (relance possible, voie ouverte, clôture). Actif par défaut. */
+  notifyEvents: boolean;
+  /** WhatsApp : recevoir aussi les BILANS réguliers. Désactivé par défaut (le bilan reste dans le chat). */
+  notifyDigest: boolean;
 }
-export const DEFAULT_PREFS: AvatarPrefs = { welcome: true, cadence: "daily", quietStart: 21, quietEnd: 7 };
+export const DEFAULT_PREFS: AvatarPrefs = { welcome: true, cadence: "daily", quietStart: 21, quietEnd: 7, notifyEvents: true, notifyDigest: false };
 export const CADENCES: Cadence[] = ["off", "hourly", "every_4h", "daily", "weekly"];
 export const CADENCE_HOURS: Record<Cadence, number | null> = { off: null, hourly: 1, every_4h: 4, daily: 24, weekly: 168 };
 /** Écart minimal entre deux accueils (ouvertures rapprochées : pas de spam). */
@@ -36,6 +40,8 @@ export function normalizePrefs(raw: unknown): AvatarPrefs {
     cadence: CADENCES.includes(r.cadence as Cadence) ? r.cadence as Cadence : DEFAULT_PREFS.cadence,
     quietStart: hour(r.quiet_start ?? r.quietStart, DEFAULT_PREFS.quietStart),
     quietEnd: hour(r.quiet_end ?? r.quietEnd, DEFAULT_PREFS.quietEnd),
+    notifyEvents: typeof (r.notify_events ?? r.notifyEvents) === "boolean" ? (r.notify_events ?? r.notifyEvents) as boolean : DEFAULT_PREFS.notifyEvents,
+    notifyDigest: typeof (r.notify_digest ?? r.notifyDigest) === "boolean" ? (r.notify_digest ?? r.notifyDigest) as boolean : DEFAULT_PREFS.notifyDigest,
   };
 }
 
@@ -54,6 +60,8 @@ export function mergePrefs(current: AvatarPrefs, patch: unknown): AvatarPrefs {
     cadence: CADENCES.includes(p.cadence as Cadence) ? p.cadence as Cadence : current.cadence,
     quietStart: validHour(start) ? start : current.quietStart,
     quietEnd: validHour(end) ? end : current.quietEnd,
+    notifyEvents: typeof (p.notify_events ?? p.notifyEvents) === "boolean" ? (p.notify_events ?? p.notifyEvents) as boolean : current.notifyEvents,
+    notifyDigest: typeof (p.notify_digest ?? p.notifyDigest) === "boolean" ? (p.notify_digest ?? p.notifyDigest) as boolean : current.notifyDigest,
   };
 }
 
@@ -293,3 +301,21 @@ export function composeBriefing(input: { activity: Activity; kind: BriefingKind;
 
 /** Texte brut d'un point (notifications, aperçu de conversation) : les 3 phrases. */
 export const briefingText = (b: Pick<Briefing, "sentences">) => b.sentences.join(" ");
+
+// ---------------------------------------------------------------------------
+// Bulles : l'avatar PARLE dans le chat (2 à 3 messages courts), il n'y a rien à ouvrir pour lire.
+// ---------------------------------------------------------------------------
+export interface AvatarBubble { text: string; actions: BriefingAction[] }
+
+/**
+ * Découpe un point en bulles de chat : une phrase par bulle, boutons sur la DERNIÈRE seulement.
+ * `unchanged` (rien de neuf depuis le dernier point) : une seule bulle d'une phrase courte, jamais de répétition du point.
+ * Le tout premier accueil n'est jamais raccourci.
+ */
+export function composeBubbles(b: Pick<Briefing, "kind" | "sentences" | "actions">, opts: { unchanged?: boolean } = {}): AvatarBubble[] {
+  const sentences = b.sentences.map((s) => s.trim()).filter(Boolean).slice(0, 3);
+  if (opts.unchanged && b.kind !== "first" && sentences.length) {
+    return [{ text: `${sentences[0]} Rien de nouveau depuis mon dernier point, je continue de surveiller.`, actions: b.actions.slice(0, 3) }];
+  }
+  return sentences.map((text, i) => ({ text, actions: i === sentences.length - 1 ? b.actions.slice(0, 3) : [] }));
+}

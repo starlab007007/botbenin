@@ -3,6 +3,12 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.29.9 (branche claude/harmonisation-phase-0-1)
+- L'avatar PARLE dans le chat : accueil, points, rapports et prochaines étapes arrivent comme 2 à 3 bulles de conversation déjà lisibles (plus de carte à ouvrir), avec « l'avatar écrit… » et apparition séquencée en direct
+  (l'historique s'affiche d'un coup), boutons sur la dernière bulle. Ouverture sans nouveauté : une seule phrase courte, jamais le même point répété.
+  Évènements d'offre (relance possible, voie ouverte, clôture) : bulle dans la Deal Room + WhatsApp par défaut (réglable) ; bilans réguliers : chat seulement, WhatsApp sur option.
+  Nouveau : migration `20260929180000` (`notify_events` actif, `notify_digest` coupé). Anciennes cartes de l'historique toujours lues. Détail : docs/AVATAR_LIVE_CHAT_2026-09-29.md.
+
 ## 2026.09.29.8 (branche claude/harmonisation-phase-0-1, NON déployé en production)
 - L'avatar guide (Web + Flutter) : accueil et point à chaque ouverture (2 à 3 phrases, aide « Je peux aussi »), « Faire le point » à la demande, points réguliers réglables (jamais / 1 h / 4 h / jour / semaine)
   avec heures calmes, carte premium (activités, veilles, contacts, prochaines étapes, boutons), barre du guide et réglages ; jamais d'envoi à un tiers.

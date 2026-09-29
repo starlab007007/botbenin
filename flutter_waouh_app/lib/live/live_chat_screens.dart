@@ -39,6 +39,10 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
   bool _interestInFlight = false;
   bool _interestNavigationFailed = false;
   final _avatarBarKey = GlobalKey<LiveAvatarGuideBarState>();
+  // L'avatar « écrit » : ses bulles en direct apparaissent l'une après l'autre (historique : d'un coup).
+  final _avatarReveal = LiveAvatarReveal();
+  Timer? _revealTimer;
+  DateTime? _revealScheduledFor;
   late final LiveAvatarGuideService _avatarService = LiveAvatarGuideService((body) async {
     final response = await legacy.supabase.functions.invoke('waouh-avatar-briefing', body: body);
     final data = response.data;
@@ -65,6 +69,7 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
 
   @override
   void dispose() {
+    _revealTimer?.cancel();
     composer.dispose();
     composerFocus.dispose();
     super.dispose();
@@ -404,6 +409,17 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
         meta: {...item.meta, 'delivery_state': delivery}));
   }
 
+  void _scheduleReveal(DateTime? nextAt) {
+    if (nextAt == null || nextAt == _revealScheduledFor) return;
+    _revealTimer?.cancel();
+    _revealScheduledFor = nextAt;
+    final wait = nextAt.difference(DateTime.now());
+    _revealTimer = Timer(wait.isNegative ? const Duration(milliseconds: 30) : wait + const Duration(milliseconds: 10), () {
+      _revealScheduledFor = null;
+      if (mounted) setState(() {});
+    });
+  }
+
   List<LiveMessage> _visibleMessages(List<LiveMessage> remote) {
     final localOnly = optimistic
         .where((local) => !remote.any((server) =>
@@ -487,8 +503,11 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
             child: StreamBuilder<List<LiveMessage>>(
                 stream: _messageStream,
                 builder: (_, snapshot) {
-                  final messages =
-                      _visibleMessages(snapshot.data ?? const <LiveMessage>[]);
+                  final revealed = _avatarReveal.filter(
+                      _visibleMessages(snapshot.data ?? const <LiveMessage>[]),
+                      DateTime.now());
+                  final messages = revealed.visible;
+                  _scheduleReveal(revealed.nextAt);
                   final waiting = optimistic
                       .any((item) => item.meta['delivery_state'] == 'sending');
                   final hasGoal = messages.any(
@@ -564,6 +583,7 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
                             'Choisissez un objectif ou dites simplement ce que vous voulez.',
                       ),
                     ),
+                    if (revealed.nextAt != null) const LiveAvatarTypingRow(),
                   ]);
                 })),
         if (pendingMeta.isNotEmpty)

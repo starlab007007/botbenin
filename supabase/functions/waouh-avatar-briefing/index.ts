@@ -12,7 +12,7 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const SESSION_RE = /^[A-Za-z0-9_.:-]{6,200}$/;
 
 const publicPrefs = (p: Awaited<ReturnType<typeof loadPrefs>>, now: Date) => ({
-  welcome: p.welcome, cadence: p.cadence, quiet_start: p.quietStart, quiet_end: p.quietEnd,
+  welcome: p.welcome, cadence: p.cadence, quiet_start: p.quietStart, quiet_end: p.quietEnd, notify_events: p.notifyEvents, notify_digest: p.notifyDigest,
   last_briefing_at: p.lastBriefingAt?.toISOString() ?? null, next_briefing_at: nextBriefingAt(p, p.lastBriefingAt, now)?.toISOString() ?? null,
 });
 
@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
       const sid = typeof body?.session_id === "string" && SESSION_RE.test(body.session_id) ? body.session_id : null;
       const r = await deliverBriefing(sb, { authUserId: user.id, trigger: action === "open" ? "open" : "manual", now, webSessionId: sid });
       return jsonResponse({
-        ok: true, sent: r.sent, reason: r.reason, briefing: r.briefing, message: r.message,
+        ok: true, sent: r.sent, reason: r.reason, briefing: r.briefing, message: r.message, messages: r.messages,
         prefs: publicPrefs(r.prefs, now), next_briefing_at: r.nextBriefingAt,
       });
     }

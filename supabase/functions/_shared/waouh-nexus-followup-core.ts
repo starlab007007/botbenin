@@ -15,13 +15,21 @@ export interface TickResult { scanned: number; nudges: number; reachable: number
 
 type Note = { key: CatalogKey; intent: string; actions: Array<{ id: string; label: string }>; extra?: Record<string, unknown> };
 
+/** WhatsApp pour les évènements d'offre : actif par défaut, coupé si l'acheteur a désactivé `notify_events`. */
+async function eventsWhatsappAllowed(sb: any, buyerUserId: string): Promise<boolean> {
+  const { data: u } = await sb.from("waouh_users").select("auth_user_id").eq("id", buyerUserId).maybeSingle();
+  if (!u?.auth_user_id) return true;
+  const { data: p } = await sb.from("waouh_avatar_prefs").select("notify_events").eq("auth_user_id", u.auth_user_id).maybeSingle();
+  return p?.notify_events !== false;
+}
+
 async function writeNote(sb: any, thread: any, note: Note, vars: Record<string, unknown> = {}): Promise<boolean> {
   const message = renderCatalog(note.key, vars as any);
   const dedupeKey = `avatar:${thread.id}:${note.intent}:${(note.extra?.nudge_no as number | undefined) ?? 0}`;
   if (await chatWriterV2Enabled(sb)) {
     const w = await recordChatMessage({
       sb, threadId: thread.id, recipientUserId: thread.buyer_user_id, direction: "out", text: message.text, intent: note.intent,
-      actions: note.actions, mirrorToOtherParty: false, enqueueWhatsapp: false, dedupeKey, payloadExtra: note.extra ?? {},
+      actions: note.actions, mirrorToOtherParty: false, enqueueWhatsapp: await eventsWhatsappAllowed(sb, thread.buyer_user_id), dedupeKey, payloadExtra: note.extra ?? {},
     });
     if (w.ok) return true;
   }
