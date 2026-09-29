@@ -23,6 +23,7 @@ import {
 } from "../_shared/waouh-format.ts";
 import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
+import { optionalUuid, sanitizeActions } from "../_shared/waouh-notify-actions.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -108,6 +109,11 @@ serve(async (req) => {
   try {
     const body = await req.json();
     let { kind, article_id, catalog_id, buyer_profile_id, recipient, extra_text, counterpart_user_id } = body || {};
+    // Boutons de décision, thread et négociation calculés par l'appelant
+    // (waouh-deal-open) : transmis tels quels au message du fil et à la file WhatsApp.
+    const bodyActions = sanitizeActions(body?.actions);
+    const bodyThreadId = optionalUuid(body?.thread_id);
+    const bodyNegotiationId = optionalUuid(body?.negotiation_id);
     if (!kind || !recipient || (!article_id && !catalog_id)) {
       return new Response(JSON.stringify({ error: "kind, recipient and article_id|catalog_id are required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -223,7 +229,9 @@ serve(async (req) => {
           p_template: kind,
           p_payload: {
             text,
-            actions: [],
+            actions: bodyActions,
+            thread_id: bodyThreadId,
+            negotiation_id: bodyNegotiationId,
             article_id,
             recipient,
             photos,
@@ -281,10 +289,12 @@ serve(async (req) => {
               intent: kind,
               template: kind,
               eventType: kind,
+              threadId: bodyThreadId,
+              negotiationId: bodyNegotiationId,
               attachments: photos.slice(0, 4).map((url) => ({ url, type: "image/jpeg" })),
               imageUrl: photos[0] ?? null,
               dedupSuffix: `notify:${recipient}${counterpart_user_id ? `:cp_${counterpart_user_id}` : (buyer_profile_id ? `:${buyer_profile_id}` : "")}`,
-              payloadExtra: { article_id, recipient, buyer_profile_id: buyer_profile_id ?? null, counterpart_user_id: counterpart_user_id ?? null, buyer_user_id: counterpart_user_id ?? null },
+              payloadExtra: { article_id, recipient, buyer_profile_id: buyer_profile_id ?? null, counterpart_user_id: counterpart_user_id ?? null, buyer_user_id: counterpart_user_id ?? null, actions: bodyActions },
 
             });
           }
@@ -328,6 +338,9 @@ serve(async (req) => {
           counterpart_user_id: counterpart_user_id ?? null,
           buyer_user_id: counterpart_user_id ?? null,
           article_id,
+          thread_id: bodyThreadId,
+          negotiation_id: bodyNegotiationId,
+          actions: bodyActions,
           photos,
           contact: { channel: target.channel, whatsapp: target.whatsapp, partner_id: target.partnerId },
         },

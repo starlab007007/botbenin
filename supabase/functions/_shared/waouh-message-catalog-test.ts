@@ -8,6 +8,7 @@ import {
   renderCatalog,
   stageFor,
   TITLE_MAX_WORDS,
+  unavailableKey,
 } from "./waouh-message-catalog.ts";
 import {
   articleEntryActionsV3,
@@ -21,7 +22,7 @@ const ALL_KEYS: CatalogKey[] = [
   "question_received", "offer_sent", "offer_received", "awaiting_counterparty", "counter_prompt",
   "agreement", "offer_refused_actor", "offer_refused_other", "seller_confirmed", "pay_mode_chosen",
   "courier_assigned", "picked_up", "delivered", "payment_confirmed", "deal_cancelled", "no_open_deal",
-  "multiple_open_deals", "stale_button", "out_of_stage", "technical_error", "article_reserved",
+  "multiple_open_deals", "stale_button", "out_of_stage", "technical_error", "article_reserved", "article_sold",
   "negotiation_paused", "not_understood", "confirm_money_action", "self_article", "results_found",
 ];
 
@@ -111,4 +112,30 @@ Deno.test("offre envoyée : grammaire vendeur/acheteur correcte", () => {
   assert(buyer.detail.includes("En attente du vendeur."));
   assert(seller.detail.includes("En attente de l'acheteur."));
   assert(!buyer.detail.includes("de le vendeur"));
+});
+
+Deno.test("E4 : un article vendu se dit « vendu », pas « réservé »", () => {
+  assertEquals(unavailableKey("sold"), "article_sold");
+  assertEquals(unavailableKey(" SOLD "), "article_sold");
+  assertEquals(unavailableKey("reserved"), "article_reserved");
+  assertEquals(unavailableKey("archived"), "article_reserved");
+  assertEquals(unavailableKey(undefined), "article_reserved");
+  assertEquals(renderCatalog("article_sold").title, "Article vendu");
+  assert(!renderCatalog("article_sold").text.includes("réservé"));
+  assertEquals(renderCatalog("article_reserved").title, "Article déjà réservé");
+});
+
+Deno.test("E2 : « Le vendeur est prévenu » n'est promis que si la notification a abouti", () => {
+  const base = { title: "Bic", amount: 100, role: "buyer" as const };
+  assert(renderCatalog("deal_opened", base).detail.includes("Le vendeur est prévenu."));
+  assert(renderCatalog("deal_opened", { ...base, sellerNotified: true }).detail.includes("Le vendeur est prévenu."));
+  const failed = renderCatalog("deal_opened", { ...base, sellerNotified: false });
+  assert(!failed.detail.includes("est prévenu."));
+  assert(failed.detail.includes("pas encore prévenu"));
+  assert(failed.detail.length <= DETAIL_MAX_CHARS);
+});
+
+Deno.test("E2 : la formulation d'échec tient dans la limite avec un long titre et un gros montant", () => {
+  const m = renderCatalog("deal_opened", { title: LONG_TITLE, amount: 100_000_000, sellerNotified: false });
+  assert(m.detail.length <= DETAIL_MAX_CHARS, m.detail);
 });

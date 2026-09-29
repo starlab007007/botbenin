@@ -88,6 +88,14 @@ function emptyResult(code: OpenBuyerDealCode, article: Record<string, any> | nul
   };
 }
 
+/** La notification vendeur a-t-elle réellement abouti ? Pure — testée. */
+export function dispatchSucceeded(status: number, body: unknown): boolean {
+  if (!(status >= 200 && status < 300)) return false;
+  const b = (body && typeof body === "object") ? body as Record<string, unknown> : {};
+  if (b.error || b.success === false || b.ok === false) return false;
+  return true;
+}
+
 /** Offre valide (> 0, finie) ou null. Pure — testée. */
 export function normalizeOffer(raw: unknown): number | null | "invalid" {
   if (raw == null || raw === "") return null;
@@ -258,7 +266,7 @@ export async function openBuyerDeal(args: OpenBuyerDealArgs): Promise<OpenBuyerD
       ? renderCatalog("new_buyer", { title, amount: shownOffer, price: Number(article.price || 0) || null }).text
       : `📩 Nouvel acheteur intéressé\n\n📦 ${title}\n💰 Offre proposée : ${legacyOffer.toLocaleString("fr-FR")} FCFA\n\nAcceptez le prix, faites une contre-offre ou refusez.`;
     try {
-      await fetch(`${supabaseUrl}/functions/v1/waouh-notify-dispatch`, {
+      const dispatchRes = await fetch(`${supabaseUrl}/functions/v1/waouh-notify-dispatch`, {
         method: "POST",
         headers: { Authorization: `Bearer ${serviceRole}`, "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -274,7 +282,12 @@ export async function openBuyerDeal(args: OpenBuyerDealArgs): Promise<OpenBuyerD
           extra_text: extraText,
         }),
       });
-      sellerNotified = true;
+      const dispatchBody = await dispatchRes.json().catch(() => ({}));
+      // Un fetch qui ne lève pas n'est pas une notification réussie (404, 500…).
+      sellerNotified = dispatchSucceeded(dispatchRes.status, dispatchBody);
+      if (!sellerNotified) {
+        console.warn("[waouh-deal-open] dispatch refused", dispatchRes.status, JSON.stringify(dispatchBody).slice(0, 200));
+      }
     } catch (e) {
       console.warn("[waouh-deal-open] dispatch failed", e);
     }
@@ -286,7 +299,7 @@ export async function openBuyerDeal(args: OpenBuyerDealArgs): Promise<OpenBuyerD
       const photos = publicPhotos(article);
       const actions: WaouhAction[] = [];
       const text = catalogV3
-        ? renderCatalog("deal_opened", { title, amount: shownOffer }).text
+        ? renderCatalog("deal_opened", { title, amount: shownOffer, sellerNotified }).text
         : `✅ Offre envoyée au vendeur\n\n📦 ${title}\n💰 ${legacyOffer.toLocaleString("fr-FR")} FCFA\n\nVotre Avatar suit la réponse et vous guidera jusqu’à l’accord.`;
       await pushSyncedEvent({
         sb,

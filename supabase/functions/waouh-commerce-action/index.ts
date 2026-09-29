@@ -17,7 +17,8 @@ import { commerceActionV3Enabled, chatWriterV2Enabled, recordChatMessage } from 
 import { resolveSiblingUserIds } from "../_shared/waouh-identity.ts";
 import { openBuyerDeal, publicPhotos } from "../_shared/waouh-deal-open.ts";
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
-import { renderCatalog, type CatalogKey, fcfa, stageFor } from "../_shared/waouh-message-catalog.ts";
+import { renderCatalog, type CatalogKey, fcfa, stageFor, unavailableKey } from "../_shared/waouh-message-catalog.ts";
+import { classifyInternalFailure, shouldEchoBeforeExecute } from "../_shared/waouh-internal-call.ts";
 import {
   actionEcho,
   type CommerceActionRequest,
@@ -141,13 +142,19 @@ async function canonicalProductRef(
 }
 
 async function callInternal(fn: string, body: Record<string, unknown>) {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => ({}));
-  return { status: res.status, ok: res.ok && data?.ok !== false && !data?.error, data: data ?? {} };
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    return { status: res.status, ok: res.ok && data?.ok !== false && !data?.error, data: data ?? {} };
+  } catch (error) {
+    // Réseau / passerelle : status 0, classé « dépendance indisponible » (pas un refus métier).
+    console.error(`[waouh-commerce-action] appel interne ${fn} impossible`, error);
+    return { status: 0, ok: false, data: { error: "internal_call_failed", message: String((error as any)?.message || error) } };
+  }
 }
 
 async function loadThread(sb: any, threadId: string | null | undefined) {
@@ -274,9 +281,16 @@ async function execute(ctx: Ctx, thread: any, role: Role | null): Promise<Engine
     if (r.status === 503 || intent === "negotiation_paused") {
       return { ok: false, key: "negotiation_paused", vars: { reason: r.data?.message }, engineIntent: intent, httpStatus: 200 };
     }
-    if (intent === "article_unavailable") return { ok: false, key: "article_reserved", engineIntent: intent };
+    if (intent === "article_unavailable") return { ok: false, key: unavailableKey(r.data?.article_status), engineIntent: intent };
     if (intent === "negotiation_awaiting_counterparty") return { ok: true, key: "awaiting_counterparty", vars, engineIntent: intent };
     if (intent === "no_open_negotiation") return { ok: false, key: "stale_button", engineIntent: intent };
+    // Fonction interne absente ou en panne : erreur technique (relançable) et trace
+    // exploitable, jamais un faux refus « Action indisponible ».
+    const failure = classifyInternalFailure(r);
+    if (failure === "dependency_missing" || failure === "engine_error") {
+      console.error("[waouh-commerce-action] moteur interne indisponible", failure, r.status, JSON.stringify(r.data).slice(0, 200));
+      return { ok: false, key: "technical_error", engineIntent: failure };
+    }
     if (!r.ok && r.status >= 500) return { ok: false, key: "technical_error", engineIntent: intent };
     if (!r.ok) return { ok: false, key: "out_of_stage", vars: { reason: r.data?.reply }, engineIntent: intent };
     return {
@@ -306,7 +320,7 @@ async function execute(ctx: Ctx, thread: any, role: Role | null): Promise<Engine
       });
       if (!opened.ok) {
         const key: CatalogKey = opened.code === "self" ? "self_article"
-          : opened.code === "article_unavailable" ? "article_reserved"
+          : opened.code === "article_unavailable" ? unavailableKey(opened.article?.status)
           : opened.code === "article_not_found" ? "article_missing"
           : opened.code === "invalid_offer" ? "out_of_stage"
           : "technical_error";
@@ -324,7 +338,7 @@ async function execute(ctx: Ctx, thread: any, role: Role | null): Promise<Engine
       return {
         ok: true,
         key: opened.created ? "deal_opened" : buyerWaits ? "awaiting_counterparty" : "deal_already_open",
-        vars: { title: opened.article?.title, amount: opened.offerPrice, role: "buyer" },
+        vars: { title: opened.article?.title, amount: opened.offerPrice, role: "buyer", sellerNotified: opened.sellerNotified },
         threadId: opened.threadId, negotiationId: opened.negotiationId, articleId,
       };
     }
@@ -347,7 +361,7 @@ async function execute(ctx: Ctx, thread: any, role: Role | null): Promise<Engine
               : opened.code === "article_not_found"
                 ? "article_missing"
                 : opened.code === "article_unavailable"
-                  ? "article_reserved"
+                  ? unavailableKey(opened.article?.status)
                   : "technical_error",
             articleId,
           };
@@ -556,7 +570,19 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Écho de l'utilisateur dans le fil (sa bulle), avant la réponse.
+    // Écho de l'utilisateur dans le fil (sa bulle), AVANT l'exécution quand le fil
+    // existe : les moteurs (waouh-deal-ops) écrivent leurs réponses pendant
+    // l'exécution, et le fil est trié par date. Premier contact (pas de fil) : l'écho
+    // est écrit après, une fois le fil créé.
+    const echoText = actionEcho(request, fcfa);
+    let echoWritten = false;
+    if (thread && role && shouldEchoBeforeExecute({ hasThread: true, hasRole: true, echo: echoText, freeTextKey, pending })) {
+      const echoActor = role === "buyer" ? thread.buyer_user_id : thread.seller_user_id;
+      await writeBubble(sb, { threadId: thread.id, userId: echoActor, direction: "in", text: echoText!,
+        articleId: thread.article_id, intent: pending ? "offer_confirmation_requested" : `action_${request.action}`, channel: "web",
+        extra: { idem: request.idem, source: request.source, pending: pending ?? null } });
+      echoWritten = true;
+    }
     let outcome: EngineOutcome;
     if (freeTextKey) {
       outcome = { ok: true, key: freeTextKey, pending, threadId: thread?.id ?? null, vars: {} };
@@ -625,6 +651,7 @@ Deno.serve(async (req) => {
       method: (outcome.vars?.method as any) ?? request.method ?? null,
       reason: (outcome.vars?.reason as string | undefined) ?? null,
       label: confirmationLabel,
+      sellerNotified: (outcome.vars?.sellerNotified as boolean | undefined) ?? null,
     });
     const responseActions = pending
       ? [{ id: "confirm", label: "Confirmer" }, { id: "dismiss", label: "Modifier" }]
@@ -634,11 +661,10 @@ Deno.serve(async (req) => {
     // l'a déjà écrite, cas de waouh-deal-ops).
     if (finalThread) {
       const actorOnThread = finalRole === "buyer" ? finalThread.buyer_user_id : finalThread.seller_user_id;
-      const echo = actionEcho(request, fcfa);
       // Une offre libre en attente de confirmation est tout de même une vraie
       // bulle utilisateur. On l'écrit sans exécuter la mutation de prix.
-      if (echo && (!freeTextKey || pending)) {
-        await writeBubble(sb, { threadId: finalThread.id, userId: actorOnThread, direction: "in", text: echo,
+      if (!echoWritten && echoText && (!freeTextKey || pending)) {
+        await writeBubble(sb, { threadId: finalThread.id, userId: actorOnThread, direction: "in", text: echoText,
           articleId: finalThread.article_id, intent: pending ? "offer_confirmation_requested" : `action_${request.action}`, channel: "web",
           extra: { idem: request.idem, source: request.source, pending: pending ?? null } });
       }

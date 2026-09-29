@@ -45,6 +45,7 @@ export type CatalogKey =
   | "technical_error"
   | "article_missing"
   | "article_reserved"
+  | "article_sold"
   | "negotiation_paused"
   | "not_understood"
   | "confirm_money_action"
@@ -65,6 +66,8 @@ export interface CatalogVars {
   count?: number | null;
   label?: string | null;
   question?: string | null;
+  /** false = la notification du vendeur a échoué : on ne promet pas qu'il est prévenu. */
+  sellerNotified?: boolean | null;
 }
 
 export interface CatalogMessage {
@@ -80,6 +83,11 @@ export const DETAIL_MAX_CHARS = 90;
 
 const other = (role: CatalogRole | null | undefined) => (role === "seller" ? "l'acheteur" : "le vendeur");
 const Other = (role: CatalogRole | null | undefined) => (role === "seller" ? "L'acheteur" : "Le vendeur");
+
+/** Clé de message pour un article indisponible : « vendu » ne se dit pas « réservé ». */
+export function unavailableKey(status: unknown): CatalogKey {
+  return String(status ?? "").trim().toLowerCase() === "sold" ? "article_sold" : "article_reserved";
+}
 
 /** Titre court d'un article, pour tenir dans la ligne de détail. */
 export function shortTitle(title: string | null | undefined, max = 32): string {
@@ -100,7 +108,7 @@ type Builder = (v: CatalogVars) => { title: string; detail: string };
 const BUILDERS: Record<CatalogKey, Builder> = {
   deal_opened: (v) => ({
     title: "Offre envoyée",
-    detail: `${shortTitle(v.title)} · ${fcfa(v.amount ?? v.price)}.${responseHint(v.responseMinutes) || " Le vendeur est prévenu."}`,
+    detail: `${shortTitle(v.title)} · ${fcfa(v.amount ?? v.price)}.${responseHint(v.responseMinutes) || (v.sellerNotified === false ? " Le vendeur n'est pas encore prévenu." : " Le vendeur est prévenu.")}`,
   }),
   deal_already_open: (v) => ({
     title: "Discussion déjà ouverte",
@@ -211,6 +219,10 @@ const BUILDERS: Record<CatalogKey, Builder> = {
   article_reserved: () => ({
     title: "Article déjà réservé",
     detail: "Un autre acheteur l'a obtenu. Voici des articles proches.",
+  }),
+  article_sold: () => ({
+    title: "Article vendu",
+    detail: "Cet article a déjà été vendu. Voici des articles proches.",
   }),
   negotiation_paused: (v) => ({
     title: "Discussion en pause",

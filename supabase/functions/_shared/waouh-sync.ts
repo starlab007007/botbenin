@@ -11,6 +11,7 @@
 import { resolveRealPhoneE164 } from "./waouh-format.ts";
 import { traceEvent, newTraceId } from "./waouh-trace.ts";
 import { chatWriterV2Enabled, recordChatMessage, resolveThreadIdForEvent } from "./waouh-chat-writer.ts";
+import { actionsOrEmpty } from "./waouh-notify-actions.ts";
 
 export type SyncedRole = "buyer" | "seller";
 
@@ -188,7 +189,8 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
   const basePayload = {
     ...payloadExtra,
     text,
-    actions: [] as Array<{ id: string; label: string }>,
+    // Boutons de l'appelant (ex. décision vendeur) ; auparavant écrasés par [].
+    actions: actionsOrEmpty(payloadExtra),
     article_id: articleId ?? null,
     negotiation_id: negotiationId,
     transaction_id: transactionId,

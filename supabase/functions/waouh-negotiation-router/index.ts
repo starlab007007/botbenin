@@ -504,6 +504,7 @@ Deno.serve(async (req) => {
         const reason = String((atomicError as any)?.message || "");
         const unavailable = /article_(?:reserved|sold)/i.test(reason);
         if (unavailable) {
+          const soldNow = /article_sold/i.test(reason);
           await sb.from("waouh_negotiations").update({
             state: "closed",
             closed_at: new Date().toISOString(),
@@ -516,8 +517,9 @@ Deno.serve(async (req) => {
             ok: false,
             code: "article_unavailable",
             reply: v3
-              ? renderCatalog("article_reserved").text
+              ? renderCatalog(soldNow ? "article_sold" : "article_reserved").text
               : "⏳ Cet article vient d’être réservé par un autre acheteur. Votre Deal Room reste dans l’historique et WAOUH pourra vous reproposer une alternative.",
+            article_status: soldNow ? "sold" : "reserved",
             intent: "article_unavailable",
             workflow_state: "waiting_availability",
             negotiation_id: neg.id,

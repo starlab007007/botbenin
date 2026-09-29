@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+import { getRequestUser } from "../_shared/waouh-auth.ts";
+import { resolveViewerIdentity } from "../_shared/waouh-viewer-identity.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,8 +42,16 @@ serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     let articleId = clean(body?.articleId ?? body?.article_id);
-    const sessionId = clean(body?.sessionId ?? body?.session_id);
-    const authUserId = clean(body?.authUserId ?? body?.auth_user_id);
+    // Identité du lecteur : dérivée du jeton, jamais du corps (voir waouh-viewer-identity.ts).
+    const jwtUser = await getRequestUser(req);
+    const viewer = resolveViewerIdentity({
+      jwtUserId: jwtUser?.id ?? null,
+      claimedAuthUserId: clean(body?.authUserId ?? body?.auth_user_id),
+      sessionId: clean(body?.sessionId ?? body?.session_id),
+    });
+    if (!viewer.ok) return json({ ok: false, error: viewer.error }, viewer.status);
+    const sessionId = viewer.sessionId;
+    const authUserId = viewer.authUserId;
     let requestedThreadId = clean(body?.threadId ?? body?.thread_id);
     const matchKey = clean(body?.matchKey ?? body?.match_key);
     const matchKeyCorrelation =

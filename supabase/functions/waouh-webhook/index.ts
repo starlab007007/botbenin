@@ -12,7 +12,7 @@ import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identit
 import { resolveProductThread, bindThreadState } from "../_shared/waouh-thread.ts";
 import { chatCatalogV3Enabled, chatInterestFastPathEnabled, chatRouterV2Enabled, chatWriterV2Enabled, recordChatMessage, resolveThreadIdForEvent } from "../_shared/waouh-chat-writer.ts";
 import { articleEntryActionsV3, negotiationActions as registryNegotiationActions, negotiationActionsV3 } from "../_shared/waouh-commands.ts";
-import { renderCatalog } from "../_shared/waouh-message-catalog.ts";
+import { renderCatalog, unavailableKey } from "../_shared/waouh-message-catalog.ts";
 import { openBuyerDeal } from "../_shared/waouh-deal-open.ts";
 import { findRadarOutreachContext, findRadarSellerOutreachContext } from "../_shared/waouh-radar.ts";
 import { extractFallbackKeywords, expandKeywordVariants, escapeIlikeToken, matchesAnyKeyword, scoreRelevance, normalizeCategorySafe } from "../_shared/waouh-keywords.ts";
@@ -2254,12 +2254,12 @@ serve(async (req) => {
           returnedNegotiationId = opened.negotiationId;
           returnedStage = "negotiation";
           reply = catalogV3
-            ? renderCatalog(opened.created ? "deal_opened" : "deal_already_open", { title: openedTitle, amount: opened.offerPrice }).text
+            ? renderCatalog(opened.created ? "deal_opened" : "deal_already_open", { title: openedTitle, amount: opened.offerPrice, sellerNotified: opened.sellerNotified }).text
             : `💬 Offre de *${fmt(opened.offerPrice || amount)}* transmise pour *${openedTitle}*. Vous serez notifié de la réponse.`;
         } else if (opened.code === "self") {
           reply = catalogV3 ? renderCatalog("self_article").text : "🤔 Vous êtes le vendeur de cet article. Attendez qu'un acheteur se manifeste.";
         } else if (opened.code === "article_unavailable") {
-          reply = catalogV3 ? renderCatalog("article_reserved").text : "⏳ Cet article n'est plus disponible. Relancez une recherche pour voir des articles proches.";
+          reply = catalogV3 ? renderCatalog(unavailableKey(opened.article?.status)).text : "⏳ Cet article n'est plus disponible. Relancez une recherche pour voir des articles proches.";
         } else {
           reply = catalogV3 ? renderCatalog("technical_error").text : "⚠️ Votre offre n'a pas pu être transmise. Rien n'a été validé : réessayez dans un instant.";
         }
