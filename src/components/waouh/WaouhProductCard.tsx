@@ -26,6 +26,9 @@ import { isImageReady, preloadImage, prefetchNeighbours } from "@/components/wao
 import { cn } from "@/lib/utils";
 import { WaouhContactabilityBadge } from "./WaouhCommerceAgentBar";
 import { WaouhNexusContactSheet } from "./WaouhNexusContactSheet";
+import { getWaouhSessionId } from "@/app-mobile/hooks/useWaouhIdentity";
+import { isDirectDealCandidate, openExternalDeal, openMatchDetail } from "@/lib/waouh/nexusDeal";
+import { toast } from "sonner";
 import { smartOfferAmount } from "@/lib/waouh/hotLabels";
 
 /**
@@ -260,6 +263,9 @@ export function WaouhProductCard({
   const [question, setQuestion] = useState("");
   // Parcours v3 : saisie d'offre pré-remplie avec le prix suggéré.
   const [offering, setOffering] = useState(false);
+  // Résultat Nexus externe : Deal Room directe. Passe à false si le serveur garde la fiche de contact.
+  const [directDeal, setDirectDeal] = useState(true);
+  const [openingDirect, setOpeningDirect] = useState(false);
   const [offer, setOffer] = useState("");
   const serverActions = Array.isArray(result.actions) ? result.actions.filter((a) => a?.id && a?.label).slice(0, 3) : [];
   // Carte « chaude » : sans boutons fournis par le serveur, on synthétise l'entrée du parcours v3
@@ -276,6 +282,7 @@ export function WaouhProductCard({
   const level = contactLevel(result);
   const externalOpportunity = !!result.fabric_id &&
     !["waouh", "chat", "waouh_app"].includes(String(result.source || "").toLowerCase());
+  const externalDeal = directDeal && externalOpportunity && !isBuyerOpportunity(result) && isDirectDealCandidate(result.fabric_id);
    const score = metric(result, "total_score");
   const trust = metric(result, "trust_score");
   const priceFit = metric(result, "price_score");
@@ -340,19 +347,44 @@ export function WaouhProductCard({
   };
   const submitOffer = () => {
     const amount = Number(offer.replace(/\D/g, ""));
-    if (!onAction || !Number.isFinite(amount) || amount < 1) return;
+    if (!Number.isFinite(amount) || amount < 1) return;
+    if (externalDeal) { setOffering(false); void enterExternalDeal(amount); return; }
+    if (!onAction) return;
     openDedicatedWindowFromResult(result);
     onAction(`Je propose ${fmt(amount)}`, { ...productIdentityMeta(result), commerce_action: "offer", offer_price: amount });
     setOffering(false);
   };
   const smartAmount = smartOfferAmount(listPrice);
   const sendSmartOffer = () => {
+    if (externalDeal && smartAmount) { setOffering(false); void enterExternalDeal(smartAmount); return; }
     if (!onAction || !smartAmount) return;
     openDedicatedWindowFromResult(result);
     onAction(`Je propose ${fmt(smartAmount)}`, { ...productIdentityMeta(result), commerce_action: "offer", offer_price: smartAmount });
     setOffering(false);
   };
+  // Entrée directe en Deal Room d'un résultat externe (aucun contact du tiers à ce stade).
+  const enterExternalDeal = async (amount: number | null) => {
+    if (!result.fabric_id || openingDirect) return;
+    setOpeningDirect(true);
+    try {
+      const outcome = await openExternalDeal(result.fabric_id, amount, getWaouhSessionId());
+      if (outcome.status === "fallback") { setDirectDeal(false); return; }
+      if (outcome.status === "refused") {
+        toast.message(outcome.response.reply.title, { description: outcome.response.reply.detail });
+        return;
+      }
+      const detail = openMatchDetail(outcome.response, {
+        title: result.title, price: listPrice, city: result.city ?? null, photo: photos[0] ?? null,
+      });
+      bufferOpenIntent(detail as OpenDetail);
+      window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));
+      window.dispatchEvent(new CustomEvent("waouh:match-updated", { detail: { article_id: outcome.response.article_id } }));
+    } finally {
+      setOpeningDirect(false);
+    }
+  };
   const handleWant = () => {
+    if (externalDeal) { void enterExternalDeal(null); return; }
     if (!v3Entry || !onAction) return;
     openDedicatedWindowFromResult(result);
     onAction(v3Entry.label, { ...productIdentityMeta(result), button_payload: v3Entry.id, commerce_action: "open_deal" });
@@ -515,7 +547,7 @@ export function WaouhProductCard({
           <p className="text-[11px] leading-snug text-muted-foreground line-clamp-3">{result.market_line}</p>
         )}
 
-        {onAction && v3Entry && !externalOpportunity && (
+        {(onAction || externalDeal) && v3Entry && (!externalOpportunity || externalDeal) && (
           <div className="mt-1 space-y-1.5">
             <Button
               size="sm"
@@ -529,10 +561,22 @@ export function WaouhProductCard({
               <Button size="sm" variant="outline" className="h-8 min-w-0 px-2 text-[11px]" onClick={smartAmount ? sendSmartOffer : openOffer}>
                 <span className="truncate">{smartAmount ? `Proposer ${fmt(smartAmount)}` : "Proposer un prix"}</span>
               </Button>
-              <Button size="sm" variant="outline" className="h-8 min-w-0 px-2 text-[11px]" onClick={() => { setAsking((a) => !a); setOffering(false); }}>
-                <MessageCircleQuestion className="h-3.5 w-3.5 mr-1 shrink-0" />
-                <span className="truncate">Poser une question</span>
-              </Button>
+              {externalDeal ? (
+                // Vendeur externe : la question passe par l'offre transmise, pas par un relais inexistant.
+                result.source_url ? (
+                  <Button size="sm" variant="outline" className="h-8 min-w-0 px-2 text-[11px]" asChild>
+                    <a href={result.source_url} target="_blank" rel="noreferrer">
+                      <ExternalLink className="mr-1 h-3.5 w-3.5" />
+                      Voir l'annonce
+                    </a>
+                  </Button>
+                ) : <span />
+              ) : (
+                <Button size="sm" variant="outline" className="h-8 min-w-0 px-2 text-[11px]" onClick={() => { setAsking((a) => !a); setOffering(false); }}>
+                  <MessageCircleQuestion className="h-3.5 w-3.5 mr-1 shrink-0" />
+                  <span className="truncate">Poser une question</span>
+                </Button>
+              )}
             </div>
             {smartAmount && !offering && (
               <button type="button" className="w-full text-center text-[11px] font-medium text-muted-foreground underline-offset-2 hover:underline" onClick={openOffer}>
@@ -574,7 +618,7 @@ export function WaouhProductCard({
           </div>
         )}
 
-        {onAction && !(v3Entry && !externalOpportunity) && (
+        {onAction && !(v3Entry && (!externalOpportunity || externalDeal)) && (
           <div className="mt-1 space-y-1.5">
             {interestAction && !externalOpportunity && (
               <Button

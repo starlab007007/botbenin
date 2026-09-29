@@ -58,3 +58,21 @@ describe("cartes produit chaudes", () => {
     }
   });
 });
+
+describe("résultats Nexus externes → Deal Room directe", () => {
+  const FAB = "external:d1a00000-0000-4000-8000-000000000001";
+  const external = { ...base, id: FAB, fabric_id: FAB, source: "nexus", price: 150000, source_url: "https://exemple.bj/a54", contactability_level: "C1" };
+
+  it("carte externe : Je le veux + prix intelligent, plus de fiche « contacter »", () => {
+    const html = render([external]);
+    expect(html).toMatch(/Je le veux à 150[\s  ]000 FCFA/);
+    expect(html).toMatch(/Proposer 135[\s]000 FCFA/);
+    expect(html).not.toMatch(/Contacter|contact avec|Trouver un moyen/i);
+  });
+
+  it("pas de « Poser une question » vers un vendeur sans compte ; lien vers l'annonce à la place", () => {
+    const html = render([external]);
+    expect(html).not.toContain("Poser une question");
+    expect(html).toContain("Voir l&#x27;annonce");
+  });
+});

@@ -17,12 +17,15 @@ export type CommerceActionName =
   | "pay_mode"
   | "confirm_payment"
   | "cancel"
-  | "text";
+  | "text"
+  | "transmit_offer";
 
 export interface CommerceActionBody {
   action: CommerceActionName;
   idem: string;
   article_id?: string | null;
+  /** Résultat Nexus (`external:<uuid>`) : le serveur le matérialise en article puis ouvre la Deal Room. */
+  fabric_id?: string | null;
   thread_id?: string | null;
   negotiation_id?: string | null;
   deal_id?: string | null;
@@ -56,6 +59,9 @@ export interface CommerceActionResponse {
     payment_method: string | null;
   };
   replayed?: boolean;
+  /** Codes d'échec métier : `nexus_direct_deal_disabled` → garder la fiche de contact. */
+  code?: string;
+  fallback?: string;
 }
 
 export const JOURNEY_STEPS = [
@@ -147,6 +153,9 @@ export function commerceRequestFromButton(
       return { action: "confirm_payment", deal_id: target, method: "mobile_money" };
     case "annuler":
       return { action: "cancel", deal_id: target };
+    case "envoyer-offre":
+    case "transmit_offer":
+      return { action: "transmit_offer", negotiation_id: target, thread_id: scope.thread_id ?? null };
     default:
       return null; // contre-offre, question, prix : saisie dans le composeur
   }

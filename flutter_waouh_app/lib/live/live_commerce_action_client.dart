@@ -130,6 +130,10 @@ Map<String, dynamic>? liveCommerceRequestFromPayload(
       return <String, dynamic>{'action': 'confirm_payment', 'deal_id': target, 'method': 'mobile_money'};
     case 'annuler':
       return <String, dynamic>{'action': 'cancel', 'deal_id': target};
+    case 'envoyer-offre':
+    case 'transmit_offer':
+      // Résultat Nexus externe : l'acheteur transmet son offre (politique de contact côté serveur).
+      return withThread(<String, dynamic>{'action': 'transmit_offer', 'negotiation_id': target});
   }
   return null;
 }
@@ -172,7 +176,53 @@ Map<String, dynamic>? _liveCommerceRequestFromCanonical(
       return dealId.isEmpty ? null : deal('confirm_payment', 'mobile_money');
     case 'cancel_deal':
       return dealId.isEmpty ? null : deal('cancel');
+    case 'transmit_offer':
+      return negotiationId.isEmpty ? null : negotiation('transmit_offer');
   }
   // counter / interest / unknown : composeur ou chemin historique (comme le Web).
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Résultats Nexus externes → Deal Room directe (parité Web : src/lib/waouh/nexusDeal.ts).
+// ---------------------------------------------------------------------------
+final RegExp _externalFabricRe = RegExp(
+  r'^external:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+  caseSensitive: false,
+);
+
+/// Offre externe (pas une demande d'achat) qui peut entrer directement en Deal Room.
+bool liveIsDirectDealCandidate({
+  required String fabricId,
+  String? intent,
+  String? actorType,
+}) {
+  final upper = (intent ?? '').trim().toUpperCase();
+  if (upper == 'BUY' || upper == 'RFQ') return false;
+  if ((actorType ?? '').trim().toLowerCase() == 'buyer') return false;
+  return _externalFabricRe.hasMatch(fabricId.trim());
+}
+
+/// Requête `open_deal` d'un résultat externe : le serveur matérialise l'article, aucun message au tiers.
+Map<String, dynamic> liveExternalDealRequest(String fabricId, {num? amount}) =>
+    <String, dynamic>{
+      'action': 'open_deal',
+      'fabric_id': fabricId.trim().toLowerCase(),
+      if (amount != null && amount > 0) 'amount': amount.round(),
+      'source': 'nexus_card',
+    };
+
+enum LiveExternalDealStatus { opened, refused, fallback }
+
+/// Réponse serveur → issue. `fallback` : drapeau nexus_direct_deal coupé ou parcours v3 indisponible
+/// (l'appelant garde la fiche de contact de l'Avatar).
+LiveExternalDealStatus liveExternalDealStatus(Map<String, dynamic>? response) {
+  if (response == null || response['code'] == 'nexus_direct_deal_disabled') {
+    return LiveExternalDealStatus.fallback;
+  }
+  final article = '${response['article_id'] ?? ''}'.trim();
+  final thread = '${response['thread_id'] ?? ''}'.trim();
+  return response['ok'] == true && article.isNotEmpty && thread.isNotEmpty
+      ? LiveExternalDealStatus.opened
+      : LiveExternalDealStatus.refused;
 }

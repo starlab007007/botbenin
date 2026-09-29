@@ -52,7 +52,13 @@ export type CatalogKey =
   | "not_understood"
   | "confirm_money_action"
   | "self_article"
-  | "results_found";
+  | "results_found"
+  // Résultats Nexus externes (vendeur sans compte WAOUH).
+  | "external_offer_ready"
+  | "external_offer_sent"
+  | "external_not_permitted"
+  | "external_no_channel"
+  | "external_unavailable";
 
 export interface CatalogVars {
   title?: string | null;
@@ -113,6 +119,26 @@ function responseHint(minutes: number | null | undefined): string {
 type Builder = (v: CatalogVars) => { title: string; detail: string };
 
 const BUILDERS: Record<CatalogKey, Builder> = {
+  external_offer_ready: (v) => ({
+    title: "Offre prête",
+    detail: `${shortTitle(v.title)} · ${fcfa(v.amount ?? v.price)}. Envoyez-la quand vous voulez.`,
+  }),
+  external_offer_sent: (v) => ({
+    title: "Offre transmise",
+    detail: `${fcfa(v.amount)} pour ${shortTitle(v.title, 28)}. Réponse attendue ici.`,
+  }),
+  external_not_permitted: () => ({
+    title: "Envoi non autorisé",
+    detail: "Contact direct refusé par ce vendeur. Gardez votre offre ou posez une question.",
+  }),
+  external_no_channel: () => ({
+    title: "Aucun contact disponible",
+    detail: "Vendeur injoignable. Relancez la recherche pour d'autres offres.",
+  }),
+  external_unavailable: () => ({
+    title: "Annonce indisponible",
+    detail: "Cette annonce n'est plus active. Relancez la recherche.",
+  }),
   deal_opened: (v) => ({
     title: "Offre envoyée",
     detail: `${shortTitle(v.title)} · ${fcfa(v.amount ?? v.price)}.${responseHint(v.responseMinutes) || (v.sellerNotified === false ? " Le vendeur n'est pas encore prévenu." : " Le vendeur est prévenu.")}`,

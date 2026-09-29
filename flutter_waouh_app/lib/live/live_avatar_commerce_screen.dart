@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../main.dart' as legacy;
 import 'avatar/live_avatar_controller.dart';
 import 'avatar/live_avatar_widgets.dart';
+import 'live_commerce_action_client.dart';
 import 'live_controller.dart';
 import 'live_nexus_service.dart';
 import 'live_models.dart';
@@ -150,7 +151,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
     return meta;
   }
 
-  Future<double?> _askInitialOffer(NexusDiscoveryItem item) async {
+  Future<double?> _askInitialOffer(NexusDiscoveryItem item, {bool external = false}) async {
     final displayed = item.priceMin ?? item.priceMax;
     final controller = TextEditingController(
       text: displayed == null ? '' : displayed.round().toString(),
@@ -208,7 +209,8 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
                 Navigator.of(sheetContext).pop(amount);
               },
               icon: const Icon(Icons.handshake_outlined),
-              label: const Text('Envoyer mon offre'),
+              // Vendeur externe : rien n'est envoyé ici, l'envoi se fait d'un tap dans la Deal Room.
+              label: Text(external ? 'Préparer mon offre' : 'Envoyer mon offre'),
               style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
             ),
           ],
@@ -364,6 +366,63 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
     );
   }
 
+  /// Résultat Nexus externe : entrée directe en Deal Room (aucun message au vendeur tiers). Retourne
+  /// `false` quand le serveur garde la fiche de contact (drapeau coupé) : l'appelant reprend l'ancien chemin.
+  Future<bool> _externalDirectDeal(NexusDiscoveryItem item) async {
+    final offer = await _askInitialOffer(item, external: true);
+    if (offer == null || offer <= 0 || !mounted) return true;
+    final controller = context.read<LiveWaouhController>();
+    final avatar = context.read<LiveAvatarController>();
+    setState(() => _workingFabric = item.fabricId);
+    avatar.setPersistentState(LiveAvatarPresenceState.negotiating);
+    try {
+      final response = await controller.sendCommerceAction(
+        liveExternalDealRequest(item.fabricId, amount: offer),
+      );
+      switch (liveExternalDealStatus(response)) {
+        case LiveExternalDealStatus.fallback:
+          return false;
+        case LiveExternalDealStatus.refused:
+          if (!mounted) return true;
+          avatar.showState(LiveAvatarPresenceState.watching);
+          final reply = response?['reply'];
+          final detail = reply is Map ? '${reply['title'] ?? ''} · ${reply['detail'] ?? ''}' : 'Rien n’a été envoyé. Réessayez.';
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(detail)));
+          return true;
+        case LiveExternalDealStatus.opened:
+          final articleId = '${response!['article_id']}';
+          final threadId = '${response['thread_id']}';
+          final match = LiveMatch(
+            key: liveMatchKey(articleId, 'buyer', null, threadId),
+            articleId: articleId,
+            role: 'buyer',
+            title: item.title,
+            lastAt: DateTime.now(),
+            threadId: threadId,
+            negotiationId: response['negotiation_id']?.toString(),
+            source: 'nexus_direct_deal',
+            price: item.priceMin ?? item.priceMax,
+            city: item.city,
+          );
+          if (!mounted) return true;
+          avatar.showState(LiveAvatarPresenceState.found);
+          await _loadJourneys();
+          if (!mounted) return true;
+          context.push('/app/chat/match/' + Uri.encodeComponent(match.key), extra: match);
+          return true;
+      }
+    } catch (_) {
+      if (!mounted) return true;
+      avatar.showState(LiveAvatarPresenceState.watching);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Rien n’a été envoyé. Réessayez.')),
+      );
+      return true;
+    } finally {
+      if (mounted) setState(() => _workingFabric = null);
+    }
+  }
+
   Future<void> _mediatedContact(NexusDiscoveryItem item) async {
     final avatar = context.read<LiveAvatarController>();
     setState(() => _workingFabric = item.fabricId);
@@ -434,6 +493,16 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   Future<void> _continue(NexusDiscoveryItem item) async {
     if (item.internalArticle) {
       await _internalInterest(item);
+      return;
+    }
+
+    if (widget.mode != LiveAvatarCommerceMode.sell &&
+        liveIsDirectDealCandidate(
+          fabricId: item.fabricId,
+          intent: item.intent,
+          actorType: item.actorType,
+        ) &&
+        await _externalDirectDeal(item)) {
       return;
     }
 

@@ -66,7 +66,7 @@ export interface OpenBuyerDealResult {
 }
 
 const ARTICLE_COLUMNS =
-  "id,seller_id,title,description,category,condition,price,currency,photos,city,market_price_min,market_price_max,status";
+  "id,seller_id,title,description,category,condition,price,currency,photos,city,market_price_min,market_price_max,status,origin";
 
 const UNAVAILABLE_STATUSES = new Set(["sold", "reserved", "archived", "deleted"]);
 
@@ -255,7 +255,9 @@ export async function openBuyerDeal(args: OpenBuyerDealArgs): Promise<OpenBuyerD
 
   // Notification vendeur : boutons de décision pour le VENDEUR uniquement.
   let sellerNotified = false;
-  const shouldNotify = (notifySeller === "always" && openNegotiation) || (notifySeller === "on_create" && created);
+  // Vendeur externe (résultat Nexus) : aucun compte à notifier, la transmission est un choix explicite de l'acheteur.
+  const externalSeller = article.origin === "nexus_external";
+  const shouldNotify = !externalSeller && ((notifySeller === "always" && openNegotiation) || (notifySeller === "on_create" && created));
   if (shouldNotify && article.seller_id) {
     const decisionActions: WaouhAction[] = negotiationId
       ? (catalogV3

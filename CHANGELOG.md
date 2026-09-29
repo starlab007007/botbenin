@@ -3,6 +3,10 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.29.5 (branche claude/harmonisation-phase-0-1, NON déployé en production)
+- Résultats Nexus sans article → Deal Room directe (matérialisation d'un vendeur stub, action `transmit_offer` « Envoyer mon offre », politique de contact C0–C5 conservée, interrupteur `nexus_direct_deal`) — docs/NEXUS_DEAL_ROOM_DIRECTE_2026-09-29.md.
+- Runbook de déploiement production (préparé, non exécuté) — docs/RUNBOOK_DEPLOIEMENT_PROD_2026-09-29.md.
+
 ## 2026.09.29.4 (branche claude/harmonisation-phase-0-1, NON déployé en production)
 - Corrections E1–E6 du parcours (boutons de la notification vendeur, notification vérifiée, ordre de l'écho, « article vendu », identité du lecteur
   par le jeton, erreurs internes tracées) — docs/RAPPORT_CORRECTIONS_E1-E6_2026-09-29.md.

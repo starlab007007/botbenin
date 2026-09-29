@@ -13,13 +13,22 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { jsonResponse, requireAuthOrGuestSession, waouhCorsHeaders } from "../_shared/waouh-auth.ts";
-import { commerceActionV3Enabled, chatWriterV2Enabled, recordChatMessage } from "../_shared/waouh-chat-writer.ts";
+import { commerceActionV3Enabled, chatWriterV2Enabled, nexusDirectDealEnabled, recordChatMessage } from "../_shared/waouh-chat-writer.ts";
 import { resolveSiblingUserIds } from "../_shared/waouh-identity.ts";
 import { openBuyerDeal, publicPhotos } from "../_shared/waouh-deal-open.ts";
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 import { renderCatalog, type CatalogKey, fcfa, isUnavailableStatus, stageFor, unavailableKey } from "../_shared/waouh-message-catalog.ts";
 import { classifyInternalFailure, shouldEchoBeforeExecute } from "../_shared/waouh-internal-call.ts";
 import { evictedNegotiationKey } from "../_shared/waouh-evict.ts";
+import {
+  externalOfferMessage,
+  materializeExternalSignal,
+  NEXUS_ORIGIN,
+  parseFabricId,
+  signalUnavailableReason,
+  transmissionMayBePermitted,
+  transmitExternalOffer,
+} from "../_shared/waouh-nexus-deal.ts";
 import {
   actionEcho,
   type CommerceActionRequest,
@@ -49,6 +58,8 @@ interface Ctx {
   actorId: string;
   siblings: string[];
   req: CommerceActionRequest;
+  /** En-tête Authorization de l'utilisateur (jamais le service role) : nécessaire à nexus.contact.send. */
+  userAuthHeader: string | null;
 }
 
 interface EngineOutcome {
@@ -199,9 +210,16 @@ async function loadState(sb: any, thread: any): Promise<{ state: DealState; neg:
     sb.from("waouh_deals").select("*").eq("thread_id", thread.id).neq("status", "cancelled")
       .order("created_at", { ascending: false }).limit(1).maybeSingle(),
     sb.from("waouh_articles")
-      .select("id,seller_id,title,price,currency,photos,city,market_price_min,market_price_max,status")
+      .select("id,seller_id,title,price,currency,photos,city,market_price_min,market_price_max,status,origin")
       .eq("id", thread.article_id).maybeSingle(),
   ]);
+  const externalSeller = article?.origin === NEXUS_ORIGIN;
+  let externalTransmitted = false;
+  if (externalSeller) {
+    const { data: sent } = await sb.from("waouh_messages").select("id")
+      .eq("thread_id", thread.id).eq("direction", "out").contains("meta", { intent: "commerce_external_offer_sent" }).limit(1);
+    externalTransmitted = Array.isArray(sent) && sent.length > 0;
+  }
   const state: DealState = {
     articleId: thread.article_id ?? null,
     articlePrice: article?.price != null ? Number(article.price) : null,
@@ -214,6 +232,8 @@ async function loadState(sb: any, thread: any): Promise<{ state: DealState; neg:
     sellerConfirmed: !!deal?.seller_confirmed_at,
     paymentSelected: !!deal?.buyer_payment_selected_at,
     paymentMethod: deal?.payment_method === "mobile_money" ? "mobile_money" : deal?.payment_method === "cash" ? "cash" : null,
+    externalSeller,
+    externalTransmitted,
   };
   return { state, neg, deal, article };
 }
@@ -345,13 +365,22 @@ async function execute(ctx: Ctx, thread: any, role: Role | null): Promise<Engine
       const buyerWaits = String(opened.lastActor || "") === "buyer";
       return {
         ok: true,
-        key: opened.created ? "deal_opened" : buyerWaits ? "awaiting_counterparty" : "deal_already_open",
+        key: opened.article?.origin === NEXUS_ORIGIN && (opened.created || buyerWaits) ? "external_offer_ready"
+          : opened.created ? "deal_opened" : buyerWaits ? "awaiting_counterparty" : "deal_already_open",
         vars: { title: opened.article?.title, amount: opened.offerPrice, role: "buyer", sellerNotified: opened.sellerNotified },
         threadId: opened.threadId, negotiationId: opened.negotiationId, articleId,
       };
     }
 
     case "ask": {
+      // Vendeur externe : personne à qui relayer la question ; l'offre transmise ouvre l'échange.
+      const askedArticle = req.article_id ?? thread?.article_id ?? null;
+      if (askedArticle) {
+        const { data: askedRow } = await sb.from("waouh_articles").select("origin").eq("id", askedArticle).maybeSingle();
+        if (askedRow?.origin === NEXUS_ORIGIN) {
+          return { ok: false, key: "out_of_stage", vars: { reason: "Envoyez votre offre : le vendeur répondra ici." }, articleId: askedArticle };
+        }
+      }
       let threadId: string | null = thread?.id ?? null;
       let counterpart: string | null = thread ? (role === "seller" ? thread.buyer_user_id : thread.seller_user_id) : null;
       const articleId = req.article_id ?? thread?.article_id ?? null;
@@ -445,6 +474,38 @@ async function execute(ctx: Ctx, thread: any, role: Role | null): Promise<Engine
       return { ok: true, key, vars: { method: req.method }, engineWroteReply: true, dealId: req.deal_id, threadId: r.data?.thread_id ?? thread?.id ?? null };
     }
 
+    case "transmit_offer": {
+      if (!thread || role !== "buyer") return { ok: false, key: "no_open_deal" };
+      if (!(await nexusDirectDealEnabled(sb))) return { ok: false, key: "out_of_stage", vars: { reason: "Envoi indisponible pour le moment." } };
+      const { data: art } = await sb.from("waouh_articles").select("id,title,origin,seller_id").eq("id", thread.article_id).maybeSingle();
+      if (!art || art.origin !== NEXUS_ORIGIN) return { ok: false, key: "out_of_stage", articleId: thread.article_id, threadId: thread.id };
+      const { data: stub } = await sb.from("waouh_users").select("web_session_id").eq("id", art.seller_id).maybeSingle();
+      const signalId = String(stub?.web_session_id || "").replace(/^nexus-ext\|/, "");
+      const { data: signal } = signalId
+        ? await sb.from("waouh_external_commerce_signals").select("*").eq("id", signalId).maybeSingle()
+        : { data: null };
+      const base = { articleId: art.id, threadId: thread.id, negotiationId: thread.negotiation_id ?? null };
+      if (!signal || signalUnavailableReason(signal)) return { ok: false, key: "external_unavailable", ...base };
+      // C0 (aucun canal public) : jamais tenté ; l'invité sans JWT ne peut pas passer la politique de contact.
+      if (!transmissionMayBePermitted(signal.contactability_level) || !ctx.userAuthHeader) {
+        return { ok: false, key: "external_not_permitted", ...base };
+      }
+      const { data: negRow } = await sb.from("waouh_negotiations").select("last_offer_price,offer_price")
+        .eq("thread_id", thread.id).order("updated_at", { ascending: false }).limit(1).maybeSingle();
+      const amount = Number(negRow?.last_offer_price ?? negRow?.offer_price ?? req.amount ?? 0) || null;
+      const sent = await transmitExternalOffer({
+        supabaseUrl: SUPABASE_URL,
+        authHeader: ctx.userAuthHeader,
+        anonKey: Deno.env.get("SUPABASE_ANON_KEY") ?? null,
+        fabricId: `external:${signalId}`,
+        message: externalOfferMessage(art.title, amount),
+      });
+      if (sent.state === "queued") return { ok: true, key: "external_offer_sent", vars: { amount }, ...base };
+      if (sent.state === "not_permitted") return { ok: false, key: "external_not_permitted", ...base };
+      if (sent.state === "no_channel") return { ok: false, key: "external_no_channel", ...base };
+      return { ok: false, key: "technical_error", ...base };
+    }
+
     case "courier_update":
       return { ok: false, key: "out_of_stage", vars: { reason: "Réservé au livreur WAOUH." } };
 
@@ -474,6 +535,7 @@ Deno.serve(async (req) => {
     // Acteur : service role (relais interne) ou JWT / session invitée signée.
     const bearer = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
     let actorId: string | null = null;
+    let userAuthHeader: string | null = null;
     if (bearer && bearer === SERVICE_ROLE) {
       actorId = typeof body?.actor_user_id === "string" ? body.actor_user_id : null;
     } else {
@@ -481,6 +543,7 @@ Deno.serve(async (req) => {
       const auth = await requireAuthOrGuestSession(req, request.session_id);
       if (!auth.ok) return auth.response;
       if (auth.authUser?.id) {
+        userAuthHeader = `Bearer ${bearer}`;
         const { data } = await sb.from("waouh_users").select("id").eq("auth_user_id", auth.authUser.id).limit(1).maybeSingle();
         actorId = data?.id ?? null;
       }
@@ -526,6 +589,34 @@ Deno.serve(async (req) => {
       };
     }
 
+    // Résultat Nexus sans article : matérialisation (drapeau nexus_direct_deal) puis parcours normal.
+    if (request.fabric_id && !request.article_id && !request.thread_id && !request.negotiation_id) {
+      const fabric = parseFabricId(request.fabric_id);
+      if (fabric?.kind === "article") {
+        request = { ...request, article_id: fabric.id };
+      } else if (fabric?.kind === "external") {
+        if (!(await nexusDirectDealEnabled(sb))) {
+          const payload = { ok: false, code: "nexus_direct_deal_disabled", fallback: "contact_sheet", fabric_id: request.fabric_id };
+          // 200 (pas 503) : les clients ne doivent pas couper tout le parcours v3 pour ce seul drapeau.
+          return finish(jsonResponse(payload, 200), "failed");
+        }
+        const materialized = await materializeExternalSignal(sb, fabric.id);
+        if (!materialized.ok) {
+          const key: CatalogKey = materialized.code === "materialize_failed" ? "technical_error" : "external_unavailable";
+          const m = renderCatalog(key);
+          const payload = {
+            ok: false, code: key, schema: "waouh.commerce_action.v3", idem: request.idem, fabric_id: request.fabric_id,
+            reply: { title: m.title, detail: m.detail, text: m.text, key: m.key }, actions: [],
+            refresh_results: key === "external_unavailable",
+          };
+          return finish(jsonResponse(payload, key === "technical_error" ? 500 : 200), key === "technical_error" ? "failed" : "done", payload, null);
+        }
+        request = { ...request, article_id: materialized.articleId };
+      } else {
+        return finish(jsonResponse({ ok: false, code: "invalid_fabric_id" }, 400), "failed");
+      }
+    }
+
     const unresolvedExternalProduct =
       !request.thread_id &&
       !request.negotiation_id &&
@@ -548,7 +639,7 @@ Deno.serve(async (req) => {
       return finish(jsonResponse(payload, 409), "done", payload, null);
     }
 
-    const ctx: Ctx = { sb, actorId, siblings, req: request };
+    const ctx: Ctx = { sb, actorId, siblings, req: request, userAuthHeader };
 
     let thread = await loadThread(sb, await resolveThreadId(ctx));
     let role: Role | null = thread ? roleIn(thread, siblings) : (request.article_id ? "buyer" : null);

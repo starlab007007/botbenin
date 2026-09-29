@@ -13,6 +13,7 @@ import {
   negotiationActionsV3,
   paymentConfirmActionsV3,
   sellerAvailabilityActionsV3,
+  transmitOfferAction,
   type WaouhAction,
 } from "./waouh-commands.ts";
 import { clampActions, type JourneyStepKey, stageFor } from "./waouh-message-catalog.ts";
@@ -29,6 +30,8 @@ export const COMMERCE_ACTIONS = [
   "confirm_payment",
   "cancel",
   "text",
+  // Résultat Nexus externe : l'acheteur confirme l'envoi de son offre (politique de contact appliquée).
+  "transmit_offer",
 ] as const;
 export type CommerceAction = typeof COMMERCE_ACTIONS[number];
 
@@ -40,6 +43,8 @@ export interface CommerceActionRequest {
   catalog_id?: string | null;
   /** Identité source brute avant matérialisation en article. */
   source_id?: string | null;
+  /** Identité Nexus (`external:<uuid>` | `article:<uuid>`) : le serveur la matérialise en article. */
+  fabric_id?: string | null;
   thread_id?: string | null;
   negotiation_id?: string | null;
   deal_id?: string | null;
@@ -64,6 +69,15 @@ const optUuid = (v: unknown): string | null | "invalid" => {
   return typeof v === "string" && UUID_RE.test(v) ? v.toLowerCase() : "invalid";
 };
 
+const FABRIC_RE = /^(external|article):([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+
+/** `external:<uuid>` | `article:<uuid>` normalisé, null si absent, "invalid" sinon (les demandes d'achat `buyer:` n'ouvrent pas de Deal Room acheteur). */
+const optFabric = (v: unknown): string | null | "invalid" => {
+  if (v == null || v === "") return null;
+  const m = typeof v === "string" ? FABRIC_RE.exec(v.trim()) : null;
+  return m ? `${m[1].toLowerCase()}:${m[2].toLowerCase()}` : "invalid";
+};
+
 /** Valide la requête (aucune donnée non attendue n'est conservée). */
 export function validateActionRequest(body: unknown): ValidationResult {
   const b = (body && typeof body === "object") ? body as Record<string, unknown> : {};
@@ -78,6 +92,8 @@ export function validateActionRequest(body: unknown): ValidationResult {
     if (v === "invalid") return { ok: false, error: `invalid_${key}` };
     ids[key] = v;
   }
+  const fabric = optFabric(b.fabric_id);
+  if (fabric === "invalid") return { ok: false, error: "invalid_fabric_id" };
   let amount: number | null = null;
   if (b.amount != null && b.amount !== "") {
     const n = Number(b.amount);
@@ -90,16 +106,19 @@ export function validateActionRequest(body: unknown): ValidationResult {
   switch (action) {
     case "open_deal":
     case "ask":
-      if (!ids.article_id && !ids.catalog_id && !ids.source_id && !ids.thread_id) {
+      if (!ids.article_id && !ids.catalog_id && !ids.source_id && !ids.thread_id && !fabric) {
         return { ok: false, error: "article_id_required" };
       }
       if (action === "ask" && !text) return { ok: false, error: "text_required" };
       break;
     case "offer":
       if (!amount) return { ok: false, error: "amount_required" };
-      if (!ids.negotiation_id && !ids.thread_id && !ids.article_id && !ids.catalog_id && !ids.source_id) {
+      if (!ids.negotiation_id && !ids.thread_id && !ids.article_id && !ids.catalog_id && !ids.source_id && !fabric) {
         return { ok: false, error: "context_required" };
       }
+      break;
+    case "transmit_offer":
+      if (!ids.negotiation_id && !ids.thread_id) return { ok: false, error: "negotiation_id_required" };
       break;
     case "accept":
     case "reject":
@@ -129,6 +148,7 @@ export function validateActionRequest(body: unknown): ValidationResult {
       article_id: ids.article_id,
       catalog_id: ids.catalog_id,
       source_id: ids.source_id,
+      fabric_id: fabric,
       thread_id: ids.thread_id,
       negotiation_id: ids.negotiation_id,
       deal_id: ids.deal_id,
@@ -154,6 +174,10 @@ export interface DealState {
   sellerConfirmed: boolean;
   paymentSelected: boolean;
   paymentMethod: "cash" | "mobile_money" | null;
+  /** Article matérialisé depuis un résultat Nexus externe : le vendeur n'a pas de compte WAOUH. */
+  externalSeller?: boolean;
+  /** L'offre a déjà été transmise au tiers (ou refusée par la politique de contact). */
+  externalTransmitted?: boolean;
 }
 
 export type Turn = "buyer" | "seller" | "courier" | "none";
@@ -199,6 +223,13 @@ export function nextActions(
       return role === "buyer" && state.articleId ? clampActions(articleEntryActionsV3(state.articleId, state.articlePrice)) : [];
     case "negotiation":
       if (!state.negotiationId) return [];
+      if (state.externalSeller) {
+        // Aucun tour vendeur : l'acheteur envoie son offre au tiers quand il le décide, ou la modifie.
+        if (role !== "buyer" || !state.articleId) return [];
+        return clampActions(state.externalTransmitted
+          ? [modifyOfferAction(state.articleId)]
+          : [transmitOfferAction(state.negotiationId), modifyOfferAction(state.articleId)]);
+      }
       if (turn === role) {
         return clampActions(negotiationActionsV3(state.negotiationId, { amount: state.lastOfferPrice, acceptFirst: opts.acceptFirst }));
       }
@@ -244,6 +275,7 @@ export function actionEcho(req: CommerceActionRequest, fmt: (n: number) => strin
     case "pay_mode": return req.method === "cash" ? "Paiement cash à la livraison" : "Paiement Mobile Money à la livraison";
     case "confirm_payment": return "Je confirme le paiement";
     case "cancel": return "J'annule";
+    case "transmit_offer": return "J'envoie mon offre";
     case "ask":
     case "text": return String(req.text || "");
     default: return "";
