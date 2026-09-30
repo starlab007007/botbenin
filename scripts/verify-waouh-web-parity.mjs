@@ -155,7 +155,7 @@ for (const [label, route] of canonicalDesktopRoutes) {
   }
 }
 
-must(sw, "const VERSION = 'v8';", "Service worker cache version must be v8");
+must(sw, "const VERSION = 'v9-bot-avatar-20260930';", "Service worker cache version must be v9-bot-avatar-20260930");
 
 console.log("WAOUH Flutter/Web route parity: OK");
 console.log(`Flutter reference routes checked: ${requiredFlutterRoutes.length}`);
