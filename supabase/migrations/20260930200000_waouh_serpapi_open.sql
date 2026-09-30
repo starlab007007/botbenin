@@ -1,18 +1,9 @@
--- Tâches de fond (audit 2026-09-30) : point automatique de l'avatar, suivi des offres Nexus, traitement des signaux Radar.
--- AUCUN secret n'est créé ni copié : les appels sécurisés (avatar, suivi Nexus) utilisent le secret interne déjà présent dans le
--- Vault (`waouh_tel_internal_secret`, celui du worker de messagerie native), vérifié par `waouh_verify_tick_secret` (rôle service).
--- Les fonctions Radar sont conçues pour être appelées avec la clé publique (comme `waouh-outbound-dispatch-tick`, déjà en place).
--- Volontairement NON planifiés : campagnes Radar (`waouh-radar-campaign-tick`) et `waouh-radar-auto-control` — elles écrivent à des tiers
--- par WhatsApp et l'administrateur a mis l'automatisation en pause jusqu'au 30/09 23:53 ; SerpAPI est désactivé (configuration inactive).
--- Installation : select public.waouh_install_background_ticks();   Arrêt : select public.waouh_uninstall_background_ticks();
-
-create or replace function public.waouh_verify_tick_secret(p_secret text) returns boolean
-language sql stable security definer set search_path = public, vault as $$
-  select coalesce(p_secret, '') <> '' and exists (
-    select 1 from vault.decrypted_secrets where name = 'waouh_tel_internal_secret' and decrypted_secret = p_secret);
-$$;
-revoke all on function public.waouh_verify_tick_secret(text) from public, anon, authenticated;
-grant execute on function public.waouh_verify_tick_secret(text) to service_role;
+-- Ouverture des sources (demande du 30/09) : SerpAPI activé (test de clé « ok », plan gratuit : il s'arrête de lui-même à la fin du quota,
+-- aucune facturation) et planifié une fois par jour ; la source de découverte passe en « live ».
+-- Redéfinit l'installeur des tâches de fond pour y inclure SerpAPI (mêmes règles que la migration 20260930190000).
+update public.waouh_radar_api_configs set active = true where provider = 'serpapi' and api_key is not null;
+update public.waouh_discovery_sources set operational_state = 'live' where source_key = 'serpapi' and exists (
+  select 1 from public.waouh_radar_api_configs c where c.provider = 'serpapi' and c.active);
 
 create or replace function public.waouh_install_background_ticks(
   p_base_url text default 'https://mvynepqulhflxtyymtzs.supabase.co/functions/v1',
@@ -29,7 +20,7 @@ begin
   end if;
 
   perform cron.unschedule(jobid) from cron.job where jobname in
-    ('waouh-avatar-briefing-hourly', 'waouh-nexus-followup-hourly', 'waouh-radar-process-tick', 'waouh-radar-apify-6h', 'waouh-radar-site-scraper-6h');
+    ('waouh-avatar-briefing-hourly', 'waouh-nexus-followup-hourly', 'waouh-radar-process-tick', 'waouh-radar-apify-6h', 'waouh-radar-site-scraper-6h', 'waouh-serpapi-daily');
 
   perform cron.schedule('waouh-avatar-briefing-hourly', '23 * * * *', format($job$
     select net.http_post(
@@ -71,6 +62,14 @@ begin
   $job$, p_base_url || '/waouh-radar-site-scraper', p_public_key));
   v_jobs := array_append(v_jobs, 'waouh-radar-site-scraper-6h');
 
+  -- SerpAPI (plan gratuit, quota journalier 50 fixé par l'administrateur) : une fois par jour.
+  perform cron.schedule('waouh-serpapi-daily', '17 5 * * *', format($job$
+    select net.http_post(url := %L,
+      headers := jsonb_build_object('Content-Type', 'application/json', 'Authorization', 'Bearer ' || %L),
+      body := '{}'::jsonb);
+  $job$, p_base_url || '/waouh-serpapi-scout', p_public_key));
+  v_jobs := array_append(v_jobs, 'waouh-serpapi-daily');
+
   return jsonb_build_object('ok', true, 'jobs', to_jsonb(v_jobs));
 end;
 $$;
@@ -81,9 +80,9 @@ language plpgsql security definer set search_path = public as $$
 declare n integer;
 begin
   select count(*) into n from cron.job where jobname in
-    ('waouh-avatar-briefing-hourly', 'waouh-nexus-followup-hourly', 'waouh-radar-process-tick', 'waouh-radar-apify-6h', 'waouh-radar-site-scraper-6h');
+    ('waouh-avatar-briefing-hourly', 'waouh-nexus-followup-hourly', 'waouh-radar-process-tick', 'waouh-radar-apify-6h', 'waouh-radar-site-scraper-6h', 'waouh-serpapi-daily');
   perform cron.unschedule(jobid) from cron.job where jobname in
-    ('waouh-avatar-briefing-hourly', 'waouh-nexus-followup-hourly', 'waouh-radar-process-tick', 'waouh-radar-apify-6h', 'waouh-radar-site-scraper-6h');
+    ('waouh-avatar-briefing-hourly', 'waouh-nexus-followup-hourly', 'waouh-radar-process-tick', 'waouh-radar-apify-6h', 'waouh-radar-site-scraper-6h', 'waouh-serpapi-daily');
   return n;
 end;
 $$;
