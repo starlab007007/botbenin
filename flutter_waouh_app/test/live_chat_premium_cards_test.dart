@@ -96,7 +96,7 @@ void main() {
 
     // L'intérêt ouvre désormais une étape guidée de proposition de prix avant
     // d'émettre le payload transactionnel vers le Deal Room.
-    expect(find.text('Votre Avatar ouvre la négociation'), findsOneWidget);
+    expect(find.text('Bot ouvre la négociation'), findsOneWidget);
     expect(find.text('Envoyer mon offre et ouvrir le Deal Room'), findsOneWidget);
     await tester.tap(find.text('Envoyer mon offre et ouvrir le Deal Room'));
     await tester.pumpAndSettle();
