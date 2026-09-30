@@ -135,7 +135,18 @@ if (want("S4")) {
   const hb = await hist(X, ctx);
   check("S4c le vendeur répond, l'acheteur reçoit la réponse", r.status === 200 && r.j.ok && has(hb, /1 an/i), `clé=${key(r)}`);
   r = await act(X, { action: "cancel", thread_id: ctx.thread, article_id: article });
-  check("S4d l'acheteur peut annuler / clore sans impasse (« Retirer mon offre » si une offre est en attente)", r.status === 200 || r.j.error === "no_deal" || r.j.error === "no_negotiation" || r.j.ok === true, `http=${r.status}, ok=${r.j.ok}, clé=${key(r)}`, "majeur");
+  check("S4d sans offre ni deal, « annuler » est refusé clairement (400 deal_id_required), pas d'erreur serveur", r.status === 400 && key(r) === "deal_id_required", `http=${r.status}, clé=${key(r)}`);
+  r = await act(X, { action: "ask", thread_id: ctx.thread, article_id: article, text: "Merci, je réfléchis." });
+  check("S4e le fil reste utilisable après (aucune impasse)", r.status === 200 && r.j.ok, `clé=${key(r)}`);
+  // Retrait d'offre (« Retirer mon offre ») : offre en attente puis retrait par l'acheteur.
+  const art2 = await publish(Y, "Retrait", 60000);
+  let o = await act(X, { action: "open_deal", article_id: art2 }); const c2 = { article: art2, thread: o.j.thread_id, neg: o.j.negotiation_id, roles: { X: "buyer", Y: "seller" } };
+  o = await act(X, { action: "offer", thread_id: c2.thread, negotiation_id: c2.neg, article_id: art2, amount: 30000, confirmed: true });
+  check("S4f l'offre en attente propose « Retirer mon offre » à l'acheteur", ids(o).includes("retirer-offre"), `boutons=${JSON.stringify(ids(o))}`, "majeur");
+  o = await act(X, { action: "reject", thread_id: c2.thread, negotiation_id: c2.neg });
+  check("S4g l'acheteur retire son offre (aucun deal, vendeur prévenu)", o.status === 200 && o.j.ok && !o.j.deal_id && key(o) === "offer_withdrawn", `clé=${key(o)}`, "majeur");
+  const hw = await hist(Y, c2);
+  check("S4h le vendeur est informé du retrait", has(hw, /retir/i), `« ${last(hw).replace(/\s+/g, " ").slice(0, 70)} »`, "majeur");
 }
 
 // ---- S5 : garde-fous (soi-même, idempotence, doublons, tiers, identité)

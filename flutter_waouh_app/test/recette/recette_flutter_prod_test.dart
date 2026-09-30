@@ -111,7 +111,8 @@ void main() {
     }
 
     Future<String?> publish(_Who who, String title, int price) async {
-      try {
+      for (var attempt = 0; attempt < 2; attempt++) {
+        try {
         final res = await who.client.functions.invoke('waouh-status-publish', body: <String, dynamic>{
           'type': 'sell',
           'title': 'ZZ TEST E2E $title $run',
@@ -123,10 +124,14 @@ void main() {
           'idempotency_key': 'pub-${who.tag}-$run-${++who.seq}',
         });
         final d = res.data;
-        return d is Map && d['ok'] == true ? '${d['article_id']}' : null;
-      } on FunctionException {
-        return null;
+        if (d is Map && d['ok'] == true) return '${d['article_id']}';
+        stdout.writeln('   (publication : réponse inattendue $d)');
+        } on FunctionException catch (e) {
+          stdout.writeln('   (publication : http ${e.status} ${e.details})');
+        }
+        await Future<void>.delayed(const Duration(seconds: 2));
       }
+      return null;
     }
 
     LiveMatch matchOf(_Who who, String article, String role, {String? thread, String? neg, String? deal}) => LiveMatch(
@@ -247,7 +252,9 @@ void main() {
 
     if (want('S3')) {
       scenario('S3 refus du vendeur (bouton Refuser), nouvelle offre, bouton périmé');
-      final article = (await publish(x, 'Refus', 50000))!;
+      final article = await publish(x, 'Refus', 50000);
+      check('S3 · le vendeur publie', article != null);
+      if (article == null) throw TestFailure('publication impossible (Refus)');
       var r = await act(y, {'action': 'open_deal', 'article_id': article});
       final thread = '${r['thread_id']}', neg = '${r['negotiation_id']}';
       await act(y, {'action': 'offer', 'thread_id': thread, 'negotiation_id': neg, 'article_id': article, 'amount': 20000, 'confirmed': true});
@@ -260,19 +267,25 @@ void main() {
       check('S3c un bouton périmé (accepter après refus) est refusé, aucun deal', r['ok'] == false && r['deal_id'] == null, 'clé=${key(r)}');
       r = await act(y, {'action': 'offer', 'thread_id': thread, 'negotiation_id': neg, 'article_id': article, 'amount': 30000, 'confirmed': true});
       check('S3d nouvelle offre après refus acceptée', r['ok'] == true, 'clé=${key(r)}');
-      // S4d Flutter : « Retirer mon offre » (alias retirer-offre) disponible côté acheteur tant que l'offre est en attente.
+      // S4d Flutter : « Retirer mon offre » (alias retirer-offre) proposé à l'acheteur tant que l'offre est en attente.
+      final newNeg = '${r['negotiation_id'] ?? r['negotiationId'] ?? neg}';
+      final nextIds = (r['actions'] is List ? r['actions'] as List : const []).map((e) => e is Map ? '${e['id']}' : '$e').toList();
       final hb = await hist(y, article, 'buyer', thread);
-      final withdraw = hb.expand(actionIds).where((id) => kind(id) == 'retirer-offre').toList();
-      check('S3e l\'acheteur voit « Retirer mon offre » tant que l\'offre est en attente', withdraw.isNotEmpty, 'boutons=${hb.isEmpty ? [] : actionIds(hb.last)}');
-      if (withdraw.isNotEmpty) {
-        r = await tapButton(y, hb, 'retirer-offre', thread) ?? {'ok': false};
-        check('S3f l\'acheteur retire son offre (aucun deal, plus d\'impasse)', r['ok'] == true && r['deal_id'] == null, 'clé=${key(r)}');
+      final withdrawBtn = <String>[...nextIds, ...hb.expand(actionIds)].where((id) => kind(id) == 'retirer-offre' && id.contains(newNeg)).toList();
+      check('S3e l\'acheteur voit « Retirer mon offre » pour l\'offre en attente', withdrawBtn.isNotEmpty, 'actions=$nextIds');
+      if (withdrawBtn.isNotEmpty) {
+        final req = liveCommerceRequestFromPayload(withdrawBtn.first, threadId: thread);
+        check('S3f Flutter convertit le bouton en requête de retrait', req != null && req['action'] == 'reject', 'req=$req');
+        r = await act(y, req ?? {'action': 'reject', 'thread_id': thread, 'negotiation_id': newNeg});
+        check('S3g l\'acheteur retire son offre (aucun deal, plus d\'impasse)', r['ok'] == true && r['deal_id'] == null && key(r) == 'offer_withdrawn', 'clé=${key(r)}');
       }
     }
 
     if (want('S4')) {
       scenario('S4 question / réponse (sans offre) — parcours Flutter');
-      final article = (await publish(y, 'Question', 70000))!;
+      final article = await publish(y, 'Question', 70000);
+      check('Question · le vendeur publie', article != null);
+      if (article == null) throw TestFailure('publication impossible (Question)');
       var r = await act(x, {'action': 'ask', 'article_id': article, 'text': 'Est-ce garanti 1 an ?'});
       final thread = '${r['thread_id'] ?? ''}';
       check('S4a l\'acheteur pose une question sans offre', r['ok'] == true && thread.isNotEmpty, 'clé=${key(r)}');
@@ -285,7 +298,9 @@ void main() {
 
     if (want('S5')) {
       scenario('S5 garde-fous : auto-intérêt, doublons, idempotence, tiers');
-      final article = (await publish(x, 'Gardefous', 40000))!;
+      final article = await publish(x, 'Gardefous', 40000);
+      check('Gardefous · le vendeur publie', article != null);
+      if (article == null) throw TestFailure('publication impossible (Gardefous)');
       var r = await act(x, {'action': 'open_deal', 'article_id': article});
       check('S5a le vendeur ne peut pas s\'intéresser à son propre article', r['ok'] == false, 'clé=${key(r)}');
       final d1 = await act(y, {'action': 'open_deal', 'article_id': article}), d2 = await act(y, {'action': 'open_deal', 'article_id': article});
@@ -322,7 +337,9 @@ void main() {
       if (z == null) {
         skip('S6 concurrence de deux acheteurs', 'compte Z non fourni');
       } else {
-        final article = (await publish(x, 'Concurrence', 60000))!;
+        final article = await publish(x, 'Concurrence', 60000);
+      check('Concurrence · le vendeur publie', article != null);
+      if (article == null) throw TestFailure('publication impossible (Concurrence)');
         final a = await act(y, {'action': 'open_deal', 'article_id': article}), b = await act(z, {'action': 'open_deal', 'article_id': article});
         check('S6a deux fils distincts pour deux acheteurs', '${a['thread_id']}'.isNotEmpty && a['thread_id'] != b['thread_id']);
         await act(y, {'action': 'offer', 'thread_id': a['thread_id'], 'negotiation_id': a['negotiation_id'], 'article_id': article, 'amount': 55000, 'confirmed': true});
