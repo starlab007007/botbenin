@@ -220,7 +220,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { phone, text, user_id, thread_id, negotiation_id, button_payload } = await req.json();
+    const { phone, text, user_id, thread_id, negotiation_id, button_payload, withdrawn } = await req.json();
     // Parcours v3 : textes courts + boutons du catalogue (interrupteur
     // chat_catalog_v3). Coupé : textes et boutons historiques, à l'identique.
     const v3 = await chatCatalogV3Enabled(sb);
@@ -701,7 +701,7 @@ Deno.serve(async (req) => {
       await sb.from("waouh_negotiations").update({ state: "closed", last_actor: isBuyer ? "buyer" : "seller" }).eq("id", neg.id);
       if (otherUserId) {
         const otherRole = isBuyer ? "seller" : "buyer";
-        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, article_id: neg.article_id, thread_id: activeThreadId, buyer_user_id: neg.buyer_user_id, seller_user_id: neg.seller_user_id, closed: true, from_user_id: user.id, target_role: otherRole }, v3 ? renderCatalog("offer_refused_other", { role: otherRole }).text : `❌ ${isBuyer ? "L'acheteur" : "Le vendeur"} a refusé. Négociation clôturée.`, { intent: "negotiation_closed", negotiation_id: neg.id, article_id: neg.article_id, thread_id: activeThreadId, buyer_user_id: neg.buyer_user_id, seller_user_id: neg.seller_user_id, products: [stateProduct("cancelled", otherRole)] }, null, [], `neg:${neg.id}:closed:${otherUserId}`, "negotiation_closed", contextAttachments);
+        await pushToOther(otherUserId, "negotiation_open", { neg_id: neg.id, article_id: neg.article_id, thread_id: activeThreadId, buyer_user_id: neg.buyer_user_id, seller_user_id: neg.seller_user_id, closed: true, from_user_id: user.id, target_role: otherRole }, v3 ? renderCatalog(withdrawn === true && isBuyer ? "offer_withdrawn_other" : "offer_refused_other", { role: otherRole }).text : `❌ ${isBuyer ? "L'acheteur" : "Le vendeur"} a refusé. Négociation clôturée.`, { intent: "negotiation_closed", negotiation_id: neg.id, article_id: neg.article_id, thread_id: activeThreadId, buyer_user_id: neg.buyer_user_id, seller_user_id: neg.seller_user_id, products: [stateProduct("cancelled", otherRole)] }, null, [], `neg:${neg.id}:closed:${otherUserId}`, "negotiation_closed", contextAttachments);
       }
       await bindThreadState(sb, activeThreadId, { status: "cancelled", negotiation_id: neg.id });
       return new Response(JSON.stringify({ ok: true, reply: v3 ? renderCatalog("offer_refused_actor").text : "OK, négociation fermée. Merci !", intent: "negotiation_closed", workflow_state: "closed", negotiation_id: neg.id, actions: [], thread_id: activeThreadId, article_id: neg.article_id, products: [stateProduct("cancelled", isBuyer ? "buyer" : "seller")], attachments: contextAttachments }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
