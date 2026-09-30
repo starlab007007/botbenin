@@ -50,3 +50,16 @@ Deno.test("E3 : texte libre non exécuté = pas d'écho ; offre libre en attente
   assertEquals(shouldEchoBeforeExecute({ hasThread: true, hasRole: true, echo: "x", freeTextKey: "not_understood", pending: null }), false);
   assertEquals(shouldEchoBeforeExecute({ hasThread: true, hasRole: true, echo: "x", freeTextKey: "confirm_money_action", pending: { action: "offer" } }), true);
 });
+
+import { isTickCaller } from "./waouh-internal-auth.ts";
+Deno.test("appel planifié : secret du Vault accepté, tout le reste refusé", async () => {
+  const good = "a".repeat(40);
+  const sb = (ok: boolean, err: unknown = null) => ({ rpc: (_f: string, a: Record<string, unknown>) => Promise.resolve({ data: ok && a.p_secret === good, error: err }) });
+  const req = (b: string | null) => ({ headers: { get: (n: string) => (n === "authorization" && b ? `Bearer ${b}` : null) } });
+  assertEquals(await isTickCaller(req(good), sb(true)), true);
+  assertEquals(await isTickCaller(req("b".repeat(40)), sb(true)), false);
+  assertEquals(await isTickCaller(req("court"), sb(true)), false);
+  assertEquals(await isTickCaller(req(null), sb(true)), false);
+  assertEquals(await isTickCaller(req(good), sb(true, { message: "x" })), false);
+  assertEquals(await isTickCaller(req(good), { rpc: () => { throw new Error("panne"); } }), false);
+});

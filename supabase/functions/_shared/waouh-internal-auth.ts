@@ -17,3 +17,22 @@ export function isServiceCaller(req: { headers: { get(name: string): string | nu
   const bearer = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
   return bearer.length > 0 && safeEqual(bearer, serviceKey);
 }
+
+/**
+ * Appel planifié (pg_cron → fonction) : `Authorization: Bearer <secret interne>` comparé, côté base, au secret du Vault
+ * (fonction SQL `waouh_verify_tick_secret`, réservée au rôle service). Évite de copier la clé service dans le Vault ;
+ * refuse tout en cas d'erreur.
+ */
+export async function isTickCaller(
+  req: { headers: { get(name: string): string | null } },
+  sb: { rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }> },
+): Promise<boolean> {
+  const bearer = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
+  if (bearer.length < 20) return false;
+  try {
+    const { data, error } = await sb.rpc("waouh_verify_tick_secret", { p_secret: bearer });
+    return !error && data === true;
+  } catch {
+    return false;
+  }
+}

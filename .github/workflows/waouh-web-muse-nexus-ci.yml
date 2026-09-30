@@ -134,6 +134,11 @@ jobs:
       - name: Check WAOUH Channel In (recherche unifiée)
         run: deno check supabase/functions/waouh-channel-in/index.ts
 
+      - name: Check WAOUH Avatar Briefing et suivi Nexus
+        run: |
+          deno check supabase/functions/waouh-avatar-briefing/index.ts
+          deno check supabase/functions/waouh-nexus-followup/index.ts
+
       - name: Check WAOUH Buyer Interest
         run: deno check supabase/functions/waouh-buyer-interest/index.ts
 
@@ -153,6 +158,7 @@ jobs:
           deno test supabase/functions/_shared/waouh-identity-paging-test.ts
           deno test supabase/functions/_shared/waouh-partner-seller-test.ts
           deno test supabase/functions/_shared/waouh-unified-quality-test.ts
+          deno test supabase/functions/_shared/waouh-internal-call-test.ts
           deno test supabase/functions/_shared/waouh-avatar-briefing-test.ts
           deno test supabase/functions/_shared/waouh-avatar-briefing-core-test.ts
           npm exec --yes --package=vitest@2.1.9 --package=jsdom@25.0.1 -- vitest run src/lib/waouh/__tests__/commerceAction.test.ts src/components/waouh/__tests__/waouh-chat-sync-flow.lock.test.ts
