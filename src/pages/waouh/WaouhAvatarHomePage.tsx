@@ -76,7 +76,8 @@ const presetGradient: Record<AvatarProfile["preset"], string> = {
 const readAvatarProfile = (): AvatarProfile => {
   if (typeof window === "undefined") return DEFAULT_PROFILE;
   try {
-    const name = localStorage.getItem("waouh.avatar.name") || DEFAULT_PROFILE.name;
+    const storedName = localStorage.getItem("waouh.avatar.name") || DEFAULT_PROFILE.name;
+    const name = storedName.trim().toLowerCase() === "ayo" ? "Bot" : storedName;
     const preset = (localStorage.getItem("waouh.avatar.preset") || DEFAULT_PROFILE.preset) as AvatarProfile["preset"];
     const personality = localStorage.getItem("waouh.avatar.personality") || DEFAULT_PROFILE.personality;
     const proactivity = localStorage.getItem("waouh.avatar.proactivity") || DEFAULT_PROFILE.proactivity;
@@ -301,7 +302,7 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
       : ["Trouve-moi un bon téléphone à Cotonou", "Je veux vendre un produit", "Aide-moi à trouver un service"];
 
   return (
-    <main className="h-full min-h-0 overflow-y-auto bg-[radial-gradient(circle_at_20%_0%,rgba(59,130,246,.10),transparent_30%),radial-gradient(circle_at_85%_18%,rgba(139,92,246,.08),transparent_26%),linear-gradient(180deg,#f8fbff_0%,#ffffff_58%)]">
+    <main data-waouh-ui="bot-avatar-desktop-v2" className="h-full min-h-0 overflow-y-auto bg-[radial-gradient(circle_at_20%_0%,rgba(59,130,246,.10),transparent_30%),radial-gradient(circle_at_85%_18%,rgba(139,92,246,.08),transparent_26%),linear-gradient(180deg,#f8fbff_0%,#ffffff_58%)]">
       <div className="mx-auto w-full max-w-6xl space-y-5 px-4 py-5 sm:px-6 lg:px-8">
         <section className="relative overflow-hidden rounded-[30px] border border-blue-100 bg-gradient-to-br from-blue-50/90 via-white to-violet-50/80 px-5 py-5 shadow-[0_24px_70px_-48px_rgba(37,99,235,.45)] sm:px-7 sm:py-6">
           <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-blue-300/15 blur-3xl" />
@@ -419,6 +420,31 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
                     {suggestion}
                   </button>
                 ))}
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                <Button
+                  type="button"
+                  className="h-12 rounded-2xl bg-gradient-to-r from-teal-500 to-cyan-600 font-black shadow-sm hover:from-teal-600 hover:to-cyan-700"
+                  onClick={() => askAvatar("Bonjour Bot, aide-moi à démarrer.")}
+                >
+                  <MessageSquareText className="mr-2 h-4 w-4" /> Démarrer avec Bot
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-12 rounded-2xl border-blue-100 bg-white/85 font-black text-blue-700"
+                  onClick={() => askAvatar("Bot, cherche la meilleure opportunité pour moi.")}
+                >
+                  <Search className="mr-2 h-4 w-4" /> Chercher avec Bot
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-12 rounded-2xl border-violet-100 bg-white/85 font-black text-violet-700"
+                  onClick={() => askAvatar("Bot, aide-moi à négocier et conclure ce deal.")}
+                >
+                  <Sparkles className="mr-2 h-4 w-4" /> Négocier avec Bot
+                </Button>
               </div>
             </div>
           </div>
