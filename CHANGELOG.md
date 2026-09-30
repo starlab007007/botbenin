@@ -3,6 +3,10 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.30.1 (branche claude/harmonisation-phase-0-1)
+- Test de bout en bout acheteur/vendeur (parcours 1, 2, 3) sur le projet de test : accord, négociation, préparation conformes, thread_id canonique stable à chaque étape. Défaut corrigé : notifications dans l'application sans `thread_id` (livraison, paiement, `new_buyer`) — `_shared/waouh-notif-thread.ts`.
+  Livreur → Terminé non exécutés (compte admin de test). Détail : docs/E2E_ACHETEUR_VENDEUR_THREAD_2026-09-30.md.
+
 ## 2026.09.29.11 (branche claude/harmonisation-phase-0-1)
 - Web /app/chat dégagé : la conversation occupe tout l'espace ; Échanges, Statuts et Radar passent dans un tiroir à gauche (boutons dans l'en-tête, lien `?tab=radar|statuses`), épinglable à côté du chat dès 1280 px (choix mémorisé).
   Tablette / portable 13" (768–1279 px) : chat pleine largeur, tiroir par-dessus, boutons tactiles ; téléphone : parcours mobile inchangé. Un seul en-tête (le bouton du tiroir rejoint l'en-tête de Muse).

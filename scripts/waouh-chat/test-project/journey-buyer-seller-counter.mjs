@@ -2,6 +2,8 @@
 // A = compte acheteur, B = compte vendeur. Livreur : compte admin de test (has_role simulé) + livreur au registre (simulé).
 // Variables : SB_URL, SB_ANON, PW_BUYER, PW_SELLER, PW_ADMIN. Refuse tout projet autre que le projet de test.
 const { SB_URL, SB_ANON, PW_BUYER, PW_SELLER, PW_ADMIN } = process.env;
+// PW_ADMIN facultatif : sans lui, le parcours s'arrête à « Préparation » (l'étape livreur exige un compte admin de test) ; les étapes suivantes sont marquées NON EXÉCUTÉES.
+const WITH_ADMIN = !!PW_ADMIN;
 if (!SB_URL?.includes("ljzwqyzaovnandpyfpgc")) { console.error("Refus : ce script ne cible que botbj-test-e2e."); process.exit(2); }
 const errors = [], results = [];
 const step = (id, ok, detail, severity = "bloquant") => { results.push({ id, ok }); if (!ok) errors.push({ id, severity, detail }); console.log(`${ok ? "PASS" : "FAIL"} ${id} — ${detail}`); };
@@ -17,7 +19,7 @@ const run = Date.now().toString(36);
 const A = { name: "A (acheteur)", uid: "22222222-2222-4222-8222-222222222222", role: "buyer", sid: `sessA-${run}` };
 const B = { name: "B (vendeur)", uid: "11111111-1111-4111-8111-111111111111", role: "seller", sid: `sessB-${run}` };
 const ADM = { name: "admin", sid: `sessAdm-${run}` };
-A.t = await login("acheteur.b.test@botbj-test.invalid", PW_BUYER); B.t = await login("vendeur.a.test@botbj-test.invalid", PW_SELLER); ADM.t = await login("admin.test@botbj-test.invalid", PW_ADMIN);
+A.t = await login("acheteur.b.test@botbj-test.invalid", PW_BUYER); B.t = await login("vendeur.a.test@botbj-test.invalid", PW_SELLER); if (WITH_ADMIN) ADM.t = await login("admin.test@botbj-test.invalid", PW_ADMIN);
 const digits = (s) => String(s ?? "").replace(/\D/g, "");
 let article, thread, neg, deal;
 const hist = async (who) => {
@@ -66,6 +68,9 @@ r = await call("waouh-commerce-action", B, { action: "seller_confirm", idem: `sc
 step("J9a B confirme la disponibilité", r.status === 200 && r.j.ok === true, `http ${r.status}, étape=${r.j.stage}, clé=${r.j.reply?.key}`);
 r = await call("waouh-commerce-action", A, { action: "pay_mode", idem: `pmA-${run}`, deal_id: deal, method: "cash" });
 step("J9b A choisit le paiement à la livraison → Préparation", r.status === 200 && r.j.ok === true && ["preparation", "courier"].includes(r.j.stage), `http ${r.status}, étape=${r.j.stage}, tour=${r.j.turn}`);
+if (!WITH_ADMIN) {
+  for (const id of ["J10 livreur", "J11 livraison", "J12 paiement → Terminé"]) console.log(`SKIP ${id} — NON EXÉCUTÉ (aucun compte admin de test fourni : PW_ADMIN)`);
+} else {
 // J10 : Livreur (assign / ramassage / livraison via waouh-deal-ops avec compte admin de test)
 r = await call("waouh-deal-ops", ADM, { action: "assign", deal_id: deal, courier_id: "44444444-4444-4444-8444-444444444444", eta_minutes: 30 });
 const autoAssigned = r.status === 409 && r.j.current_status === "assigned";
@@ -77,6 +82,7 @@ step("J11 Livraison : livré", r.status === 200, `http ${r.status}, ${JSON.strin
 // J12 : Paiement
 r = await call("waouh-commerce-action", A, { action: "confirm_payment", idem: `cpA-${run}`, deal_id: deal, method: "cash" });
 step("J12 A confirme le paiement → Terminé", r.status === 200 && r.j.ok === true, `http ${r.status}, étape=${r.j.stage}, ${JSON.stringify(r.j.reply?.title)}`);
+}
 hA = await hist(A); hB = await hist(B);
 step("J13 historique final cohérent des deux côtés", hA.length > 0 && hB.length > 0, `A=${hA.length} msgs, B=${hB.length} msgs`);
 // Ordre de la chronologie : l'écho de l'action de l'utilisateur doit précéder la réponse du système qu'il a déclenchée.

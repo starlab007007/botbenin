@@ -11,6 +11,7 @@ import { renderCatalog } from "../_shared/waouh-message-catalog.ts";
 import { notifyArticleReopened } from "../_shared/waouh-evict.ts";
 import { checkOperatorDealTransition, OPERATOR_DEAL_STATUSES } from "../_shared/waouh-commerce-states.ts";
 import { beninPhoneCandidates } from "../_shared/waouh-phone.ts";
+import { resolveNotifThreadId } from "../_shared/waouh-notif-thread.ts";
 import {
   buyerPaymentActions as registryBuyerPaymentActions,
   buyerPaymentActionsV3,
@@ -177,14 +178,17 @@ async function insertInAppNotif(
     const { data: u } = await sb.from("waouh_users").select("web_session_id").eq("id", userId).maybeSingle();
     webSession = u?.web_session_id ?? null;
   } catch {}
+  // Le thread canonique du deal suit la notification jusqu'à la cloche (livraison, paiement, clôture comprises).
+  const threadId = await resolveNotifThreadId(sb, payload);
   await sb.from("waouh_notifications").insert({
     user_id: userId,
     article_id: articleId,
+    thread_id: threadId,
     notification_type: kind,
     photos: [],
     web_session_id: webSession,
     dedupe_key: `${kind}:${payload?.deal_id || articleId || userId}:${userId}:${Date.now()}`,
-    payload: { ...payload, text },
+    payload: { ...payload, ...(threadId ? { thread_id: threadId } : {}), text },
     channel: "waouh_app",
     delivery_status: "delivered",
     delivered_at: new Date().toISOString(),
