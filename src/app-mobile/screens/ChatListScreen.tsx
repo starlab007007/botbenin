@@ -26,6 +26,7 @@ import {
   type WaouhUserLike,
 } from "../utils/chatLabel";
 import WaouhDemoMockup from "../components/WaouhDemoMockup";
+import { WaouhMuseAvatar } from "@/components/waouh/WaouhMuseAvatar";
 import { WaouhMatchChatList } from "@/components/waouh/WaouhMatchChatList";
 import { StatusesPanel } from "@/components/waouh/statuses/StatusesPanel";
 import { RadarPanel } from "../components/radar/RadarPanel";
@@ -293,39 +294,39 @@ export default function ChatListScreen() {
 
   const listContent = (
     <>
-      <header className="sticky top-0 z-10 bg-[hsl(165_91%_18%)] text-white">
+      <header className="sticky top-0 z-10 border-b border-slate-200/70 bg-gradient-to-br from-white via-sky-50/70 to-emerald-50/70 text-slate-950 backdrop-blur">
 
         <div className="px-4 py-3 flex items-center justify-between">
           {isGuest ? (
             <div className="flex items-center gap-2">
               <Avatar className="h-9 w-9">
-                <AvatarFallback className="bg-white/20 text-white text-sm">W</AvatarFallback>
+                <AvatarFallback className="bg-gradient-to-br from-teal-500 to-cyan-600 text-white text-sm">W</AvatarFallback>
               </Avatar>
               <div className="text-left">
-                <div className="text-sm font-black leading-tight">WAOUH One</div>
-                <div className="text-[11px] text-white/70 leading-tight">Invité · Muse + NEXUS</div>
+                <div className="text-sm font-black leading-tight">Bonjour, WaouhApp</div>
+                <div className="text-[11px] text-slate-500 leading-tight">Centre des conversations · Mode invité</div>
               </div>
             </div>
           ) : (
             <button onClick={() => navigate("/app/profile")} className="flex items-center gap-2 active:opacity-70">
               <Avatar className="h-9 w-9">
                 <AvatarImage src={profile?.avatar_url ?? undefined} />
-                <AvatarFallback className="bg-white/20 text-white text-sm">{initials}</AvatarFallback>
+                <AvatarFallback className="bg-gradient-to-br from-teal-500 to-cyan-600 text-white text-sm">{initials}</AvatarFallback>
               </Avatar>
               <div className="text-left">
-                <div className="text-sm font-black leading-tight">WAOUH One</div>
-                <div className="text-[11px] text-white/70 leading-tight truncate max-w-[150px]">{profile?.full_name ?? "Mon compte"} · actif</div>
+                <div className="text-sm font-black leading-tight">Bonjour, {profile?.full_name ?? "WaouhApp"}</div>
+                <div className="text-[11px] text-slate-500 leading-tight truncate max-w-[210px]">Centre des conversations · WAOUH actif</div>
               </div>
             </button>
           )}
           <div className="flex items-center gap-1">
             {isGuest ? (
-              <Button size="sm" className="bg-white text-[hsl(165_91%_18%)] hover:bg-white/90 h-8" onClick={() => goToAuth("/app/chat")}>
+              <Button size="sm" className="h-8 bg-teal-600 text-white hover:bg-teal-700" onClick={() => goToAuth("/app/chat")}>
                 Se connecter
               </Button>
             ) : (
               <>
-                <div className="[&_button]:text-white [&_button:hover]:bg-white/15">
+                <div className="[&_button]:text-slate-700 [&_button:hover]:bg-white/80">
                   <WaouhNotificationsBell
                     permission={permission}
                     notifications={waouhNotifs}
@@ -336,7 +337,7 @@ export default function ChatListScreen() {
                     onClearAll={waouhClearAll}
                   />
                 </div>
-                <Button size="icon" variant="ghost" className="text-white hover:bg-white/15" onClick={openNewWaouh} aria-label="Nouvel objectif WAOUH">
+                <Button size="icon" variant="ghost" className="text-blue-600 hover:bg-white/80" onClick={openNewWaouh} aria-label="Nouvel objectif WAOUH">
                   <Plus className="h-5 w-5" />
                 </Button>
               </>
@@ -346,33 +347,35 @@ export default function ChatListScreen() {
         {!isGuest && (
           <div className="px-4 pb-3">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/60" />
-              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher échanges, statuts, radar…" className="pl-9 bg-white/15 border-0 text-white placeholder:text-white/60" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher un échange, un produit, un contact…" className="h-10 rounded-2xl border-slate-200 bg-white/90 pl-9 text-slate-900 shadow-sm placeholder:text-slate-400" />
             </div>
           </div>
         )}
       </header>
 
       {!isGuest && (
-        <div className="sticky top-[var(--waouh-tabs-top,0)] z-[9] flex bg-background border-b border-border">
-          {[
-            { k: "chats", label: "Échanges" },
-            { k: "statuses", label: "Statuts · 24h" },
-            { k: "radar", label: "📡 Radar" },
-          ].map((t) => (
-            <button
-              key={t.k}
-              onClick={() => setChatTab(t.k as ChatTab)}
-              className={
-                "flex-1 py-2.5 text-sm font-semibold transition-colors " +
-                (tab === t.k
-                  ? "text-[hsl(165_91%_25%)] border-b-2 border-[hsl(165_91%_25%)]"
-                  : "text-muted-foreground border-b-2 border-transparent")
-              }
-            >
-              {t.label}
-            </button>
-          ))}
+        <div className="sticky top-[var(--waouh-tabs-top,0)] z-[9] bg-white/90 px-3 py-2 backdrop-blur">
+          <div className="grid grid-cols-3 gap-1 rounded-2xl border border-slate-200 bg-slate-100/80 p-1 shadow-sm">
+            {[
+              { k: "chats", label: "Échanges" },
+              { k: "statuses", label: "Statuts" },
+              { k: "radar", label: "Radar" },
+            ].map((t) => (
+              <button
+                key={t.k}
+                onClick={() => setChatTab(t.k as ChatTab)}
+                className={
+                  "min-w-0 rounded-xl px-2 py-2 text-xs font-extrabold transition-all sm:text-sm " +
+                  (tab === t.k
+                    ? "bg-gradient-to-r from-teal-500 to-cyan-600 text-white shadow-sm"
+                    : "text-slate-500 hover:bg-white/80")
+                }
+              >
+                <span className="truncate">{t.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -381,26 +384,50 @@ export default function ChatListScreen() {
       ) : tab === "radar" && !isGuest ? (
         <RadarPanel query={q} />
       ) : (
-      <main>
-        {/* Pinned WAOUH conversation — default AI assistant chat */}
+      <main className="px-3 pb-4">
+        {/* Bot — point d'entrée principal : guide la conversation sans modifier le moteur. */}
+        <section className="mb-3 overflow-hidden rounded-[26px] border border-cyan-100 bg-gradient-to-br from-cyan-50 via-white to-violet-50 p-4 shadow-[0_16px_40px_rgba(59,130,246,.08)]">
+          <div className="flex items-center gap-3">
+            <WaouhMuseAvatar phase="idle" size="lg" className="scale-110" />
+            <button type="button" onClick={() => navigate("/app/avatar")} className="min-w-0 flex-1 text-left">
+              <div className="flex items-center gap-2">
+                <span className="truncate text-2xl font-black tracking-tight text-slate-950">Bot</span>
+                <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,.85)]" />
+                <Badge variant="outline" className="h-5 rounded-full border-cyan-200 bg-white/80 px-2 text-[9px] font-black text-cyan-700">Avatar IA</Badge>
+              </div>
+              <p className="mt-1 text-xs font-bold text-slate-500 sm:text-sm">Je vous aide à trouver, négocier et conclure.</p>
+            </button>
+          </div>
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <button type="button" onClick={openWaouh} className="rounded-2xl bg-gradient-to-r from-teal-500 to-cyan-600 px-2 py-2.5 text-[11px] font-black text-white shadow-sm sm:text-xs">
+              Démarrer
+            </button>
+            <button type="button" onClick={openWaouh} className="rounded-2xl border border-blue-100 bg-white/90 px-2 py-2.5 text-[11px] font-black text-blue-700 shadow-sm sm:text-xs">
+              Chercher
+            </button>
+            <button type="button" onClick={openWaouh} className="rounded-2xl border border-violet-100 bg-white/90 px-2 py-2.5 text-[11px] font-black text-violet-700 shadow-sm sm:text-xs">
+              Négocier
+            </button>
+          </div>
+        </section>
+
+        {/* WAOUH One reste le moteur commerce, désormais en second niveau. */}
         <button
           onClick={openWaouh}
-          className="w-full flex items-center gap-3 px-4 py-3 active:bg-muted border-b bg-gradient-to-r from-emerald-50 to-transparent dark:from-emerald-950/20"
+          className="mb-3 flex w-full items-center gap-3 rounded-[22px] border border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-cyan-50 px-4 py-3 text-left shadow-sm transition active:scale-[.99]"
         >
-          <div className="relative h-12 w-12 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0 shadow-md">
+          <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-950 shadow-md">
             <ShoppingBag className="h-6 w-6 text-white" />
-            <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-emerald-400 border-2 border-background animate-pulse" />
+            <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-400" />
           </div>
-          <div className="flex-1 min-w-0 text-left">
-            <div className="flex justify-between items-baseline gap-2">
-              <span className="font-black truncate flex items-center gap-1.5">
-                WAOUH One
-                <Badge className="bg-emerald-500 text-white border-0 text-[9px] py-0 px-1.5 h-4">IA</Badge>
-              </span>
-              <span className="text-xs text-muted-foreground shrink-0">Toujours actif</span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <span className="truncate text-base font-black text-slate-950">WAOUH One</span>
+              <Badge className="h-4 border-0 bg-emerald-500 px-1.5 py-0 text-[9px] text-white">IA</Badge>
             </div>
-            <p className="text-sm text-muted-foreground truncate">Muse · NEXUS · Signal Fabric · Contact</p>
+            <p className="truncate text-xs font-semibold text-slate-500 sm:text-sm">Achetez, vendez, cherchez, comparez et négociez.</p>
           </div>
+          <span className="rounded-full bg-white px-2 py-1 text-lg font-black text-emerald-700 shadow-sm">›</span>
         </button>
 
         {/* Per-product chat windows (buyer-found & interested-buyer) appear directly under WAOUH */}
@@ -408,7 +435,7 @@ export default function ChatListScreen() {
 
 
         {isGuest && (
-          <div className="px-4 pt-5 pb-2 flex flex-col items-center text-center">
+          <div className="pt-5 pb-2 flex flex-col items-center text-center">
             <Button
               onClick={openNewWaouh}
               size="lg"
@@ -427,7 +454,7 @@ export default function ChatListScreen() {
         {loading && <div className="p-8 text-center text-muted-foreground">Chargement…</div>}
 
         {!loading && !isGuest && filtered.length === 0 && (
-          <div className="p-10 text-center text-muted-foreground">
+          <div className="rounded-2xl bg-white/70 p-8 text-center text-muted-foreground">
             <p className="font-medium mb-1">Aucune autre conversation</p>
             <p className="text-sm mb-4">Envoyez un message à WAOUH et le Monde achète. ☝️</p>
             <Button onClick={openNewWaouh} className="bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)]">
