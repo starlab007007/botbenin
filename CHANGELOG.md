@@ -3,6 +3,9 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.30.17
+- Chat (Web + Flutter) plus dégagé : un seul en-tête fin par Deal Room (fiche produit, prix, ville, interlocuteur + progression en 7 étapes dans le même bloc) ; le panneau « Canal protégé » devient une pastille avec infobulle ; la note d'origine se réduit à une pastille dès que la conversation a commencé (Web). Flutter : en-tête en carte arrondie unique, suggestions intelligentes déplacées juste au-dessus de la zone de saisie (le fil gagne la hauteur), fond doux. Aucune logique métier modifiée. Flutter 18.21.2.
+
 ## 2026.09.30.16
 - Ouverture des sources au chat : recherche élargie automatiquement quand elle est pauvre (moins de 6 fiches au seuil strict → seuil élargi, fiches classées après avec leur phrase de référence) ; au plus 4 fiches par source (`diversifyBySource`, aucune source n'écrase les autres) ; jusqu'à 12 cartes (8 avant). SerpAPI activé (plan gratuit, test de clé « ok ») et planifié une fois par jour ; source de découverte « serpapi » en « live » — migration `20260930200000` (redéfinit aussi `waouh_install_background_ticks`).
 

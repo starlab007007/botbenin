@@ -618,6 +618,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
     final pendingThread =
         _pendingSeed != null && liveIsProvisionalInterestedMatch(_pendingSeed!);
     return Scaffold(
+      backgroundColor: const Color(0xFFF6F9F8),
       appBar: LiveHeader(
         title: 'WAOUH One',
         subtitle: pendingThread
@@ -653,20 +654,47 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                   .any((item) => item.meta['delivery_state'] == 'sending');
               return Column(
                 children: [
-                  // Parcours v3 : progression en 7 étapes.
-                  LiveDealStepper(
-                    stage: liveLatestStage(merged) ??
-                        (match.negotiationId != null ? 'negotiation' : null),
-                  ),
-                  LiveDealRoomBanner(
-                    match: match,
-                    messages: merged,
-                    pending: pendingThread,
-                    onIntelligence: () => showLiveUnifiedIntelligenceSheet(
-                      context,
-                      messages: merged,
-                      busy: waiting,
-                      match: match,
+                  // En-tête unique : fiche Deal Room + progression en 7 étapes.
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(8, 8, 8, 2),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFDCEFE8)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0E7C58).withValues(alpha: .08),
+                          blurRadius: 18,
+                          offset: const Offset(0, 6),
+                          spreadRadius: -6,
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          LiveDealRoomBanner(
+                            match: match,
+                            messages: merged,
+                            pending: pendingThread,
+                            onIntelligence: () =>
+                                showLiveUnifiedIntelligenceSheet(
+                              context,
+                              messages: merged,
+                              busy: waiting,
+                              match: match,
+                            ),
+                          ),
+                          LiveDealStepper(
+                            stage: liveLatestStage(merged) ??
+                                (match.negotiationId != null
+                                    ? 'negotiation'
+                                    : null),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   if (pendingThread)
@@ -700,8 +728,21 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                           ),
                         ],
                       ),
-                    )
-                  else
+                    ),
+                  Expanded(
+                    child: LiveSmartTimeline(
+                      messages: merged,
+                      onPayload: _handlePayload,
+                      showAssistantHint: waiting,
+                      emptyMessage: pendingThread
+                          ? 'Connexion au vendeur… Le Deal Room s’active dès que le fil canonique est prêt.'
+                          : match.isSearch
+                              ? 'Poursuivez cette recherche avec votre Avatar.'
+                              : 'Commencez la discussion sur ce produit.',
+                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+                    ),
+                  ),
+                  if (!pendingThread)
                     LiveSmartComposerBar(
                       messages: merged,
                       busy: waiting,
@@ -726,19 +767,6 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                         match: match,
                       ),
                     ),
-                  Expanded(
-                    child: LiveSmartTimeline(
-                      messages: merged,
-                      onPayload: _handlePayload,
-                      showAssistantHint: waiting,
-                      emptyMessage: pendingThread
-                          ? 'Connexion au vendeur… Le Deal Room s’active dès que le fil canonique est prêt.'
-                          : match.isSearch
-                              ? 'Poursuivez cette recherche avec votre Avatar.'
-                              : 'Commencez la discussion sur ce produit.',
-                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
-                    ),
-                  ),
                 ],
               );
             },

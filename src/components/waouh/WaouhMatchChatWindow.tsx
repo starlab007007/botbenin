@@ -839,67 +839,45 @@ export function WaouhMatchChatWindow({
 
   return (
     <div className="flex flex-col h-full w-full bg-background">
-      {/* Deal Room — 1 article × 1 interlocuteur */}
-      <div className="shrink-0 border-b border-emerald-100 bg-gradient-to-r from-white via-emerald-50/70 to-cyan-50/70 px-2.5 py-1.5">
+      {/* Deal Room — 1 article × 1 interlocuteur : un seul en-tête fin (fiche + progression). */}
+      <div className="shrink-0 border-b border-emerald-100/70 bg-white/95 px-3 pb-1.5 pt-2 backdrop-blur">
         <div className="flex items-center gap-2.5">
-          <WaouhMuseAvatar mode={match.kind === "buyer" ? "buyer" : "seller"} phase={closed ? "success" : "negotiating"} size="sm" />
           {match.photo ? (
-            <img src={match.photo} alt="" className="h-8 w-8 rounded-lg border border-white object-cover shadow-sm" />
+            <img src={match.photo} alt="" className="h-9 w-9 rounded-xl border border-white object-cover shadow-sm ring-1 ring-emerald-100" />
           ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg border bg-white text-emerald-700 shadow-sm">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
               <Icon className="h-5 w-5" />
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-700 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide text-white">
-                <Sparkles className="h-2.5 w-2.5" /> WAOUH Deal Room
-              </span>
-              <span className="text-[10px] font-bold text-emerald-900">
-                {match.kind === "buyer" ? "Avatar négocie côté acheteur" : "Avatar accompagne la vente"}
-              </span>
-              {dealContactLevel && <WaouhContactabilityBadge level={dealContactLevel} showCode />}
-              {closed && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-                  <CheckCircle2 className="h-3 w-3" /> Finalisée
-                </span>
-              )}
-            </div>
-            <div className="mt-0.5 truncate text-sm font-black text-slate-950">{match.title}</div>
-            <div className="flex flex-wrap items-center gap-x-2 text-[10px] text-slate-600">
+            <div className="truncate text-sm font-black leading-tight text-slate-950">{match.title}</div>
+            <div className="flex flex-wrap items-center gap-x-2 text-[11px] leading-tight text-slate-500">
               {match.price ? <span className="font-bold text-emerald-700">{Number(match.price).toLocaleString("fr-FR")} FCFA</span> : null}
               {match.city ? <span>📍 {match.city}</span> : null}
-              <span>{match.kind === "buyer" ? "Vendeur" : "Acheteur"} : {counterpartLabel}</span>
-              {latestDealIntent && <span className="hidden sm:inline">· {latestDealIntent.replace(/_/g, " ")}</span>}
+              <span className="truncate">{match.kind === "buyer" ? "Vendeur" : "Acheteur"} : {counterpartLabel}</span>
             </div>
           </div>
-          <div className="hidden rounded-xl border bg-white/85 px-2.5 py-1.5 text-right sm:block">
-            <div className="flex items-center justify-end gap-1 text-[9px] font-bold text-slate-500">
-              <ShieldCheck className="h-3 w-3 text-emerald-600" /> Canal WAOUH protégé
-            </div>
-            <div className="mt-0.5 text-[9px] text-slate-400">{matchLabel} · {(match.article_id || "").slice(0, 8)}</div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {dealContactLevel && <WaouhContactabilityBadge level={dealContactLevel} showCode />}
+            {closed && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                <CheckCircle2 className="h-3 w-3" /> Finalisée
+              </span>
+            )}
+            <span
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-50 text-emerald-700"
+              title={`Canal WAOUH protégé · ${matchLabel} · ${(match.article_id || "").slice(0, 8)}`}
+            >
+              <ShieldCheck className="h-4 w-4" />
+            </span>
           </div>
         </div>
-        <div className="hidden">
-          {syncedAt && !closed ? (
-            <span className="inline-flex items-center gap-1 rounded-full border bg-white/70 px-2 py-1">
-              <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-              Synchronisé · {dbMsgCount} msg
-            </span>
-          ) : initialLoading && !syncedAt ? (
-            <span className="inline-flex items-center gap-1 rounded-full border bg-white/70 px-2 py-1">
-              <Loader2 className="h-3 w-3 animate-spin" /> Synchronisation…
-            </span>
-          ) : null}
-          {!dealContactLevel && <span>Contact Layer actif · aucune coordonnée privée exposée</span>}
-        </div>
+        {/* Parcours v3 : progression en 7 étapes, dans le même bloc. */}
+        <WaouhDealStepper
+          stage={latestStage(messages as Array<{ meta?: Record<string, unknown> | null }>) ?? (latestCommerceScope.negotiation_id ? "negotiation" : null)}
+          className="mt-1 border-0 bg-transparent"
+        />
       </div>
-
-      {/* Parcours v3 : progression en 7 étapes. */}
-      <WaouhDealStepper
-        stage={latestStage(messages as Array<{ meta?: Record<string, unknown> | null }>) ?? (latestCommerceScope.negotiation_id ? "negotiation" : null)}
-        className="shrink-0 border-b bg-white/80"
-      />
 
       {/* Résumé IA disponible à la demande afin de préserver la hauteur du fil. */}
       <details className="mx-2 mt-1 shrink-0 rounded-xl border border-emerald-100 bg-white/90">
@@ -921,6 +899,11 @@ export function WaouhMatchChatWindow({
 
       <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-3 space-y-1.5 sm:space-y-2 waouh-chat-bg">
         {/* Seed notification bubble — always pinned at top */}
+        {messages.length > 0 ? (
+          <div className="mx-auto w-fit max-w-[92%] truncate rounded-full border border-amber-200 bg-amber-50/90 px-3 py-1 text-[11px] font-semibold text-amber-900 shadow-sm">
+            {seedTitle}{seedDate ? ` · ${seedDate}` : ""}
+          </div>
+        ) : (
         <div className="mx-auto max-w-[92%] rounded-2xl border border-amber-300/70 bg-amber-50/95 dark:bg-amber-900/30 dark:border-amber-700/60 px-3 py-2.5 shadow-sm">
           <div className="flex items-start gap-2.5">
             {match.photo ? (
@@ -943,6 +926,7 @@ export function WaouhMatchChatWindow({
             </div>
           </div>
         </div>
+        )}
 
         {seedText && (
           <div className="mr-auto max-w-[88%] rounded-2xl rounded-bl-sm border bg-card px-3 py-2 text-sm shadow-sm">
