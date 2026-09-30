@@ -42,7 +42,12 @@ jobs:
           grep -q 'PUBLIC_AGENT_SLUG' src/pages/NotFound.tsx
           grep -q 'PublicAgentWebChatPage' src/pages/NotFound.tsx
 
-          echo "✅ Sources FA IA, AprèsBac IA et Web Chat public prêtes"
+          test -f public/waouh-ui-version.txt
+          grep -q '2026.09.30.19' public/waouh-ui-version.txt
+          grep -q 'bot-avatar-v2' src/app-mobile/screens/ChatListScreen.tsx
+          grep -q 'bot-copilot-v2' src/components/waouh/WaouhMatchChatWindow.tsx
+
+          echo "✅ Sources FA IA, AprèsBac IA, Web Chat public et UI WAOUH V2 prêtes"
 
       - name: Déployer sur le VPS avec Docker Compose
         uses: appleboy/ssh-action@v0.1.10
@@ -191,6 +196,10 @@ jobs:
             docker compose exec -T react-app test -f /usr/share/nginx/html/fa/home-premium-v23.css
             docker compose exec -T react-app grep -q '20260724-home-v23-1' /usr/share/nginx/html/fa/index.html
             docker compose exec -T react-app sh -c "grep -R -q 'Le Web Chat est momentanément indisponible' /usr/share/nginx/html/assets/js"
+            docker compose exec -T react-app test -f /usr/share/nginx/html/waouh-ui-version.txt
+            docker compose exec -T react-app grep -q '2026.09.30.19' /usr/share/nginx/html/waouh-ui-version.txt
+            docker compose exec -T react-app sh -c "grep -R -q 'bot-avatar-v2' /usr/share/nginx/html/assets/js"
+            docker compose exec -T react-app sh -c "grep -R -q 'bot-copilot-v2' /usr/share/nginx/html/assets/js"
 
             PUBLIC_AGENT_CHUNK=$(docker compose exec -T react-app sh -c "ls /usr/share/nginx/html/assets/js/PublicAgentWebChatPage-*.js /usr/share/nginx/html/assets/js/PublicBotChatPage-*.js 2>/dev/null | head -n1" | tr -d '\r')
             if [ -z "$PUBLIC_AGENT_CHUNK" ]; then
@@ -206,6 +215,8 @@ jobs:
                  curl -fsSL https://bot.bj/apresbacia/theme-v2_16.css | grep -q -- '--ab-blue' && \
                  curl -fsSL https://bot.bj/apresbacia/production-finalization-v2_17.js >/dev/null 2>&1 && \
                  curl -fsSL https://bot.bj/fa >/dev/null 2>&1 && \
+                 curl -fsSL -H 'Cache-Control: no-cache' "https://bot.bj/app/chat?deploy_check=${DEPLOY_SHA}" >/dev/null 2>&1 && \
+                 curl -fsSL -H 'Cache-Control: no-cache' "https://bot.bj/waouh-ui-version.txt?deploy_check=${DEPLOY_SHA}" | grep -q '2026.09.30.19' && \
                  curl -fsSL -H 'Cache-Control: no-cache' "https://bot.bj/ecqdg4yzr?deploy_check=${DEPLOY_SHA}" >/dev/null 2>&1; then
                 PUBLIC_READY=1
                 break
