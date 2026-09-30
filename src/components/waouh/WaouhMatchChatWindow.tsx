@@ -838,7 +838,7 @@ export function WaouhMatchChatWindow({
     : null;
 
   return (
-    <div className="flex flex-col h-full w-full bg-background">
+    <div data-waouh-ui="bot-copilot-v2" className="relative flex h-full w-full flex-col bg-background">
       {/* Deal Room — 1 article × 1 interlocuteur : un seul en-tête fin (fiche + progression). */}
       <div className="shrink-0 border-b border-emerald-100/70 bg-white/95 px-3 pb-1.5 pt-2 backdrop-blur">
         <div className="flex items-center gap-2.5">
@@ -916,9 +916,60 @@ export function WaouhMatchChatWindow({
         </div>
       </details>
 
-      {/* Messages area — same WAOUH doodle background */}
+      {/* Grand écran : contexte produit séparé du fil pour que la discussion reste lisible. */}
+      <aside className="absolute bottom-[68px] right-3 top-[154px] z-10 hidden w-[310px] flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white/95 shadow-[0_24px_60px_-32px_rgba(15,23,42,.30)] backdrop-blur xl:flex">
+        <div className="relative h-[170px] shrink-0 overflow-hidden bg-slate-100">
+          {match.photo ? (
+            <img src={match.photo} alt={match.title} className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-50 to-cyan-50 text-slate-400">
+              <ShoppingBag className="h-9 w-9" />
+            </div>
+          )}
+          <span className="absolute left-3 top-3 rounded-full border border-white/80 bg-white/90 px-2.5 py-1 text-[9px] font-black text-emerald-700 shadow-sm">
+            Deal Room
+          </span>
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col p-4">
+          <div className="text-[10px] font-black uppercase tracking-[.14em] text-slate-400">Produit en discussion</div>
+          <div className="mt-1 line-clamp-2 text-lg font-black leading-tight text-slate-950">{match.title}</div>
+          {match.price ? (
+            <div className="mt-2 text-xl font-black text-emerald-600">{Number(match.price).toLocaleString("fr-FR")} FCFA</div>
+          ) : null}
+          <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-bold text-slate-500">
+            {match.city ? <span className="rounded-full bg-slate-50 px-2 py-1">📍 {match.city}</span> : null}
+            <span className="rounded-full bg-slate-50 px-2 py-1">{match.kind === "buyer" ? "Vous achetez" : "Vous vendez"}</span>
+            {closed ? <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">Finalisée</span> : null}
+          </div>
+          <div className="mt-4 rounded-2xl border border-cyan-100 bg-gradient-to-br from-cyan-50 via-white to-violet-50 p-3">
+            <div className="flex items-center gap-2">
+              <WaouhMuseAvatar
+                mode={match.kind === "buyer" ? "buyer" : "seller"}
+                phase={closed ? "success" : "negotiating"}
+                size="sm"
+              />
+              <div>
+                <div className="text-xs font-black text-slate-950">Bot · Avatar IA</div>
+                <div className="text-[9px] font-bold text-emerald-600">● En ligne</div>
+              </div>
+            </div>
+            <p className="mt-2 text-[11px] font-semibold leading-relaxed text-slate-600">
+              Je garde le contexte du produit à côté et je vous aide à conduire la négociation sans masquer les messages.
+            </p>
+            <div className="mt-3 grid grid-cols-3 gap-1.5">
+              <span className="rounded-xl bg-white px-2 py-2 text-center text-[9px] font-black text-cyan-700 shadow-sm">Analyser</span>
+              <span className="rounded-xl bg-white px-2 py-2 text-center text-[9px] font-black text-blue-700 shadow-sm">Comparer</span>
+              <span className="rounded-xl bg-white px-2 py-2 text-center text-[9px] font-black text-violet-700 shadow-sm">Conclure</span>
+            </div>
+          </div>
+          <div className="mt-auto pt-3 text-[9px] font-semibold leading-relaxed text-slate-400">
+            Le panneau reste compact : photos, messages et saisie ne se recouvrent plus sur grand écran.
+          </div>
+        </div>
+      </aside>
 
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-3 space-y-1.5 sm:space-y-2 waouh-chat-bg">
+      {/* Messages area — priorité au fil, avec espace réservé au contexte produit sur grand écran. */}
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-3 xl:pr-[330px] space-y-1.5 sm:space-y-2 waouh-chat-bg">
         {/* Seed notification bubble — always pinned at top */}
         {messages.length > 0 ? (
           <div className="mx-auto w-fit max-w-[92%] truncate rounded-full border border-amber-200 bg-amber-50/90 px-3 py-1 text-[11px] font-semibold text-amber-900 shadow-sm">
@@ -1007,8 +1058,8 @@ export function WaouhMatchChatWindow({
                   alt=""
                   gallery={m.attachments.map((x: any) => ({ url: x.url, caption: x.caption || undefined }))}
                   index={i}
-                  className="mb-1 max-h-[240px] sm:max-h-[300px] lg:max-h-[360px] 2xl:max-h-[420px] rounded-xl bg-black/[0.03]"
-                  imgClassName="max-h-[240px] sm:max-h-[300px] lg:max-h-[360px] 2xl:max-h-[420px] w-auto max-w-full object-contain"
+                  className="mb-1 max-h-[220px] sm:max-h-[260px] lg:max-h-[300px] 2xl:max-h-[320px] rounded-xl bg-black/[0.03]"
+                  imgClassName="max-h-[220px] sm:max-h-[260px] lg:max-h-[300px] 2xl:max-h-[320px] w-auto max-w-full object-contain"
                 />
               ))
             )}
@@ -1126,7 +1177,7 @@ export function WaouhMatchChatWindow({
       {/* Composer */}
       {closed ? (
         <div
-          className="flex items-center gap-2 p-3 border-t bg-muted/60 text-muted-foreground text-sm shrink-0"
+          className="flex items-center gap-2 p-3 xl:mr-[330px] border-t bg-muted/60 text-muted-foreground text-sm shrink-0"
           style={{ paddingBottom: "max(env(safe-area-inset-bottom), 12px)" }}
         >
           <Lock className="w-4 h-4 shrink-0" />
@@ -1134,7 +1185,7 @@ export function WaouhMatchChatWindow({
         </div>
       ) : (
         <div
-          className="flex items-end gap-2 p-2 border-t bg-background shrink-0"
+          className="flex items-end gap-2 p-2 xl:mr-[330px] border-t bg-background shrink-0"
           style={{ paddingBottom: "max(env(safe-area-inset-bottom), 8px)" }}
         >
           <Textarea

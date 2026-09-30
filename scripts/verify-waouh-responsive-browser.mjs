@@ -333,7 +333,7 @@ async function testDesktopSidebar(viewport) {
 
 async function testRoutes(viewport) {
   const routes = [
-    ["/app/chat", null, false],
+    ["/app/chat", "Je vous aide à trouver, négocier et conclure.", false],
     ["/app/avatar", "Votre Avatar WAOUH", false],
     ["/app/avatar/acheter", "Acheter avec mon Avatar", false],
     ["/app/avatar/vendre", "Vendre avec mon Avatar", false],
@@ -373,6 +373,10 @@ async function testRoutes(viewport) {
     }
     if (marker && !state.text.includes(marker)) {
       fail(`${viewport.name}: ${route} missing marker "${marker}" at ${state.path}; body=${state.text.slice(0, 300)}`);
+    }
+    if (route === "/app/chat") {
+      const hasBotV2 = await evaluate(`Boolean(document.querySelector('[data-waouh-ui="bot-avatar-v2"]'))`);
+      if (!hasBotV2) fail(`${viewport.name}: /app/chat is not rendering the Bot avatar V2 home`);
     }
     if (route === "/app/auth" && state.text.includes("Comment fonctionne WAOUH")) {
       fail(`${viewport.name}: removed login explainer returned`);

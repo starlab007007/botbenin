@@ -199,6 +199,10 @@ class _IntelligenceQuickAccess extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final avatar = context.watch<LiveAvatarController>();
+    final storedName = avatarName.trim();
+    final displayName = storedName.isEmpty || storedName.toLowerCase() == 'ayo'
+        ? 'Bot'
+        : storedName;
     final missionLabel = approvalCount > 0
         ? '$approvalCount à valider'
         : missionCount > 0
@@ -208,151 +212,224 @@ class _IntelligenceQuickAccess extends StatelessWidget {
                 : 'Missions';
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 5, 14, 8),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(13, 12, 13, 11),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFEAFBF7),
-              Color(0xFFF3F8FF),
-              Color(0xFFFAF7FF),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: const Color(0xFFD9E8F2)),
-          boxShadow: WaouhShadows.card,
-        ),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                InkWell(
-                  onTap: onAvatar,
-                  borderRadius: BorderRadius.circular(22),
-                  child: Padding(
-                    padding: const EdgeInsets.all(2),
-                    child: LiveAvatarVisual(
-                      preset: avatar.profile.preset,
-                      state: LiveAvatarPresenceState.idle,
-                      size: 68,
-                      showStatusBadge: true,
-                    ),
-                  ),
+      padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
+      child: LayoutBuilder(
+        builder: (_, constraints) {
+          final compact = constraints.maxWidth < 360;
+          final avatarSize = compact ? 90.0 : 108.0;
+          return Container(
+            padding: EdgeInsets.fromLTRB(
+              compact ? 12 : 15,
+              compact ? 13 : 16,
+              compact ? 12 : 15,
+              13,
+            ),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFE7FBF8),
+                  Color(0xFFF4FAFF),
+                  Color(0xFFF8F4FF),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: const Color(0xFFD4EAF0)),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF176F8D).withValues(alpha: .10),
+                  blurRadius: 30,
+                  offset: const Offset(0, 14),
+                  spreadRadius: -16,
                 ),
-                const SizedBox(width: 11),
-                Expanded(
-                  child: InkWell(
-                    onTap: onAvatar,
-                    borderRadius: BorderRadius.circular(14),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
+              ],
+            ),
+            child: Column(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    InkWell(
+                      onTap: onAvatar,
+                      borderRadius: BorderRadius.circular(34),
+                      child: Container(
+                        width: avatarSize + 12,
+                        height: avatarSize + 12,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Color(0xFFDDF9F5),
+                              Colors.white,
+                              Color(0xFFE7EEFF),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(compact ? 30 : 36),
+                          border: Border.all(color: Colors.white, width: 3),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF2F80ED).withValues(alpha: .12),
+                              blurRadius: 22,
+                              offset: const Offset(0, 9),
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: LiveAvatarVisual(
+                            preset: avatar.profile.preset,
+                            state: LiveAvatarPresenceState.idle,
+                            size: avatarSize,
+                            showStatusBadge: true,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SizedBox(width: compact ? 10 : 14),
+                    Expanded(
+                      child: InkWell(
+                        onTap: onAvatar,
+                        borderRadius: BorderRadius.circular(18),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 3),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Flexible(
-                                child: Text(
-                                  avatarName.trim().isEmpty ? 'Bot' : avatarName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: WaouhPalette.ink,
-                                    fontSize: 21,
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      displayName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: WaouhPalette.ink,
+                                        fontSize: compact ? 25 : 29,
+                                        height: 1,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: -.8,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 7),
+                                  Container(
+                                    width: 9,
+                                    height: 9,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFF20C997),
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 5),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: .78),
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(color: const Color(0xFFCFE6F6)),
+                                ),
+                                child: const Text(
+                                  '✨ Votre Avatar IA',
+                                  style: TextStyle(
+                                    color: WaouhPalette.blue,
+                                    fontSize: 9.5,
                                     fontWeight: FontWeight.w900,
-                                    letterSpacing: -.35,
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 6),
-                              Container(
-                                width: 7,
-                                height: 7,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFF20C997),
-                                  shape: BoxShape.circle,
+                              const SizedBox(height: 8),
+                              Text.rich(
+                                TextSpan(
+                                  style: TextStyle(
+                                    color: WaouhPalette.muted,
+                                    fontSize: compact ? 10.7 : 12.0,
+                                    height: 1.28,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                  children: const [
+                                    TextSpan(text: 'Je vous aide à '),
+                                    TextSpan(
+                                      text: 'trouver, négocier et conclure',
+                                      style: TextStyle(
+                                        color: Color(0xFF087F8C),
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                    TextSpan(text: '.'),
+                                  ],
                                 ),
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),
-                          const SizedBox(height: 2),
-                          const Text(
-                            'Votre Avatar IA',
-                            style: TextStyle(
-                              color: WaouhPalette.blue,
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          const Text(
-                            'Je vous aide à trouver, négocier et conclure.',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: WaouhPalette.muted,
-                              fontSize: 10.5,
-                              height: 1.25,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _AvatarHeroAction(
+                        label: 'Démarrer',
+                        caption: 'avec Bot',
+                        icon: Icons.forum_outlined,
+                        accent: const Color(0xFF0AAE9A),
+                        filled: true,
+                        onTap: onDiscuss,
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: _AvatarHeroAction(
+                        label: 'Chercher',
+                        caption: 'avec Bot',
+                        icon: Icons.search_rounded,
+                        accent: WaouhPalette.blue,
+                        onTap: onSearch,
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: _AvatarHeroAction(
+                        label: 'Négocier',
+                        caption: 'avec Bot',
+                        icon: Icons.handshake_outlined,
+                        accent: const Color(0xFF7257E6),
+                        onTap: onNegotiate,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 7),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: onMissions,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      minimumSize: const Size(0, 30),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    icon: const Icon(Icons.route_rounded, size: 14),
+                    label: Text(
+                      missionLabel,
+                      style: const TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
                   ),
                 ),
-                TextButton.icon(
-                  onPressed: onMissions,
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
-                    minimumSize: const Size(0, 32),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  icon: const Icon(Icons.route_rounded, size: 14),
-                  label: Text(
-                    missionLabel,
-                    style: const TextStyle(fontSize: 9.2, fontWeight: FontWeight.w800),
-                  ),
-                ),
               ],
             ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: _AvatarHeroAction(
-                    label: 'Démarrer',
-                    icon: Icons.forum_outlined,
-                    accent: const Color(0xFF0AAE9A),
-                    filled: true,
-                    onTap: onDiscuss,
-                  ),
-                ),
-                const SizedBox(width: 7),
-                Expanded(
-                  child: _AvatarHeroAction(
-                    label: 'Chercher',
-                    icon: Icons.search_rounded,
-                    accent: WaouhPalette.blue,
-                    onTap: onSearch,
-                  ),
-                ),
-                const SizedBox(width: 7),
-                Expanded(
-                  child: _AvatarHeroAction(
-                    label: 'Négocier',
-                    icon: Icons.handshake_outlined,
-                    accent: const Color(0xFF7257E6),
-                    onTap: onNegotiate,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -361,6 +438,7 @@ class _IntelligenceQuickAccess extends StatelessWidget {
 class _AvatarHeroAction extends StatelessWidget {
   const _AvatarHeroAction({
     required this.label,
+    required this.caption,
     required this.icon,
     required this.accent,
     required this.onTap,
@@ -368,6 +446,7 @@ class _AvatarHeroAction extends StatelessWidget {
   });
 
   final String label;
+  final String caption;
   final IconData icon;
   final Color accent;
   final VoidCallback onTap;
@@ -375,33 +454,48 @@ class _AvatarHeroAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-        color: filled ? accent : Colors.white.withValues(alpha: .86),
-        borderRadius: BorderRadius.circular(16),
+        color: filled ? accent : Colors.white.withValues(alpha: .90),
+        borderRadius: BorderRadius.circular(17),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
           child: Container(
-            height: 42,
-            padding: const EdgeInsets.symmetric(horizontal: 7),
+            height: 58,
+            padding: const EdgeInsets.symmetric(horizontal: 5),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: filled ? null : Border.all(color: accent.withValues(alpha: .16)),
+              borderRadius: BorderRadius.circular(17),
+              border: filled
+                  ? null
+                  : Border.all(color: accent.withValues(alpha: .16)),
             ),
-            child: Row(
+            child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(icon, size: 17, color: filled ? Colors.white : accent),
-                const SizedBox(width: 5),
-                Flexible(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: filled ? Colors.white : WaouhPalette.ink,
-                      fontSize: 10.4,
-                      fontWeight: FontWeight.w900,
-                    ),
+                const SizedBox(height: 3),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: filled ? Colors.white : WaouhPalette.ink,
+                    fontSize: 9.7,
+                    height: 1,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  caption,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: filled
+                        ? Colors.white.withValues(alpha: .78)
+                        : WaouhPalette.muted,
+                    fontSize: 8.2,
+                    height: 1,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],
@@ -409,6 +503,7 @@ class _AvatarHeroAction extends StatelessWidget {
           ),
         ),
       );
+
 }
 
 class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
