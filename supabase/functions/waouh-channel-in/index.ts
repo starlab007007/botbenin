@@ -37,7 +37,7 @@ import {
   scoreFabricSignal,
   type FabricSignal,
 } from "../_shared/waouh-signal-fabric.ts";
-import { assessQuality, compareUnified, qualityAdjustedScore } from "../_shared/waouh-unified-quality.ts";
+import { assessQuality, compareUnified, diversifyBySource, qualityAdjustedScore } from "../_shared/waouh-unified-quality.ts";
 
 
 const corsHeaders = {
@@ -420,7 +420,7 @@ async function enrichChatWithSignalFabric(
     }) as string | undefined;
     const scoringCity = explicitCity ?? input.city ?? null;
 
-    const ranked = (data ?? [])
+    const scored = (data ?? [])
       .map((signal: FabricSignal) => {
         const scores = scoreFabricSignal({
           query: input.text,
@@ -438,13 +438,16 @@ async function enrichChatWithSignalFabric(
           adjusted: qualityAdjustedScore(scores.total_score, quality),
           contact_policy: contactabilityPolicy(signal.contactability_level),
         };
-      })
-      .filter((row: any) =>
-        row.scores.relevance_score >= 18 && row.scores.total_score >= 32
-      )
-      // Les fiches sans photo, prix ni contact passent en dernier ; ailleurs, chaque information manquante retire des points.
-      .sort(compareUnified)
-      .slice(0, 20);
+      });
+    // Ouverture : seuil strict d'abord ; si la recherche est pauvre (moins de 6 fiches), seuil élargi pour que le chat exploite aussi
+    // les signaux moins proches (Radar, Nexus, API, sites) — ils restent classés après, avec leur phrase de référence.
+    const STRICT = (row: any) => row.scores.relevance_score >= 18 && row.scores.total_score >= 32;
+    const RELAXED = (row: any) => row.scores.relevance_score >= 10 && row.scores.total_score >= 20;
+    const strictRows = scored.filter(STRICT);
+    const pool = strictRows.length >= 6 ? strictRows : scored.filter(RELAXED);
+    // Les fiches sans photo, prix ni contact passent en dernier ; ailleurs, chaque information manquante retire des points ;
+    // aucune source ne peut occuper plus de 4 places (traitement équitable de toutes les sources).
+    const ranked = diversifyBySource([...pool].sort(compareUnified), { perSource: 4, max: 20 });
 
     const sourceMix = ranked.reduce((acc: Record<string, number>, row: any) => {
       const key = String(row.source_key ?? "unknown");
@@ -608,7 +611,7 @@ async function enrichChatWithSignalFabric(
       if (existing.has(key)) continue;
       existing.add(key);
       appended.push(candidate);
-      if (enrichedCore.length + appended.length >= 8) break;
+      if (enrichedCore.length + appended.length >= 12) break;
     }
 
     const results = [...enrichedCore, ...appended].map(

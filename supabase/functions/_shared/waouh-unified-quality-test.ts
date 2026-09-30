@@ -1,5 +1,5 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { assessQuality, compareUnified, qualityAdjustedScore, referenceLine } from "./waouh-unified-quality.ts";
+import { assessQuality, compareUnified, diversifyBySource, qualityAdjustedScore, referenceLine } from "./waouh-unified-quality.ts";
 
 const full = { photos: ["https://x/a.jpg"], price_min: 5000, contactability_level: "C2", actor_type: "seller" };
 const noPhoto = { price_min: 5000, contactability_level: "C4", actor_type: "business" };
@@ -50,4 +50,18 @@ Deno.test("phrase de référence", () => {
 Deno.test("une demande d'achat n'est pas pénalisée pour l'absence de photo", () => {
   const q = assessQuality({ intent: "BUY", actor_type: "buyer", price_max: 50000, contactability_level: "C2" });
   assertEquals([q.tier, q.missing, q.has_photo], ["A", [], true]);
+});
+
+Deno.test("diversité : au plus N fiches par source, ordre conservé, rattrapage si de la place reste", () => {
+  const rows = [
+    ...Array.from({ length: 6 }, (_, i) => ({ id: `a${i}`, source_key: "waouh_app" })),
+    { id: "r1", source_key: "radar_ia" }, { id: "n1", source_key: "serpapi" }, { id: "p1", source_key: "partner" },
+  ];
+  const out = diversifyBySource(rows, { perSource: 2, max: 6 });
+  // quota de 2 : a0, a1 gardés, a2-a5 écartés ; r1, n1, p1 gardés ; il reste 1 place → a2 revient, l'ordre d'origine est conservé
+  assertEquals(out.map((r) => r.id), ["a0", "a1", "a2", "r1", "n1", "p1"]);
+  assertEquals(diversifyBySource(rows, { perSource: 2, max: 5 }).map((r) => r.id), ["a0", "a1", "r1", "n1", "p1"]);
+  // peu de sources : on complète avec les fiches écartées
+  assertEquals(diversifyBySource(rows.slice(0, 6), { perSource: 2, max: 4 }).map((r) => r.id), ["a0", "a1", "a2", "a3"]);
+  assertEquals(diversifyBySource([], { perSource: 2, max: 4 }), []);
 });

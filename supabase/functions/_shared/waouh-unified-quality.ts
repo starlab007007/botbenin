@@ -121,3 +121,25 @@ export function compareUnified(a: { quality: UnifiedQuality; adjusted: number },
   if (lastA !== lastB) return lastA - lastB;
   return b.adjusted - a.adjusted;
 }
+
+/**
+ * Diversité des sources : au plus `perSource` fiches par source (sans en favoriser aucune), l'ordre de qualité est conservé ;
+ * si le quota laisse de la place, les fiches écartées reviennent dans l'ordre d'origine jusqu'à `max`.
+ */
+export function diversifyBySource<T extends { source_key?: unknown }>(rows: T[], opts: { perSource: number; max: number }): T[] {
+  const count = new Map<string, number>();
+  const kept: T[] = [];
+  const skipped: T[] = [];
+  for (const row of rows) {
+    const key = String(row.source_key ?? "unknown");
+    const n = count.get(key) ?? 0;
+    if (n < opts.perSource && kept.length < opts.max) {
+      count.set(key, n + 1);
+      kept.push(row);
+    } else skipped.push(row);
+  }
+  const out = kept.concat(skipped.slice(0, Math.max(0, opts.max - kept.length)));
+  // l'ordre final reste celui de la liste d'origine
+  const order = new Map(rows.map((r, i) => [r, i] as const));
+  return out.sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
+}

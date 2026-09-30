@@ -3,6 +3,9 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.30.16
+- Ouverture des sources au chat : recherche élargie automatiquement quand elle est pauvre (moins de 6 fiches au seuil strict → seuil élargi, fiches classées après avec leur phrase de référence) ; au plus 4 fiches par source (`diversifyBySource`, aucune source n'écrase les autres) ; jusqu'à 12 cartes (8 avant). SerpAPI activé (plan gratuit, test de clé « ok ») et planifié une fois par jour ; source de découverte « serpapi » en « live » — migration `20260930200000` (redéfinit aussi `waouh_install_background_ticks`).
+
 ## 2026.09.30.15
 - Tâches de fond : le point automatique de l'avatar (toutes les heures), le suivi des offres Nexus (toutes les heures) et le traitement des signaux Radar (5 min ; collecte Apify et sites toutes les 6 h) sont planifiables sans créer de secret : `waouh_install_background_ticks()` (migration `20260930190000`). Les appels sécurisés sont vérifiés par `waouh_verify_tick_secret` (secret interne déjà présent dans le Vault) via `isTickCaller`. Non planifiés volontairement : campagnes Radar et auto-contrôle (écrivent à des tiers ; automatisation en pause jusqu'au 30/09 23:53), SerpAPI (désactivé).
 
