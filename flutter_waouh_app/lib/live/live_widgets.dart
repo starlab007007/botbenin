@@ -2292,7 +2292,7 @@ Future<void> _showGuidedInterestSheet(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Votre Avatar ouvre la négociation',
+                const Text('Bot ouvre la négociation',
                     style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 6),
                 Text(
@@ -2354,7 +2354,7 @@ Future<void> _showGuidedInterestSheet(
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Votre Avatar reste actif jusqu’à la conclusion de l’accord.',
+                  'Bot reste actif jusqu’à la conclusion de l’accord.',
                   style: TextStyle(
                     color: Color(0xFF08745D),
                     fontWeight: FontWeight.w800,
@@ -2622,7 +2622,7 @@ class _PremiumNexusContactSheetState
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Votre Avatar a pris le relais. WAOUH suit la réponse et vous guidera à la prochaine étape.',
+            'Bot a pris le relais. WAOUH suit la réponse et vous guidera à la prochaine étape.',
           ),
         ),
       );
@@ -2667,7 +2667,7 @@ class _PremiumNexusContactSheetState
               Expanded(
                 child: Text(
                   current?.lastMessage ??
-                      'Votre Avatar prend en charge cette opportunité.',
+                      'Bot prend en charge cette opportunité.',
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
                     color: Color(0xFF19304F),
@@ -2864,7 +2864,7 @@ class _PremiumNexusContactSheetState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Votre Avatar conduit la démarche',
+                        'Bot conduit la démarche',
                         style: TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w900,
