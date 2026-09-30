@@ -131,6 +131,15 @@ jobs:
       - name: Check WAOUH Commerce Action
         run: deno check supabase/functions/waouh-commerce-action/index.ts
 
+      - name: Check WAOUH Channel In (recherche unifiée)
+        run: deno check supabase/functions/waouh-channel-in/index.ts
+
+      - name: Check WAOUH Buyer Interest
+        run: deno check supabase/functions/waouh-buyer-interest/index.ts
+
+      - name: Check WAOUH Notify Dispatch
+        run: deno check supabase/functions/waouh-notify-dispatch/index.ts
+
       - name: WAOUH Chat V3 contract tests
         run: |
           deno test supabase/functions/_shared/waouh-commands-test.ts
@@ -139,6 +148,13 @@ jobs:
           deno test supabase/functions/_shared/waouh-interest-fastpath-test.ts
           deno test supabase/functions/_shared/waouh-message-catalog-test.ts
           deno test supabase/functions/_shared/waouh-commerce-v3-test.ts
+          deno test supabase/functions/_shared/waouh-dedupe-test.ts
+          deno test supabase/functions/_shared/waouh-notif-thread-test.ts
+          deno test supabase/functions/_shared/waouh-identity-paging-test.ts
+          deno test supabase/functions/_shared/waouh-partner-seller-test.ts
+          deno test supabase/functions/_shared/waouh-unified-quality-test.ts
+          deno test supabase/functions/_shared/waouh-avatar-briefing-test.ts
+          deno test supabase/functions/_shared/waouh-avatar-briefing-core-test.ts
           npm exec --yes --package=vitest@2.1.9 --package=jsdom@25.0.1 -- vitest run src/lib/waouh/__tests__/commerceAction.test.ts src/components/waouh/__tests__/waouh-chat-sync-flow.lock.test.ts
 
       - name: Check WAOUH Outbound Dispatcher

@@ -37,6 +37,7 @@ import {
   scoreFabricSignal,
   type FabricSignal,
 } from "../_shared/waouh-signal-fabric.ts";
+import { assessQuality, compareUnified, qualityAdjustedScore } from "../_shared/waouh-unified-quality.ts";
 
 
 const corsHeaders = {
@@ -420,21 +421,29 @@ async function enrichChatWithSignalFabric(
     const scoringCity = explicitCity ?? input.city ?? null;
 
     const ranked = (data ?? [])
-      .map((signal: FabricSignal) => ({
-        ...signal,
-        scores: scoreFabricSignal({
+      .map((signal: FabricSignal) => {
+        const scores = scoreFabricSignal({
           query: input.text,
           mode,
           city: scoringCity,
           budgetMax,
           signal,
-        }),
-        contact_policy: contactabilityPolicy(signal.contactability_level),
-      }))
+        });
+        // Couche d'unification : même barème de complétude pour toutes les sources (chat, partenaires, WhatsApp, Radar, Nexus, API).
+        const quality = assessQuality(signal);
+        return {
+          ...signal,
+          scores,
+          quality,
+          adjusted: qualityAdjustedScore(scores.total_score, quality),
+          contact_policy: contactabilityPolicy(signal.contactability_level),
+        };
+      })
       .filter((row: any) =>
         row.scores.relevance_score >= 18 && row.scores.total_score >= 32
       )
-      .sort((a: any, b: any) => b.scores.total_score - a.scores.total_score)
+      // Les fiches sans photo, prix ni contact passent en dernier ; ailleurs, chaque information manquante retire des points.
+      .sort(compareUnified)
       .slice(0, 20);
 
     const sourceMix = ranked.reduce((acc: Record<string, number>, row: any) => {
@@ -523,6 +532,8 @@ async function enrichChatWithSignalFabric(
       return {
         ...row,
         ...explanation,
+        quality: row.quality ?? matched.quality ?? null,
+        entity_kind: row.entity_kind ?? matched.quality?.entity_kind ?? null,
         fabric_id: row.fabric_id ?? matched.fabric_id ?? null,
         source_url: row.source_url ?? matched.source_url ?? null,
         intent: row.intent ?? matched.intent ?? null,
@@ -585,10 +596,13 @@ async function enrichChatWithSignalFabric(
         reasons: row.scores?.reasons ?? [],
         evidence,
         action: null,
+        quality: row.quality ?? null,
+        entity_kind: row.quality?.entity_kind ?? null,
         market_line:
-          mode === "find_buyers"
+          row.quality?.reference ??
+          (mode === "find_buyers"
             ? "Demande détectée par NEXUS · l’Avatar poursuit le rapprochement sous contrôle."
-            : "Signal découvert par NEXUS · ouvrez la source publique lorsque disponible.",
+            : "Signal découvert par NEXUS · ouvrez la source publique lorsque disponible."),
       };
       const key = chatSignalKey(candidate);
       if (existing.has(key)) continue;
