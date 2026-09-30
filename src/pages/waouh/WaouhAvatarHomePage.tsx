@@ -54,7 +54,7 @@ export type WaouhAvatarHomePageProps = {
 };
 
 const DEFAULT_PROFILE: AvatarProfile = {
-  name: "Ayo",
+  name: "Bot",
   preset: "sky",
   personality: "Équilibré",
   proactivity: "Équilibré",
@@ -93,7 +93,7 @@ const readAvatarProfile = (): AvatarProfile => {
 
 const saveAvatarProfile = (profile: AvatarProfile) => {
   try {
-    localStorage.setItem("waouh.avatar.name", profile.name.trim() || "Ayo");
+    localStorage.setItem("waouh.avatar.name", profile.name.trim() || "Bot");
     localStorage.setItem("waouh.avatar.preset", profile.preset);
     localStorage.setItem("waouh.avatar.personality", profile.personality);
     localStorage.setItem("waouh.avatar.proactivity", profile.proactivity);
@@ -233,7 +233,7 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
     if (!SpeechRecognition) {
       toast({
         title: "Saisie vocale non disponible",
-        description: "Votre navigateur ne fournit pas la reconnaissance vocale. Vous pouvez écrire à Ayo.",
+        description: "Votre navigateur ne fournit pas la reconnaissance vocale. Vous pouvez écrire à Bot.",
       });
       return;
     }
@@ -252,7 +252,7 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
   };
 
   const storeProfile = () => {
-    const next = { ...draft, name: draft.name.trim() || "Ayo" };
+    const next = { ...draft, name: draft.name.trim() || "Bot" };
     saveAvatarProfile(next);
     setProfile(next);
     setSettingsOpen(false);

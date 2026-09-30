@@ -273,16 +273,16 @@ async function testRoot(viewport) {
     button.click();
     return true;
   })()`);
-  if (!asked) fail(`${viewport.name}: Ayo command composer is not operable`);
+  if (!asked) fail(`${viewport.name}: Bot command composer is not operable`);
   await sleep(700);
   const afterAsk = await evaluate(`({ path: location.pathname, text: document.body.innerText })`);
   if (viewport.width >= 1180) {
-    if (afterAsk.path !== "/") fail(`desktop: Ayo command should stay on /, got ${afterAsk.path}`);
-    if (!afterAsk.text.includes("WAOUH Assistant IA")) {
-      fail("desktop: Ayo command did not open embedded WAOUH chat");
+    if (afterAsk.path !== "/") fail(`desktop: Bot command should stay on /, got ${afterAsk.path}`);
+    if (!afterAsk.text.includes("Bot · Avatar IA")) {
+      fail("desktop: Bot command did not open embedded WAOUH chat");
     }
   } else if (afterAsk.path !== "/app/chat/waouh") {
-    fail(`${viewport.name}: Ayo command lost tablet/mobile chat route: ${afterAsk.path}`);
+    fail(`${viewport.name}: Bot command lost tablet/mobile chat route: ${afterAsk.path}`);
   }
 }
 

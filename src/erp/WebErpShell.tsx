@@ -157,7 +157,7 @@ const routeContext = (pathname: string) => {
   if (pathname === HOME_PATH) {
     return {
       eyebrow: 'Intelligence personnelle',
-      title: 'Ayo · Votre Avatar WAOUH',
+      title: 'Bot · Votre Avatar WAOUH',
       description: 'Un guide IA vivant pour acheter, vendre, trouver, décider et conduire vos démarches.',
       prompt: 'Parler à mon Avatar',
     };

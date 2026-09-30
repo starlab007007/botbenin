@@ -107,7 +107,7 @@ export const CenterCanvas = () => {
             <ArrowLeft size={18} />
           </Button>
           <span className="text-sm font-semibold text-foreground">
-            {view === 'chat' ? 'WAOUH Assistant IA' : view === 'conversation' ? 'Conversation' : view === 'radar' ? 'Radar' : 'Statuts'}
+            {view === 'chat' ? 'Bot · Avatar IA' : view === 'conversation' ? 'Conversation' : view === 'radar' ? 'Radar' : 'Statuts'}
           </span>
           <div className="ml-auto hidden items-center gap-2 xl:flex">
             {(['statuses', 'radar'] as const).map((key) => (

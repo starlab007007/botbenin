@@ -86,7 +86,7 @@ class LiveAvatarController extends ChangeNotifier {
   static const _configuredKey = 'waouh.avatar.configured';
 
   LiveAvatarProfile _profile = const LiveAvatarProfile(
-    name: 'Ayo',
+    name: 'Bot',
     preset: LiveAvatarPreset.sky,
     personality: 'Équilibré',
     proactivity: 'Équilibré',
@@ -101,12 +101,12 @@ class LiveAvatarController extends ChangeNotifier {
   LiveAvatarPresenceState get state => _state;
   bool get loaded => _loaded;
 
-  String get name => _profile.name.trim().isEmpty ? 'Ayo' : _profile.name.trim();
+  String get name => _profile.name.trim().isEmpty ? 'Bot' : _profile.name.trim();
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     _profile = LiveAvatarProfile(
-      name: prefs.getString(_nameKey) ?? 'Ayo',
+      name: prefs.getString(_nameKey) ?? 'Bot',
       preset: LiveAvatarPresetLabel.fromId(prefs.getString(_presetKey)),
       personality: prefs.getString(_personalityKey) ?? 'Équilibré',
       proactivity: prefs.getString(_proactivityKey) ?? 'Équilibré',
@@ -122,7 +122,7 @@ class LiveAvatarController extends ChangeNotifier {
     required String personality,
     required String proactivity,
   }) async {
-    final normalizedName = name.trim().isEmpty ? 'Ayo' : name.trim();
+    final normalizedName = name.trim().isEmpty ? 'Bot' : name.trim();
     _profile = LiveAvatarProfile(
       name: normalizedName,
       preset: preset,
@@ -151,7 +151,7 @@ class LiveAvatarController extends ChangeNotifier {
       prefs.remove(_configuredKey),
     ]);
     _profile = const LiveAvatarProfile(
-      name: 'Ayo',
+      name: 'Bot',
       preset: LiveAvatarPreset.sky,
       personality: 'Équilibré',
       proactivity: 'Équilibré',
