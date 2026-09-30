@@ -406,7 +406,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     // Kick off both queries in PARALLEL (was sequential: users → history).
     const usersPromise = (async () => {
       const q = uid
-        ? supabase.from("waouh_users").select("id").eq("auth_user_id", uid).limit(50)
+        ? supabase.from("waouh_users").select("id").eq("auth_user_id", uid).order("created_at", { ascending: false }).limit(100)
         : supabase.from("waouh_users").select("id").eq("web_session_id", sessionId).limit(50);
       const { data } = await q;
       return Array.from(new Set((data ?? []).map((u: any) => u.id)));

@@ -3,6 +3,9 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.30.3 (branche claude/harmonisation-phase-0-1)
+- Correctif général des identités (publication qui recréait une ligne `waouh_users`, lectures plafonnées, choix de ligne non déterministe) et garde anti-doublon des messages (`buyer_interest`, `new_buyer`, écho de réouverture). Détail : docs/E2E_PRODUCTION_2026-09-30.md.
+
 ## 2026.09.30.2 (branche claude/harmonisation-phase-0-1, NON déployé)
 - Test de bout en bout en production : le vendeur était refusé (403 « non participant ») sur la contre-proposition car seules 50 identités par compte étaient lues (B en a 96, A en a 177, une ligne par session Web).
   Correctif : lecture paginée des identités (`waouh-identity.ts`) et recherche du fil par lots. Détail : docs/E2E_PRODUCTION_2026-09-30.md.

@@ -276,6 +276,8 @@ async function writeBubble(sb: any, input: {
   threadId: string; userId: string; direction: "in" | "out"; text: string; articleId: string | null;
   intent: string; actions?: unknown[]; extra?: Record<string, unknown>; channel: string;
 }) {
+  // Deux requêtes rapprochées (double tap, réouverture) n'écrivent pas deux fois la même bulle.
+  if (await recentDuplicateExists(sb, { threadId: input.threadId, userId: input.userId, direction: input.direction, text: input.text, withinSeconds: 15 })) return;
   if (await chatWriterV2Enabled(sb)) {
     const w = await recordChatMessage({
       sb,
@@ -599,7 +601,7 @@ Deno.serve(async (req) => {
       if (!auth.ok) return auth.response;
       if (auth.authUser?.id) {
         userAuthHeader = `Bearer ${bearer}`;
-        const { data } = await sb.from("waouh_users").select("id").eq("auth_user_id", auth.authUser.id).limit(1).maybeSingle();
+        const { data } = await sb.from("waouh_users").select("id").eq("auth_user_id", auth.authUser.id).order("created_at", { ascending: true }).limit(1).maybeSingle();
         actorId = data?.id ?? null;
       }
       if (!actorId && auth.headerSessionId && auth.sessionValid) {

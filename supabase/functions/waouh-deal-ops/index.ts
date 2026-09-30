@@ -432,7 +432,7 @@ async function resolveDealActor(req: Request, sb: any, body: any): Promise<DealA
       return { ok: false, status: 401, error: "Invalid session", internal: false, isAdmin: false, authUserId: null, waouhUserIds: [] };
     }
     const [{ data: rows }, { data: isAdmin }] = await Promise.all([
-      sb.from("waouh_users").select("id").eq("auth_user_id", u.user.id).limit(100),
+      sb.from("waouh_users").select("id").eq("auth_user_id", u.user.id).order("created_at", { ascending: false }).limit(100),
       sb.rpc("has_role", { _user_id: u.user.id, _role_name: "admin" }),
     ]);
     return {

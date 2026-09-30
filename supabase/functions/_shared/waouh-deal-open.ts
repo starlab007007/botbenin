@@ -11,6 +11,7 @@
 // waouh-commerce-action l'appellent pour ouvrir la Deal Room en un aller-retour.
 
 import { pushSyncedEvent } from "./waouh-sync.ts";
+import { recentDuplicateExists } from "./waouh-dedupe.ts";
 import { bindThreadState, resolveProductThread } from "./waouh-thread.ts";
 import { negotiationActionsV3, sellerOfferDecisionActions, type WaouhAction } from "./waouh-commands.ts";
 import { renderCatalog } from "./waouh-message-catalog.ts";
@@ -258,7 +259,10 @@ export async function openBuyerDeal(args: OpenBuyerDealArgs): Promise<OpenBuyerD
   // Vendeur externe (résultat Nexus) : aucun compte à notifier, la transmission est un choix explicite de l'acheteur.
   const externalSeller = article.origin === "nexus_external";
   const shouldNotify = !externalSeller && ((notifySeller === "always" && openNegotiation) || (notifySeller === "on_create" && created));
-  if (shouldNotify && article.seller_id) {
+  // Même notification déjà reçue par le vendeur sur ce fil il y a moins d'une minute : pas de doublon (double envoi).
+  const sellerAlreadyNotified = shouldNotify && !!article.seller_id &&
+    await recentDuplicateExists(sb, { threadId, userId: article.seller_id, intent: "new_buyer", withinSeconds: 60 });
+  if (shouldNotify && article.seller_id && !sellerAlreadyNotified) {
     const decisionActions: WaouhAction[] = negotiationId
       ? (catalogV3
         ? negotiationActionsV3(negotiationId, { amount: shownOffer })
@@ -296,7 +300,9 @@ export async function openBuyerDeal(args: OpenBuyerDealArgs): Promise<OpenBuyerD
   }
 
   // Écho acheteur (bulle + WhatsApp) — uniquement pour l'appel historique.
-  if (echoBuyer && buyerActor) {
+  const echoAlready = !!echoBuyer && !!buyerActor &&
+    await recentDuplicateExists(sb, { threadId, userId: buyerActor.id, intent: "buyer_interest", withinSeconds: 60 });
+  if (echoBuyer && buyerActor && !echoAlready) {
     try {
       const photos = publicPhotos(article);
       const actions: WaouhAction[] = [];

@@ -68,6 +68,7 @@ Deno.serve(async (req) => {
       const { data } = await sb.from("waouh_users")
         .select("id,auth_user_id,phone_number,web_session_id")
         .eq("auth_user_id", authUserId)
+        .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle();
       buyerUserId = data?.id ?? null;

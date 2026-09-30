@@ -93,6 +93,7 @@ serve(async (req) => {
       .from("waouh_users")
       .select("id,auth_user_id,web_session_id")
       .or(identityOr.join(","))
+      .order("created_at", { ascending: false }) // les identités récentes d'abord : un compte très actif dépasse 100 lignes
       .limit(100);
     if (usersError) throw usersError;
     const userIds = Array.from(

@@ -190,7 +190,7 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
       let wusers: any[] | null = null;
       if (authUserId) {
         const { data } = await supabase
-          .from("waouh_users").select("id").eq("auth_user_id", authUserId).limit(50);
+          .from("waouh_users").select("id").eq("auth_user_id", authUserId).order("created_at", { ascending: false }).limit(100);
         wusers = data ?? [];
       } else {
         const { data } = await supabase

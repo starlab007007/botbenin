@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
     // Resolve waouh_users.id from auth user OR web session
     let waouhBuyerId: string | null = null;
     if (userId) {
-      const { data: wu } = await sb.from("waouh_users").select("id").eq("auth_user_id", userId).maybeSingle();
+      const { data: wu } = await sb.from("waouh_users").select("id").eq("auth_user_id", userId).order("created_at", { ascending: true }).limit(1).maybeSingle();
       waouhBuyerId = wu?.id ?? null;
     }
     if (!waouhBuyerId && sessionHeader) {
@@ -317,7 +317,7 @@ Deno.serve(async (req) => {
       // Authorize: buyer (auth user OR matching web session)
       let allowed = false;
       if (userId) {
-        const { data: wu } = await sb.from("waouh_users").select("id").eq("auth_user_id", userId).maybeSingle();
+        const { data: wu } = await sb.from("waouh_users").select("id").eq("auth_user_id", userId).order("created_at", { ascending: true }).limit(1).maybeSingle();
         if (wu?.id === tx.buyer_id) allowed = true;
       }
       const sessionHeader = req.headers.get("x-waouh-session");
