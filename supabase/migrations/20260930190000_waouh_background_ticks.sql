@@ -38,7 +38,7 @@ begin
         'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'waouh_tel_internal_secret' limit 1)),
       body := '{"action":"tick","limit":100}'::jsonb);
   $job$, p_base_url || '/waouh-avatar-briefing'));
-  v_jobs := v_jobs || 'waouh-avatar-briefing-hourly';
+  v_jobs := array_append(v_jobs, 'waouh-avatar-briefing-hourly');
 
   perform cron.schedule('waouh-nexus-followup-hourly', '7 * * * *', format($job$
     select net.http_post(
@@ -47,14 +47,14 @@ begin
         'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'waouh_tel_internal_secret' limit 1)),
       body := '{"limit":100}'::jsonb);
   $job$, p_base_url || '/waouh-nexus-followup'));
-  v_jobs := v_jobs || 'waouh-nexus-followup-hourly';
+  v_jobs := array_append(v_jobs, 'waouh-nexus-followup-hourly');
 
   perform cron.schedule('waouh-radar-process-tick', '*/5 * * * *', format($job$
     select net.http_post(url := %L,
       headers := jsonb_build_object('Content-Type', 'application/json', 'Authorization', 'Bearer ' || %L),
       body := '{}'::jsonb);
   $job$, p_base_url || '/waouh-radar-process', p_public_key));
-  v_jobs := v_jobs || 'waouh-radar-process-tick';
+  v_jobs := array_append(v_jobs, 'waouh-radar-process-tick');
 
   -- Collecte externe (crédits Apify / Firecrawl) : toutes les 6 heures, prudemment.
   perform cron.schedule('waouh-radar-apify-6h', '41 */6 * * *', format($job$
@@ -62,14 +62,14 @@ begin
       headers := jsonb_build_object('Content-Type', 'application/json', 'Authorization', 'Bearer ' || %L),
       body := '{}'::jsonb);
   $job$, p_base_url || '/waouh-radar-apify', p_public_key));
-  v_jobs := v_jobs || 'waouh-radar-apify-6h';
+  v_jobs := array_append(v_jobs, 'waouh-radar-apify-6h');
 
   perform cron.schedule('waouh-radar-site-scraper-6h', '53 */6 * * *', format($job$
     select net.http_post(url := %L,
       headers := jsonb_build_object('Content-Type', 'application/json', 'Authorization', 'Bearer ' || %L),
       body := '{}'::jsonb);
   $job$, p_base_url || '/waouh-radar-site-scraper', p_public_key));
-  v_jobs := v_jobs || 'waouh-radar-site-scraper-6h';
+  v_jobs := array_append(v_jobs, 'waouh-radar-site-scraper-6h');
 
   return jsonb_build_object('ok', true, 'jobs', to_jsonb(v_jobs));
 end;
