@@ -11,7 +11,7 @@
 // waouh-commerce-action l'appellent pour ouvrir la Deal Room en un aller-retour.
 
 import { pushSyncedEvent } from "./waouh-sync.ts";
-import { recentDuplicateExists } from "./waouh-dedupe.ts";
+import { recentDuplicateExists, recentNotificationExists } from "./waouh-dedupe.ts";
 import { bindThreadState, resolveProductThread } from "./waouh-thread.ts";
 import { negotiationActionsV3, sellerOfferDecisionActions, type WaouhAction } from "./waouh-commands.ts";
 import { renderCatalog } from "./waouh-message-catalog.ts";
@@ -67,7 +67,7 @@ export interface OpenBuyerDealResult {
 }
 
 const ARTICLE_COLUMNS =
-  "id,seller_id,title,description,category,condition,price,currency,photos,city,market_price_min,market_price_max,status,origin";
+  "id,seller_id,title,description,category,condition,price,currency,photos,city,market_price_min,market_price_max,status,origin,partner_id";
 
 const UNAVAILABLE_STATUSES = new Set(["sold", "reserved", "archived", "deleted"]);
 
@@ -111,6 +111,34 @@ export function publicPhotos(article: Record<string, any> | null | undefined): s
     : [];
 }
 
+
+/**
+ * Article de catalogue partenaire : le vendeur est une ligne « téléphone » sans compte (et parfois partagée entre
+ * plusieurs partenaires). Les offres, notifications et la Deal Room doivent arriver dans l'application Web / Flutter du
+ * partenaire : le vendeur de l'article devient la ligne canonique (la plus ancienne) du compte propriétaire.
+ * Ne rattache JAMAIS une ligne partagée à un compte ; ne touche pas un article déjà au nom du propriétaire.
+ * Retourne le compte propriétaire (auth) ou null ; `article.seller_id` est mis à jour en mémoire.
+ */
+export async function linkPartnerSellerAccount(sb: any, article: Record<string, any> | null | undefined): Promise<string | null> {
+  try {
+    if (!article?.seller_id || !article?.partner_id) return null;
+    const { data: partner } = await sb.from("waouh_partners").select("user_id").eq("id", article.partner_id).maybeSingle();
+    const owner: string | null = partner?.user_id ?? null;
+    if (!owner) return null;
+    const { data: seller } = await sb.from("waouh_users").select("id,auth_user_id").eq("id", article.seller_id).maybeSingle();
+    if (seller?.auth_user_id === owner) return owner;
+    const { data: canonical } = await sb.from("waouh_users").select("id").eq("auth_user_id", owner)
+      .order("created_at", { ascending: true }).limit(1).maybeSingle();
+    if (!canonical?.id) return owner;
+    await sb.from("waouh_articles").update({ seller_id: canonical.id }).eq("id", article.id);
+    article.seller_id = canonical.id;
+    return owner;
+  } catch (e) {
+    console.warn("[waouh-deal-open] link partner seller", e);
+    return null;
+  }
+}
+
 export async function openBuyerDeal(args: OpenBuyerDealArgs): Promise<OpenBuyerDealResult> {
   const {
     sb,
@@ -148,6 +176,10 @@ export async function openBuyerDeal(args: OpenBuyerDealArgs): Promise<OpenBuyerD
     .select("id,auth_user_id,phone_number,web_session_id")
     .eq("id", buyerUserId)
     .single();
+
+  // Vendeur de catalogue partenaire : rattaché à son compte ; l'acheteur qui est ce même compte ne peut pas s'offrir son produit.
+  const sellerAuth = await linkPartnerSellerAccount(sb, article);
+  if (sellerAuth && buyerActor?.auth_user_id && sellerAuth === buyerActor.auth_user_id) return emptyResult("self", article);
 
   let thread: any = null;
   try {
@@ -260,8 +292,10 @@ export async function openBuyerDeal(args: OpenBuyerDealArgs): Promise<OpenBuyerD
   const externalSeller = article.origin === "nexus_external";
   const shouldNotify = !externalSeller && ((notifySeller === "always" && openNegotiation) || (notifySeller === "on_create" && created));
   // Même notification déjà reçue par le vendeur sur ce fil il y a moins d'une minute : pas de doublon (double envoi).
-  const sellerAlreadyNotified = shouldNotify && !!article.seller_id &&
-    await recentDuplicateExists(sb, { threadId, userId: article.seller_id, intent: "new_buyer", withinSeconds: 60 });
+  const sellerAlreadyNotified = shouldNotify && !!article.seller_id && (
+    await recentDuplicateExists(sb, { threadId, userId: article.seller_id, intent: "new_buyer", withinSeconds: 60 }) ||
+    await recentNotificationExists(sb, { threadId, userId: article.seller_id, type: "new_buyer", withinSeconds: 60 })
+  );
   if (shouldNotify && article.seller_id && !sellerAlreadyNotified) {
     const decisionActions: WaouhAction[] = negotiationId
       ? (catalogV3
@@ -300,8 +334,11 @@ export async function openBuyerDeal(args: OpenBuyerDealArgs): Promise<OpenBuyerD
   }
 
   // Écho acheteur (bulle + WhatsApp) — uniquement pour l'appel historique.
-  const echoAlready = !!echoBuyer && !!buyerActor &&
-    await recentDuplicateExists(sb, { threadId, userId: buyerActor.id, intent: "buyer_interest", withinSeconds: 60 });
+  // Déjà une négociation en cours (créée par un autre appel, souvent simultané) : rien de neuf à annoncer à l'acheteur.
+  const echoAlready = !!echoBuyer && !!buyerActor && (
+    (!created && !!negotiationId) ||
+    await recentDuplicateExists(sb, { threadId, userId: buyerActor.id, intent: "buyer_interest", withinSeconds: 60 })
+  );
   if (echoBuyer && buyerActor && !echoAlready) {
     try {
       const photos = publicPhotos(article);

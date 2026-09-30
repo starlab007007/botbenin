@@ -35,6 +35,20 @@ const ACTIVE_KEY = (sid: string) => `waouh_active_match_${sid}`;
 const SNAPSHOT_KEY = (sid: string, key: string) => `waouh_match_msgs_${sid}_${key}`;
 const HASMORE_KEY = (sid: string, key: string) => `waouh_match_hasmore_${sid}_${key}`;
 const PENDING_OPEN_KEY = "waouh_pending_open";
+
+// L'ouverture d'une fenêtre peut être signalée plusieurs fois (évènement doublé à 120 ms, tampon localStorage) :
+// un seul « intérêt » par article et par session toutes les 30 s.
+const recentBuyerInterest = new Map<string, number>();
+export function shouldSendBuyerInterest(sessionId: string, articleId: string, now = Date.now()): boolean {
+  const key = `${sessionId}|${articleId}`;
+  const last = recentBuyerInterest.get(key);
+  if (last !== undefined && now - last < 30_000) return false;
+  recentBuyerInterest.set(key, now);
+  if (recentBuyerInterest.size > 100) {
+    for (const [k, t] of recentBuyerInterest) if (now - t >= 30_000) recentBuyerInterest.delete(k);
+  }
+  return true;
+}
 const SNAPSHOT_LIMIT = 300;
 
 function loadOpen(sid: string): MatchChatMeta[] {
@@ -411,7 +425,7 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
         new CustomEvent("waouh:match-updated", { detail: { article_id: articleId } })
       );
 
-      if (role === "buyer" && articleId) {
+      if (role === "buyer" && articleId && shouldSendBuyerInterest(sessionId, articleId)) {
         supabase.functions
           .invoke("waouh-buyer-interest", {
             body: { article_id: articleId, source: detail.source || "match" },

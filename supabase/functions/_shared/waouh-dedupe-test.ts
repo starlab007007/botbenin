@@ -38,3 +38,27 @@ Deno.test("sans clé utile ou en cas d'erreur : jamais de blocage (on écrit)", 
   assertEquals(await recentDuplicateExists(db([row({})]), { threadId: "t1", userId: "u1" }), false);
   assertEquals(await recentDuplicateExists({ from: () => { throw new Error("panne"); } }, q), false);
 });
+
+import { recentNotificationExists } from "./waouh-dedupe.ts";
+Deno.test("notification déjà écrite pour ce fil, cette personne et ce type", async () => {
+  const rows = [{ thread_id: "t1", user_id: "u1", notification_type: "new_buyer", sent_at: new Date(NOW.getTime() - 1000).toISOString() }];
+  const nb = (data: any[]) => ({
+    from: () => {
+      const f: Array<(r: any) => boolean> = [];
+      const api: any = {
+        select: () => api,
+        eq: (c: string, v: unknown) => { f.push((r) => r[c] === v); return api; },
+        gte: (c: string, v: string) => { f.push((r) => r[c] >= v); return api; },
+        limit: () => Promise.resolve({ data: data.filter((r) => f.every((x) => x(r))) }),
+      };
+      return api;
+    },
+  });
+  const q = { threadId: "t1", userId: "u1", type: "new_buyer", now: NOW };
+  assertEquals(await recentNotificationExists(nb(rows), q), true);
+  assertEquals(await recentNotificationExists(nb(rows), { ...q, type: "autre" }), false);
+  assertEquals(await recentNotificationExists(nb(rows), { ...q, userId: "u2" }), false);
+  assertEquals(await recentNotificationExists(nb(rows), { ...q, now: new Date(NOW.getTime() + 120_000) }), false);
+  assertEquals(await recentNotificationExists(nb(rows), { ...q, threadId: null }), false);
+  assertEquals(await recentNotificationExists({ from: () => { throw new Error("panne"); } }, q), false);
+});

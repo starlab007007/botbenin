@@ -29,3 +29,19 @@ export async function recentDuplicateExists(sb: any, q: RecentDuplicateQuery): P
     return false;
   }
 }
+
+/** Notification dans l'application (waouh_notifications) du même type déjà écrite pour ce fil et cette personne. */
+export async function recentNotificationExists(
+  sb: any,
+  q: { threadId?: string | null; userId?: string | null; type: string; withinSeconds?: number; now?: Date },
+): Promise<boolean> {
+  if (!q.threadId || !q.userId) return false;
+  const since = new Date((q.now ?? new Date()).getTime() - (q.withinSeconds ?? 60) * 1000).toISOString();
+  try {
+    const { data } = await sb.from("waouh_notifications").select("id")
+      .eq("thread_id", q.threadId).eq("user_id", q.userId).eq("notification_type", q.type).gte("sent_at", since).limit(1);
+    return Array.isArray(data) && data.length > 0;
+  } catch {
+    return false;
+  }
+}
