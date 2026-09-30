@@ -3,6 +3,9 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.30.7
+- Recette Flutter de bout en bout (`flutter_waouh_app/test/recette/recette_flutter_prod_test.dart`) : mêmes scénarios S1–S8 que la recette Web, exécutés avec le code de l'application (client d'action v3, boutons serveur → requêtes, historique, chat libre, avatar). Ignorée sans identifiants ; aucun effet sur la CI.
+
 ## 2026.09.30.6
 - Nettoyage et mise au propre : « Retirer mon offre » (acheteur, offre en attente) sur Web, Flutter et serveur (`offer_withdrawn`, alias `retirer-offre`) ; typage `source_mix` et fixtures du guide avatar ; retrait des fichiers parasites (`deno.lock`, `__noop__`, sauvegarde `main.dart.bak_*`, `dist-mobile/`, `.temp` Supabase) et de 8 imports Flutter inutilisés ; `.gitignore` complété.
 
