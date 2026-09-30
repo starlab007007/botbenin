@@ -89,16 +89,26 @@ serve(async (req) => {
     const identityOr: string[] = [];
     if (authUserId) identityOr.push(`auth_user_id.eq.${authUserId}`);
     if (sessionId) identityOr.push(`web_session_id.eq.${sessionId}`);
-    const { data: users, error: usersError } = await sb
-      .from("waouh_users")
-      .select("id,auth_user_id,web_session_id")
-      .or(identityOr.join(","))
-      .order("created_at", { ascending: false }) // les identités récentes d'abord : un compte très actif dépasse 100 lignes
-      .limit(100);
-    if (usersError) throw usersError;
+    // Un compte peut avoir des centaines de lignes (une par session Web) : lecture PAGINÉE (pages de 1000, 3 au plus).
+    // Une limite fixe excluait la ligne canonique de l'utilisateur (la plus ancienne) : historique vide côté vendeur / acheteur.
+    const users: any[] = [];
+    for (let page = 0; page < 3; page++) {
+      const { data: chunk, error: usersError } = await sb
+        .from("waouh_users")
+        .select("id,auth_user_id,web_session_id")
+        .or(identityOr.join(","))
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+        .range(page * 1000, (page + 1) * 1000 - 1);
+      if (usersError) throw usersError;
+      users.push(...(chunk ?? []));
+      if ((chunk?.length ?? 0) < 1000) break;
+    }
     const userIds = Array.from(
-      new Set((users ?? []).map((item: any) => clean(item?.id)).filter(Boolean)),
+      new Set(users.map((item: any) => clean(item?.id)).filter(Boolean)),
     ) as string[];
+    // Liste bornée pour les filtres `in(...)` des URL : les 60 identités récentes + les 40 plus anciennes (dont la ligne canonique).
+    const urlUserIds = userIds.length <= 100 ? userIds : Array.from(new Set([...userIds.slice(0, 60), ...userIds.slice(-40)]));
     const userIdSet = new Set(userIds);
     const viewerOwnsScopedRow = (row: any) =>
       (!!sessionId && row?.web_session_id === sessionId) ||
@@ -264,7 +274,7 @@ serve(async (req) => {
     let notifiedForArticle = false;
     if (!isSeller && !sessionMatchInRows && !userMatchInRows) {
       const notificationOr: string[] = [];
-      if (userIds.length) notificationOr.push(`user_id.in.(${userIds.join(",")})`);
+      if (urlUserIds.length) notificationOr.push(`user_id.in.(${urlUserIds.join(",")})`);
       if (sessionId) notificationOr.push(`web_session_id.eq.${sessionId}`);
       if (notificationOr.length) {
         const { data: notifications } = await sb
@@ -352,7 +362,7 @@ serve(async (req) => {
           .order("sent_at", { ascending: false })
           .limit(1);
         const seedOr: string[] = [];
-        if (userIds.length) seedOr.push(`user_id.in.(${userIds.join(",")})`);
+        if (urlUserIds.length) seedOr.push(`user_id.in.(${urlUserIds.join(",")})`);
         if (sessionId) seedOr.push(`web_session_id.eq.${sessionId}`);
         if (seedOr.length) seedQuery = seedQuery.or(seedOr.join(","));
         const { data } = await seedQuery;

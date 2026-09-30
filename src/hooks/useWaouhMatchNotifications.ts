@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { fetchAuthIdentityIds } from "@/lib/waouh/identityIds";
 import {
   MATCH_TEMPLATES,
   isSelfNotif,
@@ -189,9 +190,7 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
       // notifications.
       let wusers: any[] | null = null;
       if (authUserId) {
-        const { data } = await supabase
-          .from("waouh_users").select("id").eq("auth_user_id", authUserId).order("created_at", { ascending: false }).limit(100);
-        wusers = data ?? [];
+        wusers = (await fetchAuthIdentityIds(supabase, authUserId)).map((id) => ({ id }));
       } else {
         const { data } = await supabase
           .from("waouh_users").select("id").eq("web_session_id", sessionId).limit(50);

@@ -3,6 +3,9 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.30.5
+- Recette de production (62/71) : historique vide pour les comptes à plus de 100 identités (lecture qui excluait la ligne canonique, la plus ancienne). `waouh-match-history` et `waouh-deal-ops` lisent toutes les identités ; Web : plus anciennes + plus récentes (`identityIds.ts`). Détail : docs/RECETTE_COMPLETE_2026-09-30.md §7.
+
 ## 2026.09.30.4
 - Recette Flutter + Web : script `scripts/waouh-chat/recette/recette-comptes.mjs` (8 scénarios : vendeur, acheteur, vendeur-acheteur, refus, questions, garde-fous, concurrence, chat libre, avatar), audit de production en lecture seule, rapport `docs/RECETTE_COMPLETE_2026-09-30.md`. Recette de production à lancer par le propriétaire.
 

@@ -32,6 +32,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { WaouhAvatarBriefingCard, WaouhAvatarOrb } from "@/components/waouh/WaouhAvatarBriefingCard";
 import { WaouhAvatarGuideBar } from "@/components/waouh/WaouhAvatarGuideBar";
+import { fetchAuthIdentityIds } from "@/lib/waouh/identityIds";
 import { avatarBubbleInfo, avatarRevealDelayMs, openAvatarBriefing, parseAvatarBriefing, shouldAutoOpenNow, type AvatarPrefs, type BriefingAction } from "@/lib/waouh/avatarGuide";
 import { commerceRequestFromButton, sendCommerceAction } from "@/lib/waouh/commerceAction";
 
@@ -405,10 +406,8 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
 
     // Kick off both queries in PARALLEL (was sequential: users → history).
     const usersPromise = (async () => {
-      const q = uid
-        ? supabase.from("waouh_users").select("id").eq("auth_user_id", uid).order("created_at", { ascending: false }).limit(100)
-        : supabase.from("waouh_users").select("id").eq("web_session_id", sessionId).limit(50);
-      const { data } = await q;
+      if (uid) return fetchAuthIdentityIds(supabase, uid);
+      const { data } = await supabase.from("waouh_users").select("id").eq("web_session_id", sessionId).limit(50);
       return Array.from(new Set((data ?? []).map((u: any) => u.id)));
     })();
     // History resolves server-side from sessionId+authUserId; no need to wait on users.
