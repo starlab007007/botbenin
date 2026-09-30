@@ -256,6 +256,23 @@ export async function openBuyerDeal(args: OpenBuyerDealArgs): Promise<OpenBuyerD
         negotiationState = "proposed";
         lastActor = "buyer";
         lastOfferPrice = initialOffer;
+        // Appels simultanés : plusieurs négociations ouvertes sur le même fil → la plus ancienne gagne, les autres se retirent
+        // (un seul « Nouvel acheteur », une seule confirmation, une seule négociation à clore).
+        if (negotiationId) {
+          const { data: openNow } = await sb.from("waouh_negotiations").select("id, state, last_actor, last_offer_price, created_at")
+            .eq("thread_id", threadId).in("state", ["proposed", "countered"])
+            .order("created_at", { ascending: true }).order("id", { ascending: true }).limit(1);
+          const winner = Array.isArray(openNow) ? openNow[0] : null;
+          if (winner && winner.id !== negotiationId) {
+            await sb.from("waouh_negotiations").update({ state: "closed" }).eq("id", negotiationId).eq("state", "proposed");
+            negotiationId = winner.id;
+            created = false;
+            negotiationState = winner.state ?? "proposed";
+            lastActor = winner.last_actor ?? "buyer";
+            lastOfferPrice = winner.last_offer_price == null ? initialOffer : Number(winner.last_offer_price);
+            negotiationCreatedAt = winner.created_at ? Date.parse(winner.created_at) : null;
+          }
+        }
       }
     } catch (e) {
       console.warn("[waouh-deal-open] open negotiation failed", e);

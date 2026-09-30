@@ -22,6 +22,8 @@ import {
   distanceKm,
 } from "../_shared/waouh-format.ts";
 import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
+import { recordChatMessage } from "../_shared/waouh-chat-writer.ts";
+import { recentDuplicateExists } from "../_shared/waouh-dedupe.ts";
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 import { isServiceCaller } from "../_shared/waouh-internal-auth.ts";
 import { optionalUuid, sanitizeActions } from "../_shared/waouh-notify-actions.ts";
@@ -257,6 +259,31 @@ serve(async (req) => {
           waResult = { ok: false, error: String(enqErr.message || enqErr) };
         } else {
           waResult = { ok: true, queued: true };
+          // Vendeur / acheteur rattaché à un compte de l'application : la notification doit aussi apparaître dans la Deal Room
+          // (sans 2ᵉ envoi WhatsApp). Les contacts WhatsApp seuls gardent l'ancien comportement.
+          if (notifTargetUserId && bodyThreadId) {
+            try {
+              const { data: appUser } = await sb.from("waouh_users").select("id,auth_user_id").eq("id", notifTargetUserId).maybeSingle();
+              const already = await recentDuplicateExists(sb, { threadId: bodyThreadId, userId: notifTargetUserId, intent: kind, withinSeconds: 60 });
+              if (appUser?.auth_user_id && !already) {
+                await recordChatMessage({
+                  sb,
+                  threadId: bodyThreadId,
+                  recipientUserId: notifTargetUserId,
+                  text,
+                  intent: kind,
+                  template: kind,
+                  actions: bodyActions,
+                  attachments: photos.slice(0, 4).map((url) => ({ url, type: "image/jpeg" })),
+                  imageUrl: photos[0] ?? null,
+                  payloadExtra: { article_id, recipient, negotiation_id: bodyNegotiationId, counterpart_user_id: counterpart_user_id ?? null, buyer_user_id: counterpart_user_id ?? null, actions: bodyActions },
+                  enqueueWhatsapp: false,
+                });
+              }
+            } catch (e) {
+              console.warn("[waouh-notify-dispatch] in-app mirror failed", e);
+            }
+          }
           // Fire-and-forget worker trigger
           fetch(`${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`, {
             method: "POST",
