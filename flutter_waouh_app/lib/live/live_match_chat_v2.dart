@@ -697,6 +697,83 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                       ),
                     ),
                   ),
+                  Container(
+                    margin: const EdgeInsets.fromLTRB(8, 4, 8, 2),
+                    padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFEAFBF7), Color(0xFFF3F8FF)],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFD7EBE6)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0AAE9A).withValues(alpha: .10),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.auto_awesome_rounded,
+                            size: 18,
+                            color: Color(0xFF0B8D7F),
+                          ),
+                        ),
+                        const SizedBox(width: 9),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Bot conduit cette discussion',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: WaouhPalette.ink,
+                                  fontSize: 11.4,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                pendingThread
+                                    ? 'Connexion au vendeur et sécurisation du Deal Room.'
+                                    : 'Je vous guide vers la prochaine action sans masquer vos messages.',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: WaouhPalette.muted,
+                                  fontSize: 9.4,
+                                  height: 1.2,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => showLiveUnifiedIntelligenceSheet(
+                            context,
+                            messages: merged,
+                            busy: waiting,
+                            match: match,
+                          ),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            minimumSize: const Size(0, 32),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          child: const Text(
+                            'Conseil',
+                            style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   if (pendingThread)
                     Container(
                       width: double.infinity,
@@ -737,7 +814,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                       emptyMessage: pendingThread
                           ? 'Connexion au vendeur… Le Deal Room s’active dès que le fil canonique est prêt.'
                           : match.isSearch
-                              ? 'Poursuivez cette recherche avec votre Avatar.'
+                              ? 'Poursuivez cette recherche avec Bot.'
                               : 'Commencez la discussion sur ce produit.',
                       padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
                     ),
