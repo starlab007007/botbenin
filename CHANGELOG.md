@@ -3,6 +3,9 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.30.9
+- Recette Flutter de production : une offre faite après un refus ouvre un nouveau fil ; « Retirer mon offre » envoyé avec l'ancien fil échouait (`out_of_stage`). `waouh-commerce-action` résout désormais le fil par la négociation (qui n'appartient qu'à un fil) avant le fil transmis. Lecture admin du fil (RLS) documentée dans la recette.
+
 ## 2026.09.30.8
 - Retrait d'offre : le vendeur reçoit « L'acheteur a retiré son offre » (clé `offer_withdrawn_other`) au lieu de « a refusé ». Constaté en recette de production (S4h). Recettes : limite de 10 annonces/24h par compte à prendre en compte (les articles ZZ TEST sont antidatés après les essais).
 
