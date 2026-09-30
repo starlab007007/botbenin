@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
+import 'avatar/live_avatar_controller.dart';
+import 'avatar/live_avatar_widgets.dart';
 import 'live_commerce_action_client.dart';
 import 'live_controller.dart';
 import 'live_commerce_agent_ui.dart';
@@ -551,6 +553,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<LiveWaouhController>();
+    final avatar = context.watch<LiveAvatarController>();
     final match = _match;
     if (match == null) {
       return Scaffold(
@@ -711,16 +714,30 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                     child: Row(
                       children: [
                         Container(
-                          width: 34,
-                          height: 34,
+                          width: 48,
+                          height: 48,
+                          padding: const EdgeInsets.all(2),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF0AAE9A).withValues(alpha: .10),
-                            borderRadius: BorderRadius.circular(12),
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFDDF9F5), Colors.white, Color(0xFFE7EEFF)],
+                            ),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.white, width: 2),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF2F80ED).withValues(alpha: .10),
+                                blurRadius: 14,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
                           ),
-                          child: const Icon(
-                            Icons.auto_awesome_rounded,
-                            size: 18,
-                            color: Color(0xFF0B8D7F),
+                          child: LiveAvatarVisual(
+                            preset: avatar.profile.preset,
+                            state: pendingThread
+                                ? LiveAvatarPresenceState.searching
+                                : LiveAvatarPresenceState.negotiating,
+                            size: 42,
+                            showStatusBadge: true,
                           ),
                         ),
                         const SizedBox(width: 9),
