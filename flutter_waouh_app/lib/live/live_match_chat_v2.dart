@@ -16,6 +16,7 @@ import 'live_models.dart';
 import 'live_match_navigation.dart';
 import 'live_smart_timeline.dart';
 import 'live_thread_flow.dart';
+import 'live_theme.dart';
 import 'live_widgets.dart';
 
 class LiveMatchChatV2 extends StatefulWidget {
