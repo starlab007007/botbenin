@@ -146,7 +146,7 @@ if (want("S4")) {
   o = await act(X, { action: "reject", thread_id: c2.thread, negotiation_id: c2.neg });
   check("S4g l'acheteur retire son offre (aucun deal, vendeur prévenu)", o.status === 200 && o.j.ok && !o.j.deal_id && key(o) === "offer_withdrawn", `clé=${key(o)}`, "majeur");
   const hw = await hist(Y, c2);
-  check("S4h le vendeur est informé du retrait", has(hw, /retir/i), `« ${last(hw).replace(/\s+/g, " ").slice(0, 70)} »`, "majeur");
+  check("S4h le vendeur est informé du retrait", has(hw, /a retiré son offre/i), `« ${last(hw).replace(/\s+/g, " ").slice(0, 70)} »`, "majeur");
 }
 
 // ---- S5 : garde-fous (soi-même, idempotence, doublons, tiers, identité)

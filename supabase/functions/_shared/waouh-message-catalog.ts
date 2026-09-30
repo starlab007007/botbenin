@@ -31,6 +31,7 @@ export type CatalogKey =
   | "agreement"
   | "offer_refused_actor"
   | "offer_withdrawn"
+  | "offer_withdrawn_other"
   | "offer_refused_other"
   | "seller_confirmed"
   | "pay_mode_chosen"
@@ -242,6 +243,10 @@ const BUILDERS: Record<CatalogKey, Builder> = {
   offer_withdrawn: () => ({
     title: "Offre retirée",
     detail: "Vous avez retiré votre offre. Vous pourrez en faire une nouvelle quand vous voulez.",
+  }),
+  offer_withdrawn_other: (v) => ({
+    title: "Offre retirée",
+    detail: `${Other(v.role)} a retiré son offre. Vous pourrez répondre à une nouvelle offre.`,
   }),
   offer_refused_other: (v) => ({
     title: "Offre refusée",

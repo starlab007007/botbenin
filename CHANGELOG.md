@@ -3,6 +3,9 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.30.8
+- Retrait d'offre : le vendeur reçoit « L'acheteur a retiré son offre » (clé `offer_withdrawn_other`) au lieu de « a refusé ». Constaté en recette de production (S4h). Recettes : limite de 10 annonces/24h par compte à prendre en compte (les articles ZZ TEST sont antidatés après les essais).
+
 ## 2026.09.30.7
 - Recette Flutter de bout en bout (`flutter_waouh_app/test/recette/recette_flutter_prod_test.dart`) : mêmes scénarios S1–S8 que la recette Web, exécutés avec le code de l'application (client d'action v3, boutons serveur → requêtes, historique, chat libre, avatar). Ignorée sans identifiants ; aucun effet sur la CI.
 

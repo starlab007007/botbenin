@@ -316,10 +316,11 @@ async function execute(ctx: Ctx, thread: any, role: Role | null): Promise<Engine
     ? (role === "buyer" ? thread.buyer_user_id : role === "seller" ? thread.seller_user_id : actorId)
     : actorId;
 
-  const router = async (payload: { text: string; button_payload?: string | null }, negotiationId: string, threadId: string) => {
+  const router = async (payload: { text: string; button_payload?: string | null; withdrawn?: boolean }, negotiationId: string, threadId: string) => {
     const r = await callInternal("waouh-negotiation-router", {
       text: payload.text,
       button_payload: payload.button_payload ?? null,
+      ...(payload.withdrawn ? { withdrawn: true } : {}),
       user_id: actorOnThread,
       thread_id: threadId,
       negotiation_id: negotiationId,
@@ -477,7 +478,7 @@ async function execute(ctx: Ctx, thread: any, role: Role | null): Promise<Engine
       // L'acheteur qui « refuse » sa PROPRE offre en attente la retire : message dédié, pas « Vous avez refusé l'offre ».
       const withdrawing = req.action === "reject" && role === "buyer" && negRow?.last_actor === "buyer" && ["proposed", "countered"].includes(String(negRow?.state));
       return mapRouter(
-        await router({ text: req.action === "accept" ? "OUI" : "NON", button_payload: payload }, negId, thread.id),
+        await router({ text: req.action === "accept" ? "OUI" : "NON", button_payload: payload, withdrawn: withdrawing }, negId, thread.id),
         req.action === "accept" ? "agreement" : withdrawing ? "offer_withdrawn" : "offer_refused_actor",
         { role },
       );
