@@ -4,12 +4,13 @@
 
 import { resolveSiblingUserIds } from "./waouh-identity.ts";
 import {
-  activityDigest, composeBriefing, emptyActivity, mergePrefs, nextBriefingAt, normalizePrefs, shouldBrief, briefingText,
-  type Activity, type AvatarPrefs, type Briefing, type Trigger,
+  activityDigest, boardFromActivity, composeBriefing, composeBubbles, emptyActivity, mergePrefs, nextBriefingAt, normalizePrefs, shouldBrief, briefingText,
+  type Activity, type AvatarPrefs, type Briefing, type MissionBoard, type Trigger,
 } from "./waouh-avatar-briefing.ts";
 import { nudgeAllowed } from "./waouh-avatar-notes.ts";
 import { externalContactState, loadExternalTimeline, NEXUS_ORIGIN } from "./waouh-nexus-deal.ts";
 import { resolveContactPath } from "./waouh-contact-path.ts";
+import { notifyInApp } from "./waouh-avatar-inapp.ts";
 
 export interface PrefsRow extends AvatarPrefs { lastBriefingAt: Date | null; lastDigest: string | null; exists: boolean }
 
@@ -31,7 +32,7 @@ export async function savePrefs(sb: any, authUserId: string, raw: unknown): Prom
   const next: AvatarPrefs = mergePrefs(current, input);
   await sb.from("waouh_avatar_prefs").upsert({
     auth_user_id: authUserId, welcome: next.welcome, cadence: next.cadence, quiet_start: next.quietStart, quiet_end: next.quietEnd,
-    updated_at: new Date().toISOString(),
+    notify_events: next.notifyEvents, notify_digest: next.notifyDigest, updated_at: new Date().toISOString(),
   }, { onConflict: "auth_user_id" });
   return loadPrefs(sb, authUserId);
 }
@@ -73,6 +74,7 @@ export async function collectActivity(sb: any, user: { id: string; auth_user_id?
       const neg = negByThread.get(t.id);
       const deal = dealByThread.get(t.id);
       const ref = { threadId: t.id, articleId: t.article_id ?? null, negotiationId: neg?.id ?? t.negotiation_id ?? null };
+      if (neg && OPEN_NEG.has(neg.state)) activity.negotiationsOpen += 1;
 
       if (deal && !["completed", "cancelled"].includes(String(deal.status))) {
         activity.dealsInProgress.push({ ...ref, title, role: buyer ? "buyer" : "seller", status: String(deal.status) });
@@ -102,6 +104,27 @@ export async function collectActivity(sb: any, user: { id: string; auth_user_id?
       }
     }
   }
+  // Recherches, missions et contacts (comptes bornés, une requête chacun ; une panne d'une source ne bloque pas le point).
+  const headCount = async (q: () => PromiseLike<{ count: number | null }>) => { try { return (await q()).count ?? 0; } catch { return 0; } };
+  const authId = user.auth_user_id ?? null;
+  // Missions actives : le nombre ET les deux plus récentes (intitulé), en une requête.
+  const missionsWithGoals = async () => {
+    try {
+      const r = await sb.from("waouh_agent_missions").select("goal", { count: "exact" }).eq("status", "active").eq("owner_id", authId)
+        .order("created_at", { ascending: false }).limit(2);
+      activity.missionGoals = ((r.data ?? []) as Array<{ goal?: string }>).map((m) => String(m.goal ?? "").trim()).filter(Boolean).slice(0, 2);
+      return r.count ?? 0;
+    } catch { return 0; }
+  };
+  const [profiles, watches, missions, contacted] = await Promise.all([
+    headCount(() => sb.from("waouh_buyer_profiles").select("id", { count: "exact", head: true }).eq("is_active", true).in("user_id", ids)),
+    authId ? headCount(() => sb.from("waouh_watchlists").select("id", { count: "exact", head: true }).eq("status", "active").eq("owner_id", authId)) : Promise.resolve(0),
+    authId ? missionsWithGoals() : Promise.resolve(0),
+    authId ? headCount(() => sb.from("waouh_opportunity_journeys").select("id", { count: "exact", head: true }).eq("owner_id", authId).not("last_contact_at", "is", null).is("completed_at", null)) : Promise.resolve(0),
+  ]);
+  activity.searches = profiles + watches;
+  activity.missions = missions;
+  activity.contacted = contacted;
   const since = new Date(now.getTime() - 7 * 24 * 3600_000).toISOString();
   const { count } = await sb.from("waouh_deals").select("id", { count: "exact", head: true })
     .eq("status", "completed").gte("updated_at", since).or(`buyer_user_id.in.(${list}),seller_user_id.in.(${list})`);
@@ -109,11 +132,16 @@ export async function collectActivity(sb: any, user: { id: string; auth_user_id?
   return activity;
 }
 
+export type AvatarMessageRow = { id: string; direction: "out"; text: string; meta: Record<string, unknown>; created_at: string };
+
 export interface DeliverResult {
   sent: boolean;
   reason: string;
   briefing: Briefing | null;
-  message: { id: string; direction: "out"; text: string; meta: Record<string, unknown>; created_at: string } | null;
+  /** Dernière bulle (compatibilité des anciens clients). */
+  message: AvatarMessageRow | null;
+  /** Toutes les bulles du point, dans l'ordre d'affichage. */
+  messages: AvatarMessageRow[];
   prefs: PrefsRow;
   nextBriefingAt: string | null;
 }
@@ -130,7 +158,7 @@ export async function deliverBriefing(sb: any, args: {
   const { data: users } = await sb.from("waouh_users").select("id,auth_user_id,phone_number,web_session_id,display_name")
     .eq("auth_user_id", args.authUserId).order("created_at", { ascending: true }).limit(1);
   const user = users?.[0];
-  const idle = (reason: string): DeliverResult => ({ sent: false, reason, briefing: null, message: null, prefs, nextBriefingAt: nextBriefingAt(prefs, prefs.lastBriefingAt, now)?.toISOString() ?? null });
+  const idle = (reason: string): DeliverResult => ({ sent: false, reason, briefing: null, message: null, messages: [], prefs, nextBriefingAt: nextBriefingAt(prefs, prefs.lastBriefingAt, now)?.toISOString() ?? null });
   if (!user) return idle("no_waouh_user");
 
   const activity = await collectActivity(sb, user, now);
@@ -143,25 +171,55 @@ export async function deliverBriefing(sb: any, args: {
   if (!decision.send || !decision.kind) return idle(decision.reason);
 
   const briefing = composeBriefing({ activity, kind: decision.kind, now });
-  const { data: inserted, error } = await sb.from("waouh_messages").insert({
+  // Ouverture sans nouveauté : une phrase courte, jamais le même point répété.
+  const unchanged = args.trigger === "open" && digest === prefs.lastDigest && !preview.hasActionable;
+  const bubbles = composeBubbles(briefing, { unchanged });
+  const briefingId = `${user.id}:${now.getTime()}`;
+  const rows = bubbles.map((b, i) => ({
     user_id: user.id,
     web_session_id: args.webSessionId ?? null,
     channel: "system",
     direction: "out",
-    text: briefingText(briefing),
-    meta: { intent: "avatar_briefing", avatar_briefing: briefing, actions: briefing.actions, trigger: args.trigger },
-  }).select("id,direction,text,meta,created_at").single();
-  if (error || !inserted) {
+    text: b.text,
+    // Les bulles s'ordonnent au millième : l'ordre d'affichage est celui de l'écriture, même en lecture temps réel.
+    created_at: new Date(now.getTime() + i * 250).toISOString(),
+    meta: {
+      intent: "avatar_briefing", briefing_id: briefingId, avatar_bubble: { seq: i, of: bubbles.length, kind: briefing.kind },
+      trigger: args.trigger, ...(b.actions.length ? { actions: b.actions } : {}),
+    },
+  }));
+  const { data: inserted, error } = await sb.from("waouh_messages").insert(rows).select("id,direction,text,meta,created_at");
+  if (error || !inserted?.length) {
     console.error("[avatar-briefing] écriture impossible", error);
     return idle("write_failed");
   }
+  const messages = ([...inserted] as AvatarMessageRow[]).sort((a, b) =>
+    Number((a.meta as any)?.avatar_bubble?.seq ?? 0) - Number((b.meta as any)?.avatar_bubble?.seq ?? 0));
+  // Message spontané (point planifié) : notification dans l'application, Web et Flutter, même si le chat est fermé.
+  if (args.trigger === "tick") {
+    await notifyInApp(sb, {
+      userId: user.id, text: bubbles.map((b) => b.text).join(" "), actions: briefing.actions.map((a) => ({ id: a.id, label: a.label })),
+      dedupeKey: `avatar_briefing:${briefingId}`, now,
+    });
+  }
+  // WhatsApp : bilans seulement si l'utilisateur l'a demandé (les évènements d'offre ont leur propre réglage).
+  if (args.trigger === "tick" && prefs.notifyDigest && user.phone_number) {
+    const last = messages[messages.length - 1];
+    const { error: qErr } = await sb.rpc("waouh_enqueue_outbound_v2", {
+      p_to_phone: user.phone_number, p_to_user_id: user.id, p_template: "avatar_briefing",
+      p_payload: { text: bubbles.map((b) => b.text).join(" "), message_id: last.id, briefing_id: briefingId },
+      p_web_session_id: user.web_session_id ?? null, p_channel: "whatsapp", p_message_id: last.id,
+      p_dedupe_key: `avatar_briefing:${briefingId}`, p_event_type: "avatar_briefing",
+    });
+    if (qErr) console.warn("[avatar-briefing] WhatsApp non mis en file", qErr.message);
+  }
   await sb.from("waouh_avatar_prefs").upsert({
     auth_user_id: args.authUserId, welcome: prefs.welcome, cadence: prefs.cadence, quiet_start: prefs.quietStart, quiet_end: prefs.quietEnd,
-    last_briefing_at: now.toISOString(), last_digest: digest, updated_at: now.toISOString(),
+    notify_events: prefs.notifyEvents, notify_digest: prefs.notifyDigest, last_briefing_at: now.toISOString(), last_digest: digest, updated_at: now.toISOString(),
   }, { onConflict: "auth_user_id" });
   const nextPrefs = { ...prefs, lastBriefingAt: now, lastDigest: digest, exists: true };
   return {
-    sent: true, reason: decision.reason, briefing, message: inserted, prefs: nextPrefs,
+    sent: true, reason: decision.reason, briefing, message: messages[messages.length - 1], messages, prefs: nextPrefs,
     nextBriefingAt: nextBriefingAt(nextPrefs, now, now)?.toISOString() ?? null,
   };
 }
@@ -185,4 +243,15 @@ export async function runAvatarBriefingTick(sb: any, opts: { now?: Date; limit?:
     }
   }
   return out;
+}
+
+
+/** Tableau de mission de l'utilisateur (compteurs en direct). Aucune écriture, aucun point envoyé. */
+export async function loadMissionBoard(sb: any, authUserId: string, now: Date = new Date()): Promise<{ board: MissionBoard; needsYou: number } | null> {
+  const { data: users } = await sb.from("waouh_users").select("id,auth_user_id,phone_number,web_session_id,display_name")
+    .eq("auth_user_id", authUserId).order("created_at", { ascending: true }).limit(1);
+  const user = users?.[0];
+  if (!user) return null;
+  const board = boardFromActivity(await collectActivity(sb, user, now));
+  return { board, needsYou: board.needsYou };
 }

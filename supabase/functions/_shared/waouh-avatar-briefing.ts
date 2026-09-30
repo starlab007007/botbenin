@@ -12,8 +12,12 @@ export interface AvatarPrefs {
   cadence: Cadence;
   quietStart: number;
   quietEnd: number;
+  /** WhatsApp : prévenir des ÉVÈNEMENTS d'une offre (relance possible, voie ouverte, clôture). Actif par défaut. */
+  notifyEvents: boolean;
+  /** WhatsApp : recevoir aussi les BILANS réguliers. Désactivé par défaut (le bilan reste dans le chat). */
+  notifyDigest: boolean;
 }
-export const DEFAULT_PREFS: AvatarPrefs = { welcome: true, cadence: "daily", quietStart: 21, quietEnd: 7 };
+export const DEFAULT_PREFS: AvatarPrefs = { welcome: true, cadence: "daily", quietStart: 21, quietEnd: 7, notifyEvents: true, notifyDigest: false };
 export const CADENCES: Cadence[] = ["off", "hourly", "every_4h", "daily", "weekly"];
 export const CADENCE_HOURS: Record<Cadence, number | null> = { off: null, hourly: 1, every_4h: 4, daily: 24, weekly: 168 };
 /** Écart minimal entre deux accueils (ouvertures rapprochées : pas de spam). */
@@ -36,6 +40,8 @@ export function normalizePrefs(raw: unknown): AvatarPrefs {
     cadence: CADENCES.includes(r.cadence as Cadence) ? r.cadence as Cadence : DEFAULT_PREFS.cadence,
     quietStart: hour(r.quiet_start ?? r.quietStart, DEFAULT_PREFS.quietStart),
     quietEnd: hour(r.quiet_end ?? r.quietEnd, DEFAULT_PREFS.quietEnd),
+    notifyEvents: typeof (r.notify_events ?? r.notifyEvents) === "boolean" ? (r.notify_events ?? r.notifyEvents) as boolean : DEFAULT_PREFS.notifyEvents,
+    notifyDigest: typeof (r.notify_digest ?? r.notifyDigest) === "boolean" ? (r.notify_digest ?? r.notifyDigest) as boolean : DEFAULT_PREFS.notifyDigest,
   };
 }
 
@@ -54,6 +60,8 @@ export function mergePrefs(current: AvatarPrefs, patch: unknown): AvatarPrefs {
     cadence: CADENCES.includes(p.cadence as Cadence) ? p.cadence as Cadence : current.cadence,
     quietStart: validHour(start) ? start : current.quietStart,
     quietEnd: validHour(end) ? end : current.quietEnd,
+    notifyEvents: typeof (p.notify_events ?? p.notifyEvents) === "boolean" ? (p.notify_events ?? p.notifyEvents) as boolean : current.notifyEvents,
+    notifyDigest: typeof (p.notify_digest ?? p.notifyDigest) === "boolean" ? (p.notify_digest ?? p.notifyDigest) as boolean : current.notifyDigest,
   };
 }
 
@@ -130,11 +138,45 @@ export interface Activity {
   /** Commandes en cours (accord conclu, livraison). */
   dealsInProgress: Array<ThreadRef & { title: string; role: "buyer" | "seller"; status: string }>;
   completedRecent: number;
+  /** Recherches en cours : profils d'acheteur actifs (chercher / vendre) et surveillances de prix. */
+  searches: number;
+  /** Missions de l'avatar en cours (objectifs définis par l'utilisateur). */
+  missions: number;
+  /** Intitulés des missions en cours (2 au plus), pour que l'avatar rappelle l'objectif. */
+  missionGoals: string[];
+  /** Clients / vendeurs contactés par l'avatar (parcours avec un premier contact, non terminés). */
+  contacted: number;
+  /** Négociations ouvertes (offre proposée ou contre-offre en attente), tous rôles. */
+  negotiationsOpen: number;
 }
 
 export const emptyActivity = (displayName: string | null = null): Activity => ({
   displayName, offersToAnswer: [], waitingOnSeller: [], transmitted: [], watching: [], dealsInProgress: [], completedRecent: 0,
+  searches: 0, missions: 0, missionGoals: [], contacted: 0, negotiationsOpen: 0,
 });
+
+/** Tableau de mission : les compteurs que l'avatar affiche en direct (barre du guide, Web et Flutter). */
+export interface MissionBoard {
+  searches: number;
+  missions: number;
+  contacted: number;
+  negotiations: number;
+  watching: number;
+  deals: number;
+  toAnswer: number;
+  /** Ce qui demande une décision de l'utilisateur maintenant (offres à traiter + relances + voies ouvertes). */
+  needsYou: number;
+}
+
+export function boardFromActivity(a: Activity): MissionBoard {
+  const reachable = a.watching.filter((w) => w.reachable).length;
+  const nudges = a.transmitted.filter((t) => t.nudgeDue).length;
+  return {
+    searches: a.searches, missions: a.missions, contacted: Math.max(a.contacted, a.transmitted.length),
+    negotiations: a.negotiationsOpen, watching: a.watching.length, deals: a.dealsInProgress.length,
+    toAnswer: a.offersToAnswer.length, needsYou: a.offersToAnswer.length + nudges + reachable,
+  };
+}
 
 export interface BriefingItem { label: string; detail: string; tone: "ok" | "warn" | "info" }
 export interface BriefingSection { key: "activities" | "watch" | "contacts" | "next"; title: string; items: BriefingItem[] }
@@ -190,6 +232,7 @@ export function activityDigest(a: Activity): string {
   return [
     part("a", a.offersToAnswer), part("w", a.waitingOnSeller), part("t", a.transmitted, (i) => (i.nudgeDue ? "!" : "")),
     part("v", a.watching, (i) => (i.reachable ? "+" : "")), part("d", a.dealsInProgress, (i) => `@${i.status}`), `c:${a.completedRecent}`,
+    `s:${a.searches}/${a.missions}/${a.contacted}/${a.negotiationsOpen}`,
   ].join("|");
 }
 
@@ -199,7 +242,7 @@ export function composeBriefing(input: { activity: Activity; kind: BriefingKind;
   const name = firstName(a.displayName);
   const nudge = a.transmitted.filter((t) => t.nudgeDue);
   const reachable = a.watching.filter((w) => w.reachable);
-  const total = a.offersToAnswer.length + a.waitingOnSeller.length + a.transmitted.length + a.watching.length + a.dealsInProgress.length;
+  const total = a.offersToAnswer.length + a.waitingOnSeller.length + a.transmitted.length + a.watching.length + a.dealsInProgress.length + a.negotiationsOpen + a.searches + a.missions;
 
   // --- Phrase 1 : accueil / cadrage
   const s1 = kind === "first"
@@ -216,12 +259,16 @@ export function composeBriefing(input: { activity: Activity; kind: BriefingKind;
   if (nudge.length) facts.push(`${plural(nudge.length, "offre sans réponse", "offres sans réponse")} depuis plus de 24 h`);
   if (reachable.length) facts.push(plural(reachable.length, "vendeur devenu joignable", "vendeurs devenus joignables"));
   if (a.dealsInProgress.length) facts.push(plural(a.dealsInProgress.length, "commande en cours", "commandes en cours"));
+  if (a.negotiationsOpen) facts.push(plural(a.negotiationsOpen, "négociation en cours", "négociations en cours"));
+  const contacted = Math.max(a.contacted, a.transmitted.length);
+  if (contacted) facts.push(plural(contacted, "contact en cours", "contacts en cours"));
+  if (a.searches + a.missions) facts.push(plural(a.searches + a.missions, "recherche active", "recherches actives"));
   const stillWatching = a.watching.length - reachable.length;
   if (stillWatching > 0) facts.push(plural(stillWatching, "veille active", "veilles actives"));
   const waiting = a.transmitted.length - nudge.length + a.waitingOnSeller.length;
   if (waiting > 0) facts.push(plural(waiting, "offre en attente de réponse", "offres en attente de réponse"));
   if (!facts.length && a.completedRecent) facts.push(plural(a.completedRecent, "vente conclue cette semaine", "ventes conclues cette semaine"));
-  const s2 = facts.length ? `${facts.slice(0, 3).join(", ")}.` : "Rien en cours pour l'instant.";
+  const s2 = facts.length ? `${facts.slice(0, 4).join(", ")}.` : "Rien en cours pour l'instant.";
 
   // --- Phrase 3 : prochaine étape ou aide
   const tip = HELP_TIPS[((dayIndex(now) % HELP_TIPS.length) + HELP_TIPS.length) % HELP_TIPS.length];
@@ -230,6 +277,7 @@ export function composeBriefing(input: { activity: Activity; kind: BriefingKind;
   else if (nudge.length) s3 = `Prochaine étape : relancer le vendeur de « ${shortName(nudge[0].title)} », d'un tap.`;
   else if (reachable.length) s3 = `Prochaine étape : envoyer votre offre pour « ${shortName(reachable[0].title)} », une voie vient de s'ouvrir.`;
   else if (a.offersToAnswer.length) s3 = "Prochaine étape : répondre aux offres reçues, je vous suggère un prix.";
+  else if (a.missionGoals.length && !a.dealsInProgress.length) s3 = `Objectif en cours : « ${shortName(a.missionGoals[0], 44)} », je continue.`;
   else if (a.dealsInProgress.length) s3 = `Je suis « ${shortName(a.dealsInProgress[0].title)} » et je vous préviens à chaque étape.`;
   else if (a.watching.length) s3 = "Je surveille les voies de contact et je vous préviens dès qu'une s'ouvre.";
   else if (total > 0) s3 = "Je surveille les réponses et je vous préviens dès qu'il y a du nouveau.";
@@ -293,3 +341,21 @@ export function composeBriefing(input: { activity: Activity; kind: BriefingKind;
 
 /** Texte brut d'un point (notifications, aperçu de conversation) : les 3 phrases. */
 export const briefingText = (b: Pick<Briefing, "sentences">) => b.sentences.join(" ");
+
+// ---------------------------------------------------------------------------
+// Bulles : l'avatar PARLE dans le chat (2 à 3 messages courts), il n'y a rien à ouvrir pour lire.
+// ---------------------------------------------------------------------------
+export interface AvatarBubble { text: string; actions: BriefingAction[] }
+
+/**
+ * Découpe un point en bulles de chat : une phrase par bulle, boutons sur la DERNIÈRE seulement.
+ * `unchanged` (rien de neuf depuis le dernier point) : une seule bulle d'une phrase courte, jamais de répétition du point.
+ * Le tout premier accueil n'est jamais raccourci.
+ */
+export function composeBubbles(b: Pick<Briefing, "kind" | "sentences" | "actions">, opts: { unchanged?: boolean } = {}): AvatarBubble[] {
+  const sentences = b.sentences.map((s) => s.trim()).filter(Boolean).slice(0, 3);
+  if (opts.unchanged && b.kind !== "first" && sentences.length) {
+    return [{ text: `${sentences[0]} Rien de nouveau depuis mon dernier point, je continue de surveiller.`, actions: b.actions.slice(0, 3) }];
+  }
+  return sentences.map((text, i) => ({ text, actions: i === sentences.length - 1 ? b.actions.slice(0, 3) : [] }));
+}

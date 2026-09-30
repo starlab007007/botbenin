@@ -9,7 +9,9 @@ import { useUnreadCounts } from "../hooks/useUnreadCounts";
 import { useWaouhIdentity } from "../hooks/useWaouhIdentity";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Search, Plus, ShoppingBag } from "lucide-react";
+import { Search, Plus, ShoppingBag, Menu, Radar as RadarIcon, Sparkles, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { chatSpaceMode, readDrawerPinned, unreadBadge, writeDrawerPinned } from "../utils/chatSpaceLayout";
 import { useNotifications } from "../hooks/useNotifications";
 
 import { WaouhNotificationsBell } from "@/components/waouh/WaouhNotificationsBell";
@@ -70,6 +72,16 @@ export default function ChatListScreen() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
   const isDesktop = typeof window !== "undefined" && window.innerWidth >= 768;
+  // Espace de chat : conversation au premier plan, Échanges / Statuts / Radar dans un tiroir (épinglable sur grand écran).
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerPinned, setDrawerPinned] = useState<boolean>(() => readDrawerPinned());
+  const spaceMode = chatSpaceMode(typeof window !== "undefined" ? window.innerWidth : 0, drawerPinned);
+  const togglePinned = () => {
+    const next = !drawerPinned;
+    setDrawerPinned(next);
+    writeDrawerPinned(next);
+    if (next) setDrawerOpen(false);
+  };
 
   const { user } = useMobileAuth();
   const { profile } = useMobileProfile();
@@ -128,7 +140,7 @@ export default function ChatListScreen() {
   // so the WaouhMatchChatWindow takes over the right pane.
   useEffect(() => {
     if (!isDesktop) return;
-    const onMatch = () => setActiveConvId(null);
+    const onMatch = () => { setActiveConvId(null); setDrawerOpen(false); };
     window.addEventListener("waouh:open-match-chat", onMatch);
     return () => window.removeEventListener("waouh:open-match-chat", onMatch);
   }, [isDesktop]);
@@ -249,6 +261,7 @@ export default function ChatListScreen() {
   const openWaouh = () => {
     if (!requireAuth("/app/chat/waouh")) return;
     if (isDesktop) {
+      setDrawerOpen(false);
       setActiveConvId(null);
       matchChats.setActiveKey("main");
     } else {
@@ -258,6 +271,7 @@ export default function ChatListScreen() {
   const openNewWaouh = () => {
     if (!requireAuth("/app/chat/waouh?new=1")) return;
     if (isDesktop) {
+      setDrawerOpen(false);
       setActiveConvId(null);
       matchChats.setActiveKey("main");
       setNewWaouhCounter((n) => n + 1);
@@ -267,6 +281,7 @@ export default function ChatListScreen() {
   };
   const openConv = (id: string) => {
     if (isDesktop) {
+      setDrawerOpen(false);
       setActiveConvId(id);
     } else {
       navigate(`/app/chat/${id}`);
@@ -467,13 +482,50 @@ export default function ChatListScreen() {
     </>
   );
 
-  if (isDesktop && !isGuest) {
+  // Lien direct (?tab=radar / ?tab=statuses) : le tiroir s'ouvre sur le bon onglet.
+  const deepLinkedTab = params.get("tab");
+  useEffect(() => {
+    if (spaceMode === "drawer" && (deepLinkedTab === "radar" || deepLinkedTab === "statuses")) setDrawerOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkedTab]);
+
+  if (spaceMode !== "stack" && !isGuest) {
+    const totalUnread = Object.values(unread).reduce((sum, n) => sum + (n || 0), 0);
+    const unreadLabel = unreadBadge(totalUnread);
+    const openDrawerOn = (next: ChatTab) => { setChatTab(next); setDrawerOpen(true); };
+    const chip = "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 text-[11px] font-bold text-slate-700 transition hover:bg-emerald-50 active:scale-95 [@media(pointer:coarse)]:h-10 [@media(pointer:coarse)]:px-3";
+    const headerLeading = spaceMode === "pinned" ? (
+      <button type="button" onClick={togglePinned} className={chip} aria-label="Masquer les échanges" title="Masquer le panneau (il reste accessible en un clic)">
+        <PanelLeftClose className="h-4 w-4" />
+      </button>
+    ) : (
+      <div className="flex shrink-0 items-center gap-1.5" data-testid="chat-space-toolbar">
+        <button type="button" onClick={() => openDrawerOn("chats")} className={chip} aria-label="Ouvrir mes échanges" data-testid="chat-space-open">
+          <Menu className="h-4 w-4" />
+          <span className="hidden lg:inline">Échanges</span>
+          {unreadLabel && <span className="rounded-full bg-emerald-600 px-1.5 text-[10px] font-black leading-4 text-white">{unreadLabel}</span>}
+        </button>
+        <button type="button" onClick={() => openDrawerOn("radar")} className={chip} aria-label="Ouvrir le radar">
+          <RadarIcon className="h-4 w-4" /><span className="hidden lg:inline">Radar</span>
+        </button>
+        <button type="button" onClick={() => openDrawerOn("statuses")} className={chip} aria-label="Ouvrir les statuts">
+          <Sparkles className="h-4 w-4" /><span className="hidden lg:inline">Statuts</span>
+        </button>
+      </div>
+    );
+    const headerTrailing = window.innerWidth >= 1280 && spaceMode === "drawer" ? (
+      <button type="button" onClick={togglePinned} className={chip} aria-label="Épingler les échanges à côté du chat" title="Épingler le panneau à côté du chat">
+        <PanelLeftOpen className="h-4 w-4" />
+      </button>
+    ) : null;
     return (
       <div className="flex h-[calc(100dvh-64px)] w-full bg-background">
-        <aside className="w-[380px] shrink-0 border-r border-border overflow-y-auto waouh-chat-list-bg">
-          {listContent}
-        </aside>
-        <section className="flex-1 min-w-0 overflow-hidden">
+        {spaceMode === "pinned" && (
+          <aside className="w-[380px] shrink-0 overflow-y-auto border-r border-border waouh-chat-list-bg">
+            {listContent}
+          </aside>
+        )}
+        <section className="min-w-0 flex-1 overflow-hidden">
           {sessionId ? (
             <ChatRightPane
               sessionId={sessionId}
@@ -481,11 +533,24 @@ export default function ChatListScreen() {
               activeConvId={activeConvId}
               newWaouhCounter={newWaouhCounter}
               matchChats={matchChats}
+              headerLeading={headerLeading}
+              headerTrailing={headerTrailing}
             />
           ) : (
             <ChatRightPaneEmpty />
           )}
         </section>
+        {spaceMode === "drawer" && (
+          <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+            <SheetContent side="left" className="w-[min(400px,92vw)] overflow-y-auto p-0 waouh-chat-list-bg sm:max-w-[400px]" data-testid="chat-space-drawer">
+              <SheetHeader className="sr-only">
+                <SheetTitle>Échanges, statuts et radar</SheetTitle>
+                <SheetDescription>Vos conversations, vos statuts de 24 h et le radar WAOUH.</SheetDescription>
+              </SheetHeader>
+              {listContent}
+            </SheetContent>
+          </Sheet>
+        )}
       </div>
     );
   }

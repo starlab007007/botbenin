@@ -3,6 +3,34 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.30.3 (branche claude/harmonisation-phase-0-1)
+- Correctif général des identités (publication qui recréait une ligne `waouh_users`, lectures plafonnées, choix de ligne non déterministe) et garde anti-doublon des messages (`buyer_interest`, `new_buyer`, écho de réouverture). Détail : docs/E2E_PRODUCTION_2026-09-30.md.
+
+## 2026.09.30.2 (branche claude/harmonisation-phase-0-1, NON déployé)
+- Test de bout en bout en production : le vendeur était refusé (403 « non participant ») sur la contre-proposition car seules 50 identités par compte étaient lues (B en a 96, A en a 177, une ligne par session Web).
+  Correctif : lecture paginée des identités (`waouh-identity.ts`) et recherche du fil par lots. Détail : docs/E2E_PRODUCTION_2026-09-30.md.
+
+## 2026.09.30.1 (branche claude/harmonisation-phase-0-1)
+- Test de bout en bout acheteur/vendeur (parcours 1, 2, 3) sur le projet de test : accord, négociation, préparation conformes, thread_id canonique stable à chaque étape. Défaut corrigé : notifications dans l'application sans `thread_id` (livraison, paiement, `new_buyer`) — `_shared/waouh-notif-thread.ts`.
+  Livreur → Terminé non exécutés (compte admin de test). Détail : docs/E2E_ACHETEUR_VENDEUR_THREAD_2026-09-30.md.
+
+## 2026.09.29.11 (branche claude/harmonisation-phase-0-1)
+- Web /app/chat dégagé : la conversation occupe tout l'espace ; Échanges, Statuts et Radar passent dans un tiroir à gauche (boutons dans l'en-tête, lien `?tab=radar|statuses`), épinglable à côté du chat dès 1280 px (choix mémorisé).
+  Tablette / portable 13" (768–1279 px) : chat pleine largeur, tiroir par-dessus, boutons tactiles ; téléphone : parcours mobile inchangé. Un seul en-tête (le bouton du tiroir rejoint l'en-tête de Muse).
+  La carte PrivatAI quitte le chat pour le menu « Agents IA » ; les pastilles « 99+ » deviennent un chiffre (≤ 9, sinon « 9+ ») et seulement sur le Chat. Aucun changement Flutter ni Supabase. Détail : docs/CHAT_ESPACE_DEGAGE_2026-09-29.md.
+
+## 2026.09.29.10 (branche claude/harmonisation-phase-0-1)
+- Avatar ACTIF (Web + Flutter) : tableau de mission en direct dans la barre du guide (à vous · recherches · contacts · négociations · veilles · commandes),
+  points qui parlent des recherches, contacts et négociations en cours et rappellent l'objectif d'une mission ; nouvelle action `status` de `waouh-avatar-briefing`.
+  Notification dans l'application pour tout message spontané (point planifié, relance, voie de contact ouverte) : ligne `waouh_notifications` (`avatar_point`) reçue en même temps par le Web (cloche, toast, notification navigateur)
+  et par Flutter (bannière premium, tap = ouvre le chat), même si l'autre client est ouvert. Aucune migration. Détail : docs/AVATAR_LIVE_CHAT_2026-09-29.md.
+
+## 2026.09.29.9 (branche claude/harmonisation-phase-0-1)
+- L'avatar PARLE dans le chat : accueil, points, rapports et prochaines étapes arrivent comme 2 à 3 bulles de conversation déjà lisibles (plus de carte à ouvrir), avec « l'avatar écrit… » et apparition séquencée en direct
+  (l'historique s'affiche d'un coup), boutons sur la dernière bulle. Ouverture sans nouveauté : une seule phrase courte, jamais le même point répété.
+  Évènements d'offre (relance possible, voie ouverte, clôture) : bulle dans la Deal Room + WhatsApp par défaut (réglable) ; bilans réguliers : chat seulement, WhatsApp sur option.
+  Nouveau : migration `20260929180000` (`notify_events` actif, `notify_digest` coupé). Anciennes cartes de l'historique toujours lues. Détail : docs/AVATAR_LIVE_CHAT_2026-09-29.md.
+
 ## 2026.09.29.8 (branche claude/harmonisation-phase-0-1, NON déployé en production)
 - L'avatar guide (Web + Flutter) : accueil et point à chaque ouverture (2 à 3 phrases, aide « Je peux aussi »), « Faire le point » à la demande, points réguliers réglables (jamais / 1 h / 4 h / jour / semaine)
   avec heures calmes, carte premium (activités, veilles, contacts, prochaines étapes, boutons), barre du guide et réglages ; jamais d'envoi à un tiers.

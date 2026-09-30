@@ -30,9 +30,9 @@ import type { WaouhWorkspaceAgentState } from "@/lib/waouh/workspaceState";
 import { NativeSellSheet } from "./NativeSellSheet";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { WaouhAvatarBriefingCard } from "@/components/waouh/WaouhAvatarBriefingCard";
+import { WaouhAvatarBriefingCard, WaouhAvatarOrb } from "@/components/waouh/WaouhAvatarBriefingCard";
 import { WaouhAvatarGuideBar } from "@/components/waouh/WaouhAvatarGuideBar";
-import { openAvatarBriefing, parseAvatarBriefing, shouldAutoOpenNow, type AvatarPrefs, type BriefingAction } from "@/lib/waouh/avatarGuide";
+import { avatarBubbleInfo, avatarRevealDelayMs, openAvatarBriefing, parseAvatarBriefing, shouldAutoOpenNow, type AvatarPrefs, type BriefingAction } from "@/lib/waouh/avatarGuide";
 import { commerceRequestFromButton, sendCommerceAction } from "@/lib/waouh/commerceAction";
 
 type Att = { url: string; type: string; caption?: string };
@@ -160,7 +160,8 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       const result = await openAvatarBriefing(action, sessionId);
       if (!result) { if (action === "now") toast({ title: "L'avatar est momentanément indisponible", description: "Réessayez dans un instant." }); return; }
       if (result.prefs) setAvatarPrefs(result.prefs);
-      if (result.message) setMessages((prev) => mergeMessages(prev, [result.message as unknown as Msg]));
+      // Les bulles arrivent dans le fil ; l'affichage séquencé (« l'avatar écrit… ») est géré au rendu.
+      if (result.messages.length) setMessages((prev) => mergeMessages(prev, result.messages as unknown as Msg[]));
     } finally {
       setAvatarBusy(false);
     }
@@ -180,6 +181,27 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     }
     return null;
   }, [messages]);
+
+  // L'avatar « écrit » : ses bulles en direct apparaissent l'une après l'autre (historique : d'un coup).
+  const revealAtRef = useRef<Map<string, number>>(new Map());
+  const [, bumpReveal] = useState(0);
+  const revealNow = Date.now();
+  for (const m of messages as any[]) {
+    if (m?.id && !revealAtRef.current.has(m.id)) {
+      revealAtRef.current.set(m.id, revealNow + avatarRevealDelayMs(m.meta, Date.parse(m.created_at), revealNow));
+    }
+  }
+  const visibleMessages = messages.filter((m: any) => (revealAtRef.current.get(m.id) ?? 0) <= revealNow);
+  const hiddenBubbleTimes = (messages as any[]).map((m) => revealAtRef.current.get(m.id) ?? 0).filter((t) => t > revealNow);
+  const nextRevealAt = hiddenBubbleTimes.length ? Math.min(...hiddenBubbleTimes) : 0;
+  const avatarTyping = hiddenBubbleTimes.length > 0;
+  // Nombre de bulles de l'avatar reçues : rafraîchit le tableau de mission dès qu'elles arrivent.
+  const avatarBubbleCount = (messages as any[]).filter((m) => avatarBubbleInfo(m?.meta)).length;
+  useEffect(() => {
+    if (!nextRevealAt) return;
+    const t = window.setTimeout(() => bumpReveal((n) => n + 1), Math.max(30, nextRevealAt - Date.now()));
+    return () => window.clearTimeout(t);
+  }, [nextRevealAt]);
 
   const handleBriefingAction = async (a: BriefingAction) => {
     const id = a.id;
@@ -384,7 +406,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     // Kick off both queries in PARALLEL (was sequential: users → history).
     const usersPromise = (async () => {
       const q = uid
-        ? supabase.from("waouh_users").select("id").eq("auth_user_id", uid).limit(50)
+        ? supabase.from("waouh_users").select("id").eq("auth_user_id", uid).order("created_at", { ascending: false }).limit(100)
         : supabase.from("waouh_users").select("id").eq("web_session_id", sessionId).limit(50);
       const { data } = await q;
       return Array.from(new Set((data ?? []).map((u: any) => u.id)));
@@ -779,6 +801,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           prefs={avatarPrefs}
           busy={avatarBusy}
           settingsOpenSignal={avatarSettingsSignal}
+          refreshSignal={avatarBubbleCount}
           onPoint={() => void runAvatarPoint("now")}
           onPrefsChange={setAvatarPrefs}
         />
@@ -805,7 +828,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           </div>
         )}
 
-        {messages.map((m) => {
+        {visibleMessages.map((m) => {
           const briefing = m.direction === "out" && (m as any).meta?.intent === "avatar_briefing" ? parseAvatarBriefing((m as any).meta?.avatar_briefing) : null;
           if (briefing) {
             return (
@@ -912,6 +935,11 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                         variant="secondary"
                         className="h-7 text-xs"
                         onClick={async () => {
+                          // Boutons d'une bulle de l'avatar : mêmes actions que l'ancienne carte (jamais d'envoi sans ce tap).
+                          if (avatarBubbleInfo((m as any).meta)) {
+                            await handleBriefingAction({ ...(a as any), id: a.id, label: a.label });
+                            return;
+                          }
                           if (a.url) {
                             // In Capacitor, opening wa.me kicks the user to WhatsApp.
                             // Keep the user inside the app by ignoring WhatsApp deep-links.
@@ -961,6 +989,16 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
 
           </div>
         ); })}
+        {avatarTyping && (
+          <div className="flex items-start gap-2" data-testid="avatar-typing" role="status" aria-label="L'avatar écrit">
+            <WaouhAvatarOrb size={22} />
+            <div className="chat-bubble chat-bubble-in waouh-bot-bubble rounded-3xl border-slate-200 bg-white/95 px-3.5 py-2.5 shadow-sm">
+              <span className="inline-flex items-center gap-1" aria-hidden>
+                {[0, 1, 2].map((i) => <span key={i} className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-500" style={{ animationDelay: `${i * 140}ms` }} />)}
+              </span>
+            </div>
+          </div>
+        )}
         {sending && (
           <div className="flex items-start gap-2">
             <WaouhMuseAvatar mode={commerceAgent.mode} phase="searching" size="sm" className="hidden sm:block" />

@@ -82,6 +82,8 @@ Deno.serve(async (req) => {
         .from("waouh_users")
         .select("id, phone_number")
         .eq("auth_user_id", authUserId)
+        .order("created_at", { ascending: true })
+        .limit(1)
         .maybeSingle();
       if (existing) {
         waouhUserId = existing.id;

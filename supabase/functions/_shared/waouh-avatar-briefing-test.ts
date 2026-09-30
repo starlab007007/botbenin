@@ -12,7 +12,7 @@ const ref = (id: string) => ({ threadId: `t-${id}`, articleId: `a-${id}`, negoti
 Deno.test("préférences : valeurs inconnues ou invalides → défauts, valeurs valides conservées", () => {
   assertEquals(normalizePrefs(null), DEFAULT_PREFS);
   assertEquals(normalizePrefs({ cadence: "toutes-les-minutes", welcome: "oui", quiet_start: 99 }), DEFAULT_PREFS);
-  assertEquals(normalizePrefs({ cadence: "weekly", welcome: false, quiet_start: 22, quiet_end: 6 }), { welcome: false, cadence: "weekly", quietStart: 22, quietEnd: 6 });
+  assertEquals(normalizePrefs({ cadence: "weekly", welcome: false, quiet_start: 22, quiet_end: 6 }), { welcome: false, cadence: "weekly", quietStart: 22, quietEnd: 6, notifyEvents: true, notifyDigest: false });
 });
 
 Deno.test("heures calmes : 21 h → 7 h heure du Bénin, à cheval sur minuit ; début = fin → jamais", () => {
@@ -137,11 +137,25 @@ Deno.test("empreinte : identique si rien ne change, différente dès qu'une rela
 });
 
 Deno.test("mise à jour des réglages : seuls les champs valides remplacent l'existant", () => {
-  const current: AvatarPrefs = { welcome: false, cadence: "every_4h", quietStart: 22, quietEnd: 6 };
+  const current: AvatarPrefs = { welcome: false, cadence: "every_4h", quietStart: 22, quietEnd: 6, notifyEvents: true, notifyDigest: false };
   assertEquals(mergePrefs(current, { cadence: "toutes-les-secondes", quiet_start: 99, welcome: "oui", quiet_end: -1 }), current);
   assertEquals(mergePrefs(current, { quiet_start: 23.5, quiet_end: "6" }), current);
   assertEquals(mergePrefs(current, null), current);
   assertEquals(mergePrefs(current, { cadence: "weekly" }), { ...current, cadence: "weekly" });
-  assertEquals(mergePrefs(current, { welcome: true, quiet_start: 0, quiet_end: 23 }), { welcome: true, cadence: "every_4h", quietStart: 0, quietEnd: 23 });
+  assertEquals(mergePrefs(current, { welcome: true, quiet_start: 0, quiet_end: 23 }), { ...current, welcome: true, quietStart: 0, quietEnd: 23 });
   assertEquals(mergePrefs(current, { cadence: "off", last_briefing_at: "2000-01-01", auth_user_id: "x" }), { ...current, cadence: "off" });
+});
+
+import { composeBubbles } from "./waouh-avatar-briefing.ts";
+Deno.test("composeBubbles : une phrase par bulle, boutons sur la dernière ; sans nouveauté : une bulle", () => {
+  const b = composeBriefing({ activity: emptyActivity("Zime"), kind: "welcome", now: new Date(Date.UTC(2026, 8, 29, 10)) });
+  const bubbles = composeBubbles(b);
+  assertEquals(bubbles.length, b.sentences.length);
+  assertEquals(bubbles.slice(0, -1).every((x) => x.actions.length === 0), true);
+  assertEquals(bubbles[bubbles.length - 1].actions.length > 0, true);
+  const short = composeBubbles(b, { unchanged: true });
+  assertEquals(short.length, 1);
+  // Le tout premier accueil n'est jamais raccourci.
+  const first = composeBriefing({ activity: emptyActivity("Zime"), kind: "first", now: new Date(Date.UTC(2026, 8, 29, 10)) });
+  assertEquals(composeBubbles(first, { unchanged: true }).length, first.sentences.length);
 });

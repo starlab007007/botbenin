@@ -10,10 +10,19 @@ import { externalContactState, loadExternalTimeline } from "./waouh-nexus-deal.t
 import { renderCatalog, type CatalogKey } from "./waouh-message-catalog.ts";
 import { followUpOfferAction, modifyOfferAction, transmitOfferAction } from "./waouh-commands.ts";
 import { chatWriterV2Enabled, recordChatMessage } from "./waouh-chat-writer.ts";
+import { notifyInApp } from "./waouh-avatar-inapp.ts";
 
 export interface TickResult { scanned: number; nudges: number; reachable: number; expired: number; skipped: number; errors: number }
 
 type Note = { key: CatalogKey; intent: string; actions: Array<{ id: string; label: string }>; extra?: Record<string, unknown> };
+
+/** WhatsApp pour les évènements d'offre : actif par défaut, coupé si l'acheteur a désactivé `notify_events`. */
+async function eventsWhatsappAllowed(sb: any, buyerUserId: string): Promise<boolean> {
+  const { data: u } = await sb.from("waouh_users").select("auth_user_id").eq("id", buyerUserId).maybeSingle();
+  if (!u?.auth_user_id) return true;
+  const { data: p } = await sb.from("waouh_avatar_prefs").select("notify_events").eq("auth_user_id", u.auth_user_id).maybeSingle();
+  return p?.notify_events !== false;
+}
 
 async function writeNote(sb: any, thread: any, note: Note, vars: Record<string, unknown> = {}): Promise<boolean> {
   const message = renderCatalog(note.key, vars as any);
@@ -21,15 +30,23 @@ async function writeNote(sb: any, thread: any, note: Note, vars: Record<string, 
   if (await chatWriterV2Enabled(sb)) {
     const w = await recordChatMessage({
       sb, threadId: thread.id, recipientUserId: thread.buyer_user_id, direction: "out", text: message.text, intent: note.intent,
-      actions: note.actions, mirrorToOtherParty: false, enqueueWhatsapp: false, dedupeKey, payloadExtra: note.extra ?? {},
+      actions: note.actions, mirrorToOtherParty: false, enqueueWhatsapp: await eventsWhatsappAllowed(sb, thread.buyer_user_id), dedupeKey, payloadExtra: note.extra ?? {},
     });
-    if (w.ok) return true;
+    if (w.ok) { await notifyAvatarEvent(sb, thread, note, message.text, dedupeKey); return true; }
   }
   const { error } = await sb.from("waouh_messages").insert({
     thread_id: thread.id, user_id: thread.buyer_user_id, channel: "system", direction: "out", text: message.text, article_id: thread.article_id,
     meta: { intent: note.intent, thread_id: thread.id, article_id: thread.article_id, actions: note.actions, dedupe_key: dedupeKey, ...(note.extra ?? {}) },
   });
+  if (!error) await notifyAvatarEvent(sb, thread, note, message.text, dedupeKey);
   return !error;
+}
+
+/** Évènement d'offre : notification dans l'application (Web + Flutter), en plus de la bulle dans la Deal Room. */
+async function notifyAvatarEvent(sb: any, thread: any, note: Note, text: string, dedupeKey: string) {
+  await notifyInApp(sb, {
+    userId: thread.buyer_user_id, text, actions: note.actions.slice(0, 3), threadId: thread.id, articleId: thread.article_id ?? null, dedupeKey,
+  });
 }
 
 /** Un passage : au plus `limit` fils actifs, chacun traité indépendamment (une erreur n'arrête pas les autres). */

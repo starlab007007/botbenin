@@ -298,7 +298,7 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
       let data: any[] | null = null;
       if (authUserId) {
         const res = await supabase
-          .from("waouh_users").select("id").eq("auth_user_id", authUserId).limit(50);
+          .from("waouh_users").select("id").eq("auth_user_id", authUserId).order("created_at", { ascending: false }).limit(100);
         data = res.data ?? [];
       } else {
         const res = await supabase

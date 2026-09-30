@@ -15,6 +15,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { jsonResponse, requireAuthOrGuestSession, waouhCorsHeaders } from "../_shared/waouh-auth.ts";
 import { commerceActionV3Enabled, chatWriterV2Enabled, nexusDirectDealEnabled, recordChatMessage } from "../_shared/waouh-chat-writer.ts";
 import { resolveSiblingUserIds } from "../_shared/waouh-identity.ts";
+import { recentDuplicateExists } from "../_shared/waouh-dedupe.ts";
 import { openBuyerDeal, publicPhotos } from "../_shared/waouh-deal-open.ts";
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 import { renderCatalog, type CatalogKey, fcfa, isUnavailableStatus, stageFor, unavailableKey } from "../_shared/waouh-message-catalog.ts";
@@ -201,16 +202,22 @@ async function resolveThreadId(ctx: Ctx): Promise<string | null> {
     if (data?.thread_id) return data.thread_id;
   }
   if (req.article_id) {
-    const { data } = await sb.from("waouh_chat_threads")
-      .select("id")
-      .eq("thread_type", "product_meet")
-      .eq("article_id", req.article_id)
-      .or(`buyer_user_id.in.(${ctx.siblings.join(",")}),seller_user_id.in.(${ctx.siblings.join(",")})`)
-      .not("status", "in", "(concluded,cancelled)")
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (data?.id) return data.id;
+    // Par lots d'identités : la liste d'un compte très actif ne doit pas dépasser la longueur d'URL acceptée par PostgREST.
+    let best: { id: string; updated_at: string } | null = null;
+    for (let i = 0; i < ctx.siblings.length; i += 100) {
+      const chunk = ctx.siblings.slice(i, i + 100).join(",");
+      const { data } = await sb.from("waouh_chat_threads")
+        .select("id,updated_at")
+        .eq("thread_type", "product_meet")
+        .eq("article_id", req.article_id)
+        .or(`buyer_user_id.in.(${chunk}),seller_user_id.in.(${chunk})`)
+        .not("status", "in", "(concluded,cancelled)")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data?.id && (!best || String(data.updated_at) > String(best.updated_at))) best = data;
+    }
+    if (best?.id) return best.id;
   }
   return null;
 }
@@ -270,6 +277,8 @@ async function writeBubble(sb: any, input: {
   threadId: string; userId: string; direction: "in" | "out"; text: string; articleId: string | null;
   intent: string; actions?: unknown[]; extra?: Record<string, unknown>; channel: string;
 }) {
+  // Deux requêtes rapprochées (double tap, réouverture) n'écrivent pas deux fois la même bulle.
+  if (await recentDuplicateExists(sb, { threadId: input.threadId, userId: input.userId, direction: input.direction, text: input.text, withinSeconds: 15 })) return;
   if (await chatWriterV2Enabled(sb)) {
     const w = await recordChatMessage({
       sb,
@@ -593,7 +602,7 @@ Deno.serve(async (req) => {
       if (!auth.ok) return auth.response;
       if (auth.authUser?.id) {
         userAuthHeader = `Bearer ${bearer}`;
-        const { data } = await sb.from("waouh_users").select("id").eq("auth_user_id", auth.authUser.id).limit(1).maybeSingle();
+        const { data } = await sb.from("waouh_users").select("id").eq("auth_user_id", auth.authUser.id).order("created_at", { ascending: true }).limit(1).maybeSingle();
         actorId = data?.id ?? null;
       }
       if (!actorId && auth.headerSessionId && auth.sessionValid) {

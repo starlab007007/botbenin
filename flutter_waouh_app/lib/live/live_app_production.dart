@@ -8,6 +8,7 @@ import '../main.dart' as legacy;
 import 'avatar/live_avatar_controller.dart';
 import 'avatar/live_avatar_widgets.dart';
 import 'live_auth_screens.dart';
+import 'live_avatar_banner.dart';
 import 'live_avatar_screen.dart';
 import 'live_avatar_commerce_screen.dart';
 import 'live_controller.dart';
@@ -342,7 +343,12 @@ class LiveProductionShell extends StatelessWidget {
     final waouh = context.watch<LiveWaouhController>();
     final showAvatarDock =
         !path.startsWith('/app/avatar') && !path.startsWith('/app/chat');
-    return Scaffold(
+    return LiveAvatarBannerHost(
+      events: liveAvatarNoticeFeed(legacy.supabase),
+      // Sur le chat de l'avatar les bulles sont déjà visibles : pas de bannière en double.
+      enabled: !path.startsWith('/app/chat/waouh'),
+      onOpen: () => context.go('/app/chat/waouh'),
+      child: Scaffold(
       body: Column(
         children: [
           const LiveOfflineBanner(),
@@ -428,6 +434,7 @@ class LiveProductionShell extends StatelessWidget {
                 ),
               ),
             ),
+      ),
     );
   }
 }

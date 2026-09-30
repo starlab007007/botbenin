@@ -4,7 +4,9 @@ const MAC_DOWNLOAD = "/privatia/downloads/PrivatAI-Mac-Intel.dmg";
 const CARD_ID = "privatai-chat-promo";
 const STYLE_ID = "privatai-chat-promo-style";
 
-const isChatHome = () => window.location.pathname.replace(/\/$/, "") === "/app/chat";
+// La carte n'est plus injectée dans le chat (espace dégagé) : PrivatAI est dans le menu « Agents IA » de l'espace de travail.
+const PROMO_IN_CHAT = false;
+const isChatHome = () => PROMO_IN_CHAT && window.location.pathname.replace(/\/$/, "") === "/app/chat";
 
 const detectPlatform = () => {
   const platform = `${(navigator as any).userAgentData?.platform || ""} ${navigator.platform || ""} ${navigator.userAgent || ""}`.toLowerCase();

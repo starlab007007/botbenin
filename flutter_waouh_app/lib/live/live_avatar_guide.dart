@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'live_models.dart';
+
 /// L'avatar guide (parité Web : `src/lib/waouh/avatarGuide.ts`) — accueil à l'ouverture, points réguliers, réglages.
 /// Le texte (2 à 3 phrases) et les boutons sont composés côté serveur (`waouh-avatar-briefing`) ; ici on les met en scène.
 
@@ -127,19 +129,29 @@ class LiveAvatarPrefs {
     this.cadence = 'daily',
     this.quietStart = 21,
     this.quietEnd = 7,
+    this.notifyEvents = true,
+    this.notifyDigest = false,
     this.nextBriefingAt,
   });
   final bool welcome;
   final String cadence;
   final int quietStart;
   final int quietEnd;
+
+  /// WhatsApp : évènements d'une offre (relance possible, voie ouverte, clôture). Actif par défaut.
+  final bool notifyEvents;
+
+  /// WhatsApp : bilans réguliers. Désactivé par défaut (le bilan reste dans le chat).
+  final bool notifyDigest;
   final DateTime? nextBriefingAt;
 
-  LiveAvatarPrefs copyWith({bool? welcome, String? cadence, int? quietStart, int? quietEnd}) => LiveAvatarPrefs(
+  LiveAvatarPrefs copyWith({bool? welcome, String? cadence, int? quietStart, int? quietEnd, bool? notifyEvents, bool? notifyDigest}) => LiveAvatarPrefs(
         welcome: welcome ?? this.welcome,
         cadence: cadence ?? this.cadence,
         quietStart: quietStart ?? this.quietStart,
         quietEnd: quietEnd ?? this.quietEnd,
+        notifyEvents: notifyEvents ?? this.notifyEvents,
+        notifyDigest: notifyDigest ?? this.notifyDigest,
         nextBriefingAt: nextBriefingAt,
       );
 }
@@ -157,6 +169,8 @@ LiveAvatarPrefs? liveParseAvatarPrefs(Object? value) {
     cadence: liveAvatarCadenceOptions.any((o) => o.value == cadence) ? cadence : 'daily',
     quietStart: hour(value['quiet_start'], 21),
     quietEnd: hour(value['quiet_end'], 7),
+    notifyEvents: value['notify_events'] is bool ? value['notify_events'] as bool : true,
+    notifyDigest: value['notify_digest'] is bool ? value['notify_digest'] as bool : false,
     nextBriefingAt: DateTime.tryParse('${value['next_briefing_at'] ?? ''}')?.toLocal(),
   );
 }
@@ -175,6 +189,131 @@ String liveNextPointLabel(DateTime? at, String cadence, {DateTime? now}) {
 }
 
 String liveHourLabel(int h) => '${h.toString().padLeft(2, '0')} h';
+
+/// Bulle de l'avatar dans le chat : seq (0…of-1) et of ; null pour tout autre message.
+({int seq, int of})? liveAvatarBubbleInfo(Map<String, dynamic> meta) {
+  if ('${meta['intent'] ?? ''}' != 'avatar_briefing') return null;
+  final b = meta['avatar_bubble'];
+  if (b is! Map) return null;
+  final seq = b['seq'] is num ? (b['seq'] as num).toInt() : int.tryParse('${b['seq']}');
+  final of = b['of'] is num ? (b['of'] as num).toInt() : int.tryParse('${b['of']}');
+  if (seq == null || of == null || seq < 0 || of < 1 || seq >= of) return null;
+  return (seq: seq, of: of);
+}
+
+/// Fenêtre « en direct » : au-delà, la bulle est de l'historique et s'affiche d'un coup.
+const Duration liveAvatarLiveWindow = Duration(seconds: 15);
+
+/// Délai avant d'afficher une bulle : l'avatar « écrit » (700 ms, puis 1,1 s de plus par bulle suivante).
+Duration liveAvatarRevealDelay(Map<String, dynamic> meta, DateTime createdAt, DateTime now) {
+  final info = liveAvatarBubbleInfo(meta);
+  if (info == null || now.difference(createdAt) > liveAvatarLiveWindow) return Duration.zero;
+  return Duration(milliseconds: 700 + info.seq * 1100);
+}
+
+/// Affichage séquencé des bulles de l'avatar (état conservé par l'écran de chat).
+class LiveAvatarReveal {
+  final Map<String, DateTime> _revealAt = {};
+
+  /// Messages visibles à `now` ; `nextAt` : prochain instant où une bulle apparaît (null si rien n'attend).
+  ({List<LiveMessage> visible, DateTime? nextAt}) filter(List<LiveMessage> messages, DateTime now) {
+    final visible = <LiveMessage>[];
+    DateTime? next;
+    for (final m in messages) {
+      final at = _revealAt.putIfAbsent(m.id, () => now.add(liveAvatarRevealDelay(m.meta, m.createdAt, now)));
+      if (!at.isAfter(now)) {
+        visible.add(m);
+      } else if (next == null || at.isBefore(next)) {
+        next = at;
+      }
+    }
+    return (visible: visible, nextAt: next);
+  }
+}
+
+/// « L'avatar écrit… » : trois points, sous la conversation, pendant que les bulles arrivent.
+class LiveAvatarTypingRow extends StatelessWidget {
+  const LiveAvatarTypingRow({super.key});
+  @override
+  Widget build(BuildContext context) => Padding(
+        key: const ValueKey('avatar-typing'),
+        padding: const EdgeInsets.fromLTRB(14, 2, 14, 6),
+        child: Row(children: [
+          const LiveAvatarOrb(size: 20),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFE4EBF5))),
+            child: const Text('L\'avatar écrit…', semanticsLabel: 'L\'avatar écrit', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
+          ),
+        ]),
+      );
+}
+
+/// Tableau de mission : ce que l'avatar fait MAINTENANT (parité Web : `MissionBoard`).
+class LiveMissionBoard {
+  const LiveMissionBoard({
+    this.searches = 0,
+    this.missions = 0,
+    this.contacted = 0,
+    this.negotiations = 0,
+    this.watching = 0,
+    this.deals = 0,
+    this.toAnswer = 0,
+    this.needsYou = 0,
+  });
+  final int searches;
+  final int missions;
+  final int contacted;
+  final int negotiations;
+  final int watching;
+  final int deals;
+  final int toAnswer;
+  final int needsYou;
+}
+
+/// Lecture défensive : compteurs entiers ≥ 0 (plafonnés), tout le reste ignoré.
+LiveMissionBoard? liveParseMissionBoard(Object? value) {
+  if (value is! Map) return null;
+  int n(Object? v) {
+    final x = v is num ? v : null;
+    if (x == null || !x.isFinite || x <= 0) return 0;
+    return x.floor().clamp(0, 9999);
+  }
+
+  return LiveMissionBoard(
+    searches: n(value['searches']),
+    missions: n(value['missions']),
+    contacted: n(value['contacted']),
+    negotiations: n(value['negotiations']),
+    watching: n(value['watching']),
+    deals: n(value['deals']),
+    toAnswer: n(value['toAnswer']),
+    needsYou: n(value['needsYou']),
+  );
+}
+
+class LiveBoardChip {
+  const LiveBoardChip(this.key, this.icon, this.label, this.count);
+  final String key;
+  final String icon;
+  final String label;
+  final int count;
+}
+
+/// Pastilles affichables : seulement ce qui est non nul, « à vous » d'abord.
+List<LiveBoardChip> liveBoardChips(LiveMissionBoard b) {
+  String plural(int n, String one, String many) => n > 1 ? many : one;
+  final searches = b.searches + b.missions;
+  return [
+    LiveBoardChip('needsYou', '⚡', 'à vous', b.needsYou),
+    LiveBoardChip('searches', '🔎', plural(searches, 'recherche', 'recherches'), searches),
+    LiveBoardChip('contacted', '📨', plural(b.contacted, 'contact', 'contacts'), b.contacted),
+    LiveBoardChip('negotiations', '🤝', plural(b.negotiations, 'négociation', 'négociations'), b.negotiations),
+    LiveBoardChip('watching', '👁', plural(b.watching, 'veille', 'veilles'), b.watching),
+    LiveBoardChip('deals', '📦', plural(b.deals, 'commande', 'commandes'), b.deals),
+  ].where((c) => c.count > 0).toList();
+}
 
 /// Ouverture du briefing : au plus une fois par fenêtre de 30 min dans ce processus (le serveur limite aussi).
 DateTime? _lastAutoOpen;
@@ -223,6 +362,8 @@ class LiveAvatarGuideService {
       prefs: liveParseAvatarPrefs(data['prefs']),
     );
   }
+
+  Future<LiveMissionBoard?> status() async => liveParseMissionBoard((await _safe({'action': 'status'}))?['board']);
 
   Future<LiveAvatarPrefs?> getPrefs() async => liveParseAvatarPrefs((await _safe({'action': 'get_prefs'}))?['prefs']);
 
@@ -471,16 +612,37 @@ class LiveAvatarGuideBar extends StatefulWidget {
 class LiveAvatarGuideBarState extends State<LiveAvatarGuideBar> {
   LiveAvatarPrefs? prefs;
   bool busy = false;
+  LiveMissionBoard? board;
+  bool boardLoaded = false;
+  Timer? _boardTimer;
+
+  /// Tableau de mission vivant : à l'ouverture, après chaque point, puis toutes les 60 s.
+  Future<void> refreshBoard() async {
+    final b = await widget.service.status();
+    if (!mounted) return;
+    setState(() {
+      boardLoaded = true;
+      if (b != null) board = b;
+    });
+  }
+
+  @override
+  void dispose() {
+    _boardTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
+    _boardTimer = Timer.periodic(const Duration(seconds: 60), (_) => unawaited(refreshBoard()));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       if (widget.autoOpen && liveShouldAutoOpenAvatar()) {
         unawaited(runPoint('open'));
       } else {
         unawaited(_loadPrefs());
+        unawaited(refreshBoard());
       }
     });
   }
@@ -504,6 +666,7 @@ class LiveAvatarGuideBarState extends State<LiveAvatarGuideBar> {
     } finally {
       if (mounted) setState(() => busy = false);
     }
+    unawaited(refreshBoard());
   }
 
   Future<void> openSettings() async {
@@ -528,13 +691,16 @@ class LiveAvatarGuideBarState extends State<LiveAvatarGuideBar> {
   @override
   Widget build(BuildContext context) {
     final p = prefs;
+    final chips = board == null ? const <LiveBoardChip>[] : liveBoardChips(board!);
     return Container(
       key: const ValueKey('avatar-guide-bar'),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: const BoxDecoration(
         gradient: LinearGradient(colors: [Color(0xFFECFDF5), Colors.white, Color(0xFFECFEFF)]),
         border: Border(bottom: BorderSide(color: Color(0xFFD1FAE5))),
       ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       child: Row(children: [
         LiveAvatarOrb(size: 22, active: !busy),
         const SizedBox(width: 10),
@@ -562,6 +728,45 @@ class LiveAvatarGuideBarState extends State<LiveAvatarGuideBar> {
           onPressed: openSettings,
           icon: const Icon(Icons.tune_rounded, size: 20, color: Color(0xFF64748B)),
         ),
+      ]),
+      ),
+      SizedBox(
+        key: const ValueKey('avatar-mission-board'),
+        height: 30,
+        child: chips.isEmpty
+            ? Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    boardLoaded ? 'Aucune mission active — dites « Je cherche… » ou « Je vends… » et je m\'en occupe.' : 'Je regarde où j\'en suis…',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B)),
+                  ),
+                ),
+              )
+            : ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+                itemCount: chips.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 6),
+                itemBuilder: (_, i) {
+                  final c = chips[i];
+                  final urgent = c.key == 'needsYou';
+                  return ActionChip(
+                    key: ValueKey('avatar-chip-${c.key}'),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    padding: EdgeInsets.zero,
+                    backgroundColor: urgent ? const Color(0xFFFFFBEB) : Colors.white,
+                    side: BorderSide(color: urgent ? const Color(0xFFFCD34D) : const Color(0xFFA7F3D0)),
+                    label: Text('${c.icon} ${c.count} ${c.label}', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: urgent ? const Color(0xFF78350F) : const Color(0xFF064E3B))),
+                    onPressed: busy ? null : () => runPoint('now'),
+                  );
+                },
+              ),
+      ),
       ]),
     );
   }
@@ -628,6 +833,28 @@ class _LiveAvatarSettingsSheetState extends State<LiveAvatarSettingsSheet> {
             onChanged: (v) => _update(prefs.copyWith(welcome: v), {'welcome': v}),
             title: const Text('Accueil à chaque ouverture', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
             subtitle: const Text('Un mot de bienvenue et le point du moment.', style: TextStyle(fontSize: 11.5)),
+          ),
+          const SizedBox(height: 6),
+          const Text('Me joindre sur WhatsApp', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+          const Text('Tout ce que j\'écris arrive d\'abord dans ce chat. WhatsApp double seulement ce que vous choisissez.',
+              style: TextStyle(fontSize: 11, color: Color(0xFF64748B), height: 1.3)),
+          SwitchListTile(
+            key: const ValueKey('avatar-notify-events-switch'),
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            value: prefs.notifyEvents,
+            onChanged: (v) => _update(prefs.copyWith(notifyEvents: v), {'notify_events': v}),
+            title: const Text('Évènements de mes offres', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+            subtitle: const Text('Relance possible, vendeur joignable, offre clôturée.', style: TextStyle(fontSize: 11)),
+          ),
+          SwitchListTile(
+            key: const ValueKey('avatar-notify-digest-switch'),
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            value: prefs.notifyDigest,
+            onChanged: (v) => _update(prefs.copyWith(notifyDigest: v), {'notify_digest': v}),
+            title: const Text('Bilans réguliers', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+            subtitle: const Text('Le point de l\'avatar, sans ouvrir l\'app.', style: TextStyle(fontSize: 11)),
           ),
           const SizedBox(height: 6),
           const Text('Points réguliers', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),

@@ -334,6 +334,7 @@ serve(async (req) => {
       const { error: notifErr } = await sb.from("waouh_notifications").insert({
         user_id: notifTargetUserId,
         article_id,
+        thread_id: bodyThreadId,
         notification_type: kind,
         photos,
         web_session_id: notifSession,

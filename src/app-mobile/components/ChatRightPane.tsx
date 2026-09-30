@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ShoppingBag } from "lucide-react";
 import { WaouhEmbeddedWorkspace } from "@/components/waouh/WaouhEmbeddedWorkspace";
 import type { useWaouhMatchChats } from "@/components/waouh/useWaouhMatchChats";
@@ -12,6 +13,8 @@ type Props = {
   matchChats: MatchChats;
   /** Bumped to force WAOUH chat to start a fresh thread. */
   newWaouhCounter?: number;
+  headerLeading?: ReactNode;
+  headerTrailing?: ReactNode;
 };
 
 /**
@@ -27,6 +30,8 @@ export function ChatRightPane({
   activeConvId,
   matchChats,
   newWaouhCounter = 0,
+  headerLeading,
+  headerTrailing,
 }: Props) {
   if (activeConvId) {
     return (
@@ -42,6 +47,8 @@ export function ChatRightPane({
       authUserId={authUserId}
       matchChats={matchChats}
       newWaouhCounter={newWaouhCounter}
+      headerLeading={headerLeading}
+      headerTrailing={headerTrailing}
     />
   );
 }

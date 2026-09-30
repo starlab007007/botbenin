@@ -193,12 +193,12 @@ void main() {
     expect(find.textContaining('Prochain point dans'), findsOneWidget);
     await tester.tap(find.text('Faire le point'));
     await settle(tester);
-    expect(fake.calls.map((c) => c['action']), ['open', 'now']);
+    expect(fake.calls.map((c) => c['action']).where((a) => a != 'status'), ['open', 'now']);
     // Deuxième instance dans la fenêtre de 30 min : pas de second accueil automatique.
     final other = FakeInvoke()..handler = (b) => {'ok': true, 'prefs': {'cadence': 'daily'}};
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: LiveAvatarGuideBar(service: LiveAvatarGuideService(other.call)))));
     await settle(tester);
-    expect(other.calls.map((c) => c['action']), ['get_prefs']);
+    expect(other.calls.map((c) => c['action']), ['get_prefs', 'status']);
   });
 
   testWidgets('réglages : choisir une cadence enregistre le patch ; refus serveur → réglage annulé et message d\'erreur', (tester) async {
@@ -226,5 +226,79 @@ void main() {
     expect(liveCommerceRequestFromPayload('relancer:$id')!['follow_up'], true);
     expect(liveCommerceRequestFromPayload('veille:$id')!['action'], 'watch_offer');
     expect(liveCommerceRequestFromPayload('envoyer-offre:$id')!['action'], 'transmit_offer');
+  });
+
+  group('l\'avatar écrit dans le chat (bulles)', () {
+    Map<String, dynamic> bubbleMeta(int seq, {int of = 3}) => {
+          'intent': 'avatar_briefing',
+          'avatar_bubble': {'seq': seq, 'of': of},
+        };
+    LiveMessage bubble(String id, int seq, DateTime at) =>
+        LiveMessage(id: id, text: 'phrase $seq', createdAt: at, direction: 'out', meta: bubbleMeta(seq));
+
+    test('bulle valide reconnue, le reste rejeté', () {
+      expect(liveAvatarBubbleInfo(bubbleMeta(1)), (seq: 1, of: 3));
+      expect(liveAvatarBubbleInfo({'intent': 'avatar_briefing'}), isNull);
+      expect(liveAvatarBubbleInfo({'intent': 'autre', 'avatar_bubble': {'seq': 0, 'of': 1}}), isNull);
+      expect(liveAvatarBubbleInfo({'intent': 'avatar_briefing', 'avatar_bubble': {'seq': 3, 'of': 3}}), isNull);
+    });
+
+    test('délais : croissants en direct, nuls pour l\'historique et les messages ordinaires', () {
+      final now = DateTime(2026, 9, 29, 10);
+      final fresh = now.subtract(const Duration(milliseconds: 200));
+      expect(liveAvatarRevealDelay(bubbleMeta(0), fresh, now), const Duration(milliseconds: 700));
+      expect(liveAvatarRevealDelay(bubbleMeta(1), fresh, now), const Duration(milliseconds: 1800));
+      expect(liveAvatarRevealDelay(bubbleMeta(2), fresh, now), const Duration(milliseconds: 2900));
+      expect(liveAvatarRevealDelay(bubbleMeta(1), now.subtract(const Duration(minutes: 5)), now), Duration.zero);
+      expect(liveAvatarRevealDelay({'intent': 'x'}, fresh, now), Duration.zero);
+    });
+
+    test('affichage séquencé : les bulles apparaissent dans l\'ordre, une fois révélées elles le restent', () {
+      final now = DateTime(2026, 9, 29, 10);
+      final at = now.subtract(const Duration(milliseconds: 100));
+      final msgs = [bubble('a', 0, at), bubble('b', 1, at), bubble('c', 2, at)];
+      final reveal = LiveAvatarReveal();
+      var r = reveal.filter(msgs, now);
+      expect(r.visible, isEmpty);
+      expect(r.nextAt, now.add(const Duration(milliseconds: 700)));
+      r = reveal.filter(msgs, now.add(const Duration(milliseconds: 800)));
+      expect(r.visible.map((m) => m.id), ['a']);
+      r = reveal.filter(msgs, now.add(const Duration(milliseconds: 1900)));
+      expect(r.visible.map((m) => m.id), ['a', 'b']);
+      r = reveal.filter(msgs, now.add(const Duration(seconds: 4)));
+      expect(r.visible.map((m) => m.id), ['a', 'b', 'c']);
+      expect(r.nextAt, isNull);
+      // Historique : tout est visible d\'un coup, sans indicateur.
+      final old = now.subtract(const Duration(hours: 2));
+      final hist = LiveAvatarReveal().filter([bubble('x', 0, old), bubble('y', 1, old)], now);
+      expect(hist.visible.length, 2);
+      expect(hist.nextAt, isNull);
+    });
+
+    test('réglages WhatsApp : évènements actifs, bilans coupés par défaut', () {
+      final d = liveParseAvatarPrefs({});
+      expect([d!.notifyEvents, d.notifyDigest], [true, false]);
+      final p = liveParseAvatarPrefs({'notify_events': false, 'notify_digest': true});
+      expect([p!.notifyEvents, p.notifyDigest], [false, true]);
+      expect(const LiveAvatarPrefs().copyWith(notifyDigest: true).notifyDigest, true);
+    });
+
+    testWidgets('une bulle de l\'avatar est un message ordinaire : texte lisible sans rien ouvrir, boutons sur la dernière', (tester) async {
+      final msg = LiveMessage(
+        id: 'last', text: 'Prochaine étape : relancer le vendeur.', createdAt: DateTime.now().subtract(const Duration(hours: 1)), direction: 'out',
+        meta: {...bubbleMeta(2), 'actions': [{'id': 'relancer:n1', 'label': 'Relancer le vendeur'}]},
+      );
+      final taps = <String>[];
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: SingleChildScrollView(child: LiveMessageBubble(message: msg, onPayload: taps.add)))));
+      expect(find.byType(LiveAvatarBriefingCard), findsNothing);
+      expect(find.textContaining('Prochaine étape'), findsOneWidget);
+      await tester.tap(find.text('Relancer le vendeur'));
+      expect(taps.single, startsWith('relancer:'));
+    });
+
+    testWidgets('« L\'avatar écrit… » s\'affiche', (tester) async {
+      await tester.pumpWidget(const MaterialApp(home: Scaffold(body: LiveAvatarTypingRow())));
+      expect(find.byKey(const ValueKey('avatar-typing')), findsOneWidget);
+    });
   });
 }

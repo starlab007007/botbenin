@@ -129,3 +129,65 @@ describe("avatar guide — rendu", () => {
     expect(busy).toContain("Je fais le point…");
   });
 });
+
+import { avatarBubbleInfo, avatarRevealDelayMs, AVATAR_LIVE_WINDOW_MS } from "../avatarGuide";
+
+describe("avatar guide — l'avatar écrit dans le chat", () => {
+  const meta = (seq: number, of = 3) => ({ intent: "avatar_briefing", avatar_bubble: { seq, of } });
+  it("reconnaît une bulle valide, rejette le reste", () => {
+    expect(avatarBubbleInfo(meta(1))).toEqual({ seq: 1, of: 3 });
+    expect(avatarBubbleInfo({ intent: "avatar_briefing" })).toBeNull();
+    expect(avatarBubbleInfo({ intent: "autre", avatar_bubble: { seq: 0, of: 1 } })).toBeNull();
+    expect(avatarBubbleInfo({ intent: "avatar_briefing", avatar_bubble: { seq: 3, of: 3 } })).toBeNull();
+    expect(avatarBubbleInfo(null)).toBeNull();
+  });
+  it("bulles en direct : délai croissant ; historique ou message ordinaire : aucun délai", () => {
+    const now = 1_000_000;
+    expect(avatarRevealDelayMs(meta(0), now - 200, now)).toBe(700);
+    expect(avatarRevealDelayMs(meta(1), now - 200, now)).toBe(1800);
+    expect(avatarRevealDelayMs(meta(2), now - 200, now)).toBe(2900);
+    expect(avatarRevealDelayMs(meta(1), now - AVATAR_LIVE_WINDOW_MS - 1, now)).toBe(0);
+    expect(avatarRevealDelayMs({ intent: "x" }, now, now)).toBe(0);
+    expect(avatarRevealDelayMs(meta(0), Number.NaN, now)).toBe(0);
+  });
+  it("réglages WhatsApp : évènements actifs et bilans coupés par défaut ; la réponse serveur est relue", () => {
+    const p = parseAvatarPrefs({});
+    expect([p?.notify_events, p?.notify_digest]).toEqual([true, false]);
+    const q = parseAvatarPrefs({ notify_events: false, notify_digest: true });
+    expect([q?.notify_events, q?.notify_digest]).toEqual([false, true]);
+  });
+  it("openAvatarBriefing : toutes les bulles sont renvoyées, l'ancienne réponse à un seul message reste lue", async () => {
+    const row = (id: string, seq: number) => ({ id, direction: "out", text: `t${seq}`, meta: meta(seq), created_at: "2026-09-29T10:00:00Z" });
+    invoke.mockResolvedValueOnce({ data: { ok: true, sent: true, messages: [row("a", 0), row("b", 1), { nope: 1 }], prefs: {} }, error: null });
+    expect((await openAvatarBriefing("open", null))?.messages.map((m) => m.id)).toEqual(["a", "b"]);
+    invoke.mockResolvedValueOnce({ data: { ok: true, sent: true, message: row("z", 0), prefs: {} }, error: null });
+    expect((await openAvatarBriefing("open", null))?.messages.map((m) => m.id)).toEqual(["z"]);
+  });
+  it("la barre propose les réglages WhatsApp (évènements / bilans)", () => {
+    const prefs = { welcome: true, cadence: "daily" as const, quiet_start: 21, quiet_end: 7, notify_events: true, notify_digest: false, last_briefing_at: null, next_briefing_at: null };
+    const html = renderToStaticMarkup(<WaouhAvatarGuideBar prefs={prefs} busy={false} onPoint={() => {}} settingsOpenSignal={0} />);
+    expect(html).toContain("avatar-guide-bar");
+  });
+});
+
+import { boardChips, fetchMissionBoard, parseMissionBoard } from "../avatarGuide";
+
+describe("avatar guide — tableau de mission vivant", () => {
+  it("lecture défensive : compteurs entiers positifs, le reste ignoré", () => {
+    expect(parseMissionBoard(null)).toBeNull();
+    const b = parseMissionBoard({ searches: 3, contacted: "12", negotiations: -2, watching: 1.9, deals: 99999, needsYou: 2 });
+    expect(b).toEqual({ searches: 3, missions: 0, contacted: 0, negotiations: 0, watching: 1, deals: 9999, toAnswer: 0, needsYou: 2 });
+  });
+  it("pastilles : seulement le non nul, « à vous » d'abord, pluriels justes, recherches + missions cumulées", () => {
+    const chips = boardChips({ searches: 2, missions: 1, contacted: 1, negotiations: 0, watching: 4, deals: 0, toAnswer: 0, needsYou: 2 });
+    expect(chips.map((c) => `${c.count} ${c.label}`)).toEqual(["2 à vous", "3 recherches", "1 contact", "4 veilles"]);
+    expect(boardChips(parseMissionBoard({})!)).toEqual([]);
+  });
+  it("fetchMissionBoard : action status, réseau coupé → null sans exception", async () => {
+    invoke.mockResolvedValueOnce({ data: { ok: true, board: { searches: 1 }, prefs: {} }, error: null });
+    expect((await fetchMissionBoard())?.board?.searches).toBe(1);
+    expect(invoke).toHaveBeenLastCalledWith("waouh-avatar-briefing", { body: { action: "status" } });
+    invoke.mockRejectedValueOnce(new Error("réseau"));
+    expect(await fetchMissionBoard()).toBeNull();
+  });
+});

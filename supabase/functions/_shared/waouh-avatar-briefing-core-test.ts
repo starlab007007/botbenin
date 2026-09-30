@@ -1,7 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
 // Livraison des points de l'avatar et tick planifié (base simulée) : cadence, heures calmes, dédoublonnage, isolation des erreurs.
 import { assert, assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { deliverBriefing, loadPrefs, runAvatarBriefingTick, savePrefs } from "./waouh-avatar-briefing-core.ts";
+import { deliverBriefing, loadMissionBoard, loadPrefs, runAvatarBriefingTick, savePrefs } from "./waouh-avatar-briefing-core.ts";
 
 type Row = Record<string, any>;
 const AUTH = "auth-1";
@@ -13,18 +13,19 @@ const ago = (from: Date, h: number) => new Date(from.getTime() - h * 3600_000).t
 function fakeDb(seed: Record<string, Row[]> = {}) {
   const tables: Record<string, Row[]> = {
     waouh_avatar_prefs: [], waouh_users: [{ id: "u1", auth_user_id: AUTH, display_name: "Zime Songbian", created_at: "2026-01-01" }],
-    waouh_chat_threads: [], waouh_messages: [], waouh_deals: [], waouh_negotiations: [], waouh_articles: [], ...seed,
+    waouh_chat_threads: [], waouh_messages: [], waouh_notifications: [], waouh_buyer_profiles: [], waouh_watchlists: [], waouh_agent_missions: [], waouh_opportunity_journeys: [], waouh_deals: [], waouh_negotiations: [], waouh_articles: [], ...seed,
   };
   const from = (t: string) => {
     let rows = [...(tables[t] ?? [])];
     let mode: "select" | "insert" | "upsert" = "select";
-    let payload: Row | null = null;
+    let payload: any = null;
     let head = false;
+    let wantCount = false;
     const api: any = {
-      select: (_c?: string, o?: any) => { head = !!o?.head; return api; },
+      select: (_c?: string, o?: any) => { head = !!o?.head; wantCount = !!o?.count; return api; },
       eq: (c: string, v: unknown) => { rows = rows.filter((r) => r[c] === v); return api; },
       neq: (c: string, v: unknown) => { rows = rows.filter((r) => r[c] !== v); return api; },
-      in: () => api, not: () => api, or: () => api, gte: () => api, order: () => api, limit: () => api,
+      in: () => api, not: () => api, is: () => api, or: () => api, gte: () => api, order: () => api, limit: () => api,
       insert: (p: Row) => { mode = "insert"; payload = p; return api; },
       upsert: (p: Row) => { mode = "upsert"; payload = p; return api; },
       maybeSingle: () => Promise.resolve({ data: rows[0] ?? null, error: null }),
@@ -33,17 +34,23 @@ function fakeDb(seed: Record<string, Row[]> = {}) {
         return Promise.resolve({ data: rows[0] ?? null, error: null });
       },
       then: (res: (v: any) => void) => {
+        if (mode === "insert") {
+          const list = (Array.isArray(payload) ? payload : [payload]).map((r: any) => ({ id: crypto.randomUUID(), ...r }));
+          tables[t].push(...list);
+          return res({ data: list, error: null });
+        }
         if (mode === "upsert") {
           const existing = tables[t].find((r) => r.auth_user_id === payload!.auth_user_id);
           if (existing) Object.assign(existing, payload); else tables[t].push({ ...payload });
           return res({ data: null, error: null });
         }
-        return res({ data: head ? null : rows, count: head ? rows.length : undefined, error: null });
+        return res({ data: head ? null : rows, count: head || wantCount ? rows.length : undefined, error: null });
       },
     };
     return api;
   };
-  return { tables, from };
+  const rpcCalls: Array<{ fn: string; args: Row }> = [];
+  return { tables, from, rpcCalls, rpc: (fn: string, args: Row) => { rpcCalls.push({ fn, args }); return Promise.resolve({ data: "q1", error: null }); } };
 }
 
 Deno.test("premier accueil : point « first » écrit dans le chat, préférences créées, dernier point mémorisé", async () => {
@@ -53,6 +60,16 @@ Deno.test("premier accueil : point « first » écrit dans le chat, préférence
   const msg = db.tables.waouh_messages[0];
   assertEquals([msg.user_id, msg.direction, msg.web_session_id, msg.meta.intent], ["u1", "out", "sess-123456", "avatar_briefing"]);
   assert(msg.text.includes("Bienvenue Zime"), msg.text);
+  // Le point arrive comme 3 bulles de chat, lisibles sans rien ouvrir ; les boutons sont sur la dernière seulement.
+  const bubbles = db.tables.waouh_messages;
+  assertEquals(bubbles.map((b) => b.meta.avatar_bubble.seq), [0, 1, 2]);
+  assertEquals(bubbles.map((b) => Array.isArray(b.meta.actions)), [false, false, true]);
+  assertEquals(new Set(bubbles.map((b) => b.meta.briefing_id)).size, 1);
+  assert(bubbles.every((b) => b.text.length > 0 && b.text.length < 160), "bulles courtes");
+  assert(bubbles.every((b) => b.meta.avatar_briefing === undefined), "plus de carte à ouvrir");
+  assertEquals(r.messages.length, 3);
+  const times = bubbles.map((b) => Date.parse(b.created_at));
+  assert(times[0] < times[1] && times[1] < times[2], "ordre d'affichage stable");
   assertEquals(db.tables.waouh_avatar_prefs[0].last_briefing_at, MORNING.toISOString());
 });
 
@@ -61,7 +78,7 @@ Deno.test("ouvertures rapprochées : un seul accueil (30 min) ; accueil désacti
   await deliverBriefing(db, { authUserId: AUTH, trigger: "open", now: MORNING });
   const soon = new Date(MORNING.getTime() + 10 * 60_000);
   assertEquals((await deliverBriefing(db, { authUserId: AUTH, trigger: "open", now: soon })).reason, "too_soon");
-  assertEquals(db.tables.waouh_messages.length, 1);
+  assertEquals(db.tables.waouh_messages.length, 3);
   await savePrefs(db, AUTH, { welcome: false });
   const later = new Date(MORNING.getTime() + 3 * 3600_000);
   assertEquals((await deliverBriefing(db, { authUserId: AUTH, trigger: "open", now: later })).reason, "welcome_off");
@@ -73,7 +90,7 @@ Deno.test("tick : point régulier à l'échéance, hors heures calmes, une seule
   const db = fakeDb({ waouh_avatar_prefs: [{ auth_user_id: AUTH, welcome: true, cadence: "every_4h", quiet_start: 21, quiet_end: 7, last_briefing_at: ago(MORNING, 5), last_digest: "obsolète" }] });
   const first = await runAvatarBriefingTick(db, { now: MORNING });
   assertEquals([first.scanned, first.sent, first.errors], [1, 1, 0]);
-  assertEquals(db.tables.waouh_messages[0].meta.avatar_briefing.kind, "digest");
+  assertEquals(db.tables.waouh_messages[0].meta.avatar_bubble.kind, "digest");
   const again = await runAvatarBriefingTick(db, { now: new Date(MORNING.getTime() + 60_000) });
   assertEquals([again.sent, again.skipped], [0, 1]);
   const off = fakeDb({ waouh_avatar_prefs: [{ auth_user_id: AUTH, cadence: "off", welcome: true, quiet_start: 21, quiet_end: 7, last_briefing_at: null }] });
@@ -122,4 +139,91 @@ Deno.test("réglages : valeurs invalides ignorées, relecture cohérente", async
   const p = await savePrefs(db, AUTH, { cadence: "toutes-les-secondes", quiet_start: 99, welcome: "oui" });
   assertEquals([p.cadence, p.quietStart, p.quietEnd, p.welcome], ["weekly", 22, 6, false]);
   assertEquals((await loadPrefs(db, "inconnu")).exists, false);
+});
+
+Deno.test("ouverture sans nouveauté : une seule bulle courte, jamais le point répété", async () => {
+  const db = fakeDb();
+  await deliverBriefing(db, { authUserId: AUTH, trigger: "open", now: MORNING });
+  const before = db.tables.waouh_messages.length;
+  const later = new Date(MORNING.getTime() + 8 * 3600_000 - 3 * 3600_000); // > 30 min, même empreinte, rien d'actionnable
+  const r = await deliverBriefing(db, { authUserId: AUTH, trigger: "open", now: later });
+  assertEquals(r.sent, true);
+  const added = db.tables.waouh_messages.slice(before);
+  assertEquals(added.length, 1);
+  assert(added[0].text.includes("Rien de nouveau"), added[0].text);
+  assertEquals(added[0].meta.avatar_bubble.of, 1);
+});
+
+Deno.test("WhatsApp : bilans coupés par défaut ; envoyés seulement sur demande, pour un utilisateur WhatsApp, une fois", async () => {
+  const seed = (extra: Row) => ({
+    waouh_users: [{ id: "u1", auth_user_id: AUTH, display_name: "Zime", phone_number: "22997000000", created_at: "2026-01-01" }],
+    waouh_avatar_prefs: [{ auth_user_id: AUTH, welcome: true, cadence: "every_4h", quiet_start: 21, quiet_end: 7, last_briefing_at: ago(MORNING, 5), last_digest: "obsolète", ...extra }],
+  });
+  const off = fakeDb(seed({}));
+  await runAvatarBriefingTick(off, { now: MORNING });
+  assertEquals(off.rpcCalls.length, 0, "bilan seulement dans le chat par défaut");
+  const on = fakeDb(seed({ notify_digest: true }));
+  await runAvatarBriefingTick(on, { now: MORNING });
+  assertEquals(on.rpcCalls.length, 1);
+  assertEquals(on.rpcCalls[0].args.p_to_phone, "22997000000");
+  assertEquals(on.rpcCalls[0].args.p_event_type, "avatar_briefing");
+  // Ouverture de l'app : jamais de WhatsApp (l'utilisateur est déjà dans le chat).
+  const open = fakeDb(seed({ notify_digest: true, last_briefing_at: null }));
+  await deliverBriefing(open, { authUserId: AUTH, trigger: "open", now: MORNING });
+  assertEquals(open.rpcCalls.length, 0);
+});
+
+Deno.test("réglages de notification : évènements actifs par défaut, bilans coupés, valeurs invalides ignorées", async () => {
+  const db = fakeDb();
+  const p0 = await loadPrefs(db, AUTH);
+  assertEquals([p0.notifyEvents, p0.notifyDigest], [true, false]);
+  await savePrefs(db, AUTH, { notify_digest: true, notify_events: false });
+  const p1 = await savePrefs(db, AUTH, { notify_digest: "oui", notify_events: 1 });
+  assertEquals([p1.notifyEvents, p1.notifyDigest], [false, true]);
+});
+
+const missionSeed = () => ({
+  waouh_buyer_profiles: [{ id: "p1", user_id: "u1", is_active: true }, { id: "p2", user_id: "u1", is_active: true }, { id: "p3", user_id: "u1", is_active: false }],
+  waouh_watchlists: [{ id: "w1", owner_id: AUTH, status: "active" }],
+  waouh_agent_missions: [{ id: "m1", owner_id: AUTH, status: "active", goal: "Trouver un iPhone 13 à moins de 300 000 FCFA" }, { id: "m2", owner_id: "autre", status: "active" }],
+  waouh_opportunity_journeys: [{ id: "j1", owner_id: AUTH, last_contact_at: "2026-09-29", completed_at: null }, { id: "j2", owner_id: "autre", last_contact_at: "2026-09-29", completed_at: null }],
+});
+
+Deno.test("tableau de mission : recherches, missions, contacts comptés pour CET utilisateur seulement", async () => {
+  const db = fakeDb(missionSeed());
+  const r = await loadMissionBoard(db, AUTH, MORNING);
+  assertEquals([r?.board.searches, r?.board.missions, r?.board.contacted], [3, 1, 1]); // 2 profils actifs + 1 veille prix ; 1 mission ; 1 contact
+  assertEquals(await loadMissionBoard(db, "inconnu", MORNING), null);
+});
+
+Deno.test("le point parle des recherches, contacts et négociations en cours ; une source en panne ne bloque pas le point", async () => {
+  const db = fakeDb({ ...missionSeed(), waouh_avatar_prefs: [{ auth_user_id: AUTH, welcome: true, cadence: "daily", quiet_start: 21, quiet_end: 7, last_briefing_at: ago(MORNING, 30), last_digest: "obsolète" }] });
+  const r = await deliverBriefing(db, { authUserId: AUTH, trigger: "manual", now: MORNING });
+  const all = r.messages.map((m) => m.text).join(" ");
+  assert(all.includes("3 recherches actives") || all.includes("4 recherches actives"), all);
+  assert(all.includes("1 contact en cours"), all);
+  assert(all.includes("Objectif en cours : « Trouver un iPhone 13"), all);
+  const broken = fakeDb(missionSeed());
+  const realFrom = broken.from;
+  (broken as any).from = (t: string) => { if (t === "waouh_agent_missions") throw new Error("panne"); return realFrom(t); };
+  assertEquals((await deliverBriefing(broken, { authUserId: AUTH, trigger: "manual", now: MORNING })).sent, true);
+});
+
+Deno.test("notification dans l'application : point planifié seulement, jamais à l'ouverture ; une seule fois par point", async () => {
+  const seed = { waouh_avatar_prefs: [{ auth_user_id: AUTH, welcome: true, cadence: "every_4h", quiet_start: 21, quiet_end: 7, last_briefing_at: ago(MORNING, 5), last_digest: "obsolète" }] };
+  const db = fakeDb(seed);
+  await runAvatarBriefingTick(db, { now: MORNING });
+  assertEquals(db.tables.waouh_notifications.length, 1);
+  const n = db.tables.waouh_notifications[0];
+  assertEquals([n.user_id, n.notification_type, n.channel, n.payload.intent], ["u1", "avatar_point", "waouh_app", "avatar_briefing"]);
+  assert(String(n.dedupe_key).startsWith("avatar_briefing:"));
+  assert(n.payload.text.length > 0 && n.payload.actions.length <= 3);
+  await runAvatarBriefingTick(db, { now: new Date(MORNING.getTime() + 60_000) });
+  assertEquals(db.tables.waouh_notifications.length, 1, "pas de doublon");
+  const open = fakeDb();
+  await deliverBriefing(open, { authUserId: AUTH, trigger: "open", now: MORNING });
+  assertEquals(open.tables.waouh_notifications.length, 0, "à l'ouverture l'utilisateur est déjà dans le chat");
+  const manual = fakeDb();
+  await deliverBriefing(manual, { authUserId: AUTH, trigger: "manual", now: MORNING });
+  assertEquals(manual.tables.waouh_notifications.length, 0);
 });
