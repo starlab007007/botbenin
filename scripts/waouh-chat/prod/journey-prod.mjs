@@ -2,8 +2,14 @@
 // Données RÉELLES (autorisées par le propriétaire) : article au titre « ZZ TEST E2E » (aucune correspondance attendue avec un catalogue réel),
 // comptes dédiés A / B / admin fournis par le propriétaire. Livreur : livreur de test « E2E FULL Courier ».
 // Variables : SB_URL, SB_ANON, A_EMAIL, B_EMAIL, ADM_EMAIL, PW_A, PW_B, PW_ADM. Refuse tout projet autre que la production WAOUH.
-const { SB_URL, SB_ANON, A_EMAIL, B_EMAIL, ADM_EMAIL, PW_A, PW_B, PW_ADM } = process.env;
+import { readFileSync } from "node:fs";
+const { A_EMAIL, B_EMAIL, ADM_EMAIL, PW_A, PW_B, PW_ADM } = process.env;
+// URL et clé publique (anon) : lues dans le code du site si elles ne sont pas fournies — rien à copier-coller.
+const client = readFileSync(new URL("../../../src/integrations/supabase/client.ts", import.meta.url), "utf8");
+const SB_URL = process.env.SB_URL || client.match(/SUPABASE_URL\s*=\s*"([^"]+)"/)?.[1];
+const SB_ANON = /^eyJ[\w-]+\.[\w-]+\.[\w-]+$/.test(process.env.SB_ANON ?? "") ? process.env.SB_ANON : client.match(/SUPABASE_PUBLISHABLE_KEY\s*=\s*"([^"]+)"/)?.[1];
 if (!SB_URL?.includes("mvynepqulhflxtyymtzs")) { console.error("Refus : ce script ne cible que la production WAOUH."); process.exit(2); }
+if (!SB_ANON || !A_EMAIL || !B_EMAIL || !ADM_EMAIL || !PW_A || !PW_B || !PW_ADM) { console.error("Variables manquantes : A_EMAIL, B_EMAIL, ADM_EMAIL, PW_A, PW_B, PW_ADM (et la clé publique, introuvable dans client.ts)."); process.exit(2); }
 const COURIER = "6558d4ff-1560-4177-bf2f-e5a1364e2212";
 const errors = [], results = [];
 const step = (id, ok, detail, severity = "bloquant") => { results.push({ id, ok }); if (!ok) errors.push({ id, severity, detail }); console.log(`${ok ? "PASS" : "FAIL"} ${id} — ${detail}`); };
