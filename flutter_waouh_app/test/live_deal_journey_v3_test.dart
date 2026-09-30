@@ -3,6 +3,7 @@ import 'package:waouh_app_native/live/live_commerce_action_client.dart';
 import 'package:waouh_app_native/live/live_commerce_workflow.dart';
 import 'package:waouh_app_native/live/live_deal_journey.dart';
 import 'package:waouh_app_native/live/live_models.dart';
+import 'package:waouh_app_native/live/live_thread_flow.dart';
 import 'package:waouh_app_native/live/live_widgets.dart';
 
 const _neg = 'a1b2c3d4-0000-4000-8000-00000000abcd';
@@ -103,4 +104,161 @@ void main() {
       expect(liveCommerceOutboundText('poser-question:$_art'), 'Poser une question');
     });
   });
+
+  group('Conformité E2E — fil canonique', () {
+    const thread = '7a7a7a7a-1111-4111-8111-111111111111';
+    const buyer = '22222222-2222-4222-8222-222222222222';
+    const seller = '11111111-1111-4111-8111-111111111111';
+    const fabric = 'external:44444444-4444-4444-8444-444444444444';
+
+    test('Intéressé résout une Deal Room seulement après thread canonique', () {
+      final seed = LiveMatch(
+        key: 'pending_interest_e2e',
+        articleId: _art,
+        role: 'buyer',
+        title: 'Article E2E',
+        lastAt: DateTime(2026, 9, 30),
+        sellerUserId: seller,
+        counterpartUserId: seller,
+      );
+      final resolved = LiveMatch(
+        key: 'resolved_e2e',
+        articleId: _art,
+        role: 'buyer',
+        title: 'Article E2E',
+        lastAt: DateTime(2026, 9, 30),
+        threadId: thread,
+        buyerUserId: buyer,
+        sellerUserId: seller,
+        counterpartUserId: seller,
+      );
+
+      expect(liveCanPromoteInterestedMatch(seed: seed, resolved: resolved), isTrue);
+      expect(resolved.threadId, thread);
+
+      final unresolved = LiveMatch(
+        key: 'still_pending',
+        articleId: _art,
+        role: 'buyer',
+        title: 'Article E2E',
+        lastAt: DateTime(2026, 9, 30),
+        buyerUserId: buyer,
+        sellerUserId: seller,
+        counterpartUserId: seller,
+      );
+      expect(liveCanPromoteInterestedMatch(seed: seed, resolved: unresolved), isFalse);
+    });
+
+    test('A/B : Intérêt → négociation → accord → livraison → paiement garde thread_id=X', () {
+      const states = <String>[
+        'interest_recorded',
+        'proposed',
+        'countered',
+        'awaiting_confirmation',
+        'pending_assignment',
+        'picked_up',
+        'delivered',
+        'completed',
+      ];
+      const expectedStages = <String>[
+        'interest',
+        'negotiation',
+        'negotiation',
+        'agreement',
+        'preparation',
+        'courier',
+        'delivery',
+        'payment',
+      ];
+
+      expect(states.map(liveStageFromWorkflow).toList(), expectedStages);
+
+      for (var i = 0; i < states.length; i++) {
+        final message = _msg(<String, dynamic>{
+          'thread_id': thread,
+          'article_id': _art,
+          'negotiation_id': _neg,
+          if (i >= 3) 'deal_id': _deal,
+          'workflow_state': states[i],
+        });
+        final scope = liveCommerceScopeFromMessage(message);
+        expect(scope['thread_id'], thread, reason: 'thread perdu à l’étape ${states[i]}');
+        expect(scope['article_id'], _art);
+        expect(scope['negotiation_id'], _neg);
+        if (i >= 3) expect(scope['deal_id'], _deal);
+      }
+
+      expect(liveCommerceStageIsTerminal('completed'), isTrue);
+    });
+
+    test('Chat Center → NEXUS/Signal Fabric → carte → Deal Room exige article + thread', () {
+      expect(
+        liveIsDirectDealCandidate(
+          fabricId: fabric,
+          intent: 'SELL',
+          actorType: 'seller',
+        ),
+        isTrue,
+      );
+      expect(
+        liveExternalDealRequest(fabric, amount: 280000),
+        <String, dynamic>{
+          'action': 'open_deal',
+          'fabric_id': fabric,
+          'amount': 280000,
+          'source': 'nexus_card',
+        },
+      );
+
+      expect(
+        liveExternalDealStatus(<String, dynamic>{
+          'ok': true,
+          'article_id': _art,
+          'thread_id': thread,
+        }),
+        LiveExternalDealStatus.opened,
+      );
+      expect(
+        liveExternalDealStatus(<String, dynamic>{
+          'ok': true,
+          'article_id': _art,
+          'thread_id': '',
+        }),
+        LiveExternalDealStatus.refused,
+      );
+    });
+
+    test('payloads canoniques conservent explicitement thread_id=X', () {
+      final context = <String, String>{
+        'thread_id': thread,
+        'article_id': _art,
+        'negotiation_id': _neg,
+        'deal_id': _deal,
+        'buyer_user_id': buyer,
+        'seller_user_id': seller,
+      };
+      for (final kind in <LiveCommerceActionKind>[
+        LiveCommerceActionKind.interest,
+        LiveCommerceActionKind.counter,
+        LiveCommerceActionKind.accept,
+        LiveCommerceActionKind.sellerConfirm,
+        LiveCommerceActionKind.paymentDelivery,
+        LiveCommerceActionKind.confirmPaymentCash,
+      ]) {
+        final payload = liveCanonicalWorkflowPayload(kind, context: context);
+        final query = liveCommerceQuery(payload);
+        expect(query['thread_id'], thread, reason: 'thread absent pour $kind');
+        expect(query['article_id'], _art);
+        expect(query['negotiation_id'], _neg);
+        expect(query['deal_id'], _deal);
+      }
+
+      final accept = liveCommerceRequestFromPayload(
+        'waouh:accept?negotiation_id=$_neg&thread_id=$thread',
+      );
+      expect(accept?['thread_id'], thread);
+      expect(accept?['negotiation_id'], _neg);
+    });
+  });
+
 }
