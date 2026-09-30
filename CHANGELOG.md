@@ -3,6 +3,9 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.30.10
+- Intérêt sur un produit de catalogue partenaire (retour d'essai utilisateur) : (1) le vendeur ne recevait rien — l'article avait pour vendeur une ligne « téléphone » sans compte, partagée entre deux partenaires ; le vendeur devient la ligne canonique du compte propriétaire (`linkPartnerSellerAccount`, + correction des données de production) et un acheteur qui est ce même compte reçoit `self_article` ; (2) 3 notifications identiques — l'ouverture de la fenêtre (évènement doublé + tampon) appelait 3 fois `waouh-buyer-interest` en parallèle : un seul appel par article et session sur 30 s côté Web, pas d'écho acheteur si la négociation existe déjà, et le vendeur n'est plus notifié deux fois (vérification aussi dans `waouh_notifications`).
+
 ## 2026.09.30.9
 - Recette Flutter de production : une offre faite après un refus ouvre un nouveau fil ; « Retirer mon offre » envoyé avec l'ancien fil échouait (`out_of_stage`). `waouh-commerce-action` résout désormais le fil par la négociation (qui n'appartient qu'à un fil) avant le fil transmis. Lecture admin du fil (RLS) documentée dans la recette.
 
