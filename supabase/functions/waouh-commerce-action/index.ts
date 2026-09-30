@@ -201,16 +201,22 @@ async function resolveThreadId(ctx: Ctx): Promise<string | null> {
     if (data?.thread_id) return data.thread_id;
   }
   if (req.article_id) {
-    const { data } = await sb.from("waouh_chat_threads")
-      .select("id")
-      .eq("thread_type", "product_meet")
-      .eq("article_id", req.article_id)
-      .or(`buyer_user_id.in.(${ctx.siblings.join(",")}),seller_user_id.in.(${ctx.siblings.join(",")})`)
-      .not("status", "in", "(concluded,cancelled)")
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (data?.id) return data.id;
+    // Par lots d'identités : la liste d'un compte très actif ne doit pas dépasser la longueur d'URL acceptée par PostgREST.
+    let best: { id: string; updated_at: string } | null = null;
+    for (let i = 0; i < ctx.siblings.length; i += 100) {
+      const chunk = ctx.siblings.slice(i, i + 100).join(",");
+      const { data } = await sb.from("waouh_chat_threads")
+        .select("id,updated_at")
+        .eq("thread_type", "product_meet")
+        .eq("article_id", req.article_id)
+        .or(`buyer_user_id.in.(${chunk}),seller_user_id.in.(${chunk})`)
+        .not("status", "in", "(concluded,cancelled)")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data?.id && (!best || String(data.updated_at) > String(best.updated_at))) best = data;
+    }
+    if (best?.id) return best.id;
   }
   return null;
 }

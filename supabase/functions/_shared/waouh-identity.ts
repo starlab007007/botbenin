@@ -61,6 +61,10 @@ function addPhoneVariants(out: Set<string>, value: string | null | undefined) {
   }
 }
 
+/** Lecture des identités d'un compte : pages de 1000, 3 pages au plus (3000 lignes). */
+export const SIBLING_PAGE = 1000;
+export const SIBLING_MAX_PAGES = 3;
+
 export async function resolveSiblingUserIds(
   sb: any,
   user: WaouhUserLike | null | undefined,
@@ -72,12 +76,18 @@ export async function resolveSiblingUserIds(
   try {
     // 1) Même auth_user_id (App)
     if (user.auth_user_id) {
-      const { data } = await sb
-        .from("waouh_users")
-        .select("id")
-        .eq("auth_user_id", user.auth_user_id)
-        .limit(50);
-      for (const r of data || []) ids.add(r.id);
+      // Un compte peut avoir des centaines de lignes (une par session Web) : lecture PAGINÉE. Avec une limite de 50, la ligne
+      // du vendeur d'un fil pouvait tomber hors de la liste et le vendeur était refusé (« not_a_participant », constaté en production).
+      for (let page = 0; page < SIBLING_MAX_PAGES; page++) {
+        const { data } = await sb
+          .from("waouh_users")
+          .select("id")
+          .eq("auth_user_id", user.auth_user_id)
+          .order("id", { ascending: true })
+          .range(page * SIBLING_PAGE, (page + 1) * SIBLING_PAGE - 1);
+        for (const r of data || []) ids.add(r.id);
+        if ((data?.length ?? 0) < SIBLING_PAGE) break;
+      }
     }
 
     // 2) Même phone_number exact
