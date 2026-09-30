@@ -146,6 +146,9 @@ class _LiveInboxProductionScreenState extends State<LiveInboxProductionScreen> {
                     avatarName: avatar.name,
                     onAvatar: () => context.push('/app/avatar'),
                     onMissions: () => context.push('/app/missions'),
+                    onDiscuss: _newChat,
+                    onSearch: () => _openWaouhWith('Je cherche '),
+                    onNegotiate: () => _openWaouhWith('Je souhaite négocier '),
                   ),
                 ),
               Expanded(
@@ -178,6 +181,9 @@ class _IntelligenceQuickAccess extends StatelessWidget {
     required this.avatarName,
     required this.onAvatar,
     required this.onMissions,
+    required this.onDiscuss,
+    required this.onSearch,
+    required this.onNegotiate,
   });
 
   final int missionCount;
@@ -186,35 +192,221 @@ class _IntelligenceQuickAccess extends StatelessWidget {
   final String avatarName;
   final VoidCallback onAvatar;
   final VoidCallback onMissions;
+  final VoidCallback onDiscuss;
+  final VoidCallback onSearch;
+  final VoidCallback onNegotiate;
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(14, 4, 14, 7),
-        child: Row(
+  Widget build(BuildContext context) {
+    final avatar = context.watch<LiveAvatarController>();
+    final missionLabel = approvalCount > 0
+        ? '$approvalCount à valider'
+        : missionCount > 0
+            ? '$missionCount mission(s)'
+            : watchCount > 0
+                ? '$watchCount veille(s)'
+                : 'Missions';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 5, 14, 8),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(13, 12, 13, 11),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFFEAFBF7),
+              Color(0xFFF3F8FF),
+              Color(0xFFFAF7FF),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFFD9E8F2)),
+          boxShadow: WaouhShadows.card,
+        ),
+        child: Column(
           children: [
-            Expanded(
-              child: _QuickIntelligenceCard(
-                icon: Icons.face_retouching_natural_rounded,
-                title: avatarName,
-                subtitle: 'Votre Avatar · acheter · vendre',
-                accent: WaouhPalette.blue,
-                onTap: onAvatar,
-              ),
+            Row(
+              children: [
+                InkWell(
+                  onTap: onAvatar,
+                  borderRadius: BorderRadius.circular(22),
+                  child: Padding(
+                    padding: const EdgeInsets.all(2),
+                    child: LiveAvatarVisual(
+                      preset: avatar.profile.preset,
+                      state: LiveAvatarPresenceState.idle,
+                      size: 68,
+                      showStatusBadge: true,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: InkWell(
+                    onTap: onAvatar,
+                    borderRadius: BorderRadius.circular(14),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  avatarName.trim().isEmpty ? 'Bot' : avatarName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: WaouhPalette.ink,
+                                    fontSize: 21,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: -.35,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                width: 7,
+                                height: 7,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFF20C997),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Votre Avatar IA',
+                            style: TextStyle(
+                              color: WaouhPalette.blue,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          const Text(
+                            'Je vous aide à trouver, négocier et conclure.',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: WaouhPalette.muted,
+                              fontSize: 10.5,
+                              height: 1.25,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: onMissions,
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+                    minimumSize: const Size(0, 32),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  icon: const Icon(Icons.route_rounded, size: 14),
+                  label: Text(
+                    missionLabel,
+                    style: const TextStyle(fontSize: 9.2, fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _QuickIntelligenceCard(
-                icon: Icons.route_rounded,
-                title: 'Missions',
-                subtitle: approvalCount > 0
-                    ? '$approvalCount à valider'
-                    : '$missionCount mission(s) · $watchCount veille(s)',
-                accent: const Color(0xFF7D6AE8),
-                badge: approvalCount > 0 ? approvalCount : null,
-                onTap: onMissions,
-              ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _AvatarHeroAction(
+                    label: 'Démarrer',
+                    icon: Icons.forum_outlined,
+                    accent: const Color(0xFF0AAE9A),
+                    filled: true,
+                    onTap: onDiscuss,
+                  ),
+                ),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: _AvatarHeroAction(
+                    label: 'Chercher',
+                    icon: Icons.search_rounded,
+                    accent: WaouhPalette.blue,
+                    onTap: onSearch,
+                  ),
+                ),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: _AvatarHeroAction(
+                    label: 'Négocier',
+                    icon: Icons.handshake_outlined,
+                    accent: const Color(0xFF7257E6),
+                    onTap: onNegotiate,
+                  ),
+                ),
+              ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AvatarHeroAction extends StatelessWidget {
+  const _AvatarHeroAction({
+    required this.label,
+    required this.icon,
+    required this.accent,
+    required this.onTap,
+    this.filled = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color accent;
+  final VoidCallback onTap;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: filled ? accent : Colors.white.withValues(alpha: .86),
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            height: 42,
+            padding: const EdgeInsets.symmetric(horizontal: 7),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: filled ? null : Border.all(color: accent.withValues(alpha: .16)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 17, color: filled ? Colors.white : accent),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: filled ? Colors.white : WaouhPalette.ink,
+                      fontSize: 10.4,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       );
 }
@@ -519,7 +711,7 @@ class _InboxTabs extends StatelessWidget {
               Expanded(
                 child: _InboxTabButton(
                   selected: value == 1,
-                  label: 'Statuts · 24h',
+                  label: 'Statuts',
                   icon: Icons.auto_awesome_outlined,
                   badge: statusCount,
                   onTap: () => onChanged(1),
@@ -528,7 +720,7 @@ class _InboxTabs extends StatelessWidget {
               Expanded(
                 child: _InboxTabButton(
                   selected: value == 2,
-                  label: '📡 Radar',
+                  label: 'Radar',
                   icon: Icons.radar_rounded,
                   onTap: () => onChanged(2),
                 ),
@@ -778,9 +970,6 @@ class _WaouhAssistantCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final avatar = context.watch<LiveAvatarController>();
-    final avatarReady = avatar.loaded && avatar.profile.configured;
-
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 13),
       decoration: BoxDecoration(
@@ -793,26 +982,17 @@ class _WaouhAssistantCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              if (avatarReady)
-                LiveAvatarVisual(
-                  preset: avatar.profile.preset,
-                  state: LiveAvatarPresenceState.idle,
-                  size: 52,
-                  showStatusBadge: true,
-                )
-              else
-                Container(
-                  width: 52,
-                  height: 52,
-                  padding: const EdgeInsets.all(9),
-                  decoration: BoxDecoration(
-                    color: Colors.white70,
-                    borderRadius: BorderRadius.circular(17),
-                    border: Border.all(color: const Color(0xFFE1E9F7)),
-                  ),
-                  child:
-                      const BrandMark(size: 32, semanticLabel: 'WAOUH One IA'),
+              Container(
+                width: 52,
+                height: 52,
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: .86),
+                  borderRadius: BorderRadius.circular(17),
+                  border: Border.all(color: const Color(0xFFE1E9F7)),
                 ),
+                child: const BrandMark(size: 32, semanticLabel: 'WAOUH One'),
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -845,10 +1025,8 @@ class _WaouhAssistantCard extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 3),
-                    Text(
-                      avatarReady
-                          ? '${avatar.name} comprend votre objectif et vous accompagne jusqu’au deal.'
-                          : 'Achetez, vendez, cherchez, comparez et négociez.',
+                    const Text(
+                      'Achetez, vendez, cherchez, comparez et négociez.',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
