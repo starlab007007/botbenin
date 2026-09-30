@@ -67,8 +67,13 @@ Niveaux de contactabilité (C0 = aucun contact autorisé … C4) : la plupart de
 
 | # | Constat | État |
 |---|---|---|
-| 1 | Planifications avatar / Nexus / Radar | **À faire par le propriétaire** (secrets Vault) — Radar : décider s'il doit être relancé |
-| 2–3 | Numéros exposés | À planifier (changement de privilèges, risque de régression) |
-| 4–7 | Qualité, boucle de retour, blocages | Proposés, non faits (décisions produit) |
-| 8 | Clés d'API | À migrer vers Vault + rotation |
-| 10–12 | Purges / clarifications | Non faits |
+| 1 | Planifications avatar / Nexus / Radar | **À faire par le propriétaire** : l'écriture dans le Vault m'est refusée (secret-store) ; secrets à créer puis deux appels SQL (voir §4.1). Radar : décision de relance à prendre |
+| 2 | `contact_whatsapp` lisible publiquement | **Non appliqué, volontairement** : un retrait au niveau de la colonne suppose de retirer d'abord le droit de lecture de la table, ce qui risque de couper les abonnements temps réel (`postgres_changes` sur `waouh_articles`) et la page `WaouhPage` (`select *`). Voie sûre : lecture par une vue sans téléphone + liste de colonnes explicite côté clients, puis retrait. À planifier |
+| 3 | `waouh_external_listings` lisible par tout utilisateur connecté | **Corrigé en production** (migration `20260930180000`) : politique ouverte supprimée, administrateurs et clé service seuls. Aucun client Web/Flutter ne lisait cette table |
+| 4 | Radar sans photo / sans prix présenté comme « chaud » | **Corrigé** : couche d'unification `waouh-unified-quality` (même barème pour toutes les sources, fiches vides en dernier, phrase de référence pour contacter) |
+| 5 | Résultats Nexus sans prix ni contact | **Atténué** : même classement, phrase de référence ; l'enrichissement des données (prix, contact autorisé) reste à faire côté ingestion |
+| 6 | Pas de retour sur les correspondances Radar | Non fait (nécessite d'écrire la réponse de l'acheteur dans `waouh_radar_matches`) |
+| 7 | Parcours d'opportunité bloqués | Dépend du suivi Nexus planifié (cf. 1) |
+| 8 | Clés d'API en clair | À migrer vers le Vault + rotation (écriture Vault refusée, cf. 1) |
+| 10 | Lignes de test « e2e_radar » actives | **Corrigé** : 17 lignes passées en « ignored » (les 16 promues restent) |
+| 11–12 | Articles Radar « vendus », signaux de sources coupées | Non faits (clarification métier) |
