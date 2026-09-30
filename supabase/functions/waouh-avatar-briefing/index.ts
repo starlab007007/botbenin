@@ -3,7 +3,7 @@
 // Action service (clé service) : tick — points réguliers planifiés.
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { getRequestUser, jsonResponse, waouhCorsHeaders } from "../_shared/waouh-auth.ts";
-import { isServiceCaller } from "../_shared/waouh-internal-auth.ts";
+import { isServiceCaller, isTickCaller } from "../_shared/waouh-internal-auth.ts";
 import { deliverBriefing, loadMissionBoard, loadPrefs, runAvatarBriefingTick, savePrefs } from "../_shared/waouh-avatar-briefing-core.ts";
 import { nextBriefingAt } from "../_shared/waouh-avatar-briefing.ts";
 
@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
     const action = String(body?.action ?? "");
 
     if (action === "tick") {
-      if (!isServiceCaller(req, SERVICE_ROLE)) return jsonResponse({ ok: false, code: "service_role_required" }, 401);
+      if (!isServiceCaller(req, SERVICE_ROLE) && !(await isTickCaller(req, sb))) return jsonResponse({ ok: false, code: "service_role_required" }, 401);
       const result = await runAvatarBriefingTick(sb, { limit: Math.min(200, Math.max(1, Number(body?.limit) || 100)) });
       return jsonResponse({ ok: true, ...result });
     }

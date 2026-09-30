@@ -71,6 +71,11 @@ const busy = (): Activity => ({
   watching: [{ ...ref("5"), title: "Pixel 7", reachable: true }, { ...ref("6"), title: "Tecno Spark", reachable: false }],
   dealsInProgress: [{ ...ref("7"), title: "Frigo", role: "buyer", status: "assigned" }],
   completedRecent: 2,
+  searches: 3,
+  missions: 1,
+  missionGoals: [],
+  contacted: 2,
+  negotiationsOpen: 4,
 });
 
 Deno.test("composition : 3 phrases courtes maximum, sans montant ni coordonnée, pour chaque type de point", () => {

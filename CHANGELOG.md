@@ -3,6 +3,13 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.30.15
+- Tâches de fond : le point automatique de l'avatar (toutes les heures), le suivi des offres Nexus (toutes les heures) et le traitement des signaux Radar (5 min ; collecte Apify et sites toutes les 6 h) sont planifiables sans créer de secret : `waouh_install_background_ticks()` (migration `20260930190000`). Les appels sécurisés sont vérifiés par `waouh_verify_tick_secret` (secret interne déjà présent dans le Vault) via `isTickCaller`. Non planifiés volontairement : campagnes Radar et auto-contrôle (écrivent à des tiers ; automatisation en pause jusqu'au 30/09 23:53), SerpAPI (désactivé).
+
+## 2026.09.30.14
+- Unification des sources et classement équitable : toutes les sources (chat, partenaires, WhatsApp, Radar, signaux Nexus, API) passent par le Signal Fabric ; `_shared/waouh-unified-quality.ts` évalue la complétude (photo, prix, contact) avec le même barème pour tous, retire 8 points par information manquante, place en dernier les fiches sans photo, prix ni contact, et ajoute une phrase de référence (« demandez à l'Avatar de contacter la source »). Les demandes d'achat ne sont pas pénalisées pour l'absence de photo. Vue `waouh_signal_fabric` enrichie (evidence : has_contact, photos/contact des signaux Nexus) — migration `20260930170000` (déjà appliquée en production). CI : les tests Deno écrits pendant la session (dedupe, identités, avatar, vendeur partenaire, qualité) n'étaient pas exécutés (un nom `-test.ts` n'est pas découvert automatiquement) : ajoutés à la CI, avec `deno check` de channel-in, buyer-interest et notify-dispatch.
+- Audit des sources hors partenaires (Nexus, Radar, annonces externes) : `docs/AUDIT_SOURCES_DONNEES_2026-09-30.md`. Migration `20260930180000` (déjà appliquée) : `waouh_external_listings` réservée aux administrateurs, 17 lignes de test « e2e_radar » retirées du Signal Fabric.
+
 ## 2026.09.30.12
 - Test ciblé produit partenaire en production (retour réel) : (1) trois intérêts simultanés créaient 2 négociations (2 confirmations acheteur) → `openBuyerDeal` garde la négociation la plus ancienne et retire les autres ; (2) le vendeur d'un produit partenaire ne voyait la notification « Nouvel acheteur » que dans la table des notifications (et par WhatsApp), pas dans la Deal Room → `waouh-notify-dispatch` écrit aussi le message dans le fil quand le destinataire a un compte de l'application, sans second envoi WhatsApp.
 

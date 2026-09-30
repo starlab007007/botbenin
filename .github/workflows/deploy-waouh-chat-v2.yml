@@ -20,6 +20,8 @@ on:
       - "supabase/functions/_shared/waouh-negotiation-intent.ts"
       - "supabase/functions/_shared/waouh-sync.ts"
       - "supabase/functions/_shared/waouh-deal-open.ts"
+      - "supabase/functions/_shared/waouh-unified-quality.ts"
+      - "supabase/functions/_shared/waouh-dedupe.ts"
       - "supabase/functions/_shared/waouh-interest-fastpath.ts"
       - "supabase/functions/_shared/waouh-message-catalog.ts"
       - "supabase/functions/_shared/waouh-commerce-contract.ts"

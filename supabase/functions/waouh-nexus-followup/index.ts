@@ -1,7 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
 // WAOUH — Suivi de l'avatar (appel interne planifié). Réservé à la clé service ; sans effet si `nexus_direct_deal` est coupé.
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
-import { isServiceCaller } from "../_shared/waouh-internal-auth.ts";
+import { isServiceCaller, isTickCaller } from "../_shared/waouh-internal-auth.ts";
 import { nexusDirectDealEnabled } from "../_shared/waouh-chat-writer.ts";
 import { runNexusFollowUp } from "../_shared/waouh-nexus-followup-core.ts";
 
@@ -11,8 +11,8 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ ok: false, code: "method_not_allowed" }, 405);
-  if (!isServiceCaller(req, SERVICE_ROLE)) return json({ ok: false, code: "service_role_required" }, 401);
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
+  if (!isServiceCaller(req, SERVICE_ROLE) && !(await isTickCaller(req, sb))) return json({ ok: false, code: "service_role_required" }, 401);
   if (!(await nexusDirectDealEnabled(sb))) return json({ ok: true, skipped: "nexus_direct_deal_disabled" });
   const body = await req.json().catch(() => ({}));
   const result = await runNexusFollowUp(sb, { limit: Math.min(200, Math.max(1, Number(body?.limit) || 100)) });
