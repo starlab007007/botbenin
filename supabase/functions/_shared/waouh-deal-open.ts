@@ -220,19 +220,21 @@ export async function openBuyerDeal(args: OpenBuyerDealArgs): Promise<OpenBuyerD
   let negotiationId: string | null = null;
   let created = false;
   let negotiationState: string | null = null;
+  let negotiationCreatedAt: number | null = null;
   let lastActor: string | null = null;
   let lastOfferPrice: number | null = null;
   if (article.seller_id) {
     try {
       const { data: openNeg } = await sb
         .from("waouh_negotiations")
-        .select("id, state, last_actor, last_offer_price")
+        .select("id, state, last_actor, last_offer_price, created_at")
         .eq("thread_id", threadId)
         .in("state", ["proposed", "countered"])
         .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (openNeg) {
+        negotiationCreatedAt = openNeg.created_at ? Date.parse(openNeg.created_at) : null;
         negotiationId = openNeg.id;
         negotiationState = openNeg.state ?? null;
         lastActor = openNeg.last_actor ?? null;
@@ -292,7 +294,10 @@ export async function openBuyerDeal(args: OpenBuyerDealArgs): Promise<OpenBuyerD
   const externalSeller = article.origin === "nexus_external";
   const shouldNotify = !externalSeller && ((notifySeller === "always" && openNegotiation) || (notifySeller === "on_create" && created));
   // Même notification déjà reçue par le vendeur sur ce fil il y a moins d'une minute : pas de doublon (double envoi).
+  // Négociation créée à l'instant par un autre appel (appels simultanés) : c'est lui qui prévient le vendeur.
+  const justOpenedByAnotherCall = !created && negotiationCreatedAt !== null && Date.now() - negotiationCreatedAt < 60_000;
   const sellerAlreadyNotified = shouldNotify && !!article.seller_id && (
+    justOpenedByAnotherCall ||
     await recentDuplicateExists(sb, { threadId, userId: article.seller_id, intent: "new_buyer", withinSeconds: 60 }) ||
     await recentNotificationExists(sb, { threadId, userId: article.seller_id, type: "new_buyer", withinSeconds: 60 })
   );

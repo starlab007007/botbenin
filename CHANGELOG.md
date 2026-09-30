@@ -3,6 +3,9 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.30.11
+- Appels simultanés à `waouh-buyer-interest` : seul l'appel qui crée la négociation prévient le vendeur (les autres, dans les 60 s, ne renotifient pas). Script de test ciblé `scripts/waouh-chat/recette/test-interet-partenaire.mjs` (3 intérêts simultanés, vendeur notifié une fois avec Accepter/Contre-offre/Refuser, contre-offre reçue, refus du propriétaire).
+
 ## 2026.09.30.10
 - Intérêt sur un produit de catalogue partenaire (retour d'essai utilisateur) : (1) le vendeur ne recevait rien — l'article avait pour vendeur une ligne « téléphone » sans compte, partagée entre deux partenaires ; le vendeur devient la ligne canonique du compte propriétaire (`linkPartnerSellerAccount`, + correction des données de production) et un acheteur qui est ce même compte reçoit `self_article` ; (2) 3 notifications identiques — l'ouverture de la fenêtre (évènement doublé + tampon) appelait 3 fois `waouh-buyer-interest` en parallèle : un seul appel par article et session sur 30 s côté Web, pas d'écho acheteur si la négociation existe déjà, et le vendeur n'est plus notifié deux fois (vérification aussi dans `waouh_notifications`).
 
