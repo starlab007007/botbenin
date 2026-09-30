@@ -21,7 +21,7 @@ import {
 const ALL_KEYS: CatalogKey[] = [
   "deal_opened", "deal_already_open", "request_sent", "new_buyer", "question_prompt", "question_sent",
   "question_received", "offer_sent", "offer_received", "awaiting_counterparty", "counter_prompt",
-  "agreement", "offer_refused_actor", "offer_refused_other", "seller_confirmed", "pay_mode_chosen",
+  "agreement", "offer_refused_actor", "offer_withdrawn", "offer_refused_other", "seller_confirmed", "pay_mode_chosen",
   "courier_assigned", "picked_up", "delivered", "payment_confirmed", "deal_cancelled", "no_open_deal",
   "multiple_open_deals", "stale_button", "out_of_stage", "technical_error", "article_reserved", "article_sold", "competitor_reserved", "article_available_again",
   "negotiation_paused", "not_understood", "confirm_money_action", "self_article", "results_found",

@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Sorties de build et fichiers locaux (ne se versionnent pas)
+/dist-mobile/
+deno.lock
+flutter_waouh_app/supabase/
+*.bak
+*.bak_*
+__noop__

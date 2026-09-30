@@ -11,7 +11,6 @@ import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
 import 'live_theme.dart';
-import 'live_visuals.dart';
 
 class LiveProfileScreen extends StatefulWidget {
   const LiveProfileScreen({super.key});

@@ -16,6 +16,7 @@ import {
   followUpOfferAction,
   transmitOfferAction,
   watchOfferAction,
+  withdrawOfferAction,
   type WaouhAction,
 } from "./waouh-commands.ts";
 import { clampActions, type JourneyStepKey, stageFor } from "./waouh-message-catalog.ts";
@@ -256,7 +257,7 @@ export function nextActions(
       // En attente de l'autre partie : jamais de fenêtre froide.
       if (!state.articleId) return [];
       return clampActions(role === "buyer"
-        ? [modifyOfferAction(state.articleId), askQuestionAction(state.articleId)]
+        ? [modifyOfferAction(state.articleId), askQuestionAction(state.articleId), ...(state.negotiationId ? [withdrawOfferAction(state.negotiationId)] : [])]
         : [askQuestionAction(state.articleId)]);
     case "agreement":
       if (!state.dealId) {

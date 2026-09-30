@@ -431,8 +431,19 @@ async function resolveDealActor(req: Request, sb: any, body: any): Promise<DealA
     if (!u?.user) {
       return { ok: false, status: 401, error: "Invalid session", internal: false, isAdmin: false, authUserId: null, waouhUserIds: [] };
     }
-    const [{ data: rows }, { data: isAdmin }] = await Promise.all([
-      sb.from("waouh_users").select("id").eq("auth_user_id", u.user.id).order("created_at", { ascending: false }).limit(100),
+    // Identités du compte : lecture paginée (un compte peut avoir des centaines de lignes ; la ligne canonique est souvent la plus ancienne).
+    const readIdentities = async () => {
+      const all: any[] = [];
+      for (let page = 0; page < 3; page++) {
+        const { data } = await sb.from("waouh_users").select("id").eq("auth_user_id", u.user.id)
+          .order("created_at", { ascending: true }).order("id", { ascending: true }).range(page * 1000, (page + 1) * 1000 - 1);
+        all.push(...(data ?? []));
+        if ((data?.length ?? 0) < 1000) break;
+      }
+      return all;
+    };
+    const [rows, { data: isAdmin }] = await Promise.all([
+      readIdentities(),
       sb.rpc("has_role", { _user_id: u.user.id, _role_name: "admin" }),
     ]);
     return {

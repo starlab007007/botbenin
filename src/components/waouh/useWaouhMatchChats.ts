@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { fetchAuthIdentityIds } from "@/lib/waouh/identityIds";
 import { supabase } from "@/integrations/supabase/client";
 import type { MatchChatMeta } from "./WaouhMatchChatWindow";
 import { correlationIdFor, traceUi } from "./waouhCorrelation";
@@ -297,9 +298,7 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
     (async () => {
       let data: any[] | null = null;
       if (authUserId) {
-        const res = await supabase
-          .from("waouh_users").select("id").eq("auth_user_id", authUserId).order("created_at", { ascending: false }).limit(100);
-        data = res.data ?? [];
+        data = (await fetchAuthIdentityIds(supabase, authUserId)).map((id) => ({ id }));
       } else {
         const res = await supabase
           .from("waouh_users").select("id").eq("web_session_id", sessionId).limit(50);

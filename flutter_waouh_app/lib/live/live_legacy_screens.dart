@@ -4,7 +4,6 @@
 // Diffusion — a real campaign list backed by `wa_campaigns.stats` instead of
 // the previous hard-coded bar chart.
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
 import 'live_theme.dart';

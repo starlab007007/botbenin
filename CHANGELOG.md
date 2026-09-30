@@ -3,6 +3,15 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.30.6
+- Nettoyage et mise au propre : « Retirer mon offre » (acheteur, offre en attente) sur Web, Flutter et serveur (`offer_withdrawn`, alias `retirer-offre`) ; typage `source_mix` et fixtures du guide avatar ; retrait des fichiers parasites (`deno.lock`, `__noop__`, sauvegarde `main.dart.bak_*`, `dist-mobile/`, `.temp` Supabase) et de 8 imports Flutter inutilisés ; `.gitignore` complété.
+
+## 2026.09.30.5
+- Recette de production (62/71) : historique vide pour les comptes à plus de 100 identités (lecture qui excluait la ligne canonique, la plus ancienne). `waouh-match-history` et `waouh-deal-ops` lisent toutes les identités ; Web : plus anciennes + plus récentes (`identityIds.ts`). Détail : docs/RECETTE_COMPLETE_2026-09-30.md §7.
+
+## 2026.09.30.4
+- Recette Flutter + Web : script `scripts/waouh-chat/recette/recette-comptes.mjs` (8 scénarios : vendeur, acheteur, vendeur-acheteur, refus, questions, garde-fous, concurrence, chat libre, avatar), audit de production en lecture seule, rapport `docs/RECETTE_COMPLETE_2026-09-30.md`. Recette de production à lancer par le propriétaire.
+
 ## 2026.09.30.3 (branche claude/harmonisation-phase-0-1)
 - Correctif général des identités (publication qui recréait une ligne `waouh_users`, lectures plafonnées, choix de ligne non déterministe) et garde anti-doublon des messages (`buyer_interest`, `new_buyer`, écho de réouverture). Détail : docs/E2E_PRODUCTION_2026-09-30.md.
 

@@ -30,6 +30,7 @@ export type CatalogKey =
   | "counter_prompt"
   | "agreement"
   | "offer_refused_actor"
+  | "offer_withdrawn"
   | "offer_refused_other"
   | "seller_confirmed"
   | "pay_mode_chosen"
@@ -237,6 +238,10 @@ const BUILDERS: Record<CatalogKey, Builder> = {
   offer_refused_actor: () => ({
     title: "Négociation terminée",
     detail: "Vous avez refusé l'offre.",
+  }),
+  offer_withdrawn: () => ({
+    title: "Offre retirée",
+    detail: "Vous avez retiré votre offre. Vous pourrez en faire une nouvelle quand vous voulez.",
   }),
   offer_refused_other: (v) => ({
     title: "Offre refusée",

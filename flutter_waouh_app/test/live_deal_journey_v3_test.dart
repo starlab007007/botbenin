@@ -73,6 +73,8 @@ void main() {
       expect(liveCommerceRequestFromPayload('accepter:$_neg', threadId: 't1'),
           {'action': 'accept', 'negotiation_id': _neg, 'thread_id': 't1'});
       expect(liveCommerceRequestFromPayload('refuser:$_neg')?['action'], 'reject');
+      // « Retirer mon offre » : même action serveur que « refuser ».
+      expect(liveCommerceRequestFromPayload('retirer-offre:$_neg')?['action'], 'reject');
       expect(liveCommerceRequestFromPayload('je-veux:$_art')?['action'], 'open_deal');
       final partner = liveCommerceRequestFromPayload(
         'je-veux:$_art?source=partner&catalog_id=$_art&source_id=$_art',

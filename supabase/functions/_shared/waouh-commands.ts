@@ -64,6 +64,7 @@ const COMMAND_ALIASES: Record<string, WaouhCommandKind> = {
   "confirmer-paiement-mobile": "confirm_payment_mobile",
   "confirm_payment_mobile": "confirm_payment_mobile",
   "annuler": "cancel",
+  "retirer-offre": "reject",
   "cancel": "cancel",
   "cancel_deal": "cancel",
   // v3 — fiche produit : « Je le veux », « Proposer un prix », « Poser une question ».
@@ -158,6 +159,8 @@ export const transmitOfferAction = (negotiationId: string): WaouhAction => ({ id
 export const followUpOfferAction = (negotiationId: string): WaouhAction => ({ id: `relancer:${negotiationId}`, label: "Relancer le vendeur" });
 /** Garder l'offre en veille : l'avatar recontrôle la joignabilité et prévient dès qu'une voie s'ouvre. */
 export const watchOfferAction = (negotiationId: string): WaouhAction => ({ id: `veille:${negotiationId}`, label: "Garder en veille" });
+/** Acheteur en attente du vendeur : retirer son offre (ferme la négociation ; une nouvelle offre reste possible). */
+export const withdrawOfferAction = (negotiationId: string): WaouhAction => ({ id: `retirer-offre:${negotiationId}`, label: "Retirer mon offre" });
 export const cancelOrderAction = (dealId: string): WaouhAction => ({ id: `annuler:${dealId}`, label: "Annuler la commande" });
 
 /**

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'live_ia_premium_ui.dart';
 
 class WhatsAppSheetFrame extends StatelessWidget {
   const WhatsAppSheetFrame({

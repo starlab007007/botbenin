@@ -7,7 +7,6 @@ import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
 import 'avatar/live_avatar_controller.dart';
-import 'avatar/live_avatar_widgets.dart';
 import 'agentic/live_agentic_models.dart';
 import 'agentic/live_agentic_workspace.dart';
 import 'live_avatar_guide.dart';

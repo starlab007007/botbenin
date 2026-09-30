@@ -13,6 +13,7 @@ const B2 = mk("B2", "acheteur.c.test@botbj-test.invalid", "55555555-5555-4555-85
 const B3 = mk("B3", "acheteur.d.test@botbj-test.invalid", "66666666-6666-4666-8666-666666666666");
 const ADM = mk("ADM", "admin.test@botbj-test.invalid", "33333333-3333-4333-8333-333333333333");
 for (const u of [S1, S2, B1, B2, B3, ADM]) {
+  if (u === ADM && !PW[u.email]) { u.t = null; console.log("ADM : aucun mot de passe fourni — les scénarios de livraison seront NON EXÉCUTÉS"); continue; }
   const r = await fetch(`${SB_URL}/auth/v1/token?grant_type=password`, { method: "POST", headers: { apikey: SB_ANON, "Content-Type": "application/json" }, body: JSON.stringify({ email: u.email, password: PW[u.email] }) });
   const j = await r.json(); if (!j.access_token) throw new Error(`login ${u.email}: ${JSON.stringify(j).slice(0, 90)}`); u.t = j.access_token;
 }
