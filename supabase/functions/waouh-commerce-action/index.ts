@@ -15,6 +15,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { jsonResponse, requireAuthOrGuestSession, waouhCorsHeaders } from "../_shared/waouh-auth.ts";
 import { commerceActionV3Enabled, chatWriterV2Enabled, nexusDirectDealEnabled, recordChatMessage } from "../_shared/waouh-chat-writer.ts";
 import { resolveSiblingUserIds } from "../_shared/waouh-identity.ts";
+import { recentDuplicateExists } from "../_shared/waouh-dedupe.ts";
 import { openBuyerDeal, publicPhotos } from "../_shared/waouh-deal-open.ts";
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 import { renderCatalog, type CatalogKey, fcfa, isUnavailableStatus, stageFor, unavailableKey } from "../_shared/waouh-message-catalog.ts";
