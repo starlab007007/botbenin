@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import '../main.dart' as legacy;
 import 'live_whatsapp_ia_action_sheets.dart';
 import 'live_whatsapp_ia_connect_service.dart';
-import 'live_whatsapp_ia_models.dart';
 import 'live_whatsapp_ia_repository.dart';
 
 import 'live_ia_premium_ui.dart';

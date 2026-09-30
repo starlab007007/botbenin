@@ -25,6 +25,8 @@ describe("parcours v3 — client Web", () => {
   it("traduit les boutons serveur en actions du contrat", () => {
     expect(commerceRequestFromButton(`accepter:${NEG}`)).toMatchObject({ action: "accept", negotiation_id: NEG });
     expect(commerceRequestFromButton(`refuser:${NEG}`)).toMatchObject({ action: "reject" });
+    // « Retirer mon offre » (acheteur en attente du vendeur) : même action serveur que « refuser », libellé dédié.
+    expect(commerceRequestFromButton(`retirer-offre:${NEG}`)).toMatchObject({ action: "reject", negotiation_id: NEG });
     expect(commerceRequestFromButton(`je-veux:${ART}`)).toMatchObject({ action: "open_deal", article_id: ART });
     expect(commerceRequestFromButton(`payer-mobile:${DEAL}`)).toMatchObject({ action: "pay_mode", method: "mobile_money" });
     expect(commerceRequestFromButton(`paiement-livraison:${DEAL}`)).toMatchObject({ action: "pay_mode", method: "cash" });

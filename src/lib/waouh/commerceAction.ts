@@ -146,6 +146,7 @@ export function commerceRequestFromButton(
     case "accept":
       return { action: "accept", negotiation_id: target, thread_id: scope.thread_id ?? null };
     case "refuser":
+    case "retirer-offre":
     case "reject":
       return { action: "reject", negotiation_id: target, thread_id: scope.thread_id ?? null };
     case "je-veux":

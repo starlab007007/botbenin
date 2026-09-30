@@ -462,7 +462,7 @@ async function execute(ctx: Ctx, thread: any, role: Role | null): Promise<Engine
       const negId = req.negotiation_id ?? thread.negotiation_id;
       if (!negId) return { ok: false, key: "stale_button" };
       // Négociation fermée parce qu'un autre acheteur a été retenu : réponse explicite, pas « Action indisponible ».
-      const { data: negRow } = await sb.from("waouh_negotiations").select("state,meta").eq("id", negId).maybeSingle();
+      const { data: negRow } = await sb.from("waouh_negotiations").select("state,meta,last_actor").eq("id", negId).maybeSingle();
       if (negRow?.state === "closed") {
         const { data: artRow } = await sb.from("waouh_articles").select("status").eq("id", thread.article_id).maybeSingle();
         const evictedKey = evictedNegotiationKey(negRow, artRow?.status);
@@ -474,9 +474,11 @@ async function execute(ctx: Ctx, thread: any, role: Role | null): Promise<Engine
         }
       }
       const payload = `${req.action === "accept" ? "accepter" : "refuser"}:${negId}`;
+      // L'acheteur qui « refuse » sa PROPRE offre en attente la retire : message dédié, pas « Vous avez refusé l'offre ».
+      const withdrawing = req.action === "reject" && role === "buyer" && negRow?.last_actor === "buyer" && ["proposed", "countered"].includes(String(negRow?.state));
       return mapRouter(
         await router({ text: req.action === "accept" ? "OUI" : "NON", button_payload: payload }, negId, thread.id),
-        req.action === "accept" ? "agreement" : "offer_refused_actor",
+        req.action === "accept" ? "agreement" : withdrawing ? "offer_withdrawn" : "offer_refused_actor",
         { role },
       );
     }

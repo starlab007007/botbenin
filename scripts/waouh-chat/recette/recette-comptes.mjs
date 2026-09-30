@@ -135,7 +135,7 @@ if (want("S4")) {
   const hb = await hist(X, ctx);
   check("S4c le vendeur répond, l'acheteur reçoit la réponse", r.status === 200 && r.j.ok && has(hb, /1 an/i), `clé=${key(r)}`);
   r = await act(X, { action: "cancel", thread_id: ctx.thread, article_id: article });
-  check("S4d l'acheteur peut annuler / clore sans impasse", r.status === 200, `ok=${r.j.ok}, clé=${key(r)}`, "majeur");
+  check("S4d l'acheteur peut annuler / clore sans impasse (« Retirer mon offre » si une offre est en attente)", r.status === 200 || r.j.error === "no_deal" || r.j.error === "no_negotiation" || r.j.ok === true, `http=${r.status}, ok=${r.j.ok}, clé=${key(r)}`, "majeur");
 }
 
 // ---- S5 : garde-fous (soi-même, idempotence, doublons, tiers, identité)

@@ -3,6 +3,9 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.30.6
+- Nettoyage et mise au propre : « Retirer mon offre » (acheteur, offre en attente) sur Web, Flutter et serveur (`offer_withdrawn`, alias `retirer-offre`) ; typage `source_mix` et fixtures du guide avatar ; retrait des fichiers parasites (`deno.lock`, `__noop__`, sauvegarde `main.dart.bak_*`, `dist-mobile/`, `.temp` Supabase) et de 8 imports Flutter inutilisés ; `.gitignore` complété.
+
 ## 2026.09.30.5
 - Recette de production (62/71) : historique vide pour les comptes à plus de 100 identités (lecture qui excluait la ligne canonique, la plus ancienne). `waouh-match-history` et `waouh-deal-ops` lisent toutes les identités ; Web : plus anciennes + plus récentes (`identityIds.ts`). Détail : docs/RECETTE_COMPLETE_2026-09-30.md §7.
 

@@ -120,7 +120,7 @@ describe("avatar guide — rendu", () => {
   });
 
   it("barre du guide : état, « Faire le point », réglages accessibles", () => {
-    const prefs = { welcome: true, cadence: "daily" as const, quiet_start: 21, quiet_end: 7, last_briefing_at: null, next_briefing_at: "2999-01-01T00:00:00Z" };
+    const prefs = { welcome: true, cadence: "daily" as const, quiet_start: 21, quiet_end: 7, notify_events: true, notify_digest: false, last_briefing_at: null, next_briefing_at: "2999-01-01T00:00:00Z" };
     const html = renderToStaticMarkup(<WaouhAvatarGuideBar prefs={prefs} busy={false} onPoint={() => {}} />);
     expect(html).toContain("Faire le point");
     expect(html).toContain("Régler les points de l&#x27;avatar");

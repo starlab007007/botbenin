@@ -65,8 +65,8 @@ type Msg = {
     counterpart_user_id?: string | null;
     results?: WaouhResultCard[] | null;
     blocks?: WaouhMessageBlock[] | null;
+    source_mix?: Record<string, unknown> | null;
   } | null;
-
 };
 
 /** Intents qui doivent basculer la négociation dans une fenêtre dédiée (1 article × 1 interlocuteur). */

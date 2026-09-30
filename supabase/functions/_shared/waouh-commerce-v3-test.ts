@@ -74,7 +74,7 @@ Deno.test("tour et boutons : l'acheteur ne décide jamais de sa propre offre", (
   const neg: DealState = { ...base, negotiationId: NEG, negotiationState: "proposed", lastActor: "buyer", lastOfferPrice: 2300 };
   assertEquals(turnFor(neg), "seller");
   // Pas son tour : jamais de fenêtre froide — l'acheteur peut modifier son offre ou poser une question.
-  assertEquals(nextActions(neg, "buyer").map((a) => parseActionPayload(a.id)?.kind), ["offer_prompt", "ask"]);
+  assertEquals(nextActions(neg, "buyer").map((a) => parseActionPayload(a.id)?.kind), ["offer_prompt", "ask", "reject"]); // « Retirer mon offre » : l'acheteur ne reste jamais sans issue
   assertEquals(nextActions(neg, "seller").map((a) => parseActionPayload(a.id)?.kind), ["accept", "counter", "reject"]);
   const countered: DealState = { ...neg, negotiationState: "countered", lastActor: "seller", lastOfferPrice: 2400 };
   assertEquals(turnFor(countered), "buyer");

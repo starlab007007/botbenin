@@ -87,6 +87,7 @@ Map<String, dynamic>? liveCommerceRequestFromPayload(
     case 'accept':
       return withThread(<String, dynamic>{'action': 'accept', 'negotiation_id': target});
     case 'refuser':
+    case 'retirer-offre':
     case 'reject':
       return withThread(<String, dynamic>{'action': 'reject', 'negotiation_id': target});
     case 'je-veux': {
