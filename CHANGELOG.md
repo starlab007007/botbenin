@@ -3,6 +3,9 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.09.30.12
+- Test ciblé produit partenaire en production (retour réel) : (1) trois intérêts simultanés créaient 2 négociations (2 confirmations acheteur) → `openBuyerDeal` garde la négociation la plus ancienne et retire les autres ; (2) le vendeur d'un produit partenaire ne voyait la notification « Nouvel acheteur » que dans la table des notifications (et par WhatsApp), pas dans la Deal Room → `waouh-notify-dispatch` écrit aussi le message dans le fil quand le destinataire a un compte de l'application, sans second envoi WhatsApp.
+
 ## 2026.09.30.11
 - Appels simultanés à `waouh-buyer-interest` : seul l'appel qui crée la négociation prévient le vendeur (les autres, dans les 60 s, ne renotifient pas). Script de test ciblé `scripts/waouh-chat/recette/test-interet-partenaire.mjs` (3 intérêts simultanés, vendeur notifié une fois avec Accepter/Contre-offre/Refuser, contre-offre reçue, refus du propriétaire).
 
