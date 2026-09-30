@@ -395,7 +395,7 @@ export function WaouhProductCard({
       "not-prose overflow-hidden rounded-2xl border bg-card shadow-sm transition-shadow hover:shadow-md",
       topPick ? "border-emerald-300 ring-1 ring-emerald-200/70" : "border-border"
     )}>
-      <div className={cn("relative bg-muted", compact ? "h-[220px] sm:h-[260px] lg:h-[300px]" : "aspect-[4/3]")}>
+      <div className={cn("relative bg-muted", compact ? "h-[170px] sm:h-[190px] lg:h-[210px] 2xl:h-[230px]" : "aspect-[4/3]")}>
         {photos.length > 0 ? (
           <>
             <button
