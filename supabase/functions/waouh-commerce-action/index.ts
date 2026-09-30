@@ -192,11 +192,12 @@ async function loadThread(sb: any, threadId: string | null | undefined) {
 
 async function resolveThreadId(ctx: Ctx): Promise<string | null> {
   const { sb, req } = ctx;
-  if (req.thread_id) return req.thread_id;
+  // Une négociation appartient à un seul fil : elle fait foi sur un fil périmé (nouvelle offre après refus = nouveau fil).
   if (req.negotiation_id) {
     const { data } = await sb.from("waouh_negotiations").select("thread_id").eq("id", req.negotiation_id).maybeSingle();
     if (data?.thread_id) return data.thread_id;
   }
+  if (req.thread_id) return req.thread_id;
   if (req.deal_id) {
     const { data } = await sb.from("waouh_deals").select("thread_id").eq("id", req.deal_id).maybeSingle();
     if (data?.thread_id) return data.thread_id;
