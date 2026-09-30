@@ -735,7 +735,7 @@ class _AvatarSetupScreenState extends State<_AvatarSetupScreen> {
                 maxLength: 18,
                 decoration: const InputDecoration(
                   labelText: 'Nom de votre Avatar',
-                  hintText: 'Ex. Ayo',
+                  hintText: 'Ex. Bot',
                   counterText: '',
                 ),
               ),
