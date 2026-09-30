@@ -879,6 +879,27 @@ export function WaouhMatchChatWindow({
         />
       </div>
 
+      {/* Bot reste visible comme guide, sans altérer le moteur de négociation. */}
+      <div className="mx-2 mt-1 flex shrink-0 items-center gap-2 rounded-2xl border border-cyan-100 bg-gradient-to-r from-emerald-50/90 via-white to-sky-50/90 px-3 py-2 shadow-sm">
+        <WaouhMuseAvatar
+          mode={match.kind === "buyer" ? "buyer" : "seller"}
+          phase={closed ? "success" : "negotiating"}
+          size="sm"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-black text-slate-950">Bot conduit cette discussion</span>
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+          </div>
+          <p className="truncate text-[10px] font-semibold text-slate-500">
+            Analyse le contexte, suggère la prochaine action et vous laisse la décision.
+          </p>
+        </div>
+        <span className="rounded-full border border-cyan-100 bg-white px-2 py-1 text-[9px] font-black text-cyan-700">
+          Avatar IA
+        </span>
+      </div>
+
       {/* Résumé IA disponible à la demande afin de préserver la hauteur du fil. */}
       <details className="mx-2 mt-1 shrink-0 rounded-xl border border-emerald-100 bg-white/90">
         <summary className="cursor-pointer select-none px-3 py-1.5 text-[10px] font-bold text-emerald-800">
@@ -971,7 +992,7 @@ export function WaouhMatchChatWindow({
             >
               {m.direction === "out" && (
                 <div className="mb-1.5 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-700">
-                  <Sparkles className="h-3 w-3" /> WAOUH
+                  <Sparkles className="h-3 w-3" /> Bot
                 </div>
               )}
             {/* Fiches produit (article + ses photos) si le moteur en a renvoyé */}
@@ -986,8 +1007,8 @@ export function WaouhMatchChatWindow({
                   alt=""
                   gallery={m.attachments.map((x: any) => ({ url: x.url, caption: x.caption || undefined }))}
                   index={i}
-                  className="mb-1 max-h-[64dvh] rounded-lg bg-black/[0.03]"
-                  imgClassName="max-h-[64dvh] object-contain"
+                  className="mb-1 max-h-[240px] sm:max-h-[300px] lg:max-h-[360px] 2xl:max-h-[420px] rounded-xl bg-black/[0.03]"
+                  imgClassName="max-h-[240px] sm:max-h-[300px] lg:max-h-[360px] 2xl:max-h-[420px] w-auto max-w-full object-contain"
                 />
               ))
             )}
