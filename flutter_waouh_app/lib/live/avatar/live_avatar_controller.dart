@@ -101,12 +101,21 @@ class LiveAvatarController extends ChangeNotifier {
   LiveAvatarPresenceState get state => _state;
   bool get loaded => _loaded;
 
-  String get name => _profile.name.trim().isEmpty ? 'Bot' : _profile.name.trim();
+  String get name {
+    final raw = _profile.name.trim();
+    return raw.isEmpty || raw.toLowerCase() == 'ayo' ? 'Bot' : raw;
+  }
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
+    final storedName = (prefs.getString(_nameKey) ?? 'Bot').trim();
+    final normalizedName =
+        storedName.isEmpty || storedName.toLowerCase() == 'ayo' ? 'Bot' : storedName;
+    if (storedName.toLowerCase() == 'ayo') {
+      await prefs.setString(_nameKey, 'Bot');
+    }
     _profile = LiveAvatarProfile(
-      name: prefs.getString(_nameKey) ?? 'Bot',
+      name: normalizedName,
       preset: LiveAvatarPresetLabel.fromId(prefs.getString(_presetKey)),
       personality: prefs.getString(_personalityKey) ?? 'Équilibré',
       proactivity: prefs.getString(_proactivityKey) ?? 'Équilibré',
