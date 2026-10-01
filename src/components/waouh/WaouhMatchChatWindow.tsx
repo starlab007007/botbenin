@@ -1035,10 +1035,10 @@ export function WaouhMatchChatWindow({
             <div
               className={cn(
                 "min-w-0 rounded-3xl px-3 py-2 text-sm break-words shadow-sm",
-                (rich.results.length > 0 || rich.blocks.length > 0) && "w-full max-w-[860px]",
+                (rich.results.length > 0 || rich.blocks.length > 0) && "w-full max-w-[min(100%,720px)]",
                 m.direction === "in"
-                  ? "max-w-[90%] sm:max-w-[86%] bg-slate-950 text-white rounded-br-lg"
-                  : "max-w-[92%] sm:max-w-[88%] bg-white border border-slate-200 rounded-bl-lg"
+                  ? "max-w-[90%] sm:max-w-[86%] lg:max-w-[680px] bg-slate-950 text-white rounded-br-lg"
+                  : "max-w-[92%] sm:max-w-[88%] lg:max-w-[680px] bg-white border border-slate-200 rounded-bl-lg"
               )}
             >
               {m.direction === "out" && (

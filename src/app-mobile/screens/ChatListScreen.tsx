@@ -9,7 +9,7 @@ import { useUnreadCounts } from "../hooks/useUnreadCounts";
 import { useWaouhIdentity } from "../hooks/useWaouhIdentity";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Search, Plus, ShoppingBag, Menu, Radar as RadarIcon, Sparkles, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Search, Plus, ShoppingBag, Menu, Radar as RadarIcon, Sparkles, PanelLeftClose, PanelLeftOpen, ArrowUp, Tag, Handshake } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { chatSpaceMode, readDrawerPinned, unreadBadge, writeDrawerPinned } from "../utils/chatSpaceLayout";
 import { useNotifications } from "../hooks/useNotifications";
@@ -304,7 +304,7 @@ export default function ChatListScreen() {
               </Avatar>
               <div className="text-left">
                 <div className="text-sm font-black leading-tight">Bonjour, WaouhApp</div>
-                <div className="text-[11px] text-slate-500 leading-tight">Centre des conversations · Mode invité</div>
+                <div className="text-[11px] text-slate-500 leading-tight">Mode invité</div>
               </div>
             </div>
           ) : (
@@ -315,7 +315,7 @@ export default function ChatListScreen() {
               </Avatar>
               <div className="text-left">
                 <div className="text-sm font-black leading-tight">Bonjour, {profile?.full_name ?? "WaouhApp"}</div>
-                <div className="text-[11px] text-slate-500 leading-tight truncate max-w-[210px]">Centre des conversations · WAOUH actif</div>
+                <div className="text-[11px] text-slate-500 leading-tight truncate max-w-[210px]">WAOUH actif</div>
               </div>
             </button>
           )}
@@ -384,148 +384,81 @@ export default function ChatListScreen() {
       ) : tab === "radar" && !isGuest ? (
         <RadarPanel query={q} />
       ) : (
-      <main className="px-3 pb-4">
-        {/* UI V2 — Bot devient le guide principal, visible au premier regard. */}
+      <main className="px-[clamp(12px,3.5vw,24px)] pb-6 pt-3">
+        {/* UI V3 — Bot mène la conversation : une question, une entrée, quatre intentions. */}
         <section
-          data-waouh-ui="bot-avatar-v2"
-          className="relative mb-3 overflow-hidden rounded-[30px] border border-cyan-100 bg-[radial-gradient(circle_at_15%_18%,rgba(34,211,238,.22),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(139,92,246,.14),transparent_28%),linear-gradient(135deg,#ecfeff_0%,#ffffff_46%,#f5f3ff_100%)] p-4 shadow-[0_22px_60px_-38px_rgba(14,116,144,.5)] sm:p-5"
+          data-waouh-ui="bot-avatar-v3"
+          className="relative mx-auto mb-5 w-full max-w-[680px] overflow-hidden rounded-[28px] border border-cyan-100/80 bg-[radial-gradient(circle_at_12%_10%,rgba(34,211,238,.18),transparent_38%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,.12),transparent_32%),linear-gradient(135deg,#effdfb_0%,#ffffff_50%,#f6f4ff_100%)] p-[clamp(14px,4vw,24px)] shadow-[0_24px_60px_-40px_rgba(14,116,144,.55)]"
         >
-          <div className="pointer-events-none absolute -left-12 top-7 h-40 w-40 rounded-full border border-cyan-200/50" />
-          <div className="pointer-events-none absolute -left-6 top-12 h-28 w-28 rounded-full border border-white/80" />
-          <div className="relative grid grid-cols-[116px_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-5">
+          <div className="flex items-center gap-[clamp(12px,3.5vw,20px)]">
             <button
               type="button"
               onClick={() => navigate("/app/avatar")}
-              className="relative mx-auto grid h-28 w-28 place-items-center rounded-[34px] border-4 border-white/90 bg-gradient-to-br from-cyan-100 via-white to-blue-100 shadow-xl shadow-cyan-900/10 transition active:scale-[.98] sm:h-36 sm:w-36 sm:rounded-[40px]"
+              className="relative grid shrink-0 place-items-center rounded-full bg-white p-[clamp(4px,1vw,6px)] shadow-[0_10px_28px_-10px_rgba(47,128,237,.35)] transition active:scale-[.97]"
+              style={{ width: "clamp(76px, 22vw, 112px)", height: "clamp(76px, 22vw, 112px)" }}
               aria-label="Ouvrir Bot, mon Avatar IA"
             >
-              <WaouhMuseAvatar phase="idle" size="lg" className="scale-[1.55] sm:scale-[1.85]" />
-              <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-emerald-100 bg-white/95 px-2.5 py-1 text-[9px] font-black text-emerald-700 shadow-sm">
-                ● En ligne
-              </span>
+              <WaouhMuseAvatar phase="idle" size="lg" className="scale-[1.25] sm:scale-[1.45] lg:scale-[1.6]" />
             </button>
-
-            <div className="min-w-0 py-1">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Badge variant="outline" className="h-5 rounded-full border-cyan-200 bg-white/85 px-2 text-[9px] font-black text-cyan-700">
-                  <Sparkles className="mr-1 h-3 w-3" /> Avatar IA
-                </Badge>
-                <span className="hidden rounded-full border border-slate-200 bg-white/70 px-2 py-1 text-[9px] font-bold text-slate-500 min-[420px]:inline-flex">
-                  Guide WAOUH
-                </span>
-              </div>
-              <div className="mt-2 flex items-center gap-2">
-                <h2 className="text-3xl font-black tracking-[-.045em] text-slate-950 sm:text-4xl">Bot</h2>
-                <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,.9)]" />
-              </div>
-              <p className="mt-1 max-w-sm text-[12px] font-bold leading-[1.35] text-slate-600 sm:text-sm">
-                Je vous aide à <span className="text-cyan-700">trouver</span>, <span className="text-blue-700">négocier</span> et <span className="text-violet-700">conclure</span>.
-              </p>
-              <button
-                type="button"
-                onClick={() => navigate("/app/avatar")}
-                className="mt-2 text-[10px] font-black text-blue-700 underline decoration-blue-200 underline-offset-4 sm:text-xs"
-              >
-                Voir mon Avatar et ses missions
-              </button>
-            </div>
-          </div>
-
-          <div className="relative mt-4 grid grid-cols-3 gap-2">
-            <button type="button" onClick={openWaouh} className="min-h-14 rounded-2xl bg-gradient-to-r from-teal-500 to-cyan-600 px-2 py-2 text-[10px] font-black leading-tight text-white shadow-sm transition active:scale-[.98] sm:text-xs">
-              <span className="block">Démarrer</span><span className="mt-0.5 block text-white/80">avec Bot</span>
-            </button>
-            <button type="button" onClick={openWaouh} className="min-h-14 rounded-2xl border border-blue-100 bg-white/90 px-2 py-2 text-[10px] font-black leading-tight text-blue-700 shadow-sm transition active:scale-[.98] sm:text-xs">
-              <span className="block">Chercher</span><span className="mt-0.5 block text-slate-400">avec Bot</span>
-            </button>
-            <button type="button" onClick={openWaouh} className="min-h-14 rounded-2xl border border-violet-100 bg-white/90 px-2 py-2 text-[10px] font-black leading-tight text-violet-700 shadow-sm transition active:scale-[.98] sm:text-xs">
-              <span className="block">Négocier</span><span className="mt-0.5 block text-slate-400">avec Bot</span>
-            </button>
-          </div>
-        </section>
-
-        {/* WAOUH One — moteur commerce, lisible mais secondaire par rapport à Bot. */}
-        <section className="mb-3 overflow-hidden rounded-[26px] border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-cyan-50 p-3.5 shadow-sm sm:p-4">
-          <button onClick={openWaouh} className="flex w-full items-center gap-3 text-left transition active:scale-[.99]">
-            <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-950 shadow-md">
-              <ShoppingBag className="h-6 w-6 text-white" />
-              <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-emerald-400" />
-            </div>
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <span className="truncate text-lg font-black tracking-tight text-slate-950">WAOUH One</span>
-                <Badge className="h-4 border-0 bg-emerald-500 px-1.5 py-0 text-[9px] text-white">IA</Badge>
-              </div>
-              <p className="truncate text-[11px] font-semibold text-slate-500 sm:text-xs">Achetez, vendez, cherchez, comparez et négociez.</p>
+              <h2 className="text-[clamp(26px,7vw,38px)] font-black leading-none tracking-[-.045em] text-slate-950">Bot</h2>
+              <p className="mt-1.5 text-[clamp(13px,3.4vw,16px)] font-semibold leading-snug text-slate-600">
+                Je vous aide à trouver, négocier et conclure.
+              </p>
             </div>
-            <span className="rounded-full bg-white px-2.5 py-1 text-lg font-black text-emerald-700 shadow-sm">›</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={openNewWaouh}
+            className="mt-[clamp(12px,3.5vw,18px)] flex h-[clamp(48px,12vw,56px)] w-full items-center gap-3 rounded-2xl border border-slate-200/90 bg-white pl-4 pr-1.5 text-left shadow-sm transition hover:border-cyan-200 active:scale-[.99]"
+            aria-label="Demander à Bot"
+          >
+            <Sparkles className="h-[clamp(16px,4vw,20px)] w-[clamp(16px,4vw,20px)] shrink-0 text-teal-600" />
+            <span className="min-w-0 flex-1 truncate text-[clamp(14px,3.6vw,16px)] font-medium text-slate-400">Demandez à Bot…</span>
+            <span className="grid h-[clamp(38px,10vw,44px)] w-[clamp(38px,10vw,44px)] shrink-0 place-items-center rounded-full bg-gradient-to-br from-teal-500 to-cyan-600 text-white shadow-sm">
+              <ArrowUp className="h-5 w-5" />
+            </span>
           </button>
-          <div className="mt-3 grid grid-cols-5 gap-1.5">
-            {["Acheter", "Vendre", "Chercher", "Comparer", "Négocier"].map((label) => (
+
+          <div className="mt-[clamp(10px,2.6vw,14px)] grid grid-cols-4 gap-[clamp(6px,1.8vw,10px)]">
+            {[
+              { label: "Acheter", Icon: ShoppingBag },
+              { label: "Vendre", Icon: Tag },
+              { label: "Chercher", Icon: Search },
+              { label: "Négocier", Icon: Handshake },
+            ].map(({ label, Icon }) => (
               <button
                 key={label}
                 type="button"
-                onClick={openWaouh}
-                className="min-w-0 rounded-2xl border border-white/80 bg-white/85 px-1 py-2 text-[9px] font-black text-slate-700 shadow-sm transition active:scale-[.97] sm:text-[10px]"
+                onClick={openNewWaouh}
+                className="flex h-[clamp(56px,15vw,68px)] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl border border-slate-200/80 bg-white/85 text-slate-800 shadow-sm transition hover:bg-white active:scale-[.97]"
               >
-                <span className="block truncate">{label}</span>
+                <Icon className="h-[clamp(18px,4.8vw,22px)] w-[clamp(18px,4.8vw,22px)] text-blue-600" />
+                <span className="max-w-full truncate px-1 text-[clamp(11px,2.9vw,13px)] font-bold">{label}</span>
               </button>
             ))}
           </div>
         </section>
 
-        <section className="mb-4 rounded-[22px] border border-slate-200 bg-white/90 p-3 shadow-sm">
-          <div className="mb-2 flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-blue-600" />
-            <span className="text-xs font-black text-slate-900">Parcours WAOUH</span>
-            <span className="ml-auto text-[9px] font-bold text-slate-400">Bot vous guide</span>
+        {!isGuest && (
+          <div className="mx-auto mb-2 flex w-full max-w-[680px] items-center justify-between px-1">
+            <h3 className="text-[clamp(14px,3.6vw,16px)] font-black text-slate-950">Deal Rooms</h3>
           </div>
-          <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] items-center gap-1">
-            {[
-              ["WAOUH One", "✦"],
-              ["NEXUS", "◎"],
-              ["Opportunités", "▣"],
-              ["Deal Room", "🤝"],
-            ].map(([label, icon], index) => (
-              <div key={label} className="contents">
-                <div className="min-w-0 text-center">
-                  <div className={"mx-auto grid h-8 w-8 place-items-center rounded-xl text-xs font-black " + (index === 0 ? "bg-cyan-50 text-cyan-700" : "bg-slate-50 text-slate-500")}>{icon}</div>
-                  <div className={"mt-1 truncate text-[8px] font-black " + (index === 0 ? "text-cyan-700" : "text-slate-500")}>{label}</div>
-                </div>
-                {index < 3 && <span className="text-xs font-black text-slate-300">›</span>}
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <div className="mb-2 flex items-center gap-2 px-1">
-          <span className="grid h-8 w-8 place-items-center rounded-xl bg-blue-50 text-blue-600"><ShoppingBag className="h-4 w-4" /></span>
-          <div className="min-w-0">
-            <div className="text-sm font-black text-slate-950">Conversations & Deals</div>
-            <div className="text-[10px] font-semibold text-slate-400">Vos échanges et négociations actives</div>
-          </div>
-        </div>
+        )}
 
         {/* Per-product chat windows (buyer-found & interested-buyer) appear directly under WAOUH */}
         <WaouhMatchChatList sessionId={sessionId} authUserId={profile?.id ?? null} query={q} />
 
 
         {isGuest && (
-          <div className="pt-5 pb-2 flex flex-col items-center text-center">
-            <Button
-              onClick={openNewWaouh}
-              size="lg"
-              className="w-full max-w-sm bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)] shadow-md"
-            >
-              <Plus className="h-5 w-5 mr-1" /> Nouvel objectif WAOUH
-            </Button>
-            <p className="text-sm text-muted-foreground mt-3">
-              Envoyez un message à WAOUH et le Monde achète. ☝️
-            </p>
-          </div>
+          <details className="group mx-auto mt-2 w-full max-w-[680px] rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-sm shadow-sm">
+            <summary className="cursor-pointer list-none text-center font-bold text-teal-700 marker:hidden">
+              Voir WAOUH en action
+            </summary>
+            <WaouhDemoMockup />
+          </details>
         )}
-
-        {isGuest && <WaouhDemoMockup />}
 
         {loading && <div className="p-8 text-center text-muted-foreground">Chargement…</div>}
 

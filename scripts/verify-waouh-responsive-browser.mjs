@@ -375,7 +375,7 @@ async function testRoutes(viewport) {
       fail(`${viewport.name}: ${route} missing marker "${marker}" at ${state.path}; body=${state.text.slice(0, 300)}`);
     }
     if (route === "/app/chat") {
-      const hasBotV2 = await evaluate(`Boolean(document.querySelector('[data-waouh-ui="bot-avatar-v2"]'))`);
+      const hasBotV2 = await evaluate(`Boolean(document.querySelector('[data-waouh-ui="bot-avatar-v3"]'))`);
       if (!hasBotV2) fail(`${viewport.name}: /app/chat is not rendering the Bot avatar V2 home`);
     }
     if (route === "/app/auth" && state.text.includes("Comment fonctionne WAOUH")) {

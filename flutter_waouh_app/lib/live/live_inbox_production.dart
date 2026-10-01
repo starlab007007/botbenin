@@ -8,7 +8,6 @@ import 'package:provider/provider.dart';
 import '../main.dart' as legacy;
 import 'avatar/live_avatar_controller.dart';
 import 'avatar/live_avatar_widgets.dart';
-import 'brand_mark.dart';
 import 'live_controller.dart';
 import 'live_guest_action_gate.dart';
 import 'live_match_navigation.dart';
@@ -116,9 +115,7 @@ class _LiveInboxProductionScreenState extends State<LiveInboxProductionScreen> {
           appBar: _InboxAppBar(
             displayName: _displayName(fullName),
             imageUrl: auth.profile?.avatarUrl,
-            onlineLabel: auth.signedIn
-                ? 'Centre des conversations · WAOUH actif'
-                : 'Centre des conversations · Mode invité',
+            onlineLabel: auth.signedIn ? 'WAOUH actif' : 'Mode invité',
             notificationCountStream: controller.notificationItems(),
             onProfile: () => context.go('/app/profile'),
             onNotifications: () => context.go('/app/notifications'),
@@ -126,42 +123,45 @@ class _LiveInboxProductionScreenState extends State<LiveInboxProductionScreen> {
           ),
           body: Column(
             children: [
-              _SearchBar(
-                controller: _search,
-                tab: _tab,
-                onChanged: () => setState(() {}),
-              ),
               _InboxTabs(
                 value: _tab,
                 statusCount: newStatuses,
                 onChanged: (value) => _selectTab(value, statuses),
               ),
-              if (_tab == 0)
-                ListenableBuilder(
-                  listenable: controller.agentic,
-                  builder: (_, __) => _IntelligenceQuickAccess(
-                    missionCount: controller.agentic.activeMissionCount,
-                    watchCount: controller.agentic.activeWatchCount,
-                    approvalCount: controller.agentic.pendingApprovalCount,
-                    avatarName: avatar.name,
-                    onAvatar: () => context.push('/app/avatar'),
-                    onMissions: () => context.push('/app/missions'),
-                    onDiscuss: _newChat,
-                    onSearch: () => _openWaouhWith('Je cherche '),
-                    onNegotiate: () => _openWaouhWith('Je souhaite négocier '),
-                  ),
+              if (_tab != 0)
+                _SearchBar(
+                  controller: _search,
+                  tab: _tab,
+                  onChanged: () => setState(() {}),
                 ),
               Expanded(
                 child: switch (_tab) {
                   1 => const _ProductionStatusFeed(),
                   2 => const LiveRadarMapScreen(),
-                  _ => _ProductionDiscussionFeed(
-                      archives: _archives,
-                      matches: _matches,
-                      onToggleArchives: () =>
-                          setState(() => _archives = !_archives),
-                      onNewChat: _newChat,
-                      onOpenWaouh: _openWaouhWith,
+                  // UI V3 : Bot guide l'écran ; le héros défile avec le fil
+                  // (plus de bloc fixe qui mange la hauteur utile).
+                  _ => ListenableBuilder(
+                      listenable: controller.agentic,
+                      builder: (_, __) => _ProductionDiscussionFeed(
+                        archives: _archives,
+                        matches: _matches,
+                        search: _search,
+                        onSearchChanged: () => setState(() {}),
+                        onToggleArchives: () =>
+                            setState(() => _archives = !_archives),
+                        onNewChat: _newChat,
+                        onOpenWaouh: _openWaouhWith,
+                        hero: _BotHero(
+                          avatarName: avatar.name,
+                          missionCount: controller.agentic.activeMissionCount,
+                          approvalCount:
+                              controller.agentic.pendingApprovalCount,
+                          onAvatar: () => context.push('/app/avatar'),
+                          onMissions: () => context.push('/app/missions'),
+                          onAsk: _newChat,
+                          onIntent: _openWaouhWith,
+                        ),
+                      ),
                     ),
                 },
               ),
@@ -173,328 +173,294 @@ class _LiveInboxProductionScreenState extends State<LiveInboxProductionScreen> {
   }
 }
 
-class _IntelligenceQuickAccess extends StatelessWidget {
-  const _IntelligenceQuickAccess({
-    required this.missionCount,
-    required this.watchCount,
-    required this.approvalCount,
+/// UI V3 — taille de police / d'icône proportionnelle à la largeur
+/// (téléphone compact 0,92 → tablette 1,22).
+double _uiScale(BuildContext context) {
+  final width = MediaQuery.sizeOf(context).width;
+  return (width / 390).clamp(0.92, 1.22).toDouble();
+}
+
+/// Héros Bot : l'avatar mène la conversation. Une question, une entrée,
+/// quatre intentions. Rien d'autre.
+class _BotHero extends StatelessWidget {
+  const _BotHero({
     required this.avatarName,
+    required this.missionCount,
+    required this.approvalCount,
     required this.onAvatar,
     required this.onMissions,
-    required this.onDiscuss,
-    required this.onSearch,
-    required this.onNegotiate,
+    required this.onAsk,
+    required this.onIntent,
   });
 
-  final int missionCount;
-  final int watchCount;
-  final int approvalCount;
   final String avatarName;
+  final int missionCount;
+  final int approvalCount;
   final VoidCallback onAvatar;
   final VoidCallback onMissions;
-  final VoidCallback onDiscuss;
-  final VoidCallback onSearch;
-  final VoidCallback onNegotiate;
+  final VoidCallback onAsk;
+  final ValueChanged<String> onIntent;
 
   @override
   Widget build(BuildContext context) {
     final avatar = context.watch<LiveAvatarController>();
-    final storedName = avatarName.trim();
-    final displayName = storedName.isEmpty || storedName.toLowerCase() == 'ayo'
-        ? 'Bot'
-        : storedName;
-    final missionLabel = approvalCount > 0
+    final stored = avatarName.trim();
+    final name = stored.isEmpty || stored.toLowerCase() == 'ayo' ? 'Bot' : stored;
+    final k = _uiScale(context);
+    final avatarSize = 76.0 * k;
+    final pending = approvalCount > 0
         ? '$approvalCount à valider'
         : missionCount > 0
-            ? '$missionCount mission(s)'
-            : watchCount > 0
-                ? '$watchCount veille(s)'
-                : 'Missions';
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
-      child: LayoutBuilder(
-        builder: (_, constraints) {
-          final compact = constraints.maxWidth < 360;
-          final avatarSize = compact ? 90.0 : 108.0;
-          return Container(
-            padding: EdgeInsets.fromLTRB(
-              compact ? 12 : 15,
-              compact ? 13 : 16,
-              compact ? 12 : 15,
-              13,
-            ),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFFE7FBF8),
-                  Color(0xFFF4FAFF),
-                  Color(0xFFF8F4FF),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: const Color(0xFFD4EAF0)),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF176F8D).withValues(alpha: .10),
-                  blurRadius: 30,
-                  offset: const Offset(0, 14),
-                  spreadRadius: -16,
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    InkWell(
-                      onTap: onAvatar,
-                      borderRadius: BorderRadius.circular(34),
-                      child: Container(
-                        width: avatarSize + 12,
-                        height: avatarSize + 12,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Color(0xFFDDF9F5),
-                              Colors.white,
-                              Color(0xFFE7EEFF),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(compact ? 30 : 36),
-                          border: Border.all(color: Colors.white, width: 3),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF2F80ED).withValues(alpha: .12),
-                              blurRadius: 22,
-                              offset: const Offset(0, 9),
-                            ),
-                          ],
+            ? '$missionCount mission${missionCount > 1 ? 's' : ''}'
+            : null;
+    return Container(
+      padding: EdgeInsets.fromLTRB(16 * k, 16 * k, 16 * k, 14 * k),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFE9FBF7), Color(0xFFF6FAFF), Color(0xFFF6F3FF)],
+        ),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0xFFDCEBF3)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF176F8D).withValues(alpha: .10),
+            blurRadius: 30,
+            offset: const Offset(0, 14),
+            spreadRadius: -18,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Semantics(
+                button: true,
+                label: 'Ouvrir $name, mon Avatar IA',
+                child: InkWell(
+                  onTap: onAvatar,
+                  customBorder: const CircleBorder(),
+                  child: Container(
+                    padding: EdgeInsets.all(5 * k),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white,
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF2F80ED).withValues(alpha: .14),
+                          blurRadius: 22,
+                          offset: const Offset(0, 8),
                         ),
-                        child: Center(
-                          child: LiveAvatarVisual(
-                            preset: avatar.profile.preset,
-                            state: LiveAvatarPresenceState.idle,
-                            size: avatarSize,
-                            showStatusBadge: true,
-                          ),
-                        ),
-                      ),
+                      ],
                     ),
-                    SizedBox(width: compact ? 10 : 14),
-                    Expanded(
-                      child: InkWell(
-                        onTap: onAvatar,
-                        borderRadius: BorderRadius.circular(18),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 3),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      displayName,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: WaouhPalette.ink,
-                                        fontSize: compact ? 25 : 29,
-                                        height: 1,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: -.8,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 7),
-                                  Container(
-                                    width: 9,
-                                    height: 9,
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFF20C997),
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 5),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: .78),
-                                  borderRadius: BorderRadius.circular(999),
-                                  border: Border.all(color: const Color(0xFFCFE6F6)),
-                                ),
-                                child: const Text(
-                                  '✨ Votre Avatar IA',
-                                  style: TextStyle(
-                                    color: WaouhPalette.blue,
-                                    fontSize: 9.5,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text.rich(
-                                TextSpan(
-                                  style: TextStyle(
-                                    color: WaouhPalette.muted,
-                                    fontSize: compact ? 10.7 : 12.0,
-                                    height: 1.28,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                  children: const [
-                                    TextSpan(text: 'Je vous aide à '),
-                                    TextSpan(
-                                      text: 'trouver, négocier et conclure',
-                                      style: TextStyle(
-                                        color: Color(0xFF087F8C),
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                    ),
-                                    TextSpan(text: '.'),
-                                  ],
-                                ),
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _AvatarHeroAction(
-                        label: 'Démarrer',
-                        caption: 'avec Bot',
-                        icon: Icons.forum_outlined,
-                        accent: const Color(0xFF0AAE9A),
-                        filled: true,
-                        onTap: onDiscuss,
-                      ),
-                    ),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: _AvatarHeroAction(
-                        label: 'Chercher',
-                        caption: 'avec Bot',
-                        icon: Icons.search_rounded,
-                        accent: WaouhPalette.blue,
-                        onTap: onSearch,
-                      ),
-                    ),
-                    const SizedBox(width: 7),
-                    Expanded(
-                      child: _AvatarHeroAction(
-                        label: 'Négocier',
-                        caption: 'avec Bot',
-                        icon: Icons.handshake_outlined,
-                        accent: const Color(0xFF7257E6),
-                        onTap: onNegotiate,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 7),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: onMissions,
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                      minimumSize: const Size(0, 30),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                    icon: const Icon(Icons.route_rounded, size: 14),
-                    label: Text(
-                      missionLabel,
-                      style: const TextStyle(
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w900,
-                      ),
+                    child: LiveAvatarVisual(
+                      preset: avatar.profile.preset,
+                      state: LiveAvatarPresenceState.idle,
+                      size: avatarSize,
+                      showStatusBadge: true,
                     ),
                   ),
                 ),
-              ],
+              ),
+              SizedBox(width: 14 * k),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: WaouhPalette.ink,
+                              fontSize: 28 * k,
+                              height: 1,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -.8,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 7),
+                        Container(
+                          width: 9,
+                          height: 9,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF20C997),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const Spacer(),
+                        if (pending != null)
+                          InkWell(
+                            onTap: onMissions,
+                            borderRadius: BorderRadius.circular(999),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: const Color(0xFFD8E4F5),
+                                ),
+                              ),
+                              child: Text(
+                                pending,
+                                style: TextStyle(
+                                  color: WaouhPalette.blue,
+                                  fontSize: 10.5 * k,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    SizedBox(height: 6 * k),
+                    Text(
+                      'Je vous aide à trouver, négocier et conclure.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: WaouhPalette.muted,
+                        fontSize: 13 * k,
+                        height: 1.3,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 14 * k),
+          // Une seule entrée : on parle à Bot.
+          Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            child: InkWell(
+              onTap: onAsk,
+              borderRadius: BorderRadius.circular(18),
+              child: Container(
+                height: 50 * k,
+                padding: EdgeInsets.only(left: 14 * k, right: 6 * k),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFFD9E7F2)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 18 * k,
+                      color: const Color(0xFF0AAE9A),
+                    ),
+                    SizedBox(width: 10 * k),
+                    Expanded(
+                      child: Text(
+                        'Demandez à $name…',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: WaouhPalette.muted,
+                          fontSize: 14 * k,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      width: 38 * k,
+                      height: 38 * k,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF14B8A6), Color(0xFF0891B2)],
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.arrow_upward_rounded,
+                        size: 19 * k,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          );
-        },
+          ),
+          SizedBox(height: 10 * k),
+          Row(
+            children: [
+              for (final intent in const [
+                (Icons.shopping_bag_outlined, 'Acheter', 'Je veux acheter '),
+                (Icons.sell_outlined, 'Vendre', 'Je vends : '),
+                (Icons.travel_explore_rounded, 'Chercher', 'Je cherche '),
+                (Icons.handshake_outlined, 'Négocier', 'Je souhaite négocier '),
+              ]) ...[
+                if (intent.$2 != 'Acheter') SizedBox(width: 7 * k),
+                Expanded(
+                  child: _IntentChip(
+                    icon: intent.$1,
+                    label: intent.$2,
+                    scale: k,
+                    onTap: () => onIntent(intent.$3),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
-class _AvatarHeroAction extends StatelessWidget {
-  const _AvatarHeroAction({
-    required this.label,
-    required this.caption,
+class _IntentChip extends StatelessWidget {
+  const _IntentChip({
     required this.icon,
-    required this.accent,
+    required this.label,
+    required this.scale,
     required this.onTap,
-    this.filled = false,
   });
 
-  final String label;
-  final String caption;
   final IconData icon;
-  final Color accent;
+  final String label;
+  final double scale;
   final VoidCallback onTap;
-  final bool filled;
 
   @override
   Widget build(BuildContext context) => Material(
-        color: filled ? accent : Colors.white.withValues(alpha: .90),
-        borderRadius: BorderRadius.circular(17),
-        clipBehavior: Clip.antiAlias,
+        color: Colors.white.withValues(alpha: .86),
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
           child: Container(
-            height: 58,
-            padding: const EdgeInsets.symmetric(horizontal: 5),
+            height: 58 * scale,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(17),
-              border: filled
-                  ? null
-                  : Border.all(color: accent.withValues(alpha: .16)),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2EBF5)),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, size: 17, color: filled ? Colors.white : accent),
-                const SizedBox(height: 3),
+                Icon(icon, size: 20 * scale, color: WaouhPalette.blue),
+                SizedBox(height: 4 * scale),
                 Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: filled ? Colors.white : WaouhPalette.ink,
-                    fontSize: 9.7,
-                    height: 1,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  caption,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: filled
-                        ? Colors.white.withValues(alpha: .78)
-                        : WaouhPalette.muted,
-                    fontSize: 8.2,
-                    height: 1,
+                    color: WaouhPalette.ink,
+                    fontSize: 11.5 * scale,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -503,7 +469,6 @@ class _AvatarHeroAction extends StatelessWidget {
           ),
         ),
       );
-
 }
 
 class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -623,18 +588,22 @@ class _SearchBar extends StatelessWidget {
     required this.controller,
     required this.tab,
     required this.onChanged,
+    this.padding = const EdgeInsets.fromLTRB(14, 6, 14, 3),
   });
 
   final TextEditingController controller;
   final int tab;
   final VoidCallback onChanged;
+  final EdgeInsets padding;
 
   @override
   Widget build(BuildContext context) {
     // Parité Web (ChatListScreen) : même libellé sur les trois onglets.
-    const hint = 'Rechercher échanges, statuts, radar…';
+    final hint = tab == 0
+        ? 'Rechercher une Deal Room…'
+        : 'Rechercher échanges, statuts, radar…';
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 3),
+      padding: padding,
       child: TextField(
         controller: controller,
         onChanged: (_) => onChanged(),
@@ -779,13 +748,19 @@ class _ProductionDiscussionFeed extends StatelessWidget {
   const _ProductionDiscussionFeed({
     required this.archives,
     required this.matches,
+    required this.search,
+    required this.onSearchChanged,
     required this.onToggleArchives,
     required this.onNewChat,
     required this.onOpenWaouh,
+    required this.hero,
   });
 
   final bool archives;
   final bool Function(String text) matches;
+  final TextEditingController search;
+  final VoidCallback onSearchChanged;
+  final Widget hero;
   final VoidCallback onToggleArchives;
   final VoidCallback onNewChat;
   final ValueChanged<String> onOpenWaouh;
@@ -862,36 +837,40 @@ class _ProductionDiscussionFeed extends StatelessWidget {
               );
             }
 
+            final hasItems = currentMatches.isNotEmpty ||
+                currentConversations.isNotEmpty ||
+                search.text.isNotEmpty;
+            // Largeur de lecture confortable sur tablette.
+            final width = MediaQuery.sizeOf(context).width;
+            final side = width > 720 ? (width - 680) / 2 : 16.0;
             return ListView(
-              padding: const EdgeInsets.fromLTRB(16, 5, 16, 32),
+              padding: EdgeInsets.fromLTRB(side, 8, side, 32),
               children: [
-                _WaouhAssistantCard(
-                  onDiscuss: () => onOpenWaouh(''),
-                  onBuy: () => onOpenWaouh('Je veux acheter '),
-                  onSell: () => onOpenWaouh('Je vends : '),
-                  onSearch: () => onOpenWaouh('Je cherche '),
-                  onCompare: () =>
-                      onOpenWaouh('Compare les meilleures options pour '),
-                  onNegotiate: () => onOpenWaouh('Je souhaite négocier '),
-                ),
-                const SizedBox(height: 10),
-                _CanonicalChatJourney(
-                  activeDealCount: currentMatches.length,
-                  conversationCount: currentConversations.length,
-                ),
+                hero,
                 const SizedBox(height: 18),
+                if (hasItems) ...[
+                  _SearchBar(
+                    controller: search,
+                    tab: 0,
+                    onChanged: onSearchChanged,
+                    padding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(height: 14),
+                ],
                 _ChatSectionHeader(
                   icon: Icons.handshake_outlined,
-                  title: 'DEAL ROOMS EN COURS',
+                  title: 'Deal Rooms',
                   subtitle: currentMatches.isEmpty
                       ? 'Aucune négociation active'
                       : '${currentMatches.length} active(s)'
                           '${unread > 0 ? ' · $unread non lu(s)' : ''}',
-                  trailing: OutlinedButton.icon(
-                    onPressed: onToggleArchives,
-                    icon: const Icon(Icons.archive_outlined, size: 17),
-                    label: Text('Archives (${archivedMatches.length})'),
-                  ),
+                  trailing: archivedMatches.isEmpty
+                      ? null
+                      : TextButton.icon(
+                          onPressed: onToggleArchives,
+                          icon: const Icon(Icons.archive_outlined, size: 16),
+                          label: Text('${archivedMatches.length}'),
+                        ),
                 ),
                 const SizedBox(height: 9),
                 if (currentMatches.isNotEmpty)
@@ -907,7 +886,7 @@ class _ProductionDiscussionFeed extends StatelessWidget {
                 const SizedBox(height: 18),
                 _ChatSectionHeader(
                   icon: Icons.forum_outlined,
-                  title: 'CONVERSATIONS EXISTANTES',
+                  title: 'Conversations',
                   subtitle: currentConversations.isEmpty
                       ? 'Aucune conversation directe'
                       : '${currentConversations.length} conversation(s)',
@@ -920,9 +899,8 @@ class _ProductionDiscussionFeed extends StatelessWidget {
                 else
                   _ChatEmptyLine(
                     icon: Icons.chat_bubble_outline_rounded,
-                    text:
-                        'Commencez par WAOUH One pour rechercher, comparer ou négocier.',
-                    actionLabel: 'Ouvrir WAOUH One',
+                    text: 'Parlez à Bot pour chercher, comparer ou négocier.',
+                    actionLabel: 'Parler à Bot',
                     onAction: onNewChat,
                   ),
               ],
@@ -932,188 +910,6 @@ class _ProductionDiscussionFeed extends StatelessWidget {
       ),
     );
   }
-}
-
-class _WaouhAssistantCard extends StatelessWidget {
-  const _WaouhAssistantCard({
-    required this.onDiscuss,
-    required this.onSell,
-    required this.onBuy,
-    required this.onSearch,
-    required this.onCompare,
-    required this.onNegotiate,
-  });
-
-  final VoidCallback onDiscuss;
-  final VoidCallback onSell;
-  final VoidCallback onBuy;
-  final VoidCallback onSearch;
-  final VoidCallback onCompare;
-  final VoidCallback onNegotiate;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 13),
-      decoration: BoxDecoration(
-        gradient: WaouhGradients.airHero,
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: const Color(0xFFD9E5F6)),
-        boxShadow: WaouhShadows.card,
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: .86),
-                  borderRadius: BorderRadius.circular(17),
-                  border: Border.all(color: const Color(0xFFE1E9F7)),
-                ),
-                child: const BrandMark(size: 32, semanticLabel: 'WAOUH One'),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Flexible(
-                          child: Text(
-                            'WAOUH One',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: WaouhPalette.ink,
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -.25,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Container(
-                          width: 7,
-                          height: 7,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF20C997),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    const Text(
-                      'Achetez, vendez, cherchez, comparez et négociez.',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: WaouhPalette.muted,
-                        fontSize: 10.5,
-                        height: 1.25,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              FilledButton(
-                onPressed: onDiscuss,
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(0, 40),
-                  padding: const EdgeInsets.symmetric(horizontal: 13),
-                ),
-                child: const Text('Ouvrir'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 7,
-            runSpacing: 7,
-            children: [
-              _AssistantQuickAction(
-                label: 'Acheter',
-                icon: Icons.shopping_cart_outlined,
-                onTap: onBuy,
-              ),
-              _AssistantQuickAction(
-                label: 'Vendre',
-                icon: Icons.sell_outlined,
-                onTap: onSell,
-              ),
-              _AssistantQuickAction(
-                label: 'Chercher',
-                icon: Icons.travel_explore_rounded,
-                onTap: onSearch,
-              ),
-              _AssistantQuickAction(
-                label: 'Comparer',
-                icon: Icons.compare_arrows_rounded,
-                onTap: onCompare,
-              ),
-              _AssistantQuickAction(
-                label: 'Négocier',
-                icon: Icons.handshake_outlined,
-                onTap: onNegotiate,
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          const Row(
-            children: [
-              Icon(Icons.hub_outlined, size: 14, color: Color(0xFF5A6F94)),
-              SizedBox(width: 5),
-              Expanded(
-                child: Text(
-                  'NEXUS recherche · Signal Fabric classe · votre Avatar vous assiste',
-                  style: TextStyle(
-                    color: Color(0xFF5A6F94),
-                    fontSize: 9.6,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AssistantQuickAction extends StatelessWidget {
-  const _AssistantQuickAction({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => ActionChip(
-        avatar: Icon(icon, size: 16, color: WaouhPalette.blue),
-        label: Text(label),
-        onPressed: onTap,
-        backgroundColor: Colors.white.withValues(alpha: .82),
-        side: const BorderSide(color: Color(0xFFDDE6F5)),
-        labelStyle: const TextStyle(
-          color: WaouhPalette.ink,
-          fontSize: 10.5,
-          fontWeight: FontWeight.w800,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(999),
-        ),
-      );
 }
 
 class _ChatSectionHeader extends StatelessWidget {
@@ -1214,194 +1010,6 @@ class _ChatEmptyLine extends StatelessWidget {
       );
 }
 
-
-class _CanonicalChatJourney extends StatelessWidget {
-  const _CanonicalChatJourney({
-    required this.activeDealCount,
-    required this.conversationCount,
-  });
-
-  final int activeDealCount;
-  final int conversationCount;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.fromLTRB(11, 10, 11, 10),
-        decoration: BoxDecoration(
-          color: const Color(0xFFFBFCFF),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFE2EAF6)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.route_rounded,
-                  size: 16,
-                  color: Color(0xFF4F7FFF),
-                ),
-                const SizedBox(width: 6),
-                const Expanded(
-                  child: Text(
-                    'Parcours WAOUH',
-                    style: TextStyle(
-                      color: WaouhPalette.ink,
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-                if (activeDealCount > 0)
-                  _JourneyCount(
-                    label: activeDealCount.toString() +
-                        ' deal' +
-                        (activeDealCount > 1 ? 's' : ''),
-                    accent: const Color(0xFF16A879),
-                  ),
-                if (conversationCount > 0) ...[
-                  const SizedBox(width: 5),
-                  _JourneyCount(
-                    label: conversationCount.toString() +
-                        ' chat' +
-                        (conversationCount > 1 ? 's' : ''),
-                    accent: const Color(0xFF4F7FFF),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 9),
-            const Row(
-              children: [
-                Expanded(
-                  child: _JourneyNode(
-                    icon: Icons.auto_awesome_rounded,
-                    label: 'WAOUH One',
-                    active: true,
-                  ),
-                ),
-                _JourneyMiniArrow(),
-                Expanded(
-                  child: _JourneyNode(
-                    icon: Icons.hub_outlined,
-                    label: 'NEXUS',
-                  ),
-                ),
-                _JourneyMiniArrow(),
-                Expanded(
-                  child: _JourneyNode(
-                    icon: Icons.view_carousel_outlined,
-                    label: 'Opportunités',
-                  ),
-                ),
-                _JourneyMiniArrow(),
-                Expanded(
-                  child: _JourneyNode(
-                    icon: Icons.handshake_outlined,
-                    label: 'Deal Room',
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-}
-
-class _JourneyNode extends StatelessWidget {
-  const _JourneyNode({
-    required this.icon,
-    required this.label,
-    this.active = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool active;
-
-  @override
-  Widget build(BuildContext context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              color: active
-                  ? const Color(0xFFE8F2FF)
-                  : const Color(0xFFF1F5FA),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: active
-                    ? const Color(0xFFC9DDF8)
-                    : const Color(0xFFE2E8F0),
-              ),
-            ),
-            child: Icon(
-              icon,
-              size: 15,
-              color: active
-                  ? const Color(0xFF3B6EA8)
-                  : const Color(0xFF718196),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: active
-                  ? const Color(0xFF274F7B)
-                  : const Color(0xFF667A73),
-              fontSize: 8.7,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      );
-}
-
-class _JourneyMiniArrow extends StatelessWidget {
-  const _JourneyMiniArrow();
-
-  @override
-  Widget build(BuildContext context) => const Padding(
-        padding: EdgeInsets.only(bottom: 14),
-        child: Icon(
-          Icons.chevron_right_rounded,
-          size: 14,
-          color: Color(0xFFB2BECC),
-        ),
-      );
-}
-
-class _JourneyCount extends StatelessWidget {
-  const _JourneyCount({required this.label, required this.accent});
-
-  final String label;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-        decoration: BoxDecoration(
-          color: accent.withValues(alpha: .08),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: accent.withValues(alpha: .18)),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: accent,
-            fontSize: 8.5,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      );
-}
 
 class _MatchTile extends StatelessWidget {
   const _MatchTile({required this.match, required this.archived});

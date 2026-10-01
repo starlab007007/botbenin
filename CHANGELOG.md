@@ -3,6 +3,9 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.10.01.1
+- UI V3 uniquement, sans changement backend : accueil Web mobile/tablette et Flutter allégés et identiques — un seul héros **Bot** (avatar, une phrase, une entrée « Demandez à Bot… », quatre intentions Acheter · Vendre · Chercher · Négocier), puis les Deal Rooms. Retirés de l'accueil : carte WAOUH One, bande « Parcours WAOUH », boutons « avec Bot » en double, démonstration toujours visible (repliée pour les invités). Tailles de texte, icônes et espacements proportionnels à l'écran (`clamp()` Web, facteur de largeur Flutter). Chat Web grand écran : meilleure fiche limitée à 560 px, photo plafonnée (170–300 px), bulles limitées à 680 px de large pour une lecture claire. Cache Web invalidé (`v10-bot-avatar-20261001`). Flutter **18.24.0+1790851200**.
+
 ## 2026.09.30.19
 - UI V2 fidèle aux écrans validés, sans changement backend : grand Hero **Bot** sur Web mobile/tablette et Flutter, CTA « avec Bot », WAOUH One en second niveau, Parcours WAOUH et Conversations & Deals réorganisés. Desktop : Bot devient copilote visible dans la Deal Room, avec contexte produit latéral compact et fil prioritaire ; médias produit réduits. Web : Service Worker invalidé (`v9-bot-avatar-20260930`) et recette de déploiement enrichie pour contrôler `/app/chat`, les marqueurs UI et `waouh-ui-version.txt`. Migration locale du nom historique « Ayo » vers « Bot ». Flutter **18.23.0+1790807220**.
 
