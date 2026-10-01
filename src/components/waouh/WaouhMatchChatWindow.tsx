@@ -23,7 +23,7 @@ import { engageWaouhChatSyncLock } from "./waouhChatSyncLock";
 import { correlationIdFor, traceUi } from "./waouhCorrelation";
 import type { WaouhWorkspaceDealState } from "@/lib/waouh/workspaceState";
 import { WaouhDealStepper } from "./WaouhDealStepper";
-import { BotDealCopilot } from "./bot/BotDealCopilot";
+import { BotDealCopilot, dealExpression } from "./bot/BotDealCopilot";
 import { BotLiveAvatar } from "./bot/BotLiveAvatar";
 import {
   commerceRequestFromButton,
@@ -607,6 +607,7 @@ export function WaouhMatchChatWindow({
   }, [messages]);
 
   // Dernier montant affiché dans le fil (fiche produit du message) — pour Bot.
+  const copilotStage = latestStage(messages as Array<{ meta?: Record<string, unknown> | null }>) ?? (latestCommerceScope.negotiation_id ? "negotiation" : null);
   const latestOfferAmount = useMemo(() => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       const products = (messages[index] as { meta?: { products?: Array<{ price?: unknown }> } })?.meta?.products;
@@ -886,7 +887,7 @@ export function WaouhMatchChatWindow({
         </div>
         {/* Parcours v3 : progression en 7 étapes, dans le même bloc. */}
         <WaouhDealStepper
-          stage={latestStage(messages as Array<{ meta?: Record<string, unknown> | null }>) ?? (latestCommerceScope.negotiation_id ? "negotiation" : null)}
+          stage={copilotStage}
           className="mt-1 border-0 bg-transparent"
         />
       </div>
@@ -945,15 +946,16 @@ export function WaouhMatchChatWindow({
           </div>
           <div className="mt-4 rounded-2xl border border-cyan-100 bg-gradient-to-br from-cyan-50 via-white to-violet-50 p-3">
             <div className="flex items-center gap-2">
-              <BotLiveAvatar size={40} state={closed ? "idle" : "thinking"} />
+              <BotLiveAvatar size={84} expression={dealExpression(copilotStage, match.kind === "buyer" ? "buyer" : "seller", closed)} />
               <div>
                 <div className="text-xs font-black text-slate-950">Bot · Avatar IA</div>
                 <div className="text-[9px] font-bold text-emerald-600">● En ligne</div>
               </div>
             </div>
             <p className="mt-2 text-[11px] font-semibold leading-relaxed text-slate-600">
-              Je garde le contexte du produit à côté et je vous aide à conduire la négociation sans masquer les messages.
+              Je conduis la négociation à votre place et je vous demande votre accord aux moments clés.
             </p>
+            <p className="mt-1.5 text-[10.5px] font-black text-amber-700">Aucun paiement sans votre confirmation.</p>
             <div className="mt-3 grid grid-cols-3 gap-1.5">
               <span className="rounded-xl bg-white px-2 py-2 text-center text-[9px] font-black text-cyan-700 shadow-sm">Analyser</span>
               <span className="rounded-xl bg-white px-2 py-2 text-center text-[9px] font-black text-blue-700 shadow-sm">Comparer</span>

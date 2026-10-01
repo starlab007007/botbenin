@@ -3,6 +3,9 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.10.01.3
+- UI uniquement, sans changement backend : **Bot prend le visage de l'avatar officiel WAOUH** (portrait au casque « W », Web + Flutter), animé : il flotte, respire, incline la tête ; halo d'état coloré et badge d'action ; 7 expressions liées aux moments réels de WAOUH : Bonjour, Écoute, Parle, Réfléchit, Travaille, Questionne, Célèbre. Accueil : trois messages puis une **question avec choix** (Acheter · Vendre · Trouver une opportunité / Voir mes missions) ; Bot **glisse vers la conversation** quand on choisit. Chat : le dernier message de Bot l'anime (il parle ou questionne). Deal Room : l'expression suit l'étape (analyse, négociation, confirmation, accord) et rappelle qu'aucun paiement ne part sans confirmation. Même personnage partout (avatars compacts compris). Web : cache `v12-bot-character-20261001`. Flutter **18.25.0+1790880000** (`BotCharacter` natif, image `assets/bot/bot_avatar.png`).
+
 ## 2026.10.01.2
 - UI uniquement, sans changement backend : la **page d'accueil bot.bj (`/`) et `/app/avatar`** reçoivent aussi le Bot vivant V3 (avatar animé, accueil en trois messages, bandeau « Bot travaille », entrée « Dites à Bot… »), sur mobile, tablette et grand écran. Le correctif 2026.10.01.1 ne couvrait que `/app/chat`. Cache Web `v11-bot-home-20261001`.
 

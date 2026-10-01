@@ -27,7 +27,8 @@ import {
 } from "../utils/chatLabel";
 import WaouhDemoMockup from "../components/WaouhDemoMockup";
 import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
-import { BotGreeting } from "@/components/waouh/bot/BotGreeting";
+import { BotGreeting, botActivityLine } from "@/components/waouh/bot/BotGreeting";
+import type { BotExpression } from "@/components/waouh/bot/BotCharacter";
 import { BotWorkingStrip } from "@/components/waouh/bot/BotWorkingStrip";
 import { WaouhMatchChatList } from "@/components/waouh/WaouhMatchChatList";
 import { StatusesPanel } from "@/components/waouh/statuses/StatusesPanel";
@@ -111,7 +112,22 @@ export default function ChatListScreen() {
   });
   const [loading, setLoading] = useState(convs.length === 0);
   const [q, setQ] = useState("");
-  const [botTalking, setBotTalking] = useState(false);
+  const [botExpression, setBotExpression] = useState<BotExpression>("idle");
+  const [botLeaving, setBotLeaving] = useState(false);
+  /** Bot glisse vers la conversation, puis l'action s'ouvre. */
+  const glideThen = (action: () => void) => {
+    setBotExpression("think");
+    setBotLeaving(true);
+    window.setTimeout(() => {
+      action();
+      window.setTimeout(() => setBotLeaving(false), 400);
+    }, 420);
+  };
+  const askBot = (prompt: string) => {
+    const target = `/app/chat/waouh?prefill=${encodeURIComponent(prompt)}`;
+    if (!requireAuth(target)) return;
+    navigate(target);
+  };
 
   const tabFromUrl = (): ChatTab => {
     const value = params.get("tab");
@@ -401,7 +417,9 @@ export default function ChatListScreen() {
               className="rounded-full transition active:scale-[.97]"
               aria-label="Ouvrir Bot, mon Avatar IA"
             >
-              <BotLiveAvatar size="clamp(104px, 30vw, 176px)" state={botTalking ? "talking" : "idle"} />
+              <span className="botc-glide inline-flex" data-leaving={botLeaving}>
+                <BotLiveAvatar size="clamp(104px, 30vw, 176px)" expression={botExpression} />
+              </span>
             </button>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
@@ -413,7 +431,13 @@ export default function ChatListScreen() {
               <p className="mt-1 text-[clamp(12px,3.2vw,14px)] font-bold text-slate-500">Votre Avatar IA</p>
               <BotGreeting
                 firstName={isGuest ? null : profile?.full_name}
-                onTalkingChange={setBotTalking}
+                thirdLine={botActivityLine(matchChats.matches?.length ?? 0, "Deal Room")}
+                onExpressionChange={setBotExpression}
+                choices={[
+                  { label: "Acheter", onSelect: () => glideThen(() => askBot("Je veux acheter ")) },
+                  { label: "Vendre", onSelect: () => glideThen(() => askBot("Je veux vendre ")) },
+                  { label: "Trouver une opportunité", onSelect: () => glideThen(() => navigate("/app/nexus")) },
+                ]}
                 className="mt-[clamp(8px,2.4vw,14px)]"
               />
             </div>
@@ -421,7 +445,9 @@ export default function ChatListScreen() {
 
           <button
             type="button"
-            onClick={openNewWaouh}
+            onClick={() => glideThen(openNewWaouh)}
+            onPointerEnter={() => setBotExpression("listen")}
+            onPointerLeave={() => setBotExpression("idle")}
             className="mt-[clamp(12px,3.5vw,18px)] flex h-[clamp(48px,12vw,56px)] w-full items-center gap-3 rounded-2xl border border-slate-200/90 bg-white pl-4 pr-1.5 text-left shadow-sm transition hover:border-cyan-200 active:scale-[.99]"
             aria-label="Demander à Bot"
           >

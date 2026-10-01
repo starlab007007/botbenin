@@ -155,7 +155,7 @@ for (const [label, route] of canonicalDesktopRoutes) {
   }
 }
 
-must(sw, "const VERSION = 'v11-bot-home-20261001';", "Service worker cache version must be v11-bot-home-20261001");
+must(sw, "const VERSION = 'v12-bot-character-20261001';", "Service worker cache version must be v12-bot-character-20261001");
 
 console.log("WAOUH Flutter/Web route parity: OK");
 console.log(`Flutter reference routes checked: ${requiredFlutterRoutes.length}`);
