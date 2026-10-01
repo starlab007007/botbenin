@@ -165,7 +165,7 @@ class LiveContactabilityBadge extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           showCode ? '${code} · ${liveContactLabel(code)}' : liveContactLabel(code),
-          style: TextStyle(color: tone, fontSize: 9.5, fontWeight: FontWeight.w800),
+          style: TextStyle(color: tone, fontSize: 10.5, fontWeight: FontWeight.w800),
         ),
       ]),
     );
@@ -276,7 +276,7 @@ class LiveCommerceAgentBar extends StatelessWidget {
               textAlign: TextAlign.right,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Color(0xFF78958A), fontSize: 9.5, fontWeight: FontWeight.w700),
+              style: const TextStyle(color: Color(0xFF78958A), fontSize: 10.5, fontWeight: FontWeight.w700),
             ),
           ),
           ]),
@@ -462,7 +462,7 @@ class LiveUnifiedIntelligenceSheet extends StatelessWidget {
                       ? const Text(
                           'Les sources apparaissent dès que la recherche démarre.',
                           style: TextStyle(
-                              fontSize: 10.5, color: Color(0xFF60746E)),
+                              fontSize: 11, color: Color(0xFF60746E)),
                         )
                       : Wrap(
                           spacing: 6,
@@ -646,7 +646,7 @@ class _UnifiedGoalCard extends StatelessWidget {
                 Text(
                   'OBJECTIF ACTUEL',
                   style: TextStyle(
-                    fontSize: 9.5,
+                    fontSize: 10.5,
                     fontWeight: FontWeight.w900,
                     letterSpacing: .6,
                     color: Color(0xFF60746E),
@@ -809,7 +809,7 @@ class _UnifiedPill extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 9.5,
+            fontSize: 10.5,
             fontWeight: FontWeight.w800,
             color: alert
                 ? const Color(0xFF8B5B00)
@@ -1014,7 +1014,7 @@ class LiveDealRoomBanner extends StatelessWidget {
                     ].join(' · '),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Color(0xFF60746E), fontSize: 9.5, fontWeight: FontWeight.w600),
+              style: const TextStyle(color: Color(0xFF60746E), fontSize: 10.5, fontWeight: FontWeight.w600),
             ),
           ]),
         ),
@@ -1062,7 +1062,7 @@ class _AgentPill extends StatelessWidget {
     child: Row(mainAxisSize: MainAxisSize.min, children: [
       Icon(icon, size: 11, color: tone),
       const SizedBox(width: 4),
-      Text(text, style: TextStyle(color: tone, fontSize: 9.5, fontWeight: FontWeight.w800)),
+      Text(text, style: TextStyle(color: tone, fontSize: 10.5, fontWeight: FontWeight.w800)),
     ]),
   );
 }

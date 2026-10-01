@@ -61,7 +61,7 @@
   place-items: center;
   border-radius: 15px;
   color: #fff;
-  font-size: 20px;
+  font-size: clamp(18px, 1rem + 0.35vw, 21px);
   font-weight: 900;
   background: linear-gradient(145deg, var(--erp-green-deep), #10a38f);
   box-shadow: 0 10px 22px rgba(8, 117, 106, 0.22);
@@ -75,22 +75,22 @@
 }
 
 .waouh-erp-brand__copy strong {
-  font-size: 17px;
+  font-size: clamp(16px, 0.9rem + 0.25vw, 18px);
   letter-spacing: -0.03em;
 }
 
 .waouh-erp-brand__copy span {
   margin-top: 5px;
   color: var(--erp-blue);
-  font-size: 10px;
+  font-size: clamp(11px, 0.64rem + 0.12vw, 11.5px);
   font-weight: 900;
   letter-spacing: 0.16em;
 }
 
 .waouh-erp-collapse {
   margin-left: auto;
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   display: grid;
   place-items: center;
   border: 1px solid var(--erp-border);
@@ -121,7 +121,7 @@
 .waouh-erp-nav-label {
   padding: 20px 10px 9px;
   color: #93a0b4;
-  font-size: 9px;
+  font-size: clamp(11px, 0.64rem + 0.12vw, 11.5px);
   font-weight: 900;
   letter-spacing: 0.14em;
 }
@@ -150,7 +150,7 @@
   border: 1px solid transparent;
   border-radius: 13px;
   color: #5f6e82;
-  font-size: 13px;
+  font-size: clamp(13px, 0.76rem + 0.15vw, 14px);
   font-weight: 700;
   transition: all 150ms ease;
 }
@@ -211,7 +211,7 @@
   border-radius: 999px;
   color: #fff;
   background: #ef4444;
-  font-size: 10px;
+  font-size: clamp(11px, 0.64rem + 0.12vw, 11.5px);
   font-weight: 900;
 }
 
@@ -227,7 +227,7 @@
   min-width: 17px;
   height: 17px;
   padding: 0 4px;
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .waouh-erp-sidebar__footer {
@@ -262,13 +262,13 @@
 }
 
 .waouh-erp-system-card strong {
-  font-size: 11px;
+  font-size: clamp(11.5px, 0.68rem + 0.12vw, 12.5px);
 }
 
 .waouh-erp-system-card span {
   margin-top: 4px;
   color: var(--erp-muted);
-  font-size: 9px;
+  font-size: clamp(11px, 0.64rem + 0.12vw, 11.5px);
   line-height: 1.35;
 }
 
@@ -306,19 +306,31 @@
 
 .waouh-erp-page-title h1 {
   margin: 0;
-  font-size: 20px;
+  font-size: clamp(18px, 1rem + 0.35vw, 21px);
   line-height: 1.1;
   letter-spacing: -0.025em;
+}
+
+.waouh-erp-page-title > div {
+  min-width: 0;
+}
+
+.waouh-erp-page-title h1,
+.waouh-erp-page-title p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .waouh-erp-page-title p {
   margin: 5px 0 0;
   color: var(--erp-muted);
-  font-size: 11px;
+  font-size: clamp(11.5px, 0.68rem + 0.12vw, 12.5px);
 }
 
 .waouh-erp-topbar__actions {
   min-width: 0;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -335,7 +347,7 @@
   border-radius: 12px;
   background: #f8fafc;
   color: #8a97aa;
-  font-size: 11px;
+  font-size: clamp(11.5px, 0.68rem + 0.12vw, 12.5px);
   text-align: left;
 }
 
@@ -356,7 +368,7 @@
   border-radius: 6px;
   background: #fff;
   color: #8190a4;
-  font-size: 9px;
+  font-size: clamp(11px, 0.64rem + 0.12vw, 11.5px);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
@@ -367,7 +379,7 @@
   border-color: #cfe5df !important;
   background: linear-gradient(180deg, #ffffff, #f5fbf8) !important;
   color: var(--erp-green-deep) !important;
-  font-size: 10px;
+  font-size: clamp(11px, 0.64rem + 0.12vw, 11.5px);
   font-weight: 900;
   box-shadow: 0 6px 16px rgba(8, 117, 106, 0.07);
 }
@@ -382,7 +394,7 @@
   border-radius: 12px;
   background: linear-gradient(135deg, var(--erp-green-deep), #0a907f) !important;
   box-shadow: 0 9px 18px rgba(8, 117, 106, 0.18);
-  font-size: 11px;
+  font-size: clamp(11.5px, 0.68rem + 0.12vw, 12.5px);
 }
 
 .waouh-erp-icon-button {
@@ -410,11 +422,12 @@
   border-radius: 999px;
   background: #ef4444;
   color: #fff;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 900;
 }
 
 .waouh-erp-profile {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -427,7 +440,7 @@
   background: #f4f7fb;
 }
 
-.waouh-erp-profile > span {
+.waouh-erp-profile > span:last-child {
   max-width: 125px;
   display: flex;
   flex-direction: column;
@@ -438,7 +451,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: clamp(11.5px, 0.68rem + 0.12vw, 12.5px);
 }
 
 .waouh-erp-profile small {
@@ -447,7 +460,7 @@
   align-items: center;
   gap: 4px;
   color: var(--erp-green);
-  font-size: 9px;
+  font-size: clamp(11px, 0.64rem + 0.12vw, 11.5px);
   font-weight: 700;
 }
 
@@ -517,7 +530,7 @@
   display: block;
   margin-top: 16px;
   color: #bcf4e8;
-  font-size: 9px;
+  font-size: clamp(11px, 0.64rem + 0.12vw, 11.5px);
   font-weight: 900;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -525,7 +538,7 @@
 
 .waouh-erp-copilot__hero h2 {
   margin: 7px 0 0;
-  font-size: 17px;
+  font-size: clamp(16px, 0.9rem + 0.25vw, 18px);
   line-height: 1.2;
   letter-spacing: -0.025em;
 }
@@ -533,7 +546,7 @@
 .waouh-erp-copilot__hero p {
   margin: 9px 0 14px;
   color: #d7f4ee;
-  font-size: 10px;
+  font-size: clamp(11px, 0.64rem + 0.12vw, 11.5px);
   line-height: 1.55;
 }
 
@@ -542,7 +555,7 @@
   border-radius: 12px;
   background: #fff !important;
   color: var(--erp-green-deep) !important;
-  font-size: 10px;
+  font-size: clamp(11px, 0.64rem + 0.12vw, 11.5px);
   font-weight: 800;
 }
 
@@ -559,7 +572,7 @@
   align-items: center;
   gap: 7px;
   color: var(--erp-text);
-  font-size: 11px;
+  font-size: clamp(11.5px, 0.68rem + 0.12vw, 12.5px);
   font-weight: 900;
 }
 
@@ -580,7 +593,7 @@
   border-radius: 12px;
   background: #fff;
   color: #526178;
-  font-size: 10px;
+  font-size: clamp(11px, 0.64rem + 0.12vw, 11.5px);
   font-weight: 700;
   text-align: left;
   transition: all 150ms ease;
@@ -617,13 +630,13 @@
 }
 
 .waouh-erp-copilot__status strong {
-  font-size: 10px;
+  font-size: clamp(11px, 0.64rem + 0.12vw, 11.5px);
 }
 
 .waouh-erp-copilot__status span {
   margin-top: 4px;
   color: #66789a;
-  font-size: 9px;
+  font-size: clamp(11px, 0.64rem + 0.12vw, 11.5px);
   line-height: 1.4;
 }
 
@@ -652,9 +665,20 @@
     width: 210px;
   }
 
-  .waouh-erp-profile > span {
+  .waouh-erp-profile > span:last-child {
     display: none;
   }
+
+  .waouh-erp-page-title p {
+    display: none;
+  }
+}
+
+/* Fenêtre web réduite (1180–1440 px) : actions compactes, jamais écrasées. */
+.waouh-erp-icon-button,
+.waouh-erp-primary-action,
+.waouh-erp-missions-action {
+  flex-shrink: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -682,7 +706,7 @@ button.waouh-erp-nav__item {
 .waouh-erp-nav__group + .waouh-erp-nav__group { margin-top: 14px; }
 .waouh-erp-nav__group-title {
   padding: 0 12px 4px;
-  font-size: 10px;
+  font-size: clamp(11px, 0.64rem + 0.12vw, 11.5px);
   font-weight: 700;
   letter-spacing: .08em;
   text-transform: uppercase;

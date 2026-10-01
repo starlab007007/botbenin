@@ -417,7 +417,7 @@ class _TimelineChart extends StatelessWidget {
                 value.round().toString(),
                 style: const TextStyle(
                   color: WaouhBusinessColors.muted,
-                  fontSize: 10,
+                  fontSize: 11,
                 ),
               ),
             ),
@@ -440,7 +440,7 @@ class _TimelineChart extends StatelessWidget {
                     label,
                     style: const TextStyle(
                       color: WaouhBusinessColors.muted,
-                      fontSize: 10,
+                      fontSize: 11,
                     ),
                   ),
                 );

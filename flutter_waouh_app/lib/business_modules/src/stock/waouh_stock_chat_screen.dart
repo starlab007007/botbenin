@@ -777,7 +777,7 @@ class _MessageBubble extends StatelessWidget {
               child: Text(
                 DateFormat('HH:mm').format(message.createdAt),
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: 11,
                   color: message.isUser ? Colors.white70 : _muted,
                 ),
               ),
@@ -903,7 +903,7 @@ class _StatisticsGrid extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: Color(0xFF66736F),
-                      fontSize: 10,
+                      fontSize: 11,
                     ),
                   ),
                 ],
@@ -996,7 +996,7 @@ class _KpiWrap extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 10,
+                          fontSize: 11,
                           color: Color(0xFF66736F),
                         ),
                       ),

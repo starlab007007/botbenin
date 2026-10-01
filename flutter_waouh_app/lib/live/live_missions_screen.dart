@@ -186,7 +186,7 @@ class _MissionHero extends StatelessWidget {
                         'WAOUH continue pour vous.',
                         style: TextStyle(
                           color: WaouhPalette.muted,
-                          fontSize: 10.5,
+                          fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -300,7 +300,7 @@ class _MissionMetric extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: WaouhPalette.muted,
-                fontSize: 9,
+                fontSize: 10.5,
                 fontWeight: FontWeight.w700,
               ),
             ),

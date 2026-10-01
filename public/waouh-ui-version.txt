@@ -1,5 +1,5 @@
-2026.10.01.3
-ui=bot-character-v4
+2026.10.01.4
+ui=bot-character-v4+responsive-premium
 chat=bot-copilot-v2
-flutter=18.25.0+1790880000
+flutter=18.26.0+1790884000
 backend=unchanged

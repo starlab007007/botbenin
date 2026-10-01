@@ -216,7 +216,7 @@ class _SmartModuleCard extends StatelessWidget {
                         'SMART',
                         style: TextStyle(
                           color: WaouhPalette.blue,
-                          fontSize: 9.5,
+                          fontSize: 10.5,
                           fontWeight: FontWeight.w900,
                           letterSpacing: .45,
                         ),
@@ -262,7 +262,7 @@ class _SmartModuleCard extends StatelessWidget {
                             tag,
                             style: const TextStyle(
                               color: WaouhPalette.muted,
-                              fontSize: 9.5,
+                              fontSize: 10.5,
                               fontWeight: FontWeight.w700,
                             ),
                           ),

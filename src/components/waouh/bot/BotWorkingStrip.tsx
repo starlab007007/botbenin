@@ -36,7 +36,7 @@ export function BotWorkingStrip({ activeDeals, className }: { activeDeals?: numb
         <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 motion-safe:animate-ping" />
         <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
       </span>
-      <span className="shrink-0 text-[clamp(10.5px,2.8vw,12px)] font-black uppercase tracking-[.08em] text-emerald-700">
+      <span className="shrink-0 text-[clamp(11.5px,2.9vw,12.5px)] font-black uppercase tracking-[.08em] text-emerald-700">
         Bot travaille
       </span>
       <span key={index} className="bot-signal flex min-w-0 items-center gap-1.5 text-[clamp(12px,3.1vw,13.5px)] font-semibold text-slate-600">

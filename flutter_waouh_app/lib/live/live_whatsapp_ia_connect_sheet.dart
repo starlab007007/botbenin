@@ -402,7 +402,7 @@ class _ConnectionTimeline extends StatelessWidget {
                                 color: complete
                                     ? Colors.white
                                     : const Color(0xFF7C8D86),
-                                fontSize: 10,
+                                fontSize: 11,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
@@ -413,7 +413,7 @@ class _ConnectionTimeline extends StatelessWidget {
                       maxLines: 2,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                          color: WaouhIaPalette.muted, fontSize: 9.5, height: 1.1),
+                          color: WaouhIaPalette.muted, fontSize: 10.5, height: 1.1),
                     ),
                   ],
                 ),

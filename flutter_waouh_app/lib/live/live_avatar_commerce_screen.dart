@@ -993,7 +993,7 @@ class _ActiveJourneysPanel extends StatelessWidget {
               'Avatar conserve chaque opportunité jusqu’à la réponse, la négociation, l’accord et l’exécution.',
               style: TextStyle(
                 color: WaouhPalette.muted,
-                fontSize: 10.5,
+                fontSize: 11,
                 height: 1.35,
               ),
             ),
@@ -1052,7 +1052,7 @@ class _ActiveJourneysPanel extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: WaouhPalette.muted,
-                              fontSize: 9.5,
+                              fontSize: 10.5,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -1109,7 +1109,7 @@ class _AvatarCommerceHero extends StatelessWidget {
                     'Un parcours guidé · recherche réelle · contact protégé · Deal Room',
                     style: TextStyle(
                       color: WaouhPalette.muted,
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
                       height: 1.3,
                     ),
@@ -1249,7 +1249,7 @@ class _IntelligenceSummary extends StatelessWidget {
                 '${response.results.length} opportunité(s)',
                 style: const TextStyle(
                   color: WaouhPalette.blue,
-                  fontSize: 9.5,
+                  fontSize: 10.5,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -1261,7 +1261,7 @@ class _IntelligenceSummary extends StatelessWidget {
               plan?.rationale ?? response.explanation ?? '',
               style: const TextStyle(
                 color: WaouhPalette.muted,
-                fontSize: 10.5,
+                fontSize: 11,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1404,7 +1404,7 @@ class _OpportunityCard extends StatelessWidget {
                         ].join(' · '),
                         style: const TextStyle(
                           color: WaouhPalette.muted,
-                          fontSize: 9.5,
+                          fontSize: 10.5,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -1583,7 +1583,7 @@ class _InfoStrip extends StatelessWidget {
                 text,
                 style: const TextStyle(
                   color: WaouhPalette.muted,
-                  fontSize: 9.5,
+                  fontSize: 10.5,
                   fontWeight: FontWeight.w600,
                   height: 1.25,
                 ),
@@ -1625,7 +1625,7 @@ class _EmptyDiscovery extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: WaouhPalette.muted,
-                fontSize: 10,
+                fontSize: 11,
               ),
             ),
           ],

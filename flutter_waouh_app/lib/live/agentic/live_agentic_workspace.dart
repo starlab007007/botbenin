@@ -184,11 +184,11 @@ class LiveAgenticWorkspace extends StatelessWidget {
                 labelColor: WaouhPalette.blue,
                 unselectedLabelColor: WaouhPalette.muted,
                 labelStyle: TextStyle(
-                  fontSize: 10.5,
+                  fontSize: 11,
                   fontWeight: FontWeight.w800,
                 ),
                 unselectedLabelStyle: TextStyle(
-                  fontSize: 10.5,
+                  fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
                 tabs: [
@@ -620,7 +620,7 @@ class _StatusPill extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-              color: color, fontSize: 10.5, fontWeight: FontWeight.w800),
+              color: color, fontSize: 11, fontWeight: FontWeight.w800),
         ),
       );
 }

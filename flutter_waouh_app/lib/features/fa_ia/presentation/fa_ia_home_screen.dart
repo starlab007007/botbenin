@@ -153,7 +153,7 @@ class _Hero extends StatelessWidget {
                       '8 CAURIS · 1 SIGNE',
                       style: TextStyle(
                         color: FaWebColors.gold2,
-                        fontSize: 9,
+                        fontSize: 10.5,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 1,
                       ),
@@ -255,7 +255,7 @@ class _HomeAction extends StatelessWidget {
                       maxLines: 2,
                       style: const TextStyle(
                         color: FaWebColors.muted,
-                        fontSize: 10,
+                        fontSize: 11,
                         height: 1.12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -279,7 +279,7 @@ class _HomeSignature extends StatelessWidget {
     return const DefaultTextStyle(
       style: TextStyle(
         color: Color(0x945B3E2A),
-        fontSize: 9.5,
+        fontSize: 10.5,
         height: 1.12,
         fontWeight: FontWeight.w600,
         letterSpacing: 0.45,

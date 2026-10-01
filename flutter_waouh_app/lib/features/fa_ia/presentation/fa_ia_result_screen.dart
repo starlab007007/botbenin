@@ -268,7 +268,7 @@ class _FaIaResultScreenState extends State<FaIaResultScreen> {
             ),
             Text(
               'Interprétation en conversation',
-              style: const TextStyle(fontSize: 10.5, color: Color(0xFFDCCDBD)),
+              style: const TextStyle(fontSize: 11, color: Color(0xFFDCCDBD)),
             ),
           ],
         ),
@@ -384,7 +384,7 @@ class _SignRevealCard extends StatelessWidget {
                         'SIGNE RÉVÉLÉ',
                         style: TextStyle(
                           color: FaIaColors.gold,
-                          fontSize: 10,
+                          fontSize: 11,
                           letterSpacing: 1.3,
                           fontWeight: FontWeight.w900,
                         ),

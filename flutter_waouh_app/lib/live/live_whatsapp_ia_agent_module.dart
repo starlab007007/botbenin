@@ -3088,7 +3088,7 @@ class _ChoiceCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: _agentMuted,
-                        fontSize: 10.5,
+                        fontSize: 11,
                       ),
                     ),
                   ],
@@ -3125,7 +3125,7 @@ class _Pill extends StatelessWidget {
       label,
       style: TextStyle(
         color: color,
-        fontSize: 10.5,
+        fontSize: 11,
         fontWeight: FontWeight.w900,
       ),
     ),

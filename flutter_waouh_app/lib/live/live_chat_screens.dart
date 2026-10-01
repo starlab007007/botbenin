@@ -768,7 +768,7 @@ class _LiveObjectiveLauncher extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: Color(0xFF667A73),
-                          fontSize: 10.5,
+                          fontSize: 11,
                           height: 1.25,
                           fontWeight: FontWeight.w600,
                         ),

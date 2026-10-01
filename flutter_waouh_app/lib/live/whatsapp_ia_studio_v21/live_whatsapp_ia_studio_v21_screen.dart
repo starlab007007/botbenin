@@ -1422,7 +1422,7 @@ class _LiveWhatsAppIaNativeScreenState
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       color: _muted,
-                      fontSize: 10.5,
+                      fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -1577,7 +1577,7 @@ class _LiveWhatsAppIaNativeScreenState
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: selected ? Colors.white : _ink,
-                                fontSize: 10.5,
+                                fontSize: 11,
                                 fontWeight: selected
                                     ? FontWeight.w900
                                     : FontWeight.w700,
@@ -2152,7 +2152,7 @@ class _LiveWhatsAppIaNativeScreenState
                         'Réf. ${item.sku}',
                         style: const TextStyle(
                           color: _muted,
-                          fontSize: 10.5,
+                          fontSize: 11,
                         ),
                       ),
                   ],
@@ -2257,7 +2257,7 @@ class _LiveWhatsAppIaNativeScreenState
                   status,
                   style: TextStyle(
                     color: active ? _primaryDark : _muted,
-                    fontSize: 9.5,
+                    fontSize: 10.5,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -3774,7 +3774,7 @@ class _AgentShareSheetState extends State<_AgentShareSheet> {
                   const TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
           Text(label,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 10.5, color: WaouhIaPalette.muted)),
+              style: const TextStyle(fontSize: 11, color: WaouhIaPalette.muted)),
         ],
       ),
     );

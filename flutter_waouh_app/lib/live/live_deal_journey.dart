@@ -154,7 +154,7 @@ class LiveDealStepper extends StatelessWidget {
                         overflow: TextOverflow.fade,
                         softWrap: false,
                         style: TextStyle(
-                          fontSize: 9.5,
+                          fontSize: 10.5,
                           fontWeight: i == current ? FontWeight.w800 : FontWeight.w600,
                           color: i == current
                               ? const Color(0xFF0E7C58)

@@ -1273,7 +1273,7 @@ class _LiveApresBacIaScreenState extends State<LiveApresBacIaScreen> {
               'Orientation intelligente, publique et explicable',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 10.5, color: Color(0xFFD7FFF0)),
+              style: TextStyle(fontSize: 11, color: Color(0xFFD7FFF0)),
             ),
           ],
         ),
@@ -1531,7 +1531,7 @@ class _ResponsiveHeader extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: _LiveApresBacIaScreenState.muted,
-                        fontSize: 10,
+                        fontSize: 11,
                       ),
                     ),
                   ],
@@ -1615,7 +1615,7 @@ class _PersistentActionsBarState extends State<_PersistentActionsBar> {
                         '${widget.notesCount} note(s)',
                         style: const TextStyle(
                           color: _LiveApresBacIaScreenState.green,
-                          fontSize: 10,
+                          fontSize: 11,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
@@ -1624,7 +1624,7 @@ class _PersistentActionsBarState extends State<_PersistentActionsBar> {
                     'Afficher',
                     style: TextStyle(
                       color: _LiveApresBacIaScreenState.green,
-                      fontSize: 10.5,
+                      fontSize: 11,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -1714,7 +1714,7 @@ class _PersistentActionsBarState extends State<_PersistentActionsBar> {
                     child: Text(
                       'Outils AprèsBac',
                       style: TextStyle(
-                        fontSize: 10.5,
+                        fontSize: 11,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -1726,7 +1726,7 @@ class _PersistentActionsBarState extends State<_PersistentActionsBar> {
                     style: TextButton.styleFrom(
                       visualDensity: VisualDensity.compact,
                       textStyle: const TextStyle(
-                        fontSize: 10.5,
+                        fontSize: 11,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -2083,7 +2083,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
                 item.disclaimer!,
                 style: const TextStyle(
                   color: _LiveApresBacIaScreenState.muted,
-                  fontSize: 10,
+                  fontSize: 11,
                   height: 1.3,
                 ),
               ),
@@ -2108,7 +2108,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
                         avatar: const Icon(Icons.auto_awesome, size: 15),
                         label: Text(
                           value,
-                          style: const TextStyle(fontSize: 10.5),
+                          style: const TextStyle(fontSize: 11),
                         ),
                         onPressed: () => widget.onFollowUp(value),
                       ),
@@ -2568,7 +2568,7 @@ class _ProgramCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: _LiveApresBacIaScreenState.muted,
-                fontSize: 10.5,
+                fontSize: 11,
               ),
             ),
             const SizedBox(height: 4),
@@ -2578,7 +2578,7 @@ class _ProgramCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: eligibilityColor,
-                fontSize: 10.5,
+                fontSize: 11,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -2667,7 +2667,7 @@ class _ProgramCard extends StatelessWidget {
                           '${_formatCalculationNumber(officialMap['value'])}/20',
                           style: TextStyle(
                             color: officialColor,
-                            fontSize: 10.5,
+                            fontSize: 11,
                             fontWeight: FontWeight.w800,
                           ),
                         )
@@ -2679,7 +2679,7 @@ class _ProgramCard extends StatelessWidget {
                               : 'Vérification disponible',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 10),
+                          style: const TextStyle(fontSize: 11),
                         ),
                     ],
                   ),
@@ -2832,7 +2832,7 @@ class _ProgramActionButton extends StatelessWidget {
         style: FilledButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 8),
           textStyle: const TextStyle(
-            fontSize: 10.5,
+            fontSize: 11,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -2857,7 +2857,7 @@ class _MiniChip extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700),
+        style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700),
       ),
     );
   }

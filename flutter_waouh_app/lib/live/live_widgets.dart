@@ -103,7 +103,7 @@ class LiveHeader extends StatelessWidget implements PreferredSizeWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: WaouhPalette.muted,
-                        fontSize: 10.5,
+                        fontSize: 11,
                         fontWeight: FontWeight.w600,
                         letterSpacing: -.05,
                       ),
@@ -317,15 +317,15 @@ class LiveMessageBubble extends StatelessWidget {
                   if (outgoing && pending)
                     Text(delivery == 'queued' ? 'En attente' : 'Envoi',
                         style: const TextStyle(
-                            fontSize: 10.5, color: legacy.WaouhColors.muted)),
+                            fontSize: 11, color: legacy.WaouhColors.muted)),
                   if (outgoing && failed)
                     const Text('Echec',
                         style: TextStyle(
-                            fontSize: 10.5, color: legacy.WaouhColors.red)),
+                            fontSize: 11, color: legacy.WaouhColors.red)),
                   if (outgoing && (pending || failed)) const SizedBox(width: 4),
                   Text(_stamp(message.createdAt),
                       style: const TextStyle(
-                          fontSize: 10.5, color: legacy.WaouhColors.muted)),
+                          fontSize: 11, color: legacy.WaouhColors.muted)),
                   if (outgoing) ...[
                     const SizedBox(width: 3),
                     Icon(
@@ -1900,7 +1900,7 @@ class _PremiumResultsGridState extends State<_PremiumResultsGrid> {
               padding: EdgeInsets.only(top: 9, left: 3),
               child: Text(
                   '🔒 Résultats issus des données retournées par WAOUH — mise à jour en temps réel.',
-                  style: TextStyle(fontSize: 10.5, color: Color(0xFF78988A)))),
+                  style: TextStyle(fontSize: 11, color: Color(0xFF78988A)))),
         ]);
       });
 }
@@ -2706,7 +2706,7 @@ class _PremiumNexusContactSheetState
                 child: Text(
                   stage[0] as String,
                   style: TextStyle(
-                    fontSize: 9.5,
+                    fontSize: 10.5,
                     fontWeight: FontWeight.w800,
                     color: reached
                         ? const Color(0xFF08745D)
@@ -2726,7 +2726,7 @@ class _PremiumNexusContactSheetState
                   current?.nextAction ??
                       'Avatar analyse automatiquement la prochaine action.',
                   style: const TextStyle(
-                    fontSize: 10.5,
+                    fontSize: 11,
                     color: Color(0xFF60746E),
                     fontWeight: FontWeight.w700,
                   ),
@@ -2800,7 +2800,7 @@ class _PremiumNexusContactSheetState
               'Canaux détectés : ' + channels.join(' · '),
               style: const TextStyle(
                 color: Color(0xFF60746E),
-                fontSize: 10.5,
+                fontSize: 11,
               ),
             ),
           ],
@@ -2809,7 +2809,7 @@ class _PremiumNexusContactSheetState
             'WAOUH ne révèle que les coordonnées publiques, professionnelles ou autorisées.',
             style: TextStyle(
               color: Color(0xFF7B8797),
-              fontSize: 9.5,
+              fontSize: 10.5,
             ),
           ),
         ],
@@ -2873,7 +2873,7 @@ class _PremiumNexusContactSheetState
                       Text(
                         'Découverte → contact C0–C5 → négociation → accord',
                         style: TextStyle(
-                          fontSize: 10.5,
+                          fontSize: 11,
                           color: Color(0xFF60746E),
                         ),
                       ),
@@ -2935,7 +2935,7 @@ class _PremiumNexusContactSheetState
                         const Text(
                           'Source originale vérifiée par NEXUS',
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: 11,
                             color: Color(0xFF7B8797),
                             fontWeight: FontWeight.w700,
                           ),
@@ -2959,7 +2959,7 @@ class _PremiumNexusContactSheetState
                         error.toString(),
                     style: const TextStyle(
                       color: Color(0xFF765200),
-                      fontSize: 10.5,
+                      fontSize: 11,
                     ),
                   ),
                 ),
@@ -3078,7 +3078,7 @@ class _PremiumNexusContactSheetState
                   'Après l’envoi, cette démarche reste suivie dans WAOUH jusqu’à l’accord.',
                   style: TextStyle(
                     color: Color(0xFF60746E),
-                    fontSize: 10,
+                    fontSize: 11,
                   ),
                 ),
               ],
@@ -3316,7 +3316,7 @@ class _PremiumBadge extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-              fontSize: 10.5, fontWeight: FontWeight.w800, color: foreground)));
+              fontSize: 11, fontWeight: FontWeight.w800, color: foreground)));
 }
 
 Widget _premiumImage(LiveAttachment attachment, {required BoxFit fit}) {

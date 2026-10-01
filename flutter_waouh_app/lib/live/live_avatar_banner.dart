@@ -212,7 +212,7 @@ class _LiveAvatarBannerHostState extends State<LiveAvatarBannerHost> {
                                                           99)),
                                               child: Text(a,
                                                   style: const TextStyle(
-                                                      fontSize: 10.5,
+                                                      fontSize: 11,
                                                       fontWeight:
                                                           FontWeight.w800,
                                                       color:

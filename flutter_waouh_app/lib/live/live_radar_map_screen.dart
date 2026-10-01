@@ -560,7 +560,7 @@ class _MapHeader extends StatelessWidget {
                     color: live
                         ? const Color(0xFF08756A)
                         : const Color(0xFF976000),
-                    fontSize: 10.5,
+                    fontSize: 11,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -633,7 +633,7 @@ class _MapActionButton extends StatelessWidget {
                   '$badge',
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 10,
+                    fontSize: 11,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -780,7 +780,7 @@ class _ProductMapMarker extends StatelessWidget {
               child: Text(
                 item.distanceLabel,
                 style: const TextStyle(
-                  fontSize: 9.5,
+                  fontSize: 10.5,
                   fontWeight: FontWeight.w900,
                   color: Color(0xFF075E54),
                 ),
@@ -919,7 +919,7 @@ class _RadarResultsSheet extends StatelessWidget {
           const Text(
             'Données cartographiques © OpenStreetMap',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Color(0xFF8A9B95), fontSize: 10.5),
+            style: TextStyle(color: Color(0xFF8A9B95), fontSize: 11),
           ),
         ],
       ),

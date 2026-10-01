@@ -191,7 +191,7 @@ class _DiffusionSmartCards extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   color: Color(0xFF667A73),
-                                  fontSize: 10.5,
+                                  fontSize: 11,
                                   height: 1.2,
                                 ),
                               ),
@@ -1262,7 +1262,7 @@ class _StatusTag extends StatelessWidget {
           borderRadius: BorderRadius.circular(99)),
       child: Text(label,
           style: TextStyle(
-              fontSize: 10.5, color: color, fontWeight: FontWeight.w900)));
+              fontSize: 11, color: color, fontWeight: FontWeight.w900)));
 }
 
 class _Metric extends StatelessWidget {

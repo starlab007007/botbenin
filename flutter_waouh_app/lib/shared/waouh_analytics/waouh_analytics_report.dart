@@ -226,7 +226,7 @@ class _ChartShell extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: Color(0xFF66736F),
-                          fontSize: 10.5,
+                          fontSize: 11,
                           height: 1.25,
                         ),
                       ),
@@ -276,7 +276,7 @@ class _ChartLegend extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Color(0xFF5F706B),
-                    fontSize: 10.5,
+                    fontSize: 11,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -419,7 +419,7 @@ class _AnalyticsPainter extends CustomPainter {
         Offset(0, y - 7),
         maxWidth: plot.left - 7,
         color: const Color(0xFF71817C),
-        fontSize: 9,
+        fontSize: 10.5,
         align: TextAlign.right,
       );
     }
@@ -566,7 +566,7 @@ class _AnalyticsPainter extends CustomPainter {
           Offset(labelPoint.dx - 20, labelPoint.dy - 8),
           maxWidth: 40,
           color: Colors.white,
-          fontSize: 10,
+          fontSize: 11,
           fontWeight: FontWeight.w900,
           align: TextAlign.center,
         );
@@ -749,7 +749,7 @@ class _WaouhReportActionsState extends State<WaouhReportActions> {
           const Text(
             'Synthèse, statistiques, graphiques, recommandations et données clés.',
             style: TextStyle(
-                color: Color(0xFF66736F), fontSize: 10.5, height: 1.3),
+                color: Color(0xFF66736F), fontSize: 11, height: 1.3),
           ),
           const SizedBox(height: 10),
           LayoutBuilder(
@@ -867,13 +867,13 @@ class WaouhAnalyticsReportService {
                 'WAOUH AI · RAPPORT ANALYTIQUE',
                 style: pw.TextStyle(
                   color: deep,
-                  fontSize: 10,
+                  fontSize: 11,
                   fontWeight: pw.FontWeight.bold,
                 ),
               ),
               pw.Text(
                 'Page ${context.pageNumber}/${context.pagesCount}',
-                style: pw.TextStyle(color: muted, fontSize: 9),
+                style: pw.TextStyle(color: muted, fontSize: 10.5),
               ),
             ],
           ),
@@ -882,7 +882,7 @@ class WaouhAnalyticsReportService {
           alignment: pw.Alignment.centerRight,
           child: pw.Text(
             'Généré le ${_dateLabel(DateTime.now())}',
-            style: pw.TextStyle(color: muted, fontSize: 8),
+            style: pw.TextStyle(color: muted, fontSize: 10.5),
           ),
         ),
         build: (context) {
@@ -957,7 +957,7 @@ class WaouhAnalyticsReportService {
                             pw.SizedBox(height: 3),
                             pw.Text(
                               _humanize(entry.key),
-                              style: pw.TextStyle(color: muted, fontSize: 9),
+                              style: pw.TextStyle(color: muted, fontSize: 10.5),
                             ),
                           ],
                         ),
@@ -1025,7 +1025,7 @@ class WaouhAnalyticsReportService {
                               '${entry.key + 1}',
                               style: pw.TextStyle(
                                 color: PdfColors.white,
-                                fontSize: 9,
+                                fontSize: 10.5,
                                 fontWeight: pw.FontWeight.bold,
                               ),
                             ),
@@ -1035,7 +1035,7 @@ class WaouhAnalyticsReportService {
                             child: pw.Text(
                               entry.value,
                               style: const pw.TextStyle(
-                                  fontSize: 10.5, lineSpacing: 2),
+                                  fontSize: 11, lineSpacing: 2),
                             ),
                           ),
                         ],
@@ -1071,7 +1071,7 @@ class WaouhAnalyticsReportService {
                 headerDecoration: pw.BoxDecoration(color: deep),
                 headerStyle: pw.TextStyle(
                   color: PdfColors.white,
-                  fontSize: 8,
+                  fontSize: 10.5,
                   fontWeight: pw.FontWeight.bold,
                 ),
                 cellStyle: const pw.TextStyle(fontSize: 7.5),
@@ -1185,7 +1185,7 @@ pw.Widget _pdfTextCard(String text, PdfColor light, PdfColor border) {
     ),
     child: pw.Text(
       text.trim().isEmpty ? 'Aucune synthèse disponible.' : text.trim(),
-      style: const pw.TextStyle(fontSize: 10.5, lineSpacing: 3),
+      style: const pw.TextStyle(fontSize: 11, lineSpacing: 3),
     ),
   );
 }
@@ -1227,7 +1227,7 @@ pw.Widget _pdfStatistics(
     headerDecoration: pw.BoxDecoration(color: deep),
     headerStyle: pw.TextStyle(
       color: PdfColors.white,
-      fontSize: 9,
+      fontSize: 10.5,
       fontWeight: pw.FontWeight.bold,
     ),
     cellStyle: const pw.TextStyle(fontSize: 8.5),

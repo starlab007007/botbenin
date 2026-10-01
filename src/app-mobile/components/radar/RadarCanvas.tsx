@@ -70,7 +70,7 @@ export function RadarCanvas({ items, maxRadiusKm, scanning, onPick }: Props) {
                 x={cx + r - 4}
                 y={cy - 4}
                 textAnchor="end"
-                fontSize="9"
+                fontSize="11"
                 fill={ring.color}
                 fontWeight="600"
               >

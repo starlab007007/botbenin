@@ -267,7 +267,7 @@ class _MuseChip extends StatelessWidget {
           label,
           style: const TextStyle(
             color: WaouhPalette.blue,
-            fontSize: 9,
+            fontSize: 10.5,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -314,7 +314,7 @@ class _FlowStep extends StatelessWidget {
               maxLines: 1,
               style: const TextStyle(
                 color: WaouhPalette.ink,
-                fontSize: 9.5,
+                fontSize: 10.5,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -356,7 +356,7 @@ class _SectionTitle extends StatelessWidget {
             subtitle,
             style: const TextStyle(
               color: WaouhPalette.blue,
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -419,7 +419,7 @@ class _ActionCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 10,
+                    fontSize: 11,
                     color: WaouhPalette.muted,
                     fontWeight: FontWeight.w600,
                   ),
@@ -499,7 +499,7 @@ class _StatusCard extends StatelessWidget {
                         '$activityCount activité(s)',
                         style: const TextStyle(
                           color: WaouhPalette.muted,
-                          fontSize: 10,
+                          fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -541,7 +541,7 @@ class _MusePrinciples extends StatelessWidget {
                 'Vous gardez le contrôle des contacts, validations et paiements.',
                 style: TextStyle(
                   color: WaouhPalette.muted,
-                  fontSize: 10.5,
+                  fontSize: 11,
                   fontWeight: FontWeight.w600,
                   height: 1.3,
                 ),

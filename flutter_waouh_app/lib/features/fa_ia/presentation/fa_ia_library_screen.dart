@@ -332,7 +332,7 @@ class _MiniMatrix extends StatelessWidget {
             'A    B',
             style: TextStyle(
               color: FaIaColors.gold,
-              fontSize: 9,
+              fontSize: 10.5,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -344,7 +344,7 @@ class _MiniMatrix extends StatelessWidget {
                 '${sign.columnA[index].symbol.padRight(3)}${sign.columnB[index].symbol}',
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 10,
+                  fontSize: 11,
                   height: 1.05,
                   fontWeight: FontWeight.w800,
                   fontFamily: 'monospace',
@@ -397,7 +397,7 @@ class _FaMatrix extends StatelessWidget {
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: FaIaColors.gold,
-                            fontSize: 10,
+                            fontSize: 11,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -415,7 +415,7 @@ class _FaMatrix extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 9,
+                                fontSize: 10.5,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
@@ -436,7 +436,7 @@ class _FaMatrix extends StatelessWidget {
                           '${x.number}. ${x.canonicalName}',
                           textAlign: TextAlign.center,
                           style: const TextStyle(
-                            fontSize: 9,
+                            fontSize: 10.5,
                             height: 1.1,
                             fontWeight: FontWeight.w900,
                             color: FaIaColors.deepBrown,
@@ -479,7 +479,7 @@ class _MatrixCell extends StatelessWidget {
             Text(
               sign.reference,
               style: const TextStyle(
-                fontSize: 9,
+                fontSize: 10.5,
                 fontWeight: FontWeight.w900,
                 color: FaIaColors.copper,
               ),

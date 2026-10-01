@@ -325,7 +325,7 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
 
 
   return (
-    <div className={cn('waouh-erp-shell', collapsed && 'waouh-erp-shell--collapsed')}>
+    <div className={cn('waouh-app waouh-erp-shell', collapsed && 'waouh-erp-shell--collapsed')}>
       <aside className="waouh-erp-sidebar" aria-label="Navigation WaouhApp AI ERP">
         <div className="waouh-erp-brand">
           <div className="waouh-erp-brand__mark" aria-hidden="true">W</div>
@@ -441,7 +441,7 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
               onClick={openMuse}
             >
               <BrainCircuit size={17} />
-              Ouvrir Avatar
+              <span>Ouvrir Avatar</span>
             </Button>
 
             <button
@@ -458,6 +458,7 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
               type="button"
               className="waouh-erp-profile"
               onClick={() => navigate('/app/profile')}
+              aria-label={`Mon profil · ${displayName}`}
             >
               <Avatar className="h-9 w-9">
                 <AvatarImage src={profile?.avatar_url || undefined} />
