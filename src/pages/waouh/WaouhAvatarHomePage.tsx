@@ -35,7 +35,8 @@ import {
 } from "@/lib/waouh/agenticContracts";
 import { WaouhMuseAvatar, type WaouhMusePhase } from "@/components/waouh/WaouhMuseAvatar";
 import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
-import { BotGreeting } from "@/components/waouh/bot/BotGreeting";
+import { BotGreeting, botActivityLine } from "@/components/waouh/bot/BotGreeting";
+import type { BotExpression } from "@/components/waouh/bot/BotCharacter";
 import { BotWorkingStrip } from "@/components/waouh/bot/BotWorkingStrip";
 import { useMobileProfile } from "@/app-mobile/hooks/useMobileProfile";
 
@@ -119,7 +120,9 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
   const [voiceActive, setVoiceActive] = useState(false);
   const [summary, setSummary] = useState<AgenticSummary>({ missions: 0, watches: 0, approvals: 0 });
   const [summaryLoading, setSummaryLoading] = useState(false);
-  const [botTalking, setBotTalking] = useState(false);
+  const [greetExpression, setGreetExpression] = useState<BotExpression>("idle");
+  const [promptFocused, setPromptFocused] = useState(false);
+  const [botLeaving, setBotLeaving] = useState(false);
   const { profile: mobileProfile } = useMobileProfile();
 
   const refreshSummary = useCallback(async () => {
@@ -231,7 +234,11 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
     const text = prompt.trim();
     if (!text) return;
     setPrompt("");
-    askAvatar(text);
+    setBotLeaving(true);
+    window.setTimeout(() => {
+      askAvatar(text);
+      window.setTimeout(() => setBotLeaving(false), 500);
+    }, 420);
   };
 
   const startVoice = () => {
@@ -300,6 +307,29 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
     },
   ] as const;
 
+  const botExpression: BotExpression = botLeaving
+    ? "think"
+    : voiceActive || promptFocused
+      ? "listen"
+      : greetExpression === "hello" || greetExpression === "talk"
+        ? greetExpression
+        : summary.approvals > 0
+          ? "ask"
+          : summary.missions > 0
+            ? "work"
+            : summary.watches > 0
+              ? "think"
+              : greetExpression;
+
+  /** Bot glisse vers la conversation, puis l'action s'ouvre. */
+  const glideThen = (action: () => void) => {
+    setBotLeaving(true);
+    window.setTimeout(() => {
+      action();
+      window.setTimeout(() => setBotLeaving(false), 500);
+    }, 420);
+  };
+
   const suggestions = summary.approvals > 0
     ? ["Que dois-je valider ?", "Résume mes négociations", "Quelles actions sont urgentes ?"]
     : summary.missions > 0
@@ -315,10 +345,9 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
 
           <div className="relative grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)] lg:items-center">
             <div className="flex flex-col items-center gap-2">
-              <BotLiveAvatar
-                size="clamp(116px, 30vw, 200px)"
-                state={botTalking ? "talking" : phase === "idle" ? "idle" : "thinking"}
-              />
+              <span className="botc-glide inline-flex" data-leaving={botLeaving}>
+                <BotLiveAvatar size="clamp(116px, 30vw, 200px)" expression={botExpression} />
+              </span>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white/90 px-2.5 py-1 text-[11px] font-black text-emerald-700 shadow-sm">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> En ligne
               </span>
@@ -350,7 +379,15 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
               <BotGreeting
                 className="mt-4"
                 firstName={user ? mobileProfile?.full_name : null}
-                onTalkingChange={setBotTalking}
+                thirdLine={botActivityLine(summary.missions, "mission")}
+                onExpressionChange={setGreetExpression}
+                choices={[
+                  { label: "Acheter", onSelect: () => glideThen(() => navigate("/app/avatar/acheter")) },
+                  { label: "Vendre", onSelect: () => glideThen(() => navigate("/app/avatar/vendre")) },
+                  summary.missions + summary.approvals > 0
+                    ? { label: "Voir mes missions", onSelect: () => glideThen(() => navigate("/app/missions")) }
+                    : { label: "Trouver une opportunité", onSelect: () => glideThen(() => navigate("/app/nexus")) },
+                ]}
               />
 
               {phase !== "idle" && (
@@ -379,6 +416,8 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
                   <Input
                     value={prompt}
                     onChange={(event) => setPrompt(event.target.value)}
+                    onFocus={() => setPromptFocused(true)}
+                    onBlur={() => setPromptFocused(false)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter") submitPrompt();
                     }}

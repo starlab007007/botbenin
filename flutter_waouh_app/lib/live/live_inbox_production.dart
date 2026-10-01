@@ -165,6 +165,7 @@ class _LiveInboxProductionScreenState extends State<LiveInboxProductionScreen> {
                           onFindOpportunity: () => context.push('/app/nexus'),
                           onNegotiate: () =>
                               _openWaouhWith('Je souhaite négocier '),
+                          onPrompt: _openWaouhWith,
                         ),
                       ),
                     ),

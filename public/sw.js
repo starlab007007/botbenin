@@ -5,7 +5,7 @@
 // - StaleWhileRevalidate pour images/fonts
 // - NetworkOnly pour Supabase / API / méthodes non-GET
 
-const VERSION = 'v11-bot-home-20261001';
+const VERSION = 'v12-bot-character-20261001';
 const SHELL_CACHE = `botbj-shell-${VERSION}`;
 const ASSETS_CACHE = `botbj-assets-${VERSION}`;
 const RUNTIME_CACHE = `botbj-runtime-${VERSION}`;

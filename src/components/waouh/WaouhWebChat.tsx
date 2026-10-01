@@ -235,6 +235,14 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     }
   };
 
+  /** Dernier message de Bot : il parle, ou il pose une question. */
+  const latestBotMessage = useMemo(
+    () => [...visibleMessages].reverse().find((item) => item.direction === "out") ?? null,
+    [visibleMessages],
+  );
+  const latestBotMessageId = latestBotMessage?.id ?? null;
+  const latestBotExpression: "ask" | "talk" = /\?\s*$/.test(String(latestBotMessage?.text ?? "").trim()) ? "ask" : "talk";
+
   const commerceAgent = useMemo(() => {
     const reversed = [...messages].reverse();
     const userMessage = reversed.find((message) => message.direction === "in");
@@ -828,6 +836,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         )}
 
         {visibleMessages.map((m) => {
+          const isLatestBot = m.id === latestBotMessageId;
           const briefing = m.direction === "out" && (m as any).meta?.intent === "avatar_briefing" ? parseAvatarBriefing((m as any).meta?.avatar_briefing) : null;
           if (briefing) {
             return (
@@ -856,8 +865,10 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                 <WaouhMuseAvatar
                   mode={commerceAgent.mode}
                   phase={sending ? "searching" : commerceAgent.phase}
+                  expression={isLatestBot && !sending ? latestBotExpression : isLatestBot ? undefined : "idle"}
+                  animated={isLatestBot}
                   size="sm"
-                  className="mt-0.5 hidden sm:block"
+                  className={cn("mt-0.5", isLatestBot ? "block" : "hidden sm:block")}
                 />
               )}
               <div
@@ -1000,7 +1011,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         )}
         {sending && (
           <div className="flex items-start gap-2">
-            <WaouhMuseAvatar mode={commerceAgent.mode} phase="searching" size="sm" className="hidden sm:block" />
+            <WaouhMuseAvatar mode={commerceAgent.mode} phase="searching" size="sm" />
             <div className="max-w-[90%] rounded-3xl border border-cyan-100 bg-gradient-to-r from-cyan-50 to-emerald-50 px-3.5 py-2.5 text-xs text-slate-700 shadow-sm">
               <div className="flex items-center gap-2 font-black text-cyan-950">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> Bot orchestre la recherche

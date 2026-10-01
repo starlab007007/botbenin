@@ -1,7 +1,7 @@
 name: waouh_app_native
 description: WaouhApp native Flutter application connected to the existing Bot.BJ Supabase backend.
 publish_to: "none"
-version: 18.24.0+1790851200
+version: 18.25.0+1790880000
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -53,6 +53,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/branding/waouh_mark.svg
+    - assets/bot/bot_avatar.png
     - assets/fa_ia/fa_256_document_corpus.json
     - assets/fa_ia/cowrie_open_real.png
     - assets/fa_ia/cowrie_closed_real.png

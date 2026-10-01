@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'avatar/bot_character.dart';
 import 'avatar/live_avatar_controller.dart';
 import 'avatar/live_avatar_widgets.dart';
 import 'live_theme.dart';
@@ -20,14 +21,48 @@ double liveBotUiScale(BuildContext context) {
 }
 
 /// Trois messages courts d'accueil, prononcés l'un après l'autre.
-List<String> liveBotGreetingLines(String? firstName) {
+/// [thirdLine] remplace le troisième message quand Bot a une activité réelle.
+List<String> liveBotGreetingLines(String? firstName, [String? thirdLine]) {
   final name = (firstName ?? '').trim().split(RegExp(r'\s+')).first;
   final named = name.isNotEmpty && name.toLowerCase() != 'waouhapp';
+  final third = (thirdLine ?? '').trim();
   return [
     named ? 'Bonjour $name, je suis Bot.' : 'Bonjour, je suis Bot.',
     'Je cherche, compare et négocie pour vous.',
-    "Dites-moi ce qu'il vous faut, je m'occupe du reste.",
+    third.isNotEmpty ? third : "Dites-moi ce qu'il vous faut, je m'occupe du reste.",
   ];
+}
+
+/// Troisième message selon l'activité réelle (missions ou Deal Rooms suivies).
+String? liveBotActivityLine({int missions = 0, int deals = 0}) {
+  if (missions > 0) {
+    return "J'ai $missions mission${missions > 1 ? 's' : ''} en cours pour vous.";
+  }
+  if (deals > 0) {
+    return 'Je suis $deals Deal Room${deals > 1 ? 's' : ''} pour vous.';
+  }
+  return null;
+}
+
+/// Question posée par Bot à la fin de l'accueil.
+const liveBotQuestion = 'On commence par quoi ?';
+
+/// Expression de Bot pendant l'accueil : salut, parole, question.
+BotExpression liveBotGreetingExpression({
+  required int shown,
+  required int lineCount,
+  required bool instant,
+  int missions = 0,
+  int approvals = 0,
+}) {
+  if (instant || shown > lineCount) {
+    if (approvals > 0) return BotExpression.ask;
+    if (missions > 0) return BotExpression.work;
+    return instant ? BotExpression.idle : BotExpression.ask;
+  }
+  if (shown == 0) return BotExpression.hello;
+  if (shown < lineCount) return BotExpression.talk;
+  return BotExpression.ask;
 }
 
 class BotHomeHero extends StatefulWidget {
@@ -43,6 +78,7 @@ class BotHomeHero extends StatefulWidget {
     required this.onAsk,
     required this.onFindOpportunity,
     required this.onNegotiate,
+    this.onPrompt,
   });
 
   final String avatarName;
@@ -56,6 +92,9 @@ class BotHomeHero extends StatefulWidget {
   final VoidCallback onFindOpportunity;
   final VoidCallback onNegotiate;
 
+  /// Ouvre la conversation WAOUH avec un début de demande (choix rapides).
+  final ValueChanged<String>? onPrompt;
+
   /// L'accueil animé n'est joué qu'une fois par lancement de l'application.
   static bool greetingPlayed = false;
 
@@ -63,26 +102,28 @@ class BotHomeHero extends StatefulWidget {
   State<BotHomeHero> createState() => _BotHomeHeroState();
 }
 
-class _BotHomeHeroState extends State<BotHomeHero>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _halo = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 2800),
-  )..repeat();
+class _BotHomeHeroState extends State<BotHomeHero> {
   final _timers = <Timer>[];
-  late final List<String> _lines = liveBotGreetingLines(widget.firstName);
+  late final List<String> _lines = liveBotGreetingLines(
+    widget.firstName,
+    liveBotActivityLine(missions: widget.missionCount, deals: widget.activeDeals),
+  );
+  late final bool _instant = BotHomeHero.greetingPlayed;
   int _shown = 0;
   bool _typing = false;
+  bool _leaving = false;
+
+  int get _steps => _lines.length + 1;
 
   @override
   void initState() {
     super.initState();
-    if (BotHomeHero.greetingPlayed) {
-      _shown = _lines.length;
+    if (_instant) {
+      _shown = _steps;
       return;
     }
     var at = 350;
-    for (var i = 0; i < _lines.length; i++) {
+    for (var i = 0; i < _steps; i++) {
       _timers.add(Timer(Duration(milliseconds: at), () {
         if (mounted) setState(() => _typing = true);
       }));
@@ -108,11 +149,35 @@ class _BotHomeHeroState extends State<BotHomeHero>
     for (final timer in _timers) {
       timer.cancel();
     }
-    _halo.dispose();
     super.dispose();
   }
 
-  bool get _talking => _typing || (_shown > 0 && _shown < _lines.length);
+  /// Bot glisse vers la conversation, puis l'action s'ouvre.
+  void _glideThen(VoidCallback action) {
+    if (_leaving) return;
+    setState(() => _leaving = true);
+    _timers.add(Timer(const Duration(milliseconds: 420), () {
+      action();
+      _timers.add(Timer(const Duration(milliseconds: 600), () {
+        if (mounted) setState(() => _leaving = false);
+      }));
+    }));
+  }
+
+  void _prompt(String seed) {
+    final onPrompt = widget.onPrompt;
+    _glideThen(onPrompt == null ? widget.onAsk : () => onPrompt(seed));
+  }
+
+  BotExpression get _expression => _leaving
+      ? BotExpression.think
+      : liveBotGreetingExpression(
+          shown: _shown,
+          lineCount: _lines.length,
+          instant: _instant,
+          missions: widget.missionCount,
+          approvals: widget.approvalCount,
+        );
 
   @override
   Widget build(BuildContext context) {
@@ -121,7 +186,7 @@ class _BotHomeHeroState extends State<BotHomeHero>
     final name =
         stored.isEmpty || stored.toLowerCase() == 'ayo' ? 'Bot' : stored;
     final k = liveBotUiScale(context);
-    final avatarSize = 96.0 * k;
+    final avatarSize = 118.0 * k;
     final reduceMotion = MediaQuery.of(context).disableAnimations;
     final pending = widget.approvalCount > 0
         ? '${widget.approvalCount} à valider'
@@ -159,65 +224,24 @@ class _BotHomeHeroState extends State<BotHomeHero>
                 label: 'Ouvrir $name, mon Avatar IA',
                 child: GestureDetector(
                   onTap: widget.onAvatar,
-                  child: SizedBox(
-                    width: avatarSize + 24,
-                    height: avatarSize + 24,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        // Halo vivant : l'avatar respire.
-                        if (!reduceMotion)
-                          AnimatedBuilder(
-                            animation: _halo,
-                            builder: (_, __) {
-                              final t = _halo.value;
-                              return Opacity(
-                                opacity: (1 - t) * .7,
-                                child: Container(
-                                  width: avatarSize * (1 + t * .28),
-                                  height: avatarSize * (1 + t * .28),
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: const Color(0xFF34D399),
-                                      width: 2,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        Container(
-                          width: avatarSize + 10,
-                          height: avatarSize + 10,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: const SweepGradient(
-                              colors: [
-                                Color(0x5522D3EE),
-                                Color(0x558B5CF6),
-                                Color(0x5510B981),
-                                Color(0x5522D3EE),
-                              ],
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF22D3EE)
-                                    .withValues(alpha: .25),
-                                blurRadius: 24,
-                              ),
-                            ],
-                          ),
-                        ),
-                        LiveAvatarVisual(
+                  child: AnimatedSlide(
+                    offset: _leaving ? const Offset(-.25, -.45) : Offset.zero,
+                    duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 520),
+                    curve: Curves.easeInOutCubic,
+                    child: AnimatedScale(
+                      scale: _leaving ? .32 : 1,
+                      duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 520),
+                      curve: Curves.easeInOutCubic,
+                      child: AnimatedOpacity(
+                        opacity: _leaving ? .25 : 1,
+                        duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 520),
+                        child: LiveAvatarVisual(
                           preset: avatar.profile.preset,
-                          state: _talking
-                              ? LiveAvatarPresenceState.typing
-                              : LiveAvatarPresenceState.idle,
+                          expression: _expression,
                           size: avatarSize,
                           showStatusBadge: true,
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -269,15 +293,42 @@ class _BotHomeHeroState extends State<BotHomeHero>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          for (var i = 0; i < _shown; i++)
+                          for (var i = 0; i < math.min(_shown, _lines.length); i++)
                             _GreetingBubble(
                               key: ValueKey('greet_$i'),
                               text: _lines[i],
-                              last: i == _lines.length - 1,
+                              last: false,
                               scale: k,
                             ),
-                          if (_typing && _shown < _lines.length)
+                          if (_shown > _lines.length)
+                            _GreetingBubble(
+                              key: const ValueKey('greet_question'),
+                              text: liveBotQuestion,
+                              last: true,
+                              scale: k,
+                            ),
+                          if (_typing && _shown < _steps)
                             _TypingBubble(scale: k),
+                          if (_shown >= _steps)
+                            Wrap(
+                              spacing: 6 * k,
+                              runSpacing: 6 * k,
+                              children: [
+                                _ChoiceChip(label: 'Acheter', scale: k, onTap: () => _prompt('Je veux acheter ')),
+                                _ChoiceChip(label: 'Vendre', scale: k, onTap: () => _prompt('Je veux vendre ')),
+                                widget.missionCount + widget.approvalCount > 0
+                                    ? _ChoiceChip(
+                                        label: 'Voir mes missions',
+                                        scale: k,
+                                        onTap: () => _glideThen(widget.onMissions),
+                                      )
+                                    : _ChoiceChip(
+                                        label: 'Trouver une opportunité',
+                                        scale: k,
+                                        onTap: () => _glideThen(widget.onFindOpportunity),
+                                      ),
+                              ],
+                            ),
                         ],
                       ),
                     ),
@@ -291,7 +342,7 @@ class _BotHomeHeroState extends State<BotHomeHero>
             color: Colors.white,
             borderRadius: BorderRadius.circular(18),
             child: InkWell(
-              onTap: widget.onAsk,
+              onTap: () => _glideThen(widget.onAsk),
               borderRadius: BorderRadius.circular(18),
               child: Container(
                 height: 50 * k,
@@ -350,7 +401,7 @@ class _BotHomeHeroState extends State<BotHomeHero>
                   caption: 'avec $name',
                   primary: true,
                   scale: k,
-                  onTap: widget.onAsk,
+                  onTap: () => _glideThen(widget.onAsk),
                 ),
               ),
               SizedBox(width: 7 * k),
@@ -381,6 +432,40 @@ class _BotHomeHeroState extends State<BotHomeHero>
       ),
     );
   }
+}
+
+class _ChoiceChip extends StatelessWidget {
+  const _ChoiceChip({required this.label, required this.scale, required this.onTap});
+
+  final String label;
+  final double scale;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: Colors.white,
+        shape: StadiumBorder(
+          side: BorderSide(color: const Color(0xFF0F766E), width: 1.5 * scale.clamp(.9, 1.1).toDouble()),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const StadiumBorder(),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 40),
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 13 * scale, vertical: 8 * scale),
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: const Color(0xFF115E59),
+                  fontSize: 13 * scale,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
 }
 
 class _Pill extends StatelessWidget {
@@ -453,7 +538,7 @@ class _GreetingBubble extends StatelessWidget {
             vertical: 6 * scale,
           ),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: .92),
+            color: last ? const Color(0xFFFFF7E6) : Colors.white.withValues(alpha: .92),
             borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(6),
               topRight: Radius.circular(16),
@@ -461,13 +546,13 @@ class _GreetingBubble extends StatelessWidget {
               bottomRight: Radius.circular(16),
             ),
             border: Border.all(
-              color: last ? const Color(0xFF99F6E4) : const Color(0xFFE2E8F0),
+              color: last ? const Color(0xFFF59E0B) : const Color(0xFFE2E8F0),
             ),
           ),
           child: Text(
             text,
             style: TextStyle(
-              color: last ? const Color(0xFF134E4A) : const Color(0xFF334155),
+              color: last ? const Color(0xFF0A1226) : const Color(0xFF334155),
               fontSize: 13 * scale,
               height: 1.3,
               fontWeight: FontWeight.w700,
