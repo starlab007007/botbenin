@@ -196,12 +196,12 @@ async function waitForText(marker, timeoutMs = 7000) {
 
 async function testRoot(viewport) {
   let state = await navigate("http://127.0.0.1:4173/", viewport);
-  if (!state.text.includes("Votre Avatar WAOUH") && !state.fallback) {
-    const waited = await waitForText("Votre Avatar WAOUH");
+  if (!state.text.includes("Votre Avatar IA") && !state.fallback) {
+    const waited = await waitForText("Votre Avatar IA");
     state = { ...state, ...waited };
   }
   if (state.fallback) fail(`${viewport.name}: root rendered the ErrorBoundary fallback`);
-  if (!state.text.includes("Votre Avatar WAOUH")) {
+  if (!state.text.includes("Votre Avatar IA")) {
     fail(`${viewport.name}: Avatar home is missing at ${state.path}; body=${state.text.slice(0, 300)}`);
   }
   for (const label of ["Acheter", "Vendre", "Trouver", "Demander"]) {
@@ -268,7 +268,7 @@ async function testRoot(viewport) {
     input.dispatchEvent(new Event("input", { bubbles: true }));
     input.dispatchEvent(new Event("change", { bubbles: true }));
     const button = [...input.parentElement.querySelectorAll("button")]
-      .find((element) => (element.innerText || "").trim() === "Demander");
+      .find((element) => (element.innerText || "").trim() === "Demander" || element.getAttribute("aria-label") === "Demander");
     if (!button) return false;
     button.click();
     return true;
@@ -334,7 +334,7 @@ async function testDesktopSidebar(viewport) {
 async function testRoutes(viewport) {
   const routes = [
     ["/app/chat", "Demandez à Bot", false],
-    ["/app/avatar", "Votre Avatar WAOUH", false],
+    ["/app/avatar", "Votre Avatar IA", false],
     ["/app/avatar/acheter", "Acheter avec mon Avatar", false],
     ["/app/avatar/vendre", "Vendre avec mon Avatar", false],
     ["/app/avatar/demander", "Demander à mon Avatar", false],

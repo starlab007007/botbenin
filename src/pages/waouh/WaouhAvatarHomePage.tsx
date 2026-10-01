@@ -21,7 +21,6 @@ import {
   Volume2,
 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -35,6 +34,10 @@ import {
   type PriceWatch,
 } from "@/lib/waouh/agenticContracts";
 import { WaouhMuseAvatar, type WaouhMusePhase } from "@/components/waouh/WaouhMuseAvatar";
+import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
+import { BotGreeting } from "@/components/waouh/bot/BotGreeting";
+import { BotWorkingStrip } from "@/components/waouh/bot/BotWorkingStrip";
+import { useMobileProfile } from "@/app-mobile/hooks/useMobileProfile";
 
 type AvatarProfile = {
   name: string;
@@ -116,6 +119,8 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
   const [voiceActive, setVoiceActive] = useState(false);
   const [summary, setSummary] = useState<AgenticSummary>({ missions: 0, watches: 0, approvals: 0 });
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [botTalking, setBotTalking] = useState(false);
+  const { profile: mobileProfile } = useMobileProfile();
 
   const refreshSummary = useCallback(async () => {
     if (!user) {
@@ -302,51 +307,29 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
       : ["Trouve-moi un bon téléphone à Cotonou", "Je veux vendre un produit", "Aide-moi à trouver un service"];
 
   return (
-    <main data-waouh-ui="bot-avatar-desktop-v2" className="h-full min-h-0 overflow-y-auto bg-[radial-gradient(circle_at_20%_0%,rgba(59,130,246,.10),transparent_30%),radial-gradient(circle_at_85%_18%,rgba(139,92,246,.08),transparent_26%),linear-gradient(180deg,#f8fbff_0%,#ffffff_58%)]">
+    <main data-waouh-ui="bot-home-v3" className="h-full min-h-0 overflow-y-auto bg-[radial-gradient(circle_at_20%_0%,rgba(59,130,246,.10),transparent_30%),radial-gradient(circle_at_85%_18%,rgba(139,92,246,.08),transparent_26%),linear-gradient(180deg,#f8fbff_0%,#ffffff_58%)]">
       <div className="mx-auto w-full max-w-6xl space-y-5 px-4 py-5 sm:px-6 lg:px-8">
         <section className="relative overflow-hidden rounded-[30px] border border-blue-100 bg-gradient-to-br from-blue-50/90 via-white to-violet-50/80 px-5 py-5 shadow-[0_24px_70px_-48px_rgba(37,99,235,.45)] sm:px-7 sm:py-6">
           <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-blue-300/15 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-24 left-1/3 h-52 w-52 rounded-full bg-violet-300/10 blur-3xl" />
 
-          <div className="relative grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-center">
-            <div className="flex justify-center">
-              <motion.div
-                animate={
-                  phase === "idle"
-                    ? { y: [0, -5, 0] }
-                    : phase === "listening"
-                      ? { scale: [1, 1.06, 1] }
-                      : { scale: [1, 1.035, 1] }
-                }
-                transition={{ duration: phase === "idle" ? 3.6 : 1.35, repeat: Infinity, ease: "easeInOut" }}
-                className={`relative grid h-40 w-40 place-items-center rounded-[42px] border-4 border-white bg-gradient-to-br ${presetGradient[profile.preset]} shadow-xl shadow-blue-500/10`}
-              >
-                <div className="absolute -inset-3 rounded-[48px] border border-blue-200/50" />
-                <WaouhMuseAvatar phase={phase} size="lg" className="scale-125" />
-                <span className="absolute right-3 top-3 rounded-full border border-white bg-white/85 px-2 py-1 text-[9px] font-black text-blue-600 shadow-sm">
-                  WAOUH AI
-                </span>
-                <span className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full border border-emerald-100 bg-white/90 px-2.5 py-1 text-[9px] font-bold text-emerald-700 shadow-sm">
-                  ● Actif
-                </span>
-              </motion.div>
+          <div className="relative grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)] lg:items-center">
+            <div className="flex flex-col items-center gap-2">
+              <BotLiveAvatar
+                size="clamp(116px, 30vw, 200px)"
+                state={botTalking ? "talking" : phase === "idle" ? "idle" : "thinking"}
+              />
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white/90 px-2.5 py-1 text-[11px] font-black text-emerald-700 shadow-sm">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> En ligne
+              </span>
             </div>
 
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className="rounded-full border-blue-200 bg-white/80 text-blue-700">
-                  <Sparkles className="mr-1 h-3 w-3" /> Votre Avatar WAOUH
-                </Badge>
-                <Badge variant="outline" className="rounded-full border-cyan-200 bg-white/80 text-cyan-700">
-                  NEXUS
-                </Badge>
-              </div>
-
-              <div className="mt-3 flex items-start justify-between gap-3">
-                <div>
-                  <h1 className="text-3xl font-black tracking-tight text-slate-950">{profile.name}</h1>
-                  <p className="mt-1 text-sm font-semibold text-slate-500">
-                    Votre Avatar WAOUH · {profile.personality}
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h1 className="text-[clamp(28px,6vw,40px)] font-black leading-none tracking-tight text-slate-950">{profile.name}</h1>
+                  <p className="mt-1.5 text-sm font-semibold text-slate-500">
+                    Votre Avatar IA · le cœur de WAOUH
                   </p>
                 </div>
                 <Button
@@ -364,22 +347,22 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
                 </Button>
               </div>
 
-              <motion.p
-                key={status}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-3 text-lg font-bold text-slate-800"
-              >
-                {status}
-              </motion.p>
+              <BotGreeting
+                className="mt-4"
+                firstName={user ? mobileProfile?.full_name : null}
+                onTalkingChange={setBotTalking}
+              />
 
-              <div className="mt-3 flex flex-wrap gap-2">
-                {[profile.personality, profile.proactivity, "NEXUS"].map((label) => (
-                  <span key={label} className="rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 text-xs font-bold text-blue-600">
-                    {label}
-                  </span>
-                ))}
-              </div>
+              {phase !== "idle" && (
+                <motion.p
+                  key={status}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-2 text-sm font-bold text-teal-800"
+                >
+                  {status}
+                </motion.p>
+              )}
 
               <div className="mt-5 rounded-2xl border border-slate-200 bg-white/90 p-2 shadow-sm">
                 <div className="flex items-center gap-2">
@@ -402,9 +385,9 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
                     placeholder={`Dites à ${profile.name} ce que vous voulez faire…`}
                     className="h-10 flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
                   />
-                  <Button type="button" className="h-10 rounded-xl px-4" onClick={submitPrompt} disabled={!prompt.trim()}>
-                    <Send className="mr-2 h-4 w-4" />
-                    Demander
+                  <Button type="button" className="h-10 shrink-0 rounded-xl px-3 sm:px-4" onClick={submitPrompt} disabled={!prompt.trim()} aria-label="Demander">
+                    <Send className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Demander</span>
                   </Button>
                 </div>
               </div>
@@ -446,6 +429,7 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
                   <Sparkles className="mr-2 h-4 w-4" /> Négocier avec Bot
                 </Button>
               </div>
+              <BotWorkingStrip className="mt-3" />
             </div>
           </div>
         </section>

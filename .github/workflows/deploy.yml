@@ -43,8 +43,9 @@ jobs:
           grep -q 'PublicAgentWebChatPage' src/pages/NotFound.tsx
 
           test -f public/waouh-ui-version.txt
-          grep -q '2026.10.01.1' public/waouh-ui-version.txt
+          grep -q '2026.10.01.2' public/waouh-ui-version.txt
           grep -q 'bot-avatar-v3' src/app-mobile/screens/ChatListScreen.tsx
+          grep -q 'bot-home-v3' src/pages/waouh/WaouhAvatarHomePage.tsx
           grep -q 'bot-copilot-v2' src/components/waouh/WaouhMatchChatWindow.tsx
 
           echo "✅ Sources FA IA, AprèsBac IA, Web Chat public et UI WAOUH V2 prêtes"
@@ -197,7 +198,7 @@ jobs:
             docker compose exec -T react-app grep -q '20260724-home-v23-1' /usr/share/nginx/html/fa/index.html
             docker compose exec -T react-app sh -c "grep -R -q 'Le Web Chat est momentanément indisponible' /usr/share/nginx/html/assets/js"
             docker compose exec -T react-app test -f /usr/share/nginx/html/waouh-ui-version.txt
-            docker compose exec -T react-app grep -q '2026.10.01.1' /usr/share/nginx/html/waouh-ui-version.txt
+            docker compose exec -T react-app grep -q '2026.10.01.2' /usr/share/nginx/html/waouh-ui-version.txt
             docker compose exec -T react-app sh -c "grep -R -q 'bot-avatar-v3' /usr/share/nginx/html/assets/js"
             docker compose exec -T react-app sh -c "grep -R -q 'bot-copilot-v2' /usr/share/nginx/html/assets/js"
 
@@ -216,7 +217,7 @@ jobs:
                  curl -fsSL https://bot.bj/apresbacia/production-finalization-v2_17.js >/dev/null 2>&1 && \
                  curl -fsSL https://bot.bj/fa >/dev/null 2>&1 && \
                  curl -fsSL -H 'Cache-Control: no-cache' "https://bot.bj/app/chat?deploy_check=${DEPLOY_SHA}" >/dev/null 2>&1 && \
-                 curl -fsSL -H 'Cache-Control: no-cache' "https://bot.bj/waouh-ui-version.txt?deploy_check=${DEPLOY_SHA}" | grep -q '2026.10.01.1' && \
+                 curl -fsSL -H 'Cache-Control: no-cache' "https://bot.bj/waouh-ui-version.txt?deploy_check=${DEPLOY_SHA}" | grep -q '2026.10.01.2' && \
                  curl -fsSL -H 'Cache-Control: no-cache' "https://bot.bj/ecqdg4yzr?deploy_check=${DEPLOY_SHA}" >/dev/null 2>&1; then
                 PUBLIC_READY=1
                 break
