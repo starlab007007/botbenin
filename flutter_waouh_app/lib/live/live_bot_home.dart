@@ -694,7 +694,7 @@ class _HeroAction extends StatelessWidget {
                     color: primary
                         ? Colors.white.withValues(alpha: .8)
                         : WaouhPalette.muted,
-                    fontSize: 10 * scale,
+                    fontSize: 11 * scale,
                     height: 1.1,
                     fontWeight: FontWeight.w600,
                   ),
@@ -773,7 +773,7 @@ class _BotWorkingStripState extends State<BotWorkingStrip> {
             'BOT TRAVAILLE',
             style: TextStyle(
               color: const Color(0xFF047857),
-              fontSize: 10.5 * k,
+              fontSize: 11 * k,
               letterSpacing: .8,
               fontWeight: FontWeight.w900,
             ),

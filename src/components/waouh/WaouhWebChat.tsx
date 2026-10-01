@@ -1059,7 +1059,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
 
       <form
         onSubmit={(e) => { e.preventDefault(); send(); }}
-        className="flex items-end gap-2 p-1.5 sm:p-2 border-t bg-background shrink-0"
+        className="flex items-end gap-1.5 p-1.5 sm:gap-2 sm:p-2 border-t bg-background shrink-0"
       >
         <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handleFiles(e.target.files)} />
         <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
@@ -1069,6 +1069,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           disabled={uploading || sending || pendingAtts.length >= MAX_PHOTOS}
           aria-label="Prendre une photo"
           title="Prendre une photo"
+          className="h-9 w-9 shrink-0 sm:h-10 sm:w-10"
         >
           {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
         </Button>
@@ -1078,6 +1079,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
           disabled={uploading || sending || pendingAtts.length >= MAX_PHOTOS}
           aria-label="Choisir depuis la galerie"
           title={`Galerie (${pendingAtts.length}/${MAX_PHOTOS})`}
+          className="h-9 w-9 shrink-0 sm:h-10 sm:w-10"
         >
           <Paperclip className="w-4 h-4" />
         </Button>

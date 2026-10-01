@@ -620,7 +620,7 @@ class _JourneyStep extends StatelessWidget {
                 child: Text(number,
                     style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 10,
+                        fontSize: 11,
                         fontWeight: FontWeight.w900)),
               ),
             ),
@@ -637,7 +637,7 @@ class _JourneyStep extends StatelessWidget {
             textAlign: TextAlign.center,
             overflow: TextOverflow.ellipsis,
             style:
-                const TextStyle(color: _biMuted, fontSize: 10.5, height: 1.2)),
+                const TextStyle(color: _biMuted, fontSize: 11, height: 1.2)),
       ],
     );
   }
@@ -929,7 +929,7 @@ class _SmartSectionHeader extends StatelessWidget {
                   child: Text(number,
                       style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 9,
+                          fontSize: 10.5,
                           fontWeight: FontWeight.w900)),
                 ),
               ),
@@ -1009,7 +1009,7 @@ class _ImportActionCard extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                            color: _biMuted, fontSize: 10.5, height: 1.2)),
+                            color: _biMuted, fontSize: 11, height: 1.2)),
                   ],
                 ),
               ),
@@ -1044,7 +1044,7 @@ class _ReadyBadge extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                         color: _biTeal,
-                        fontSize: 10.5,
+                        fontSize: 11,
                         fontWeight: FontWeight.w800))),
           ],
         ),
@@ -1674,7 +1674,7 @@ class _BiKpiGrid extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: _biMuted,
-                            fontSize: 10,
+                            fontSize: 11,
                           ),
                         ),
                       ],
@@ -1780,7 +1780,7 @@ class _BiStatisticsGrid extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: _biMuted,
-                              fontSize: 10,
+                              fontSize: 11,
                               height: 1.2,
                             ),
                           ),
@@ -1849,7 +1849,7 @@ class _BiRecommendationCard extends StatelessWidget {
                       '${entry.key + 1}',
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 10,
+                        fontSize: 11,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -2397,7 +2397,7 @@ class _SourceTile extends StatelessWidget {
                     child: const Text('PRÊT',
                         style: TextStyle(
                             color: _biTeal,
-                            fontSize: 9.5,
+                            fontSize: 10.5,
                             fontWeight: FontWeight.w900,
                             letterSpacing: .4)),
                   ),

@@ -61,7 +61,7 @@ export const MobileShell = () => {
   }
 
   return (
-    <div className="mobile-shell flex flex-col min-h-[100dvh]">
+    <div className="waouh-app mobile-shell flex flex-col min-h-[100dvh]">
       <OfflineBanner />
       <main className={fullscreen ? 'flex-1' : 'flex-1 pb-[64px]'}>
         <Outlet />

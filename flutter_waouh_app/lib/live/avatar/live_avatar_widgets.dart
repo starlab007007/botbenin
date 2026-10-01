@@ -126,7 +126,7 @@ class LiveAvatarPresenceStrip extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: WaouhPalette.ink,
-                  fontSize: 10.5,
+                  fontSize: 11,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -215,7 +215,7 @@ class LiveAvatarDock extends StatelessWidget {
                     peek,
                     style: const TextStyle(
                       color: WaouhPalette.ink,
-                      fontSize: 9.5,
+                      fontSize: 10.5,
                       fontWeight: FontWeight.w800,
                     ),
                   ),

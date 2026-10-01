@@ -461,7 +461,7 @@ class _RadarSweepPainter extends CustomPainter {
       );
     }
     final labelStyle = const TextStyle(
-        color: Color(0xFFA9D7C6), fontSize: 10, fontWeight: FontWeight.w800);
+        color: Color(0xFFA9D7C6), fontSize: 11, fontWeight: FontWeight.w800);
     _label(canvas, '${math.max(1, maxRadiusKm ~/ 4)} km',
         Offset(center.dx + 7, center.dy - radius * .53), labelStyle);
     _label(canvas, '$maxRadiusKm km',
@@ -541,7 +541,7 @@ class _ScanStatePill extends StatelessWidget {
           Text(scanning ? 'Scan' : '$count trouvé${count > 1 ? 's' : ''}',
               style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 10.5,
+                  fontSize: 11,
                   fontWeight: FontWeight.w900)),
         ]),
       );
@@ -660,7 +660,7 @@ class _ControlPill extends StatelessWidget {
               child: Text('$badge',
                   style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 9,
+                      fontSize: 10.5,
                       fontWeight: FontWeight.w900)),
             ),
           ),
@@ -792,7 +792,7 @@ class _CardBadge extends StatelessWidget {
         child: Text(label,
             style: const TextStyle(
                 color: Colors.white,
-                fontSize: 10,
+                fontSize: 11,
                 fontWeight: FontWeight.w900)),
       );
 }

@@ -11,6 +11,8 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
+import 'live/ui/waouh_adaptive_scale.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<void> main() async {
@@ -208,7 +210,7 @@ ThemeData buildWaouhTheme() {
                 : WaouhColors.muted,
           )),
       labelTextStyle: WidgetStateProperty.resolveWith((states) => TextStyle(
-            fontSize: 10.5,
+            fontSize: 11,
             height: 1,
             fontWeight: states.contains(WidgetState.selected)
                 ? FontWeight.w800
@@ -1830,6 +1832,7 @@ class WaouhNativeApp extends StatelessWidget {
             title: 'WaouhApp',
             theme: buildWaouhTheme(),
             routerConfig: router,
+            builder: waouhAdaptiveScaleBuilder,
           );
         },
       ),

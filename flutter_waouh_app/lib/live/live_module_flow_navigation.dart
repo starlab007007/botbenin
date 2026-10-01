@@ -108,7 +108,7 @@ class LiveModuleFlowNavigation extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 color: muted,
-                                fontSize: 9.5,
+                                fontSize: 10.5,
                               ),
                             ),
                           ],
@@ -157,7 +157,7 @@ class _FlowButton extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
       style: const TextStyle(
         color: LiveModuleFlowNavigation.green,
-        fontSize: 10.5,
+        fontSize: 11,
         fontWeight: FontWeight.w800,
       ),
     );

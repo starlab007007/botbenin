@@ -159,14 +159,14 @@ export function RadarPanel({ query = "" }: { query?: string }) {
         <div className="ml-auto inline-flex rounded-md overflow-hidden border">
           <button
             onClick={() => setView("radar")}
-            className={"px-2 py-1.5 text-xs " + (view === "radar" ? "bg-emerald-600 text-white" : "")}
+            className={"grid min-h-9 min-w-9 place-items-center px-2 py-1.5 text-xs " + (view === "radar" ? "bg-emerald-600 text-white" : "")}
             aria-label="Vue radar"
           >
             <RadarIcon className="h-4 w-4" />
           </button>
           <button
             onClick={() => setView("list")}
-            className={"px-2 py-1.5 text-xs " + (view === "list" ? "bg-emerald-600 text-white" : "")}
+            className={"grid min-h-9 min-w-9 place-items-center px-2 py-1.5 text-xs " + (view === "list" ? "bg-emerald-600 text-white" : "")}
             aria-label="Vue liste"
           >
             <List className="h-4 w-4" />

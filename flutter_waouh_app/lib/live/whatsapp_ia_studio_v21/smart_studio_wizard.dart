@@ -2371,7 +2371,7 @@ class _SmartHeader extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: WaouhIaPalette.muted,
-                        fontSize: 10.5,
+                        fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -2568,7 +2568,7 @@ class _CurrentStepGuide extends StatelessWidget {
                     'Ensuite : $next',
                     style: const TextStyle(
                       color: WaouhIaPalette.muted,
-                      fontSize: 10.5,
+                      fontSize: 11,
                     ),
                   ),
               ],
@@ -2858,7 +2858,7 @@ class _MethodCard extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: WaouhIaPalette.muted,
-                  fontSize: 10.5,
+                  fontSize: 11,
                 ),
               ),
             ],
@@ -3050,7 +3050,7 @@ class _RecommendationCard extends StatelessWidget {
                         item.reason,
                         style: const TextStyle(
                           color: Color(0xFF47635D),
-                          fontSize: 10.5,
+                          fontSize: 11,
                         ),
                       ),
                     ],
@@ -3102,7 +3102,7 @@ class _TemplatePrompts extends StatelessWidget {
                     backgroundColor: Colors.white,
                     label: Text(
                       item,
-                      style: const TextStyle(fontSize: 10.5),
+                      style: const TextStyle(fontSize: 11),
                     ),
                   ),
                 )

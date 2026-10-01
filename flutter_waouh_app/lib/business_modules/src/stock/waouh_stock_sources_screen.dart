@@ -558,7 +558,7 @@ class _JourneyStep extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
                 color: Colors.white,
-                fontSize: 10,
+                fontSize: 11,
                 fontWeight: FontWeight.w800)),
       ]),
     );
@@ -618,7 +618,7 @@ class _SourceActionCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(999)),
                       child: Text(badge,
                           style: const TextStyle(
-                              fontSize: 9,
+                              fontSize: 10.5,
                               fontWeight: FontWeight.w800,
                               color: _WaouhStockSourcesScreenState.green))),
                 ],
@@ -809,7 +809,7 @@ class _StatusPill extends StatelessWidget {
         label,
         style: TextStyle(
           color: color,
-          fontSize: 10,
+          fontSize: 11,
           fontWeight: FontWeight.w800,
         ),
       ),

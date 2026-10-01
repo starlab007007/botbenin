@@ -214,7 +214,7 @@ class WaouhText {
   );
 
   static const TextStyle eyebrow = TextStyle(
-    fontSize: 10.5,
+    fontSize: 11,
     fontWeight: FontWeight.w800,
     letterSpacing: 0.6,
     color: WaouhPalette.muted,

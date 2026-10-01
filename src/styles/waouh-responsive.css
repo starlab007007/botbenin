@@ -1,0 +1,85 @@
+/*
+ * WAOUH — système responsive premium (UI uniquement).
+ * Chargé après index.css : à spécificité égale, ces règles remplacent les
+ * tailles figées des utilitaires Tailwind dans toute l'application.
+ *
+ * 1. Échelle typographique fluide : aucun texte d'interface sous ~10,5 px,
+ *    et chaque petite taille grandit doucement avec la largeur d'écran.
+ * 2. Typographie de l'app : sans-serif lisible partout (titres compris).
+ * 3. Icônes minuscules agrandies sur écran tactile.
+ * 4. Cibles tactiles confortables sur les puces et boutons compacts.
+ */
+
+/* 1 — Échelle fluide des petites tailles (pages, menus, badges). */
+.text-\[8px\],
+.text-\[9px\],
+.text-\[9\.5px\] { font-size: clamp(11px, 0.64rem + 0.12vw, 11.5px); }
+.text-\[10px\],
+.text-\[10\.5px\] { font-size: clamp(11.5px, 0.68rem + 0.14vw, 12px); }
+.text-\[11px\] { font-size: clamp(11.5px, 0.68rem + 0.14vw, 12.5px); }
+.text-\[11\.5px\],
+.text-\[12px\] { font-size: clamp(12px, 0.72rem + 0.14vw, 13px); }
+
+@media (min-width: 640px) {
+  .sm\:text-\[8px\],
+  .sm\:text-\[9px\] { font-size: clamp(11px, 0.64rem + 0.12vw, 11.5px); }
+  .sm\:text-\[10px\] { font-size: clamp(11px, 0.64rem + 0.14vw, 11.75px); }
+}
+
+/* 2 — Typographie de l'application (mobile, tablette, web, web réduit). */
+.waouh-app {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  font-feature-settings: "cv11", "ss01";
+}
+.waouh-app :is(h1, h2, h3, h4, h5, h6) {
+  font-family: "Space Grotesk", Inter, ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.waouh-app p { text-wrap: pretty; }
+/* Chiffres alignés (prix, compteurs, heures). */
+.waouh-app :is(.tabular, [data-numeric]) { font-variant-numeric: tabular-nums; }
+
+/* Champs : 16 px minimum sur mobile pour éviter le zoom automatique d'iOS. */
+@media (max-width: 767px) {
+  .waouh-app :is(input, textarea, select):not([type="checkbox"]):not([type="radio"]) { font-size: max(16px, 1em); }
+}
+
+/* 3 — Icônes : jamais minuscules sur écran tactile. */
+@media (pointer: coarse) {
+  .waouh-app svg.lucide.h-2\.5,
+  .waouh-app svg.lucide.w-2\.5 { width: 0.8125rem; height: 0.8125rem; }
+  .waouh-app svg.lucide.h-3,
+  .waouh-app svg.lucide.w-3 { width: 0.875rem; height: 0.875rem; }
+}
+
+/* Onglets : hauteur confortable au doigt, partout dans le site. */
+@media (pointer: coarse) {
+  [role="tab"] { min-height: 36px; }
+}
+
+/* 4 — Cibles tactiles : puces et petits boutons texte ≥ 36 px sur tactile. */
+@media (pointer: coarse) {
+  .waouh-app button.rounded-full:is(.py-1, .py-1\.5, .py-0\.5):not(:empty),
+  .waouh-app a.rounded-full:is(.py-1, .py-1\.5, .py-0\.5):not(:empty) {
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
+/* Barre de défilement horizontale discrète pour les rangées de puces. */
+.waouh-app .scrollbar-none { scrollbar-width: none; }
+.waouh-app .scrollbar-none::-webkit-scrollbar { display: none; }
+
+/* Mouvements réduits : on respecte la préférence de l'appareil. */
+@media (prefers-reduced-motion: reduce) {
+  .waouh-app *, .waouh-app *::before, .waouh-app *::after {
+    scroll-behavior: auto !important;
+  }
+}

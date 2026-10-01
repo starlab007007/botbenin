@@ -582,7 +582,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
                       : configured
                           ? sourceLabel(entry.key) + ' +' + inserted.toString()
                           : sourceLabel(entry.key) + ' · non configuré',
-                  style: const TextStyle(fontSize: 10.5),
+                  style: const TextStyle(fontSize: 11),
                 ),
               );
             }).toList(growable: false),
@@ -786,7 +786,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
                   trailing: Text(
                     source.live ? 'LIVE' : source.state.toUpperCase(),
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: FontWeight.w900,
                       color: source.live
                           ? const Color(0xFF08745D)
@@ -848,7 +848,7 @@ class _Hero extends StatelessWidget {
                     'Trouver · comparer · contacter',
                     style: TextStyle(
                       color: WaouhPalette.muted,
-                      fontSize: 10.5,
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -866,7 +866,7 @@ class _Hero extends StatelessWidget {
                 '$liveCount live',
                 style: const TextStyle(
                   color: WaouhPalette.blue,
-                  fontSize: 9.5,
+                  fontSize: 10.5,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -906,9 +906,9 @@ class _Tabs extends StatelessWidget {
           ),
           labelColor: WaouhPalette.blue,
           unselectedLabelColor: WaouhPalette.muted,
-          labelStyle: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800),
+          labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
           unselectedLabelStyle:
-              TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600),
+              TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
           tabs: [
             Tab(icon: Icon(Icons.search_rounded, size: 17), text: 'Chercher'),
             Tab(icon: Icon(Icons.share_rounded, size: 17), text: 'Partager'),
@@ -964,7 +964,7 @@ class _SmartPlanCard extends StatelessWidget {
               findSellers ? 'Acheter → vendeurs' : 'Vendre → acheteurs',
               style: const TextStyle(
                 color: WaouhPalette.blue,
-                fontSize: 10.5,
+                fontSize: 11,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -1060,7 +1060,7 @@ class _ModeButton extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 9.5,
+                    fontSize: 10.5,
                     color: WaouhPalette.muted,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1384,7 +1384,7 @@ class _Pill extends StatelessWidget {
         ),
         child: Text(
           text,
-          style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700),
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
         ),
       );
 }

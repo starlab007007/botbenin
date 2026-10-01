@@ -197,7 +197,7 @@ class _LiveAvatarScreenState extends State<LiveAvatarScreen> {
                       'Votre Avatar prépare et conseille. Vous validez toujours les actions sensibles.',
                       style: TextStyle(
                         color: WaouhPalette.muted,
-                        fontSize: 10.5,
+                        fontSize: 11,
                         fontWeight: FontWeight.w600,
                         height: 1.3,
                       ),
@@ -314,7 +314,7 @@ class _MiniPill extends StatelessWidget {
           label,
           style: const TextStyle(
             color: WaouhPalette.blue,
-            fontSize: 9,
+            fontSize: 10.5,
             fontWeight: FontWeight.w800,
           ),
         ),
@@ -380,7 +380,7 @@ class _GoalCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: WaouhPalette.muted,
-                    fontSize: 10,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -607,7 +607,7 @@ class _ForYouCard extends StatelessWidget {
                       'Pour vous',
                       style: TextStyle(
                         color: WaouhPalette.blue,
-                        fontSize: 9,
+                        fontSize: 10.5,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
@@ -627,7 +627,7 @@ class _ForYouCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: WaouhPalette.muted,
-                        fontSize: 10,
+                        fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -827,7 +827,7 @@ class _AvatarSetupScreenState extends State<_AvatarSetupScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: WaouhPalette.muted,
-                  fontSize: 9.5,
+                  fontSize: 10.5,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -879,7 +879,7 @@ class _PresetCard extends StatelessWidget {
                   preset.label,
                   style: TextStyle(
                     color: selected ? WaouhPalette.blue : WaouhPalette.ink,
-                    fontSize: 10,
+                    fontSize: 11,
                     fontWeight: FontWeight.w800,
                   ),
                 ),

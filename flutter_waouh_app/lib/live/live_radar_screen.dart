@@ -472,7 +472,7 @@ class _RadarLocationLine extends StatelessWidget {
             const SizedBox(width: 8),
             Text('pause dans ${countdownSeconds}s',
                 style: const TextStyle(
-                    fontSize: 10.5,
+                    fontSize: 11,
                     color: legacy.WaouhColors.jade,
                     fontWeight: FontWeight.w800)),
           ],
@@ -645,7 +645,7 @@ class _RadarItemCard extends StatelessWidget {
                       child: Text(item.typeLabel,
                           style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 9.5,
+                              fontSize: 10.5,
                               fontWeight: FontWeight.w800)))),
             ])),
             Padding(
@@ -844,7 +844,7 @@ class _RadarPainter extends CustomPainter {
         text: TextSpan(
             text: value,
             style: TextStyle(
-                color: color, fontSize: 9, fontWeight: FontWeight.w800)),
+                color: color, fontSize: 10.5, fontWeight: FontWeight.w800)),
         textDirection: TextDirection.ltr)
       ..layout(maxWidth: 46);
     painter.paint(canvas, offset);
@@ -918,7 +918,7 @@ class _DistancePill extends StatelessWidget {
         child: Text(label,
             style: const TextStyle(
                 color: Colors.white,
-                fontSize: 10,
+                fontSize: 11,
                 fontWeight: FontWeight.w900)),
       );
 }

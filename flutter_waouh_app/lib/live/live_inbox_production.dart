@@ -238,7 +238,7 @@ class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: WaouhPalette.muted,
-                fontSize: 10.5,
+                fontSize: 11,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -817,7 +817,7 @@ class _MatchTile extends StatelessWidget {
                             'Deal Room',
                             style: TextStyle(
                               color: Color(0xFF356596),
-                              fontSize: 9.5,
+                              fontSize: 10.5,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -1230,7 +1230,7 @@ class _ProductionStatusCard extends StatelessWidget {
                             label,
                             style: TextStyle(
                               color: color,
-                              fontSize: 10.5,
+                              fontSize: 11,
                               fontWeight: FontWeight.w900,
                             ),
                           ),
@@ -1838,7 +1838,7 @@ class _RadarHeroMetric extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Color(0xFFBDEEDC),
-                  fontSize: 10.5,
+                  fontSize: 11,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -2335,7 +2335,7 @@ class _SignalPill extends StatelessWidget {
           label,
           style: const TextStyle(
             color: Colors.white,
-            fontSize: 9.5,
+            fontSize: 10.5,
             fontWeight: FontWeight.w900,
           ),
         ),

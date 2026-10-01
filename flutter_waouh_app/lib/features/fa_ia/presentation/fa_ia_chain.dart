@@ -328,7 +328,7 @@ class FaIaChainView extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: FaIaColors.ivory,
-                fontSize: 10,
+                fontSize: 11,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1.2,
               ),
@@ -346,7 +346,7 @@ class FaIaChainView extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: FaIaColors.ivory,
-                fontSize: 10,
+                fontSize: 11,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1.2,
               ),

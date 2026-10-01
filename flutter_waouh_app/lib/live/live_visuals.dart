@@ -315,7 +315,7 @@ class _CountdownRingState extends State<CountdownRing> {
           Text(
             label,
             style: const TextStyle(
-              fontSize: 10,
+              fontSize: 11,
               fontWeight: FontWeight.w900,
               color: Colors.white,
             ),
@@ -387,7 +387,7 @@ class WaouhPill extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 10.5,
+              fontSize: 11,
               fontWeight: FontWeight.w800,
               color: foreground,
               letterSpacing: 0.2,

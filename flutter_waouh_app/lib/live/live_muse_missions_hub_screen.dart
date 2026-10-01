@@ -293,7 +293,7 @@ class _TopLine extends StatelessWidget {
                   'Votre espace intelligent',
                   style: TextStyle(
                     color: WaouhPalette.muted,
-                    fontSize: 10.5,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -506,7 +506,7 @@ class _Metric extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: WaouhPalette.muted,
-                    fontSize: 9,
+                    fontSize: 10.5,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -575,7 +575,7 @@ class _IntentCard extends StatelessWidget {
                   maxLines: 2,
                   style: const TextStyle(
                     color: WaouhPalette.muted,
-                    fontSize: 10.5,
+                    fontSize: 11,
                     fontWeight: FontWeight.w600,
                     height: 1.25,
                   ),
@@ -649,7 +649,7 @@ class _FeatureCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: WaouhPalette.muted,
-                          fontSize: 10.5,
+                          fontSize: 11,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -729,7 +729,7 @@ class _QuickAction extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: WaouhPalette.ink,
-                          fontSize: 10.5,
+                          fontSize: 11,
                           fontWeight: FontWeight.w700,
                         ),
                       ),

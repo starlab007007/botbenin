@@ -497,7 +497,7 @@ class LiveAvatarBriefingCard extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('Votre avatar', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900)),
                 Text('${briefing.kindLabel} · ${_clock(briefing.generatedAt)}',
-                    style: const TextStyle(color: Color(0xCCFFFFFF), fontSize: 10, fontWeight: FontWeight.w500)),
+                    style: const TextStyle(color: Color(0xCCFFFFFF), fontSize: 11, fontWeight: FontWeight.w500)),
               ]),
             ),
           ]),
@@ -539,7 +539,7 @@ class LiveAvatarBriefingCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                       decoration: BoxDecoration(color: const Color(0xFFD1FAE5), borderRadius: BorderRadius.circular(10)),
-                      child: Text('${section.items.length}', style: const TextStyle(fontSize: 10, color: Color(0xFF065F46), fontWeight: FontWeight.w700)),
+                      child: Text('${section.items.length}', style: const TextStyle(fontSize: 11, color: Color(0xFF065F46), fontWeight: FontWeight.w700)),
                     ),
                   ]),
                   children: [
@@ -711,7 +711,7 @@ class LiveAvatarGuideBarState extends State<LiveAvatarGuideBar> {
               busy ? 'Je fais le point…' : (p == null ? 'Prêt à vous guider' : liveNextPointLabel(p.nextBriefingAt, p.cadence)),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B)),
+              style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
             ),
           ]),
         ),
@@ -742,7 +742,7 @@ class LiveAvatarGuideBarState extends State<LiveAvatarGuideBar> {
                     boardLoaded ? 'Aucune mission active — dites « Je cherche… » ou « Je vends… » et je m\'en occupe.' : 'Je regarde où j\'en suis…',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 10.5, color: Color(0xFF64748B)),
+                    style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                   ),
                 ),
               )
@@ -761,7 +761,7 @@ class LiveAvatarGuideBarState extends State<LiveAvatarGuideBar> {
                     padding: EdgeInsets.zero,
                     backgroundColor: urgent ? const Color(0xFFFFFBEB) : Colors.white,
                     side: BorderSide(color: urgent ? const Color(0xFFFCD34D) : const Color(0xFFA7F3D0)),
-                    label: Text('${c.icon} ${c.count} ${c.label}', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: urgent ? const Color(0xFF78350F) : const Color(0xFF064E3B))),
+                    label: Text('${c.icon} ${c.count} ${c.label}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: urgent ? const Color(0xFF78350F) : const Color(0xFF064E3B))),
                     onPressed: busy ? null : () => runPoint('now'),
                   );
                 },
@@ -904,7 +904,7 @@ class _LiveAvatarSettingsSheetState extends State<LiveAvatarSettingsSheet> {
                 onChanged: (h) => h == null ? null : _update(prefs.copyWith(quietEnd: h), {'quiet_end': h}),
               ),
             ]),
-            const Text('Pas de point régulier pendant ces heures (heure du Bénin).', style: TextStyle(fontSize: 10.5, color: Color(0xFF64748B))),
+            const Text('Pas de point régulier pendant ces heures (heure du Bénin).', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
           ],
           const SizedBox(height: 8),
           SizedBox(

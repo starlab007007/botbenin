@@ -137,7 +137,7 @@ class _LiveTag extends StatelessWidget {
   final bool loading;
   final bool backendMode;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), decoration: BoxDecoration(color: const Color(0xFFE7F8F0), borderRadius: BorderRadius.circular(99), border: Border.all(color: const Color(0xFFBDE6D4))), child: Row(mainAxisSize: MainAxisSize.min, children: [Container(width: 7, height: 7, decoration: BoxDecoration(color: loading ? const Color(0xFF18B981) : backendMode ? const Color(0xFF14A66E) : const Color(0xFF94AAA2), shape: BoxShape.circle)), const SizedBox(width: 5), Text(loading ? 'Scan' : backendMode ? 'Live' : 'Direct', style: const TextStyle(color: Color(0xFF075E54), fontSize: 10.5, fontWeight: FontWeight.w900))]));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), decoration: BoxDecoration(color: const Color(0xFFE7F8F0), borderRadius: BorderRadius.circular(99), border: Border.all(color: const Color(0xFFBDE6D4))), child: Row(mainAxisSize: MainAxisSize.min, children: [Container(width: 7, height: 7, decoration: BoxDecoration(color: loading ? const Color(0xFF18B981) : backendMode ? const Color(0xFF14A66E) : const Color(0xFF94AAA2), shape: BoxShape.circle)), const SizedBox(width: 5), Text(loading ? 'Scan' : backendMode ? 'Live' : 'Direct', style: const TextStyle(color: Color(0xFF075E54), fontSize: 11, fontWeight: FontWeight.w900))]));
 }
 
 class _Metric extends StatelessWidget {
@@ -145,7 +145,7 @@ class _Metric extends StatelessWidget {
   final String label;
   final String value;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFD2EBDF))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(color: Color(0xFF6B8279), fontSize: 10.5, fontWeight: FontWeight.w800)), const SizedBox(height: 3), Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF075E54), fontSize: 15.5, fontWeight: FontWeight.w900))]));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFFD2EBDF))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(color: Color(0xFF6B8279), fontSize: 11, fontWeight: FontWeight.w800)), const SizedBox(height: 3), Text(value, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF075E54), fontSize: 15.5, fontWeight: FontWeight.w900))]));
 }
 
 class _SweepPainter extends CustomPainter {

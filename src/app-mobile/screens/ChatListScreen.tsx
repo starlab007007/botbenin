@@ -424,7 +424,7 @@ export default function ChatListScreen() {
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-[clamp(30px,8.5vw,46px)] font-black leading-none tracking-[-.05em] text-slate-950">Bot</h2>
-                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-100 bg-white/85 px-2.5 py-1 text-[clamp(10.5px,2.8vw,12px)] font-bold text-emerald-700 shadow-sm">
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-100 bg-white/85 px-2.5 py-1 text-[clamp(11.5px,2.9vw,12.5px)] font-bold text-emerald-700 shadow-sm">
                   <span className="h-2 w-2 rounded-full bg-emerald-500" /> En ligne
                 </span>
               </div>
@@ -478,7 +478,7 @@ export default function ChatListScreen() {
                 <Icon className={"h-[clamp(18px,4.8vw,22px)] w-[clamp(18px,4.8vw,22px)] shrink-0 " + (primary ? "text-white" : "text-blue-600")} />
                 <span className="min-w-0 leading-tight">
                   <span className="block truncate text-[clamp(12px,3.2vw,14px)] font-black">{label}</span>
-                  <span className={"block truncate text-[clamp(10.5px,2.8vw,12px)] font-semibold " + (primary ? "text-white/80" : "text-slate-400")}>{sub}</span>
+                  <span className={"block truncate text-[clamp(11.5px,2.9vw,12.5px)] font-semibold " + (primary ? "text-white/80" : "text-slate-400")}>{sub}</span>
                 </span>
               </button>
             ))}

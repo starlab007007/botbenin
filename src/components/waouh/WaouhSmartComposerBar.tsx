@@ -70,7 +70,7 @@ export function WaouhSmartComposerBar({
 }) {
   const items = prompts(mode, phase, resultCount).slice(0, 3);
   return (
-    <div className={cn("flex gap-1 overflow-x-auto border-t bg-background/95 px-2 py-1", className)} aria-label="Suggestions WAOUH">
+    <div className={cn("scrollbar-none flex gap-1.5 overflow-x-auto border-t bg-background/95 px-2 py-1.5", className)} aria-label="Suggestions WAOUH">
       {items.map(({ label, value, icon: Icon }) => {
         const inert = !value;
         return (

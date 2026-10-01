@@ -786,7 +786,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
                           ),
                           child: const Text(
                             'Conseil',
-                            style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w900),
+                            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900),
                           ),
                         ),
                       ],

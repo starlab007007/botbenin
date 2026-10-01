@@ -228,8 +228,8 @@ export default function WaouhChatScreen() {
                 />
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-black text-sm leading-tight truncate">WAOUH One</span>
-                    <span className="rounded-full bg-white/15 px-1.5 py-0.5 text-[9px] font-black text-emerald-100">IA</span>
+                    <span className="font-black text-[clamp(13px,3.6vw,15px)] leading-tight truncate">WAOUH One</span>
+                    <span className="hidden rounded-full bg-white/15 px-1.5 py-0.5 text-[9px] font-black text-emerald-100 min-[360px]:inline">IA</span>
                   </div>
                   <span className="text-[11px] text-white/75 truncate block">
                     {resolvedDeal?.active
@@ -261,8 +261,11 @@ export default function WaouhChatScreen() {
           </Sheet>
         </div>
 
-        <div className="flex items-center gap-1">
-          <WaouhCityBadge geo={geo} loading={geoLoading} onSetCity={setCity} onRefresh={refresh} compact />
+        <div className="flex shrink-0 items-center gap-0.5 min-[400px]:gap-1">
+          {/* Sur petit téléphone, la ville reste accessible dans l'activité de Bot. */}
+          <div className="hidden min-[420px]:block">
+            <WaouhCityBadge geo={geo} loading={geoLoading} onSetCity={setCity} onRefresh={refresh} compact />
+          </div>
           <div className="[&_button]:text-white [&_button:hover]:bg-white/15">
             <WaouhNotificationsBell
               permission={permission}
@@ -277,7 +280,7 @@ export default function WaouhChatScreen() {
 
           <Sheet>
             <SheetTrigger asChild>
-              <button className="p-2 rounded-lg hover:bg-white/15 active:bg-white/25" aria-label="Aide">
+              <button className="hidden p-2 rounded-lg hover:bg-white/15 active:bg-white/25 min-[360px]:inline-flex" aria-label="Aide">
                 <Info className="w-5 h-5" />
               </button>
             </SheetTrigger>
@@ -317,7 +320,7 @@ export default function WaouhChatScreen() {
 
           <button
             onClick={() => navigate("/app/profile")}
-            className="p-2 rounded-lg hover:bg-white/15 active:bg-white/25"
+            className="hidden p-2 rounded-lg hover:bg-white/15 active:bg-white/25 min-[380px]:inline-flex"
             aria-label="Profil"
           >
             <User className="w-5 h-5" />

@@ -142,7 +142,7 @@ class LiveAvatarProgressStrip extends StatelessWidget {
           ]),
           const SizedBox(height: 4),
           Text('Avatar · $done/${steps.length} points notés',
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFF047857))),
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF047857))),
         ]),
       ),
     );
@@ -191,7 +191,7 @@ class LiveAvatarSynthesisCard extends StatelessWidget {
             Flexible(
               child: Text(data.stanceLabel,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600)),
+                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
             ),
           ]),
         ),
@@ -200,12 +200,12 @@ class LiveAvatarSynthesisCard extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, crossAxisAlignment: CrossAxisAlignment.end, children: [
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Text('Votre offre', style: TextStyle(fontSize: 10, color: Color(0xFF6B7C93))),
+                const Text('Votre offre', style: TextStyle(fontSize: 11, color: Color(0xFF6B7C93))),
                 Text(_fcfa(data.offer), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
               ]),
               if (data.listPrice != null)
                 Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  const Text('Prix affiché', style: TextStyle(fontSize: 10, color: Color(0xFF6B7C93))),
+                  const Text('Prix affiché', style: TextStyle(fontSize: 11, color: Color(0xFF6B7C93))),
                   Text(_fcfa(data.listPrice!), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF475569))),
                 ]),
             ]),
@@ -227,7 +227,7 @@ class LiveAvatarSynthesisCard extends StatelessWidget {
                 Align(
                   alignment: Alignment.centerRight,
                   child: Text('${data.gapPct! > 0 ? '+' : ''}${data.gapPct} % du prix affiché',
-                      style: const TextStyle(fontSize: 10, color: Color(0xFF6B7C93))),
+                      style: const TextStyle(fontSize: 11, color: Color(0xFF6B7C93))),
                 ),
             ],
             if (data.suggested != null) ...[

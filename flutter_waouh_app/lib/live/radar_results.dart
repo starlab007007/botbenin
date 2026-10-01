@@ -100,7 +100,7 @@ class _Tag extends StatelessWidget {
   final String text;
   final Color color;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4), decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(99)), child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900)));
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4), decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(99)), child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w900)));
 }
 
 Future<RadarItemAction?> showRadarItemSheet(BuildContext context, LiveRadarItem item) => showModalBottomSheet<RadarItemAction>(

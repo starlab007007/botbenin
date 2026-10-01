@@ -748,7 +748,7 @@ class _CatalogCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: WaouhIaPalette.muted,
-                            fontSize: 10.5,
+                            fontSize: 11,
                           ),
                         ),
                       ],
@@ -832,7 +832,7 @@ class _CatalogBadge extends StatelessWidget {
             label,
             style: const TextStyle(
               color: WaouhIaPalette.ink,
-              fontSize: 9.5,
+              fontSize: 10.5,
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -1133,7 +1133,7 @@ class StudioChatMediaStrip extends StatelessWidget {
             item.filename,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 10.5),
+            style: const TextStyle(fontSize: 11),
           ),
         ),
       ],
@@ -1189,7 +1189,7 @@ class StudioChatMediaStrip extends StatelessWidget {
               SelectableText(
                 media.url!,
                 maxLines: 4,
-                style: const TextStyle(fontSize: 10.5),
+                style: const TextStyle(fontSize: 11),
               ),
             ],
           ],
@@ -2479,7 +2479,7 @@ class StudioPremiumChatMessageContent extends StatelessWidget {
                     'Réponse intelligente',
                     style: TextStyle(
                       color: WaouhIaPalette.muted,
-                      fontSize: 10.5,
+                      fontSize: 11,
                     ),
                   ),
                 ],
@@ -2497,7 +2497,7 @@ class StudioPremiumChatMessageContent extends StatelessWidget {
                   '${response.cards.length} résultat${response.cards.length > 1 ? 's' : ''}',
                   style: const TextStyle(
                     color: WaouhIaPalette.primary,
-                    fontSize: 10,
+                    fontSize: 11,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -2657,7 +2657,7 @@ class _StudioPremiumArticleCard extends StatelessWidget {
                               value,
                               style: const TextStyle(
                                 color: WaouhIaPalette.primary,
-                                fontSize: 9.5,
+                                fontSize: 10.5,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
@@ -2723,7 +2723,7 @@ class _StudioPremiumArticleCard extends StatelessWidget {
                   '${index + 1}/$total',
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 10,
+                    fontSize: 11,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
