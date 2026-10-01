@@ -864,10 +864,10 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                 className={cn(
                   "chat-bubble min-w-0",
                   m.direction === "in"
-                    ? "chat-bubble-out max-w-[90%] sm:max-w-[86%]"
+                    ? "chat-bubble-out max-w-[90%] sm:max-w-[86%] lg:max-w-[680px]"
                     : rich.results.length > 0 || rich.blocks.length > 0
-                      ? "chat-bubble-in waouh-bot-bubble w-full max-w-[860px] rounded-3xl border-slate-200 bg-white/95 p-3 shadow-sm"
-                      : "chat-bubble-in waouh-bot-bubble max-w-[92%] sm:max-w-[88%] rounded-3xl border-slate-200 bg-white/95 shadow-sm"
+                      ? "chat-bubble-in waouh-bot-bubble w-full max-w-[min(100%,720px)] rounded-3xl border-slate-200 bg-white/95 p-3 shadow-sm"
+                      : "chat-bubble-in waouh-bot-bubble max-w-[92%] sm:max-w-[88%] lg:max-w-[680px] rounded-3xl border-slate-200 bg-white/95 shadow-sm"
                 )}
               >
                 {m.direction === "out" && (

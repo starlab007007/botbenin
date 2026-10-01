@@ -68,6 +68,7 @@ jobs:
           flutter test test/live_models_test.dart
           flutter test test/live_commerce_workflow_test.dart
           flutter test test/live_deal_journey_v3_test.dart
+          flutter test test/live_bot_home_test.dart
           flutter test test/live_interest_identity_promotion_test.dart
           flutter test test/live_chat_premium_cards_test.dart
 
