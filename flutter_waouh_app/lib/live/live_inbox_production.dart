@@ -19,6 +19,7 @@ import 'live_radar_map_screen.dart';
 import 'live_status_screen.dart';
 import 'live_widgets.dart';
 import 'live_theme.dart';
+import 'live_bot_home.dart';
 
 class LiveInboxProductionScreen extends StatefulWidget {
   const LiveInboxProductionScreen({super.key});
@@ -151,15 +152,19 @@ class _LiveInboxProductionScreenState extends State<LiveInboxProductionScreen> {
                             setState(() => _archives = !_archives),
                         onNewChat: _newChat,
                         onOpenWaouh: _openWaouhWith,
-                        hero: _BotHero(
+                        heroBuilder: (activeDeals) => BotHomeHero(
                           avatarName: avatar.name,
+                          firstName: auth.signedIn ? fullName : null,
                           missionCount: controller.agentic.activeMissionCount,
                           approvalCount:
                               controller.agentic.pendingApprovalCount,
+                          activeDeals: activeDeals,
                           onAvatar: () => context.push('/app/avatar'),
                           onMissions: () => context.push('/app/missions'),
                           onAsk: _newChat,
-                          onIntent: _openWaouhWith,
+                          onFindOpportunity: () => context.push('/app/nexus'),
+                          onNegotiate: () =>
+                              _openWaouhWith('Je souhaite négocier '),
                         ),
                       ),
                     ),
@@ -171,304 +176,6 @@ class _LiveInboxProductionScreenState extends State<LiveInboxProductionScreen> {
       },
     );
   }
-}
-
-/// UI V3 — taille de police / d'icône proportionnelle à la largeur
-/// (téléphone compact 0,92 → tablette 1,22).
-double _uiScale(BuildContext context) {
-  final width = MediaQuery.sizeOf(context).width;
-  return (width / 390).clamp(0.92, 1.22).toDouble();
-}
-
-/// Héros Bot : l'avatar mène la conversation. Une question, une entrée,
-/// quatre intentions. Rien d'autre.
-class _BotHero extends StatelessWidget {
-  const _BotHero({
-    required this.avatarName,
-    required this.missionCount,
-    required this.approvalCount,
-    required this.onAvatar,
-    required this.onMissions,
-    required this.onAsk,
-    required this.onIntent,
-  });
-
-  final String avatarName;
-  final int missionCount;
-  final int approvalCount;
-  final VoidCallback onAvatar;
-  final VoidCallback onMissions;
-  final VoidCallback onAsk;
-  final ValueChanged<String> onIntent;
-
-  @override
-  Widget build(BuildContext context) {
-    final avatar = context.watch<LiveAvatarController>();
-    final stored = avatarName.trim();
-    final name = stored.isEmpty || stored.toLowerCase() == 'ayo' ? 'Bot' : stored;
-    final k = _uiScale(context);
-    final avatarSize = 76.0 * k;
-    final pending = approvalCount > 0
-        ? '$approvalCount à valider'
-        : missionCount > 0
-            ? '$missionCount mission${missionCount > 1 ? 's' : ''}'
-            : null;
-    return Container(
-      padding: EdgeInsets.fromLTRB(16 * k, 16 * k, 16 * k, 14 * k),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFE9FBF7), Color(0xFFF6FAFF), Color(0xFFF6F3FF)],
-        ),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xFFDCEBF3)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF176F8D).withValues(alpha: .10),
-            blurRadius: 30,
-            offset: const Offset(0, 14),
-            spreadRadius: -18,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Semantics(
-                button: true,
-                label: 'Ouvrir $name, mon Avatar IA',
-                child: InkWell(
-                  onTap: onAvatar,
-                  customBorder: const CircleBorder(),
-                  child: Container(
-                    padding: EdgeInsets.all(5 * k),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white,
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF2F80ED).withValues(alpha: .14),
-                          blurRadius: 22,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: LiveAvatarVisual(
-                      preset: avatar.profile.preset,
-                      state: LiveAvatarPresenceState.idle,
-                      size: avatarSize,
-                      showStatusBadge: true,
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(width: 14 * k),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: WaouhPalette.ink,
-                              fontSize: 28 * k,
-                              height: 1,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -.8,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 7),
-                        Container(
-                          width: 9,
-                          height: 9,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF20C997),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const Spacer(),
-                        if (pending != null)
-                          InkWell(
-                            onTap: onMissions,
-                            borderRadius: BorderRadius.circular(999),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 9,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(999),
-                                border: Border.all(
-                                  color: const Color(0xFFD8E4F5),
-                                ),
-                              ),
-                              child: Text(
-                                pending,
-                                style: TextStyle(
-                                  color: WaouhPalette.blue,
-                                  fontSize: 10.5 * k,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    SizedBox(height: 6 * k),
-                    Text(
-                      'Je vous aide à trouver, négocier et conclure.',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: WaouhPalette.muted,
-                        fontSize: 13 * k,
-                        height: 1.3,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 14 * k),
-          // Une seule entrée : on parle à Bot.
-          Material(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            child: InkWell(
-              onTap: onAsk,
-              borderRadius: BorderRadius.circular(18),
-              child: Container(
-                height: 50 * k,
-                padding: EdgeInsets.only(left: 14 * k, right: 6 * k),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: const Color(0xFFD9E7F2)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.auto_awesome_rounded,
-                      size: 18 * k,
-                      color: const Color(0xFF0AAE9A),
-                    ),
-                    SizedBox(width: 10 * k),
-                    Expanded(
-                      child: Text(
-                        'Demandez à $name…',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: WaouhPalette.muted,
-                          fontSize: 14 * k,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    Container(
-                      width: 38 * k,
-                      height: 38 * k,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: [Color(0xFF14B8A6), Color(0xFF0891B2)],
-                        ),
-                      ),
-                      child: Icon(
-                        Icons.arrow_upward_rounded,
-                        size: 19 * k,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          SizedBox(height: 10 * k),
-          Row(
-            children: [
-              for (final intent in const [
-                (Icons.shopping_bag_outlined, 'Acheter', 'Je veux acheter '),
-                (Icons.sell_outlined, 'Vendre', 'Je vends : '),
-                (Icons.travel_explore_rounded, 'Chercher', 'Je cherche '),
-                (Icons.handshake_outlined, 'Négocier', 'Je souhaite négocier '),
-              ]) ...[
-                if (intent.$2 != 'Acheter') SizedBox(width: 7 * k),
-                Expanded(
-                  child: _IntentChip(
-                    icon: intent.$1,
-                    label: intent.$2,
-                    scale: k,
-                    onTap: () => onIntent(intent.$3),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _IntentChip extends StatelessWidget {
-  const _IntentChip({
-    required this.icon,
-    required this.label,
-    required this.scale,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final double scale;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Material(
-        color: Colors.white.withValues(alpha: .86),
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            height: 58 * scale,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFE2EBF5)),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 20 * scale, color: WaouhPalette.blue),
-                SizedBox(height: 4 * scale),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: WaouhPalette.ink,
-                    fontSize: 11.5 * scale,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
 }
 
 class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -753,14 +460,14 @@ class _ProductionDiscussionFeed extends StatelessWidget {
     required this.onToggleArchives,
     required this.onNewChat,
     required this.onOpenWaouh,
-    required this.hero,
+    required this.heroBuilder,
   });
 
   final bool archives;
   final bool Function(String text) matches;
   final TextEditingController search;
   final VoidCallback onSearchChanged;
-  final Widget hero;
+  final Widget Function(int activeDeals) heroBuilder;
   final VoidCallback onToggleArchives;
   final VoidCallback onNewChat;
   final ValueChanged<String> onOpenWaouh;
@@ -846,7 +553,12 @@ class _ProductionDiscussionFeed extends StatelessWidget {
             return ListView(
               padding: EdgeInsets.fromLTRB(side, 8, side, 32),
               children: [
-                hero,
+                heroBuilder(currentMatches.length),
+                const SizedBox(height: 14),
+                WaouhOneQuickCard(
+                  onOpen: onNewChat,
+                  onIntent: onOpenWaouh,
+                ),
                 const SizedBox(height: 18),
                 if (hasItems) ...[
                   _SearchBar(
@@ -859,7 +571,7 @@ class _ProductionDiscussionFeed extends StatelessWidget {
                 ],
                 _ChatSectionHeader(
                   icon: Icons.handshake_outlined,
-                  title: 'Deal Rooms',
+                  title: 'Conversations & Deals',
                   subtitle: currentMatches.isEmpty
                       ? 'Aucune négociation active'
                       : '${currentMatches.length} active(s)'
@@ -886,7 +598,7 @@ class _ProductionDiscussionFeed extends StatelessWidget {
                 const SizedBox(height: 18),
                 _ChatSectionHeader(
                   icon: Icons.forum_outlined,
-                  title: 'Conversations',
+                  title: 'Échanges directs',
                   subtitle: currentConversations.isEmpty
                       ? 'Aucune conversation directe'
                       : '${currentConversations.length} conversation(s)',

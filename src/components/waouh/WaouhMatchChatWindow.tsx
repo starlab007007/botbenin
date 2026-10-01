@@ -23,6 +23,8 @@ import { engageWaouhChatSyncLock } from "./waouhChatSyncLock";
 import { correlationIdFor, traceUi } from "./waouhCorrelation";
 import type { WaouhWorkspaceDealState } from "@/lib/waouh/workspaceState";
 import { WaouhDealStepper } from "./WaouhDealStepper";
+import { BotDealCopilot } from "./bot/BotDealCopilot";
+import { BotLiveAvatar } from "./bot/BotLiveAvatar";
 import {
   commerceRequestFromButton,
   formatFcfa,
@@ -604,6 +606,16 @@ export function WaouhMatchChatWindow({
     return null;
   }, [messages]);
 
+  // Dernier montant affiché dans le fil (fiche produit du message) — pour Bot.
+  const latestOfferAmount = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const products = (messages[index] as { meta?: { products?: Array<{ price?: unknown }> } })?.meta?.products;
+      const value = Array.isArray(products) ? Number(products[0]?.price) : NaN;
+      if (Number.isFinite(value) && value > 0) return value;
+    }
+    return null;
+  }, [messages]);
+
   const sendMessage = async (
     overrideText?: string,
     overrideMeta: Record<string, unknown> = {}
@@ -879,26 +891,16 @@ export function WaouhMatchChatWindow({
         />
       </div>
 
-      {/* Bot reste visible comme guide, sans altérer le moteur de négociation. */}
-      <div className="mx-2 mt-1 flex shrink-0 items-center gap-2 rounded-2xl border border-cyan-100 bg-gradient-to-r from-emerald-50/90 via-white to-sky-50/90 px-3 py-2 shadow-sm">
-        <WaouhMuseAvatar
-          mode={match.kind === "buyer" ? "buyer" : "seller"}
-          phase={closed ? "success" : "negotiating"}
-          size="sm"
-        />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-black text-slate-950">Bot conduit cette discussion</span>
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-          </div>
-          <p className="truncate text-[10px] font-semibold text-slate-500">
-            Analyse le contexte, suggère la prochaine action et vous laisse la décision.
-          </p>
-        </div>
-        <span className="rounded-full border border-cyan-100 bg-white px-2 py-1 text-[9px] font-black text-cyan-700">
-          Avatar IA
-        </span>
-      </div>
+      {/* UI V3 — Bot conduit la Deal Room : objectif, position, prochaine étape. */}
+      <BotDealCopilot
+        className="mx-2 mt-1 shrink-0"
+        title={match.title}
+        role={match.kind === "buyer" ? "buyer" : "seller"}
+        stage={latestStage(messages as Array<{ meta?: Record<string, unknown> | null }>) ?? (latestCommerceScope.negotiation_id ? "negotiation" : null)}
+        currentOffer={latestOfferAmount}
+        listPrice={match.price ? Number(match.price) : null}
+        closed={closed}
+      />
 
       {/* Résumé IA disponible à la demande afin de préserver la hauteur du fil. */}
       <details className="mx-2 mt-1 shrink-0 rounded-xl border border-emerald-100 bg-white/90">
@@ -917,7 +919,7 @@ export function WaouhMatchChatWindow({
       </details>
 
       {/* Grand écran : contexte produit séparé du fil pour que la discussion reste lisible. */}
-      <aside className="absolute bottom-[68px] right-3 top-[154px] z-10 hidden w-[310px] flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white/95 shadow-[0_24px_60px_-32px_rgba(15,23,42,.30)] backdrop-blur xl:flex">
+      <aside className="absolute bottom-[68px] right-3 top-[176px] z-10 hidden w-[310px] flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white/95 shadow-[0_24px_60px_-32px_rgba(15,23,42,.30)] backdrop-blur xl:flex">
         <div className="relative h-[170px] shrink-0 overflow-hidden bg-slate-100">
           {match.photo ? (
             <img src={match.photo} alt={match.title} className="h-full w-full object-cover" />
@@ -943,11 +945,7 @@ export function WaouhMatchChatWindow({
           </div>
           <div className="mt-4 rounded-2xl border border-cyan-100 bg-gradient-to-br from-cyan-50 via-white to-violet-50 p-3">
             <div className="flex items-center gap-2">
-              <WaouhMuseAvatar
-                mode={match.kind === "buyer" ? "buyer" : "seller"}
-                phase={closed ? "success" : "negotiating"}
-                size="sm"
-              />
+              <BotLiveAvatar size={40} state={closed ? "idle" : "thinking"} />
               <div>
                 <div className="text-xs font-black text-slate-950">Bot · Avatar IA</div>
                 <div className="text-[9px] font-bold text-emerald-600">● En ligne</div>

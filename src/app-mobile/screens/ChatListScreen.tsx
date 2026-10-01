@@ -9,7 +9,7 @@ import { useUnreadCounts } from "../hooks/useUnreadCounts";
 import { useWaouhIdentity } from "../hooks/useWaouhIdentity";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Search, Plus, ShoppingBag, Menu, Radar as RadarIcon, Sparkles, PanelLeftClose, PanelLeftOpen, ArrowUp, Tag, Handshake } from "lucide-react";
+import { Search, Plus, ShoppingBag, Menu, Radar as RadarIcon, Sparkles, PanelLeftClose, PanelLeftOpen, ArrowUp, Tag, Handshake, MessageCircle, ChevronRight, ShoppingCart, ArrowLeftRight, MessagesSquare } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { chatSpaceMode, readDrawerPinned, unreadBadge, writeDrawerPinned } from "../utils/chatSpaceLayout";
 import { useNotifications } from "../hooks/useNotifications";
@@ -26,7 +26,9 @@ import {
   type WaouhUserLike,
 } from "../utils/chatLabel";
 import WaouhDemoMockup from "../components/WaouhDemoMockup";
-import { WaouhMuseAvatar } from "@/components/waouh/WaouhMuseAvatar";
+import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
+import { BotGreeting } from "@/components/waouh/bot/BotGreeting";
+import { BotWorkingStrip } from "@/components/waouh/bot/BotWorkingStrip";
 import { WaouhMatchChatList } from "@/components/waouh/WaouhMatchChatList";
 import { StatusesPanel } from "@/components/waouh/statuses/StatusesPanel";
 import { RadarPanel } from "../components/radar/RadarPanel";
@@ -109,6 +111,7 @@ export default function ChatListScreen() {
   });
   const [loading, setLoading] = useState(convs.length === 0);
   const [q, setQ] = useState("");
+  const [botTalking, setBotTalking] = useState(false);
 
   const tabFromUrl = (): ChatTab => {
     const value = params.get("tab");
@@ -385,26 +388,34 @@ export default function ChatListScreen() {
         <RadarPanel query={q} />
       ) : (
       <main className="px-[clamp(12px,3.5vw,24px)] pb-6 pt-3">
-        {/* UI V3 — Bot mène la conversation : une question, une entrée, quatre intentions. */}
+        {/* UI V3 — Bot est le cœur de WAOUH : il accueille, explique ce qu'il fait et mène les échanges. */}
         <section
           data-waouh-ui="bot-avatar-v3"
-          className="relative mx-auto mb-5 w-full max-w-[680px] overflow-hidden rounded-[28px] border border-cyan-100/80 bg-[radial-gradient(circle_at_12%_10%,rgba(34,211,238,.18),transparent_38%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,.12),transparent_32%),linear-gradient(135deg,#effdfb_0%,#ffffff_50%,#f6f4ff_100%)] p-[clamp(14px,4vw,24px)] shadow-[0_24px_60px_-40px_rgba(14,116,144,.55)]"
+          className="relative mx-auto mb-4 w-full max-w-[760px] overflow-hidden rounded-[30px] border border-cyan-100/80 bg-[radial-gradient(circle_at_18%_22%,rgba(34,211,238,.24),transparent_40%),radial-gradient(circle_at_95%_0%,rgba(139,92,246,.14),transparent_34%),linear-gradient(140deg,#e9fbfb_0%,#ffffff_48%,#f3f1ff_100%)] p-[clamp(14px,4vw,26px)] shadow-[0_28px_70px_-42px_rgba(14,116,144,.6)]"
         >
-          <div className="flex items-center gap-[clamp(12px,3.5vw,20px)]">
+          <Sparkles className="pointer-events-none absolute right-5 top-5 h-6 w-6 text-cyan-400/80 motion-safe:animate-pulse" aria-hidden />
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-[clamp(12px,3.5vw,24px)]">
             <button
               type="button"
               onClick={() => navigate("/app/avatar")}
-              className="relative grid shrink-0 place-items-center rounded-full bg-white p-[clamp(4px,1vw,6px)] shadow-[0_10px_28px_-10px_rgba(47,128,237,.35)] transition active:scale-[.97]"
-              style={{ width: "clamp(76px, 22vw, 112px)", height: "clamp(76px, 22vw, 112px)" }}
+              className="rounded-full transition active:scale-[.97]"
               aria-label="Ouvrir Bot, mon Avatar IA"
             >
-              <WaouhMuseAvatar phase="idle" size="lg" className="scale-[1.25] sm:scale-[1.45] lg:scale-[1.6]" />
+              <BotLiveAvatar size="clamp(104px, 30vw, 176px)" state={botTalking ? "talking" : "idle"} />
             </button>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-[clamp(26px,7vw,38px)] font-black leading-none tracking-[-.045em] text-slate-950">Bot</h2>
-              <p className="mt-1.5 text-[clamp(13px,3.4vw,16px)] font-semibold leading-snug text-slate-600">
-                Je vous aide à trouver, négocier et conclure.
-              </p>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-[clamp(30px,8.5vw,46px)] font-black leading-none tracking-[-.05em] text-slate-950">Bot</h2>
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-100 bg-white/85 px-2.5 py-1 text-[clamp(10.5px,2.8vw,12px)] font-bold text-emerald-700 shadow-sm">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" /> En ligne
+                </span>
+              </div>
+              <p className="mt-1 text-[clamp(12px,3.2vw,14px)] font-bold text-slate-500">Votre Avatar IA</p>
+              <BotGreeting
+                firstName={isGuest ? null : profile?.full_name}
+                onTalkingChange={setBotTalking}
+                className="mt-[clamp(8px,2.4vw,14px)]"
+              />
             </div>
           </div>
 
@@ -421,29 +432,75 @@ export default function ChatListScreen() {
             </span>
           </button>
 
-          <div className="mt-[clamp(10px,2.6vw,14px)] grid grid-cols-4 gap-[clamp(6px,1.8vw,10px)]">
+          <div className="mt-[clamp(10px,2.6vw,14px)] grid grid-cols-3 gap-[clamp(6px,1.8vw,10px)]">
             {[
-              { label: "Acheter", Icon: ShoppingBag },
-              { label: "Vendre", Icon: Tag },
-              { label: "Chercher", Icon: Search },
-              { label: "Négocier", Icon: Handshake },
-            ].map(({ label, Icon }) => (
+              { label: "Démarrer", sub: "avec Bot", Icon: MessageCircle, onClick: openNewWaouh, primary: true },
+              { label: "Trouver", sub: "une opportunité", Icon: Search, onClick: () => navigate("/app/nexus"), primary: false },
+              { label: "Négocier", sub: "avec Bot", Icon: Handshake, onClick: openNewWaouh, primary: false },
+            ].map(({ label, sub, Icon, onClick, primary }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={onClick}
+                className={
+                  "flex min-h-[clamp(60px,16vw,64px)] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1.5 text-center shadow-sm transition active:scale-[.97] min-[480px]:flex-row min-[480px]:gap-2 min-[480px]:text-left " +
+                  (primary
+                    ? "bg-gradient-to-r from-teal-500 to-cyan-600 text-white"
+                    : "border border-slate-200/80 bg-white/90 text-slate-800 hover:bg-white")
+                }
+              >
+                <Icon className={"h-[clamp(18px,4.8vw,22px)] w-[clamp(18px,4.8vw,22px)] shrink-0 " + (primary ? "text-white" : "text-blue-600")} />
+                <span className="min-w-0 leading-tight">
+                  <span className="block truncate text-[clamp(12px,3.2vw,14px)] font-black">{label}</span>
+                  <span className={"block truncate text-[clamp(10.5px,2.8vw,12px)] font-semibold " + (primary ? "text-white/80" : "text-slate-400")}>{sub}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <BotWorkingStrip activeDeals={matchChats.matches?.length ?? 0} className="mt-[clamp(10px,2.6vw,14px)]" />
+        </section>
+
+        {/* WAOUH One — le moteur commerce, en accès direct sous Bot. */}
+        <section className="mx-auto mb-4 w-full max-w-[760px] rounded-[26px] border border-emerald-100 bg-gradient-to-br from-emerald-50/80 via-white to-cyan-50/80 p-[clamp(12px,3.5vw,18px)] shadow-sm">
+          <button type="button" onClick={openWaouh} className="flex w-full items-center gap-3 text-left">
+            <span className="grid h-[clamp(40px,11vw,48px)] w-[clamp(40px,11vw,48px)] shrink-0 place-items-center rounded-2xl bg-slate-950 text-white shadow-md">
+              <ShoppingBag className="h-[55%] w-[55%]" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center gap-1.5 text-[clamp(16px,4.4vw,20px)] font-black tracking-tight text-slate-950">
+                WAOUH One <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              </span>
+              <span className="block truncate text-[clamp(11.5px,3vw,13px)] font-semibold text-slate-500">Achetez, vendez, comparez et négociez en confiance.</span>
+            </span>
+            <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
+          </button>
+          <div className="mt-3 grid grid-cols-4 gap-[clamp(6px,1.8vw,10px)]">
+            {[
+              { label: "Acheter", Icon: ShoppingCart, tint: "text-emerald-600 bg-emerald-50" },
+              { label: "Vendre", Icon: Tag, tint: "text-blue-600 bg-blue-50" },
+              { label: "Chercher", Icon: Search, tint: "text-violet-600 bg-violet-50" },
+              { label: "Comparer", Icon: ArrowLeftRight, tint: "text-amber-600 bg-amber-50" },
+            ].map(({ label, Icon, tint }) => (
               <button
                 key={label}
                 type="button"
                 onClick={openNewWaouh}
-                className="flex h-[clamp(56px,15vw,68px)] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl border border-slate-200/80 bg-white/85 text-slate-800 shadow-sm transition hover:bg-white active:scale-[.97]"
+                className="flex min-w-0 flex-col items-center gap-1.5 rounded-2xl border border-white bg-white/90 px-1 py-[clamp(8px,2.4vw,12px)] shadow-sm transition hover:bg-white active:scale-[.97]"
               >
-                <Icon className="h-[clamp(18px,4.8vw,22px)] w-[clamp(18px,4.8vw,22px)] text-blue-600" />
-                <span className="max-w-full truncate px-1 text-[clamp(11px,2.9vw,13px)] font-bold">{label}</span>
+                <span className={"grid h-[clamp(30px,8vw,38px)] w-[clamp(30px,8vw,38px)] place-items-center rounded-xl " + tint}>
+                  <Icon className="h-[60%] w-[60%]" />
+                </span>
+                <span className="max-w-full truncate text-[clamp(11px,2.9vw,13px)] font-bold text-slate-800">{label}</span>
               </button>
             ))}
           </div>
         </section>
 
         {!isGuest && (
-          <div className="mx-auto mb-2 flex w-full max-w-[680px] items-center justify-between px-1">
-            <h3 className="text-[clamp(14px,3.6vw,16px)] font-black text-slate-950">Deal Rooms</h3>
+          <div className="mx-auto mb-2 flex w-full max-w-[760px] items-center gap-2 px-1">
+            <MessagesSquare className="h-5 w-5 text-blue-600" />
+            <h3 className="text-[clamp(15px,4vw,17px)] font-black text-slate-950">Conversations & Deals</h3>
           </div>
         )}
 
@@ -452,7 +509,7 @@ export default function ChatListScreen() {
 
 
         {isGuest && (
-          <details className="group mx-auto mt-2 w-full max-w-[680px] rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-sm shadow-sm">
+          <details className="group mx-auto mt-2 w-full max-w-[760px] rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-3 text-sm shadow-sm">
             <summary className="cursor-pointer list-none text-center font-bold text-teal-700 marker:hidden">
               Voir WAOUH en action
             </summary>
