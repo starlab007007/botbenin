@@ -1,5 +1,5 @@
-2026.10.01.1
-ui=bot-avatar-v3
+2026.10.01.2
+ui=bot-avatar-v3+bot-home-v3
 chat=bot-copilot-v2
 flutter=18.24.0+1790851200
 backend=unchanged

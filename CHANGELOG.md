@@ -3,6 +3,9 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.10.01.2
+- UI uniquement, sans changement backend : la **page d'accueil bot.bj (`/`) et `/app/avatar`** reçoivent aussi le Bot vivant V3 (avatar animé, accueil en trois messages, bandeau « Bot travaille », entrée « Dites à Bot… »), sur mobile, tablette et grand écran. Le correctif 2026.10.01.1 ne couvrait que `/app/chat`. Cache Web `v11-bot-home-20261001`.
+
 ## 2026.10.01.1
 - UI V3 uniquement, sans changement backend : **Bot devient le cœur de WAOUH** sur Web mobile/tablette et Flutter. Bot vivant (respiration, halo, clignement des yeux, bouche animée quand il parle — animations coupées si l'appareil les réduit), accueil en **trois messages courts** joués une fois par session (« … » puis message), entrée « Demandez à Bot… », trois actions (Démarrer · Trouver une opportunité · Négocier) et bandeau **« Bot travaille »** qui montre en continu ce que fait le système (NEXUS, Signal Fabric, Contact protégé, nombre réel de Deal Rooms). WAOUH One en accès direct (Acheter · Vendre · Chercher · Comparer), puis Conversations & Deals. Retirés : bande « Parcours WAOUH », boutons en double, démonstration toujours visible (repliée pour les invités). Tailles fluides (`clamp()` Web, facteur de largeur Flutter). Deal Room : **« Bot conduit cette discussion »** avec objectif, position actuelle et prochaine étape (calculées depuis le fil affiché). Chat grand écran : meilleure fiche ≤ 560 px, photo 170–300 px, bulles ≤ 680 px. Cache Web `v10-bot-avatar-20261001`. Flutter **18.24.0+1790851200**.
 
