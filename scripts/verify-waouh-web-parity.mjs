@@ -155,7 +155,7 @@ for (const [label, route] of canonicalDesktopRoutes) {
   }
 }
 
-must(sw, "const VERSION = 'v14-signal-fabric-admin-20261004';", "Service worker cache version must be v14-signal-fabric-admin-20261004");
+must(sw, "const VERSION = 'v15-opportunity-os-20261004';", "Service worker cache version must be v15-opportunity-os-20261004");
 
 console.log("WAOUH Flutter/Web route parity: OK");
 console.log(`Flutter reference routes checked: ${requiredFlutterRoutes.length}`);
