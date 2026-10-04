@@ -10,6 +10,8 @@ import { extractPublicContactHints, scoreFabricSignal, type FabricSignal } from 
 import {
   buildContactPack,
   mandateAllowsContact,
+  remainingContactCapacity,
+  boundedFollowUpDecision,
   type ChannelCandidate,
 } from "../_shared/waouh-opportunity-os.ts";
 import { routeOpportunityChannel } from "../_shared/waouh-channel-router.ts";
@@ -659,11 +661,18 @@ async function runBoundedFollowUps(sb: SupabaseClient, limit = 30) {
         .select("id", { count: "exact", head: true })
         .eq("journey_id", journey.id)
         .eq("event_type", "autonomy.followup_queued");
-      const followupIndex = Number(count || 0) + 1;
-      if (followupIndex > maxFollowups) {
+      const decision = boundedFollowUpDecision({
+        autonomyMode: mandate.autonomy_mode,
+        stage: journey.stage,
+        lastActivityAt: journey.last_activity_at,
+        maxFollowups,
+        followupsSent: Number(count || 0),
+      });
+      if (!decision.due) {
         skipped++;
         continue;
       }
+      const followupIndex = decision.next_index;
 
       const { data: signal, error: signalError } = await sb.from("waouh_signal_fabric")
         .select("*").eq("fabric_id", journey.fabric_id).maybeSingle();
@@ -718,8 +727,7 @@ Deno.serve(async (req) => {
         continue;
       }
       const maxContacts = Math.max(1, Math.min(20, Number(mandate.max_contacts || 3)));
-      const alreadyContacted = Math.max(0, Number(mandate.contacted_count || 0));
-      const remainingContacts = Math.max(0, maxContacts - alreadyContacted);
+      const remainingContacts = remainingContactCapacity(maxContacts, mandate.contacted_count);
       if (remainingContacts <= 0) {
         const nextAt = new Date(Date.now() + 24 * 3600_000).toISOString();
         await sb.from("waouh_persistent_intents").update({
