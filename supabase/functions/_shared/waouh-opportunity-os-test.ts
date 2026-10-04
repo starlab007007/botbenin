@@ -5,6 +5,8 @@ import {
   deriveNextBestAction,
   mandateAllowsContact,
   rankChannels,
+  remainingContactCapacity,
+  boundedFollowUpDecision,
 } from "./waouh-opportunity-os.ts";
 
 Deno.test("Opportunity OS: WAOUH interne ouvre directement Deal Room", () => {
@@ -91,4 +93,34 @@ Deno.test("Opportunity OS: assisted n'envoie jamais seul", () => {
     channels: [{ channel: "whatsapp", verified: true, reachable: true }],
   });
   assertEquals(mandateAllowsContact({ autonomy_mode: "assisted" }, pack).allowed, false);
+});
+
+
+Deno.test("Opportunity OS: le plafond de contacts est cumulatif", () => {
+  assertEquals(remainingContactCapacity(5, 0), 5);
+  assertEquals(remainingContactCapacity(5, 3), 2);
+  assertEquals(remainingContactCapacity(5, 5), 0);
+  assertEquals(remainingContactCapacity(5, 9), 0);
+});
+
+Deno.test("Opportunity OS: relance bornée à 24 h et max_followups", () => {
+  const now = Date.parse("2026-10-04T22:00:00Z");
+  const old = "2026-10-03T20:00:00Z";
+  const recent = "2026-10-04T12:00:00Z";
+  assertEquals(boundedFollowUpDecision({
+    autonomyMode: "semi_autonomous", stage: "waiting_reply",
+    lastActivityAt: old, maxFollowups: 1, followupsSent: 0, nowMs: now,
+  }).due, true);
+  assertEquals(boundedFollowUpDecision({
+    autonomyMode: "semi_autonomous", stage: "waiting_reply",
+    lastActivityAt: recent, maxFollowups: 1, followupsSent: 0, nowMs: now,
+  }).reason, "too_early");
+  assertEquals(boundedFollowUpDecision({
+    autonomyMode: "semi_autonomous", stage: "waiting_reply",
+    lastActivityAt: old, maxFollowups: 1, followupsSent: 1, nowMs: now,
+  }).reason, "followup_limit_reached");
+  assertEquals(boundedFollowUpDecision({
+    autonomyMode: "assisted", stage: "waiting_reply",
+    lastActivityAt: old, maxFollowups: 2, followupsSent: 0, nowMs: now,
+  }).reason, "assisted");
 });
