@@ -270,10 +270,6 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
     p_external_ref: ref,
     p_payload: { contact_id: target.id, phone_last4: target.value_last4, source_key: signal.source_key },
   });
-  await sb.from("waouh_entity_contacts").update({
-    sent_count: Number(target.sent_count || 0) + 1,
-    updated_at: new Date().toISOString(),
-  }).eq("id", target.id);
   await sb.from("waouh_opportunity_journeys").update({
     stage: "waiting_reply",
     contact_channel: "whatsapp",
