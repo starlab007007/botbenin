@@ -4,14 +4,14 @@
     "C4": "Suivre la réponse",
     "C3": "Proposer mon offre",
     "C2": "Proposer mon offre",
-    "C1": "Vérifier puis proposer",
+    "C1": "Bot contacte maintenant",
     "C0": "Lancer la démarche",
     "": "Lancer la démarche",
     "inconnu": "Lancer la démarche"
   },
   "findChannel": {
     "C0": "Lancer la recherche du vendeur",
-    "C1": "Vérifier le meilleur canal"
+    "C1": "Enrichir les autres canaux"
   },
   "sendOffer": "Envoyer mon offre",
   "radarPrimary": {
