@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -7,6 +7,9 @@ import {
   Handshake,
   Loader2,
   MapPin,
+  Pause,
+  Play,
+  Zap,
   Radar,
   Search,
   ShieldCheck,
@@ -27,7 +30,12 @@ import {
   globalNexusDiscovery,
   prepareNexusContact,
   sendNexusDiscoveryContact,
+  createNexusMandate,
+  listNexusMandates,
+  updateNexusMandate,
+  runNexusMandate,
   type NexusDiscoveryResult,
+  type NexusAvatarMandate,
 } from "@/lib/waouh/nexus";
 
 type Mode = "acheter" | "vendre" | "demander";
@@ -133,7 +141,26 @@ export default function WaouhAvatarCommercePage() {
   const [rationale, setRationale] = useState("");
   const [offerItem, setOfferItem] = useState<NexusDiscoveryResult | null>(null);
   const [offerAmount, setOfferAmount] = useState("");
+  const [autonomyMode, setAutonomyMode] = useState<"assisted" | "semi_autonomous" | "autonomous">("semi_autonomous");
+  const [maxContacts, setMaxContacts] = useState(3);
+  const [mandateBusy, setMandateBusy] = useState(false);
+  const [activeMandate, setActiveMandate] = useState<NexusAvatarMandate | null>(null);
 
+  useEffect(() => {
+    let alive = true;
+    void listNexusMandates()
+      .then((data) => {
+        if (!alive) return;
+        const current = (data.mandates || []).find((m) => m.status === "active" || m.status === "paused") || null;
+        setActiveMandate(current);
+        if (current) {
+          setAutonomyMode(current.autonomy_mode);
+          setMaxContacts(current.max_contacts || 3);
+        }
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   const sources = useMemo(
     () => Object.entries(sourceMix).filter(([, count]) => Number(count) > 0),
@@ -165,6 +192,79 @@ export default function WaouhAvatarCommercePage() {
       });
     } finally {
       setBusy(false);
+    }
+  };
+
+  const createMandate = async () => {
+    const query = goal.trim();
+    if (!query || mandateBusy) return;
+    setMandateBusy(true);
+    try {
+      const response = await createNexusMandate({
+        mode: mode === "vendre" ? "sell" : mode === "demander" ? "ask" : "buy",
+        goal: query,
+        autonomy_mode: autonomyMode,
+        city: city.trim() || undefined,
+        budget_max: Number(budget) || undefined,
+        max_contacts: maxContacts,
+        max_followups: autonomyMode === "autonomous" ? 2 : 1,
+        duration_hours: 24,
+        scan_interval_minutes: 60,
+        min_match_score: 70,
+        min_actionability_score: 65,
+        allow_waouh: true,
+        allow_whatsapp: true,
+        allow_public_business: true,
+        allow_blind_message: true,
+        origin_surface: "web_avatar_commerce",
+      });
+      setActiveMandate(response.mandate);
+      if (response.results?.length) {
+        setResults(response.results);
+        const mix = response.results.reduce<Record<string, number>>((acc, row) => {
+          acc[row.source_key] = (acc[row.source_key] || 0) + 1;
+          return acc;
+        }, {});
+        setSourceMix(mix);
+      }
+      toast({
+        title: "Mandat confié à Bot",
+        description: autonomyMode === "assisted"
+          ? "Bot surveille et prépare ; vous validez chaque contact."
+          : `Bot surveille pendant 24 h et peut agir dans les limites fixées · ${response.actionable_count} opportunité(s) déjà actionnable(s).`,
+      });
+    } catch (error: any) {
+      toast({ title: "Mandat non créé", description: error?.message || String(error), variant: "destructive" });
+    } finally {
+      setMandateBusy(false);
+    }
+  };
+
+  const toggleMandate = async () => {
+    if (!activeMandate || mandateBusy) return;
+    setMandateBusy(true);
+    try {
+      const status = activeMandate.status === "active" ? "paused" : "active";
+      const response = await updateNexusMandate(activeMandate.id, { status });
+      setActiveMandate(response.mandate);
+      toast({ title: status === "active" ? "Mandat repris" : "Mandat en pause" });
+    } finally {
+      setMandateBusy(false);
+    }
+  };
+
+  const runMandateNow = async () => {
+    if (!activeMandate || mandateBusy) return;
+    setMandateBusy(true);
+    try {
+      const response = await runNexusMandate(activeMandate.id);
+      setActiveMandate(response.mandate);
+      if (response.results?.length) setResults(response.results);
+      toast({ title: "Bot a relancé la recherche", description: `${response.actionable_count} opportunité(s) actionnable(s).` });
+    } catch (error: any) {
+      toast({ title: "Relance impossible", description: error?.message || String(error), variant: "destructive" });
+    } finally {
+      setMandateBusy(false);
     }
   };
 
@@ -261,7 +361,9 @@ export default function WaouhAvatarCommercePage() {
       }
 
       const prepared = await prepareNexusContact(item.fabric_id);
-      if (!prepared.contact_policy.can_auto_contact && !prepared.contact_policy.can_blind_message) {
+      if (!prepared.contact_policy.can_auto_contact &&
+          !prepared.contact_policy.can_blind_message &&
+          !prepared.contact_policy.can_user_confirm_contact) {
         throw new Error(
           `Le niveau ${prepared.contact_policy.level} autorise la découverte, mais pas encore un contact médié.`
         );
@@ -349,6 +451,104 @@ export default function WaouhAvatarCommercePage() {
           </Button>
         </section>
 
+        <section className="rounded-[24px] border border-violet-100 bg-gradient-to-br from-violet-50/80 via-white to-cyan-50/70 p-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-violet-600 text-white">
+              <Zap className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-black text-slate-950">Mandat Avatar · Opportunity OS</div>
+              <p className="mt-1 text-[11px] font-semibold leading-relaxed text-slate-500">
+                Autorisez Bot une seule fois : il surveille NEXUS, prépare les contacts, agit dans vos limites et revient quand une vraie réponse arrive.
+              </p>
+            </div>
+          </div>
+
+          {activeMandate ? (
+            <div className="mt-4 space-y-3">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-2xl bg-white p-3 text-center">
+                  <div className="text-[9px] font-bold uppercase text-slate-400">Contactés</div>
+                  <div className="mt-1 text-xl font-black text-violet-700">{activeMandate.contacted_count}</div>
+                </div>
+                <div className="rounded-2xl bg-white p-3 text-center">
+                  <div className="text-[9px] font-bold uppercase text-slate-400">Réponses</div>
+                  <div className="mt-1 text-xl font-black text-emerald-700">{activeMandate.replied_count}</div>
+                </div>
+                <div className="rounded-2xl bg-white p-3 text-center">
+                  <div className="text-[9px] font-bold uppercase text-slate-400">Mode</div>
+                  <div className="mt-1 text-[11px] font-black text-slate-900">
+                    {activeMandate.autonomy_mode === "assisted" ? "Assisté" : activeMandate.autonomy_mode === "autonomous" ? "Autonome" : "Semi-auto"}
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-violet-100 bg-white p-3">
+                <div className="text-xs font-black text-slate-900">{activeMandate.goal}</div>
+                <div className="mt-1 text-[10px] text-slate-500">
+                  Jusqu’à {activeMandate.max_contacts} contacts · expire {new Date(activeMandate.expires_at).toLocaleString("fr-FR")}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" disabled={mandateBusy} onClick={() => void toggleMandate()} className="rounded-xl">
+                  {activeMandate.status === "active" ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
+                  {activeMandate.status === "active" ? "Mettre en pause" : "Reprendre"}
+                </Button>
+                <Button disabled={mandateBusy || activeMandate.status !== "active"} onClick={() => void runMandateNow()} className="rounded-xl">
+                  {mandateBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Radar className="mr-2 h-4 w-4" />}
+                  Chercher maintenant
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              <div>
+                <div className="mb-2 text-[10px] font-black uppercase tracking-wide text-slate-500">Mode d’autonomie</div>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    ["assisted", "Assisté", "Vous validez"],
+                    ["semi_autonomous", "Semi-auto", "Recommandé"],
+                    ["autonomous", "Autonome", "Dans le mandat"],
+                  ] as const).map(([value, label, note]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setAutonomyMode(value)}
+                      className={`rounded-2xl border p-2.5 text-left transition ${autonomyMode === value ? "border-violet-500 bg-violet-50 ring-1 ring-violet-200" : "border-slate-200 bg-white"}`}
+                    >
+                      <div className="text-[11px] font-black text-slate-900">{label}</div>
+                      <div className="mt-0.5 text-[9px] font-semibold text-slate-400">{note}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-3 rounded-2xl bg-white p-3">
+                <div>
+                  <div className="text-xs font-black">Maximum de contacts</div>
+                  <div className="text-[10px] text-slate-500">Bot ne dépassera jamais cette limite sur ce mandat.</div>
+                </div>
+                <select
+                  value={maxContacts}
+                  onChange={(e) => setMaxContacts(Number(e.target.value))}
+                  className="h-10 rounded-xl border bg-white px-3 text-sm font-bold"
+                >
+                  {[1, 3, 5, 10].map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+              <Button
+                className="h-12 w-full rounded-2xl bg-violet-600 hover:bg-violet-700"
+                disabled={mandateBusy || !goal.trim()}
+                onClick={() => void createMandate()}
+              >
+                {mandateBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}
+                Confier cette mission à Bot pendant 24 h
+              </Button>
+              <p className="text-center text-[10px] font-semibold text-slate-500">
+                Aucun paiement, changement de budget ou révélation de contact privé n’est autorisé par ce mandat.
+              </p>
+            </div>
+          )}
+        </section>
+
         {(rationale || sources.length > 0) && (
           <section className="rounded-[22px] border border-blue-100 bg-blue-50/60 p-4">
             <div className="flex items-center gap-2 text-xs font-black text-slate-950">
@@ -388,10 +588,26 @@ export default function WaouhAvatarCommercePage() {
                       <span>{sourceLabel(item.source_key)}</span>
                       {item.city && <span>· {item.city}</span>}
                       <span>· {item.contact_policy.level}</span>
+                      {(item.readiness_level || item.contact_pack?.readiness_level) && <span>· {item.readiness_level || item.contact_pack?.readiness_level}</span>}
+                      {item.actionability_score != null && <span>· Action {Math.round(item.actionability_score)}%</span>}
                     </div>
                   </div>
                   <div className="text-sm font-black text-blue-600">{Math.round(item.scores?.total_score || 0)}%</div>
                 </div>
+
+                {(item.next_best_action || item.contact_pack?.next_best_action) && (
+                  <div className="mt-3 rounded-2xl border border-violet-100 bg-violet-50/70 p-3">
+                    <div className="text-[9px] font-black uppercase text-violet-700">Action recommandée par Bot</div>
+                    <div className="mt-1 text-xs font-black text-violet-950">
+                      {(item.next_best_action || item.contact_pack?.next_best_action) === "CONTACT_NOW" ? "Contacter maintenant" :
+                       (item.next_best_action || item.contact_pack?.next_best_action) === "OPEN_DEAL_ROOM" ? "Ouvrir le Deal Room" :
+                       (item.next_best_action || item.contact_pack?.next_best_action) === "WAIT_REPLY" ? "Attendre la réponse" :
+                       (item.next_best_action || item.contact_pack?.next_best_action) === "NEGOTIATE" ? "Négocier" :
+                       "Enrichir le contact"}
+                      {(item.best_channel || item.contact_pack?.best_channel) ? ` · ${item.best_channel || item.contact_pack?.best_channel}` : ""}
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   {[
