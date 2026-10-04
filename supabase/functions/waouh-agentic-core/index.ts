@@ -2366,6 +2366,34 @@ Retourne uniquement JSON:
         const durationHours = integer(payload.duration_hours, "duration_hours", 24, 1, 720);
         const minMatchScore = Math.max(0, Math.min(100, Number(payload.min_match_score ?? 70)));
         const minActionabilityScore = Math.max(0, Math.min(100, Number(payload.min_actionability_score ?? 65)));
+        const requestKey = optionalString(payload.request_key, "request_key", 240);
+
+        if (requestKey) {
+          const { data: existingMandate, error: existingMandateError } = await sb
+            .from("waouh_avatar_mandates")
+            .select("*")
+            .eq("owner_id", ownerId)
+            .contains("metadata", { request_key: requestKey })
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (existingMandateError) {
+            throw new ApiError(500, "nexus_mandate_dedupe_failed", existingMandateError.message);
+          }
+          if (existingMandate?.id) {
+            const { data: existingIntent } = await sb.from("waouh_persistent_intents")
+              .select("*").eq("mandate_id", existingMandate.id)
+              .order("created_at", { ascending: false }).limit(1).maybeSingle();
+            return jsonResponse({ ok: true, data: {
+              mandate: existingMandate,
+              intent: existingIntent ?? null,
+              results: [],
+              actionable_count: 0,
+              duplicate: true,
+            }});
+          }
+        }
+
         const mandate = await queryOne<any>(
           sb.from("waouh_avatar_mandates").insert({
             owner_id: ownerId,
@@ -2392,6 +2420,7 @@ Retourne uniquement JSON:
             metadata: {
               origin_surface: optionalString(payload.origin_surface, "origin_surface", 80),
               user_confirmed_mandate: true,
+              request_key: requestKey,
             },
           }).select("*").single(),
           "nexus_mandate_create_failed",
