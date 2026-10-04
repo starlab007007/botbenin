@@ -91,7 +91,11 @@ begin
       )::text as resolved_family,
       coalesce(ds.operational_state, 'live')::text as resolved_state,
       (
-        (jsonb_typeof(f.evidence->'photos') = 'array' and jsonb_array_length(f.evidence->'photos') > 0)
+        (case
+          when jsonb_typeof(f.evidence->'photos') = 'array'
+          then jsonb_array_length(f.evidence->'photos') > 0
+          else false
+        end)
         or nullif(f.evidence->>'image_url','') is not null
         or nullif(f.evidence->>'photo','') is not null
         or nullif(f.evidence->>'thumbnail','') is not null
@@ -156,9 +160,8 @@ begin
       nullif(x.evidence->>'photo',''),
       nullif(x.evidence->>'thumbnail',''),
       case
-        when jsonb_typeof(x.evidence->'photos') = 'array'
-          and jsonb_array_length(x.evidence->'photos') > 0
-        then x.evidence->'photos'->>0
+        when jsonb_typeof(x.evidence->'photos') = 'array' then
+          case when jsonb_array_length(x.evidence->'photos') > 0 then x.evidence->'photos'->>0 else null end
         else null
       end
     )::text as photo_url,
