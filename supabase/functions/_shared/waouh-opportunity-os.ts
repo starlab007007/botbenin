@@ -255,3 +255,66 @@ export function boundedFollowUpDecision(input: {
   }
   return { due: true, reason: "due" as const, next_index: sent + 1 };
 }
+
+
+export type ChatMandateDirective = {
+  autonomyMode: "assisted" | "semi_autonomous" | "autonomous";
+  maxContacts: number;
+  maxFollowups: number;
+  durationHours: number;
+};
+
+export function parseChatMandateDirective(
+  text: unknown,
+  intent: unknown,
+): ChatMandateDirective | null {
+  const raw = String(text ?? "").trim();
+  const normalized = raw
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  const normalizedIntent = String(intent ?? "").toUpperCase();
+  if (!["BUY", "SELL"].includes(normalizedIntent)) return null;
+
+  // Explicit delegation only. A plain "je cherche" / "je vends" never opts in.
+  const contactDirective =
+    /\b(contacte|contacter|contactez|contactes|ecris|ecrire|envoyer?\s+(?:un\s+)?message|approche|joins?|joindre)\b/i.test(normalized) &&
+    /\b(bot|avatar|tu|vous|pour\s+moi|vendeur|vendeurs|acheteur|acheteurs|contact|contacts)\b/i.test(normalized);
+  const explicitDelegation =
+    contactDirective ||
+    /\b(confie|delegue|laisse)\b.*\b(bot|avatar)\b/i.test(normalized);
+  if (!explicitDelegation) return null;
+
+  const assisted =
+    /\b(valide\s+chaque|je\s+valide|demande[- ]?moi|avant\s+d[' ]?envoyer|avant\s+de\s+contacter)\b/i.test(normalized);
+  const autonomous =
+    /\b(autonome|automatiquement|sans\s+me\s+demander|sans\s+validation|tout\s+seul)\b/i.test(normalized);
+  const autonomyMode = assisted
+    ? "assisted"
+    : autonomous
+      ? "autonomous"
+      : "semi_autonomous";
+
+  const capMatch =
+    normalized.match(/(?:jusqu[' ]?a|max(?:imum)?|au\s+plus|limite(?:\s+a)?)\s*[:=]?\s*(\d{1,2})\s*(?:vendeurs?|acheteurs?|contacts?|personnes?)?\b/i) ||
+    normalized.match(/\b(?:contacte|contacter|contactez|contactes)\s+(\d{1,2})\b/i);
+  const requestedContacts = capMatch ? Number(capMatch[1]) : 3;
+  const maxContacts = Math.max(1, Math.min(20, Number.isFinite(requestedContacts) ? requestedContacts : 3));
+
+  const followupMatch = normalized.match(/\brelanc(?:e|er|es)?\s*(\d{1,2})?\s*(?:fois)?\b/i);
+  const requestedFollowups = followupMatch
+    ? Number(followupMatch[1] || (autonomyMode === "autonomous" ? 2 : 1))
+    : (autonomyMode === "autonomous" ? 2 : 1);
+  const maxFollowups = autonomyMode === "assisted"
+    ? 0
+    : Math.max(0, Math.min(5, Number.isFinite(requestedFollowups) ? requestedFollowups : 1));
+
+  let durationHours = 24;
+  const hours = normalized.match(/\b(?:pendant|durant|sur)\s+(\d{1,3})\s*h(?:eures?)?\b/i);
+  const days = normalized.match(/\b(?:pendant|durant|sur)\s+(\d{1,2})\s*jours?\b/i);
+  if (hours) durationHours = Number(hours[1]);
+  else if (days) durationHours = Number(days[1]) * 24;
+  durationHours = Math.max(1, Math.min(720, durationHours));
+
+  return { autonomyMode, maxContacts, maxFollowups, durationHours };
+}
