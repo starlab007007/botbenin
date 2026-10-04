@@ -318,3 +318,13 @@ export function parseChatMandateDirective(
 
   return { autonomyMode, maxContacts, maxFollowups, durationHours };
 }
+
+
+export const OPPORTUNITY_OS_SERVICE_OWNER_ACTIONS = Object.freeze([
+  "nexus.global_discovery",
+  "nexus.mandate.create",
+] as const);
+
+export function serviceMayActForOwner(action: unknown) {
+  return (OPPORTUNITY_OS_SERVICE_OWNER_ACTIONS as readonly string[]).includes(String(action ?? ""));
+}
