@@ -1,5 +1,5 @@
-2026.10.04.1
-ui=signal-fabric-admin-v1+responsive-premium
-chat=bot-copilot-v2
-flutter=18.26.0+1790884000
-backend=admin-read-rpc-signal-fabric
+2026.10.04.2
+ui=opportunity-os-v1+signal-fabric-admin+responsive-premium
+chat=bot-copilot-v2+actionability
+flutter=18.27.0+1790884001
+backend=opportunity-os-v1+contact-pack+channel-router+conversation-bus
