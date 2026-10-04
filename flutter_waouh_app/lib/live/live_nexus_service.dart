@@ -170,6 +170,12 @@ class NexusDiscoveryItem {
     this.catalogId,
     this.sellerUserId,
     this.buyerUserId,
+    this.contactPack,
+    this.readinessLevel,
+    this.readinessScore,
+    this.actionabilityScore,
+    this.nextBestAction,
+    this.bestChannel,
     this.evidence = const <String, dynamic>{},
   });
 
@@ -188,6 +194,12 @@ class NexusDiscoveryItem {
   final String? catalogId;
   final String? sellerUserId;
   final String? buyerUserId;
+  final NexusContactPack? contactPack;
+  final String? readinessLevel;
+  final double? readinessScore;
+  final double? actionabilityScore;
+  final String? nextBestAction;
+  final String? bestChannel;
   final Map<String, dynamic> evidence;
   final NexusScore scores;
   final NexusContactPolicy contactPolicy;
@@ -341,6 +353,24 @@ class NexusDiscoveryItem {
       buyerUserId: optionalId(
         json['buyer_user_id'] ?? evidence['buyer_user_id'],
       ),
+      contactPack: _map(json['contact_pack']).isEmpty
+          ? null
+          : NexusContactPack.fromJson(_map(json['contact_pack'])),
+      readinessLevel: json['readiness_level'] == null
+          ? null
+          : _text(json['readiness_level']),
+      readinessScore: json['readiness_score'] == null
+          ? null
+          : _number(json['readiness_score']),
+      actionabilityScore: json['actionability_score'] == null
+          ? null
+          : _number(json['actionability_score']),
+      nextBestAction: json['next_best_action'] == null
+          ? null
+          : _text(json['next_best_action']),
+      bestChannel: json['best_channel'] == null
+          ? null
+          : _text(json['best_channel']),
       evidence: evidence,
       scores: NexusScore.fromJson(_map(json['scores'])),
       contactPolicy:
