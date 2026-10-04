@@ -11,6 +11,7 @@ import {
   mandateAllowsContact,
   type ChannelCandidate,
 } from "../_shared/waouh-opportunity-os.ts";
+import { routeOpportunityChannel } from "../_shared/waouh-channel-router.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
