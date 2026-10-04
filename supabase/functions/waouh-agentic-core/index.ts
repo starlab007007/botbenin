@@ -2520,6 +2520,29 @@ Retourne uniquement JSON:
           autonomy_mode: autonomyMode,
           actionable_count: actionable.length,
         });
+        await sb.rpc("waouh_append_conversation_bus_event", {
+          p_owner_id: ownerId,
+          p_event_type: "avatar.mandate.created",
+          p_channel: optionalString(payload.origin_surface, "origin_surface", 80)?.startsWith("chat") ? "waouh" : "avatar",
+          p_direction: "system",
+          p_fabric_id: null,
+          p_journey_id: null,
+          p_mandate_id: mandate.id,
+          p_article_id: null,
+          p_thread_id: null,
+          p_negotiation_id: null,
+          p_deal_id: null,
+          p_external_ref: `mandate:${mandate.id}`,
+          p_payload: {
+            goal,
+            autonomy_mode: autonomyMode,
+            max_contacts: maxContacts,
+            max_followups: maxFollowups,
+            duration_hours: durationHours,
+            actionable_count: actionable.length,
+            origin_surface: optionalString(payload.origin_surface, "origin_surface", 80),
+          },
+        });
         return jsonResponse({ ok: true, data: {
           mandate,
           intent,
