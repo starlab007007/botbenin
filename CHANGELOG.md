@@ -3,6 +3,10 @@
 Format de version plateforme : `YYYY.MM.JJ` suivi d'un indice `.N` pour les livraisons du même jour (proposition, voir docs/PLAN_HARMONISATION.md).
 Chaque entrée relie Web, Flutter et Supabase.
 
+## 2026.10.04.1
+- **Admin NEXUS / Signal Fabric** : l’écran `/admin/waouh/data-control` n’est plus limité à l’ancien enum `partner/chat/radar`. Deux RPC admin-only en lecture seule exposent `waouh_signal_fabric` avec toutes les sources réellement collectées (WAOUH interne, Partner, WhatsApp, Radar IA, Apify, SerpAPI, réseaux sociaux, Maps, Scouts et signaux NEXUS externes), sans révéler les contacts complets des tiers. L’UI ajoute statistiques Signal Fabric, familles/sources dynamiques, intentions BUY/SELL/ANNOUNCE/RFQ, contactabilité C0–C4, qualité/completude, confiance, provenance, état opérationnel et registre des connecteurs. Les mutations restent limitées aux lignes historiques `waouh_unified_catalog`; les autres signaux sont en lecture seule. Navigation Admin renommée « NEXUS · Signal Fabric ». Cache Web `v14-signal-fabric-admin-20261004`. Flutter inchangé (**18.26.0**).
+
+
 ## 2026.10.01.4
 - UI uniquement, sans changement backend : **responsive premium sur toutes les pages et menus** (petit téléphone, téléphone, tablette portrait/paysage, fenêtre web réduite, grand écran). Échelle typographique fluide : plus aucun texte d'interface sous 11 px (371 tailles figées 8–11 px rendues fluides, menus ERP compris) ; police sans-serif unifiée (titres Space Grotesk, texte Inter) ; icônes minuscules agrandies sur écran tactile ; puces, onglets et bascules ≥ 36 px au doigt ; champs à 16 px sur mobile (pas de zoom iOS). En-tête WAOUH allégé sur petit téléphone ; composeur compact. Web réduit (1180–1440 px) : actions de l'en-tête jamais écrasées, photo de profil de nouveau visible. Flutter **18.26.0** : échelle de texte adaptative (tablette ×1,08–1,14, préférence d'accessibilité respectée) et 193 tailles minuscules relevées. Audit : textes < 11 px 548 → 0, cibles tactiles < 32 px 211 → ~50 (restantes sur pages hors application). Cache Web `v13-responsive-20261001`.
 
