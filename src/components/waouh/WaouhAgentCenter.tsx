@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { invokeWaouhAgentic } from "@/lib/waouh/agenticClient";
+import { listNexusConversationBus, type NexusConversationBusEvent } from "@/lib/waouh/nexus";
 import {
   listFromAgenticData, normalizeAgenticBlocks, type AgentActivity, type AgenticAction,
   type AgentMission, type NonFinancialApproval, type PriceWatch, type SellerPolicy, type SignedOffer,
@@ -22,11 +23,12 @@ type CenterData = {
   watches: PriceWatch[];
   approvals: NonFinancialApproval[];
   activity: AgentActivity[];
+  bus: NexusConversationBusEvent[];
   offers: SignedOffer[];
   policy: SellerPolicy | null;
 };
 
-const EMPTY: CenterData = { missions: [], watches: [], approvals: [], activity: [], offers: [], policy: null };
+const EMPTY: CenterData = { missions: [], watches: [], approvals: [], activity: [], bus: [], offers: [], policy: null };
 
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : "Une erreur inattendue est survenue.";
 const amount = (value: string) => value.trim() ? Number(value.replace(/\s/g, "")) : undefined;
@@ -60,6 +62,7 @@ export function WaouhAgentCenter({ compact = false, standalone = false }: { comp
       invokeWaouhAgentic<{ entries?: AgentActivity[]; activity?: AgentActivity[]; activities?: AgentActivity[] }>("activity.list", { limit: 50 }),
       invokeWaouhAgentic<{ offers?: SignedOffer[] }>("offer.list", { limit: 30 }),
       invokeWaouhAgentic<{ policy?: SellerPolicy; policies?: SellerPolicy[] }>("seller_policy.get", {}),
+      listNexusConversationBus({ limit: 60 }),
     ]);
     setLoading(false);
     setData((previous) => ({
@@ -67,6 +70,7 @@ export function WaouhAgentCenter({ compact = false, standalone = false }: { comp
       watches: calls[1].status === "fulfilled" ? listFromAgenticData<PriceWatch>(calls[1].value, "watches") : previous.watches,
       approvals: calls[2].status === "fulfilled" ? listFromAgenticData<NonFinancialApproval>(calls[2].value, "approvals") : previous.approvals,
       activity: calls[3].status === "fulfilled" ? listFromAgenticData<AgentActivity>(calls[3].value, "activities", "entries", "activity") : previous.activity,
+      bus: calls[6].status === "fulfilled" ? calls[6].value.events ?? [] : previous.bus,
       offers: calls[4].status === "fulfilled" ? listFromAgenticData<SignedOffer>(calls[4].value, "offers") : previous.offers,
       policy: calls[5].status === "fulfilled" ? calls[5].value.policy ?? calls[5].value.policies?.[0] ?? null : previous.policy,
     }));
@@ -143,6 +147,32 @@ export function WaouhAgentCenter({ compact = false, standalone = false }: { comp
   const action = async (name: AgenticAction, payload: Record<string, unknown>) => { await run(name, payload, "Mise à jour enregistrée"); };
   const pendingCount = data.approvals.filter((approval) => approval.status === "pending").length;
 
+  const busEventTitle = (event: NexusConversationBusEvent) => {
+    switch (event.event_type) {
+      case "nexus.counterparty_reply": return "Réponse reçue";
+      case "autonomy.external_contact_queued": return "Avatar a contacté une opportunité";
+      case "autonomy.internal_contact_delivered": return "Contact WAOUH transmis";
+      case "autonomy.followup_queued": return "Relance Avatar";
+      case "nexus.contact.queued": return "Contact mis en file";
+      default: return event.event_type.replace(/[._]/g, " ");
+    }
+  };
+  const busEventText = (event: NexusConversationBusEvent) => {
+    const payload = event.payload || {};
+    for (const key of ["reply_preview", "text", "subject", "message"]) {
+      const value = payload[key];
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+    return event.fabric_id ? `Opportunité ${event.fabric_id}` : "Événement WAOUH";
+  };
+  const formatBusDate = (value: string) => {
+    try {
+      return new Intl.DateTimeFormat("fr-BJ", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+    } catch {
+      return value;
+    }
+  };
+  const activityCount = data.activity.length + data.bus.length;
 
   const activeMissionCount = data.missions.filter((mission) => !["completed", "cancelled", "failed"].includes(mission.status)).length;
   const activeWatchCount = data.watches.filter((watch) => ["active", "paused", "triggered"].includes(watch.status)).length;
@@ -172,7 +202,7 @@ export function WaouhAgentCenter({ compact = false, standalone = false }: { comp
                   { label: "Missions", value: activeMissionCount, icon: Bot },
                   { label: "Veilles", value: activeWatchCount, icon: BellRing },
                   { label: "À valider", value: pendingCount, icon: ShieldCheck },
-                  { label: "Activité", value: data.activity.length, icon: Activity },
+                  { label: "Activité", value: activityCount, icon: Activity },
                 ].map(({ label, value, icon: Icon }) => (
                   <div key={label} className="rounded-2xl border border-white/10 bg-white/[0.07] p-3">
                     <Icon className="h-4 w-4 text-emerald-100" />
@@ -221,7 +251,35 @@ export function WaouhAgentCenter({ compact = false, standalone = false }: { comp
           </TabsContent>
 
           <TabsContent value="activity" className="space-y-3">
-            {!blocks.activity.length && !loading && <Empty text="Le journal affichera les recherches, comparaisons, alertes et décisions de l’agent." />}
+            {!blocks.activity.length && data.bus.length === 0 && !loading && <Empty text="Le journal affichera les recherches, contacts, réponses, relances et décisions de l’Avatar." />}
+            {data.bus.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">Conversation Bus</h3>
+                    <p className="text-[10px] font-medium text-slate-500">WAOUH · WhatsApp · NEXUS · Deal Room dans un seul journal.</p>
+                  </div>
+                  <Badge variant="outline">{data.bus.length}</Badge>
+                </div>
+                {data.bus.slice(0, 30).map((event) => (
+                  <div key={event.id} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-xs font-black text-slate-900">{busEventTitle(event)}</div>
+                        <div className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-600">{busEventText(event)}</div>
+                      </div>
+                      <Badge variant="secondary" className="shrink-0 text-[9px]">{event.channel}</Badge>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[9px] font-semibold text-slate-500">
+                      <span>{event.direction === "in" ? "Entrant" : event.direction === "out" ? "Sortant" : "Système"}</span>
+                      <span>· {formatBusDate(event.created_at)}</span>
+                      {event.fabric_id && <span className="max-w-[220px] truncate">· {event.fabric_id}</span>}
+                      {event.thread_id && <span>· Deal Room lié</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             <WaouhAgentBlocks blocks={blocks.activity} />
           </TabsContent>
         </Tabs>}
@@ -283,7 +341,35 @@ export function WaouhAgentCenter({ compact = false, standalone = false }: { comp
           </TabsContent>
 
           <TabsContent value="activity" className="space-y-3">
-            {!blocks.activity.length && !loading && <Empty text="Le journal affichera les recherches, comparaisons, alertes et décisions de l’agent." />}
+            {!blocks.activity.length && data.bus.length === 0 && !loading && <Empty text="Le journal affichera les recherches, contacts, réponses, relances et décisions de l’Avatar." />}
+            {data.bus.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900">Conversation Bus</h3>
+                    <p className="text-[10px] font-medium text-slate-500">WAOUH · WhatsApp · NEXUS · Deal Room dans un seul journal.</p>
+                  </div>
+                  <Badge variant="outline">{data.bus.length}</Badge>
+                </div>
+                {data.bus.slice(0, 30).map((event) => (
+                  <div key={event.id} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-xs font-black text-slate-900">{busEventTitle(event)}</div>
+                        <div className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-600">{busEventText(event)}</div>
+                      </div>
+                      <Badge variant="secondary" className="shrink-0 text-[9px]">{event.channel}</Badge>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[9px] font-semibold text-slate-500">
+                      <span>{event.direction === "in" ? "Entrant" : event.direction === "out" ? "Sortant" : "Système"}</span>
+                      <span>· {formatBusDate(event.created_at)}</span>
+                      {event.fabric_id && <span className="max-w-[220px] truncate">· {event.fabric_id}</span>}
+                      {event.thread_id && <span>· Deal Room lié</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             <WaouhAgentBlocks blocks={blocks.activity} />
           </TabsContent>
         </Tabs>}
