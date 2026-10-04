@@ -154,6 +154,7 @@ export function WaouhAgentCenter({ compact = false, standalone = false }: { comp
       case "autonomy.internal_contact_delivered": return "Contact WAOUH transmis";
       case "autonomy.followup_queued": return "Relance Avatar";
       case "nexus.contact.queued": return "Contact mis en file";
+      case "avatar.mandate.created": return "Mandat Avatar activé";
       default: return event.event_type.replace(/[._]/g, " ");
     }
   };
