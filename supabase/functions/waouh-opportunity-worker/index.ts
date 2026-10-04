@@ -207,7 +207,24 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
   if (!externalSignal?.entity_id) return { contacted: false, reason: "external_entity_missing" };
   const permission = mandateAllowsContact(mandate, pack);
   if (!permission.allowed) return { contacted: false, reason: permission.reason };
-  if (!["whatsapp","phone"].includes(String(pack.best_channel || ""))) return { contacted: false, reason: "no_supported_channel" };
+  const route = routeOpportunityChannel({
+    channels: (pack.available_channels || []).map((row: any) => ({
+      channel: row.channel,
+      verified: row.verified,
+      reachable: row.reachable,
+      public_business: row.public_business,
+      last4: row.last4,
+    })),
+    contactability: externalSignal.contactability_level || pack.contactability_level,
+    allowWhatsapp: mandate.allow_whatsapp !== false,
+    allowPublicBusiness: mandate.allow_public_business !== false,
+    allowEmail: mandate.allow_email === true,
+    allowSmsRcs: mandate.allow_sms_rcs === true,
+  });
+  if (!route.can_dispatch) return { contacted: false, reason: route.reason };
+  if (route.primary_channel !== "whatsapp") {
+    return { contacted: false, reason: "provider_not_bound" };
+  }
 
   const level = String(externalSignal.contactability_level || "C0");
   const target = contacts.find((row: any) => {
