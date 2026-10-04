@@ -243,7 +243,7 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
     allowSmsRcs: mandate.allow_sms_rcs === true,
   });
   if (!route.can_dispatch) return { contacted: false, reason: route.reason };
-  if (route.primary_channel !== "whatsapp") {
+  if (!["whatsapp","phone"].includes(String(route.primary_channel || ""))) {
     return { contacted: false, reason: "provider_not_bound" };
   }
 
@@ -311,8 +311,10 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
   });
   await sb.from("waouh_opportunity_journeys").update({
     stage: "waiting_reply",
-    contact_channel: "whatsapp",
-    last_action: "autonomous_whatsapp_queued",
+    contact_channel: route.primary_channel === "phone" ? "whatsapp_via_public_phone" : "whatsapp",
+    last_action: route.primary_channel === "phone"
+      ? "autonomous_public_phone_whatsapp_probe_queued"
+      : "autonomous_whatsapp_queued",
     next_action: "WAIT_REPLY",
     last_message: "Avatar a contacté cette opportunité selon votre mandat.",
     updated_at: new Date().toISOString(),
