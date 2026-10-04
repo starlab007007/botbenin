@@ -756,7 +756,10 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${current.progress}% · ${current.contactability} · ${_journeyStageLabel(current.stage)}',
+                  '${current.progress}% · ${current.contactability}' +
+                      ((current.readinessLevel ?? '').isEmpty ? '' : ' · ${current.readinessLevel}') +
+                      ((current.actionabilityScore ?? 0) <= 0 ? '' : ' · Action ${current.actionabilityScore!.round()}%') +
+                      ' · ${_journeyStageLabel(current.stage)}',
                   style: const TextStyle(
                     color: WaouhPalette.blue,
                     fontWeight: FontWeight.w900,
@@ -1138,6 +1141,41 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   }
 }
 
+class _MandateMetric extends StatelessWidget {
+  const _MandateMetric({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE4D8FF)),
+        ),
+        child: Column(
+          children: [
+            Text(label,
+                style: const TextStyle(
+                  color: WaouhPalette.muted,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                )),
+            const SizedBox(height: 2),
+            Text(value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFF6D3FD1),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                )),
+          ],
+        ),
+      );
+}
+
 class _ActiveJourneysPanel extends StatelessWidget {
   const _ActiveJourneysPanel({
     required this.journeys,
@@ -1507,6 +1545,19 @@ class _SourceChip extends StatelessWidget {
       );
 }
 
+String _nextBestActionLabel(String? value) => switch ((value ?? '').toUpperCase()) {
+      'CONTACT_NOW' => 'contacter maintenant',
+      'OPEN_DEAL_ROOM' => 'ouvrir le Deal Room',
+      'REQUEST_APPROVAL' => 'valider le contact',
+      'WAIT_REPLY' => 'attendre la réponse',
+      'FOLLOW_UP' => 'relancer',
+      'NEGOTIATE' => 'négocier',
+      'EXECUTE' => 'exécuter l’accord',
+      'COMPLETE' => 'terminé',
+      'DROP_LOW_QUALITY' => 'priorité faible',
+      _ => 'enrichir le contact',
+    };
+
 class _OpportunityCard extends StatelessWidget {
   const _OpportunityCard({
     required this.rank,
@@ -1602,6 +1653,10 @@ class _OpportunityCard extends StatelessWidget {
                           item.sourceLabel,
                           if ((item.city ?? '').isNotEmpty) item.city!,
                           item.contactPolicy.level,
+                          if ((item.readinessLevel ?? item.contactPack?.readiness)?.isNotEmpty == true)
+                            item.readinessLevel ?? item.contactPack!.readiness,
+                          if (item.actionabilityScore != null || item.contactPack != null)
+                            'Action ${(item.actionabilityScore ?? item.contactPack!.actionabilityScore).round()}%',
                         ].join(' · '),
                         style: const TextStyle(
                           color: WaouhPalette.muted,
@@ -1638,6 +1693,13 @@ class _OpportunityCard extends StatelessWidget {
                 Expanded(child: _ScoreBar(label: 'Confiance', value: item.scores.trust)),
               ],
             ),
+            if (item.actionabilityScore != null || item.contactPack != null) ...[
+              const SizedBox(height: 7),
+              _ScoreBar(
+                label: 'Actionnable',
+                value: item.actionabilityScore ?? item.contactPack!.actionabilityScore,
+              ),
+            ],
             if (item.scores.reasons.isNotEmpty) ...[
               const SizedBox(height: 9),
               Wrap(
@@ -1676,6 +1738,17 @@ class _OpportunityCard extends StatelessWidget {
               accent: const Color(0xFF8B6500),
             ),
             const SizedBox(height: 7),
+            if (item.nextBestAction != null || item.contactPack != null) ...[
+              _InfoStrip(
+                icon: Icons.bolt_rounded,
+                text: 'Bot recommande : ' + _nextBestActionLabel(item.nextBestAction ?? item.contactPack!.nextBestAction) +
+                    ((item.bestChannel ?? item.contactPack?.bestChannel)?.isNotEmpty == true
+                        ? ' · canal ' + (item.bestChannel ?? item.contactPack!.bestChannel!)
+                        : ''),
+                accent: const Color(0xFF6D3FD1),
+              ),
+              const SizedBox(height: 7),
+            ],
             _InfoStrip(
               icon: item.internalArticle
                   ? Icons.lock_person_outlined
