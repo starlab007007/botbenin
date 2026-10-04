@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import {
   getRequestUser,
+  isServiceRoleRequest,
   jsonResponse,
   waouhCorsHeaders,
 } from "../_shared/waouh-auth.ts";
@@ -1450,13 +1451,18 @@ Deno.serve(async (req: Request) => {
     ensureNoFinancialAction(action, payload);
 
     const authUser = await getRequestUser(req);
-    if (!authUser) throw new ApiError(401, "authentication_required");
+    const serviceCall = isServiceRoleRequest(req);
+    const serviceOwnerId = serviceCall ? req.headers.get("x-waouh-owner-id")?.trim() ?? "" : "";
+    const serviceOwnerActions = new Set(["nexus.global_discovery", "nexus.mandate.create"]);
+    if (!authUser && !(serviceCall && serviceOwnerId && serviceOwnerActions.has(action))) {
+      throw new ApiError(401, "authentication_required");
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !serviceKey) throw new ApiError(500, "server_not_configured");
     const sb = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
-    const ownerId = authUser.id;
+    const ownerId = authUser?.id ?? uuid(serviceOwnerId, "x_waouh_owner_id");
 
     switch (action) {
       case "mission.create": {
