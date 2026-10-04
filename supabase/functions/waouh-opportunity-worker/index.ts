@@ -21,6 +21,80 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
+async function discoverPersistentIntentWithNexus(
+  sb: SupabaseClient,
+  intent: any,
+  mandate: any,
+) {
+  const metadata = intent?.metadata && typeof intent.metadata === "object"
+    ? intent.metadata as Record<string, unknown>
+    : {};
+  const lastExternalRaw = typeof metadata.last_external_refresh_at === "string"
+    ? Date.parse(metadata.last_external_refresh_at)
+    : NaN;
+  const refreshExternal = !Number.isFinite(lastExternalRaw) ||
+    Date.now() - lastExternalRaw >= 6 * 3600_000;
+  const discoveryMode = intent.mode === "find_buyers" ? "find_buyers" : "find_sellers";
+  const limit = Math.min(30, Math.max(Number(mandate.max_contacts || 3) * 4, 12));
+
+  try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/waouh-agentic-core`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${SERVICE_ROLE}`,
+        "Content-Type": "application/json",
+        "x-waouh-owner-id": String(mandate.owner_id),
+      },
+      body: JSON.stringify({
+        action: "nexus.global_discovery",
+        payload: {
+          query: intent.query_text,
+          mode: discoveryMode,
+          city: intent.city || null,
+          budget_max: discoveryMode === "find_sellers" ? intent.budget_max : null,
+          limit,
+          refresh_external: refreshExternal,
+          smart: false,
+        },
+      }),
+    });
+    const envelope = await response.json().catch(() => null);
+    if (!response.ok || envelope?.ok !== true || !Array.isArray(envelope?.data?.results)) {
+      throw new Error(String(envelope?.error?.message || envelope?.error?.code || `agentic_${response.status}`));
+    }
+
+    if (refreshExternal) {
+      await sb.from("waouh_persistent_intents").update({
+        metadata: {
+          ...metadata,
+          last_external_refresh_at: new Date().toISOString(),
+          last_external_refresh_status: "ok",
+          last_external_source_mix: envelope.data.source_mix ?? {},
+        },
+      }).eq("id", intent.id);
+    }
+    return {
+      ok: true,
+      refreshed_external: refreshExternal,
+      results: envelope.data.results as any[],
+      source_mix: envelope.data.source_mix ?? {},
+    };
+  } catch (error) {
+    if (refreshExternal) {
+      await sb.from("waouh_persistent_intents").update({
+        metadata: {
+          ...metadata,
+          last_external_refresh_at: new Date().toISOString(),
+          last_external_refresh_status: "failed",
+          last_external_refresh_error: error instanceof Error ? error.message.slice(0, 160) : "unknown",
+        },
+      }).eq("id", intent.id);
+    }
+    console.warn("[waouh-opportunity-worker] NEXUS persistent discovery fallback", error);
+    return { ok: false, refreshed_external: refreshExternal, results: [] as any[], source_mix: {} };
+  }
+}
+
 async function resolvePack(sb: SupabaseClient, signal: any) {
   const fabricId = String(signal.fabric_id ?? "");
   const sourceKey = String(signal.source_key ?? "unknown");
@@ -743,22 +817,30 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const desired = intent.mode === "find_buyers" ? ["BUY","RFQ"] : ["SELL","ANNOUNCE"];
-      const { data: signals, error: signalError } = await sb.from("waouh_signal_fabric")
-        .select("*").in("intent", desired).order("observed_at", { ascending: false }).limit(1500);
-      if (signalError) throw signalError;
-      const ranked = (signals ?? []).map((signal: FabricSignal) => ({
-        ...signal,
-        scores: scoreFabricSignal({
-          query: intent.query_text,
-          mode: intent.mode === "find_buyers" ? "find_buyers" : "find_sellers",
-          city: intent.city,
-          budgetMax: intent.budget_max,
-          signal,
-        }),
-      })).filter((row: any) => Number(row.scores.total_score || 0) >= Number(intent.min_match_score || 75))
-        .sort((a: any,b: any) => Number(b.scores.total_score) - Number(a.scores.total_score))
-        .slice(0, Math.max(Number(mandate.max_contacts || 3) * 4, 12));
+      const nexusDiscovery = await discoverPersistentIntentWithNexus(sb, intent, mandate);
+      let ranked: any[] = nexusDiscovery.results;
+      if (!nexusDiscovery.ok) {
+        const desired = intent.mode === "find_buyers" ? ["BUY","RFQ"] : ["SELL","ANNOUNCE"];
+        const { data: signals, error: signalError } = await sb.from("waouh_signal_fabric")
+          .select("*").in("intent", desired).order("observed_at", { ascending: false }).limit(1500);
+        if (signalError) throw signalError;
+        ranked = (signals ?? []).map((signal: FabricSignal) => ({
+          ...signal,
+          scores: scoreFabricSignal({
+            query: intent.query_text,
+            mode: intent.mode === "find_buyers" ? "find_buyers" : "find_sellers",
+            city: intent.city,
+            budgetMax: intent.budget_max,
+            signal,
+          }),
+        })).filter((row: any) => Number(row.scores.total_score || 0) >= Number(intent.min_match_score || 75))
+          .sort((a: any,b: any) => Number(b.scores.total_score) - Number(a.scores.total_score))
+          .slice(0, Math.max(Number(mandate.max_contacts || 3) * 4, 12));
+      } else {
+        ranked = ranked
+          .filter((row: any) => Number(row.scores?.total_score || 0) >= Number(intent.min_match_score || 75))
+          .slice(0, Math.max(Number(mandate.max_contacts || 3) * 4, 12));
+      }
       result.matches += ranked.length;
 
       let contactedThisRun = 0;
