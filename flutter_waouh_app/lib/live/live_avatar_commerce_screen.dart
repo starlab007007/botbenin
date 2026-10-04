@@ -33,8 +33,10 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
 
   NexusDiscoveryResponse? _response;
   List<NexusOpportunityJourney> _journeys = const <NexusOpportunityJourney>[];
+  List<Map<String, dynamic>> _conversationBus = const <Map<String, dynamic>>[];
   bool _loading = false;
   bool _loadingJourneys = false;
+  bool _loadingBus = false;
   String? _error;
   String? _workingFabric;
   Map<String, dynamic>? _mandate;
@@ -48,6 +50,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
     Future<void>.microtask(() async {
       await _loadJourneys();
       await _loadMandate();
+      await _loadConversationBus();
     });
   }
 
@@ -61,6 +64,19 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       // Search and deal remain usable even if the summary cannot refresh.
     } finally {
       if (mounted) setState(() => _loadingJourneys = false);
+    }
+  }
+
+  Future<void> _loadConversationBus() async {
+    if (legacy.supabase.auth.currentUser == null || _loadingBus) return;
+    if (mounted) setState(() => _loadingBus = true);
+    try {
+      final rows = await _nexus.conversationBus(limit: 30);
+      if (mounted) setState(() => _conversationBus = rows);
+    } catch (_) {
+      // Le parcours principal reste disponible même si le journal multicanal ne charge pas.
+    } finally {
+      if (mounted) setState(() => _loadingBus = false);
     }
   }
 
@@ -127,6 +143,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
         });
         setState(() => _response = response);
       }
+      await _loadConversationBus();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Mandat confié à Bot pendant 24 h.')),
@@ -576,6 +593,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       if (!mounted) return;
       avatar.showState(LiveAvatarPresenceState.waiting);
       await _loadJourneys();
+      await _loadConversationBus();
       if (!mounted) return;
       await _showJourneyStatus(item, journey, contactSent: true);
     } catch (e) {
