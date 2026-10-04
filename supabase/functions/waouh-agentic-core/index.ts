@@ -1316,6 +1316,8 @@ async function ensureOpportunityJourney(
     subject?: string | null;
     city?: string | null;
     articleId?: string | null;
+    mandateId?: string | null;
+    contactPack?: Record<string, any> | null;
     metadata?: Record<string, unknown>;
   },
 ) {
@@ -1331,7 +1333,25 @@ async function ensureOpportunityJourney(
     .limit(1)
     .maybeSingle();
   if (lookupError) throw new ApiError(500, "opportunity_journey_lookup_failed", lookupError.message);
-  if (existing) return existing;
+  if (existing) {
+    if (input.contactPack || input.mandateId) {
+      const patch: Record<string, unknown> = {};
+      if (input.mandateId) patch.mandate_id = input.mandateId;
+      if (input.contactPack) {
+        patch.contact_pack = input.contactPack;
+        patch.readiness_level = input.contactPack.readiness_level ?? "R0";
+        patch.readiness_score = Number(input.contactPack.readiness_score ?? 0);
+        patch.actionability_score = Number(input.contactPack.actionability_score ?? 0);
+        patch.next_best_action = input.contactPack.next_best_action ?? "ENRICH";
+      }
+      const { data: refreshed, error: refreshError } = await sb.from("waouh_opportunity_journeys")
+        .update({ ...patch, updated_at: new Date().toISOString() })
+        .eq("id", existing.id).select("*").single();
+      if (refreshError) throw new ApiError(500, "opportunity_journey_refresh_failed", refreshError.message);
+      return refreshed;
+    }
+    return existing;
+  }
 
   const firstEvent = {
     at: new Date().toISOString(),
@@ -1353,6 +1373,12 @@ async function ensureOpportunityJourney(
       subject: input.subject ?? null,
       city: input.city ?? null,
       article_id: input.articleId ?? null,
+      mandate_id: input.mandateId ?? null,
+      readiness_level: input.contactPack?.readiness_level ?? "R0",
+      readiness_score: Number(input.contactPack?.readiness_score ?? 0),
+      actionability_score: Number(input.contactPack?.actionability_score ?? 0),
+      next_best_action: input.contactPack?.next_best_action ?? "ENRICH",
+      contact_pack: input.contactPack ?? {},
       last_action: "opportunity_started",
       next_action: journeyNextAction(stage, level),
       last_message: "Avatar a pris en charge cette opportunité.",
@@ -1377,6 +1403,8 @@ async function updateOpportunityJourney(
     threadId?: string | null;
     negotiationId?: string | null;
     dealId?: string | null;
+    mandateId?: string | null;
+    contactPack?: Record<string, any> | null;
   },
 ) {
   const { data: updated, error } = await sb.rpc("waouh_append_opportunity_journey_event", {
@@ -1396,6 +1424,14 @@ async function updateOpportunityJourney(
   if (input.threadId) patch.thread_id = input.threadId;
   if (input.negotiationId) patch.negotiation_id = input.negotiationId;
   if (input.dealId) patch.deal_id = input.dealId;
+  if (input.mandateId) patch.mandate_id = input.mandateId;
+  if (input.contactPack) {
+    patch.contact_pack = input.contactPack;
+    patch.readiness_level = input.contactPack.readiness_level ?? "R0";
+    patch.readiness_score = Number(input.contactPack.readiness_score ?? 0);
+    patch.actionability_score = Number(input.contactPack.actionability_score ?? 0);
+    patch.next_best_action = input.contactPack.next_best_action ?? "ENRICH";
+  }
   if (Object.keys(patch).length) {
     const { data, error: patchError } = await sb.from("waouh_opportunity_journeys")
       .update({ ...patch, updated_at: new Date().toISOString() })
