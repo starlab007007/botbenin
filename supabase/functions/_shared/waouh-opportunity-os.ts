@@ -70,9 +70,24 @@ export function scoreChannel(candidate: ChannelCandidate) {
 }
 
 export function rankChannels(channels: ChannelCandidate[]) {
+  const canonicalPriority: Record<string, number> = {
+    waouh: 6,
+    whatsapp: 5,
+    phone: 4,
+    email: 3,
+    website: 2,
+    facebook: 1,
+    instagram: 1,
+    telegram: 1,
+  };
   return [...channels]
     .map((row) => ({ ...row, score: scoreChannel(row) }))
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => {
+      const scoreDelta = b.score - a.score;
+      if (scoreDelta !== 0) return scoreDelta;
+      return (canonicalPriority[String(b.channel).toLowerCase()] ?? 0) -
+        (canonicalPriority[String(a.channel).toLowerCase()] ?? 0);
+    });
 }
 
 export function readinessLevel(input: {
@@ -124,7 +139,7 @@ export function deriveNextBestAction(input: {
   if (stage === "completed") return "COMPLETE";
   if (stage === "executing" || stage === "agreed") return "EXECUTE";
   if (stage === "negotiating" || level === "C5") return "NEGOTIATE";
-  if (stage === "waiting_reply" || stage === "contacting" || level === "C4") return "WAIT_REPLY";
+  if (stage === "waiting_reply" || stage === "contacting") return "WAIT_REPLY";
   if (input.internalArticle && !input.threadId) return "OPEN_DEAL_ROOM";
   if (input.readiness === "R4" && input.actionability >= 60) {
     return level === "C3" ? "REQUEST_APPROVAL" : "CONTACT_NOW";
