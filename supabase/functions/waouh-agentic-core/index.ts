@@ -10,6 +10,7 @@ import { normalizeE164, phoneLast4 } from "../_shared/waouh-tel/phone.ts";
 import { getRadarApiKey, incrementRadarUsage } from "../_shared/radar-api-config.ts";
 import {
   contactabilityPolicy,
+  contactabilityFromBasis,
   extractPublicContactHints,
   normalizeFabricText,
   redactPublicContacts,
@@ -489,21 +490,6 @@ async function planNexusGoal(
   }
 }
 
-
-function contactabilityFromBasis(
-  sourceDefault: string,
-  basis: string,
-  isPublicBusiness: boolean,
-): Contactability {
-  if (basis === "partner_contract") return "C4";
-  if (basis === "opt_in") return "C3";
-  if (basis === "initiated") return "C2";
-  if (basis === "public_business" || isPublicBusiness) return "C1";
-  // A connector default never creates consent. C2 may remain mediated/protected,
-  // but reveal/auto-contact levels require an explicit basis above.
-  if (sourceDefault === "C2") return "C2";
-  return "C0";
-}
 
 function actorRoleFromIntent(intent: string, actorType?: string | null) {
   if (actorType && ["buyer","seller","announcer","business","broker","scout"].includes(actorType)) return actorType;
