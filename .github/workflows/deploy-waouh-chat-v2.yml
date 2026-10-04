@@ -151,7 +151,7 @@ jobs:
           elif [ "$EVENT_NAME" = "push" ]; then
             BEFORE="${EVENT_BEFORE:-}"
             if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
-              if git diff --name-only "$BEFORE" "$GITHUB_SHA" --                 supabase/migrations/20260927120000_waouh_chat_messages_thread_base.sql                 supabase/migrations/20260927120500_waouh_chat_messages_thread_backfill.sql                 supabase/migrations/20260927121000_waouh_chat_reconcile.sql                 supabase/migrations/20260928092242_waouh_chat_v3_flags.sql                 supabase/migrations/20260928092245_waouh_commerce_actions.sql                 supabase/migrations/20260929140000_waouh_presence_pin_attempts.sql                 supabase/migrations/20260929150000_waouh_nexus_followup_cron.sql                 supabase/migrations/20260929160000_waouh_avatar_prefs.sql                 supabase/migrations/20261004223000_waouh_opportunity_os.sql                 supabase/migrations/20261004224000_waouh_opportunity_worker_cron.sql                 | grep -q .; then
+              if git diff --name-only "$BEFORE" "$GITHUB_SHA" --                 supabase/migrations/20260927120000_waouh_chat_messages_thread_base.sql                 supabase/migrations/20260927120500_waouh_chat_messages_thread_backfill.sql                 supabase/migrations/20260927121000_waouh_chat_reconcile.sql                 supabase/migrations/20260928092242_waouh_chat_v3_flags.sql                 supabase/migrations/20260928092245_waouh_commerce_actions.sql                 supabase/migrations/20260929140000_waouh_presence_pin_attempts.sql                 supabase/migrations/20260929150000_waouh_nexus_followup_cron.sql                 supabase/migrations/20260929160000_waouh_avatar_prefs.sql                 | grep -q .; then
                 APPLY=true
               fi
             fi
@@ -159,11 +159,17 @@ jobs:
 
           echo "apply_migrations=$APPLY" >> "$GITHUB_OUTPUT"
           echo "WAOUH migration push requested: $APPLY"
+          if git diff --name-only "${EVENT_BEFORE:-HEAD^}" "$GITHUB_SHA" 2>/dev/null | grep -Eq '20261004223000_waouh_opportunity_os.sql|20261004224000_waouh_opportunity_worker_cron.sql'; then
+            echo "ℹ️ Opportunity OS migrations detected."
+            echo "ℹ️ They are intentionally excluded from generic db push because production has known historical migration drift."
+            echo "ℹ️ Release runbook: apply only these validated additive SQL files through the controlled Supabase release step before merging/deploying."
+          fi
 
       - name: Skip database push when migrations are unchanged
         if: steps.migration_gate.outputs.apply_migrations != 'true'
         run: |
-          echo "ℹ️ No WAOUH migration file changed in this deployment."
+          echo "ℹ️ No legacy auto-push WAOUH migration changed in this deployment."
+          echo "ℹ️ Opportunity OS additive migrations use the controlled release step and are not sent through generic db push."
           echo "ℹ️ Skipping db push so unrelated historical migration drift cannot block Edge Function deployment."
 
       - name: Preview additive Chat v2 migrations
