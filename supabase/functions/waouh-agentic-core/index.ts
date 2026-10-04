@@ -499,7 +499,10 @@ function contactabilityFromBasis(
   if (basis === "opt_in") return "C3";
   if (basis === "initiated") return "C2";
   if (basis === "public_business" || isPublicBusiness) return "C1";
-  return (["C0","C1","C2","C3","C4","C5"].includes(sourceDefault) ? sourceDefault : "C0") as Contactability;
+  // A connector default never creates consent. C2 may remain mediated/protected,
+  // but reveal/auto-contact levels require an explicit basis above.
+  if (sourceDefault === "C2") return "C2";
+  return "C0";
 }
 
 function actorRoleFromIntent(intent: string, actorType?: string | null) {
@@ -998,9 +1001,9 @@ async function refreshGooglePlaces(
 function publicSourceKey(urlValue: string, mode: DiscoveryMode) {
   try {
     const host = new URL(urlValue).hostname.toLowerCase().replace(/^www\./, "");
-    if (host === "facebook.com" || host.endsWith(".facebook.com") || host === "fb.com") return "facebook_business";
-    if (host === "instagram.com" || host.endsWith(".instagram.com")) return "instagram_business";
-    if (host === "tiktok.com" || host.endsWith(".tiktok.com")) return "tiktok_connected";
+    if (host === "facebook.com" || host.endsWith(".facebook.com") || host === "fb.com") return "facebook_public";
+    if (host === "instagram.com" || host.endsWith(".instagram.com")) return "instagram_public";
+    if (host === "tiktok.com" || host.endsWith(".tiktok.com")) return "tiktok_public";
     if (host === "t.me" || host.endsWith(".telegram.me") || host.endsWith(".telegram.org")) return "telegram_public";
     if (host === "monentreprise.bj" || host.endsWith(".cci.bj") || host.endsWith(".apiex.bj")) return "benin_directory";
     if (mode === "find_buyers" && (
