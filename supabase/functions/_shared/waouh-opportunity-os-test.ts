@@ -9,6 +9,7 @@ import {
   remainingContactCapacity,
   boundedFollowUpDecision,
   parseChatMandateDirective,
+  serviceMayActForOwner,
 } from "./waouh-opportunity-os.ts";
 
 Deno.test("Opportunity OS: WAOUH interne ouvre directement Deal Room", () => {
@@ -175,4 +176,13 @@ Deno.test("Opportunity OS Chat: validation de chaque contact reste assistée", (
   );
   assertEquals(directive?.autonomyMode, "assisted");
   assertEquals(directive?.maxFollowups, 0);
+});
+
+
+Deno.test("Opportunity OS: service-owner est limitée à la découverte et au mandat", () => {
+  assertEquals(serviceMayActForOwner("nexus.global_discovery"), true);
+  assertEquals(serviceMayActForOwner("nexus.mandate.create"), true);
+  assertEquals(serviceMayActForOwner("nexus.contact.send"), false);
+  assertEquals(serviceMayActForOwner("offer.respond"), false);
+  assertEquals(serviceMayActForOwner("payment.create"), false);
 });
