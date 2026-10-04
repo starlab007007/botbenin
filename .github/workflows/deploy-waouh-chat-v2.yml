@@ -42,6 +42,7 @@ on:
       - "supabase/functions/_shared/waouh-avatar-notes.ts"
       - "supabase/functions/_shared/waouh-nexus-followup-core.ts"
       - "supabase/functions/_shared/waouh-opportunity-os.ts"
+      - "supabase/functions/_shared/waouh-channel-router.ts"
       - "supabase/functions/waouh-opportunity-worker/**"
       - "supabase/functions/waouh-agentic-core/**"
       - "supabase/functions/waouh-outbound-dispatch/**"
