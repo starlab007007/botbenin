@@ -19,6 +19,11 @@ import {
   type FabricSignal,
 } from "../_shared/waouh-signal-fabric.ts";
 import {
+  buildContactPack,
+  mandateAllowsContact,
+  type ChannelCandidate,
+} from "../_shared/waouh-opportunity-os.ts";
+import {
   marketStats,
   nexusTokens,
   rankArticle,
@@ -890,7 +895,29 @@ async function ingestCommerceSignal(
     confidence: signal.confidence,
   }, { onConflict: "signal_id,entity_id,role" });
 
-  return { signal, entity, contactability: contactabilityPolicy(contactability) };
+  const fabricSignal = {
+    fabric_id: `external:${signal.id}`,
+    source_key: signal.source_key,
+    intent: signal.intent,
+    actor_type: signal.actor_type,
+    subject: signal.product_name ?? signal.raw_text,
+    raw_text: signal.raw_text,
+    category: signal.category,
+    brand: signal.brand,
+    model: signal.model,
+    condition: signal.condition,
+    price_min: signal.price_min,
+    price_max: signal.price_max,
+    currency: signal.currency,
+    city: signal.city,
+    contactability_level: signal.contactability_level,
+    trust_score: signal.trust_score,
+    observed_at: signal.observed_at,
+    source_url: signal.source_url,
+    evidence: signal.evidence,
+  };
+  const contactPack = await buildOperationalContactPack(sb, fabricSignal, { persist: true });
+  return { signal, entity, contactability: contactabilityPolicy(contactability), contact_pack: contactPack };
 }
 
 async function refreshGooglePlaces(
@@ -1097,6 +1124,128 @@ async function refreshSerpApi(
   };
 }
 
+async function buildOperationalContactPack(
+  sb: SupabaseClient,
+  signal: any,
+  options: { journeyStage?: string | null; threadId?: string | null; persist?: boolean } = {},
+) {
+  const fabricId = String(signal.fabric_id ?? "");
+  const sourceKey = String(signal.source_key ?? "unknown");
+  const channels: ChannelCandidate[] = [];
+  let entityId: string | null = null;
+  let contactability = String(signal.contactability_level ?? "C0");
+  const internalArticle =
+    (fabricId.startsWith("article:") || fabricId.startsWith("catalog:") || fabricId.startsWith("buyer:")) &&
+    ["waouh_app", "whatsapp", "partner"].includes(sourceKey);
+
+  if (internalArticle) {
+    channels.push({
+      channel: "waouh",
+      verified: true,
+      reachable: true,
+      public_business: sourceKey === "partner",
+      consent_state: sourceKey === "partner" ? "partner_contract" : "initiated",
+    });
+  }
+
+  if (fabricId.startsWith("external:")) {
+    const signalId = fabricId.slice("external:".length);
+    const { data: external, error: extError } = await sb.from("waouh_external_commerce_signals")
+      .select("entity_id,contactability_level,contact_consent_basis,source_key,status")
+      .eq("id", signalId).maybeSingle();
+    if (extError) throw new ApiError(500, "contact_pack_signal_lookup_failed", extError.message);
+    entityId = external?.entity_id ?? null;
+    contactability = String(external?.contactability_level ?? contactability);
+    if (entityId) {
+      const { data: contacts, error: contactsError } = await sb.from("waouh_entity_contacts")
+        .select("channel,value_last4,public_value,contactability_level,consent_state,is_public_business,verified_at,verification_status,last_success_at,last_failure_at,reply_count,failure_count,is_whatsapp_reachable")
+        .eq("entity_id", entityId)
+        .order("contactability_level", { ascending: false })
+        .limit(20);
+      if (contactsError) throw new ApiError(500, "contact_pack_contacts_failed", contactsError.message);
+      for (const row of contacts ?? []) {
+        const channel = String(row.channel ?? "other");
+        channels.push({
+          channel,
+          last4: row.value_last4 ?? null,
+          verified: !!row.verified_at || ["verified","reachable"].includes(String(row.verification_status ?? "")),
+          reachable: row.is_whatsapp_reachable ?? (String(row.verification_status ?? "") === "reachable" ? true : null),
+          public_business: row.is_public_business === true,
+          consent_state: row.consent_state ?? null,
+          last_success_at: row.last_success_at ?? null,
+          last_failure_at: row.last_failure_at ?? null,
+          reply_count: Number(row.reply_count ?? 0),
+          failure_count: Number(row.failure_count ?? 0),
+        });
+      }
+    }
+  }
+
+  const pack = buildContactPack({
+    fabricId,
+    sourceKey,
+    contactability,
+    trustScore: Number(signal.trust_score ?? 50),
+    observedAt: signal.observed_at ?? null,
+    entityResolved: internalArticle || !!entityId,
+    internalArticle,
+    threadId: options.threadId ?? null,
+    journeyStage: options.journeyStage ?? null,
+    replyReceived: contactability === "C5",
+    channels,
+  });
+  const messageTemplate = String(signal.intent ?? "").toUpperCase() === "BUY"
+    ? `Bonjour, WAOUH accompagne un vendeur dont l’offre correspond à votre besoin « ${signal.subject ?? "votre demande"} ». Souhaitez-vous poursuivre dans WAOUH ?`
+    : `Bonjour, WAOUH accompagne un utilisateur intéressé par « ${signal.subject ?? "votre offre"} ». Souhaitez-vous poursuivre dans WAOUH ?`;
+
+  const row = {
+    fabric_id: fabricId,
+    entity_id: entityId,
+    source_key: sourceKey,
+    contactability_level: pack.contactability_level,
+    readiness_level: pack.readiness_level,
+    readiness_score: pack.readiness_score,
+    actionability_score: pack.actionability_score,
+    next_best_action: pack.next_best_action,
+    best_channel: pack.best_channel,
+    available_channels: pack.available_channels,
+    masked_contacts: pack.masked_contacts,
+    verification: {
+      verified_channel: pack.verified_channel,
+      computed_at: new Date().toISOString(),
+    },
+    message_template: messageTemplate,
+    fallback_channels: pack.available_channels.slice(1).map((row: any) => row.channel),
+    last_enriched_at: new Date().toISOString(),
+    last_verified_at: pack.verified_channel ? new Date().toISOString() : null,
+    metadata: {
+      intent: signal.intent ?? null,
+      actor_type: signal.actor_type ?? null,
+      subject: signal.subject ?? null,
+      city: signal.city ?? null,
+      internal_article: internalArticle,
+    },
+  };
+  if (options.persist !== false && fabricId) {
+    const { error } = await sb.from("waouh_contact_packs").upsert(row, { onConflict: "fabric_id" });
+    if (error) console.warn("[Opportunity OS] contact pack persist", error.message);
+  }
+  return { ...pack, message_template: messageTemplate, entity_id: entityId };
+}
+
+async function enrichDiscoveryWithOpportunityOS(sb: SupabaseClient, signal: any) {
+  const contactPack = await buildOperationalContactPack(sb, signal, { persist: true });
+  return {
+    ...signal,
+    contact_pack: contactPack,
+    readiness_level: contactPack.readiness_level,
+    readiness_score: contactPack.readiness_score,
+    actionability_score: contactPack.actionability_score,
+    next_best_action: contactPack.next_best_action,
+    best_channel: contactPack.best_channel,
+  };
+}
+
 async function globalDiscoverySearch(
   sb: SupabaseClient,
   input: {
@@ -1111,7 +1260,7 @@ async function globalDiscoverySearch(
   const { data, error } = await sb.from("waouh_signal_fabric")
     .select("*").in("intent", desired).order("observed_at", { ascending: false }).limit(3500);
   if (error) throw new ApiError(500, "nexus_global_discovery_failed", error.message);
-  const ranked = (data ?? []).map((signal: FabricSignal) => ({
+  const preRanked = (data ?? []).map((signal: FabricSignal) => ({
     ...signal,
     scores: scoreFabricSignal({
       query: input.query,
@@ -1123,8 +1272,14 @@ async function globalDiscoverySearch(
     contact_policy: contactabilityPolicy(signal.contactability_level),
   })).filter((row: any) => row.scores.relevance_score >= 18 && row.scores.total_score >= 32)
     .sort((a: any, b: any) => b.scores.total_score - a.scores.total_score)
+    .slice(0, Math.max(input.limit * 2, input.limit));
+  const enriched = await Promise.all(preRanked.map((row: any) => enrichDiscoveryWithOpportunityOS(sb, row)));
+  return enriched
+    .sort((a: any, b: any) =>
+      (b.scores.total_score * 0.72 + Number(b.actionability_score ?? 0) * 0.28) -
+      (a.scores.total_score * 0.72 + Number(a.actionability_score ?? 0) * 0.28)
+    )
     .slice(0, input.limit);
-  return ranked;
 }
 
 
