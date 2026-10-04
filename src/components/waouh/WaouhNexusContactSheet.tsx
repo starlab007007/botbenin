@@ -13,6 +13,8 @@ import {
   prepareNexusContact,
   sendNexusDiscoveryContact,
   startNexusOpportunity,
+  listNexusConversationBus,
+  type NexusConversationBusEvent,
   type NexusOpportunityJourney,
 } from "@/lib/waouh/nexus";
 import { WaouhContactabilityBadge } from "./WaouhCommerceAgentBar";
@@ -55,6 +57,7 @@ export function WaouhNexusContactSheet({
   const [prepared, setPrepared] = useState<Prepared | null>(null);
   const [journey, setJourney] = useState<NexusOpportunityJourney | null>(null);
   const [message, setMessage] = useState("");
+  const [busEvents, setBusEvents] = useState<NexusConversationBusEvent[]>([]);
 
   const load = async () => {
     if (!user) return;
@@ -70,6 +73,12 @@ export function WaouhNexusContactSheet({
       setJourney(started);
       setPrepared(contact);
       setMessage(interestMessage(title));
+      try {
+        const bus = await listNexusConversationBus({ fabric_id: fabricId, limit: 12 });
+        setBusEvents(bus.events || []);
+      } catch {
+        setBusEvents([]);
+      }
     } catch (error) {
       toast({ title: "Avatar poursuit la démarche", description: errorText(error) });
     } finally {
@@ -102,6 +111,10 @@ export function WaouhNexusContactSheet({
     try {
       const result = await getNexusOpportunityStatus({ journey_id: journey.id });
       setJourney(result.journey);
+      try {
+        const bus = await listNexusConversationBus({ fabric_id: fabricId, limit: 12 });
+        setBusEvents(bus.events || []);
+      } catch {}
     } finally {
       setBusy(false);
     }
@@ -118,6 +131,10 @@ export function WaouhNexusContactSheet({
       });
       if (result.journey) setJourney(result.journey as NexusOpportunityJourney);
       else if (journey) setJourney((await getNexusOpportunityStatus({ journey_id: journey.id })).journey);
+      try {
+        const bus = await listNexusConversationBus({ fabric_id: fabricId, limit: 12 });
+        setBusEvents(bus.events || []);
+      } catch {}
       toast({
         title: "Avatar a pris le relais",
         description: "Le contact est suivi dans WAOUH. Vous serez guidé dès la réponse.",
@@ -262,6 +279,34 @@ export function WaouhNexusContactSheet({
                 </div>
               </div>
             </div>
+
+            {busEvents.length > 0 && (
+              <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                <div className="text-xs font-black text-slate-900">Activité multicanale</div>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  WAOUH regroupe ici les événements du Chat, WhatsApp, NEXUS et du Deal Room.
+                </p>
+                <div className="mt-2 space-y-2">
+                  {busEvents.slice(0, 6).map((event) => (
+                    <div key={event.id} className="flex items-start gap-2 text-[10px]">
+                      <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
+                        event.direction === "in" ? "bg-emerald-500" :
+                        event.direction === "out" ? "bg-blue-500" : "bg-slate-400"
+                      }`} />
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-slate-800">
+                          {event.event_type.replaceAll(".", " ")}
+                          <span className="ml-1 font-medium text-slate-400">· {event.channel}</span>
+                        </div>
+                        <div className="text-slate-400">
+                          {new Date(event.created_at).toLocaleString("fr-FR")}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {masked.length > 0 && (
               <div className="rounded-2xl border p-3">
