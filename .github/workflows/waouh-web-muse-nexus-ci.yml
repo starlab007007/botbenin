@@ -37,6 +37,8 @@ on:
       - "supabase/migrations/**"
       - "supabase/functions/_shared/waouh-nexus.ts"
       - "supabase/functions/_shared/waouh-signal-fabric.ts"
+      - "supabase/functions/_shared/waouh-opportunity-os*.ts"
+      - "supabase/functions/waouh-opportunity-worker/**"
       - ".github/workflows/waouh-web-muse-nexus-ci.yml"
   pull_request:
     branches:
@@ -73,6 +75,8 @@ on:
       - "supabase/migrations/**"
       - "supabase/functions/_shared/waouh-nexus.ts"
       - "supabase/functions/_shared/waouh-signal-fabric.ts"
+      - "supabase/functions/_shared/waouh-opportunity-os*.ts"
+      - "supabase/functions/waouh-opportunity-worker/**"
   workflow_dispatch:
 
 concurrency:
@@ -112,6 +116,12 @@ jobs:
 
       - name: Check NEXUS Edge Function
         run: deno check supabase/functions/waouh-agentic-core/index.ts
+
+      - name: Check Opportunity OS worker
+        run: deno check supabase/functions/waouh-opportunity-worker/index.ts
+
+      - name: Opportunity OS contract tests
+        run: deno test supabase/functions/_shared/waouh-opportunity-os-test.ts
 
       - name: Check WAOUH Chat Channel
         run: deno check supabase/functions/waouh-channel-in/index.ts
