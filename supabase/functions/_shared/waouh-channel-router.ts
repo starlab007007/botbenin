@@ -32,7 +32,7 @@ export function routeOpportunityChannel(input: {
     const channel = String(row.channel || "").toLowerCase();
     if (channel === "waouh") return input.allowWaouh !== false;
     if (channel === "whatsapp") {
-      if (input.allowWhatsapp === false) return false;
+      if (input.allowWhatsapp === false || row.reachable === false) return false;
       if (level === "C1") {
         return input.allowPublicBusiness !== false &&
           (row.public_business === true || row.consent_state === "public_business");
@@ -44,6 +44,7 @@ export function routeOpportunityChannel(input: {
       return input.allowSmsRcs === true;
     }
     if (channel === "phone") {
+      if (row.reachable === false) return false;
       return level === "C1" && input.allowPublicBusiness !== false && row.public_business === true;
     }
     return false;
