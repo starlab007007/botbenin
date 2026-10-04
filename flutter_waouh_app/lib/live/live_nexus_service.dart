@@ -903,10 +903,13 @@ class LiveNexusService {
   Future<NexusOpportunityJourney> startOpportunity({
     required String fabricId,
     String mode = 'buy',
+    String? mandateId,
   }) async {
     final data = await _invoke('nexus.opportunity.start', {
       'fabric_id': fabricId,
       'mode': mode,
+      if (mandateId != null && mandateId.trim().isNotEmpty)
+        'mandate_id': mandateId.trim(),
     });
     return NexusOpportunityJourney.fromJson(_map(data['journey']));
   }
@@ -974,12 +977,56 @@ class LiveNexusService {
   Future<Map<String, dynamic>> sendContact({
     required String fabricId,
     required String message,
+    String? mandateId,
   }) =>
       _invoke('nexus.contact.send', {
         'fabric_id': fabricId,
         'message': message.trim(),
         'confirmed': true,
+        if (mandateId != null && mandateId.trim().isNotEmpty)
+          'mandate_id': mandateId.trim(),
       });
+
+  Future<Map<String, dynamic>> createMandate({
+    required String mode,
+    required String goal,
+    String autonomyMode = 'semi_autonomous',
+    String? city,
+    double? budgetMax,
+    int maxContacts = 3,
+    int maxFollowups = 1,
+    int durationHours = 24,
+    int scanIntervalMinutes = 60,
+  }) =>
+      _invoke('nexus.mandate.create', {
+        'mode': mode,
+        'goal': goal.trim(),
+        'autonomy_mode': autonomyMode,
+        if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
+        if (budgetMax != null) 'budget_max': budgetMax,
+        'max_contacts': maxContacts,
+        'max_followups': maxFollowups,
+        'duration_hours': durationHours,
+        'scan_interval_minutes': scanIntervalMinutes,
+        'origin_surface': 'flutter_avatar',
+      });
+
+  Future<Map<String, dynamic>> listMandates() =>
+      _invoke('nexus.mandate.list');
+
+  Future<Map<String, dynamic>> updateMandate(
+    String mandateId, {
+    String? status,
+    String? autonomyMode,
+  }) =>
+      _invoke('nexus.mandate.update', {
+        'mandate_id': mandateId,
+        if (status != null) 'status': status,
+        if (autonomyMode != null) 'autonomy_mode': autonomyMode,
+      });
+
+  Future<Map<String, dynamic>> runMandate(String mandateId) =>
+      _invoke('nexus.mandate.run', {'mandate_id': mandateId});
 
   Future<String> uploadSharedImage(XFile file) async {
     final user = client.auth.currentUser;
