@@ -1028,6 +1028,24 @@ class LiveNexusService {
   Future<Map<String, dynamic>> runMandate(String mandateId) =>
       _invoke('nexus.mandate.run', {'mandate_id': mandateId});
 
+  Future<List<Map<String, dynamic>>> conversationBus({
+    String? fabricId,
+    String? threadId,
+    int limit = 50,
+  }) async {
+    final data = await _invoke('nexus.conversation_bus.list', {
+      if (fabricId != null && fabricId.trim().isNotEmpty)
+        'fabric_id': fabricId.trim(),
+      if (threadId != null && threadId.trim().isNotEmpty)
+        'thread_id': threadId.trim(),
+      'limit': limit,
+    });
+    return _list(data['events'])
+        .whereType<Map>()
+        .map((value) => Map<String, dynamic>.from(value))
+        .toList(growable: false);
+  }
+
   Future<String> uploadSharedImage(XFile file) async {
     final user = client.auth.currentUser;
     if (user == null) {
