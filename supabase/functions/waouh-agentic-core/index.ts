@@ -2337,6 +2337,212 @@ Retourne uniquement JSON:
         } });
       }
 
+      case "nexus.contact_pack.get": {
+        const fabricId = asString(payload.fabric_id, "fabric_id", 5, 200);
+        const signal = await queryOne<any>(
+          sb.from("waouh_signal_fabric").select("*").eq("fabric_id", fabricId).maybeSingle(),
+          "nexus_signal_not_found",
+        );
+        const contactPack = await buildOperationalContactPack(sb, signal, { persist: true });
+        return jsonResponse({ ok: true, data: {
+          contact_pack: contactPack,
+          contact_policy: contactabilityPolicy(signal.contactability_level),
+        }});
+      }
+
+      case "nexus.mandate.create": {
+        const mode = pickEnum(payload.mode, "mode", ["buy","sell","ask"] as const, "buy");
+        const autonomyMode = pickEnum(
+          payload.autonomy_mode,
+          "autonomy_mode",
+          ["assisted","semi_autonomous","autonomous"] as const,
+          "semi_autonomous",
+        );
+        const goal = asString(payload.goal, "goal", 3, 2000);
+        const city = optionalString(payload.city, "city", 120);
+        const budgetMax = positiveNumber(payload.budget_max, "budget_max", true);
+        const maxContacts = integer(payload.max_contacts, "max_contacts", 3, 1, 20);
+        const maxFollowups = integer(payload.max_followups, "max_followups", 1, 0, 5);
+        const durationHours = integer(payload.duration_hours, "duration_hours", 24, 1, 720);
+        const minMatchScore = Math.max(0, Math.min(100, Number(payload.min_match_score ?? 70)));
+        const minActionabilityScore = Math.max(0, Math.min(100, Number(payload.min_actionability_score ?? 65)));
+        const mandate = await queryOne<any>(
+          sb.from("waouh_avatar_mandates").insert({
+            owner_id: ownerId,
+            mode,
+            autonomy_mode: autonomyMode,
+            goal,
+            normalized_query: goal,
+            city,
+            budget_max: budgetMax,
+            max_contacts: maxContacts,
+            max_followups: maxFollowups,
+            allow_waouh: payload.allow_waouh !== false,
+            allow_whatsapp: payload.allow_whatsapp !== false,
+            allow_public_business: payload.allow_public_business !== false,
+            allow_blind_message: payload.allow_blind_message !== false,
+            allow_email: payload.allow_email === true,
+            allow_sms_rcs: payload.allow_sms_rcs === true,
+            require_approval_for_c1: autonomyMode === "assisted",
+            min_match_score: minMatchScore,
+            min_actionability_score: minActionabilityScore,
+            status: "active",
+            next_run_at: new Date().toISOString(),
+            expires_at: new Date(Date.now() + durationHours * 3600_000).toISOString(),
+            metadata: {
+              origin_surface: optionalString(payload.origin_surface, "origin_surface", 80),
+              user_confirmed_mandate: true,
+            },
+          }).select("*").single(),
+          "nexus_mandate_create_failed",
+        );
+        const discoveryMode: DiscoveryMode = mode === "sell" ? "find_buyers" : "find_sellers";
+        const intent = await queryOne<any>(
+          sb.from("waouh_persistent_intents").insert({
+            owner_id: ownerId,
+            mandate_id: mandate.id,
+            mode: discoveryMode,
+            query_text: goal,
+            city,
+            budget_max: budgetMax,
+            min_match_score: minMatchScore,
+            min_actionability_score: minActionabilityScore,
+            scan_interval_minutes: integer(payload.scan_interval_minutes, "scan_interval_minutes", 60, 15, 10080),
+            status: "active",
+            next_scan_at: new Date().toISOString(),
+            expires_at: mandate.expires_at,
+            metadata: { autonomy_mode: autonomyMode },
+          }).select("*").single(),
+          "nexus_persistent_intent_create_failed",
+        );
+
+        const results = await globalDiscoverySearch(sb, {
+          query: goal,
+          mode: discoveryMode,
+          city,
+          budgetMax: mode === "buy" ? budgetMax : null,
+          limit: Math.min(20, Math.max(maxContacts * 3, 8)),
+        });
+        const actionable = results.filter((row: any) =>
+          Number(row.scores?.total_score ?? 0) >= minMatchScore &&
+          Number(row.actionability_score ?? 0) >= minActionabilityScore
+        );
+        for (const row of actionable.slice(0, maxContacts)) {
+          await ensureOpportunityJourney(sb, ownerId, {
+            fabricId: row.fabric_id,
+            mode,
+            level: row.contactability_level ?? "C0",
+            sourceKey: row.source_key ?? null,
+            sourceUrl: row.source_url ?? null,
+            subject: row.subject ?? null,
+            city: row.city ?? null,
+            mandateId: mandate.id,
+            contactPack: row.contact_pack ?? null,
+            metadata: {
+              persistent_intent_id: intent.id,
+              match_score: row.scores?.total_score ?? null,
+              actionability_score: row.actionability_score ?? null,
+            },
+          });
+        }
+        await sb.from("waouh_persistent_intents").update({
+          last_scan_at: new Date().toISOString(),
+          next_scan_at: new Date(Date.now() + Number(intent.scan_interval_minutes ?? 60) * 60_000).toISOString(),
+          last_result_count: results.length,
+          last_actionable_count: actionable.length,
+        }).eq("id", intent.id);
+        await audit(sb, ownerId, "nexus.mandate.created", "avatar_mandate", mandate.id, {
+          autonomy_mode: autonomyMode,
+          actionable_count: actionable.length,
+        });
+        return jsonResponse({ ok: true, data: { mandate, intent, results, actionable_count: actionable.length } }, 201);
+      }
+
+      case "nexus.mandate.list": {
+        const [mandates, intents] = await Promise.all([
+          sb.from("waouh_avatar_mandates").select("*").eq("owner_id", ownerId).order("created_at", { ascending: false }).limit(50),
+          sb.from("waouh_persistent_intents").select("*").eq("owner_id", ownerId).order("created_at", { ascending: false }).limit(50),
+        ]);
+        if (mandates.error) throw new ApiError(500, "nexus_mandate_list_failed", mandates.error.message);
+        if (intents.error) throw new ApiError(500, "nexus_intent_list_failed", intents.error.message);
+        return jsonResponse({ ok: true, data: { mandates: mandates.data ?? [], intents: intents.data ?? [] }});
+      }
+
+      case "nexus.mandate.update": {
+        const mandateId = uuid(payload.mandate_id, "mandate_id");
+        const patch: Record<string, unknown> = {};
+        if (payload.status !== undefined) patch.status = pickEnum(payload.status, "status", ["active","paused","completed","cancelled"] as const);
+        if (payload.autonomy_mode !== undefined) patch.autonomy_mode = pickEnum(payload.autonomy_mode, "autonomy_mode", ["assisted","semi_autonomous","autonomous"] as const);
+        if (payload.max_contacts !== undefined) patch.max_contacts = integer(payload.max_contacts, "max_contacts", 3, 1, 20);
+        if (payload.max_followups !== undefined) patch.max_followups = integer(payload.max_followups, "max_followups", 1, 0, 5);
+        if (payload.min_match_score !== undefined) patch.min_match_score = Math.max(0, Math.min(100, Number(payload.min_match_score)));
+        if (payload.min_actionability_score !== undefined) patch.min_actionability_score = Math.max(0, Math.min(100, Number(payload.min_actionability_score)));
+        for (const key of ["allow_waouh","allow_whatsapp","allow_public_business","allow_blind_message","allow_email","allow_sms_rcs"]) {
+          if (payload[key] !== undefined) patch[key] = payload[key] === true;
+        }
+        const mandate = await queryOne<any>(
+          sb.from("waouh_avatar_mandates").update(patch).eq("id", mandateId).eq("owner_id", ownerId).select("*").single(),
+          "nexus_mandate_update_failed",
+        );
+        return jsonResponse({ ok: true, data: { mandate }});
+      }
+
+      case "nexus.mandate.run": {
+        const mandateId = uuid(payload.mandate_id, "mandate_id");
+        const mandate = await queryOne<any>(
+          sb.from("waouh_avatar_mandates").select("*").eq("id", mandateId).eq("owner_id", ownerId).maybeSingle(),
+          "nexus_mandate_not_found",
+        );
+        if (mandate.status !== "active") throw new ApiError(409, "mandate_not_active");
+        const discoveryMode: DiscoveryMode = mandate.mode === "sell" ? "find_buyers" : "find_sellers";
+        const results = await globalDiscoverySearch(sb, {
+          query: mandate.normalized_query || mandate.goal,
+          mode: discoveryMode,
+          city: mandate.city,
+          budgetMax: mandate.mode === "buy" ? mandate.budget_max : null,
+          limit: Math.min(30, Math.max(Number(mandate.max_contacts ?? 3) * 4, 10)),
+        });
+        const actionable = results.filter((row: any) =>
+          Number(row.scores?.total_score ?? 0) >= Number(mandate.min_match_score ?? 70) &&
+          Number(row.actionability_score ?? 0) >= Number(mandate.min_actionability_score ?? 65)
+        );
+        for (const row of actionable.slice(0, Number(mandate.max_contacts ?? 3))) {
+          await ensureOpportunityJourney(sb, ownerId, {
+            fabricId: row.fabric_id,
+            mode: mandate.mode,
+            level: row.contactability_level ?? "C0",
+            sourceKey: row.source_key ?? null,
+            sourceUrl: row.source_url ?? null,
+            subject: row.subject ?? null,
+            city: row.city ?? null,
+            mandateId: mandate.id,
+            contactPack: row.contact_pack ?? null,
+            metadata: {
+              match_score: row.scores?.total_score ?? null,
+              actionability_score: row.actionability_score ?? null,
+              mandate_run: true,
+            },
+          });
+        }
+        await sb.from("waouh_avatar_mandates").update({
+          last_run_at: new Date().toISOString(),
+          next_run_at: new Date(Date.now() + 60 * 60_000).toISOString(),
+        }).eq("id", mandate.id);
+        return jsonResponse({ ok: true, data: { mandate, results, actionable_count: actionable.length }});
+      }
+
+      case "nexus.conversation_bus.list": {
+        const limit = integer(payload.limit, "limit", 50, 1, 200);
+        let q = sb.from("waouh_conversation_bus_events")
+          .select("*").or(`owner_id.eq.${ownerId},counterparty_auth_user_id.eq.${ownerId}`)
+          .order("created_at", { ascending: false }).limit(limit);
+        if (typeof payload.fabric_id === "string" && payload.fabric_id.trim()) q = q.eq("fabric_id", payload.fabric_id.trim());
+        if (typeof payload.thread_id === "string" && payload.thread_id.trim()) q = q.eq("thread_id", payload.thread_id.trim());
+        const { data, error } = await q;
+        if (error) throw new ApiError(500, "nexus_conversation_bus_failed", error.message);
+        return jsonResponse({ ok: true, data: { events: data ?? [] }});
+      }
+
       case "nexus.opportunity.start": {
         const fabricId = asString(payload.fabric_id, "fabric_id", 5, 200);
         const mode = pickEnum(payload.mode, "mode", ["buy","sell","ask"] as const, "buy");
