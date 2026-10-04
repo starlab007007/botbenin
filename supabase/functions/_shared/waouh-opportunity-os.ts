@@ -225,3 +225,33 @@ export function mandateAllowsContact(
   if (pack.best_channel === "email" && mandate.allow_email === true) return { allowed: true, reason: "email_allowed" };
   return { allowed: false, reason: "channel_not_allowed" };
 }
+
+
+export function remainingContactCapacity(maxContacts: unknown, contactedCount: unknown) {
+  const max = Math.max(1, Math.min(20, Number(maxContacts ?? 3) || 3));
+  const used = Math.max(0, Number(contactedCount ?? 0) || 0);
+  return Math.max(0, max - used);
+}
+
+export function boundedFollowUpDecision(input: {
+  autonomyMode?: unknown;
+  stage?: unknown;
+  lastActivityAt?: unknown;
+  maxFollowups?: unknown;
+  followupsSent?: unknown;
+  nowMs?: number;
+}) {
+  const autonomy = String(input.autonomyMode ?? "assisted");
+  const stage = String(input.stage ?? "");
+  const maxFollowups = Math.max(0, Math.min(5, Number(input.maxFollowups ?? 0) || 0));
+  const sent = Math.max(0, Number(input.followupsSent ?? 0) || 0);
+  const now = Number(input.nowMs ?? Date.now());
+  const last = typeof input.lastActivityAt === "string" ? Date.parse(input.lastActivityAt) : NaN;
+  if (autonomy === "assisted") return { due: false, reason: "assisted" as const, next_index: sent + 1 };
+  if (stage !== "waiting_reply") return { due: false, reason: "not_waiting_reply" as const, next_index: sent + 1 };
+  if (sent >= maxFollowups) return { due: false, reason: "followup_limit_reached" as const, next_index: sent + 1 };
+  if (!Number.isFinite(last) || now - last < 24 * 3600_000) {
+    return { due: false, reason: "too_early" as const, next_index: sent + 1 };
+  }
+  return { due: true, reason: "due" as const, next_index: sent + 1 };
+}
