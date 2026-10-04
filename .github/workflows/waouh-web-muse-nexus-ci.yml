@@ -122,6 +122,24 @@ jobs:
       - name: Check Opportunity OS worker
         run: deno check supabase/functions/waouh-opportunity-worker/index.ts
 
+      - name: Check WAOUH webhook
+        run: deno check supabase/functions/waouh-webhook/index.ts
+
+      - name: Validate Opportunity OS SQL
+        run: |
+          python -m pip install --quiet "pglast==7.7"
+          python - <<'PY'
+          from pathlib import Path
+          from pglast import parse_sql
+          files = [
+              Path("supabase/migrations/20261004223000_waouh_opportunity_os.sql"),
+              Path("supabase/migrations/20261004224000_waouh_opportunity_worker_cron.sql"),
+          ]
+          for path in files:
+              tree = parse_sql(path.read_text())
+              print(f"{path.name}: {len(tree)} instruction(s) SQL valides")
+          PY
+
       - name: Opportunity OS contract tests
         run: deno test supabase/functions/_shared/waouh-opportunity-os-test.ts
 
