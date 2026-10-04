@@ -5,7 +5,7 @@ import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.4
 import { isServiceCaller, isTickCaller } from "../_shared/waouh-internal-auth.ts";
 import { decryptPhone, encryptPhone, hashPhone, sha256Hex } from "../_shared/waouh-tel/crypto.ts";
 import { normalizeE164, phoneLast4 } from "../_shared/waouh-tel/phone.ts";
-import { isPublicHostname } from "../_shared/waouh-egress-guard.ts";
+import { assertResolvesPublic, isPublicHostname } from "../_shared/waouh-egress-guard.ts";
 import { extractPublicContactHints, scoreFabricSignal, type FabricSignal } from "../_shared/waouh-signal-fabric.ts";
 import {
   buildContactPack,
@@ -192,6 +192,11 @@ async function enrichPublicBusinessContact(sb: SupabaseClient, signal: any, reso
     return resolved;
   }
   if (!["https:","http:"].includes(url.protocol) || !isPublicHostname(url.hostname)) return resolved;
+  try {
+    await assertResolvesPublic(url.hostname);
+  } catch {
+    return resolved;
+  }
 
   const attemptedAt = new Date().toISOString();
   const firecrawlKey = Deno.env.get("FIRECRAWL_API_KEY") || "";
