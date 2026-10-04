@@ -16,7 +16,7 @@ String liveContactabilityActionLabel(String? level) {
     case 'C2':
       return 'Proposer mon offre';
     case 'C1':
-      return 'Vérifier puis proposer';
+      return 'Bot contacte maintenant';
     default:
       return 'Lancer la démarche';
   }
@@ -27,7 +27,7 @@ const String liveSendOfferLabel = 'Envoyer mon offre';
 
 /// Bouton qui lance la recherche d'un canal quand le niveau est C0 / C1.
 String liveFindChannelLabel(String? level) =>
-    (level ?? '').toUpperCase() == 'C0' ? 'Lancer la recherche du vendeur' : 'Vérifier le meilleur canal';
+    (level ?? '').toUpperCase() == 'C0' ? 'Lancer la recherche du vendeur' : 'Enrichir les autres canaux';
 
 /// Action principale d'une fiche radar : le vendeur répond à une demande d'achat, l'acheteur veut l'article.
 String liveRadarPrimaryLabel({required bool buyRequest}) =>
