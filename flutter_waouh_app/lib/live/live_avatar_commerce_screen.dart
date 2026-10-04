@@ -1108,6 +1108,14 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
               ),
               const SizedBox(height: 12),
             ],
+            if (_loadingBus || _conversationBus.isNotEmpty) ...[
+              _ConversationBusPanel(
+                events: _conversationBus,
+                loading: _loadingBus,
+                onRefresh: _loadConversationBus,
+              ),
+              const SizedBox(height: 12),
+            ],
             _GoalSurface(
               controller: _goal,
               city: _city,
@@ -1189,6 +1197,165 @@ class _MandateMetric extends StatelessWidget {
                   fontWeight: FontWeight.w900,
                   fontSize: 12,
                 )),
+          ],
+        ),
+      );
+}
+
+class _ConversationBusPanel extends StatelessWidget {
+  const _ConversationBusPanel({
+    required this.events,
+    required this.loading,
+    required this.onRefresh,
+  });
+
+  final List<Map<String, dynamic>> events;
+  final bool loading;
+  final VoidCallback onRefresh;
+
+  String _title(String type) => switch (type) {
+        'nexus.counterparty_reply' => 'Réponse reçue',
+        'autonomy.external_contact_queued' => 'Avatar a contacté une opportunité',
+        'autonomy.internal_contact_delivered' => 'Contact WAOUH transmis',
+        'autonomy.followup_queued' => 'Relance Avatar',
+        'nexus.contact.queued' => 'Contact mis en file',
+        _ => type.replaceAll('.', ' ').replaceAll('_', ' '),
+      };
+
+  String _text(Map<String, dynamic> event) {
+    final raw = event['payload'];
+    final payload = raw is Map
+        ? Map<String, dynamic>.from(raw)
+        : const <String, dynamic>{};
+    for (final key in const ['reply_preview', 'text', 'subject', 'message']) {
+      final value = '${payload[key] ?? ''}'.trim();
+      if (value.isNotEmpty) return value;
+    }
+    final fabric = '${event['fabric_id'] ?? ''}'.trim();
+    return fabric.isEmpty ? 'Événement WAOUH' : 'Opportunité $fabric';
+  }
+
+  String _date(dynamic value) {
+    final parsed = DateTime.tryParse('${value ?? ''}');
+    if (parsed == null) return '';
+    final local = parsed.toLocal();
+    String two(int number) => number.toString().padLeft(2, '0');
+    return '${two(local.day)}/${two(local.month)} ${two(local.hour)}:${two(local.minute)}';
+  }
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7FAFC),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFFDCE7F0)),
+          boxShadow: WaouhShadows.card,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const Icon(Icons.hub_outlined, color: Color(0xFF0F7B6C)),
+              const SizedBox(width: 7),
+              const Expanded(
+                child: Text(
+                  'Activité multicanale',
+                  style: TextStyle(
+                    color: WaouhPalette.ink,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Actualiser',
+                onPressed: loading ? null : onRefresh,
+                icon: loading
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh_rounded),
+              ),
+            ]),
+            const Text(
+              'WAOUH · WhatsApp · NEXUS · Deal Room dans un seul journal.',
+              style: TextStyle(
+                color: WaouhPalette.muted,
+                fontSize: 10.5,
+                height: 1.3,
+              ),
+            ),
+            if (events.isNotEmpty) ...[
+              const SizedBox(height: 9),
+              ...events.take(8).map((event) {
+                final type = '${event['event_type'] ?? 'event'}';
+                final channel = '${event['channel'] ?? 'waouh'}';
+                final direction = '${event['direction'] ?? 'system'}';
+                final threadId = '${event['thread_id'] ?? ''}'.trim();
+                final date = _date(event['created_at']);
+                final directionLabel = direction == 'in'
+                    ? 'Entrant'
+                    : direction == 'out'
+                        ? 'Sortant'
+                        : 'Système';
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 7),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: const Color(0xFFE7EDF2)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Expanded(
+                          child: Text(
+                            _title(type),
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          channel,
+                          style: const TextStyle(
+                            color: Color(0xFF0F7B6C),
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ]),
+                      const SizedBox(height: 3),
+                      Text(
+                        _text(event),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: WaouhPalette.muted,
+                          fontSize: 10.5,
+                          height: 1.3,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$directionLabel'
+                        '${date.isEmpty ? '' : ' · $date'}'
+                        '${threadId.isEmpty ? '' : ' · Deal Room lié'}',
+                        style: const TextStyle(
+                          color: WaouhPalette.muted,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
           ],
         ),
       );
