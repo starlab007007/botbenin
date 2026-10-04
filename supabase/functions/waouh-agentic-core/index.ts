@@ -2426,34 +2426,16 @@ Retourne uniquement JSON:
           "nexus_mandate_create_failed",
         );
         const discoveryMode: DiscoveryMode = mode === "sell" ? "find_buyers" : "find_sellers";
-        const intent = await queryOne<any>(
-          sb.from("waouh_persistent_intents").insert({
-            owner_id: ownerId,
-            mandate_id: mandate.id,
-            mode: discoveryMode,
-            query_text: goal,
-            city,
-            budget_max: budgetMax,
-            min_match_score: minMatchScore,
-            min_actionability_score: minActionabilityScore,
-            scan_interval_minutes: integer(payload.scan_interval_minutes, "scan_interval_minutes", 60, 15, 10080),
-            status: "active",
-            next_scan_at: new Date().toISOString(),
-            expires_at: mandate.expires_at,
-            metadata: {
-            autonomy_mode: autonomyMode,
-            last_external_refresh_at: new Date().toISOString(),
-            last_external_refresh_status: initialRefresh.error ? "partial" : "ok",
-            initial_refresh: initialRefresh,
-          },
-          }).select("*").single(),
-          "nexus_persistent_intent_create_failed",
-        );
-
         const initialRefresh: Record<string, unknown> = {};
         try {
           if (discoveryMode === "find_sellers") {
-            const places = await refreshGooglePlaces(sb, ownerId, goal, city, Math.min(8, Math.max(maxContacts * 2, 4)));
+            const places = await refreshGooglePlaces(
+              sb,
+              ownerId,
+              goal,
+              city,
+              Math.min(8, Math.max(maxContacts * 2, 4)),
+            );
             initialRefresh.google_places = {
               configured: places.configured,
               inserted: places.inserted,
@@ -2480,6 +2462,30 @@ Retourne uniquement JSON:
             : "initial_refresh_failed";
           console.warn("[Opportunity OS] initial mandate refresh", refreshError);
         }
+
+        const intent = await queryOne<any>(
+          sb.from("waouh_persistent_intents").insert({
+            owner_id: ownerId,
+            mandate_id: mandate.id,
+            mode: discoveryMode,
+            query_text: goal,
+            city,
+            budget_max: budgetMax,
+            min_match_score: minMatchScore,
+            min_actionability_score: minActionabilityScore,
+            scan_interval_minutes: integer(payload.scan_interval_minutes, "scan_interval_minutes", 60, 15, 10080),
+            status: "active",
+            next_scan_at: new Date().toISOString(),
+            expires_at: mandate.expires_at,
+            metadata: {
+              autonomy_mode: autonomyMode,
+              last_external_refresh_at: new Date().toISOString(),
+              last_external_refresh_status: initialRefresh.error ? "partial" : "ok",
+              initial_refresh: initialRefresh,
+            },
+          }).select("*").single(),
+          "nexus_persistent_intent_create_failed",
+        );
 
         const results = await globalDiscoverySearch(sb, {
           query: goal,
