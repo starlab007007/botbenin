@@ -547,7 +547,7 @@ export default function WaouhAdminCommandCenter() {
           <AccessGroup
             title="Données & écosystème"
             items={[
-              { label: "Catalogue & données", path: "/admin/waouh/data-control", note: "Qualité, normalisation et contrôle IA" },
+              { label: "NEXUS · Signal Fabric", path: "/admin/waouh/data-control", note: "Toutes sources, provenance, qualité et contactabilité" },
               { label: "Partenaires", path: "/admin/waouh/partners", note: "Partenaires et permissions" },
               { label: "Commerces", path: "/admin/waouh/businesses", note: "Entreprises, catalogues et vérification" },
               { label: "Démo / recette", path: "/admin/waouh/demo", note: "Parcours de démonstration et recette" },
@@ -696,7 +696,7 @@ export default function WaouhAdminCommandCenter() {
             <CardTitle className="flex items-center gap-2 text-base"><Database className="h-4 w-4" /> Administration détaillée</CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-2">
-            <QuickButton label="Données unifiées" onClick={() => navigate("/admin/waouh/data-control")} />
+            <QuickButton label="NEXUS · Signal Fabric" onClick={() => navigate("/admin/waouh/data-control")} />
             <QuickButton label="Health Check" onClick={() => navigate("/admin/waouh/health-check")} />
             <QuickButton label="Historique" onClick={() => navigate("/admin/waouh/historique")} />
             <QuickButton label="Deals" onClick={() => navigate("/admin/waouh/deals")} />
