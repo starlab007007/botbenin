@@ -968,6 +968,31 @@ List<LiveAttachment> _attachmentsForProduct(
   return matched;
 }
 
+String _opportunityActionLabel(String? action) {
+  switch ((action ?? '').toUpperCase()) {
+    case 'CONTACT_NOW':
+      return 'Contacter maintenant';
+    case 'OPEN_DEAL_ROOM':
+      return 'Ouvrir le Deal Room';
+    case 'REQUEST_APPROVAL':
+      return 'Valider le contact';
+    case 'WAIT_REPLY':
+      return 'Attendre la réponse';
+    case 'FOLLOW_UP':
+      return 'Relancer';
+    case 'NEGOTIATE':
+      return 'Négocier';
+    case 'EXECUTE':
+      return 'Exécuter l’accord';
+    case 'COMPLETE':
+      return 'Terminé';
+    case 'DROP_LOW_QUALITY':
+      return 'Priorité faible';
+    default:
+      return 'Enrichir le contact';
+  }
+}
+
 class _PremiumProduct {
   const _PremiumProduct({
     this.id,
@@ -2025,6 +2050,18 @@ class _PremiumProductCard extends StatelessWidget {
                       const Color(0xFFEAF3FF),
                       const Color(0xFF2368FF),
                     ),
+                  if (product.actionabilityScore != null)
+                    _PremiumBadge(
+                      'Bot ${product.actionabilityScore!.round()}%',
+                      const Color(0xFFF3EDFF),
+                      const Color(0xFF6D3FD1),
+                    ),
+                  if (product.readiness != null)
+                    _PremiumBadge(
+                      product.readiness!,
+                      const Color(0xFFE8F8FA),
+                      const Color(0xFF087A9B),
+                    ),
                   if (product.contactability != null)
                     LiveContactabilityBadge(level: product.contactability),
                 ],
@@ -2070,6 +2107,41 @@ class _PremiumProductCard extends StatelessWidget {
                         color: Color(0xFF07996D))),
               ],
               const SizedBox(height: 9),
+              if (product.nextBestAction != null || product.bestChannel != null) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7F2FF),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE3D6FF)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Action recommandée par Bot',
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF6D3FD1),
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        _opportunityActionLabel(product.nextBestAction) +
+                            (product.bestChannel == null ? '' : ' · canal ' + product.bestChannel!),
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF382567),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 9),
+              ],
               Wrap(spacing: 5, runSpacing: 5, children: [
                 if (product.badges.any((badge) =>
                     badge.toLowerCase().contains('vérifi') ||
@@ -2557,7 +2629,8 @@ class _PremiumNexusContactSheetState
       );
       var value = await service.prepareContact(widget.product.fabricId!);
 
-      if (value.policy.level == 'C0' || value.policy.level == 'C1') {
+      if (value.policy.level == 'C0' ||
+          (value.policy.level == 'C1' && !value.policy.canUserConfirmContact)) {
         currentJourney = await service.enrichOpportunity(
           fabricId: widget.product.fabricId!,
           mode: _mode,
@@ -2718,6 +2791,33 @@ class _PremiumNexusContactSheetState
             borderRadius: BorderRadius.circular(99),
           ),
           const SizedBox(height: 10),
+          if ((current?.readinessLevel ?? prepared?.readinessLevel ?? widget.product.readiness) != null) ...[
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _PremiumBadge(
+                  current?.readinessLevel ?? prepared?.readinessLevel ?? widget.product.readiness ?? 'R0',
+                  const Color(0xFFE8F8FA),
+                  const Color(0xFF087A9B),
+                ),
+                if ((current?.actionabilityScore ?? prepared?.actionabilityScore ?? widget.product.actionabilityScore) != null)
+                  _PremiumBadge(
+                    'Action ${(current?.actionabilityScore ?? prepared?.actionabilityScore ?? widget.product.actionabilityScore)!.round()}%',
+                    const Color(0xFFF3EDFF),
+                    const Color(0xFF6D3FD1),
+                  ),
+                _PremiumBadge(
+                  _opportunityActionLabel(
+                    current?.nextBestActionCode ?? prepared?.nextBestAction ?? widget.product.nextBestAction,
+                  ),
+                  const Color(0xFFF4F8FF),
+                  const Color(0xFF2368FF),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
           Wrap(
             spacing: 6,
             runSpacing: 6,
@@ -2854,7 +2954,9 @@ class _PremiumNexusContactSheetState
         widget.product.contactability ??
         'C0';
     final canSend = contact != null &&
-        (contact.policy.canBlindMessage || contact.policy.canAutoContact);
+        (contact.policy.canBlindMessage ||
+            contact.policy.canAutoContact ||
+            contact.policy.canUserConfirmContact);
     final waiting = current?.waiting == true || level == 'C4';
     final negotiating = current?.negotiating == true || level == 'C5';
 
@@ -2993,10 +3095,12 @@ class _PremiumNexusContactSheetState
                 ),
               ],
               const SizedBox(height: 12),
-              if (level == 'C0' || level == 'C1') ...[
-                const Text(
-                  'Aucun cul-de-sac : votre Avatar enrichit le signal jusqu’à trouver un canal autorisé.',
-                  style: TextStyle(
+              if (level == 'C0' || (level == 'C1' && !canSend)) ...[
+                Text(
+                  level == 'C0'
+                      ? 'Aucun cul-de-sac : votre Avatar enrichit le signal jusqu’à trouver un canal autorisé.'
+                      : 'Bot complète les canaux disponibles pour sécuriser la mise en relation.',
+                  style: const TextStyle(
                     color: Color(0xFF19304F),
                     fontWeight: FontWeight.w800,
                     fontSize: 11.5,
@@ -3071,10 +3175,19 @@ class _PremiumNexusContactSheetState
                   ),
                 ),
               ] else if (canSend) ...[
-                const Text(
-                  'Message proposé par votre Avatar',
-                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+                Text(
+                  level == 'C1'
+                      ? 'Contact professionnel public trouvé · Bot peut agir maintenant'
+                      : 'Message proposé par votre Avatar',
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
                 ),
+                if (level == 'C1') ...[
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Votre validation autorise uniquement ce message vers ce contact professionnel public.',
+                    style: TextStyle(fontSize: 10.5, color: Color(0xFF60746E)),
+                  ),
+                ],
                 const SizedBox(height: 7),
                 TextField(
                   controller: message,
@@ -3096,7 +3209,7 @@ class _PremiumNexusContactSheetState
                           ),
                         )
                       : const Icon(Icons.send_rounded),
-                  label: const Text(liveSendOfferLabel),
+                  label: Text(level == 'C1' ? 'Bot contacte pour moi' : liveSendOfferLabel),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(48),
                   ),
