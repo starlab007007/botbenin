@@ -37,11 +37,18 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   bool _loadingJourneys = false;
   String? _error;
   String? _workingFabric;
+  Map<String, dynamic>? _mandate;
+  String _autonomyMode = 'semi_autonomous';
+  int _maxContacts = 3;
+  bool _mandateBusy = false;
 
   @override
   void initState() {
     super.initState();
-    Future<void>.microtask(_loadJourneys);
+    Future<void>.microtask(() async {
+      await _loadJourneys();
+      await _loadMandate();
+    });
   }
 
   Future<void> _loadJourneys() async {
@@ -54,6 +61,101 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       // Search and deal remain usable even if the summary cannot refresh.
     } finally {
       if (mounted) setState(() => _loadingJourneys = false);
+    }
+  }
+
+  Future<void> _loadMandate() async {
+    if (legacy.supabase.auth.currentUser == null) return;
+    try {
+      final data = await _nexus.listMandates();
+      final rows = data['mandates'];
+      if (rows is! List || !mounted) return;
+      Map<String, dynamic>? current;
+      for (final raw in rows) {
+        if (raw is! Map) continue;
+        final row = Map<String, dynamic>.from(raw);
+        final status = '${row['status'] ?? ''}';
+        if (status == 'active' || status == 'paused') {
+          current = row;
+          break;
+        }
+      }
+      if (!mounted) return;
+      setState(() {
+        _mandate = current;
+        if (current != null) {
+          _autonomyMode = '${current['autonomy_mode'] ?? 'semi_autonomous'}';
+          _maxContacts = int.tryParse('${current['max_contacts'] ?? 3}') ?? 3;
+        }
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _createMandate() async {
+    final query = _goal.text.trim();
+    if (query.isEmpty || _mandateBusy) return;
+    setState(() => _mandateBusy = true);
+    try {
+      final budget = double.tryParse(_budget.text.replaceAll(RegExp(r'[^0-9.]'), ''));
+      final mode = switch (widget.mode) {
+        LiveAvatarCommerceMode.sell => 'sell',
+        LiveAvatarCommerceMode.ask => 'ask',
+        LiveAvatarCommerceMode.buy => 'buy',
+      };
+      final data = await _nexus.createMandate(
+        mode: mode,
+        goal: query,
+        autonomyMode: _autonomyMode,
+        city: _city.text.trim().isEmpty ? null : _city.text.trim(),
+        budgetMax: budget,
+        maxContacts: _maxContacts,
+        maxFollowups: _autonomyMode == 'autonomous' ? 2 : 1,
+        durationHours: 24,
+        scanIntervalMinutes: 60,
+      );
+      final raw = data['mandate'];
+      if (raw is Map && mounted) {
+        setState(() => _mandate = Map<String, dynamic>.from(raw));
+      }
+      final rawResults = data['results'];
+      if (rawResults is List && mounted) {
+        final response = NexusDiscoveryResponse.fromJson(<String, dynamic>{
+          'mode': _findSellers ? 'find_sellers' : 'find_buyers',
+          'results': rawResults,
+          'source_mix': const <String, dynamic>{},
+          'refresh': const <String, dynamic>{},
+        });
+        setState(() => _response = response);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Mandat confié à Bot pendant 24 h.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Mandat non créé : $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _mandateBusy = false);
+    }
+  }
+
+  Future<void> _toggleMandate() async {
+    final current = _mandate;
+    if (current == null || _mandateBusy) return;
+    final id = '${current['id'] ?? ''}';
+    if (id.isEmpty) return;
+    setState(() => _mandateBusy = true);
+    try {
+      final next = '${current['status']}' == 'active' ? 'paused' : 'active';
+      final data = await _nexus.updateMandate(id, status: next);
+      final raw = data['mandate'];
+      if (raw is Map && mounted) setState(() => _mandate = Map<String, dynamic>.from(raw));
+    } finally {
+      if (mounted) setState(() => _mandateBusy = false);
     }
   }
 
