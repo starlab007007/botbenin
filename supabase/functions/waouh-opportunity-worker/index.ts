@@ -467,6 +467,224 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
   return { contacted: true, channel: "whatsapp" };
 }
 
+async function runExternalFollowUp(
+  sb: SupabaseClient,
+  mandate: any,
+  journey: any,
+  signal: any,
+  followupIndex: number,
+) {
+  const resolved = await resolvePack(sb, signal);
+  const route = routeOpportunityChannel({
+    channels: (resolved.pack.available_channels || []).map((row: any) => ({
+      channel: row.channel,
+      verified: row.verified,
+      reachable: row.reachable,
+      public_business: row.public_business,
+      last4: row.last4,
+    })),
+    contactability: resolved.externalSignal?.contactability_level || resolved.pack.contactability_level,
+    allowWhatsapp: mandate.allow_whatsapp !== false,
+    allowPublicBusiness: mandate.allow_public_business !== false,
+    allowEmail: mandate.allow_email === true,
+    allowSmsRcs: mandate.allow_sms_rcs === true,
+  });
+  if (!route.can_dispatch || !["whatsapp","phone"].includes(String(route.primary_channel || ""))) {
+    return { sent: false, reason: route.reason || "no_followup_channel" };
+  }
+
+  const level = String(resolved.externalSignal?.contactability_level || "C0");
+  const target = resolved.contacts.find((row: any) => {
+    if (!row.value_encrypted || !["whatsapp","phone"].includes(String(row.channel))) return false;
+    if (level === "C1") {
+      return mandate.allow_public_business !== false &&
+        (row.is_public_business === true || row.consent_state === "public_business");
+    }
+    return ["C2","C3","C4","C5"].includes(String(row.contactability_level || level));
+  });
+  if (!target) return { sent: false, reason: "followup_contact_unavailable" };
+  if (level === "C1" && mandate.require_approval_for_c1 === true) {
+    return { sent: false, reason: "c1_requires_approval" };
+  }
+
+  const clear = await decryptPhone(target.value_encrypted);
+  const e164 = normalizeE164(clear);
+  if (!e164) return { sent: false, reason: "invalid_phone" };
+
+  const message = `Bonjour, WAOUH revient vers vous concernant « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre l’échange dans WAOUH ?`;
+  const dedupe = `opportunity-os-followup:${journey.id}:${followupIndex}`;
+  const { error } = await sb.rpc("waouh_enqueue_outbound_v2", {
+    p_to_phone: e164.replace(/\D/g, ""),
+    p_to_user_id: null,
+    p_template: "nexus_discovery_outreach",
+    p_payload: {
+      text: message,
+      actions: [],
+      fabric_id: signal.fabric_id,
+      signal_id: resolved.externalSignal.id,
+      source_key: signal.source_key,
+      subject: signal.subject,
+      initiated_by_auth_user: mandate.owner_id,
+      mandate_id: mandate.id,
+      journey_id: journey.id,
+      contact_id: target.id,
+      followup_index: followupIndex,
+    },
+    p_web_session_id: null,
+    p_image_url: null,
+    p_channel: "whatsapp",
+    p_dedupe_key: dedupe,
+    p_event_type: "opportunity_os_followup",
+  });
+  if (error) throw error;
+
+  await sb.rpc("waouh_append_conversation_bus_event", {
+    p_owner_id: mandate.owner_id,
+    p_event_type: "autonomy.followup_queued",
+    p_channel: "whatsapp",
+    p_direction: "out",
+    p_fabric_id: signal.fabric_id,
+    p_journey_id: journey.id,
+    p_mandate_id: mandate.id,
+    p_article_id: journey.article_id || null,
+    p_thread_id: journey.thread_id || null,
+    p_negotiation_id: journey.negotiation_id || null,
+    p_deal_id: journey.deal_id || null,
+    p_external_ref: dedupe,
+    p_payload: {
+      followup_index: followupIndex,
+      contact_id: target.id,
+      phone_last4: target.value_last4,
+    },
+  });
+  await sb.from("waouh_opportunity_journeys").update({
+    last_action: "autonomous_followup_queued",
+    next_action: "WAIT_REPLY",
+    last_message: `Avatar a relancé cette opportunité (${followupIndex}/${mandate.max_followups}).`,
+    last_activity_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq("id", journey.id);
+  return { sent: true, channel: "whatsapp" };
+}
+
+async function runInternalFollowUp(
+  sb: SupabaseClient,
+  mandate: any,
+  journey: any,
+  signal: any,
+  followupIndex: number,
+) {
+  const recipient = await resolveInternalRecipient(sb, signal);
+  if (!recipient?.id || recipient.auth_user_id === mandate.owner_id) {
+    return { sent: false, reason: "internal_recipient_missing" };
+  }
+  const dedupe = `autonomy:internal-followup:${journey.id}:${followupIndex}`;
+  const message = `Votre Avatar WAOUH vous rappelle l’opportunité « ${signal.subject || mandate.goal} ». Une contrepartie attend votre réponse.`;
+  const articleId =
+    signal.fabric_id?.startsWith("article:") ? signal.fabric_id.slice("article:".length) :
+    (signal.evidence?.article_id ?? null);
+  const { error } = await sb.from("waouh_notifications").insert({
+    user_id: recipient.id,
+    article_id: articleId || null,
+    notification_type: "avatar_opportunity_followup",
+    photos: [],
+    payload: {
+      text: message,
+      fabric_id: signal.fabric_id,
+      journey_id: journey.id,
+      mandate_id: mandate.id,
+      followup_index: followupIndex,
+    },
+    channel: "waouh_app",
+    delivery_status: "delivered",
+    delivered_at: new Date().toISOString(),
+    web_session_id: recipient.web_session_id ?? null,
+    dedupe_key: dedupe,
+  });
+  if (error && error.code !== "23505") throw error;
+
+  await sb.rpc("waouh_append_conversation_bus_event", {
+    p_owner_id: mandate.owner_id,
+    p_event_type: "autonomy.followup_queued",
+    p_channel: "waouh",
+    p_direction: "out",
+    p_fabric_id: signal.fabric_id,
+    p_journey_id: journey.id,
+    p_mandate_id: mandate.id,
+    p_article_id: articleId || null,
+    p_thread_id: journey.thread_id || null,
+    p_negotiation_id: journey.negotiation_id || null,
+    p_deal_id: journey.deal_id || null,
+    p_external_ref: dedupe,
+    p_payload: { followup_index: followupIndex, recipient_auth_user_id: recipient.auth_user_id },
+  });
+  await sb.from("waouh_opportunity_journeys").update({
+    last_action: "autonomous_followup_queued",
+    next_action: "WAIT_REPLY",
+    last_message: `Avatar a relancé cette opportunité (${followupIndex}/${mandate.max_followups}).`,
+    last_activity_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }).eq("id", journey.id);
+  return { sent: true, channel: "waouh" };
+}
+
+async function runBoundedFollowUps(sb: SupabaseClient, limit = 30) {
+  const cutoff = new Date(Date.now() - 24 * 3600_000).toISOString();
+  const { data: journeys, error } = await sb.from("waouh_opportunity_journeys")
+    .select("*")
+    .eq("stage", "waiting_reply")
+    .not("mandate_id", "is", null)
+    .lt("last_activity_at", cutoff)
+    .order("last_activity_at", { ascending: true })
+    .limit(limit);
+  if (error) throw error;
+
+  let sent = 0;
+  let skipped = 0;
+  let errors = 0;
+  for (const journey of journeys ?? []) {
+    try {
+      const { data: mandate } = await sb.from("waouh_avatar_mandates")
+        .select("*").eq("id", journey.mandate_id).maybeSingle();
+      if (!mandate || mandate.status !== "active" || mandate.autonomy_mode === "assisted") {
+        skipped++;
+        continue;
+      }
+      const maxFollowups = Math.max(0, Math.min(5, Number(mandate.max_followups || 0)));
+      if (maxFollowups <= 0) {
+        skipped++;
+        continue;
+      }
+      const { count } = await sb.from("waouh_conversation_bus_events")
+        .select("id", { count: "exact", head: true })
+        .eq("journey_id", journey.id)
+        .eq("event_type", "autonomy.followup_queued");
+      const followupIndex = Number(count || 0) + 1;
+      if (followupIndex > maxFollowups) {
+        skipped++;
+        continue;
+      }
+
+      const { data: signal, error: signalError } = await sb.from("waouh_signal_fabric")
+        .select("*").eq("fabric_id", journey.fabric_id).maybeSingle();
+      if (signalError || !signal) {
+        skipped++;
+        continue;
+      }
+
+      const result = String(signal.fabric_id || "").startsWith("external:")
+        ? await runExternalFollowUp(sb, mandate, journey, signal, followupIndex)
+        : await runInternalFollowUp(sb, mandate, journey, signal, followupIndex);
+      if (result.sent) sent++;
+      else skipped++;
+    } catch (error) {
+      console.warn("[waouh-opportunity-worker] followup", error);
+      errors++;
+    }
+  }
+  return { sent, skipped, errors };
+}
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ ok: false, code: "method_not_allowed" }, 405);
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
@@ -499,6 +717,24 @@ Deno.serve(async (req) => {
         result.skipped++;
         continue;
       }
+      const maxContacts = Math.max(1, Math.min(20, Number(mandate.max_contacts || 3)));
+      const alreadyContacted = Math.max(0, Number(mandate.contacted_count || 0));
+      const remainingContacts = Math.max(0, maxContacts - alreadyContacted);
+      if (remainingContacts <= 0) {
+        const nextAt = new Date(Date.now() + 24 * 3600_000).toISOString();
+        await sb.from("waouh_persistent_intents").update({
+          last_scan_at: new Date().toISOString(),
+          next_scan_at: nextAt,
+          metadata: {
+            ...(intent.metadata || {}),
+            contact_limit_reached: true,
+            contact_limit: maxContacts,
+          },
+        }).eq("id", intent.id);
+        result.skipped++;
+        continue;
+      }
+
       const desired = intent.mode === "find_buyers" ? ["BUY","RFQ"] : ["SELL","ANNOUNCE"];
       const { data: signals, error: signalError } = await sb.from("waouh_signal_fabric")
         .select("*").in("intent", desired).order("observed_at", { ascending: false }).limit(1500);
@@ -520,7 +756,7 @@ Deno.serve(async (req) => {
       let contactedThisRun = 0;
       let actionableThisRun = 0;
       for (const signal of ranked) {
-        if (contactedThisRun >= Number(mandate.max_contacts || 3)) break;
+        if (contactedThisRun >= remainingContacts) break;
         let resolved = await resolvePack(sb, signal);
         if (!["R3","R4","R5"].includes(String(resolved.pack?.readiness_level || ""))) {
           resolved = await enrichPublicBusinessContact(sb, signal, resolved);
@@ -559,12 +795,13 @@ Deno.serve(async (req) => {
     }
   }
 
-  if (result.contacted > 0) {
+  const followups = await runBoundedFollowUps(sb, Math.min(50, limit * 2));
+  if (result.contacted > 0 || followups.sent > 0) {
     fetch(`${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`, {
       method: "POST",
       headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ limit: Math.min(100, result.contacted * 3) }),
+      body: JSON.stringify({ limit: Math.min(100, Math.max(20, (result.contacted + followups.sent) * 3)) }),
     }).catch(() => {});
   }
-  return json({ ok: true, ...result });
+  return json({ ok: true, ...result, followups });
 });
