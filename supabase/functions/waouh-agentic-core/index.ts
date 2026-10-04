@@ -2345,6 +2345,7 @@ Retourne uniquement JSON:
           "nexus_signal_not_found",
         );
         const policy = contactabilityPolicy(signal.contactability_level);
+        const contactPack = await buildOperationalContactPack(sb, signal, { persist: true });
         const evidence = signal.evidence && typeof signal.evidence === "object"
           ? signal.evidence as Record<string, unknown> : {};
         const articleId = typeof evidence.article_id === "string"
@@ -2360,6 +2361,8 @@ Retourne uniquement JSON:
           subject: signal.subject ?? null,
           city: signal.city ?? null,
           articleId,
+          contactPack,
+          mandateId: typeof payload.mandate_id === "string" ? payload.mandate_id : null,
           metadata: {
             intent: signal.intent ?? null,
             source_record_id: signal.source_record_id ?? null,
@@ -2369,6 +2372,10 @@ Retourne uniquement JSON:
         return jsonResponse({ ok: true, data: {
           journey,
           contact_policy: policy,
+          contact_pack: contactPack,
+          readiness_level: contactPack.readiness_level,
+          actionability_score: contactPack.actionability_score,
+          next_best_action: contactPack.next_best_action,
           next_action: journeyNextAction(journey.stage, journey.contactability_level),
           internal_article: !!articleId,
         }});
@@ -2520,6 +2527,10 @@ Retourne uniquement JSON:
           observed_at: signal.observed_at ?? null,
         };
         const stage = ["C2","C3","C4","C5"].includes(nextLevel) ? "contact_ready" : "enriching";
+        const contactPack = await buildOperationalContactPack(sb, {
+          ...signal,
+          contactability_level: nextLevel,
+        }, { journeyStage: stage, persist: true });
         const updated = await updateOpportunityJourney(sb, journey.id, {
           stage,
           level: nextLevel,
@@ -2529,10 +2540,15 @@ Retourne uniquement JSON:
             : "Avatar a trouvé de nouvelles informations de contact.",
           event: { public_channels: publicChannels, source_url: signal.source_url ?? null },
           maskedContact: masked,
+          contactPack,
         });
         return jsonResponse({ ok: true, data: {
           journey: updated,
           contact_policy: contactabilityPolicy(nextLevel),
+          contact_pack: contactPack,
+          readiness_level: contactPack.readiness_level,
+          actionability_score: contactPack.actionability_score,
+          next_best_action: contactPack.next_best_action,
           public_channels: publicChannels,
           masked_contact: masked,
           next_action: journeyNextAction(stage, nextLevel),
@@ -2575,6 +2591,7 @@ Retourne uniquement JSON:
             policy.level === "C2" &&
             !!targetAuthUserId &&
             targetAuthUserId !== ownerId;
+          const contactPack = await buildOperationalContactPack(sb, signal, { persist: true });
 
           await audit(sb, ownerId, "nexus.contact.prepared", "commerce_signal", signal.source_record_id ?? null, {
             fabric_id: fabricId,
@@ -2595,7 +2612,12 @@ Retourne uniquement JSON:
               // intégrés tant qu'aucun connecteur contractuel dédié n'est résolu.
               can_auto_contact: false,
               can_blind_message: canBlindMessage,
+              can_user_confirm_contact: canBlindMessage,
             },
+            contact_pack: contactPack,
+            readiness_level: contactPack.readiness_level,
+            actionability_score: contactPack.actionability_score,
+            next_best_action: contactPack.next_best_action,
             contacts: [],
             note: canBlindMessage
               ? "WAOUH peut transmettre votre proposition à cet utilisateur sans révéler ses coordonnées privées. Le destinataire garde le contrôle."
@@ -2640,9 +2662,16 @@ Retourne uniquement JSON:
             });
           }
         }
+        const fabricSignal = await queryOne<any>(
+          sb.from("waouh_signal_fabric").select("*").eq("fabric_id", fabricId).maybeSingle(),
+          "nexus_signal_not_found",
+        );
+        const contactPack = await buildOperationalContactPack(sb, fabricSignal, { persist: true });
         await audit(sb, ownerId, "nexus.contact.prepared", "commerce_signal", signalId, {
           contactability: signal.contactability_level,
           revealed_count: contacts.length,
+          readiness_level: contactPack.readiness_level,
+          actionability_score: contactPack.actionability_score,
         });
         return jsonResponse({ ok: true, data: {
           fabric_id: fabricId,
@@ -2650,7 +2679,11 @@ Retourne uniquement JSON:
           source_url: signal.source_url,
           actor_name: signal.actor_name,
           product_name: signal.product_name,
-          contact_policy: { ...policy, can_blind_message: canBlindMessage },
+          contact_policy: { ...policy, can_blind_message: canBlindMessage, can_user_confirm_contact: policy.level === "C1" || canBlindMessage || policy.can_auto_contact },
+          contact_pack: contactPack,
+          readiness_level: contactPack.readiness_level,
+          actionability_score: contactPack.actionability_score,
+          next_best_action: contactPack.next_best_action,
           contacts,
           note: policy.level === "C0"
             ? "Le signal peut être utilisé pour la découverte, mais WAOUH ne révèle ni ne sollicite automatiquement ce contact."
@@ -2871,6 +2904,7 @@ Retourne uniquement JSON:
             source_key: signal.source_key,
             subject: signal.subject ?? signal.product_name ?? null,
             initiated_by_auth_user: ownerId,
+            contact_id: target.id,
           },
           p_web_session_id: null,
           p_image_url: null,
@@ -2879,6 +2913,26 @@ Retourne uniquement JSON:
           p_event_type: "nexus_discovery_outreach",
         });
         if (queueError) throw new ApiError(500, "nexus_contact_queue_failed", queueError.message);
+        await sb.rpc("waouh_append_conversation_bus_event", {
+          p_owner_id: ownerId,
+          p_event_type: "nexus.contact.queued",
+          p_channel: "whatsapp",
+          p_direction: "out",
+          p_fabric_id: fabricId,
+          p_journey_id: null,
+          p_mandate_id: typeof payload.mandate_id === "string" ? payload.mandate_id : null,
+          p_article_id: null,
+          p_thread_id: null,
+          p_negotiation_id: null,
+          p_deal_id: null,
+          p_external_ref: dedupeKey,
+          p_payload: {
+            signal_id: signalId,
+            source_key: signal.source_key,
+            subject: signal.subject ?? signal.product_name ?? null,
+            phone_last4: target.value_last4,
+          },
+        });
         fetch(`${supabaseUrl}/functions/v1/waouh-outbound-dispatch`, {
           method: "POST",
           headers: { Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
