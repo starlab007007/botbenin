@@ -1219,6 +1219,7 @@ class _ConversationBusPanel extends StatelessWidget {
         'autonomy.internal_contact_delivered' => 'Contact WAOUH transmis',
         'autonomy.followup_queued' => 'Relance Avatar',
         'nexus.contact.queued' => 'Contact mis en file',
+        'avatar.mandate.created' => 'Mandat Avatar activé',
         _ => type.replaceAll('.', ' ').replaceAll('_', ' '),
       };
 
