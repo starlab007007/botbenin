@@ -14,6 +14,8 @@ on:
       - "supabase/migrations/20260929140000_waouh_presence_pin_attempts.sql"
       - "supabase/migrations/20260929150000_waouh_nexus_followup_cron.sql"
       - "supabase/migrations/20260929160000_waouh_avatar_prefs.sql"
+      - "supabase/migrations/20261004223000_waouh_opportunity_os.sql"
+      - "supabase/migrations/20261004224000_waouh_opportunity_worker_cron.sql"
       - "supabase/functions/_shared/waouh-chat-writer.ts"
       - "supabase/functions/_shared/waouh-commands.ts"
       - "supabase/functions/_shared/waouh-commerce-states.ts"
@@ -39,6 +41,10 @@ on:
       - "supabase/functions/_shared/waouh-contact-path.ts"
       - "supabase/functions/_shared/waouh-avatar-notes.ts"
       - "supabase/functions/_shared/waouh-nexus-followup-core.ts"
+      - "supabase/functions/_shared/waouh-opportunity-os.ts"
+      - "supabase/functions/waouh-opportunity-worker/**"
+      - "supabase/functions/waouh-agentic-core/**"
+      - "supabase/functions/waouh-outbound-dispatch/**"
       - "supabase/functions/waouh-nexus-followup/**"
       - "supabase/functions/_shared/waouh-avatar-briefing.ts"
       - "supabase/functions/_shared/waouh-avatar-briefing-core.ts"
@@ -144,7 +150,7 @@ jobs:
           elif [ "$EVENT_NAME" = "push" ]; then
             BEFORE="${EVENT_BEFORE:-}"
             if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
-              if git diff --name-only "$BEFORE" "$GITHUB_SHA" --                 supabase/migrations/20260927120000_waouh_chat_messages_thread_base.sql                 supabase/migrations/20260927120500_waouh_chat_messages_thread_backfill.sql                 supabase/migrations/20260927121000_waouh_chat_reconcile.sql                 supabase/migrations/20260928092242_waouh_chat_v3_flags.sql                 supabase/migrations/20260928092245_waouh_commerce_actions.sql                 supabase/migrations/20260929140000_waouh_presence_pin_attempts.sql                 supabase/migrations/20260929150000_waouh_nexus_followup_cron.sql                 supabase/migrations/20260929160000_waouh_avatar_prefs.sql                 | grep -q .; then
+              if git diff --name-only "$BEFORE" "$GITHUB_SHA" --                 supabase/migrations/20260927120000_waouh_chat_messages_thread_base.sql                 supabase/migrations/20260927120500_waouh_chat_messages_thread_backfill.sql                 supabase/migrations/20260927121000_waouh_chat_reconcile.sql                 supabase/migrations/20260928092242_waouh_chat_v3_flags.sql                 supabase/migrations/20260928092245_waouh_commerce_actions.sql                 supabase/migrations/20260929140000_waouh_presence_pin_attempts.sql                 supabase/migrations/20260929150000_waouh_nexus_followup_cron.sql                 supabase/migrations/20260929160000_waouh_avatar_prefs.sql                 supabase/migrations/20261004223000_waouh_opportunity_os.sql                 supabase/migrations/20261004224000_waouh_opportunity_worker_cron.sql                 | grep -q .; then
                 APPLY=true
               fi
             fi
@@ -218,6 +224,9 @@ jobs:
             waouh-stock-ingest
             waouh-nexus-followup
             waouh-avatar-briefing
+            waouh-agentic-core
+            waouh-outbound-dispatch
+            waouh-opportunity-worker
           )
           for fn in "${functions[@]}"; do
             echo "🚀 Deploying $fn"
