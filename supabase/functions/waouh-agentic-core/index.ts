@@ -615,6 +615,11 @@ async function resolveCommerceEntity(
     isPublicBusiness: boolean;
   },
 ) {
+  // "shared_by_user" is provenance, not third-party consent. Keep such
+  // coordinates private/untrusted until another basis is established.
+  const contactConsentState = input.consentBasis === "shared_by_user"
+    ? "unknown"
+    : input.consentBasis;
   const normalizedPhones = (input.contactPhones ?? [])
     .map((phone) => normalizeE164(phone))
     .filter((phone): phone is string => !!phone);
@@ -687,9 +692,9 @@ async function resolveCommerceEntity(
       value_hash: hash,
       value_last4: phoneLast4(phone),
       is_public_business: input.isPublicBusiness,
-      consent_state: input.consentBasis,
+      consent_state: contactConsentState,
       contactability_level: input.contactability,
-      verified_at: input.isPublicBusiness || ["opt_in","partner_contract","initiated"].includes(input.consentBasis)
+      verified_at: input.isPublicBusiness || ["opt_in","partner_contract","initiated"].includes(contactConsentState)
         ? new Date().toISOString() : null,
     };
     if (existing?.id) {
@@ -718,9 +723,9 @@ async function resolveCommerceEntity(
       value_hash: hash,
       value_last4: null,
       is_public_business: input.isPublicBusiness,
-      consent_state: input.consentBasis,
+      consent_state: contactConsentState,
       contactability_level: input.contactability,
-      verified_at: input.isPublicBusiness || ["opt_in","partner_contract","initiated"].includes(input.consentBasis)
+      verified_at: input.isPublicBusiness || ["opt_in","partner_contract","initiated"].includes(contactConsentState)
         ? new Date().toISOString() : null,
     };
     if (existing?.id) await sb.from("waouh_entity_contacts").update(values).eq("id", existing.id);
@@ -742,7 +747,7 @@ async function resolveCommerceEntity(
         value_hash: hash,
         public_value: publicValue,
         is_public_business: input.isPublicBusiness,
-        consent_state: input.consentBasis,
+        consent_state: contactConsentState,
         contactability_level: input.contactability,
       };
       if (existing?.id) await sb.from("waouh_entity_contacts").update(values).eq("id", existing.id);
@@ -2641,6 +2646,22 @@ Retourne uniquement JSON:
         });
 
         let nextLevel = String(signal.contactability_level ?? "C0");
+        let externalSignalMeta: any = null;
+        if (fabricId.startsWith("external:")) {
+          const externalId = fabricId.slice("external:".length);
+          const { data, error: externalMetaError } = await sb.from("waouh_external_commerce_signals")
+            .select("id,entity_id,actor_type,contact_consent_basis,contactability_level,source_key")
+            .eq("id", externalId).maybeSingle();
+          if (externalMetaError) throw new ApiError(500, "nexus_external_contact_meta_failed", externalMetaError.message);
+          externalSignalMeta = data;
+        }
+        const entityId = externalSignalMeta?.entity_id ?? null;
+        const consentBasis = String(externalSignalMeta?.contact_consent_basis ?? "unknown");
+        const publicBusinessContact =
+          String(externalSignalMeta?.actor_type ?? signal.actor_type ?? "") === "business" &&
+          consentBasis === "public_business";
+        const trustedMediatedBasis = ["initiated","opt_in","partner_contract"].includes(consentBasis);
+
         const evidence = signal.evidence && typeof signal.evidence === "object"
           ? signal.evidence as Record<string, unknown> : {};
         const publicText = [
@@ -2658,8 +2679,17 @@ Retourne uniquement JSON:
         if (signal.has_whatsapp === true) publicChannels.push("whatsapp");
         if (signal.contact_phone_last4) publicChannels.push("phone_hint");
 
-        if (nextLevel === "C0" && publicChannels.length) nextLevel = "C1";
-        if (fabricId.startsWith("external:") && signal.entity_id && hints.phones.length) {
+        const hasDirectCoordinate = hints.phones.length > 0 || hints.emails.length > 0 ||
+          signal.has_whatsapp === true || !!signal.contact_phone_last4;
+        if (nextLevel === "C0" && hasDirectCoordinate && (publicBusinessContact || trustedMediatedBasis)) {
+          nextLevel = publicBusinessContact ? "C1" : "C2";
+        }
+
+        if (fabricId.startsWith("external:") && entityId && hints.phones.length) {
+          const contactLevel = publicBusinessContact ? "C1" : (trustedMediatedBasis ? "C2" : "C0");
+          const contactConsent = publicBusinessContact
+            ? "public_business"
+            : (trustedMediatedBasis ? consentBasis : "unknown");
           for (const raw of hints.phones.slice(0, 3)) {
             const e164 = normalizeE164(raw);
             if (!e164) continue;
@@ -2667,7 +2697,7 @@ Retourne uniquement JSON:
             const hashed = await hashPhone(e164);
             const { data: existingContact } = await sb.from("waouh_entity_contacts")
               .select("id")
-              .eq("entity_id", signal.entity_id)
+              .eq("entity_id", entityId)
               .eq("channel", "phone")
               .eq("value_hash", hashed)
               .limit(1)
@@ -2678,25 +2708,26 @@ Retourne uniquement JSON:
               value_last4: phoneLast4(e164),
               public_value: null,
               source_key: signal.source_key,
-              is_public_business: signal.actor_type === "business",
-              consent_state: "public_business",
-              contactability_level: "C1",
-              verified_at: new Date().toISOString(),
+              is_public_business: publicBusinessContact,
+              consent_state: contactConsent,
+              contactability_level: contactLevel,
+              verified_at: publicBusinessContact || trustedMediatedBasis ? new Date().toISOString() : null,
+              verification_status: publicBusinessContact ? "observed" : "unknown",
               updated_at: new Date().toISOString(),
             };
             const writeResult = existingContact?.id
               ? await sb.from("waouh_entity_contacts").update(contactPatch).eq("id", existingContact.id)
               : await sb.from("waouh_entity_contacts").insert({
-                  entity_id: signal.entity_id,
+                  entity_id: entityId,
                   channel: "phone",
                   ...contactPatch,
                 });
             if (writeResult.error) {
-              console.warn("[opportunity.enrich] public phone store", writeResult.error.message);
+              console.warn("[opportunity.enrich] phone store", writeResult.error.message);
             }
           }
-          if (nextLevel === "C0") nextLevel = "C1";
         }
+
         if (fabricId.startsWith("external:") && nextLevel !== String(signal.contactability_level ?? "C0")) {
           const signalId = fabricId.slice("external:".length);
           await sb.from("waouh_external_commerce_signals")
