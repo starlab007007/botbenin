@@ -38,6 +38,7 @@ import {
   type FabricSignal,
 } from "../_shared/waouh-signal-fabric.ts";
 import { assessQuality, compareUnified, diversifyBySource, qualityAdjustedScore } from "../_shared/waouh-unified-quality.ts";
+import { parseChatMandateDirective } from "../_shared/waouh-opportunity-os.ts";
 
 
 const corsHeaders = {
@@ -2204,7 +2205,7 @@ serve(async (req) => {
     });
     const core = await readWaouhEngineResponse(coreRes);
     log("core reply", { ok: coreRes.ok, intent: core.intent, hasReply: !!core.reply });
-    const reply: string = core.reply ?? "";
+    let reply: string = core.reply ?? "";
     const actions: WaouhAction[] = Array.isArray(core.actions) ? core.actions : [];
     // 🖼️ Fiches historiques + enrichissement NEXUS/Signal Fabric.
     const coreResults: any[] = Array.isArray(core.results) ? core.results : [];
@@ -2228,6 +2229,90 @@ serve(async (req) => {
       core?.contactability_level ??
       core?.contactability ??
       nexus.contactability_level;
+
+    // Opportunity OS — une simple recherche reste une recherche.
+    // Seule une délégation explicite ("Bot contacte...") crée un mandat borné.
+    const mandateDirective = parseChatMandateDirective(text, core.intent);
+    let avatarMandate: Record<string, any> | null = null;
+    let persistentIntent: Record<string, any> | null = null;
+    if (mandateDirective) {
+      const ownerAuthId = String(user.auth_user_id ?? authUserId ?? "").trim();
+      if (!ownerAuthId) {
+        reply = [
+          reply,
+          "🤖 J’ai compris que vous voulez me confier les contacts. Connectez votre compte WAOUH pour activer ce mandat autonome ; la recherche actuelle reste disponible.",
+        ].filter(Boolean).join("\n\n");
+      } else {
+        try {
+          const mode = String(core.intent || "").toUpperCase() === "SELL" ? "sell" : "buy";
+          const requestKey = correlationId
+            ? `chat:${correlationId}`
+            : inboundMessageId
+              ? `chat-message:${inboundMessageId}`
+              : null;
+          const mandateRes = await fetch(`${SUPABASE_URL}/functions/v1/waouh-agentic-core`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${SERVICE}`,
+              "Content-Type": "application/json",
+              "x-waouh-owner-id": ownerAuthId,
+            },
+            body: JSON.stringify({
+              action: "nexus.mandate.create",
+              payload: {
+                mode,
+                goal: String(text || "").trim().slice(0, 2000),
+                autonomy_mode: mandateDirective.autonomyMode,
+                city: city || null,
+                budget_max: mode === "buy" ? chatBudgetMax(text, "find_sellers") : null,
+                max_contacts: mandateDirective.maxContacts,
+                max_followups: mandateDirective.maxFollowups,
+                duration_hours: mandateDirective.durationHours,
+                scan_interval_minutes: 30,
+                min_match_score: 70,
+                min_actionability_score: 65,
+                allow_waouh: true,
+                allow_whatsapp: true,
+                allow_public_business: true,
+                allow_blind_message: true,
+                allow_email: false,
+                allow_sms_rcs: false,
+                origin_surface: "chat_natural_language",
+                request_key: requestKey,
+              },
+            }),
+          });
+          const mandateEnvelope = await mandateRes.json().catch(() => null);
+          if (!mandateRes.ok || mandateEnvelope?.ok !== true) {
+            throw new Error(String(
+              mandateEnvelope?.error?.message ??
+              mandateEnvelope?.error?.code ??
+              `mandate_${mandateRes.status}`
+            ));
+          }
+          avatarMandate = mandateEnvelope.data?.mandate ?? null;
+          persistentIntent = mandateEnvelope.data?.intent ?? null;
+          const modeLabel = mandateDirective.autonomyMode === "autonomous"
+            ? "autonome"
+            : mandateDirective.autonomyMode === "assisted"
+              ? "assisté"
+              : "semi-autonome";
+          const contactPhrase = mandateDirective.autonomyMode === "assisted"
+            ? "Je surveille et je vous demande avant chaque contact."
+            : `Je peux contacter jusqu’à ${mandateDirective.maxContacts} contrepartie(s) dans ce mandat.`;
+          reply = [
+            reply,
+            `🤖 Mandat ${modeLabel} activé pour ${mandateDirective.durationHours} h. ${contactPhrase} Relances max : ${mandateDirective.maxFollowups}.`,
+          ].filter(Boolean).join("\n\n");
+        } catch (mandateError) {
+          console.warn("[waouh-channel-in] natural mandate activation failed", mandateError);
+          reply = [
+            reply,
+            "🤖 La recherche continue, mais je n’ai pas pu activer le mandat de contact pour le moment. Aucun contact automatique n’a été envoyé.",
+          ].filter(Boolean).join("\n\n");
+        }
+      }
+    }
 
     // Persist outgoing
     const outboundArticleId: string | null = core.article_id ?? inboundArticleId ?? null;
@@ -2261,6 +2346,9 @@ serve(async (req) => {
         source_mix: sourceMix,
         signal_fabric: signalFabric,
         contactability_level: contactability,
+        avatar_mandate_id: avatarMandate?.id ?? null,
+        persistent_intent_id: persistentIntent?.id ?? null,
+        autonomy_mode: avatarMandate?.autonomy_mode ?? null,
       },
     }).select("id").maybeSingle();
     if (outboundError) throw outboundError;
@@ -2280,7 +2368,7 @@ serve(async (req) => {
       } catch (e) { console.error("WAHA send failed", e); }
     }
 
-    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, thread_id: coreThreadId, negotiation_id: coreNegotiationId, stage: core.stage ?? null, buyer_user_id: core.buyer_user_id ?? null, seller_user_id: core.seller_user_id ?? null, actions, results, products, attachments: Array.isArray(core.attachments) ? core.attachments : [], inbound_message_id: inboundMessageId, outbound_message_id: outboundMessageId, conversation_id: convId, user_id: user.id, article_id: outboundArticleId, counterpart_user_id: core.counterpart_user_id ?? null, transaction_id: core.transaction_id ?? null, correlation_id: correlationId, intelligence, source_mix: sourceMix, signal_fabric: signalFabric, contactability_level: contactability }), {
+    return new Response(JSON.stringify({ ok: true, reply, intent: core.intent, thread_id: coreThreadId, negotiation_id: coreNegotiationId, stage: core.stage ?? null, buyer_user_id: core.buyer_user_id ?? null, seller_user_id: core.seller_user_id ?? null, actions, results, products, attachments: Array.isArray(core.attachments) ? core.attachments : [], inbound_message_id: inboundMessageId, outbound_message_id: outboundMessageId, conversation_id: convId, user_id: user.id, article_id: outboundArticleId, counterpart_user_id: core.counterpart_user_id ?? null, transaction_id: core.transaction_id ?? null, correlation_id: correlationId, intelligence, source_mix: sourceMix, signal_fabric: signalFabric, contactability_level: contactability, avatar_mandate: avatarMandate, persistent_intent: persistentIntent }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
