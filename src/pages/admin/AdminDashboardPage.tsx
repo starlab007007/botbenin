@@ -57,7 +57,7 @@ export const AdminDashboardPage: React.FC = () => {
         { label: 'Diffusion', path: '/admin/waouh/diffusion-approvals', note: 'Validation humaine des demandes en attente', icon: Megaphone },
         { label: 'SMS / RCS', path: '/admin/waouh/native-messaging', note: 'Provider, SMS, RCS et fallback vers SMS', icon: MessageSquareText },
         { label: 'Partenaires', path: '/admin/waouh/partners', note: 'Activité, catalogue, permissions et entreprises', icon: Handshake },
-        { label: 'Données unifiées', path: '/admin/waouh/data-control', note: 'Qualité, contacts, catalogue et incohérences', icon: Database },
+        { label: 'NEXUS · Signal Fabric', path: '/admin/waouh/data-control', note: 'Toutes sources, qualité, contactabilité et provenance', icon: Database },
       ],
     },
     {
@@ -72,7 +72,7 @@ export const AdminDashboardPage: React.FC = () => {
     {
       title: 'Données & écosystème',
       items: [
-        { label: 'Catalogue & données', path: '/admin/waouh/data-control', note: 'Qualité, normalisation et contrôle IA', icon: Database },
+        { label: 'NEXUS · Signal Fabric', path: '/admin/waouh/data-control', note: 'Catalogue canonique multi-sources et contrôle IA', icon: Database },
         { label: 'Partenaires', path: '/admin/waouh/partners', note: 'Partenaires et permissions', icon: Handshake },
         { label: 'Commerces', path: '/admin/waouh/businesses', note: 'Entreprises, catalogues et vérification', icon: Building2 },
         { label: 'Démo / recette', path: '/admin/waouh/demo', note: 'Parcours de démonstration', icon: Sparkles },
