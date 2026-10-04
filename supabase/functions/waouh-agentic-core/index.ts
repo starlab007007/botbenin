@@ -2440,10 +2440,46 @@ Retourne uniquement JSON:
             status: "active",
             next_scan_at: new Date().toISOString(),
             expires_at: mandate.expires_at,
-            metadata: { autonomy_mode: autonomyMode },
+            metadata: {
+            autonomy_mode: autonomyMode,
+            last_external_refresh_at: new Date().toISOString(),
+            last_external_refresh_status: initialRefresh.error ? "partial" : "ok",
+            initial_refresh: initialRefresh,
+          },
           }).select("*").single(),
           "nexus_persistent_intent_create_failed",
         );
+
+        const initialRefresh: Record<string, unknown> = {};
+        try {
+          if (discoveryMode === "find_sellers") {
+            const places = await refreshGooglePlaces(sb, ownerId, goal, city, Math.min(8, Math.max(maxContacts * 2, 4)));
+            initialRefresh.google_places = {
+              configured: places.configured,
+              inserted: places.inserted,
+              reason: places.reason ?? null,
+            };
+          }
+          const serp = await refreshSerpApi(
+            sb,
+            ownerId,
+            discoveryMode,
+            goal,
+            city,
+            Math.min(12, Math.max(maxContacts * 3, 6)),
+          );
+          initialRefresh.serpapi = {
+            configured: serp.configured,
+            inserted: serp.inserted,
+            reason: serp.reason ?? null,
+            surfaces: serp.surfaces ?? {},
+          };
+        } catch (refreshError) {
+          initialRefresh.error = refreshError instanceof Error
+            ? refreshError.message.slice(0, 160)
+            : "initial_refresh_failed";
+          console.warn("[Opportunity OS] initial mandate refresh", refreshError);
+        }
 
         const results = await globalDiscoverySearch(sb, {
           query: goal,
@@ -2484,7 +2520,13 @@ Retourne uniquement JSON:
           autonomy_mode: autonomyMode,
           actionable_count: actionable.length,
         });
-        return jsonResponse({ ok: true, data: { mandate, intent, results, actionable_count: actionable.length } }, 201);
+        return jsonResponse({ ok: true, data: {
+          mandate,
+          intent,
+          results,
+          actionable_count: actionable.length,
+          refresh: initialRefresh,
+        } }, 201);
       }
 
       case "nexus.mandate.list": {
