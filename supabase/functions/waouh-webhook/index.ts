@@ -515,6 +515,8 @@ serve(async (req) => {
         const nexusSignalId = String(nexusPayload?.signal_id || "").trim();
         const nexusFabricId = String(nexusPayload?.fabric_id || (nexusSignalId ? "external:" + nexusSignalId : "")).trim();
         const nexusOwnerAuthId = String(nexusPayload?.initiated_by_auth_user || "").trim();
+        const nexusContactId = String(nexusPayload?.contact_id || "").trim();
+        const nexusMandateId = String(nexusPayload?.mandate_id || "").trim();
 
         if (nexusSignalId && nexusFabricId && nexusOwnerAuthId) {
           const { data: signal } = await sb.from("waouh_external_commerce_signals")
@@ -529,6 +531,62 @@ serve(async (req) => {
             .maybeSingle();
 
           if (signal && journey) {
+            const replyAt = new Date().toISOString();
+            if (nexusContactId) {
+              try {
+                const { data: contactMetrics } = await sb.from("waouh_entity_contacts")
+                  .select("reply_count,avg_reply_delay_seconds").eq("id", nexusContactId).maybeSingle();
+                const oldCount = Number(contactMetrics?.reply_count || 0);
+                const oldAvg = Number(contactMetrics?.avg_reply_delay_seconds || 0);
+                const sentAtMs = nexusOutbound?.created_at ? Date.parse(nexusOutbound.created_at) : NaN;
+                const delaySeconds = Number.isFinite(sentAtMs) ? Math.max(0, (Date.now() - sentAtMs) / 1000) : 0;
+                const nextAvg = delaySeconds > 0
+                  ? ((oldAvg * oldCount) + delaySeconds) / (oldCount + 1)
+                  : oldAvg;
+                await sb.from("waouh_entity_contacts").update({
+                  reply_count: oldCount + 1,
+                  avg_reply_delay_seconds: nextAvg || null,
+                  last_success_at: replyAt,
+                  verification_status: "reachable",
+                  is_whatsapp_reachable: true,
+                  contactability_level: "C5",
+                  verified_at: replyAt,
+                  updated_at: replyAt,
+                }).eq("id", nexusContactId);
+              } catch (metricsError) {
+                console.warn("[nexus-opportunity-reply] contact metrics", metricsError);
+              }
+            }
+            await sb.rpc("waouh_append_conversation_bus_event", {
+              p_owner_id: nexusOwnerAuthId,
+              p_event_type: "nexus.counterparty_reply",
+              p_channel: "whatsapp",
+              p_direction: "in",
+              p_fabric_id: nexusFabricId,
+              p_journey_id: journey.id,
+              p_mandate_id: nexusMandateId || journey.mandate_id || null,
+              p_article_id: journey.article_id || null,
+              p_thread_id: journey.thread_id || null,
+              p_negotiation_id: journey.negotiation_id || null,
+              p_deal_id: journey.deal_id || null,
+              p_external_ref: nexusOutbound?.id ? `reply:${nexusOutbound.id}` : null,
+              p_payload: {
+                reply_preview: String(text || "").slice(0, 180),
+                contact_id: nexusContactId || null,
+                signal_id: nexusSignalId,
+              },
+            });
+            if (nexusMandateId || journey.mandate_id) {
+              const mandateId = nexusMandateId || journey.mandate_id;
+              const { data: m } = await sb.from("waouh_avatar_mandates")
+                .select("replied_count").eq("id", mandateId).maybeSingle();
+              if (m) {
+                await sb.from("waouh_avatar_mandates").update({
+                  replied_count: Number(m.replied_count || 0) + 1,
+                  updated_at: replyAt,
+                }).eq("id", mandateId);
+              }
+            }
             await sb.from("waouh_external_commerce_signals")
               .update({
                 contactability_level: "C5",
@@ -701,6 +759,10 @@ serve(async (req) => {
               thread_id: journeyThreadId,
               negotiation_id: journeyNegotiationId,
               contact_channel: "whatsapp",
+              readiness_level: "R5",
+              readiness_score: 100,
+              actionability_score: 100,
+              next_best_action: "NEGOTIATE",
               updated_at: new Date().toISOString(),
             }).eq("id", journey.id);
 
