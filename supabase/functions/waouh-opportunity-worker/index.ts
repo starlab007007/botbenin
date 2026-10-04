@@ -147,7 +147,9 @@ async function resolveInternalRecipient(sb: SupabaseClient, signal: any) {
     ? evidence.user_id
     : (evidence.seller_id || evidence.user_id);
   if (!waouhId) return null;
-  const { data } = await sb.from("waouh_users").select("auth_user_id,display_name").eq("id", waouhId).maybeSingle();
+  const { data } = await sb.from("waouh_users")
+    .select("id,auth_user_id,display_name,web_session_id,phone_number")
+    .eq("id", waouhId).maybeSingle();
   return data?.auth_user_id ? data : null;
 }
 
@@ -160,36 +162,55 @@ async function contactInternal(sb: SupabaseClient, mandate: any, signal: any, jo
   const message = mandate.mode === "sell"
     ? `WAOUH accompagne un vendeur dont l’offre correspond à votre besoin « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre ?`
     : `WAOUH accompagne un acheteur intéressé par « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre ?`;
-  const { data: approval, error } = await sb.from("waouh_agent_approvals").insert({
-    owner_id: recipient.auth_user_id,
-    action_type: "send_message",
-    action_summary: message,
-    context: {
-      operation: "opportunity_os.internal_mandate_contact",
-      mandate_id: mandate.id,
-      journey_id: journey.id,
+  const articleId =
+    signal.fabric_id?.startsWith("article:") ? signal.fabric_id.slice("article:".length) :
+    (signal.evidence?.article_id ?? null);
+  const { error: notificationError } = await sb.from("waouh_notifications").insert({
+    user_id: recipient.id,
+    article_id: articleId || null,
+    notification_type: "avatar_opportunity_contact",
+    photos: [],
+    payload: {
+      text: message,
       fabric_id: signal.fabric_id,
+      journey_id: journey.id,
+      mandate_id: mandate.id,
       from_auth_user: mandate.owner_id,
-      message,
+      source_key: signal.source_key,
+      subject: signal.subject || mandate.goal,
+      contactability_level: signal.contactability_level || "C2",
+      readiness_level: journey.readiness_level || null,
+      actionability_score: journey.actionability_score || null,
+      actions: articleId
+        ? [{ id: "open-opportunity:" + signal.fabric_id, label: "Voir l’opportunité" }]
+        : [],
     },
-    status: "pending",
-    expires_at: new Date(Date.now() + 24 * 3600_000).toISOString(),
-  }).select("id").single();
-  if (error) throw error;
+    channel: "waouh_app",
+    delivery_status: "delivered",
+    delivered_at: new Date().toISOString(),
+    web_session_id: recipient.web_session_id ?? null,
+    dedupe_key: ref,
+  });
+  if (notificationError) throw notificationError;
+
   await sb.rpc("waouh_append_conversation_bus_event", {
     p_owner_id: mandate.owner_id,
-    p_event_type: "autonomy.internal_contact_requested",
+    p_event_type: "autonomy.internal_contact_delivered",
     p_channel: "waouh",
     p_direction: "out",
     p_fabric_id: signal.fabric_id,
     p_journey_id: journey.id,
     p_mandate_id: mandate.id,
-    p_article_id: null,
-    p_thread_id: null,
-    p_negotiation_id: null,
-    p_deal_id: null,
+    p_article_id: articleId || null,
+    p_thread_id: journey.thread_id || null,
+    p_negotiation_id: journey.negotiation_id || null,
+    p_deal_id: journey.deal_id || null,
     p_external_ref: ref,
-    p_payload: { approval_id: approval.id, recipient_auth_user_id: recipient.auth_user_id },
+    p_payload: {
+      recipient_auth_user_id: recipient.auth_user_id,
+      recipient_waouh_user_id: recipient.id,
+      notification_type: "avatar_opportunity_contact",
+    },
   });
   await sb.from("waouh_opportunity_journeys").update({
     stage: "waiting_reply",
