@@ -1,4 +1,5 @@
 import { assertEquals, assert } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { contactabilityFromBasis } from "./waouh-signal-fabric.ts";
 import {
   buildContactPack,
   computeActionability,
@@ -123,4 +124,15 @@ Deno.test("Opportunity OS: relance bornée à 24 h et max_followups", () => {
     autonomyMode: "assisted", stage: "waiting_reply",
     lastActivityAt: old, maxFollowups: 2, followupsSent: 0, nowMs: now,
   }).reason, "assisted");
+});
+
+
+Deno.test("Signal Fabric: un connecteur C1 ne crée jamais de consentement implicite", () => {
+  assertEquals(contactabilityFromBasis("C1", "unknown", false), "C0");
+  assertEquals(contactabilityFromBasis("C4", "unknown", false), "C0");
+  assertEquals(contactabilityFromBasis("C2", "unknown", false), "C2");
+  assertEquals(contactabilityFromBasis("C1", "public_business", true), "C1");
+  assertEquals(contactabilityFromBasis("C0", "initiated", false), "C2");
+  assertEquals(contactabilityFromBasis("C0", "opt_in", false), "C3");
+  assertEquals(contactabilityFromBasis("C0", "partner_contract", false), "C4");
 });
