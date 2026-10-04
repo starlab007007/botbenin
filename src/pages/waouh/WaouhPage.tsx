@@ -230,7 +230,7 @@ export default function WaouhPage() {
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2">
             <Link to="/admin/waouh/native-messaging"><Button variant="outline" className="w-full h-auto py-2 text-xs"><MessagesSquare className="w-3.5 h-3.5 mr-1" />SMS / RCS</Button></Link>
             <Link to="/admin/waouh/partners"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Users className="w-3.5 h-3.5 mr-1" />Partenaires</Button></Link>
-            <Link to="/admin/waouh/data-control"><Button variant="outline" className="w-full h-auto py-2 text-xs"><QrCode className="w-3.5 h-3.5 mr-1" />Données unifiées</Button></Link>
+            <Link to="/admin/waouh/data-control"><Button variant="outline" className="w-full h-auto py-2 text-xs"><QrCode className="w-3.5 h-3.5 mr-1" />NEXUS · Signal Fabric</Button></Link>
             <Link to="/admin/waouh?tab=settings"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Sparkles className="w-3.5 h-3.5 mr-1" />Paramètres</Button></Link>
             <Link to="/admin/waouh/monitoring"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Activity className="w-3.5 h-3.5 mr-1" />Monitoring</Button></Link>
             <Link to="/admin/waouh/health-check"><Button variant="outline" className="w-full h-auto py-2 text-xs"><Activity className="w-3.5 h-3.5 mr-1" />Health Check</Button></Link>
