@@ -992,6 +992,10 @@ class _PremiumProduct {
     this.trustScore,
     this.priceScore,
     this.contactability,
+    this.readiness,
+    this.actionabilityScore,
+    this.nextBestAction,
+    this.bestChannel,
     this.intent,
     this.actorType,
     this.reasons = const [],
@@ -1022,6 +1026,10 @@ class _PremiumProduct {
   final double? trustScore;
   final double? priceScore;
   final String? contactability;
+  final String? readiness;
+  final double? actionabilityScore;
+  final String? nextBestAction;
+  final String? bestChannel;
   final String? intent;
   final String? actorType;
   final List<String> reasons;
@@ -1071,6 +1079,10 @@ class _PremiumProduct {
       if (priceScore != null) 'prix ${priceScore!.round()}%',
       if (contactability?.trim().isNotEmpty == true)
         'contact $contactability',
+      if (readiness?.trim().isNotEmpty == true) 'prêt $readiness',
+      if (actionabilityScore != null)
+        'action ${actionabilityScore!.round()}%',
+      if (bestChannel?.trim().isNotEmpty == true) 'canal $bestChannel',
     ];
     if (facts.isEmpty) {
       return 'Signal encore insuffisant pour classer cette opportunité.';
@@ -1592,6 +1604,22 @@ List<_PremiumProduct> _premiumProducts(LiveMessage message) {
           row['contactability_level'] ??
               row['contactability'] ??
               evidenceMap['contactability_level'],
+        ),
+        readiness: _premiumString(
+          row['readiness_level'] ??
+              (row['contact_pack'] is Map ? (row['contact_pack'] as Map)['readiness_level'] : null),
+        ),
+        actionabilityScore: _premiumScore(
+          row['actionability_score'] ??
+              (row['contact_pack'] is Map ? (row['contact_pack'] as Map)['actionability_score'] : null),
+        ),
+        nextBestAction: _premiumString(
+          row['next_best_action'] ??
+              (row['contact_pack'] is Map ? (row['contact_pack'] as Map)['next_best_action'] : null),
+        ),
+        bestChannel: _premiumString(
+          row['best_channel'] ??
+              (row['contact_pack'] is Map ? (row['contact_pack'] as Map)['best_channel'] : null),
         ),
         intent: _premiumString(
           row['intent'] ?? row['signal_intent'] ?? evidenceMap['intent'],
