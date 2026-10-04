@@ -42,6 +42,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   Map<String, dynamic>? _mandate;
   String _autonomyMode = 'semi_autonomous';
   int _maxContacts = 3;
+  int _maxFollowups = 1;
   bool _mandateBusy = false;
 
   @override
@@ -102,6 +103,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
         if (current != null) {
           _autonomyMode = '${current['autonomy_mode'] ?? 'semi_autonomous'}';
           _maxContacts = int.tryParse('${current['max_contacts'] ?? 3}') ?? 3;
+          _maxFollowups = int.tryParse('${current['max_followups'] ?? 1}') ?? 1;
         }
       });
     } catch (_) {}
@@ -125,7 +127,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
         city: _city.text.trim().isEmpty ? null : _city.text.trim(),
         budgetMax: budget,
         maxContacts: _maxContacts,
-        maxFollowups: _autonomyMode == 'autonomous' ? 2 : 1,
+        maxFollowups: _autonomyMode == 'assisted' ? 0 : _maxFollowups,
         durationHours: 24,
         scanIntervalMinutes: 60,
       );
@@ -1037,7 +1039,14 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
               ButtonSegment(value: 'autonomous', label: Text('Autonome')),
             ],
             selected: <String>{_autonomyMode},
-            onSelectionChanged: (value) => setState(() => _autonomyMode = value.first),
+            onSelectionChanged: (value) => setState(() {
+              _autonomyMode = value.first;
+              if (_autonomyMode == 'assisted') {
+                _maxFollowups = 0;
+              } else if (_maxFollowups == 0) {
+                _maxFollowups = _autonomyMode == 'autonomous' ? 2 : 1;
+              }
+            }),
             showSelectedIcon: false,
           ),
           const SizedBox(height: 9),
@@ -1045,8 +1054,18 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
             const Expanded(child: Text('Contacts maximum', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800))),
             DropdownButton<int>(
               value: _maxContacts,
-              items: const [1,3,5,10].map((value) => DropdownMenuItem(value: value, child: Text('$value'))).toList(),
+              items: const [1,3,5,10,20].map((value) => DropdownMenuItem(value: value, child: Text('$value'))).toList(),
               onChanged: (value) { if (value != null) setState(() => _maxContacts = value); },
+            ),
+          ]),
+          Row(children: [
+            const Expanded(child: Text('Relances maximum · 24 h min.', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800))),
+            DropdownButton<int>(
+              value: _autonomyMode == 'assisted' ? 0 : _maxFollowups,
+              items: const [0,1,2,3,5].map((value) => DropdownMenuItem(value: value, child: Text('$value'))).toList(),
+              onChanged: _autonomyMode == 'assisted'
+                  ? null
+                  : (value) { if (value != null) setState(() => _maxFollowups = value); },
             ),
           ]),
           FilledButton.icon(
