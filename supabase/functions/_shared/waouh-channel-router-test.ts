@@ -75,3 +75,19 @@ Deno.test("Channel Router: C0 always enriches", () => {
   assertEquals(route.primary_channel, null);
   assertEquals(route.reason, "enrichment_required");
 });
+
+
+Deno.test("Channel Router: un canal WAHA injoignable est exclu des relances", () => {
+  const route = routeOpportunityChannel({
+    contactability: "C4",
+    allowWhatsapp: true,
+    channels: [{
+      channel: "whatsapp",
+      verified: true,
+      reachable: false,
+      consent_state: "opt_in",
+    }],
+  });
+  assertEquals(route.can_dispatch, false);
+  assertEquals(route.reason, "no_allowed_channel");
+});
