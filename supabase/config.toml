@@ -414,3 +414,6 @@ verify_jwt = false
 
 [functions.waouh-avatar-briefing]
 verify_jwt = false
+
+[functions.waouh-opportunity-worker]
+verify_jwt = false
