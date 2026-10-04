@@ -143,6 +143,7 @@ export default function WaouhAvatarCommercePage() {
   const [offerAmount, setOfferAmount] = useState("");
   const [autonomyMode, setAutonomyMode] = useState<"assisted" | "semi_autonomous" | "autonomous">("semi_autonomous");
   const [maxContacts, setMaxContacts] = useState(3);
+  const [maxFollowups, setMaxFollowups] = useState(1);
   const [mandateBusy, setMandateBusy] = useState(false);
   const [activeMandate, setActiveMandate] = useState<NexusAvatarMandate | null>(null);
 
@@ -156,6 +157,7 @@ export default function WaouhAvatarCommercePage() {
         if (current) {
           setAutonomyMode(current.autonomy_mode);
           setMaxContacts(current.max_contacts || 3);
+          setMaxFollowups(current.max_followups ?? 1);
         }
       })
       .catch(() => {});
@@ -207,7 +209,7 @@ export default function WaouhAvatarCommercePage() {
         city: city.trim() || undefined,
         budget_max: Number(budget) || undefined,
         max_contacts: maxContacts,
-        max_followups: autonomyMode === "autonomous" ? 2 : 1,
+        max_followups: autonomyMode === "assisted" ? 0 : maxFollowups,
         duration_hours: 24,
         scan_interval_minutes: 60,
         min_match_score: 70,
@@ -512,7 +514,11 @@ export default function WaouhAvatarCommercePage() {
                     <button
                       key={value}
                       type="button"
-                      onClick={() => setAutonomyMode(value)}
+                      onClick={() => {
+                        setAutonomyMode(value);
+                        if (value === "assisted") setMaxFollowups(0);
+                        else if (maxFollowups === 0) setMaxFollowups(value === "autonomous" ? 2 : 1);
+                      }}
                       className={`rounded-2xl border p-2.5 text-left transition ${autonomyMode === value ? "border-violet-500 bg-violet-50 ring-1 ring-violet-200" : "border-slate-200 bg-white"}`}
                     >
                       <div className="text-[11px] font-black text-slate-900">{label}</div>
@@ -521,18 +527,34 @@ export default function WaouhAvatarCommercePage() {
                   ))}
                 </div>
               </div>
-              <div className="flex items-center justify-between gap-3 rounded-2xl bg-white p-3">
-                <div>
-                  <div className="text-xs font-black">Maximum de contacts</div>
-                  <div className="text-[10px] text-slate-500">Bot ne dépassera jamais cette limite sur ce mandat.</div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="flex items-center justify-between gap-3 rounded-2xl bg-white p-3">
+                  <div>
+                    <div className="text-xs font-black">Contacts maximum</div>
+                    <div className="text-[10px] text-slate-500">Plafond cumulé du mandat.</div>
+                  </div>
+                  <select
+                    value={maxContacts}
+                    onChange={(e) => setMaxContacts(Number(e.target.value))}
+                    className="h-10 rounded-xl border bg-white px-3 text-sm font-bold"
+                  >
+                    {[1, 3, 5, 10, 20].map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
                 </div>
-                <select
-                  value={maxContacts}
-                  onChange={(e) => setMaxContacts(Number(e.target.value))}
-                  className="h-10 rounded-xl border bg-white px-3 text-sm font-bold"
-                >
-                  {[1, 3, 5, 10].map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
+                <div className="flex items-center justify-between gap-3 rounded-2xl bg-white p-3">
+                  <div>
+                    <div className="text-xs font-black">Relances maximum</div>
+                    <div className="text-[10px] text-slate-500">Au moins 24 h entre deux relances.</div>
+                  </div>
+                  <select
+                    value={autonomyMode === "assisted" ? 0 : maxFollowups}
+                    disabled={autonomyMode === "assisted"}
+                    onChange={(e) => setMaxFollowups(Number(e.target.value))}
+                    className="h-10 rounded-xl border bg-white px-3 text-sm font-bold disabled:opacity-60"
+                  >
+                    {[0, 1, 2, 3, 5].map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
               </div>
               <Button
                 className="h-12 w-full rounded-2xl bg-violet-600 hover:bg-violet-700"
