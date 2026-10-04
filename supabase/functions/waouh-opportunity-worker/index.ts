@@ -3,9 +3,10 @@
 // Service/tick only. Executes only within an explicit active Avatar mandate.
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { isServiceCaller, isTickCaller } from "../_shared/waouh-internal-auth.ts";
-import { decryptPhone, sha256Hex } from "../_shared/waouh-tel/crypto.ts";
-import { normalizeE164 } from "../_shared/waouh-tel/phone.ts";
-import { scoreFabricSignal, contactabilityPolicy, type FabricSignal } from "../_shared/waouh-signal-fabric.ts";
+import { decryptPhone, encryptPhone, hashPhone, sha256Hex } from "../_shared/waouh-tel/crypto.ts";
+import { normalizeE164, phoneLast4 } from "../_shared/waouh-tel/phone.ts";
+import { isPublicHostname } from "../_shared/waouh-egress-guard.ts";
+import { extractPublicContactHints, scoreFabricSignal, type FabricSignal } from "../_shared/waouh-signal-fabric.ts";
 import {
   buildContactPack,
   mandateAllowsContact,
@@ -40,7 +41,7 @@ async function resolvePack(sb: SupabaseClient, signal: any) {
   if (fabricId.startsWith("external:")) {
     const id = fabricId.slice("external:".length);
     const { data } = await sb.from("waouh_external_commerce_signals")
-      .select("id,entity_id,submitted_by,contactability_level,source_key,source_url,actor_name,product_name")
+      .select("id,entity_id,submitted_by,contactability_level,contact_consent_basis,source_key,source_url,actor_name,actor_type,product_name,evidence")
       .eq("id", id).maybeSingle();
     externalSignal = data;
     entityId = data?.entity_id ?? null;
@@ -94,6 +95,150 @@ async function resolvePack(sb: SupabaseClient, signal: any) {
     metadata: { subject: signal.subject ?? null, intent: signal.intent ?? null },
   }, { onConflict: "fabric_id" });
   return { pack, externalSignal, contacts, internal };
+}
+
+async function enrichPublicBusinessContact(sb: SupabaseClient, signal: any, resolved: any) {
+  const external = resolved.externalSignal;
+  if (!external?.entity_id || !external?.source_url) return resolved;
+  if (String(external.actor_type || "") !== "business" ||
+      String(external.contact_consent_basis || "") !== "public_business") return resolved;
+  if (["R3","R4","R5"].includes(String(resolved.pack?.readiness_level || ""))) return resolved;
+
+  const evidence = external.evidence && typeof external.evidence === "object" ? external.evidence : {};
+  const lastAttempt = typeof evidence?.opportunity_os_contact_enrichment?.attempted_at === "string"
+    ? Date.parse(evidence.opportunity_os_contact_enrichment.attempted_at) : NaN;
+  if (Number.isFinite(lastAttempt) && Date.now() - lastAttempt < 24 * 3600_000) return resolved;
+
+  let url: URL;
+  try {
+    url = new URL(String(external.source_url));
+  } catch {
+    return resolved;
+  }
+  if (!["https:","http:"].includes(url.protocol) || !isPublicHostname(url.hostname)) return resolved;
+
+  const attemptedAt = new Date().toISOString();
+  const firecrawlKey = Deno.env.get("FIRECRAWL_API_KEY") || "";
+  if (!firecrawlKey) {
+    await sb.from("waouh_external_commerce_signals").update({
+      evidence: {
+        ...evidence,
+        opportunity_os_contact_enrichment: { attempted_at: attemptedAt, status: "firecrawl_not_configured" },
+      },
+      updated_at: attemptedAt,
+    }).eq("id", external.id);
+    return resolved;
+  }
+
+  try {
+    const response = await fetch("https://api.firecrawl.dev/v2/scrape", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${firecrawlKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        url: url.toString(),
+        formats: ["markdown","links"],
+        onlyMainContent: true,
+        timeout: 15000,
+      }),
+    });
+    const raw = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(`firecrawl_${response.status}`);
+    const markdown = String(raw?.markdown ?? raw?.data?.markdown ?? "").slice(0, 30_000);
+    const links = Array.isArray(raw?.links ?? raw?.data?.links) ? (raw.links ?? raw.data.links).slice(0, 50) : [];
+    const hints = extractPublicContactHints([markdown, ...links].join("\n"));
+
+    let stored = 0;
+    for (const rawPhone of hints.phones.slice(0, 3)) {
+      const e164 = normalizeE164(rawPhone);
+      if (!e164) continue;
+      const valueHash = await hashPhone(e164);
+      const valueEncrypted = await encryptPhone(e164);
+      const { data: existing } = await sb.from("waouh_entity_contacts")
+        .select("id").eq("entity_id", external.entity_id)
+        .eq("channel", "phone").eq("value_hash", valueHash).maybeSingle();
+      const values = {
+        source_key: external.source_key,
+        value_encrypted: valueEncrypted,
+        value_hash: valueHash,
+        value_last4: phoneLast4(e164),
+        public_value: null,
+        is_public_business: true,
+        consent_state: "public_business",
+        contactability_level: "C1",
+        verified_at: attemptedAt,
+        verification_status: "observed",
+        updated_at: attemptedAt,
+      };
+      const write = existing?.id
+        ? await sb.from("waouh_entity_contacts").update(values).eq("id", existing.id)
+        : await sb.from("waouh_entity_contacts").insert({ entity_id: external.entity_id, channel: "phone", ...values });
+      if (!write.error) stored++;
+    }
+
+    for (const rawEmail of hints.emails.slice(0, 3)) {
+      const email = rawEmail.trim().toLowerCase();
+      if (!email) continue;
+      const valueHash = await sha256Hex(email);
+      const valueEncrypted = await encryptPhone(email);
+      const { data: existing } = await sb.from("waouh_entity_contacts")
+        .select("id").eq("entity_id", external.entity_id)
+        .eq("channel", "email").eq("value_hash", valueHash).maybeSingle();
+      const values = {
+        source_key: external.source_key,
+        value_encrypted: valueEncrypted,
+        value_hash: valueHash,
+        value_last4: null,
+        public_value: null,
+        is_public_business: true,
+        consent_state: "public_business",
+        contactability_level: "C1",
+        verified_at: attemptedAt,
+        verification_status: "observed",
+        updated_at: attemptedAt,
+      };
+      const write = existing?.id
+        ? await sb.from("waouh_entity_contacts").update(values).eq("id", existing.id)
+        : await sb.from("waouh_entity_contacts").insert({ entity_id: external.entity_id, channel: "email", ...values });
+      if (!write.error) stored++;
+    }
+
+    const nextEvidence = {
+      ...evidence,
+      opportunity_os_contact_enrichment: {
+        attempted_at: attemptedAt,
+        status: stored > 0 ? "contacts_found" : "no_contact_found",
+        phone_count: hints.phones.length,
+        email_count: hints.emails.length,
+      },
+    };
+    await sb.from("waouh_external_commerce_signals").update({
+      contactability_level: stored > 0 ? "C1" : external.contactability_level,
+      evidence: nextEvidence,
+      updated_at: attemptedAt,
+    }).eq("id", external.id);
+
+    if (stored > 0) {
+      const refreshedSignal = { ...signal, contactability_level: "C1" };
+      return await resolvePack(sb, refreshedSignal);
+    }
+    return resolved;
+  } catch (error) {
+    await sb.from("waouh_external_commerce_signals").update({
+      evidence: {
+        ...evidence,
+        opportunity_os_contact_enrichment: {
+          attempted_at: attemptedAt,
+          status: "failed",
+          error: error instanceof Error ? error.message.slice(0, 120) : "unknown",
+        },
+      },
+      updated_at: attemptedAt,
+    }).eq("id", external.id);
+    return resolved;
+  }
 }
 
 async function ensureJourney(sb: SupabaseClient, ownerId: string, mandate: any, signal: any, pack: any, matchScore: number) {
@@ -376,7 +521,10 @@ Deno.serve(async (req) => {
       let actionableThisRun = 0;
       for (const signal of ranked) {
         if (contactedThisRun >= Number(mandate.max_contacts || 3)) break;
-        const resolved = await resolvePack(sb, signal);
+        let resolved = await resolvePack(sb, signal);
+        if (!["R3","R4","R5"].includes(String(resolved.pack?.readiness_level || ""))) {
+          resolved = await enrichPublicBusinessContact(sb, signal, resolved);
+        }
         const pack = resolved.pack;
         if (Number(pack.actionability_score || 0) < Number(intent.min_actionability_score || 65)) continue;
         actionableThisRun++;
