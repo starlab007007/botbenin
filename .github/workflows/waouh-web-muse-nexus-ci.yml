@@ -38,6 +38,7 @@ on:
       - "supabase/functions/_shared/waouh-nexus.ts"
       - "supabase/functions/_shared/waouh-signal-fabric.ts"
       - "supabase/functions/_shared/waouh-opportunity-os*.ts"
+      - "supabase/functions/_shared/waouh-channel-router*.ts"
       - "supabase/functions/waouh-opportunity-worker/**"
       - ".github/workflows/waouh-web-muse-nexus-ci.yml"
   pull_request:
@@ -76,6 +77,7 @@ on:
       - "supabase/functions/_shared/waouh-nexus.ts"
       - "supabase/functions/_shared/waouh-signal-fabric.ts"
       - "supabase/functions/_shared/waouh-opportunity-os*.ts"
+      - "supabase/functions/_shared/waouh-channel-router*.ts"
       - "supabase/functions/waouh-opportunity-worker/**"
   workflow_dispatch:
 
@@ -122,6 +124,9 @@ jobs:
 
       - name: Opportunity OS contract tests
         run: deno test supabase/functions/_shared/waouh-opportunity-os-test.ts
+
+      - name: Channel Router contract tests
+        run: deno test supabase/functions/_shared/waouh-channel-router-test.ts
 
       - name: Check WAOUH Chat Channel
         run: deno check supabase/functions/waouh-channel-in/index.ts
