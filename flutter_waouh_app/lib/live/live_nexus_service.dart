@@ -73,6 +73,7 @@ class NexusContactPolicy {
     required this.canReveal,
     required this.canAutoContact,
     required this.canBlindMessage,
+    required this.canUserConfirmContact,
     required this.requiresApproval,
   });
 
@@ -81,6 +82,7 @@ class NexusContactPolicy {
   final bool canReveal;
   final bool canAutoContact;
   final bool canBlindMessage;
+  final bool canUserConfirmContact;
   final bool requiresApproval;
 
   factory NexusContactPolicy.fromJson(Map<String, dynamic> json) =>
@@ -90,7 +92,62 @@ class NexusContactPolicy {
         canReveal: _bool(json['can_reveal']),
         canAutoContact: _bool(json['can_auto_contact']),
         canBlindMessage: _bool(json['can_blind_message']),
+        canUserConfirmContact: _bool(json['can_user_confirm_contact']),
         requiresApproval: _bool(json['requires_approval']),
+      );
+}
+
+class NexusContactPack {
+  const NexusContactPack({
+    required this.fabricId,
+    required this.contactability,
+    required this.readiness,
+    required this.readinessScore,
+    required this.actionabilityScore,
+    required this.nextBestAction,
+    required this.availableChannels,
+    required this.maskedContacts,
+    this.sourceKey,
+    this.bestChannel,
+    this.messageTemplate,
+    this.entityId,
+  });
+
+  final String fabricId;
+  final String? sourceKey;
+  final String contactability;
+  final String readiness;
+  final double readinessScore;
+  final double actionabilityScore;
+  final String nextBestAction;
+  final String? bestChannel;
+  final String? messageTemplate;
+  final String? entityId;
+  final List<Map<String, dynamic>> availableChannels;
+  final List<Map<String, dynamic>> maskedContacts;
+
+  bool get immediatelyActionable =>
+      readiness == 'R4' &&
+      (nextBestAction == 'CONTACT_NOW' ||
+          nextBestAction == 'OPEN_DEAL_ROOM' ||
+          nextBestAction == 'REQUEST_APPROVAL');
+
+  factory NexusContactPack.fromJson(Map<String, dynamic> json) =>
+      NexusContactPack(
+        fabricId: _text(json['fabric_id']),
+        sourceKey: json['source_key'] == null ? null : _text(json['source_key']),
+        contactability: _text(json['contactability_level'], 'C0'),
+        readiness: _text(json['readiness_level'], 'R0'),
+        readinessScore: _number(json['readiness_score']),
+        actionabilityScore: _number(json['actionability_score']),
+        nextBestAction: _text(json['next_best_action'], 'ENRICH'),
+        bestChannel: json['best_channel'] == null ? null : _text(json['best_channel']),
+        messageTemplate: json['message_template'] == null ? null : _text(json['message_template']),
+        entityId: json['entity_id'] == null ? null : _text(json['entity_id']),
+        availableChannels: _list(json['available_channels'])
+            .map(_map).where((row) => row.isNotEmpty).toList(growable: false),
+        maskedContacts: _list(json['masked_contacts'])
+            .map(_map).where((row) => row.isNotEmpty).toList(growable: false),
       );
 }
 
