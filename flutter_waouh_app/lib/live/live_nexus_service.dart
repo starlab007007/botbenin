@@ -556,6 +556,10 @@ class NexusPreparedContact {
     required this.fabricId,
     required this.policy,
     required this.contacts,
+    this.contactPack,
+    this.readinessLevel,
+    this.actionabilityScore,
+    this.nextBestAction,
     this.actorName,
     this.productName,
     this.sourceUrl,
@@ -565,6 +569,10 @@ class NexusPreparedContact {
   final String fabricId;
   final NexusContactPolicy policy;
   final List<NexusContactItem> contacts;
+  final NexusContactPack? contactPack;
+  final String? readinessLevel;
+  final double? actionabilityScore;
+  final String? nextBestAction;
   final String? actorName;
   final String? productName;
   final String? sourceUrl;
@@ -578,6 +586,18 @@ class NexusPreparedContact {
             .map((value) => NexusContactItem.fromJson(_map(value)))
             .where((item) => item.value.trim().isNotEmpty)
             .toList(growable: false),
+        contactPack: _map(json['contact_pack']).isEmpty
+            ? null
+            : NexusContactPack.fromJson(_map(json['contact_pack'])),
+        readinessLevel: json['readiness_level'] == null
+            ? null
+            : _text(json['readiness_level']),
+        actionabilityScore: json['actionability_score'] == null
+            ? null
+            : _number(json['actionability_score']),
+        nextBestAction: json['next_best_action'] == null
+            ? null
+            : _text(json['next_best_action']),
         actorName:
             json['actor_name'] == null ? null : _text(json['actor_name']),
         productName:
@@ -638,6 +658,12 @@ class NexusOpportunityJourney {
     this.threadId,
     this.negotiationId,
     this.dealId,
+    this.mandateId,
+    this.readinessLevel,
+    this.readinessScore,
+    this.actionabilityScore,
+    this.nextBestActionCode,
+    this.contactPack,
     this.maskedContact = const <String, dynamic>{},
     this.timeline = const <Map<String, dynamic>>[],
   });
@@ -657,6 +683,12 @@ class NexusOpportunityJourney {
   final String? threadId;
   final String? negotiationId;
   final String? dealId;
+  final String? mandateId;
+  final String? readinessLevel;
+  final double? readinessScore;
+  final double? actionabilityScore;
+  final String? nextBestActionCode;
+  final NexusContactPack? contactPack;
   final Map<String, dynamic> maskedContact;
   final List<Map<String, dynamic>> timeline;
 
@@ -684,6 +716,14 @@ class NexusOpportunityJourney {
         threadId: json['thread_id'] == null ? null : _text(json['thread_id']),
         negotiationId: json['negotiation_id'] == null ? null : _text(json['negotiation_id']),
         dealId: json['deal_id'] == null ? null : _text(json['deal_id']),
+        mandateId: json['mandate_id'] == null ? null : _text(json['mandate_id']),
+        readinessLevel: json['readiness_level'] == null ? null : _text(json['readiness_level']),
+        readinessScore: json['readiness_score'] == null ? null : _number(json['readiness_score']),
+        actionabilityScore: json['actionability_score'] == null ? null : _number(json['actionability_score']),
+        nextBestActionCode: json['next_best_action'] == null ? null : _text(json['next_best_action']),
+        contactPack: _map(json['contact_pack']).isEmpty
+            ? null
+            : NexusContactPack.fromJson(_map(json['contact_pack'])),
         maskedContact: _map(json['masked_contact']),
         timeline: _list(json['timeline'])
             .map(_map)
