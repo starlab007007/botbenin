@@ -448,6 +448,27 @@ async function enrichChatWithSignalFabric(
     // Les fiches sans photo, prix ni contact passent en dernier ; ailleurs, chaque information manquante retire des points ;
     // aucune source ne peut occuper plus de 4 places (traitement équitable de toutes les sources).
     const ranked = diversifyBySource([...pool].sort(compareUnified), { perSource: 4, max: 20 });
+    const fabricIds = ranked.map((row: any) => String(row.fabric_id || "")).filter(Boolean);
+    if (fabricIds.length) {
+      const { data: packs } = await sb.from("waouh_contact_packs")
+        .select("fabric_id,readiness_level,readiness_score,actionability_score,next_best_action,best_channel,available_channels,masked_contacts")
+        .in("fabric_id", fabricIds);
+      const packByFabric = new Map((packs ?? []).map((pack: any) => [String(pack.fabric_id), pack]));
+      for (const row of ranked as any[]) {
+        const pack = packByFabric.get(String(row.fabric_id || ""));
+        if (!pack) continue;
+        row.contact_pack = pack;
+        row.readiness_level = pack.readiness_level;
+        row.readiness_score = pack.readiness_score;
+        row.actionability_score = pack.actionability_score;
+        row.next_best_action = pack.next_best_action;
+        row.best_channel = pack.best_channel;
+      }
+      ranked.sort((a: any, b: any) =>
+        (Number(b.adjusted ?? b.scores?.total_score ?? 0) * 0.72 + Number(b.actionability_score ?? 0) * 0.28) -
+        (Number(a.adjusted ?? a.scores?.total_score ?? 0) * 0.72 + Number(a.actionability_score ?? 0) * 0.28)
+      );
+    }
 
     const sourceMix = ranked.reduce((acc: Record<string, number>, row: any) => {
       const key = String(row.source_key ?? "unknown");
@@ -482,6 +503,9 @@ async function enrichChatWithSignalFabric(
       const location = Number(scores?.location_score ?? row?.location_score);
       const freshness = Number(scores?.freshness_score ?? row?.freshness_score);
       const contact = String(row?.contactability_level ?? "C0");
+      const readiness = String(row?.readiness_level ?? row?.contact_pack?.readiness_level ?? "");
+      const actionability = Number(row?.actionability_score ?? row?.contact_pack?.actionability_score);
+      const bestChannel = String(row?.best_channel ?? row?.contact_pack?.best_channel ?? "");
 
       const marketFacts = [
         Number.isFinite(price) ? `prix ${Math.round(price)}%` : null,
@@ -493,6 +517,9 @@ async function enrichChatWithSignalFabric(
         Number.isFinite(total) ? `match ${Math.round(total)}%` : null,
         Number.isFinite(trust) ? `confiance ${Math.round(trust)}%` : null,
         contact ? `contact ${contact}` : null,
+        readiness ? `prêt ${readiness}` : null,
+        Number.isFinite(actionability) ? `action ${Math.round(actionability)}%` : null,
+        bestChannel ? `canal ${bestChannel}` : null,
       ].filter(Boolean);
 
       return {
@@ -517,6 +544,10 @@ async function enrichChatWithSignalFabric(
           contactability_level: contact,
           score: Number.isFinite(total) ? total : null,
           trust_score: Number.isFinite(trust) ? trust : null,
+          readiness_level: readiness || null,
+          actionability_score: Number.isFinite(actionability) ? actionability : null,
+          next_best_action: row?.next_best_action ?? row?.contact_pack?.next_best_action ?? null,
+          best_channel: bestChannel || null,
           reasons,
         },
       };
@@ -555,6 +586,12 @@ async function enrichChatWithSignalFabric(
         scores: row.scores ?? scores,
         reasons: row.reasons ?? scores?.reasons ?? [],
         evidence: row.evidence ?? matched.evidence ?? null,
+        contact_pack: row.contact_pack ?? matched.contact_pack ?? null,
+        readiness_level: row.readiness_level ?? matched.readiness_level ?? null,
+        readiness_score: row.readiness_score ?? matched.readiness_score ?? null,
+        actionability_score: row.actionability_score ?? matched.actionability_score ?? null,
+        next_best_action: row.next_best_action ?? matched.next_best_action ?? null,
+        best_channel: row.best_channel ?? matched.best_channel ?? null,
       };
     });
 
@@ -598,6 +635,12 @@ async function enrichChatWithSignalFabric(
         scores: row.scores ?? null,
         reasons: row.scores?.reasons ?? [],
         evidence,
+        contact_pack: row.contact_pack ?? null,
+        readiness_level: row.readiness_level ?? null,
+        readiness_score: row.readiness_score ?? null,
+        actionability_score: row.actionability_score ?? null,
+        next_best_action: row.next_best_action ?? null,
+        best_channel: row.best_channel ?? null,
         action: null,
         quality: row.quality ?? null,
         entity_kind: row.quality?.entity_kind ?? null,
