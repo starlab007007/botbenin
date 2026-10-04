@@ -3649,7 +3649,7 @@ Retourne uniquement JSON:
 
         let buyerProfile: any = null;
         if (persistIntent) {
-          const nexusUser = await getOrCreateNexusUser(sb, ownerId, authUser.email?.split("@")[0] ?? "Utilisateur WAOUH");
+          const nexusUser = await getOrCreateNexusUser(sb, ownerId, authUser?.email?.split("@")[0] ?? "Utilisateur WAOUH");
           const { data: existingProfile, error: profileLookupError } = await sb.from("waouh_buyer_profiles")
             .select("*").eq("user_id", nexusUser.id).eq("query_text", queryText).eq("is_active", true)
             .order("created_at", { ascending: false }).limit(1).maybeSingle();
