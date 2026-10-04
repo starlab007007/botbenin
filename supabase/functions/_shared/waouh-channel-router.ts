@@ -103,6 +103,16 @@ export function routeOpportunityChannel(input: {
       candidates: ranked,
     };
   }
+  if (channel === "phone" && level === "C1" && primary.public_business === true) {
+    return {
+      primary_channel: channel,
+      mode: "automated",
+      can_dispatch: true,
+      reason: "public_business_phone_with_whatsapp_preflight",
+      fallback_channels: fallback,
+      candidates: ranked,
+    };
+  }
   if (channel === "email" || channel === "sms" || channel === "rcs" || channel === "sms_rcs") {
     return {
       primary_channel: channel,
