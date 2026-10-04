@@ -8,6 +8,7 @@ import {
   rankChannels,
   remainingContactCapacity,
   boundedFollowUpDecision,
+  parseChatMandateDirective,
 } from "./waouh-opportunity-os.ts";
 
 Deno.test("Opportunity OS: WAOUH interne ouvre directement Deal Room", () => {
@@ -135,4 +136,43 @@ Deno.test("Signal Fabric: un connecteur C1 ne crée jamais de consentement impli
   assertEquals(contactabilityFromBasis("C0", "initiated", false), "C2");
   assertEquals(contactabilityFromBasis("C0", "opt_in", false), "C3");
   assertEquals(contactabilityFromBasis("C0", "partner_contract", false), "C4");
+});
+
+
+Deno.test("Opportunity OS Chat: une recherche simple ne crée jamais de mandat", () => {
+  assertEquals(parseChatMandateDirective(
+    "Je cherche un iPhone 13 moins de 250000 à Cotonou",
+    "BUY",
+  ), null);
+});
+
+Deno.test("Opportunity OS Chat: délégation explicite semi-autonome bornée", () => {
+  const directive = parseChatMandateDirective(
+    "Bot trouve-moi un iPhone 13 et contacte jusqu'à 5 vendeurs pour moi",
+    "BUY",
+  );
+  assertEquals(directive?.autonomyMode, "semi_autonomous");
+  assertEquals(directive?.maxContacts, 5);
+  assertEquals(directive?.maxFollowups, 1);
+  assertEquals(directive?.durationHours, 24);
+});
+
+Deno.test("Opportunity OS Chat: autonomie explicite et limites plafonnées", () => {
+  const directive = parseChatMandateDirective(
+    "Avatar contacte automatiquement jusqu'à 99 acheteurs et relance 9 fois pendant 40 jours",
+    "SELL",
+  );
+  assertEquals(directive?.autonomyMode, "autonomous");
+  assertEquals(directive?.maxContacts, 20);
+  assertEquals(directive?.maxFollowups, 5);
+  assertEquals(directive?.durationHours, 720);
+});
+
+Deno.test("Opportunity OS Chat: validation de chaque contact reste assistée", () => {
+  const directive = parseChatMandateDirective(
+    "Bot contacte 3 vendeurs mais demande-moi avant de contacter",
+    "BUY",
+  );
+  assertEquals(directive?.autonomyMode, "assisted");
+  assertEquals(directive?.maxFollowups, 0);
 });
