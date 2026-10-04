@@ -453,7 +453,9 @@ async function enrichChatWithSignalFabric(
       const { data: packs } = await sb.from("waouh_contact_packs")
         .select("fabric_id,readiness_level,readiness_score,actionability_score,next_best_action,best_channel,available_channels,masked_contacts")
         .in("fabric_id", fabricIds);
-      const packByFabric = new Map((packs ?? []).map((pack: any) => [String(pack.fabric_id), pack]));
+      const packByFabric = new Map<string, any>(
+        (packs ?? []).map((pack: any) => [String(pack.fabric_id), pack] as [string, any]),
+      );
       for (const row of ranked as any[]) {
         const pack = packByFabric.get(String(row.fabric_id || ""));
         if (!pack) continue;
