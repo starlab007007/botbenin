@@ -537,7 +537,8 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       var prepared = await _nexus.prepareContact(item.fabricId);
 
       if (!prepared.policy.canBlindMessage &&
-          !prepared.policy.canAutoContact) {
+          !prepared.policy.canAutoContact &&
+          !prepared.policy.canUserConfirmContact) {
         journey = await _nexus.enrichOpportunity(
           fabricId: item.fabricId,
           mode: widget.mode == LiveAvatarCommerceMode.sell ? 'sell' : 'buy',
@@ -546,7 +547,8 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       }
 
       if (!prepared.policy.canBlindMessage &&
-          !prepared.policy.canAutoContact) {
+          !prepared.policy.canAutoContact &&
+          !prepared.policy.canUserConfirmContact) {
         if (!mounted) return;
         avatar.showState(LiveAvatarPresenceState.watching);
         await _showJourneyStatus(item, journey);
@@ -947,6 +949,101 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
     }
   }
 
+  Widget _mandateSurface() {
+    final current = _mandate;
+    if (current != null) {
+      final status = '${current['status'] ?? 'active'}';
+      final contacted = '${current['contacted_count'] ?? 0}';
+      final replied = '${current['replied_count'] ?? 0}';
+      final mode = '${current['autonomy_mode'] ?? 'semi_autonomous'}';
+      final modeLabel = mode == 'assisted' ? 'Assisté' : mode == 'autonomous' ? 'Autonome' : 'Semi-auto';
+      return Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8F4FF),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFFE4D8FF)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(children: [
+              Icon(Icons.bolt_rounded, color: Color(0xFF6D3FD1)),
+              SizedBox(width: 7),
+              Expanded(child: Text('Mandat Avatar · Opportunity OS', style: TextStyle(fontWeight: FontWeight.w900))),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: _MandateMetric(label: 'Contactés', value: contacted)),
+              const SizedBox(width: 7),
+              Expanded(child: _MandateMetric(label: 'Réponses', value: replied)),
+              const SizedBox(width: 7),
+              Expanded(child: _MandateMetric(label: 'Mode', value: modeLabel)),
+            ]),
+            const SizedBox(height: 9),
+            Text('${current['goal'] ?? ''}', maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, color: WaouhPalette.muted, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 9),
+            OutlinedButton.icon(
+              onPressed: _mandateBusy ? null : _toggleMandate,
+              icon: Icon(status == 'active' ? Icons.pause_rounded : Icons.play_arrow_rounded),
+              label: Text(status == 'active' ? 'Mettre en pause' : 'Reprendre'),
+              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+            ),
+          ],
+        ),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F4FF),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE4D8FF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Confier cette mission à Bot', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF382567))),
+          const SizedBox(height: 4),
+          const Text('Bot surveille NEXUS pendant 24 h et agit uniquement dans les limites que vous fixez.',
+            style: TextStyle(fontSize: 10.5, color: WaouhPalette.muted)),
+          const SizedBox(height: 9),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'assisted', label: Text('Assisté')),
+              ButtonSegment(value: 'semi_autonomous', label: Text('Semi-auto')),
+              ButtonSegment(value: 'autonomous', label: Text('Autonome')),
+            ],
+            selected: <String>{_autonomyMode},
+            onSelectionChanged: (value) => setState(() => _autonomyMode = value.first),
+            showSelectedIcon: false,
+          ),
+          const SizedBox(height: 9),
+          Row(children: [
+            const Expanded(child: Text('Contacts maximum', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800))),
+            DropdownButton<int>(
+              value: _maxContacts,
+              items: const [1,3,5,10].map((value) => DropdownMenuItem(value: value, child: Text('$value'))).toList(),
+              onChanged: (value) { if (value != null) setState(() => _maxContacts = value); },
+            ),
+          ]),
+          FilledButton.icon(
+            onPressed: _mandateBusy || _goal.text.trim().isEmpty ? null : _createMandate,
+            icon: _mandateBusy
+              ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.smart_toy_outlined),
+            label: const Text('Confier à Bot pendant 24 h'),
+            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48), backgroundColor: const Color(0xFF6D3FD1)),
+          ),
+          const SizedBox(height: 5),
+          const Text('Aucun paiement, changement de budget ou partage de contact privé sans règle explicite.',
+            style: TextStyle(fontSize: 9.5, color: WaouhPalette.muted)),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final avatar = context.watch<LiveAvatarController>();
@@ -1000,6 +1097,8 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
               showBudget: widget.mode != LiveAvatarCommerceMode.ask,
               onSearch: _search,
             ),
+            const SizedBox(height: 12),
+            _mandateSurface(),
             if (_error != null) ...[
               const SizedBox(height: 10),
               _InfoStrip(
