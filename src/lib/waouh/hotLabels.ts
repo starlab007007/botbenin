@@ -18,7 +18,7 @@ export function contactabilityActionLabel(level?: string | null): string {
     case "C2":
       return "Proposer mon offre";
     case "C1":
-      return "Vérifier puis proposer";
+      return "Bot contacte maintenant";
     default:
       return "Lancer la démarche";
   }
@@ -27,9 +27,9 @@ export function contactabilityActionLabel(level?: string | null): string {
 /** Bouton d'envoi du premier message d'une démarche. */
 export const SEND_OFFER_LABEL = "Envoyer mon offre";
 
-/** Bouton qui lance la recherche d'un canal quand le niveau est C0 / C1. */
+/** Bouton d'enrichissement lorsqu'aucun canal immédiatement exploitable n'est disponible. */
 export function findChannelLabel(level?: string | null): string {
-  return String(level ?? "").toUpperCase() === "C0" ? "Lancer la recherche du vendeur" : "Vérifier le meilleur canal";
+  return String(level ?? "").toUpperCase() === "C0" ? "Lancer la recherche du vendeur" : "Enrichir les autres canaux";
 }
 
 /** Message pré-rempli d'une démarche : l'intention et la question du prix, pas une simple prise de contact. */
