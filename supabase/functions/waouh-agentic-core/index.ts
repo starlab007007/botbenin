@@ -23,6 +23,7 @@ import {
 import {
   buildContactPack,
   mandateAllowsContact,
+  serviceMayActForOwner,
   type ChannelCandidate,
 } from "../_shared/waouh-opportunity-os.ts";
 import {
@@ -1453,8 +1454,7 @@ Deno.serve(async (req: Request) => {
     const authUser = await getRequestUser(req);
     const serviceCall = isServiceRoleRequest(req);
     const serviceOwnerId = serviceCall ? req.headers.get("x-waouh-owner-id")?.trim() ?? "" : "";
-    const serviceOwnerActions = new Set(["nexus.global_discovery", "nexus.mandate.create"]);
-    if (!authUser && !(serviceCall && serviceOwnerId && serviceOwnerActions.has(action))) {
+    if (!authUser && !(serviceCall && serviceOwnerId && serviceMayActForOwner(action))) {
       throw new ApiError(401, "authentication_required");
     }
 
