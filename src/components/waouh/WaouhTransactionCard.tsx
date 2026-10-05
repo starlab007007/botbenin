@@ -77,8 +77,14 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string }> = ({ tran
       const sessionId = localStorage.getItem(SESSION_KEY);
       const candidateIds: string[] = [];
       if (user?.id) {
-        const { data: wu } = await supabase.from("waouh_users").select("id").eq("auth_user_id", user.id).maybeSingle();
-        if (wu?.id) candidateIds.push(wu.id);
+        const { data: rows } = await supabase.from("waouh_users")
+          .select("id")
+          .eq("auth_user_id", user.id)
+          .order("created_at", { ascending: true })
+          .limit(100);
+        for (const row of rows ?? []) {
+          if (row?.id && !candidateIds.includes(row.id)) candidateIds.push(row.id);
+        }
       }
       if (sessionId) {
         const { data: wu } = await supabase.from("waouh_users").select("id").eq("web_session_id", sessionId).maybeSingle();
@@ -137,8 +143,12 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string }> = ({ tran
     const sessionId = localStorage.getItem(SESSION_KEY);
     let waouhId: string | null = null;
     if (user?.id) {
-      const { data: wu } = await supabase.from("waouh_users").select("id").eq("auth_user_id", user.id).maybeSingle();
-      waouhId = wu?.id ?? null;
+      const { data: rows } = await supabase.from("waouh_users")
+        .select("id")
+        .eq("auth_user_id", user.id)
+        .order("created_at", { ascending: true })
+        .limit(1);
+      waouhId = rows?.[0]?.id ?? null;
     }
     if (!waouhId && sessionId) {
       const { data: wu } = await supabase.from("waouh_users").select("id").eq("web_session_id", sessionId).maybeSingle();
