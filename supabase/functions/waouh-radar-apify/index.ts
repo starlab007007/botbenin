@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
         await sb.from("waouh_radar_sources").update({ last_scan_at: new Date().toISOString(), last_signal_count: srcCount }).eq("id", src.id);
       } catch (e: any) {
         srcError = e?.message || String(e);
-        const quotaBlocked = /monthly usage hard limit exceeded|platform-feature-disabled|usage hard limit/i.test(srcError);
+        const quotaBlocked = /monthly usage hard limit exceeded|platform-feature-disabled|usage hard limit/i.test(srcError ?? "");
         if (quotaBlocked) providerBlocked = true;
         console.error(`[apify ${src.id}]`, srcError);
         await sb.from("waouh_radar_sources").update({ last_scan_at: new Date().toISOString(), last_signal_count: 0 }).eq("id", src.id);
