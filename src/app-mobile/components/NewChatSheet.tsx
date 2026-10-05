@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useMobileAuth } from "../hooks/useMobileAuth";
+import { useWaouhIdentity } from "../hooks/useWaouhIdentity";
 import { toast } from "sonner";
 import { MessageCircle, Smartphone, Contact } from "lucide-react";
 
@@ -17,6 +18,7 @@ const normalize = (raw: string) => {
 
 export const NewChatSheet = ({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) => {
   const { user } = useMobileAuth();
+  const { sessionId, waouhUserIds, ready: identityReady } = useWaouhIdentity();
   const navigate = useNavigate();
   const [phone, setPhone] = useState("");
   const [channel, setChannel] = useState<"web" | "whatsapp">("whatsapp");
@@ -28,10 +30,28 @@ export const NewChatSheet = ({ open, onOpenChange }: { open: boolean; onOpenChan
     if (!p || p.length < 8) { toast.error("Numéro invalide"); return; }
     setBusy(true);
     try {
+      if (!identityReady) throw new Error("Identité WAOUH en cours de chargement");
+
+      let waouhUserId = waouhUserIds[0] ?? null;
+      if (!waouhUserId) {
+        const { data: createdIdentity, error: identityError } = await supabase
+          .from("waouh_users")
+          .insert({
+            auth_user_id: user.id,
+            web_session_id: sessionId || null,
+            display_name: user.user_metadata?.full_name ?? user.email ?? "Utilisateur WAOUH",
+            channel: "app",
+          })
+          .select("id")
+          .single();
+        if (identityError) throw identityError;
+        waouhUserId = createdIdentity.id;
+      }
+
       const { data: existing } = await supabase
         .from("waouh_conversations")
         .select("id")
-        .eq("user_id", user.id)
+        .eq("user_id", waouhUserId)
         .eq("phone_number", p)
         .eq("channel", channel)
         .maybeSingle();
@@ -40,7 +60,7 @@ export const NewChatSheet = ({ open, onOpenChange }: { open: boolean; onOpenChan
       if (!id) {
         const { data, error } = await supabase
           .from("waouh_conversations")
-          .insert({ user_id: user.id, phone_number: p, channel, state: "open", context: {} })
+          .insert({ user_id: waouhUserId, phone_number: p, channel, state: "open", context: {} })
           .select("id")
           .single();
         if (error) throw error;
@@ -92,7 +112,7 @@ export const NewChatSheet = ({ open, onOpenChange }: { open: boolean; onOpenChan
               </Button>
             </div>
           </div>
-          <Button onClick={create} disabled={busy} className="w-full bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)]">
+          <Button onClick={create} disabled={busy || !identityReady} className="w-full bg-[hsl(165_91%_25%)] hover:bg-[hsl(165_91%_18%)]">
             {busy ? "Création…" : "Démarrer la conversation"}
           </Button>
         </div>
