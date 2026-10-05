@@ -48,6 +48,9 @@ serve(async (req) => {
     }
 
     if (body?.action === "link_session") {
+      if (!effectiveAuthUserId || !auth.sessionValid || !auth.bodySessionId) {
+        return jsonError(403, "authenticated_session_required");
+      }
       return jsonResponse({
         ok: true,
         action: "link_session",
