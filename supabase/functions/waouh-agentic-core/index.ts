@@ -1794,6 +1794,140 @@ Deno.serve(async (req: Request) => {
         if (approval.step_id) {
           await sb.from("waouh_agent_steps").update({ status: decision === "approved" ? "queued" : "cancelled" }).eq("id", approval.step_id);
         }
+
+        const approvalContext = approval.context && typeof approval.context === "object"
+          ? approval.context as Record<string, any>
+          : {};
+        if (approvalContext.operation === "opportunity_os.internal_mediated_contact") {
+          const originAuthId = typeof approvalContext.from_auth_user === "string"
+            ? approvalContext.from_auth_user
+            : null;
+          const journeyId = typeof approvalContext.journey_id === "string"
+            ? approvalContext.journey_id
+            : null;
+          const mandateId = typeof approvalContext.mandate_id === "string"
+            ? approvalContext.mandate_id
+            : null;
+          const fabricId = typeof approvalContext.fabric_id === "string"
+            ? approvalContext.fabric_id
+            : null;
+          const subject = typeof approvalContext.subject === "string"
+            ? approvalContext.subject.slice(0, 240)
+            : "opportunité WAOUH";
+          const now = new Date().toISOString();
+
+          let journey: any = null;
+          if (journeyId) {
+            const { data: currentJourney } = await sb.from("waouh_opportunity_journeys")
+              .select("*").eq("id", journeyId).maybeSingle();
+            journey = currentJourney;
+            if (journey) {
+              if (decision === "approved") {
+                const { data: refreshed } = await sb.from("waouh_opportunity_journeys").update({
+                  stage: "negotiating",
+                  contactability_level: "C5",
+                  readiness_level: "R5",
+                  readiness_score: 100,
+                  actionability_score: 100,
+                  next_best_action: "NEGOTIATE",
+                  last_action: "internal_counterparty_approved",
+                  next_action: "NEGOTIATE",
+                  last_message: "La contrepartie a accepté la mise en relation. Avatar peut poursuivre vers la négociation.",
+                  last_activity_at: now,
+                  updated_at: now,
+                }).eq("id", journeyId).select("*").single();
+                if (refreshed) journey = refreshed;
+              } else {
+                const { data: refreshed } = await sb.from("waouh_opportunity_journeys").update({
+                  stage: "cancelled",
+                  next_best_action: "DROP_LOW_QUALITY",
+                  last_action: "internal_counterparty_rejected",
+                  next_action: "DROP_LOW_QUALITY",
+                  last_message: "La contrepartie a refusé cette mise en relation.",
+                  last_activity_at: now,
+                  updated_at: now,
+                }).eq("id", journeyId).select("*").single();
+                if (refreshed) journey = refreshed;
+              }
+            }
+          }
+
+          if (originAuthId) {
+            await sb.rpc("waouh_append_conversation_bus_event", {
+              p_owner_id: originAuthId,
+              p_event_type: decision === "approved"
+                ? "nexus.counterparty_reply"
+                : "autonomy.internal_contact_rejected",
+              p_channel: "waouh",
+              p_direction: "in",
+              p_fabric_id: fabricId,
+              p_journey_id: journeyId,
+              p_mandate_id: mandateId,
+              p_article_id: journey?.article_id ?? null,
+              p_thread_id: journey?.thread_id ?? null,
+              p_negotiation_id: journey?.negotiation_id ?? null,
+              p_deal_id: journey?.deal_id ?? null,
+              p_external_ref: `approval-decision:${approvalId}`,
+              p_payload: {
+                approval_id: approvalId,
+                decision,
+                subject,
+                responder_auth_user: ownerId,
+              },
+            });
+
+            const { data: originWaouh } = await sb.from("waouh_users")
+              .select("id,web_session_id")
+              .eq("auth_user_id", originAuthId)
+              .order("created_at", { ascending: true })
+              .limit(1)
+              .maybeSingle();
+            if (originWaouh?.id) {
+              await sb.from("waouh_notifications").insert({
+                user_id: originWaouh.id,
+                article_id: journey?.article_id ?? null,
+                thread_id: journey?.thread_id ?? null,
+                notification_type: decision === "approved"
+                  ? "nexus_opportunity_reply"
+                  : "nexus_opportunity_rejected",
+                photos: [],
+                channel: "waouh_app",
+                delivery_status: "delivered",
+                delivered_at: now,
+                web_session_id: originWaouh.web_session_id ?? null,
+                dedupe_key: `opportunity-approval:${approvalId}:${decision}`,
+                payload: {
+                  text: decision === "approved"
+                    ? `💬 La contrepartie accepte de poursuivre pour « ${subject} ». Votre Avatar peut maintenant négocier.`
+                    : `La contrepartie ne souhaite pas poursuivre pour « ${subject} ».`,
+                  approval_id: approvalId,
+                  fabric_id: fabricId,
+                  journey_id: journeyId,
+                  mandate_id: mandateId,
+                  workflow_state: decision === "approved" ? "negotiating" : "cancelled",
+                  contactability_level: decision === "approved" ? "C5" : journey?.contactability_level ?? "C4",
+                  readiness_level: decision === "approved" ? "R5" : journey?.readiness_level ?? "R4",
+                  next_best_action: decision === "approved" ? "NEGOTIATE" : "DROP_LOW_QUALITY",
+                },
+              });
+            }
+          }
+
+          if (mandateId) {
+            const { data: mandate } = await sb.from("waouh_avatar_mandates")
+              .select("replied_count,qualified_count")
+              .eq("id", mandateId)
+              .maybeSingle();
+            if (mandate) {
+              await sb.from("waouh_avatar_mandates").update({
+                replied_count: Number(mandate.replied_count || 0) + 1,
+                qualified_count: Number(mandate.qualified_count || 0) + (decision === "approved" ? 1 : 0),
+                updated_at: now,
+              }).eq("id", mandateId);
+            }
+          }
+        }
+
         await audit(sb, ownerId, `approval.${decision}`, "approval", approvalId, { action_type: approval.action_type }, approval.mission_id);
         await enqueue(sb, ownerId, `approval.${decision}`, "approval", approvalId, { approval_id: approvalId }, `approval.${decision}:${approvalId}`, approval.mission_id);
         return jsonResponse({ ok: true, data: { approval: data } });
