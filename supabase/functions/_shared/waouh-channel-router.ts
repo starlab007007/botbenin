@@ -41,7 +41,10 @@ export function routeOpportunityChannel(input: {
     }
     if (channel === "email") return input.allowEmail === true;
     if (channel === "sms" || channel === "rcs" || channel === "sms_rcs") {
-      return input.allowSmsRcs === true;
+      return input.allowSmsRcs === true &&
+        row.reachable !== false &&
+        ["opt_in","initiated"].includes(String(row.consent_state || "")) &&
+        ["C3","C4","C5"].includes(level);
     }
     if (channel === "phone") {
       if (row.reachable === false) return false;
@@ -114,12 +117,22 @@ export function routeOpportunityChannel(input: {
       candidates: ranked,
     };
   }
-  if (channel === "email" || channel === "sms" || channel === "rcs" || channel === "sms_rcs") {
+  if (channel === "sms" || channel === "rcs" || channel === "sms_rcs") {
+    return {
+      primary_channel: channel,
+      mode: "automated",
+      can_dispatch: true,
+      reason: "native_messaging_active_consent",
+      fallback_channels: fallback,
+      candidates: ranked,
+    };
+  }
+  if (channel === "email") {
     return {
       primary_channel: channel,
       mode: "approval",
       can_dispatch: false,
-      reason: "provider_not_yet_bound",
+      reason: "email_provider_not_bound",
       fallback_channels: fallback,
       candidates: ranked,
     };
