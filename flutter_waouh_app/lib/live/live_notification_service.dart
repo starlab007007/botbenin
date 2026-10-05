@@ -179,21 +179,34 @@ class LiveNotificationService {
   }
 
   Future<void> markRead(String id) async {
-    // Queue entries are historical/read-only. Updating the unified table is a
-    // safe best-effort operation; a missing row simply has no effect.
+    // Queue entries are historical/read-only. Unified notification writes go
+    // through the scoped backend so RLS remains closed to direct UPDATEs.
     try {
-      await chat.client
-          .from('waouh_notifications')
-          .update({'opened': true}).eq('id', id);
+      final sid = await session.sessionId;
+      await chat.client.functions.invoke(
+        'waouh-history',
+        headers: <String, String>{'x-waouh-session': sid},
+        body: <String, dynamic>{
+          'action': 'mark_notifications_read',
+          'sessionId': sid,
+          'authUserId': chat.client.auth.currentUser?.id,
+          'notificationIds': <String>[id],
+        },
+      );
     } catch (_) {}
   }
 
   Future<void> markAllRead(String? authUserId) async {
-    final scope = await _notificationScope(authUserId);
-    if (scope.unifiedOrClause.isEmpty) return;
-    await chat.client
-        .from('waouh_notifications')
-        .update({'opened': true}).or(scope.unifiedOrClause);
+    final sid = await session.sessionId;
+    await chat.client.functions.invoke(
+      'waouh-history',
+      headers: <String, String>{'x-waouh-session': sid},
+      body: <String, dynamic>{
+        'action': 'mark_notifications_read',
+        'sessionId': sid,
+        'authUserId': authUserId,
+      },
+    );
   }
 
   Future<List<LiveMatch>> cachedMatches(
