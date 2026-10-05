@@ -5,6 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
 import { getRadarApiKey, incrementRadarUsage } from "../_shared/radar-api-config.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -43,6 +44,8 @@ async function aiExtract(text: string): Promise<any> {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
+  const guard = await requireRuntimeOrAdmin(req, sb);
+  if (!guard.ok) return guard.response;
   const inserted: any[] = [];
   let scanned = 0;
 
