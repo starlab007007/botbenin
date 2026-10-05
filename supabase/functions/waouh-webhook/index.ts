@@ -599,6 +599,16 @@ serve(async (req) => {
                 },
               })
               .eq("id", signal.id);
+            await sb.from("waouh_contact_packs").update({
+              contactability_level: "C5",
+              readiness_level: "R5",
+              readiness_score: 100,
+              actionability_score: 100,
+              next_best_action: "NEGOTIATE",
+              best_channel: "whatsapp",
+              last_verified_at: replyAt,
+              updated_at: replyAt,
+            }).eq("fabric_id", nexusFabricId);
             if (signal.entity_id) {
               await sb.from("waouh_entity_contacts")
                 .update({
