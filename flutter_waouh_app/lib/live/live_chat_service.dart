@@ -75,23 +75,27 @@ class LiveChatService {
         .or(clauses.join(','))
         .limit(100);
 
-    // React useWaouhIdentity performs this best-effort link after sign-in.
-    // Without it, a WAOUH identity made before login remains detached and its
-    // message, match and notification history is invisible on Android.
+    // Bind a pre-login WAOUH identity through the secured backend. Direct
+    // UPDATE waouh_users is deliberately forbidden to authenticated clients.
     if (authUserId != null && authUserId.isNotEmpty) {
-      for (final raw in rows as List) {
+      final needsLink = (rows as List).any((raw) {
         final row = Map<String, dynamic>.from(raw as Map);
-        final id = liveText(row['id']);
-        final rowSession = liveText(row['web_session_id']);
-        final rowAuth = liveText(row['auth_user_id']);
-        if (id.isNotEmpty && rowSession == sid && rowAuth.isEmpty) {
-          try {
-            await client
-                .from('waouh_users')
-                .update({'auth_user_id': authUserId}).eq('id', id);
-          } catch (_) {
-            // Keep read access working when an old RLS policy rejects linking.
-          }
+        return liveText(row['web_session_id']) == sid &&
+            liveText(row['auth_user_id']).isEmpty;
+      });
+      if (needsLink) {
+        try {
+          await client.functions.invoke(
+            'waouh-history',
+            headers: <String, String>{'x-waouh-session': sid},
+            body: <String, dynamic>{
+              'action': 'link_session',
+              'sessionId': sid,
+              'authUserId': authUserId,
+            },
+          );
+        } catch (_) {
+          // The session-scoped identity remains readable; a later refresh can retry.
         }
       }
     }
