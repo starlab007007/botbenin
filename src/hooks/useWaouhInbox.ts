@@ -50,7 +50,10 @@ export function useWaouhInbox(sessionId: string, authUserId: string | null) {
     setLoading(true);
     try {
       const body = authUserId ? { authUserId } : { sessionId };
-      const { data, error } = await supabase.functions.invoke("waouh-history", { body });
+      const { data, error } = await supabase.functions.invoke("waouh-history", {
+        headers: sessionId ? { "x-waouh-session": sessionId } : undefined,
+        body,
+      });
       if (!error && data?.ok && Array.isArray(data.conversations)) {
         setItems(data.conversations as WaouhInboxItem[]);
       } else {
@@ -104,14 +107,21 @@ export function useWaouhInbox(sessionId: string, authUserId: string | null) {
 
   const markRead = useCallback(async (conversationId: string) => {
     try {
-      await supabase.rpc("waouh_mark_conversation_read" as any, { p_conv_id: conversationId });
+      const body = authUserId
+        ? { authUserId, action: "mark_read", conversationId }
+        : { sessionId, action: "mark_read", conversationId };
+      const { error } = await supabase.functions.invoke("waouh-history", {
+        headers: sessionId ? { "x-waouh-session": sessionId } : undefined,
+        body,
+      });
+      if (error) throw error;
+      setItems((prev) =>
+        prev.map((it) => (it.id === conversationId ? { ...it, unread_count: 0 } : it))
+      );
     } catch (e) {
       console.debug("[waouh-inbox] markRead failed", e);
     }
-    setItems((prev) =>
-      prev.map((it) => (it.id === conversationId ? { ...it, unread_count: 0 } : it))
-    );
-  }, []);
+  }, [authUserId, sessionId]);
 
   return { items, loading, refresh, totalUnread, markRead };
 }
