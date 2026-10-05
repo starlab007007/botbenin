@@ -39,6 +39,7 @@ on:
       - "supabase/functions/_shared/waouh-signal-fabric.ts"
       - "supabase/functions/_shared/waouh-opportunity-os*.ts"
       - "supabase/functions/_shared/waouh-channel-router*.ts"
+      - "supabase/functions/_shared/waouh-promote*.ts"
       - "supabase/functions/waouh-opportunity-worker/**"
       - ".github/workflows/waouh-web-muse-nexus-ci.yml"
   pull_request:
@@ -183,6 +184,7 @@ jobs:
           deno test supabase/functions/_shared/waouh-commands-test.ts
           deno test supabase/functions/_shared/waouh-negotiation-intent-test.ts
           deno test supabase/functions/_shared/waouh-deal-open-test.ts
+          deno test supabase/functions/_shared/waouh-promote-test.ts
           deno test supabase/functions/_shared/waouh-interest-fastpath-test.ts
           deno test supabase/functions/_shared/waouh-message-catalog-test.ts
           deno test supabase/functions/_shared/waouh-commerce-v3-test.ts
