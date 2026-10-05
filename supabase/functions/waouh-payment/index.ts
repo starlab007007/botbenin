@@ -58,7 +58,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const action = body.action as "init" | "status" | "release";
+    const action = body.action as "init" | "status" | "release" | "confirm_received";
 
     // Try authenticated user (optional in demo mode – falls back to x-waouh-session)
     const authHeader = req.headers.get("Authorization");
