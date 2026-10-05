@@ -543,7 +543,7 @@ serve(async (req) => {
       const sessionName = technicalSessionName(user.id, displayName);
       const webhookToken = crypto.randomUUID().replace(/-/g, "");
       const webhookUrl =
-        `${supabaseUrl}/functions/v1/waha-studio-webhook?token=${webhookToken}`;
+        `${supabaseUrl}/functions/v1/waha-webhook?token=${webhookToken}`;
 
       const candidates = [
         "/api/sessions",
