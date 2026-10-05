@@ -45,6 +45,9 @@ const channelBase = (channel: string) => {
   switch (channel) {
     case "waouh": return 100;
     case "whatsapp": return 96;
+    case "rcs": return 88;
+    case "sms":
+    case "sms_rcs": return 78;
     case "phone": return 82;
     case "email": return 72;
     case "website": return 54;
@@ -73,7 +76,10 @@ export function rankChannels(channels: ChannelCandidate[]) {
   const canonicalPriority: Record<string, number> = {
     waouh: 6,
     whatsapp: 5,
+    rcs: 4.5,
     phone: 4,
+    sms: 3.5,
+    sms_rcs: 3.5,
     email: 3,
     website: 2,
     facebook: 1,
@@ -158,6 +164,9 @@ export function buildContactPack(input: ContactPackInput) {
     ranked.some((row) => row.reachable !== false && (
       row.channel === "waouh" ||
       row.channel === "whatsapp" ||
+      row.channel === "rcs" ||
+      row.channel === "sms" ||
+      row.channel === "sms_rcs" ||
       row.channel === "phone" ||
       row.channel === "email"
     ));
@@ -222,6 +231,9 @@ export function mandateAllowsContact(
   }
   if (pack.best_channel === "waouh" && mandate.allow_waouh !== false) return { allowed: true, reason: "waouh_allowed" };
   if (pack.best_channel === "whatsapp" && mandate.allow_whatsapp !== false) return { allowed: true, reason: "whatsapp_allowed" };
+  if (["sms","rcs","sms_rcs"].includes(String(pack.best_channel)) && mandate.allow_sms_rcs === true) {
+    return { allowed: true, reason: "native_messaging_allowed" };
+  }
   if (pack.best_channel === "email" && mandate.allow_email === true) return { allowed: true, reason: "email_allowed" };
   return { allowed: false, reason: "channel_not_allowed" };
 }
