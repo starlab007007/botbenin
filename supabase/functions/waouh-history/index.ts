@@ -52,6 +52,39 @@ serve(async (req) => {
     if (usersErr) throw usersErr;
     const userIds = (users || []).map((u: any) => u.id).filter(Boolean);
 
+    if (body?.action === "mark_read") {
+      const conversationId = typeof body?.conversationId === "string" ? body.conversationId.trim() : "";
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(conversationId)) {
+        return jsonError(422, "invalid_conversation_id");
+      }
+      if (!userIds.length) return jsonError(403, "conversation_scope_empty");
+
+      const { data: conversation, error: convAuthErr } = await sb
+        .from("waouh_conversations")
+        .select("id,user_id")
+        .eq("id", conversationId)
+        .in("user_id", userIds)
+        .maybeSingle();
+      if (convAuthErr) throw convAuthErr;
+      if (!conversation) return jsonError(403, "conversation_forbidden");
+
+      const { error: convUpdateErr } = await sb
+        .from("waouh_conversations")
+        .update({ unread_count: 0, updated_at: new Date().toISOString() })
+        .eq("id", conversationId);
+      if (convUpdateErr) throw convUpdateErr;
+
+      const { error: notifUpdateErr } = await sb
+        .from("waouh_notifications")
+        .update({ opened: true, read_at: new Date().toISOString() })
+        .eq("conversation_id", conversationId)
+        .in("user_id", userIds)
+        .eq("opened", false);
+      if (notifUpdateErr) throw notifUpdateErr;
+
+      return jsonResponse({ ok: true, conversation_id: conversationId, action: "mark_read" });
+    }
+
     // Messages: DESC + limit, then reverse ASC for client.
     let msgQuery = sb.from("waouh_messages")
       .select("id, conversation_id, user_id, web_session_id, phone_number, channel, direction, text, meta, attachments, created_at")
