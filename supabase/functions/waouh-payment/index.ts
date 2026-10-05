@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
         }
       }
       const allowedBuyerId = waouhBuyerId ?? userId;
-      if (tx.buyer_id && allowedBuyerId && tx.buyer_id !== allowedBuyerId && PAYMENT_MODE === "live") {
+      if (tx.buyer_id && (!allowedBuyerId || tx.buyer_id !== allowedBuyerId) && !serviceCall) {
         return json({ error: "Vous n'êtes pas l'acheteur de cette transaction" }, 403);
       }
       if (["paid", "released", "completed"].includes(tx.status)) {
@@ -213,6 +213,17 @@ Deno.serve(async (req) => {
     // ---------------- STATUS ----------------
     if (action === "status") {
       const { transaction_id } = body;
+      if (!transaction_id) return json({ error: "transaction_id requis" }, 400);
+      const serviceCall = authHeader === `Bearer ${SERVICE_ROLE}`;
+      const { data: statusTx } = await sb.from("waouh_transactions")
+        .select("buyer_id")
+        .eq("id", transaction_id)
+        .maybeSingle();
+      if (!statusTx) return json({ error: "Transaction introuvable" }, 404);
+      if (statusTx.buyer_id && (!waouhBuyerId || statusTx.buyer_id !== waouhBuyerId) && !serviceCall) {
+        return json({ error: "Vous n'êtes pas l'acheteur de cette transaction" }, 403);
+      }
+
       const { data: pay } = await sb
         .from("waouh_payments")
         .select("*")
@@ -276,10 +287,10 @@ Deno.serve(async (req) => {
     // ---------------- RELEASE ----------------
     if (action === "release") {
       const { transaction_id } = body;
-      if (!userId) return json({ error: "Auth requise" }, 401);
+      if (!userId || !waouhBuyerId) return json({ error: "Auth requise" }, 401);
 
       const { data: tx } = await sb.from("waouh_transactions").select("*, seller:waouh_users!seller_id(*)").eq("id", transaction_id).single();
-      if (!tx || tx.buyer_id !== userId) return json({ error: "Non autorisé" }, 403);
+      if (!tx || tx.buyer_id !== waouhBuyerId) return json({ error: "Non autorisé" }, 403);
       if (tx.status !== "paid") return json({ error: "Transaction non payée" }, 400);
 
       const sellerPhone = (tx.seller?.phone_number || "").replace(/\D/g, "");
