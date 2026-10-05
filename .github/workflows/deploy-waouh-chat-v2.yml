@@ -59,6 +59,7 @@ on:
       - "supabase/functions/waouh-stock-analyze/**"
       - "supabase/functions/waouh-bi-query/**"
       - "supabase/functions/waouh-agent-insights/**"
+      - "supabase/functions/waouh-e2e-test/**"
       - "supabase/functions/waouh-opportunity-worker/**"
       - "supabase/functions/waouh-agentic-core/**"
       - "supabase/functions/waouh-outbound-dispatch/**"
@@ -329,6 +330,20 @@ jobs:
             supabase functions deploy "$fn"               --project-ref "$SUPABASE_PROJECT_REF"               --use-api               --no-verify-jwt
           done
           echo "✅ Existing WAOUH Chat function slots updated."
+
+      - name: Deploy admin E2E runner in dormant production slot
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The canonical waouh-e2e-test slug is reserved by Native Messaging
+          # while the project is at the Edge Function quota. Reuse the dormant
+          # setup-test-accounts slot for the admin-only E2E runner.
+          rm -rf supabase/functions/setup-test-accounts
+          cp -R supabase/functions/waouh-e2e-test supabase/functions/setup-test-accounts
+          supabase functions deploy setup-test-accounts \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --use-api
+          echo "✅ Admin E2E runner deployed in setup-test-accounts (verify_jwt=true)."
 
       - name: Deploy Opportunity OS in existing production slots
         shell: bash
