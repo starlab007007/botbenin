@@ -471,8 +471,11 @@ Deno.serve(async (req) => {
         if (!seenChat.has(chatId)) { seenChat.add(chatId); resolvedChatIds.push(chatId); }
       }
       if (resolvedChatIds.length === 0) {
-        await sb.from("waouh_outbound_queue").update({ status: "failed", last_error: `no WA contact for ${phone}` }).eq("id", it.id);
-        failed++; continue;
+        // Definitive WAHA preflight failure: persist it through finishFailed so
+        // Opportunity OS learns that this contact is not WhatsApp-reachable and
+        // can select another consented/public channel on the next cycle.
+        await finishFailed(`no WA contact for ${phone}`, false);
+        continue;
       }
 
       let lastErr = "";
