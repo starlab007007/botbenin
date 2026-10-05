@@ -428,12 +428,14 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
         setMessages((prev) => mergeMessages(prev, page.messages));
       }
       if (uid) {
-        supabase
-          .from("waouh_users")
-          .update({ auth_user_id: uid })
-          .eq("web_session_id", sessionId)
-          .is("auth_user_id", null)
-          .then(() => {}, () => {});
+        void supabase.functions.invoke("waouh-history", {
+          headers: { "x-waouh-session": sessionId },
+          body: {
+            action: "link_session",
+            sessionId,
+            authUserId: uid,
+          },
+        }).catch(() => {});
       }
     });
 
