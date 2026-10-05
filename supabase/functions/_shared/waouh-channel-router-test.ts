@@ -91,3 +91,34 @@ Deno.test("Channel Router: un canal WAHA injoignable est exclu des relances", ()
   assertEquals(route.can_dispatch, false);
   assertEquals(route.reason, "no_allowed_channel");
 });
+
+
+Deno.test("Channel Router: SMS actif avec opt-in et mandat explicite", () => {
+  const route = routeOpportunityChannel({
+    contactability: "C3",
+    channels: [{
+      channel: "sms",
+      verified: true,
+      reachable: true,
+      consent_state: "opt_in",
+    }],
+    allowSmsRcs: true,
+  });
+  assertEquals(route.primary_channel, "sms");
+  assertEquals(route.can_dispatch, true);
+  assertEquals(route.reason, "native_messaging_active_consent");
+});
+
+Deno.test("Channel Router: SMS sans consentement reste interdit", () => {
+  const route = routeOpportunityChannel({
+    contactability: "C3",
+    channels: [{
+      channel: "sms",
+      verified: true,
+      reachable: true,
+      consent_state: "public_business",
+    }],
+    allowSmsRcs: true,
+  });
+  assertEquals(route.can_dispatch, false);
+});
