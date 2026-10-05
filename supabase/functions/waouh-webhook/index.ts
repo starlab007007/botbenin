@@ -383,8 +383,18 @@ serve(async (req) => {
   try {
     const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const body = await req.json();
+    const inboundMetaMessage = body.entry?.[0]?.changes?.[0]?.value?.messages?.[0] ?? null;
+    const inboundMessageRef = [
+      body.message_id,
+      body.messageId,
+      body.id,
+      body.message?.id,
+      body._data?.id?._serialized,
+      body._data?.id,
+      inboundMetaMessage?.id,
+    ].find((value) => typeof value === "string" && value.trim().length > 0)?.trim() ?? null;
 
-    const phone = body.phone_number || body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.from;
+    const phone = body.phone_number || inboundMetaMessage?.from;
     const webSessionId = body.web_session_id || null;
     const text = body.text || body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.text?.body || "";
     const lat = body.lat ?? 6.36;
@@ -569,7 +579,7 @@ serve(async (req) => {
               p_thread_id: journey.thread_id || null,
               p_negotiation_id: journey.negotiation_id || null,
               p_deal_id: journey.deal_id || null,
-              p_external_ref: nexusOutbound?.id ? `reply:${nexusOutbound.id}` : null,
+              p_external_ref: inboundMessageRef ? `reply:${inboundMessageRef}` : null,
               p_payload: {
                 reply_preview: String(text || "").slice(0, 180),
                 contact_id: nexusContactId || null,
