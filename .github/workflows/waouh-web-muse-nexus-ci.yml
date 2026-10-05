@@ -162,6 +162,9 @@ jobs:
       - name: Check WAOUH Deal Operations
         run: deno check supabase/functions/waouh-deal-ops/index.ts
 
+      - name: Check WAOUH Payment
+        run: deno check supabase/functions/waouh-payment/index.ts
+
       - name: Check WAOUH Commerce Action
         run: deno check supabase/functions/waouh-commerce-action/index.ts
 
