@@ -1498,6 +1498,8 @@ class StatusController extends ChangeNotifier {
 }
 
 class NotificationsController {
+  final LiveSessionStore _sessionStore = LiveSessionStore();
+
   Future<List<String>> _waouhUserIds(User? user) async {
     if (user == null) return const [];
     try {
@@ -1544,19 +1546,50 @@ class NotificationsController {
   }
 
   Future<void> markRead(String id) async {
-    await supabase
-        .from('waouh_notifications')
-        .update({'opened': true, 'read_at': DateTime.now().toIso8601String()})
-        .eq('id', id);
+    final cleanId = id.trim();
+    if (cleanId.isEmpty) return;
+    final sid = await _sessionStore.sessionId;
+    final response = await supabase.functions.invoke(
+      'waouh-history',
+      headers: <String, String>{'x-waouh-session': sid},
+      body: {
+        'action': 'mark_notification_read',
+        'sessionId': sid,
+        'notificationId': cleanId,
+      },
+    );
+    final data = response.data;
+    if (data is! Map || data['ok'] != true) {
+      throw StateError(
+        asString(
+          data is Map ? data['error'] : null,
+          'Notification impossible à marquer comme lue',
+        ),
+      );
+    }
   }
 
   Future<void> markAllRead(User? user) async {
-    final ids = await _waouhUserIds(user);
-    if (ids.isEmpty) return;
-    await supabase
-        .from('waouh_notifications')
-        .update({'opened': true, 'read_at': DateTime.now().toIso8601String()})
-        .inFilter('user_id', ids);
+    if (user == null) return;
+    final sid = await _sessionStore.sessionId;
+    final response = await supabase.functions.invoke(
+      'waouh-history',
+      headers: <String, String>{'x-waouh-session': sid},
+      body: {
+        'action': 'mark_all_notifications_read',
+        'sessionId': sid,
+        'authUserId': user.id,
+      },
+    );
+    final data = response.data;
+    if (data is! Map || data['ok'] != true) {
+      throw StateError(
+        asString(
+          data is Map ? data['error'] : null,
+          'Notifications impossibles à marquer comme lues',
+        ),
+      );
+    }
   }
 }
 
