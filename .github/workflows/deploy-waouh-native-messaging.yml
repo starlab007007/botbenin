@@ -76,9 +76,14 @@ on:
   workflow_dispatch:
     inputs:
       deploy:
-        description: "Déployer la migration et les Edge Functions après validation"
+        description: "Déployer les Edge Functions après validation"
         required: true
         default: true
+        type: boolean
+      apply_migrations:
+        description: "Appliquer explicitement les migrations Supabase en attente"
+        required: true
+        default: false
         type: boolean
 
 permissions:
@@ -355,7 +360,15 @@ jobs:
             --password "$SUPABASE_DB_PASSWORD"
           echo '✅ Projet Supabase de production lié.'
 
+      - name: Explain migration gate
+        if: github.event_name != 'workflow_dispatch' || inputs.apply_migrations != true
+        run: |
+          echo 'ℹ️ Push production : aucun db push générique.'
+          echo 'ℹ️ Le projet a un historique de migration drift connu ; les migrations sont appliquées par release contrôlée.'
+          echo 'ℹ️ Utilisez workflow_dispatch + apply_migrations=true uniquement après revue explicite.'
+
       - name: Preview pending database migrations
+        if: github.event_name == 'workflow_dispatch' && inputs.apply_migrations == true
         shell: bash
         run: |
           set -euo pipefail
@@ -367,6 +380,7 @@ jobs:
           echo '✅ Simulation terminée; aucune migration appliquée pendant cette étape.'
 
       - name: Apply pending database migrations
+        if: github.event_name == 'workflow_dispatch' && inputs.apply_migrations == true
         shell: bash
         run: |
           set -euo pipefail
@@ -374,7 +388,7 @@ jobs:
             --linked \
             --password "$SUPABASE_DB_PASSWORD" \
             --yes
-          echo '✅ Migrations Supabase de production appliquées.'
+          echo '✅ Migrations Supabase de production appliquées explicitement.'
 
       - name: Deploy Native Messaging Edge Functions
         shell: bash
