@@ -225,7 +225,23 @@ jobs:
             to_regclass('public.waouh_persistent_intents') is not null as persistent_intents,
             to_regclass('public.waouh_contact_packs') is not null as contact_packs,
             to_regclass('public.waouh_conversation_bus_events') is not null as conversation_bus,
-            to_regprocedure('public.waouh_append_conversation_bus_event(uuid,text,text,text,text,uuid,uuid,uuid,uuid,uuid,uuid,text,jsonb)') is not null as conversation_bus_rpc
+            to_regprocedure('public.waouh_append_conversation_bus_event(uuid,text,text,text,text,uuid,uuid,uuid,uuid,uuid,uuid,text,jsonb)') is not null as conversation_bus_rpc,
+            to_regprocedure('public.waouh_sync_opportunity_from_negotiation()') is not null as negotiation_sync_rpc,
+            to_regprocedure('public.waouh_sync_opportunity_from_deal()') is not null as deal_sync_rpc,
+            exists(
+              select 1 from pg_trigger
+              where tgname='waouh_opportunity_sync_negotiation' and not tgisinternal
+            ) as negotiation_sync_trigger,
+            exists(
+              select 1 from pg_trigger
+              where tgname='waouh_opportunity_sync_deal' and not tgisinternal
+            ) as deal_sync_trigger,
+            exists(
+              select 1 from cron.job
+              where jobname='waouh-opportunity-worker-10m'
+                and active
+                and command like '%/waouh-e2e-v3-relay%'
+            ) as opportunity_worker_cron
           """
           print(json.dumps({"query": query}))
           PY
@@ -243,6 +259,9 @@ jobs:
           required = [
               "avatar_mandates", "persistent_intents", "contact_packs",
               "conversation_bus", "conversation_bus_rpc",
+              "negotiation_sync_rpc", "deal_sync_rpc",
+              "negotiation_sync_trigger", "deal_sync_trigger",
+              "opportunity_worker_cron",
           ]
           missing = [name for name in required if row.get(name) is not True]
           if missing:
