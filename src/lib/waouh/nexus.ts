@@ -601,6 +601,17 @@ export async function getNexusOpportunityStatus(input: { journey_id?: string; fa
   return invokeWaouhAgentic<{ journey: NexusOpportunityJourney }>("nexus.opportunity.status", input);
 }
 
+export async function listNexusOpportunityJourneys(input: { include_completed?: boolean; limit?: number } = {}) {
+  return invokeWaouhAgentic<{
+    journeys: NexusOpportunityJourney[];
+    items: NexusOpportunityJourney[];
+    active_count: number;
+  }>("nexus.opportunity.list", {
+    include_completed: input.include_completed === true,
+    limit: input.limit ?? 20,
+  });
+}
+
 export async function prepareNexusContact(fabricId: string) {
   return invokeWaouhAgentic<{
     fabric_id: string;
