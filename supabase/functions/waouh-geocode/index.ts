@@ -48,6 +48,22 @@ function normalizeCity(rawCity: string | null | undefined): { city: string; dist
   return { city: cleaned || "Cotonou", district: null };
 }
 
+function nearestCity(lat: number, lng: number) {
+  let best: (typeof BENIN_CITIES)[number] | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const city of BENIN_CITIES) {
+    if (typeof city.lat !== "number" || typeof city.lng !== "number") continue;
+    const dLat = city.lat - lat;
+    const dLng = city.lng - lng;
+    const distance = dLat * dLat + dLng * dLng;
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = city;
+    }
+  }
+  return best;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -59,6 +75,21 @@ serve(async (req) => {
     if (typeof lat === "number" && typeof lng === "number") {
       url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=fr&zoom=14`;
     } else if (typeof query === "string" && query.trim()) {
+      // Resolve known Benin cities/districts locally: faster, offline-tolerant,
+      // and avoids unnecessary Nominatim rate/network failures.
+      const local = normalizeCity(query);
+      if (typeof local.lat === "number" && typeof local.lng === "number") {
+        return new Response(JSON.stringify({
+          city: local.city,
+          district: local.district,
+          country: "Bénin",
+          display_name: [local.district, local.city, "Bénin"].filter(Boolean).join(", "),
+          lat: local.lat,
+          lng: local.lng,
+          normalized: true,
+          source: "local",
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
       // Bias towards Benin to avoid false matches in other countries.
       url = `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(query + ", Bénin")}&accept-language=fr&limit=1&countrycodes=bj`;
     } else {
@@ -68,9 +99,17 @@ serve(async (req) => {
     }
 
     const res = await fetch(url, {
+      signal: AbortSignal.timeout(6500),
       headers: { "User-Agent": "WAOUH/1.0 (bot.bj)", "Accept": "application/json" },
     });
-    const data: any = await res.json();
+    const raw = await res.text();
+    if (!res.ok) throw new Error(`nominatim_${res.status}`);
+    let data: any;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      throw new Error("nominatim_invalid_json");
+    }
 
     let rawCity = "Cotonou", country = "Bénin", display_name = "", outLat = lat, outLng = lng;
     let rawDistrict: string | null = null;
@@ -103,12 +142,39 @@ serve(async (req) => {
       lat: outLat ?? norm.lat,
       lng: outLng ?? norm.lng,
       normalized: norm.city !== rawCity,
+      source: "nominatim",
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
-    return new Response(JSON.stringify({ error: e.message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    // Geocoding is a convenience integration: upstream failure must not break
+    // the commerce journey. Fall back to the curated Benin map when possible.
+    try {
+      const body = await req.clone().json().catch(() => ({}));
+      const lat = Number(body?.lat);
+      const lng = Number(body?.lng);
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        const city = nearestCity(lat, lng);
+        if (city) {
+          return new Response(JSON.stringify({
+            city: city.ville,
+            district: null,
+            country: "Bénin",
+            display_name: `${city.ville}, Bénin`,
+            lat,
+            lng,
+            normalized: true,
+            source: "local_fallback",
+            degraded: true,
+          }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+      }
+    } catch (_) {
+      // Ignore fallback parsing errors.
+    }
+    console.error("[waouh-geocode]", e?.message || String(e));
+    return new Response(JSON.stringify({ error: "geocoding_temporarily_unavailable" }), {
+      status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
