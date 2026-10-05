@@ -44,23 +44,19 @@ class LiveDiffusionData {
   }
 
   Future<List<LiveAiDiffusionRequest>> aiRequests() async {
-    try {
-      final payload = await invokeJson('waouh-diffusion-my-requests', const {});
-      final rawRequests = payload['requests'];
-      if (rawRequests is List) {
-        return rawRequests.whereType<Map>().map((item) => LiveAiDiffusionRequest.fromJson(Map<String, dynamic>.from(item))).toList();
-      }
-    } catch (_) {
-      // The deployment can still be in progress. The RLS-protected fallback
-      // keeps requests visible to their creator.
-    }
+    // Canonical production path: the approval table is RLS-scoped to the
+    // signed-in creator. The legacy waouh-diffusion-my-requests Edge Function
+    // is not deployed and must not add a failing network round-trip.
     final rows = await client
         .from('waouh_diffusion_approvals')
         .select('id,campaign_id,status,quota_requested,quota_approved,audience_snapshot,audience_filters,message_template,media_url,reason,created_at')
         .eq('requested_by', userId)
         .order('created_at', ascending: false)
         .limit(100);
-    return (rows as List).map((item) => LiveAiDiffusionRequest.fromJson(Map<String, dynamic>.from(item as Map))).toList();
+    return (rows as List)
+        .map((item) => LiveAiDiffusionRequest.fromJson(
+            Map<String, dynamic>.from(item as Map)))
+        .toList();
   }
 
   Future<LiveAiDiffusionRequest> submitAiRequest({
@@ -160,19 +156,14 @@ class LiveDiffusionData {
   }
 
   Future<void> cancelAiRequest(String approvalId) async {
-    try {
-      await invokeJson('waouh-diffusion-cancel', {'approval_id': approvalId});
-      return;
-    } catch (_) {
-      // Existing production policy permits a creator to cancel only a pending
-      // request. This safe fallback remains useful during edge-function rollout.
-      await client
-          .from('waouh_diffusion_approvals')
-          .update({'status': 'cancelled'})
-          .eq('id', approvalId)
-          .eq('requested_by', userId)
-          .eq('status', 'pending');
-    }
+    // Canonical production path: RLS permits only the creator (or admin) to
+    // cancel a pending approval. Avoid the retired waouh-diffusion-cancel slug.
+    await client
+        .from('waouh_diffusion_approvals')
+        .update({'status': 'cancelled'})
+        .eq('id', approvalId)
+        .eq('requested_by', userId)
+        .eq('status', 'pending');
   }
 
   Future<void> addContact(String phone, {String? name}) async {
