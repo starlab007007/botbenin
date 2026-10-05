@@ -653,6 +653,7 @@ class NexusOpportunityJourney {
     this.sourceKey,
     this.sourceUrl,
     this.contactChannel,
+    this.lastAction,
     this.lastMessage,
     this.articleId,
     this.threadId,
@@ -678,6 +679,7 @@ class NexusOpportunityJourney {
   final String? sourceKey;
   final String? sourceUrl;
   final String? contactChannel;
+  final String? lastAction;
   final String? lastMessage;
   final String? articleId;
   final String? threadId;
@@ -710,6 +712,8 @@ class NexusOpportunityJourney {
         contactChannel: json['contact_channel'] == null
             ? null
             : _text(json['contact_channel']),
+        lastAction:
+            json['last_action'] == null ? null : _text(json['last_action']),
         lastMessage:
             json['last_message'] == null ? null : _text(json['last_message']),
         articleId: json['article_id'] == null ? null : _text(json['article_id']),
