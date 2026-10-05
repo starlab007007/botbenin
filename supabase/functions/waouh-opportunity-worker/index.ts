@@ -527,6 +527,92 @@ async function contactInternal(sb: SupabaseClient, mandate: any, signal: any, jo
   return { contacted: true, channel: "waouh" };
 }
 
+async function queueNativeOpportunityMessage(
+  sb: SupabaseClient,
+  mandate: any,
+  signal: any,
+  journey: any,
+  resolved: any,
+  channel: "sms" | "rcs",
+  message: string,
+  options: { followupIndex?: number | null } = {},
+) {
+  const target = (resolved.nativeTargets ?? []).find((row: any) => row.channel === channel);
+  if (!target?.tel_user_id) return { contacted: false, reason: "native_target_missing" };
+
+  const suffix = options.followupIndex
+    ? `followup:${options.followupIndex}`
+    : "initial";
+  const dedupe = `opportunity-os-native:${journey.id}:${suffix}:${channel}`;
+  await enqueueTelMessage(sb, {
+    targetUserId: target.tel_user_id,
+    channelPreference: channel,
+    bypassConsent: false,
+    messageKind: "message",
+    dedupeKey: dedupe,
+    payload: {
+      schema: "waouh.tel.outbound.v1",
+      text: message,
+    },
+  });
+
+  await sb.rpc("waouh_append_conversation_bus_event", {
+    p_owner_id: mandate.owner_id,
+    p_event_type: options.followupIndex
+      ? "autonomy.native_followup_queued"
+      : "autonomy.native_contact_queued",
+    p_channel: channel,
+    p_direction: "out",
+    p_fabric_id: signal.fabric_id,
+    p_journey_id: journey.id,
+    p_mandate_id: mandate.id,
+    p_article_id: journey.article_id || null,
+    p_thread_id: journey.thread_id || null,
+    p_negotiation_id: journey.negotiation_id || null,
+    p_deal_id: journey.deal_id || null,
+    p_external_ref: dedupe,
+    p_payload: {
+      native_tel_user_id: target.tel_user_id,
+      contact_id: target.contact_id ?? null,
+      phone_last4: target.last4 ?? null,
+      source_key: signal.source_key,
+      followup_index: options.followupIndex ?? null,
+    },
+  });
+
+  const now = new Date().toISOString();
+  await sb.from("waouh_opportunity_journeys").update({
+    stage: "waiting_reply",
+    contact_channel: channel,
+    last_action: options.followupIndex
+      ? "autonomous_native_followup_queued"
+      : "autonomous_native_contact_queued",
+    next_action: "WAIT_REPLY",
+    last_message: options.followupIndex
+      ? `Avatar a relancé cette opportunité par ${channel.toUpperCase()}.`
+      : `Avatar a contacté cette opportunité par ${channel.toUpperCase()} selon votre mandat.`,
+    last_activity_at: now,
+    updated_at: now,
+  }).eq("id", journey.id);
+
+  const secret = await telRuntimeSecret("internal_secret").catch(() => "");
+  if (secret) {
+    const dispatchFn = Deno.env.get("WAOUH_TEL_DISPATCH_FUNCTION") || "waouh-e2e-test";
+    const dispatch = fetch(`${SUPABASE_URL}/functions/v1/${dispatchFn}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ limit: 20, inbox_limit: 3, source: "opportunity_os" }),
+    }).catch((error) => console.warn("[Opportunity OS] native dispatch", error));
+    const runtime = (globalThis as any).EdgeRuntime;
+    if (runtime?.waitUntil) runtime.waitUntil(dispatch);
+  }
+
+  return { contacted: true, channel };
+}
+
 async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, journey: any, resolved: any) {
   const { pack, contacts, externalSignal } = resolved;
   if (!externalSignal?.entity_id) return { contacted: false, reason: "external_entity_missing" };
@@ -548,6 +634,15 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
     allowSmsRcs: mandate.allow_sms_rcs === true,
   });
   if (!route.can_dispatch) return { contacted: false, reason: route.reason };
+  const message = mandate.mode === "sell"
+    ? `Bonjour, WAOUH accompagne un vendeur dont l’offre correspond à votre besoin « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre dans WAOUH ?`
+    : `Bonjour, WAOUH accompagne un utilisateur intéressé par « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre dans WAOUH ?`;
+
+  if (route.primary_channel === "sms" || route.primary_channel === "rcs") {
+    return await queueNativeOpportunityMessage(
+      sb, mandate, signal, journey, resolved, route.primary_channel, message,
+    );
+  }
   if (!["whatsapp","phone"].includes(String(route.primary_channel || ""))) {
     return { contacted: false, reason: "provider_not_bound" };
   }
@@ -571,9 +666,6 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
   const { data: already } = await sb.from("waouh_conversation_bus_events").select("id").eq("external_ref", ref).maybeSingle();
   if (already) return { contacted: false, reason: "already_contacted" };
 
-  const message = mandate.mode === "sell"
-    ? `Bonjour, WAOUH accompagne un vendeur dont l’offre correspond à votre besoin « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre dans WAOUH ?`
-    : `Bonjour, WAOUH accompagne un utilisateur intéressé par « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre dans WAOUH ?`;
   const dedupe = `opportunity-os:${mandate.id}:${signal.fabric_id}:${await sha256Hex(message)}`;
   const { error } = await sb.rpc("waouh_enqueue_outbound_v2", {
     p_to_phone: e164.replace(/\D/g, ""),
@@ -650,8 +742,22 @@ async function runExternalFollowUp(
     allowEmail: mandate.allow_email === true,
     allowSmsRcs: mandate.allow_sms_rcs === true,
   });
-  if (!route.can_dispatch || !["whatsapp","phone"].includes(String(route.primary_channel || ""))) {
+  if (!route.can_dispatch) {
     return { sent: false, reason: route.reason || "no_followup_channel" };
+  }
+
+  const message = `Bonjour, WAOUH revient vers vous concernant « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre l’échange dans WAOUH ?`;
+  if (route.primary_channel === "sms" || route.primary_channel === "rcs") {
+    const native = await queueNativeOpportunityMessage(
+      sb, mandate, signal, journey, resolved, route.primary_channel, message,
+      { followupIndex },
+    );
+    return native.contacted
+      ? { sent: true, channel: native.channel }
+      : { sent: false, reason: native.reason };
+  }
+  if (!["whatsapp","phone"].includes(String(route.primary_channel || ""))) {
+    return { sent: false, reason: "no_followup_channel" };
   }
 
   const level = String(resolved.externalSignal?.contactability_level || "C0");
@@ -672,7 +778,6 @@ async function runExternalFollowUp(
   const e164 = normalizeE164(clear);
   if (!e164) return { sent: false, reason: "invalid_phone" };
 
-  const message = `Bonjour, WAOUH revient vers vous concernant « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre l’échange dans WAOUH ?`;
   const dedupe = `opportunity-os-followup:${journey.id}:${followupIndex}`;
   const { error } = await sb.rpc("waouh_enqueue_outbound_v2", {
     p_to_phone: e164.replace(/\D/g, ""),
