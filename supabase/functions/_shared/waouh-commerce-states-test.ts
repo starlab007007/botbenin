@@ -3,6 +3,7 @@ import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   checkOperatorDealTransition,
   journeyStepFor,
+  paymentAllowedAfterDelivery,
   OPERATOR_DEAL_STATUSES,
 } from "./waouh-commerce-states.ts";
 
@@ -46,4 +47,13 @@ Deno.test("étapes du parcours", () => {
   assertEquals(journeyStepFor("assigned"), "courier");
   assertEquals(journeyStepFor("completed"), "payment");
   assertEquals(journeyStepFor("inconnu"), null);
+});
+
+
+Deno.test("paiement canonique: interdit avant livraison et autorisé après", () => {
+  for (const state of ["awaiting_confirmation", "pending_assignment", "assigned", "picked_up", "cancelled", null]) {
+    assertEquals(paymentAllowedAfterDelivery(state), false);
+  }
+  assertEquals(paymentAllowedAfterDelivery("delivered"), true);
+  assertEquals(paymentAllowedAfterDelivery("completed"), true);
 });
