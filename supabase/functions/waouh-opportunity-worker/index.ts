@@ -15,6 +15,8 @@ import {
   type ChannelCandidate,
 } from "../_shared/waouh-opportunity-os.ts";
 import { routeOpportunityChannel } from "../_shared/waouh-channel-router.ts";
+import { enqueueTelMessage } from "../_shared/waouh-tel/db.ts";
+import { telRuntimeSecret } from "../_shared/waouh-tel/runtime-secret.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -105,6 +107,8 @@ async function resolvePack(sb: SupabaseClient, signal: any) {
   let entityId: string | null = null;
   let externalSignal: any = null;
   let contacts: any[] = [];
+  const nativeTargets: Array<{ channel: "sms" | "rcs"; tel_user_id: string; last4?: string | null }> = [];
+  let effectiveContactability = String(signal.contactability_level ?? "C0");
   if (internal) {
     channels.push({
       channel: "waouh",
@@ -123,7 +127,7 @@ async function resolvePack(sb: SupabaseClient, signal: any) {
     entityId = data?.entity_id ?? null;
     if (entityId) {
       const { data: rows } = await sb.from("waouh_entity_contacts")
-        .select("id,channel,value_encrypted,value_last4,public_value,contactability_level,consent_state,is_public_business,verified_at,verification_status,last_success_at,last_failure_at,sent_count,reply_count,failure_count,is_whatsapp_reachable")
+        .select("id,channel,value_encrypted,value_hash,value_last4,public_value,contactability_level,consent_state,is_public_business,verified_at,verification_status,last_success_at,last_failure_at,sent_count,reply_count,failure_count,is_whatsapp_reachable")
         .eq("entity_id", entityId)
         .order("contactability_level", { ascending: false }).limit(20);
       contacts = rows ?? [];
@@ -141,12 +145,80 @@ async function resolvePack(sb: SupabaseClient, signal: any) {
           failure_count: Number(row.failure_count ?? 0),
         });
       }
+
+      // Native Messaging is considered actionable only when the phone is already
+      // linked to a WAOUH Tel identity with an ACTIVE conversation consent.
+      // We never synthesize consent from a public phone number.
+      const phoneHashes = [...new Set(
+        contacts
+          .filter((row: any) => ["phone","whatsapp"].includes(String(row.channel || "")) && row.value_hash)
+          .map((row: any) => String(row.value_hash)),
+      )];
+      if (phoneHashes.length) {
+        const { data: telSettings } = await sb.from("waouh_tel_settings")
+          .select("enabled,provider,sms_enabled,rcs_enabled")
+          .eq("key", "default").maybeSingle();
+        if (telSettings?.enabled === true && telSettings.provider !== "not_configured") {
+          const { data: telUsers } = await sb.from("waouh_tel_users")
+            .select("id,phone_hash,phone_last4,status")
+            .in("phone_hash", phoneHashes)
+            .eq("status", "active");
+          const telIds = (telUsers ?? []).map((row: any) => row.id);
+          if (telIds.length) {
+            const [{ data: consents }, { data: capabilities }] = await Promise.all([
+              sb.from("waouh_tel_consents")
+                .select("tel_user_id,channel,status,purpose")
+                .in("tel_user_id", telIds)
+                .eq("status", "active")
+                .eq("purpose", "conversation"),
+              sb.from("waouh_tel_capabilities")
+                .select("tel_user_id,rcs_reachable,expires_at")
+                .in("tel_user_id", telIds),
+            ]);
+            const userById = new Map((telUsers ?? []).map((row: any) => [String(row.id), row]));
+            const capabilityByUser = new Map((capabilities ?? []).map((row: any) => [String(row.tel_user_id), row]));
+            for (const consent of consents ?? []) {
+              const channel = String(consent.channel || "");
+              if (channel === "sms" && telSettings.sms_enabled !== true) continue;
+              if (channel === "rcs" && telSettings.rcs_enabled !== true) continue;
+              if (!["sms","rcs"].includes(channel)) continue;
+              const telUser = userById.get(String(consent.tel_user_id));
+              if (!telUser) continue;
+              const capability = capabilityByUser.get(String(consent.tel_user_id));
+              const rcsFresh = channel !== "rcs" || !capability?.expires_at || Date.parse(capability.expires_at) > Date.now();
+              const reachable = channel === "sms"
+                ? true
+                : (rcsFresh ? (capability?.rcs_reachable ?? null) : null);
+              channels.push({
+                channel,
+                last4: telUser.phone_last4 ?? null,
+                verified: true,
+                reachable,
+                public_business: false,
+                consent_state: "opt_in",
+              });
+              nativeTargets.push({
+                channel: channel as "sms" | "rcs",
+                tel_user_id: String(telUser.id),
+                last4: telUser.phone_last4 ?? null,
+              });
+            }
+            if (nativeTargets.length && ["C0","C1","C2"].includes(effectiveContactability)) {
+              effectiveContactability = "C3";
+              await sb.from("waouh_external_commerce_signals")
+                .update({ contactability_level: "C3", updated_at: new Date().toISOString() })
+                .eq("id", id);
+              externalSignal = { ...externalSignal, contactability_level: "C3" };
+            }
+          }
+        }
+      }
     }
   }
   const pack = buildContactPack({
     fabricId,
     sourceKey,
-    contactability: signal.contactability_level,
+    contactability: effectiveContactability,
     trustScore: signal.trust_score,
     observedAt: signal.observed_at,
     entityResolved: internal || !!entityId,
@@ -170,7 +242,7 @@ async function resolvePack(sb: SupabaseClient, signal: any) {
     last_verified_at: pack.verified_channel ? new Date().toISOString() : null,
     metadata: { subject: signal.subject ?? null, intent: signal.intent ?? null },
   }, { onConflict: "fabric_id" });
-  return { pack, externalSignal, contacts, internal };
+  return { pack, externalSignal, contacts, nativeTargets, internal };
 }
 
 async function enrichPublicBusinessContact(sb: SupabaseClient, signal: any, resolved: any) {
