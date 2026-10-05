@@ -68,6 +68,7 @@ Deno.serve(async (req) => {
     }
 
     let total = 0;
+    let providerBlocked = false;
     const perSource: any[] = [];
     for (const src of sources) {
       let srcCount = 0;
@@ -116,10 +117,15 @@ Deno.serve(async (req) => {
         await sb.from("waouh_radar_sources").update({ last_scan_at: new Date().toISOString(), last_signal_count: srcCount }).eq("id", src.id);
       } catch (e: any) {
         srcError = e?.message || String(e);
+        const quotaBlocked = /monthly usage hard limit exceeded|platform-feature-disabled|usage hard limit/i.test(srcError);
+        if (quotaBlocked) providerBlocked = true;
         console.error(`[apify ${src.id}]`, srcError);
         await sb.from("waouh_radar_sources").update({ last_scan_at: new Date().toISOString(), last_signal_count: 0 }).eq("id", src.id);
       }
       perSource.push({ id: src.id, type: src.type, count: srcCount, error: srcError });
+      // One account-level quota error applies to every actor/source. Do not
+      // hammer Apify repeatedly during the same run.
+      if (providerBlocked) break;
     }
 
     // Trigger processing
@@ -131,7 +137,7 @@ Deno.serve(async (req) => {
       }).catch(console.error);
     }
 
-    return new Response(JSON.stringify({ ok: true, sources: sources.length, signals: total, perSource }), {
+    return new Response(JSON.stringify({ ok: !providerBlocked, degraded: providerBlocked, reason: providerBlocked ? "apify_quota_exhausted" : null, sources: sources.length, signals: total, perSource }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
