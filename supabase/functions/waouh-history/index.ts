@@ -112,6 +112,42 @@ serve(async (req) => {
     if (usersErr) throw usersErr;
     const userIds = (users || []).map((u: any) => u.id).filter(Boolean);
 
+    if (body?.action === "mark_notifications_read") {
+      const rawIds = Array.isArray(body?.notificationIds) ? body.notificationIds : [];
+      const notificationIds = Array.from(new Set(
+        rawIds
+          .map((value: unknown) => String(value || "").trim())
+          .filter((value: string) =>
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+          ),
+      )).slice(0, 200);
+
+      const scopeOrs: string[] = [];
+      if (userIds.length) scopeOrs.push(`user_id.in.(${userIds.join(",")})`);
+      if (auth.sessionValid && auth.bodySessionId) {
+        scopeOrs.push(`web_session_id.eq.${auth.bodySessionId}`);
+      }
+      if (!scopeOrs.length) return jsonError(403, "notification_scope_empty");
+
+      let updateQuery = sb
+        .from("waouh_notifications")
+        .update({ opened: true, read_at: new Date().toISOString() })
+        .or(scopeOrs.join(","));
+      if (rawIds.length > 0) {
+        if (!notificationIds.length) return jsonError(422, "invalid_notification_ids");
+        updateQuery = updateQuery.in("id", notificationIds);
+      }
+
+      const { data: updated, error: updateErr } = await updateQuery.select("id");
+      if (updateErr) throw updateErr;
+
+      return jsonResponse({
+        ok: true,
+        action: "mark_notifications_read",
+        updated: (updated || []).length,
+      });
+    }
+
     if (body?.action === "mark_read") {
       const conversationId = typeof body?.conversationId === "string" ? body.conversationId.trim() : "";
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(conversationId)) {
