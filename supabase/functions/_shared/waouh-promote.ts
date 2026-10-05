@@ -69,9 +69,30 @@ export async function promoteCatalogToArticle(
   // exactement la même identité vendeur / thread que le parcours canonique.
   if (!sellerId && cat.source_ref_id) {
     const { data: sourceArticle } = await sb.from("waouh_articles")
-      .select("id,seller_id")
+      .select("id,seller_id,status")
       .eq("id", cat.source_ref_id)
       .maybeSingle();
+    if (sourceArticle?.id) {
+      const status = String(sourceArticle.status || "").toLowerCase();
+      const unavailable = new Set(["sold", "reserved", "archived", "deleted"]);
+      if (unavailable.has(status)) {
+        return {
+          article_id: null,
+          catalog_id,
+          created: false,
+          reason: "source_article_unavailable",
+        };
+      }
+      if (sourceArticle.seller_id) {
+        // Chat catalogue rows are a searchable projection of an existing
+        // canonical article, not a second listing. Link the catalogue back to
+        // that same article so thread_id/negotiation/deal remain unique.
+        await sb.from("waouh_unified_catalog")
+          .update({ promoted_article_id: sourceArticle.id })
+          .eq("id", catalog_id);
+        return { article_id: sourceArticle.id, catalog_id, created: false };
+      }
+    }
     sellerId = sourceArticle?.seller_id ?? null;
   }
 
