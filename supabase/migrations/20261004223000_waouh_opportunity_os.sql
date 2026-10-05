@@ -300,74 +300,153 @@ security definer
 set search_path=public
 as $$
 declare
-  v_stage text;
-  v_action text;
-  v_message text;
-  v_nba text;
   v_row record;
   v_has_live_deal boolean := false;
   v_ref text;
 begin
   if new.thread_id is null then return new; end if;
-  if tg_op='UPDATE' and new.state is not distinct from old.state then return new; end if;
+  if tg_op='UPDATE'
+     and new.state is not distinct from old.state
+     and new.last_offer_price is not distinct from old.last_offer_price
+     and new.last_actor is not distinct from old.last_actor then
+    return new;
+  end if;
 
-  if new.state='countered' then
-    v_stage := 'negotiating';
-    v_action := 'canonical_counterproposal';
-    v_message := 'Contre-proposition reçue dans le Deal Room. La négociation continue.';
-    v_nba := 'NEGOTIATE';
-  elsif new.state='accepted' then
-    -- The atomic acceptance RPC also creates the deal. The deal trigger is the
-    -- authoritative source for the "agreed" phase; this branch is a safe
-    -- fallback for legacy writers that only update the negotiation.
-    v_stage := 'agreed';
-    v_action := 'canonical_agreement';
-    v_message := 'Accord conclu sur le même fil canonique.';
-    v_nba := 'EXECUTE';
+  if new.state='accepted' then
+    -- The atomic acceptance RPC creates the deal before setting accepted.
+    -- Let the deal trigger own the agreed phase when that canonical deal exists.
+    select exists(
+      select 1 from public.waouh_deals d
+      where d.negotiation_id=new.id and d.status <> 'cancelled'
+    ) into v_has_live_deal;
+    if v_has_live_deal then return new; end if;
   elsif new.state='closed' then
     select exists(
       select 1 from public.waouh_deals d
       where d.negotiation_id=new.id and d.status <> 'cancelled'
     ) into v_has_live_deal;
     if v_has_live_deal then return new; end if;
-    v_stage := 'cancelled';
-    v_action := 'canonical_negotiation_closed';
-    v_message := 'Négociation clôturée sans accord.';
-    v_nba := 'DROP_LOW_QUALITY';
-  else
+  elsif new.state <> 'countered' then
     return new;
   end if;
 
   for v_row in
     update public.waouh_opportunity_journeys j
-       set stage=v_stage,
-           contactability_level=case when v_stage in ('negotiating','agreed') then 'C5' else j.contactability_level end,
-           readiness_level=case when v_stage in ('negotiating','agreed') then 'R5' else j.readiness_level end,
-           readiness_score=case when v_stage in ('negotiating','agreed') then 100 else j.readiness_score end,
-           actionability_score=case when v_stage in ('negotiating','agreed') then 100 else j.actionability_score end,
-           next_best_action=v_nba,
+       set stage=case
+             when new.state='countered'
+              and (
+                (j.mode in ('buy','ask') and new.last_actor='seller')
+                or (j.mode='sell' and new.last_actor='buyer')
+              ) then 'negotiating'
+             when new.state='countered' then j.stage
+             when new.state='accepted' then 'agreed'
+             when new.state='closed' then 'cancelled'
+             else j.stage
+           end,
+           contactability_level=case
+             when new.state='accepted'
+               or (
+                 new.state='countered'
+                 and (
+                   (j.mode in ('buy','ask') and new.last_actor='seller')
+                   or (j.mode='sell' and new.last_actor='buyer')
+                 )
+               ) then 'C5'
+             else j.contactability_level end,
+           readiness_level=case
+             when new.state='accepted'
+               or (
+                 new.state='countered'
+                 and (
+                   (j.mode in ('buy','ask') and new.last_actor='seller')
+                   or (j.mode='sell' and new.last_actor='buyer')
+                 )
+               ) then 'R5'
+             else j.readiness_level end,
+           readiness_score=case
+             when new.state='accepted'
+               or (
+                 new.state='countered'
+                 and (
+                   (j.mode in ('buy','ask') and new.last_actor='seller')
+                   or (j.mode='sell' and new.last_actor='buyer')
+                 )
+               ) then 100
+             else j.readiness_score end,
+           actionability_score=case
+             when new.state='accepted'
+               or (
+                 new.state='countered'
+                 and (
+                   (j.mode in ('buy','ask') and new.last_actor='seller')
+                   or (j.mode='sell' and new.last_actor='buyer')
+                 )
+               ) then 100
+             else j.actionability_score end,
+           next_best_action=case
+             when new.state='countered'
+               and (
+                 (j.mode in ('buy','ask') and new.last_actor='seller')
+                 or (j.mode='sell' and new.last_actor='buyer')
+               ) then 'NEGOTIATE'
+             when new.state='countered' then j.next_best_action
+             when new.state='accepted' then 'EXECUTE'
+             when new.state='closed' then 'DROP_LOW_QUALITY'
+             else j.next_best_action end,
            negotiation_id=new.id,
            article_id=coalesce(j.article_id,new.article_id),
            thread_id=coalesce(j.thread_id,new.thread_id),
-           last_action=v_action,
-           next_action=case v_stage
-             when 'negotiating' then 'NEGOTIATE'
-             when 'agreed' then 'EXECUTE'
-             when 'cancelled' then 'DROP_LOW_QUALITY'
+           last_action=case
+             when new.state='countered'
+               and (
+                 (j.mode in ('buy','ask') and new.last_actor='seller')
+                 or (j.mode='sell' and new.last_actor='buyer')
+               ) then 'canonical_counterparty_counterproposal'
+             when new.state='countered' then 'canonical_owner_offer_updated'
+             when new.state='accepted' then 'canonical_agreement'
+             when new.state='closed' then 'canonical_negotiation_closed'
+             else j.last_action end,
+           next_action=case
+             when new.state='countered'
+               and (
+                 (j.mode in ('buy','ask') and new.last_actor='seller')
+                 or (j.mode='sell' and new.last_actor='buyer')
+               ) then 'NEGOTIATE'
+             when new.state='accepted' then 'EXECUTE'
+             when new.state='closed' then 'DROP_LOW_QUALITY'
              else j.next_action end,
-           last_message=v_message,
+           last_message=case
+             when new.state='countered'
+               and (
+                 (j.mode in ('buy','ask') and new.last_actor='seller')
+                 or (j.mode='sell' and new.last_actor='buyer')
+               ) then 'Contre-proposition reçue dans le Deal Room. La négociation continue.'
+             when new.state='countered' then 'Votre nouvelle proposition a été transmise. Réponse de la contrepartie en attente.'
+             when new.state='accepted' then 'Accord conclu sur le même fil canonique.'
+             when new.state='closed' then 'Négociation clôturée sans accord.'
+             else j.last_message end,
            timeline=coalesce(j.timeline,'[]'::jsonb) || jsonb_build_array(
              jsonb_build_object(
                'at',now(),
-               'stage',v_stage,
-               'action',v_action,
+               'stage',case
+                 when new.state='countered'
+                   and (
+                     (j.mode in ('buy','ask') and new.last_actor='seller')
+                     or (j.mode='sell' and new.last_actor='buyer')
+                   ) then 'negotiating'
+                 when new.state='accepted' then 'agreed'
+                 when new.state='closed' then 'cancelled'
+                 else j.stage end,
+               'action','canonical_negotiation_update',
                'thread_id',new.thread_id,
                'negotiation_id',new.id,
-               'negotiation_state',new.state
+               'negotiation_state',new.state,
+               'last_actor',new.last_actor,
+               'last_offer_price',new.last_offer_price
              )
            ),
            last_activity_at=now(),
-           completed_at=case when v_stage='cancelled' then coalesce(j.completed_at,now()) else j.completed_at end,
+           completed_at=case when new.state='closed' then coalesce(j.completed_at,now()) else j.completed_at end,
            updated_at=now()
      where j.stage not in ('completed','cancelled')
        and (
@@ -376,15 +455,17 @@ begin
        )
      returning j.*
   loop
-    v_ref := 'negotiation:' || new.id::text || ':' || new.state || ':journey:' || v_row.id::text;
+    v_ref := 'negotiation:' || new.id::text || ':' || new.state || ':' ||
+      coalesce(new.last_actor,'') || ':' || coalesce(new.last_offer_price::text,'') ||
+      ':journey:' || v_row.id::text;
     if v_row.fabric_id is not null then
       update public.waouh_contact_packs
-         set contactability_level=case when v_stage in ('negotiating','agreed') then 'C5' else contactability_level end,
-             readiness_level=case when v_stage in ('negotiating','agreed') then 'R5' else readiness_level end,
-             readiness_score=case when v_stage in ('negotiating','agreed') then 100 else readiness_score end,
-             actionability_score=case when v_stage in ('negotiating','agreed') then 100 else actionability_score end,
-             next_best_action=v_nba,
-             last_verified_at=case when v_stage in ('negotiating','agreed') then now() else last_verified_at end,
+         set contactability_level=case when v_row.stage in ('negotiating','agreed') then 'C5' else contactability_level end,
+             readiness_level=case when v_row.stage in ('negotiating','agreed') then 'R5' else readiness_level end,
+             readiness_score=case when v_row.stage in ('negotiating','agreed') then 100 else readiness_score end,
+             actionability_score=case when v_row.stage in ('negotiating','agreed') then 100 else actionability_score end,
+             next_best_action=v_row.next_best_action,
+             last_verified_at=case when v_row.stage in ('negotiating','agreed') then now() else last_verified_at end,
              updated_at=now()
        where fabric_id=v_row.fabric_id;
     end if;
@@ -410,7 +491,8 @@ begin
         'negotiation_id',new.id,
         'state',new.state,
         'last_offer_price',new.last_offer_price,
-        'last_actor',new.last_actor
+        'last_actor',new.last_actor,
+        'journey_stage',v_row.stage
       )
     );
   end loop;
@@ -421,7 +503,7 @@ $$;
 drop trigger if exists waouh_opportunity_sync_negotiation
 on public.waouh_negotiations;
 create trigger waouh_opportunity_sync_negotiation
-after insert or update of state on public.waouh_negotiations
+after insert or update of state,last_offer_price,last_actor on public.waouh_negotiations
 for each row execute function public.waouh_sync_opportunity_from_negotiation();
 
 create or replace function public.waouh_sync_opportunity_from_deal()
