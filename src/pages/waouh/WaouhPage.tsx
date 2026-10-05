@@ -401,8 +401,23 @@ export default function WaouhPage() {
                         <td className="p-2"><Badge className={b.is_active ? "bg-waouh-success/20 text-waouh-success border-waouh-success/40" : ""}>{b.is_active ? "actif" : "inactif"}</Badge></td>
                         <td className="p-2">
                           <Button size="sm" variant="outline" onClick={async () => {
-                            await supabase.functions.invoke("waouh-notify-buyers", { body: { buyer_profile_id: b.id } });
-                            toast.success("Matching déclenché");
+                            const { data, error } = await supabase.functions.invoke("waouh-notify-buyers", {
+                              body: { buyer_profile_id: b.id },
+                            });
+                            if (error || !data?.success) {
+                              toast.error(data?.error || error?.message || "Échec du matching");
+                              return;
+                            }
+                            const notified = Number(data.notified || 0);
+                            const matched = Number(data.matched || 0);
+                            if (notified > 0) {
+                              toast.success(`${notified} notification(s) envoyée(s) sur ${matched} correspondance(s)`);
+                            } else if (matched > 0) {
+                              toast.warning(`${matched} correspondance(s), mais aucune notification livrée`);
+                            } else {
+                              toast.info("Aucune nouvelle correspondance à notifier");
+                            }
+                            loadData();
                           }}>Notifier</Button>
                         </td>
                       </tr>
