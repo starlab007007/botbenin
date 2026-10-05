@@ -209,6 +209,49 @@ jobs:
           EOF
           echo "✅ Minimal Supabase Edge config prepared for CI deployment."
 
+      - name: Verify Opportunity OS schema readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The project has historical migration drift; do NOT run a generic
+          # db push here. Opportunity OS migrations are applied separately by
+          # the controlled release step. This preflight prevents publishing
+          # Edge code against a partial schema.
+          python - <<'PY' >/tmp/opportunity-os-schema-query.json
+          import json
+          query = """
+          select
+            to_regclass('public.waouh_avatar_mandates') is not null as avatar_mandates,
+            to_regclass('public.waouh_persistent_intents') is not null as persistent_intents,
+            to_regclass('public.waouh_contact_packs') is not null as contact_packs,
+            to_regclass('public.waouh_conversation_bus_events') is not null as conversation_bus,
+            to_regprocedure('public.waouh_append_conversation_bus_event(uuid,text,text,text,text,uuid,uuid,uuid,uuid,uuid,uuid,text,jsonb)') is not null as conversation_bus_rpc
+          """
+          print(json.dumps({"query": query}))
+          PY
+
+          curl --fail-with-body --silent --show-error             "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query"             --request POST             --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN"             --header "Content-Type: application/json"             --data-binary @/tmp/opportunity-os-schema-query.json             --output /tmp/opportunity-os-schema-result.json
+
+          python - <<'PY'
+          import json, sys
+          with open("/tmp/opportunity-os-schema-result.json", encoding="utf-8") as fh:
+              payload = json.load(fh)
+          rows = payload if isinstance(payload, list) else payload.get("result", payload.get("data", []))
+          if isinstance(rows, dict):
+              rows = [rows]
+          row = rows[0] if rows else {}
+          required = [
+              "avatar_mandates", "persistent_intents", "contact_packs",
+              "conversation_bus", "conversation_bus_rpc",
+          ]
+          missing = [name for name in required if row.get(name) is not True]
+          if missing:
+              print("::error::Opportunity OS schema absent/incomplet: " + ", ".join(missing))
+              print("::error::Apply controlled migrations 20261004223000 and 20261004224000 before Edge deployment.")
+              sys.exit(1)
+          print("✅ Opportunity OS production schema is ready.")
+          PY
+
       - name: Deploy existing WAOUH Chat functions
         shell: bash
         run: |
