@@ -443,6 +443,37 @@ export default function WaouhAvatarCommercePage() {
     }
   };
 
+  const openJourney = (journey: NexusOpportunityJourney) => {
+    const threadId = String(journey.thread_id || "").trim();
+    if (!threadId) {
+      toast({
+        title: journeyBusinessPhase(journey),
+        description: journey.last_message || "Avatar poursuit cette démarche.",
+      });
+      return;
+    }
+    const detail = {
+      article_id: journey.article_id || null,
+      thread_id: threadId,
+      negotiation_id: journey.negotiation_id || null,
+      deal_id: journey.deal_id || null,
+      kind: journey.mode === "sell" ? "seller" : "buyer",
+      title: journey.subject || "Démarche WAOUH",
+      source: "avatar_opportunity",
+    };
+    try {
+      const raw = localStorage.getItem("waouh_pending_open");
+      const items = raw ? JSON.parse(raw) : [];
+      const list = Array.isArray(items) ? items : [];
+      list.push(detail);
+      localStorage.setItem("waouh_pending_open", JSON.stringify(list.slice(-10)));
+    } catch {}
+    navigate("/app/chat");
+    window.setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));
+    }, 60);
+  };
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_20%_0%,rgba(79,127,255,.10),transparent_32%),linear-gradient(180deg,#f7faff_0%,#ffffff_52%)]">
       <div className="mx-auto w-full max-w-5xl space-y-4 px-3 py-4 sm:px-5">
@@ -654,6 +685,53 @@ export default function WaouhAvatarCommercePage() {
           )}
         </section>
 
+        {(journeysBusy || journeys.length > 0) && (
+          <section className="rounded-[24px] border border-blue-100 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2">
+              <Handshake className="h-4 w-4 text-blue-600" />
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-black text-slate-950">Mes démarches · même Deal Room</div>
+                <div className="text-[10px] font-semibold text-slate-500">Intérêt → négociation → accord → préparation → livreur → livraison → paiement.</div>
+              </div>
+              <Button variant="ghost" size="sm" disabled={journeysBusy} onClick={() => void refreshJourneys()} className="rounded-xl">
+                {journeysBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Actualiser"}
+              </Button>
+            </div>
+            {journeys.length > 0 && (
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {journeys.slice(0, 6).map((journey) => (
+                  <button
+                    key={journey.id}
+                    type="button"
+                    onClick={() => openJourney(journey)}
+                    className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 text-left transition hover:border-blue-200 hover:bg-blue-50/60"
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-xs font-black text-slate-950">{journey.subject || "Démarche WAOUH"}</div>
+                        <div className="mt-1 text-[10px] font-black text-blue-700">{journeyBusinessPhase(journey)} · {journey.contactability_level}</div>
+                      </div>
+                      <div className="text-[10px] font-black text-slate-500">{Math.max(0, Math.min(100, Number(journey.progress || 0)))}%</div>
+                    </div>
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
+                      <div
+                        className="h-full rounded-full bg-blue-600"
+                        style={{ width: `${Math.max(0, Math.min(100, Number(journey.progress || 0)))}%` }}
+                      />
+                    </div>
+                    <div className="mt-2 line-clamp-2 text-[10px] font-semibold leading-relaxed text-slate-500">
+                      {journey.last_message || journey.next_action || "Avatar poursuit cette démarche."}
+                    </div>
+                    {journey.thread_id && (
+                      <div className="mt-2 text-[10px] font-black text-emerald-700">Ouvrir le Deal Room →</div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
         {(rationale || sources.length > 0) && (
           <section className="rounded-[22px] border border-blue-100 bg-blue-50/60 p-4">
             <div className="flex items-center gap-2 text-xs font-black text-slate-950">
@@ -733,7 +811,7 @@ export default function WaouhAvatarCommercePage() {
                   La mise en relation reste médiée par WAOUH selon le niveau {item.contact_policy.level}. Les coordonnées privées ne sont pas révélées directement.
                 </div>
 
-                {item.source_key === "waouh_app" ? (
+                {canonicalDealCandidate(item) ? (
                   <Button
                     onClick={() => {
                       setOfferItem(item);
