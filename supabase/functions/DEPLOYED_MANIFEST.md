@@ -46,7 +46,7 @@ Conséquence : le nom du slug ne dit rien du code. Toute évolution de ces fonct
 | `waouh-studio-pair-code-v2145` | 46 | non | 2026-09-24 | import distant de `waouh-tel-ingress` | Même mécanisme, même commit 6bf9025 |
 | `setup-test-accounts` | 226 | oui | 2026-09-25 | logique « product intelligence » (analyse de prix d'un article) | Le nom ne correspond pas au code ; aucun secret vu |
 | `a` | 17 | non | 2026-07-29 | Web Chat public d'agent IA (`/{slug}`, QR, bootstrap/chat) | Nom d'une lettre ; dépend de `_shared/agent-ai.ts` |
-| `waouh-e2e-v3-relay` | 3 | non | 2026-09-28 | stub désactivé (répond 410 `e2e_relay_disabled`) | Candidat à suppression |
+| `waouh-e2e-v3-relay` | slot historique | non | Opportunity OS | **alias de production de `waouh-opportunity-worker`** | Ne plus supprimer : réutilisé pour éviter le quota Edge Functions |
 
 ## Fonctions dont le slug correspond au code (source absente du dépôt)
 | Slug | v | JWT | Maj (UTC) | Utilisée par |
