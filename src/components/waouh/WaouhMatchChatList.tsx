@@ -341,12 +341,17 @@ export function WaouhMatchChatList({
         ...(item.notification_id ? [item.notification_id] : []),
       ])
     );
-    if (allNotifIds.length) {
+    if (allNotifIds.length && sessionId) {
       try {
-        await supabase
-          .from("waouh_notifications" as any)
-          .update({ opened: true })
-          .in("id", allNotifIds);
+        await supabase.functions.invoke("waouh-history", {
+          headers: { "x-waouh-session": sessionId },
+          body: {
+            action: "mark_notifications_read",
+            sessionId,
+            authUserId: authUserId ?? null,
+            notificationIds: allNotifIds,
+          },
+        });
       } catch {}
     }
 
