@@ -1206,25 +1206,37 @@ class WaouhChatController extends ChangeNotifier {
         );
         _waouhUserId = asString(linked['id']);
         if (linked['auth_user_id'] == null) {
-          await supabase
-              .from('waouh_users')
-              .update({'auth_user_id': uid})
-              .eq('id', _waouhUserId!);
+          final response = await supabase.functions.invoke(
+            'waouh-history',
+            headers: <String, String>{'x-waouh-session': sessionId},
+            body: <String, dynamic>{
+              'action': 'link_session',
+              'sessionId': sessionId,
+              'authUserId': uid,
+              'channel': 'flutter',
+            },
+          );
+          final data = response.data;
+          if (data is Map && data['waouh_user_id'] != null) {
+            _waouhUserId = asString(data['waouh_user_id']);
+          }
         }
         return _waouhUserId;
       }
-      final created = await supabase
-          .from('waouh_users')
-          .insert({
-            'auth_user_id': uid,
-            'web_session_id': sessionId,
-            'display_name': auth.profile?.fullName ?? auth.user?.email,
-            'phone_number': auth.profile?.phone ?? auth.user?.phone,
-            'channel': 'flutter',
-          })
-          .select('id')
-          .maybeSingle();
-      _waouhUserId = created == null ? null : asString(created['id']);
+
+      final response = await supabase.functions.invoke(
+        'waouh-history',
+        headers: <String, String>{'x-waouh-session': sessionId},
+        body: <String, dynamic>{
+          'action': 'link_session',
+          'sessionId': sessionId,
+          'authUserId': uid,
+          'channel': 'flutter',
+        },
+      );
+      final data = response.data;
+      _waouhUserId =
+          data is Map ? asString(data['waouh_user_id']) : null;
       return _waouhUserId;
     } catch (_) {
       return null;
@@ -1324,21 +1336,11 @@ class WaouhChatController extends ChangeNotifier {
             'intent': intent?.name,
           },
         );
-      } catch (_) {
-        final waouhUserId = await resolveWaouhUserId();
-        await supabase.from('waouh_messages').insert({
-          'text': trimmed,
-          'web_session_id': sessionId,
-          if (waouhUserId != null) 'user_id': waouhUserId,
-          'channel': 'flutter',
-          'direction': 'in',
-          'attachments': [],
-          'meta': {
-            'source': 'flutter_native',
-            'intent': intent?.name,
-            'fallback': true,
-          },
-        });
+      } catch (error) {
+        // Direct INSERT into waouh_messages is intentionally forbidden by RLS.
+        // Preserve the backend failure so the UI can retry instead of creating
+        // an unsynchronized local/server state.
+        rethrow;
       }
     } finally {
       optimisticMessages.removeWhere((m) => m.id == local.id);
@@ -1362,17 +1364,10 @@ class WaouhChatController extends ChangeNotifier {
           'source': 'flutter_native',
         },
       );
-    } catch (_) {
-      final waouhUserId = await resolveWaouhUserId();
-      await supabase.from('waouh_messages').insert({
-        'conversation_id': conversationId,
-        'text': text,
-        if (waouhUserId != null) 'user_id': waouhUserId,
-        'channel': 'flutter',
-        'direction': 'out',
-        'attachments': [],
-        'meta': {'source': 'operator_fallback'},
-      });
+    } catch (error) {
+      // waouh-operator-send is the canonical writer. Do not bypass it with a
+      // direct INSERT that RLS rejects and that would skip orchestration.
+      rethrow;
     }
   }
 
