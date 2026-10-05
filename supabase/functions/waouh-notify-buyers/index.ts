@@ -15,6 +15,7 @@
 
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2.49.8';
+import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -51,6 +52,8 @@ Deno.serve(async (req) => {
     }
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const guard = await requireRuntimeOrAdmin(req, supabase);
+    if (!guard.ok) return guard.response;
 
     let item: Item | null = null;
 
