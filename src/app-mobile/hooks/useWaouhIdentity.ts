@@ -48,11 +48,19 @@ export function useWaouhIdentity() {
       setWaouhUserIds(ids);
       setReady(true);
 
-      // Best-effort: link this device's session to the authenticated account
+      // Link the pre-login identity through the secured backend. Direct
+      // UPDATE waouh_users is intentionally denied by Data API privileges.
       if (user?.id && data) {
         const orphan = (data as any[]).find((u) => u.web_session_id === sessionId && !u.auth_user_id);
         if (orphan) {
-          supabase.from("waouh_users").update({ auth_user_id: user.id }).eq("id", orphan.id).then(() => {}, () => {});
+          void supabase.functions.invoke("waouh-history", {
+            headers: { "x-waouh-session": sessionId },
+            body: {
+              action: "link_session",
+              sessionId,
+              authUserId: user.id,
+            },
+          }).catch(() => {});
         }
       }
     })();
