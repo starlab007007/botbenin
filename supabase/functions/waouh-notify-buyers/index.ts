@@ -92,12 +92,13 @@ Deno.serve(async (req) => {
 
     // Cap the scan to avoid full-table scans as buyer_profiles grows.
     // 2000 active profiles per item is a generous ceiling for now.
-    const { data: profiles } = await supabase
+    const { data: profiles, error: profilesError } = await supabase
       .from('waouh_buyer_profiles')
       .select('*')
       .eq('is_active', true)
-      .order('updated_at', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(2000);
+    if (profilesError) throw new Error(`buyer_profiles_scan_failed:${profilesError.message}`);
     const matched: string[] = [];
     const dispatchedRecipients = new Set<string>();
 
@@ -109,11 +110,6 @@ Deno.serve(async (req) => {
       // (UUIDs from different tables don't collide).
       const already = Array.isArray(p.notified_article_ids) && p.notified_article_ids.includes(item.id);
       if (already) continue;
-
-      // Mark as notified up-front to avoid retries on transient errors
-      await supabase.from('waouh_buyer_profiles').update({
-        notified_article_ids: [...(p.notified_article_ids || []), item.id],
-      }).eq('id', p.id);
 
       const recipientKey = p.user_id || p.contact_phone || p.id;
       if (dispatchedRecipients.has(recipientKey)) continue;
@@ -127,11 +123,25 @@ Deno.serve(async (req) => {
       if (item.source === 'article') dispatchBody.article_id = item.id;
       else dispatchBody.catalog_id = item.id;
 
-      fetch(`${SUPABASE_URL}/functions/v1/waouh-notify-dispatch`, {
+      const dispatchResponse = await fetch(`${SUPABASE_URL}/functions/v1/waouh-notify-dispatch`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${SERVICE_ROLE}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(dispatchBody),
-      }).catch(() => {});
+      });
+      if (!dispatchResponse.ok) {
+        const detail = await dispatchResponse.text().catch(() => '');
+        console.error('[waouh-notify-buyers] dispatch failed', dispatchResponse.status, detail.slice(0, 300));
+        continue;
+      }
+
+      // Never mark a buyer as notified before downstream delivery succeeds.
+      const { error: markError } = await supabase.from('waouh_buyer_profiles').update({
+        notified_article_ids: [...(p.notified_article_ids || []), item.id],
+      }).eq('id', p.id);
+      if (markError) {
+        console.error('[waouh-notify-buyers] mark notified failed', markError.message);
+        continue;
+      }
 
       matched.push(p.id);
     }
