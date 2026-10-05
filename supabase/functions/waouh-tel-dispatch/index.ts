@@ -53,6 +53,11 @@ Deno.serve(async (req) => {
     const admin = createTelAdminClient();
     const settings = await getTelSettings(admin);
     if (!settings.enabled) {
+      // A scheduled health/drain tick while the feature is intentionally off
+      // is not an operational failure. Manual/service dispatches still get 503.
+      if (body?.source === "cron") {
+        return telOk({ skipped: true, reason: "native_messaging_disabled" }, 200, req);
+      }
       return telError(
         503,
         "native_messaging_disabled",
