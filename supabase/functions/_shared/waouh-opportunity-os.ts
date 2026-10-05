@@ -234,6 +234,11 @@ export function mandateAllowsContact(
   }
   if (pack.best_channel === "waouh" && mandate.allow_waouh !== false) return { allowed: true, reason: "waouh_allowed" };
   if (pack.best_channel === "whatsapp" && mandate.allow_whatsapp !== false) return { allowed: true, reason: "whatsapp_allowed" };
+  if (pack.best_channel === "phone" &&
+      mandate.allow_whatsapp !== false &&
+      mandate.allow_public_business !== false) {
+    return { allowed: true, reason: "public_business_phone_route_allowed" };
+  }
   if (["sms","rcs","sms_rcs"].includes(String(pack.best_channel)) && mandate.allow_sms_rcs === true) {
     return { allowed: true, reason: "native_messaging_allowed" };
   }
