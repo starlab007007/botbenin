@@ -995,6 +995,7 @@ class LiveNexusService {
     double? budgetMax,
     int maxContacts = 3,
     int maxFollowups = 1,
+    bool allowSmsRcs = false,
     int durationHours = 24,
     int scanIntervalMinutes = 60,
   }) =>
@@ -1006,6 +1007,7 @@ class LiveNexusService {
         if (budgetMax != null) 'budget_max': budgetMax,
         'max_contacts': maxContacts,
         'max_followups': maxFollowups,
+        'allow_sms_rcs': allowSmsRcs,
         'duration_hours': durationHours,
         'scan_interval_minutes': scanIntervalMinutes,
         'origin_surface': 'flutter_avatar',
@@ -1018,11 +1020,13 @@ class LiveNexusService {
     String mandateId, {
     String? status,
     String? autonomyMode,
+    bool? allowSmsRcs,
   }) =>
       _invoke('nexus.mandate.update', {
         'mandate_id': mandateId,
         if (status != null) 'status': status,
         if (autonomyMode != null) 'autonomy_mode': autonomyMode,
+        if (allowSmsRcs != null) 'allow_sms_rcs': allowSmsRcs,
       });
 
   Future<Map<String, dynamic>> runMandate(String mandateId) =>
