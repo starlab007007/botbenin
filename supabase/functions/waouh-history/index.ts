@@ -32,19 +32,50 @@ serve(async (req) => {
 
     const effectiveAuthUserId = auth.authUser?.id ?? null;
 
-    // Authenticated clients may safely bind an identity created during the
-    // guest session. This replaces client-side UPDATE waouh_users attempts,
-    // which are intentionally denied by Data API privileges/RLS.
+    // Once authenticated, a guest session may only extend the scope when it is
+    // unbound or already belongs to the same auth user. This prevents a signed
+    // in caller from presenting another device's session capability.
     let linkedSessionUsers = 0;
+    let sessionIdentityId: string | null = null;
     if (effectiveAuthUserId && auth.sessionValid && auth.bodySessionId) {
-      const { data: linkedRows, error: linkErr } = await sb
+      const { data: sessionIdentity, error: sessionIdentityErr } = await sb
         .from("waouh_users")
-        .update({ auth_user_id: effectiveAuthUserId })
+        .select("id,auth_user_id")
         .eq("web_session_id", auth.bodySessionId)
-        .is("auth_user_id", null)
-        .select("id");
-      if (linkErr) throw linkErr;
-      linkedSessionUsers = (linkedRows || []).length;
+        .maybeSingle();
+      if (sessionIdentityErr) throw sessionIdentityErr;
+
+      if (sessionIdentity?.auth_user_id && sessionIdentity.auth_user_id !== effectiveAuthUserId) {
+        return jsonError(403, "session_bound_to_other_user");
+      }
+
+      if (sessionIdentity?.id) {
+        sessionIdentityId = sessionIdentity.id;
+        if (!sessionIdentity.auth_user_id) {
+          const { data: linkedRows, error: linkErr } = await sb
+            .from("waouh_users")
+            .update({ auth_user_id: effectiveAuthUserId })
+            .eq("id", sessionIdentity.id)
+            .is("auth_user_id", null)
+            .select("id");
+          if (linkErr) throw linkErr;
+          linkedSessionUsers = (linkedRows || []).length;
+        }
+      } else if (body?.action === "link_session") {
+        const { data: created, error: createErr } = await sb
+          .from("waouh_users")
+          .insert({
+            auth_user_id: effectiveAuthUserId,
+            web_session_id: auth.bodySessionId,
+            display_name: auth.authUser?.email ?? null,
+            channel: String(body?.channel || "web").slice(0, 32),
+          })
+          .select("id")
+          .single();
+        if (createErr) throw createErr;
+        sessionIdentityId = created?.id ?? null;
+        linkedSessionUsers = sessionIdentityId ? 1 : 0;
+      }
     }
 
     if (body?.action === "link_session") {
@@ -55,6 +86,7 @@ serve(async (req) => {
         ok: true,
         action: "link_session",
         linked: linkedSessionUsers,
+        waouh_user_id: sessionIdentityId,
         auth_user_id: effectiveAuthUserId,
         session_id: auth.bodySessionId,
       });
