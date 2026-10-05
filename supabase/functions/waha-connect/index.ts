@@ -630,7 +630,7 @@ async function handlePairCode(
       ? `${onlyAlnum.slice(0, 4)}-${onlyAlnum.slice(4)}`
       : onlyAlnum;
 
-    console.log(`✅ Pair code generated for ${sessionName}: ${formatted}`);
+    console.log(`✅ Pair code generated for session=${sessionName}`);
 
     return new Response(
       JSON.stringify({
