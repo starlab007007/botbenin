@@ -2,7 +2,6 @@
 // Actions: init (request from buyer), status (poll), release (deposit to seller)
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
-import { contactExchangeText } from "../_shared/waouh-format.ts";
 import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -148,7 +147,7 @@ Deno.serve(async (req) => {
         if (txAfter) {
           await pushSystemMessage(sb, txAfter.buyer_id, transaction_id, `✅ Paiement confirmé (mode démo). Fonds en escrow : ${Number(txAfter.amount).toLocaleString("fr-FR")} FCFA.`);
           await pushSystemMessage(sb, txAfter.seller_id, transaction_id, `💰 Acheteur a payé (mode démo). Préparez la livraison.`);
-          await exchangeContacts(sb, txAfter.buyer_id, txAfter.seller_id, transaction_id);
+          // Contacts stay mediated inside WAOUH. No direct exchange.
         }
         return json({ success: true, status: "success", payment_id: pay.id, transref, demo: true, message: "Mode démo : paiement confirmé sans vérification." });
       }
@@ -237,7 +236,7 @@ Deno.serve(async (req) => {
           if (tx?.buyer_id) {
             await pushSystemMessage(sb, tx.buyer_id, transaction_id, "✅ Paiement reçu. Fonds bloqués en escrow jusqu'à confirmation de réception.");
             await pushSystemMessage(sb, tx.seller_id, transaction_id, `💰 Paiement reçu (${Number(tx.amount).toLocaleString("fr-FR")} FCFA). Préparez la livraison.`);
-            await exchangeContacts(sb, tx.buyer_id, tx.seller_id, transaction_id);
+            // Contacts stay mediated inside WAOUH. No direct exchange.
           }
         } else if (newStatus === "failed") {
           await sb.from("waouh_transactions").update({ status: "payment_pending" }).eq("id", transaction_id);
@@ -391,44 +390,6 @@ async function pushSystemMessage(sb: any, waouhUserId: string | null, transactio
       payloadExtra: { transaction_id, event: eventKey || "post_payment_flow" },
     });
   } catch (e) { console.warn("[waouh-payment] pushSyncedEvent", e); }
-}
-
-async function getWaouhUserContact(sb: any, id: string | null) {
-  if (!id) return null;
-  const { data } = await sb.from("waouh_users")
-    .select("id, display_name, phone_number, city, web_session_id")
-    .eq("id", id).maybeSingle();
-  return data;
-}
-
-/** Exchange both contacts (buyer↔seller) — strictement une seule fois par transaction. */
-async function exchangeContacts(sb: any, buyerId: string | null, sellerId: string | null, transaction_id: string) {
-  try {
-    // 🔒 Verrou atomique : on ne fait l'échange QUE si contacts_exchanged_at est NULL.
-    const { data: claimed } = await sb
-      .from("waouh_transactions")
-      .update({ contacts_exchanged_at: new Date().toISOString() })
-      .eq("id", transaction_id)
-      .is("contacts_exchanged_at", null)
-      .select("id")
-      .maybeSingle();
-    if (!claimed) {
-      console.log("[waouh-payment] contacts already exchanged for", transaction_id);
-      return;
-    }
-    const [buyer, seller] = await Promise.all([
-      getWaouhUserContact(sb, buyerId),
-      getWaouhUserContact(sb, sellerId),
-    ]);
-    if (buyer && seller) {
-      const toSellerText = contactExchangeText("seller_to_buyer", buyer);
-      const toBuyerText = contactExchangeText("buyer_to_seller", seller);
-      await pushSystemMessage(sb, sellerId, transaction_id, toSellerText);
-      await pushSystemMessage(sb, buyerId, transaction_id, toBuyerText);
-    }
-  } catch (e) {
-    console.warn("[waouh-payment] exchangeContacts", e);
-  }
 }
 
 function json(b: any, status = 200) {
