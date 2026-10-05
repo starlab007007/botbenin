@@ -300,6 +300,7 @@ export type NexusContactPack = {
     verified?: boolean;
     reachable?: boolean | null;
     public_business?: boolean;
+    consent_state?: string | null;
     last4?: string | null;
   }>;
   masked_contacts: Array<{ channel: string; last4?: string | null }>;
