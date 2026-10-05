@@ -32,10 +32,12 @@ import {
   sendNexusDiscoveryContact,
   createNexusMandate,
   listNexusMandates,
+  listNexusOpportunityJourneys,
   updateNexusMandate,
   runNexusMandate,
   type NexusDiscoveryResult,
   type NexusAvatarMandate,
+  type NexusOpportunityJourney,
 } from "@/lib/waouh/nexus";
 
 type Mode = "acheter" | "vendre" | "demander";
@@ -124,6 +126,40 @@ const sourceLabel = (key?: string | null) => {
   return "NEXUS";
 };
 
+const canonicalDealCandidate = (item: NexusDiscoveryResult) => {
+  const source = String(item.source_key || "").toLowerCase();
+  const canonicalSource = ["waouh_app", "partner", "whatsapp"].includes(source);
+  if (!canonicalSource) return false;
+  return item.fabric_id.startsWith("article:") || item.fabric_id.startsWith("catalog:");
+};
+
+const journeyBusinessPhase = (journey: NexusOpportunityJourney) => {
+  switch (String(journey.last_action || "")) {
+    case "payment_completed": return "Terminé";
+    case "delivery_completed": return "Paiement";
+    case "courier_picked_up": return "Livraison";
+    case "courier_assigned": return "Livreur";
+    case "preparation_ready_for_courier": return "Préparation";
+    case "seller_confirmed": return "Confirmation vendeur";
+    case "agreement_reached":
+    case "canonical_agreement": return "Accord";
+    case "canonical_counterparty_counterproposal":
+    case "counterparty_reply_received": return "Négociation";
+  }
+  return ({
+    discovered: "Trouvée",
+    enriching: "Vérification",
+    contact_ready: "Contact prêt",
+    contacting: "Contact en cours",
+    waiting_reply: "Réponse attendue",
+    negotiating: "Négociation",
+    agreed: "Accord",
+    executing: "Exécution",
+    completed: "Terminé",
+    cancelled: "Annulé",
+  } as Record<string, string>)[journey.stage] || journey.stage.replaceAll("_", " ");
+};
+
 export default function WaouhAvatarCommercePage() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -147,6 +183,8 @@ export default function WaouhAvatarCommercePage() {
   const [allowSmsRcs, setAllowSmsRcs] = useState(false);
   const [mandateBusy, setMandateBusy] = useState(false);
   const [activeMandate, setActiveMandate] = useState<NexusAvatarMandate | null>(null);
+  const [journeys, setJourneys] = useState<NexusOpportunityJourney[]>([]);
+  const [journeysBusy, setJourneysBusy] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -165,6 +203,30 @@ export default function WaouhAvatarCommercePage() {
       .catch(() => {});
     return () => { alive = false; };
   }, []);
+
+  useEffect(() => {
+    let alive = true;
+    setJourneysBusy(true);
+    void listNexusOpportunityJourneys({ limit: 12 })
+      .then((data) => {
+        if (alive) setJourneys(data.journeys || []);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (alive) setJourneysBusy(false);
+      });
+    return () => { alive = false; };
+  }, []);
+
+  const refreshJourneys = async () => {
+    setJourneysBusy(true);
+    try {
+      const data = await listNexusOpportunityJourneys({ limit: 12 });
+      setJourneys(data.journeys || []);
+    } finally {
+      setJourneysBusy(false);
+    }
+  };
 
   const sources = useMemo(
     () => Object.entries(sourceMix).filter(([, count]) => Number(count) > 0),
@@ -279,71 +341,51 @@ export default function WaouhAvatarCommercePage() {
       const evidence = (item.evidence || {}) as Record<string, unknown>;
       const articleId = String(
         (evidence.article_id as string | undefined) ||
-          (item.source_key === "waouh_app" ? item.source_record_id || "" : "")
+          (item.fabric_id.startsWith("article:") ? item.fabric_id.slice("article:".length) : "")
+      ).trim();
+      const catalogId = String(
+        (evidence.catalog_id as string | undefined) ||
+          (item.fabric_id.startsWith("catalog:") ? item.fabric_id.slice("catalog:".length) : "")
       ).trim();
 
-      if (articleId) {
-        const sellerUserId = String(
-          (evidence.seller_user_id as string | undefined) ||
-            (evidence.owner_user_id as string | undefined) ||
-            (evidence.user_id as string | undefined) ||
-            ""
-        ).trim();
+      if (canonicalDealCandidate(item) && (articleId || catalogId)) {
         const title = item.subject || item.raw_text || "Annonce";
         const price = item.price_min ?? item.price_max ?? null;
         const sessionId = getWaouhSessionId();
-        const { data: authData } = await supabase.auth.getUser();
-        const text = initialOffer && initialOffer > 0
-          ? `Je propose ${Math.round(initialOffer).toLocaleString("fr-FR")} FCFA pour « ${title} ».`
-          : `Je suis intéressé par « ${title} ».`;
-        const meta = {
-          source: "avatar_commerce",
-          origin_surface: "web_avatar_commerce",
-          action: "interested",
-          intent: "interested",
-          commerce_action: "interest",
-          thread_type: "product_meet",
-          article_id: articleId,
-          seller_user_id: sellerUserId || null,
-          counterpart_user_id: sellerUserId || null,
-          title,
-          city: item.city ?? null,
-          price,
-          ...(initialOffer && initialOffer > 0 ? { offer_price: initialOffer, initial_offer_amount: initialOffer } : {}),
-          fabric_id: item.fabric_id,
-          contactability_level: item.contact_policy.level,
-          nexus_total_score: item.scores?.total_score ?? null,
-          nexus_trust_score: item.scores?.trust_score ?? null,
-          nexus_reasons: item.scores?.reasons ?? [],
-        };
-
-        const { data, error } = await supabase.functions.invoke("waouh-channel-in-secure", {
+        const { data, error } = await supabase.functions.invoke("waouh-buyer-interest", {
           headers: { "x-waouh-session": sessionId },
           body: {
-            channel: "web",
-            sessionId,
-            text,
-            authUserId: authData.user?.id ?? null,
-            meta,
+            ...(articleId ? { article_id: articleId } : {}),
+            ...(catalogId ? { catalog_id: catalogId } : {}),
+            source: "avatar_commerce",
+            ...(initialOffer && initialOffer > 0 ? { offer_price: initialOffer } : {}),
           },
         });
         if (error || data?.error) {
-          throw new Error(error?.message || data?.message || data?.error || "Impossible de créer le Deal Room.");
+          throw new Error(error?.message || data?.details || data?.error || "Impossible de créer le Deal Room.");
+        }
+        if (data?.skipped === "self") {
+          toast({ title: "Votre propre offre", description: "WAOUH ne crée pas de négociation avec votre propre annonce." });
+          return;
+        }
+        const resolvedArticleId = String(data?.article_id || articleId || "").trim();
+        const threadId = String(data?.thread_id || "").trim();
+        if (!resolvedArticleId || !threadId) {
+          throw new Error("Le writer canonique n’a pas renvoyé article_id + thread_id.");
         }
 
         const detail = {
-          article_id: data?.article_id || articleId,
-          counterpart_user_id: data?.counterpart_user_id || sellerUserId || null,
-          seller_user_id: data?.seller_user_id || sellerUserId || null,
-          buyer_user_id: data?.buyer_user_id || null,
-          thread_id: data?.thread_id || null,
+          article_id: resolvedArticleId,
+          thread_id: threadId,
           negotiation_id: data?.negotiation_id || null,
-          deal_id: data?.deal_id || null,
+          deal_id: null,
           kind: "buyer",
           title,
           price,
           city: item.city ?? null,
-          seed_text: data?.reply || text,
+          seed_text: initialOffer && initialOffer > 0
+            ? `Je propose ${Math.round(initialOffer).toLocaleString("fr-FR")} FCFA pour « ${title} ».`
+            : `Je suis intéressé par « ${title} ».`,
           source: "avatar_commerce",
         };
         try {
@@ -354,13 +396,14 @@ export default function WaouhAvatarCommercePage() {
           localStorage.setItem("waouh_pending_open", JSON.stringify(list.slice(-10)));
         } catch {}
 
+        await refreshJourneys().catch(() => {});
         navigate("/app/chat");
         window.setTimeout(() => {
           window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));
         }, 60);
         toast({
           title: "Deal Room ouvert",
-          description: "Le vendeur est notifié. Votre Avatar vous accompagne dans la négociation.",
+          description: "Même article, même thread : votre Avatar suit maintenant la négociation jusqu’à la clôture.",
         });
         return;
       }
