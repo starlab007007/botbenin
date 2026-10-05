@@ -341,6 +341,10 @@ verify_jwt = false
 [functions.waouh-agentic-core]
 verify_jwt = true
 
+# Dormant production slot reused for the admin-only WAOUH E2E runner.
+[functions.setup-test-accounts]
+verify_jwt = true
+
 [functions.waouh-native-messaging-settings]
 verify_jwt = true
 
