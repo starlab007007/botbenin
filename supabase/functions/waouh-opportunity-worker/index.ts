@@ -20,6 +20,8 @@ import { telRuntimeSecret } from "../_shared/waouh-tel/runtime-secret.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const AGENTIC_FUNCTION =
+  Deno.env.get("WAOUH_AGENTIC_CORE_FUNCTION") || "waouh-studio-e2e-v21465";
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
@@ -40,7 +42,7 @@ async function discoverPersistentIntentWithNexus(
   const limit = Math.min(30, Math.max(Number(mandate.max_contacts || 3) * 4, 12));
 
   try {
-    const response = await fetch(`${SUPABASE_URL}/functions/v1/waouh-agentic-core`, {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/${AGENTIC_FUNCTION}`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${SERVICE_ROLE}`,
