@@ -15,6 +15,7 @@ on:
       - "supabase/functions/waha-connect/**"
       - "supabase/functions/waha-dashboard-proxy/**"
       - "supabase/functions/waha-manage-contact/**"
+      - "supabase/functions/waha-diagnostic/**"
       - "supabase/functions/waouh-operator-send/**"
       - "supabase/functions/_shared/waouh-nexus*"
       - "supabase/functions/_shared/waouh-signal-fabric*"
@@ -55,6 +56,7 @@ on:
       - "supabase/functions/waha-connect/**"
       - "supabase/functions/waha-dashboard-proxy/**"
       - "supabase/functions/waha-manage-contact/**"
+      - "supabase/functions/waha-diagnostic/**"
       - "supabase/functions/waouh-operator-send/**"
       - "supabase/functions/_shared/waouh-nexus*"
       - "supabase/functions/_shared/waouh-signal-fabric*"
@@ -153,6 +155,7 @@ jobs:
             waha-connect
             waha-dashboard-proxy
             waha-manage-contact
+            waha-diagnostic
             waouh-operator-send
           )
           for function_name in "${required_functions[@]}"; do
@@ -228,6 +231,7 @@ jobs:
           entrypoints+=(supabase/functions/waha-connect/index.ts)
           entrypoints+=(supabase/functions/waha-dashboard-proxy/index.ts)
           entrypoints+=(supabase/functions/waha-manage-contact/index.ts)
+          entrypoints+=(supabase/functions/waha-diagnostic/index.ts)
           entrypoints+=(supabase/functions/waouh-operator-send/index.ts)
           if [ "${#entrypoints[@]}" -eq 0 ]; then
             echo '::error::Aucun point d’entrée Native Messaging à vérifier.'
@@ -460,6 +464,7 @@ jobs:
             waha-connect
             waha-dashboard-proxy
             waha-manage-contact
+            waha-diagnostic
             waouh-operator-send
           )
           for fn in "${secured_legacy[@]}"; do
