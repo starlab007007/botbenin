@@ -1836,6 +1836,18 @@ Deno.serve(async (req: Request) => {
                   updated_at: now,
                 }).eq("id", journeyId).select("*").single();
                 if (refreshed) journey = refreshed;
+                if (fabricId) {
+                  await sb.from("waouh_contact_packs").update({
+                    contactability_level: "C5",
+                    readiness_level: "R5",
+                    readiness_score: 100,
+                    actionability_score: 100,
+                    next_best_action: "NEGOTIATE",
+                    best_channel: "waouh",
+                    last_verified_at: now,
+                    updated_at: now,
+                  }).eq("fabric_id", fabricId);
+                }
               } else {
                 const { data: refreshed } = await sb.from("waouh_opportunity_journeys").update({
                   stage: "cancelled",
