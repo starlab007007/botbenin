@@ -63,6 +63,18 @@ export async function promoteCatalogToArticle(
   // authentifié, puis au contact réel du vendeur. On ne crée jamais un article
   // transactionnel orphelin simplement pour ouvrir un Deal Room.
   let sellerId = overrides.seller_id ?? null;
+
+  // Les entrées "chat" du catalogue unifié référencent l'article WAOUH
+  // source. Réutiliser son seller_id est plus fiable qu'un numéro et maintient
+  // exactement la même identité vendeur / thread que le parcours canonique.
+  if (!sellerId && cat.source_ref_id) {
+    const { data: sourceArticle } = await sb.from("waouh_articles")
+      .select("id,seller_id")
+      .eq("id", cat.source_ref_id)
+      .maybeSingle();
+    sellerId = sourceArticle?.seller_id ?? null;
+  }
+
   if (!sellerId && cat.partner_id) {
     const { data: partner } = await sb.from("waouh_partners")
       .select("user_id").eq("id", cat.partner_id).maybeSingle();
