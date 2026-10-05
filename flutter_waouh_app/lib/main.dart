@@ -1271,18 +1271,40 @@ class WaouhChatController extends ChangeNotifier {
     ).asyncMap((_) => fetchConversations());
   }
 
-  Stream<List<WaouhMessage>> mainMessages() async* {
+  Future<List<WaouhMessage>> _loadMainMessages() async {
     final sessionId = await _sessionId();
-    yield* supabase
-        .from('waouh_messages')
-        .stream(primaryKey: ['id'])
-        .eq('web_session_id', sessionId)
-        .order('created_at')
+    final response = await supabase.functions.invoke(
+      'waouh-history',
+      headers: <String, String>{'x-waouh-session': sessionId},
+      body: {
+        'sessionId': sessionId,
+        'authUserId': auth.user?.id,
+        'limit': 200,
+        'includeMeta': true,
+      },
+    );
+    final data = response.data;
+    if (data is! Map || data['ok'] != true || data['messages'] is! List) {
+      throw StateError('Historique WAOUH indisponible');
+    }
+    final messages = (data['messages'] as List)
+        .whereType<Map>()
         .map(
-          (rows) =>
-              [...rows.map(WaouhMessage.fromJson), ...optimisticMessages]
-                ..sort((a, b) => a.createdAt.compareTo(b.createdAt)),
-        );
+          (row) => WaouhMessage.fromJson(
+            Map<String, dynamic>.from(row),
+          ),
+        )
+        .toList()
+      ..addAll(optimisticMessages);
+    messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return messages;
+  }
+
+  Stream<List<WaouhMessage>> mainMessages() async* {
+    yield await _loadMainMessages();
+    yield* Stream.periodic(
+      const Duration(seconds: 4),
+    ).asyncMap((_) => _loadMainMessages());
   }
 
   Stream<List<WaouhMessage>> conversationMessages(String conversationId) {
