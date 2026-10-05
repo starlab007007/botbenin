@@ -12,6 +12,20 @@ on:
       - "supabase/functions/waouh-native-simulator/**"
       - "supabase/functions/waouh-webhook/index.ts"
       - "supabase/functions/waouh-agentic-core/**"
+      - "supabase/functions/waha-connect/**"
+      - "supabase/functions/waha-dashboard-proxy/**"
+      - "supabase/functions/waha-manage-contact/**"
+      - "supabase/functions/waha-diagnostic/**"
+      - "supabase/functions/waouh-operator-send/**"
+      - "supabase/functions/_shared/waouh-runtime-auth.ts"
+      - "supabase/functions/waouh-radar-apify/**"
+      - "supabase/functions/waouh-radar-site-scraper/**"
+      - "supabase/functions/waouh-serpapi-scout/**"
+      - "supabase/functions/waouh-radar-process/**"
+      - "supabase/functions/waouh-radar-campaign-tick/**"
+      - "supabase/functions/waouh-alerts-check/**"
+      - "supabase/functions/waouh-notify-buyers/**"
+      - "supabase/migrations/*waouh_runtime_auth_and_radar_cron_hardening*.sql"
       - "supabase/functions/_shared/waouh-nexus*"
       - "supabase/functions/_shared/waouh-signal-fabric*"
       - "supabase/migrations/*waouh_nexus*.sql"
@@ -48,6 +62,20 @@ on:
       - "supabase/functions/waouh-native-simulator/**"
       - "supabase/functions/waouh-webhook/index.ts"
       - "supabase/functions/waouh-agentic-core/**"
+      - "supabase/functions/waha-connect/**"
+      - "supabase/functions/waha-dashboard-proxy/**"
+      - "supabase/functions/waha-manage-contact/**"
+      - "supabase/functions/waha-diagnostic/**"
+      - "supabase/functions/waouh-operator-send/**"
+      - "supabase/functions/_shared/waouh-runtime-auth.ts"
+      - "supabase/functions/waouh-radar-apify/**"
+      - "supabase/functions/waouh-radar-site-scraper/**"
+      - "supabase/functions/waouh-serpapi-scout/**"
+      - "supabase/functions/waouh-radar-process/**"
+      - "supabase/functions/waouh-radar-campaign-tick/**"
+      - "supabase/functions/waouh-alerts-check/**"
+      - "supabase/functions/waouh-notify-buyers/**"
+      - "supabase/migrations/*waouh_runtime_auth_and_radar_cron_hardening*.sql"
       - "supabase/functions/_shared/waouh-nexus*"
       - "supabase/functions/_shared/waouh-signal-fabric*"
       - "supabase/migrations/*waouh_nexus*.sql"
@@ -76,9 +104,14 @@ on:
   workflow_dispatch:
     inputs:
       deploy:
-        description: "Déployer la migration et les Edge Functions après validation"
+        description: "Déployer les Edge Functions après validation"
         required: true
         default: true
+        type: boolean
+      apply_migrations:
+        description: "Appliquer explicitement les migrations Supabase en attente"
+        required: true
+        default: false
         type: boolean
 
 permissions:
@@ -137,6 +170,11 @@ jobs:
             waouh-native-simulator
             waouh-webhook
             waouh-agentic-core
+            waha-connect
+            waha-dashboard-proxy
+            waha-manage-contact
+            waha-diagnostic
+            waouh-operator-send
           )
           for function_name in "${required_functions[@]}"; do
             test -f "supabase/functions/${function_name}/index.ts" || {
@@ -208,6 +246,18 @@ jobs:
           )
           entrypoints+=(supabase/functions/waouh-webhook/index.ts)
           entrypoints+=(supabase/functions/waouh-agentic-core/index.ts)
+          entrypoints+=(supabase/functions/waha-connect/index.ts)
+          entrypoints+=(supabase/functions/waha-dashboard-proxy/index.ts)
+          entrypoints+=(supabase/functions/waha-manage-contact/index.ts)
+          entrypoints+=(supabase/functions/waha-diagnostic/index.ts)
+          entrypoints+=(supabase/functions/waouh-operator-send/index.ts)
+          entrypoints+=(supabase/functions/waouh-radar-apify/index.ts)
+          entrypoints+=(supabase/functions/waouh-radar-site-scraper/index.ts)
+          entrypoints+=(supabase/functions/waouh-serpapi-scout/index.ts)
+          entrypoints+=(supabase/functions/waouh-radar-process/index.ts)
+          entrypoints+=(supabase/functions/waouh-radar-campaign-tick/index.ts)
+          entrypoints+=(supabase/functions/waouh-alerts-check/index.ts)
+          entrypoints+=(supabase/functions/waouh-notify-buyers/index.ts)
           if [ "${#entrypoints[@]}" -eq 0 ]; then
             echo '::error::Aucun point d’entrée Native Messaging à vérifier.'
             exit 1
@@ -268,7 +318,7 @@ jobs:
           import sys
           from pglast import parse_sql
 
-          migrations = sorted(set(Path('supabase/migrations').glob('*waouh_native_messaging*.sql')) | set(Path('supabase/migrations').glob('*waouh_agentic_core*.sql')) | set(Path('supabase/migrations').glob('*waouh_nexus*.sql')) | set(Path('supabase/migrations').glob('*secure_waouh_sessions_and_media*.sql')))
+          migrations = sorted(set(Path('supabase/migrations').glob('*waouh_native_messaging*.sql')) | set(Path('supabase/migrations').glob('*waouh_agentic_core*.sql')) | set(Path('supabase/migrations').glob('*waouh_nexus*.sql')) | set(Path('supabase/migrations').glob('*secure_waouh_sessions_and_media*.sql')) | set(Path('supabase/migrations').glob('*waouh_runtime_auth_and_radar_cron_hardening*.sql')))
           if not migrations:
               print('::error::Migrations WAOUH Muse/Native Messaging introuvables.')
               sys.exit(1)
@@ -355,7 +405,15 @@ jobs:
             --password "$SUPABASE_DB_PASSWORD"
           echo '✅ Projet Supabase de production lié.'
 
+      - name: Explain migration gate
+        if: github.event_name != 'workflow_dispatch' || inputs.apply_migrations != true
+        run: |
+          echo 'ℹ️ Push production : aucun db push générique.'
+          echo 'ℹ️ Le projet a un historique de migration drift connu ; les migrations sont appliquées par release contrôlée.'
+          echo 'ℹ️ Utilisez workflow_dispatch + apply_migrations=true uniquement après revue explicite.'
+
       - name: Preview pending database migrations
+        if: github.event_name == 'workflow_dispatch' && inputs.apply_migrations == true
         shell: bash
         run: |
           set -euo pipefail
@@ -367,6 +425,7 @@ jobs:
           echo '✅ Simulation terminée; aucune migration appliquée pendant cette étape.'
 
       - name: Apply pending database migrations
+        if: github.event_name == 'workflow_dispatch' && inputs.apply_migrations == true
         shell: bash
         run: |
           set -euo pipefail
@@ -374,7 +433,7 @@ jobs:
             --linked \
             --password "$SUPABASE_DB_PASSWORD" \
             --yes
-          echo '✅ Migrations Supabase de production appliquées.'
+          echo '✅ Migrations Supabase de production appliquées explicitement.'
 
       - name: Deploy Native Messaging Edge Functions
         shell: bash
@@ -426,4 +485,19 @@ jobs:
             --use-api \
             --no-verify-jwt
 
-          echo '✅ Runtime Native Messaging déployé dans les slots de production existants.'
+          secured_legacy=(
+            waha-connect
+            waha-dashboard-proxy
+            waha-manage-contact
+            waha-diagnostic
+            waouh-operator-send
+          )
+          for fn in "${secured_legacy[@]}"; do
+            echo "🔐 Deploying hardened $fn..."
+            supabase functions deploy "$fn" \
+              --project-ref "$SUPABASE_PROJECT_REF" \
+              --use-api \
+              --no-verify-jwt
+          done
+
+          echo '✅ Runtime Native Messaging et passerelles WAHA sécurisées déployés.'

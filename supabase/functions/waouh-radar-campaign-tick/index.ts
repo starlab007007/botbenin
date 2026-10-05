@@ -4,6 +4,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-waouh-session",
 };
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -110,6 +111,8 @@ async function resolveSegment(admin: any, segment: any) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE);
+  const guard = await requireRuntimeOrAdmin(req, admin);
+  if (!guard.ok) return guard.response;
   const body = await req.json().catch(() => ({}));
   const onlyCampaign: string | undefined = body?.campaign_id;
 

@@ -30,6 +30,17 @@ serve(async (req) => {
       });
     }
 
+    const [adminRole, superRole] = await Promise.all([
+      supabase.rpc('has_role', { _user_id: user.id, _role_name: 'admin' }),
+      supabase.rpc('has_role', { _user_id: user.id, _role_name: 'super_admin' }),
+    ]);
+    if (adminRole.data !== true && superRole.data !== true) {
+      return new Response(JSON.stringify({ error: 'ADMIN_REQUIRED' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const wahaUrl = Deno.env.get('WAHA_BASE_URL') || 'https://waha.bot.bj';
     const wahaUsername = Deno.env.get('WAHA_DASHBOARD_USERNAME');
     const wahaPassword = Deno.env.get('WAHA_DASHBOARD_PASSWORD');
@@ -43,10 +54,6 @@ serve(async (req) => {
     console.log('🔧 Credentials configured:', credentialsConfigured);
     console.log('🔧 API Key configured:', apiKeyConfigured);
     
-    if (wahaApiKey) {
-      console.log('🔧 Using API Key (first 8 chars):', wahaApiKey.substring(0, 8) + '...');
-    }
-
     console.log('🔍 WAHA Diagnostic - Starting comprehensive test...');
     
     const diagnosticResults: any[] = [];
@@ -91,8 +98,7 @@ serve(async (req) => {
           test: 'dashboard_auth',
           success: dashboardResponse.ok,
           status: dashboardResponse.status,
-          details: `Dashboard access: ${dashboardResponse.status}, Cookies: ${cookies ? 'Present' : 'None'}`,
-          cookies: cookies
+          details: `Dashboard access: ${dashboardResponse.status}, Cookies: ${cookies ? 'Present' : 'None'}`
         });
       } catch (error) {
         diagnosticResults.push({
@@ -124,8 +130,7 @@ serve(async (req) => {
           test: 'api_key_auth',
           success: apiKeyResponse.ok,
           status: apiKeyResponse.status,
-          details: `API Key test: ${apiKeyResponse.status}`,
-          responseBody: apiKeyResponse.ok ? await apiKeyResponse.text() : 'Failed'
+          details: `API Key test: ${apiKeyResponse.status}`
         });
       } catch (error) {
         diagnosticResults.push({
@@ -186,8 +191,7 @@ serve(async (req) => {
           test: 'basic_auth_api',
           success: basicResponse.ok,
           status: basicResponse.status,
-          details: `Basic auth API: ${basicResponse.status}`,
-          responseBody: basicResponse.ok ? responseText : responseText.substring(0, 200)
+          details: `Basic auth API: ${basicResponse.status}`
         });
       } catch (error) {
         diagnosticResults.push({

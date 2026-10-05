@@ -1,5 +1,6 @@
 // Vérifie taux d'erreurs WAHA et déclenche webhook si dépassement
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,6 +22,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const guard = await requireRuntimeOrAdmin(req, sb);
+    if (!guard.ok) return guard.response;
     const { data: cfg } = await sb.from("waouh_alert_config").select("*").order("updated_at", { ascending: false }).limit(1).maybeSingle();
     if (!cfg || !cfg.enabled || !cfg.webhook_url) {
       return new Response(JSON.stringify({ ok: true, skipped: "config missing or disabled" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });

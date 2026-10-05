@@ -65,6 +65,26 @@ serve(async (req) => {
       );
     }
 
+    const [adminRole, superRole] = await Promise.all([
+      supabase.rpc('has_role', { _user_id: user.id, _role_name: 'admin' }),
+      supabase.rpc('has_role', { _user_id: user.id, _role_name: 'super_admin' }),
+    ]);
+    const isAdmin = adminRole.data === true || superRole.data === true;
+    if (!isAdmin) {
+      const { data: account } = await supabase
+        .from('whatsapp_accounts')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('session_name', sessionName)
+        .maybeSingle();
+      if (!account?.id) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'SESSION_FORBIDDEN' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     // Helper function to make WAHA API calls
     const wahaFetch = async (endpoint: string, options: RequestInit = {}) => {
       const url = `${wahaBaseUrl}/api${endpoint}`;

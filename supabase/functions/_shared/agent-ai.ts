@@ -2,7 +2,7 @@
 // Appels directs à Google Gemini pour le chat et les embeddings.
 
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models";
-const DEFAULT_CHAT_MODEL = "gemini-2.5-flash-lite";
+const DEFAULT_CHAT_MODEL = Deno.env.get("GEMINI_CHAT_MODEL") || "gemini-3.5-flash-lite";
 // Modèle d'embeddings unique de la plateforme (aligné sur le Web Chat public `a`).
 // Les vecteurs stockés (waouh_ai_agent_chunks.embedding) sont en 768 dimensions ;
 // un changement de modèle impose de ré-indexer les fragments existants

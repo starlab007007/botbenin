@@ -15,6 +15,7 @@
 
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2.49.8';
+import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -44,13 +45,110 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const articleId: string | null = body?.article_id ?? null;
     const catalogId: string | null = body?.catalog_id ?? null;
-    if (!articleId && !catalogId) {
-      return new Response(JSON.stringify({ error: 'article_id or catalog_id required' }), {
+    const buyerProfileId: string | null = body?.buyer_profile_id ?? null;
+
+    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const guard = await requireRuntimeOrAdmin(req, supabase);
+    if (!guard.ok) return guard.response;
+
+    if (!articleId && !catalogId && !buyerProfileId) {
+      return new Response(JSON.stringify({ error: 'article_id, catalog_id or buyer_profile_id required' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
+    // Admin/manual rematch mode: evaluate one buyer profile against the latest
+    // internal + unified catalog inventory, then dispatch only new matches.
+    if (buyerProfileId) {
+      const { data: profile, error: profileError } = await supabase
+        .from('waouh_buyer_profiles')
+        .select('*')
+        .eq('id', buyerProfileId)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (profileError) throw profileError;
+      if (!profile) {
+        return new Response(JSON.stringify({ error: 'buyer profile not found or inactive' }), {
+          status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const [articlesRes, catalogRes] = await Promise.all([
+        supabase.from('waouh_articles')
+          .select('id,title,brand,model,description,price,seller_id,created_at')
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(200),
+        supabase.from('waouh_unified_catalog')
+          .select('id,titre,description,categorie,tags,prix_min,prix_max,source_ref_id,is_active,last_seen_at')
+          .eq('is_active', true)
+          .order('last_seen_at', { ascending: false, nullsFirst: false })
+          .limit(200),
+      ]);
+      if (articlesRes.error) throw articlesRes.error;
+      if (catalogRes.error) throw catalogRes.error;
+
+      const candidates: Item[] = [
+        ...(articlesRes.data || []).map((a: any) => ({
+          id: a.id,
+          source: 'article' as const,
+          text: ((a.title || '') + ' ' + (a.brand || '') + ' ' + (a.model || '') + ' ' + (a.description || '')).toLowerCase(),
+          price: typeof a.price === 'number' ? a.price : (Number(a.price) || null),
+          seller_id: a.seller_id ?? null,
+        })),
+        ...(catalogRes.data || []).map((c: any) => ({
+          id: c.id,
+          source: 'catalog' as const,
+          text: ((c.titre || '') + ' ' + (c.description || '') + ' ' + (c.categorie || '') + ' ' + (Array.isArray(c.tags) ? c.tags.join(' ') : '')).toLowerCase(),
+          price: (typeof c.prix_min === 'number' ? c.prix_min : Number(c.prix_min) || null)
+              ?? (typeof c.prix_max === 'number' ? c.prix_max : Number(c.prix_max) || null),
+          seller_id: c.source_ref_id ?? null,
+        })),
+      ];
+
+      const already = new Set<string>(Array.isArray(profile.notified_article_ids) ? profile.notified_article_ids : []);
+      const matches = candidates.filter((candidate) =>
+        !already.has(candidate.id)
+        && !(profile.user_id && candidate.seller_id && profile.user_id === candidate.seller_id)
+        && matchProfile(profile, candidate)
+      ).slice(0, 20);
+
+      const delivered: string[] = [];
+      const failures: Array<{ id: string; status: number }> = [];
+      for (const candidate of matches) {
+        const dispatchBody: Record<string, any> = {
+          kind: 'match',
+          buyer_profile_id: profile.id,
+          recipient: 'buyer',
+        };
+        if (candidate.source === 'article') dispatchBody.article_id = candidate.id;
+        else dispatchBody.catalog_id = candidate.id;
+
+        const response = await fetch(`${SUPABASE_URL}/functions/v1/waouh-notify-dispatch`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${SERVICE_ROLE}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(dispatchBody),
+        });
+        if (response.ok) delivered.push(candidate.id);
+        else failures.push({ id: candidate.id, status: response.status });
+      }
+
+      if (delivered.length) {
+        const { error: updateError } = await supabase.from('waouh_buyer_profiles').update({
+          notified_article_ids: [...already, ...delivered],
+        }).eq('id', profile.id);
+        if (updateError) throw updateError;
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        buyer_profile_id: profile.id,
+        matched: matches.length,
+        notified: delivered.length,
+        failed: failures.length,
+        failures,
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
 
     let item: Item | null = null;
 
@@ -92,12 +190,13 @@ Deno.serve(async (req) => {
 
     // Cap the scan to avoid full-table scans as buyer_profiles grows.
     // 2000 active profiles per item is a generous ceiling for now.
-    const { data: profiles } = await supabase
+    const { data: profiles, error: profilesError } = await supabase
       .from('waouh_buyer_profiles')
       .select('*')
       .eq('is_active', true)
-      .order('updated_at', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(2000);
+    if (profilesError) throw new Error(`buyer_profiles_scan_failed:${profilesError.message}`);
     const matched: string[] = [];
     const dispatchedRecipients = new Set<string>();
 
@@ -109,11 +208,6 @@ Deno.serve(async (req) => {
       // (UUIDs from different tables don't collide).
       const already = Array.isArray(p.notified_article_ids) && p.notified_article_ids.includes(item.id);
       if (already) continue;
-
-      // Mark as notified up-front to avoid retries on transient errors
-      await supabase.from('waouh_buyer_profiles').update({
-        notified_article_ids: [...(p.notified_article_ids || []), item.id],
-      }).eq('id', p.id);
 
       const recipientKey = p.user_id || p.contact_phone || p.id;
       if (dispatchedRecipients.has(recipientKey)) continue;
@@ -127,11 +221,25 @@ Deno.serve(async (req) => {
       if (item.source === 'article') dispatchBody.article_id = item.id;
       else dispatchBody.catalog_id = item.id;
 
-      fetch(`${SUPABASE_URL}/functions/v1/waouh-notify-dispatch`, {
+      const dispatchResponse = await fetch(`${SUPABASE_URL}/functions/v1/waouh-notify-dispatch`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${SERVICE_ROLE}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(dispatchBody),
-      }).catch(() => {});
+      });
+      if (!dispatchResponse.ok) {
+        const detail = await dispatchResponse.text().catch(() => '');
+        console.error('[waouh-notify-buyers] dispatch failed', dispatchResponse.status, detail.slice(0, 300));
+        continue;
+      }
+
+      // Never mark a buyer as notified before downstream delivery succeeds.
+      const { error: markError } = await supabase.from('waouh_buyer_profiles').update({
+        notified_article_ids: [...(p.notified_article_ids || []), item.id],
+      }).eq('id', p.id);
+      if (markError) {
+        console.error('[waouh-notify-buyers] mark notified failed', markError.message);
+        continue;
+      }
 
       matched.push(p.id);
     }

@@ -44,10 +44,58 @@ serve(async (req) => {
     if (parsedBody && typeof parsedBody === 'object') {
       if (!action && typeof parsedBody.action === 'string') action = parsedBody.action;
       if (!sessionName && typeof parsedBody.sessionName === 'string') sessionName = parsedBody.sessionName;
+      if (!sessionName && typeof parsedBody.session_name === 'string') sessionName = parsedBody.session_name;
       if (typeof parsedBody.phoneNumber === 'string') phoneNumber = parsedBody.phoneNumber;
+      if (!phoneNumber && typeof parsedBody.phone_number === 'string') phoneNumber = parsedBody.phone_number;
     }
 
-    const wahaUrl = 'https://waha.bot.bj';
+    // This function holds WAHA credentials and can start/logout sessions:
+    // a browser Origin check is not an authorization mechanism.
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const authHeader = req.headers.get('authorization') || '';
+    if (!authHeader.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'AUTH_REQUIRED' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false },
+    });
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'AUTH_REQUIRED' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    if (!sessionName || !/^[A-Za-z0-9_.-]{1,96}$/.test(sessionName)) {
+      return new Response(JSON.stringify({ error: 'INVALID_SESSION_NAME' }), {
+        status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const service = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+    const [adminRole, superRole] = await Promise.all([
+      service.rpc('has_role', { _user_id: user.id, _role_name: 'admin' }),
+      service.rpc('has_role', { _user_id: user.id, _role_name: 'super_admin' }),
+    ]);
+    const isAdmin = adminRole.data === true || superRole.data === true;
+    if (!isAdmin) {
+      const { data: owned } = await service.from('whatsapp_accounts')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('session_name', sessionName)
+        .maybeSingle();
+      if (!owned?.id) {
+        return new Response(JSON.stringify({ error: 'SESSION_FORBIDDEN' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
+    const wahaUrl = (Deno.env.get('WAHA_BASE_URL') || 'https://waha.bot.bj').replace(/\/$/, '');
     const wahaApiKey = Deno.env.get('WAHA_API_KEY');
     const wahaUsername = Deno.env.get('WAHA_USERNAME');
     const wahaPassword = Deno.env.get('WAHA_PASSWORD');
@@ -71,13 +119,15 @@ serve(async (req) => {
 
     if (action === 'start') {
       return await handleStart(sessionName, wahaUrl, wahaApiKey, wahaUsername || 'admin', wahaPassword);
-    } else if (action === 'status' && sessionName) {
+    } else if (action === 'status') {
       return await handleStatus(sessionName, wahaUrl, wahaApiKey, wahaUsername || 'admin', wahaPassword);
     } else if (action === 'pair-code') {
       return await handlePairCode(sessionName, phoneNumber, wahaUrl, wahaApiKey, wahaUsername || 'admin', wahaPassword);
+    } else if (action === 'stop' || action === 'restart' || action === 'logout') {
+      return await handleLifecycleAction(action, sessionName, wahaUrl, wahaApiKey, wahaUsername || 'admin', wahaPassword, service);
     } else {
       return new Response(
-        JSON.stringify({ error: 'Invalid endpoint. Use action=start | status | pair-code' }),
+        JSON.stringify({ error: 'Invalid endpoint. Use action=start | status | pair-code | stop | restart | logout' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -90,6 +140,61 @@ serve(async (req) => {
     );
   }
 });
+
+async function handleLifecycleAction(
+  action: 'stop' | 'restart' | 'logout',
+  sessionName: string,
+  wahaUrl: string,
+  wahaApiKey: string | undefined,
+  wahaUsername: string,
+  wahaPassword: string | undefined,
+  service: any,
+): Promise<Response> {
+  const encoded = encodeURIComponent(sessionName);
+  const headers: Record<string,string> = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+  if (wahaApiKey) headers['X-Api-Key'] = wahaApiKey;
+  else if (wahaPassword) headers['Authorization'] = `Basic ${btoa(`${wahaUsername}:${wahaPassword}`)}`;
+
+  const candidates = action === 'logout'
+    ? [`/api/sessions/${encoded}/logout`, `/api/${encoded}/auth/logout`]
+    : [`/api/sessions/${encoded}/${action}`, `/api/v2/sessions/${encoded}/${action}`];
+
+  let lastStatus = 502;
+  let lastBody = '';
+  for (const endpoint of candidates) {
+    try {
+      const res = await fetch(`${wahaUrl}${endpoint}`, {
+        method: 'POST',
+        headers,
+        signal: AbortSignal.timeout(8000),
+      });
+      lastStatus = res.status;
+      lastBody = await res.text().catch(() => '');
+      if (res.ok) {
+        const dbStatus = action === 'restart' ? 'connecting' : 'disconnected';
+        await service.from('whatsapp_accounts').update({
+          status: dbStatus,
+          qr_code: action === 'restart' ? undefined : null,
+          last_activity: new Date().toISOString(),
+        }).eq('session_name', sessionName);
+        return new Response(JSON.stringify({ success: true, action, session: sessionName }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      if (res.status !== 404) break;
+    } catch (e: any) {
+      lastBody = String(e?.message || e);
+    }
+  }
+  return new Response(JSON.stringify({
+    success: false,
+    error: `WAHA_${action.toUpperCase()}_FAILED`,
+    detail: lastBody.slice(0, 300),
+  }), {
+    status: lastStatus >= 400 && lastStatus < 600 ? lastStatus : 502,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
 
 async function handleStart(
   sessionName: string | undefined,
@@ -525,7 +630,7 @@ async function handlePairCode(
       ? `${onlyAlnum.slice(0, 4)}-${onlyAlnum.slice(4)}`
       : onlyAlnum;
 
-    console.log(`✅ Pair code generated for ${sessionName}: ${formatted}`);
+    console.log(`✅ Pair code generated for session=${sessionName}`);
 
     return new Response(
       JSON.stringify({

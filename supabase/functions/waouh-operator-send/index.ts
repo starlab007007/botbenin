@@ -40,12 +40,14 @@ async function sendWahaText(chatId: string, text: string) {
     method: "POST",
     headers: wahaHeaders(),
     body: JSON.stringify({ session: WAHA_SESSION, chatId, text }),
+    signal: AbortSignal.timeout(5000),
   });
   if (r.ok) return r;
   return fetch(`${base}/api/${WAHA_SESSION}/sendText`, {
     method: "POST",
     headers: wahaHeaders(),
     body: JSON.stringify({ chatId, text }),
+    signal: AbortSignal.timeout(5000),
   });
 }
 
@@ -55,12 +57,14 @@ async function sendWahaImage(chatId: string, imageUrl: string, caption: string) 
     method: "POST",
     headers: wahaHeaders(),
     body: JSON.stringify({ session: WAHA_SESSION, chatId, file: { url: imageUrl }, caption }),
+    signal: AbortSignal.timeout(5000),
   });
   if (r.ok) return r;
   return fetch(`${base}/api/${WAHA_SESSION}/sendImage`, {
     method: "POST",
     headers: wahaHeaders(),
     body: JSON.stringify({ chatId, file: { url: imageUrl }, caption }),
+    signal: AbortSignal.timeout(5000),
   });
 }
 
@@ -89,7 +93,7 @@ serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const conversation_id = String(body.conversation_id || "");
-    const text = String(body.text || "").trim();
+    const text = String(body.text || body.message || "").trim();
     const attachments: Array<{ url: string; type?: string; caption?: string }> =
       Array.isArray(body.attachments) ? body.attachments.filter((a: any) => a && a.url) : [];
 
@@ -114,6 +118,32 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "conversation_not_found" }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Admin/operator consoles may address any conversation. Standard users may
+    // only send into a conversation bound to one of their own WAOUH identities.
+    const [adminRole, superRole] = await Promise.all([
+      sb.rpc("has_role", { _user_id: user.id, _role_name: "admin" }),
+      sb.rpc("has_role", { _user_id: user.id, _role_name: "super_admin" }),
+    ]);
+    const isAdmin = adminRole.data === true || superRole.data === true;
+    if (!isAdmin) {
+      if (!conv.user_id) {
+        return new Response(JSON.stringify({ error: "conversation_forbidden" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: ownedIdentity } = await sb
+        .from("waouh_users")
+        .select("id")
+        .eq("id", conv.user_id)
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+      if (!ownedIdentity?.id) {
+        return new Response(JSON.stringify({ error: "conversation_forbidden" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // Resolve user/channel

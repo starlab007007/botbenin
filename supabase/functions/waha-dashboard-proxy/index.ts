@@ -22,9 +22,34 @@ serve(async (req) => {
     // Initialize Supabase client for data sync only
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
 
-    // Sécurité: Vérifier l'origine de la requête (allowlist)
+    // WAHA credentials make this a privileged proxy. Origin/Referer can be
+    // forged or absent and therefore cannot replace authentication.
+    const authHeader = req.headers.get('authorization') || '';
+    if (!authHeader.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'AUTH_REQUIRED' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false },
+    });
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'AUTH_REQUIRED' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const [adminRole, superRole] = await Promise.all([
+      supabase.rpc('has_role', { _user_id: user.id, _role_name: 'admin' }),
+      supabase.rpc('has_role', { _user_id: user.id, _role_name: 'super_admin' }),
+    ]);
+    const isAdmin = adminRole.data === true || superRole.data === true;
+
+    // Sécurité secondaire: Vérifier l'origine de la requête (allowlist)
     const origin = req.headers.get('Origin') || req.headers.get('Referer') || '';
     
     // Autoriser tous les domaines Lovable en développement
@@ -114,6 +139,31 @@ serve(async (req) => {
     const base = (wahaUrl || '').replace(/\/+$/, '');
     const pathNormalized = `/${(urlPath || '').replace(/^\/+/, '')}`;
     const fullWahaUrl = `${base}${pathNormalized}`;
+
+    // Non-admin users may only proxy their own WAHA sessions. Listing is
+    // allowed but filtered server-side to the caller's owned sessions.
+    let ownedSessionNames = new Set<string>();
+    if (!isAdmin) {
+      const { data: ownedAccounts, error: ownedError } = await supabase
+        .from('whatsapp_accounts')
+        .select('session_name')
+        .eq('user_id', user.id);
+      if (ownedError) throw ownedError;
+      ownedSessionNames = new Set((ownedAccounts || []).map((row: any) => String(row.session_name || '')).filter(Boolean));
+
+      const isSessionList = pathNormalized === '/api/sessions' || pathNormalized === '/api/v2/sessions';
+      if (!isSessionList) {
+        const match =
+          pathNormalized.match(/^\/api(?:\/v2)?\/sessions\/([^\/?]+)/i) ||
+          pathNormalized.match(/^\/api(?:\/v2)?\/([^\/?]+)(?:\/|$)/i);
+        const requestedSession = match?.[1] ? decodeURIComponent(match[1]) : null;
+        if (!requestedSession || requestedSession === 'sessions' || !ownedSessionNames.has(requestedSession)) {
+          return new Response(JSON.stringify({ error: 'SESSION_FORBIDDEN' }), {
+            status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+      }
+    }
 
     console.log(`Proxying ${finalMethod} request to: ${fullWahaUrl}`);
 
@@ -275,6 +325,12 @@ serve(async (req) => {
     if (contentType?.includes('application/json')) {
       responseData = await wahaResponse.json();
       console.log('✅ Successfully parsed JSON response');
+      if (!isAdmin && (pathNormalized === '/api/sessions' || pathNormalized === '/api/v2/sessions')) {
+        const sessions = Array.isArray(responseData) ? responseData : [];
+        responseData = sessions.filter((session: any) =>
+          ownedSessionNames.has(String(session?.name || session?.session || session?.session_name || ''))
+        );
+      }
     } else if (contentType?.includes('image/')) {
       // Gérer les réponses image - convertir en base64
       const arrayBuffer = await wahaResponse.arrayBuffer();

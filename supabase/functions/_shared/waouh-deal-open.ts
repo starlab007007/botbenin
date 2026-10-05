@@ -250,12 +250,35 @@ export async function openBuyerDeal(args: OpenBuyerDealArgs): Promise<OpenBuyerD
           last_actor: "buyer",
           meta: { opened_via: "buyer_interest", source, initial_offer_amount: initialOffer, correlation_id: correlationId },
         }).select("id").single();
-        if (createdNegError) throw createdNegError;
-        negotiationId = createdNeg?.id ?? null;
-        created = !!negotiationId;
-        negotiationState = "proposed";
-        lastActor = "buyer";
-        lastOfferPrice = initialOffer;
+        if (createdNegError) {
+          // DB invariant: one open negotiation per canonical thread. A concurrent
+          // request may win between our SELECT and INSERT; recover that winner
+          // instead of returning a thread with no negotiation.
+          if ((createdNegError as any).code === "23505") {
+            const { data: winner } = await sb.from("waouh_negotiations")
+              .select("id,state,last_actor,last_offer_price,created_at")
+              .eq("thread_id", threadId)
+              .in("state", ["proposed", "countered"])
+              .order("updated_at", { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (!winner) throw createdNegError;
+            negotiationId = winner.id;
+            created = false;
+            negotiationState = winner.state ?? "proposed";
+            lastActor = winner.last_actor ?? "buyer";
+            lastOfferPrice = winner.last_offer_price == null ? initialOffer : Number(winner.last_offer_price);
+            negotiationCreatedAt = winner.created_at ? Date.parse(winner.created_at) : null;
+          } else {
+            throw createdNegError;
+          }
+        } else {
+          negotiationId = createdNeg?.id ?? null;
+          created = !!negotiationId;
+          negotiationState = "proposed";
+          lastActor = "buyer";
+          lastOfferPrice = initialOffer;
+        }
         // Appels simultanés : plusieurs négociations ouvertes sur le même fil → la plus ancienne gagne, les autres se retirent
         // (un seul « Nouvel acheteur », une seule confirmation, une seule négociation à clore).
         if (negotiationId) {

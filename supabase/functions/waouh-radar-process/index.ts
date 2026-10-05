@@ -5,6 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -261,6 +262,8 @@ async function enqueueRadarOutreach(sb: any, sig: any, phone: string, promotedId
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
+  const guard = await requireRuntimeOrAdmin(req, sb);
+  if (!guard.ok) return guard.response;
 
   try {
     const { limit = 50 } = req.method === "POST" ? await req.json().catch(() => ({})) : {};

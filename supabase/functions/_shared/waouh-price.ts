@@ -143,8 +143,8 @@ async function fetchRadar(sb: any, q: PriceCompareInput): Promise<PriceSample[]>
   let qb = sb.from("waouh_radar_signals")
     .select("raw_text, price, city, source_type")
     .not("price", "is", null)
-    .gte("created_at", new Date(Date.now() - 60 * 86400 * 1000).toISOString())
-    .order("created_at", { ascending: false })
+    .gte("captured_at", new Date(Date.now() - 60 * 86400 * 1000).toISOString())
+    .order("captured_at", { ascending: false })
     .limit(30);
   if (q.city) qb = qb.ilike("city", q.city);
   qb = qb.or(terms.map((t) => `raw_text.ilike.%${t}%`).join(","));

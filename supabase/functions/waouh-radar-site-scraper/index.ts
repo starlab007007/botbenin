@@ -5,6 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -45,13 +46,15 @@ async function aiExtractListings(markdown: string): Promise<any[]> {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
+  const guard = await requireRuntimeOrAdmin(req, sb);
+  if (!guard.ok) return guard.response;
+
   if (!FIRECRAWL_API_KEY) {
     return new Response(JSON.stringify({ ok: false, error: "FIRECRAWL_API_KEY missing" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-
-  const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   try {
     const { data: sources } = await sb
@@ -83,6 +86,10 @@ Deno.serve(async (req) => {
 
           for (const it of items.slice(0, 20)) {
             if (!it || (it.confidence ?? 0) < 0.4) continue;
+            const intent = String(it.intent || "UNKNOWN").toUpperCase();
+            // Raw Radar only accepts SELL/BUY/NEGOTIATE/UNKNOWN. For this
+            // commerce scraper, non BUY/SELL output is noise and is discarded.
+            if (intent !== "SELL" && intent !== "BUY") continue;
             const url = it.url || `${src.identifier}#${encodeURIComponent((it.title || "").slice(0, 60))}`;
             // Idempotence via unique index (source_type, raw_url)
             const { error: insErr } = await sb.from("waouh_radar_signals").insert({
@@ -91,7 +98,7 @@ Deno.serve(async (req) => {
               raw_text: `${it.title || ""}\nPrix: ${it.price ?? "?"}\nVille: ${it.city ?? "?"}`,
               raw_url: url,
               raw_payload: it,
-              intent: it.intent || "UNKNOWN",
+              intent,
               product: it,
               category: it.category,
               price: it.price ?? null,
