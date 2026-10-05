@@ -31,12 +31,40 @@ async function runActor(actor: string, input: any) {
   return await r.json();
 }
 
+async function setApifyDiscoveryHealth(
+  sb: any,
+  degraded: boolean,
+  reason: string | null,
+): Promise<void> {
+  const keys = ["apify", "facebook_public"];
+  const { data: rows } = await sb
+    .from("waouh_discovery_sources")
+    .select("source_key,metadata")
+    .in("source_key", keys);
+
+  const now = new Date().toISOString();
+  for (const row of rows || []) {
+    const metadata = {
+      ...(row.metadata || {}),
+      health: degraded ? "degraded" : "ok",
+      health_reason: reason,
+      health_checked_at: now,
+      provider_dependency: "apify",
+    };
+    await sb.from("waouh_discovery_sources").update({
+      operational_state: degraded ? "requires_config" : "live",
+      metadata,
+      updated_at: now,
+    }).eq("source_key", row.source_key);
+  }
+}
+
 async function aiExtract(text: string): Promise<any> {
   const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash-lite",
+      model: (Deno.env.get("GEMINI_CHAT_MODEL") || "google/gemini-3.5-flash-lite"),
       messages: [
         { role: "system", content: "Analyse un post Facebook (vente/achat au Bénin) et retourne JSON {intent: SELL|BUY|UNKNOWN, title, price (number FCFA, null si absent), category, city, contact_phone (229XXXXXXXX si visible), contact_handle (nom auteur), confidence (0-1)}." },
         { role: "user", content: text.slice(0, 2000) },
@@ -57,6 +85,7 @@ Deno.serve(async (req) => {
   try {
     const keyRes = await getRadarApiKey(sb, "apify", "APIFY_TOKEN");
     if (!keyRes.ok) {
+      await setApifyDiscoveryHealth(sb, true, keyRes.reason || "apify_unavailable");
       return new Response(JSON.stringify({ ok: false, skipped: true, reason: keyRes.reason }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -130,6 +159,14 @@ Deno.serve(async (req) => {
       // hammer Apify repeatedly during the same run.
       if (providerBlocked) break;
     }
+
+    const allSourcesFailed = perSource.length > 0 && perSource.every((row) => !!row.error);
+    const degraded = providerBlocked || allSourcesFailed;
+    await setApifyDiscoveryHealth(
+      sb,
+      degraded,
+      providerBlocked ? "apify_quota_exhausted" : (allSourcesFailed ? "apify_source_errors" : null),
+    );
 
     // Trigger processing
     if (total > 0) {

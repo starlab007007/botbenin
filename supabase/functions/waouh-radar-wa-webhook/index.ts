@@ -12,7 +12,7 @@ async function aiExtract(text: string): Promise<any> {
     method: "POST",
     headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash-lite",
+      model: (Deno.env.get("GEMINI_CHAT_MODEL") || "google/gemini-3.5-flash-lite"),
       messages: [
         { role: "system", content: "Analyse un message WhatsApp (groupe vente Bénin) et retourne JSON {intent: SELL|BUY|NEGOTIATE|UNKNOWN, title, price (FCFA), category, city, confidence (0-1)}. Sinon confidence=0." },
         { role: "user", content: text.slice(0, 1500) },

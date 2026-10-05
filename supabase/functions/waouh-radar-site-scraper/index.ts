@@ -29,7 +29,7 @@ async function aiExtractListings(markdown: string): Promise<any[]> {
     method: "POST",
     headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash-lite",
+      model: (Deno.env.get("GEMINI_CHAT_MODEL") || "google/gemini-3.5-flash-lite"),
       messages: [
         { role: "system", content: "Analyse une page d'annonces (Bénin). Retourne JSON {items: [{intent: SELL|BUY, title, price (number FCFA, null si absent), category, city, contact_phone (229XXXXXXXX si visible), url, confidence (0-1)}...]}. Maximum 20 items. Ignore tout ce qui n'est pas une annonce de vente/recherche." },
         { role: "user", content: markdown.slice(0, 8000) },

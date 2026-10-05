@@ -6,7 +6,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  ,
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-waouh-session",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
 const STOP = new Set("le la les de des du et un une à en pour par avec sur ou est c'est je tu il elle nous vous ils elles bonjour bonsoir merci ok oui non ça sa ce cette ces mes ton ta si mais que qui quoi comment quand où combien wa waouh whatsapp".split(/\s+/));
@@ -174,7 +175,7 @@ async function answerQuestion(ctx: any): Promise<string> {
     last: (c.messages || []).slice(-2).map((m: any) => `${m.role}: ${m.content}`).join(" | "),
   }));
   const body = {
-    model: "google/gemini-2.5-flash-lite",
+    model: (Deno.env.get("GEMINI_CHAT_MODEL") || "google/gemini-3.5-flash-lite"),
     messages: [
       { role: "system", content: `Tu es un analyste business qui répond en français, en 3-6 lignes claires, avec chiffres concrets si dispo. Base-toi uniquement sur les données fournies.` },
       { role: "user", content: JSON.stringify({

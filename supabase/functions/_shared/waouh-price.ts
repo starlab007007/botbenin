@@ -182,7 +182,7 @@ async function fetchWeb(query: string, city: string | null): Promise<PriceSample
       method: "POST",
       headers: { "Authorization": `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: (Deno.env.get("GEMINI_CHAT_MODEL") || "google/gemini-3.5-flash-lite"),
         messages: [
           { role: "system", content: `Extrais des prix d'annonces. JSON {"items":[{"i":0,"price":50000,"currency":"XOF","relevant":true}]}. currency: XOF/EUR/USD/NGN/GHS/MAD/GBP. relevant=true uniquement si pertinent pour "${query}". Ignore sans prix.` },
           { role: "user", content: JSON.stringify(compact) },
@@ -234,7 +234,7 @@ async function aiVerdict(opts: {
       method: "POST",
       headers: { "Authorization": `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: (Deno.env.get("GEMINI_CHAT_MODEL") || "google/gemini-3.5-flash-lite"),
         messages: [
           { role: "system", content: 'Analyste marché Bénin. JSON: {"label":"JUSTE|ÉLEVÉ|AUBAINE|INCONNU","advice":"≤110 car, FR, factuel, mentionne marge négo si pertinente"}. Si confidence=low → prudence.' },
           { role: "user", content: `Recherche: ${opts.query}\nVille: ${opts.city || "?"}\nPrix demandé: ${opts.askedPrice ?? "?"} FCFA\nStats: ${JSON.stringify(opts.stats)}\nConfidence: ${opts.confidence}\nComparables:\n${top}` },
