@@ -179,21 +179,52 @@ class LiveNotificationService {
   }
 
   Future<void> markRead(String id) async {
-    // Queue entries are historical/read-only. Updating the unified table is a
-    // safe best-effort operation; a missing row simply has no effect.
-    try {
-      await chat.client
-          .from('waouh_notifications')
-          .update({'opened': true}).eq('id', id);
-    } catch (_) {}
+    final cleanId = id.trim();
+    if (cleanId.isEmpty) return;
+    final sid = await session.sessionId;
+    final response = await chat.client.functions.invoke(
+      'waouh-history',
+      headers: <String, String>{'x-waouh-session': sid},
+      body: <String, dynamic>{
+        'action': 'mark_notification_read',
+        'sessionId': sid,
+        'notificationId': cleanId,
+      },
+    );
+    final data = response.data;
+    if (data is! Map || data['ok'] != true) {
+      throw StateError(
+        liveText(
+          data is Map ? data['error'] : null,
+          'Notification impossible à marquer comme lue',
+        ),
+      );
+    }
+    clearCaches();
   }
 
   Future<void> markAllRead(String? authUserId) async {
-    final scope = await _notificationScope(authUserId);
-    if (scope.unifiedOrClause.isEmpty) return;
-    await chat.client
-        .from('waouh_notifications')
-        .update({'opened': true}).or(scope.unifiedOrClause);
+    final sid = await session.sessionId;
+    final response = await chat.client.functions.invoke(
+      'waouh-history',
+      headers: <String, String>{'x-waouh-session': sid},
+      body: <String, dynamic>{
+        'action': 'mark_all_notifications_read',
+        'sessionId': sid,
+        if (authUserId != null && authUserId.trim().isNotEmpty)
+          'authUserId': authUserId.trim(),
+      },
+    );
+    final data = response.data;
+    if (data is! Map || data['ok'] != true) {
+      throw StateError(
+        liveText(
+          data is Map ? data['error'] : null,
+          'Notifications impossibles à marquer comme lues',
+        ),
+      );
+    }
+    clearCaches();
   }
 
   Future<List<LiveMatch>> cachedMatches(
