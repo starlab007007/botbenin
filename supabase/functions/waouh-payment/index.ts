@@ -1,9 +1,14 @@
 // WAOUH Payment - Qosic Mobile Money escrow flow
 // Actions: init (request from buyer), status (poll), release (deposit to seller)
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
 import { paymentAllowedAfterDelivery } from "../_shared/waouh-commerce-states.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-waouh-session",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
