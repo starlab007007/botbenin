@@ -1527,19 +1527,26 @@ class NotificationsController {
   }
 
   Future<void> markRead(String id) async {
-    await supabase
-        .from('waouh_notifications')
-        .update({'opened': true, 'read_at': DateTime.now().toIso8601String()})
-        .eq('id', id);
+    final user = supabase.auth.currentUser;
+    await supabase.functions.invoke(
+      'waouh-history',
+      body: <String, dynamic>{
+        'action': 'mark_notifications_read',
+        'authUserId': user?.id,
+        'notificationIds': <String>[id],
+      },
+    );
   }
 
   Future<void> markAllRead(User? user) async {
-    final ids = await _waouhUserIds(user);
-    if (ids.isEmpty) return;
-    await supabase
-        .from('waouh_notifications')
-        .update({'opened': true, 'read_at': DateTime.now().toIso8601String()})
-        .inFilter('user_id', ids);
+    if (user == null) return;
+    await supabase.functions.invoke(
+      'waouh-history',
+      body: <String, dynamic>{
+        'action': 'mark_notifications_read',
+        'authUserId': user.id,
+      },
+    );
   }
 }
 
