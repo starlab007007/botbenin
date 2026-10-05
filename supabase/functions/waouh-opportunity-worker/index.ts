@@ -457,7 +457,141 @@ async function resolveInternalRecipient(sb: SupabaseClient, signal: any) {
   return data?.auth_user_id ? data : null;
 }
 
-async function contactInternal(sb: SupabaseClient, mandate: any, signal: any, journey: any) {
+async function resolveMandateOwnerWaouhUser(sb: SupabaseClient, ownerAuthId: string) {
+  const { data, error } = await sb.from("waouh_users")
+    .select("id,auth_user_id,display_name,web_session_id,phone_number")
+    .eq("auth_user_id", ownerAuthId)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data ?? null;
+}
+
+async function openCanonicalInternalDeal(
+  sb: SupabaseClient,
+  mandate: any,
+  signal: any,
+  journey: any,
+  articleId: string,
+) {
+  const owner = await resolveMandateOwnerWaouhUser(sb, String(mandate.owner_id));
+  if (!owner?.id) return { contacted: false, reason: "mandate_owner_waouh_identity_missing" };
+
+  const ref = `autonomy:internal-deal:${mandate.id}:${articleId}`;
+  const { data: existingBus } = await sb.from("waouh_conversation_bus_events")
+    .select("id,thread_id,negotiation_id")
+    .eq("external_ref", ref)
+    .maybeSingle();
+  if (existingBus) {
+    return {
+      contacted: false,
+      reason: "already_contacted",
+      thread_id: existingBus.thread_id ?? journey.thread_id ?? null,
+      negotiation_id: existingBus.negotiation_id ?? journey.negotiation_id ?? null,
+    };
+  }
+
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/waouh-buyer-interest`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${SERVICE_ROLE}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      article_id: articleId,
+      buyer_user_id: owner.id,
+      source: "avatar_commerce",
+    }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || body?.error) {
+    return {
+      contacted: false,
+      reason: String(body?.error || `buyer_interest_${response.status}`),
+    };
+  }
+  if (body?.skipped === "self") {
+    return { contacted: false, reason: "self_article" };
+  }
+  const threadId = typeof body?.thread_id === "string" ? body.thread_id : null;
+  const negotiationId = typeof body?.negotiation_id === "string" ? body.negotiation_id : null;
+  if (!threadId) {
+    return { contacted: false, reason: "canonical_thread_missing" };
+  }
+
+  const now = new Date().toISOString();
+  await sb.from("waouh_opportunity_journeys").update({
+    article_id: articleId,
+    thread_id: threadId,
+    negotiation_id: negotiationId,
+    stage: "waiting_reply",
+    contactability_level: "C4",
+    readiness_level: "R4",
+    readiness_score: 86,
+    next_best_action: "WAIT_REPLY",
+    contact_channel: "waouh",
+    last_action: "autonomous_internal_deal_opened",
+    next_action: "WAIT_REPLY",
+    last_message: negotiationId
+      ? "Avatar a ouvert le Deal Room et la négociation canonique. Réponse vendeur en attente."
+      : "Avatar a ouvert le fil canonique. Réponse vendeur en attente.",
+    last_activity_at: now,
+    updated_at: now,
+  }).eq("id", journey.id);
+
+  await sb.rpc("waouh_append_conversation_bus_event", {
+    p_owner_id: mandate.owner_id,
+    p_event_type: "autonomy.internal_deal_opened",
+    p_channel: "waouh",
+    p_direction: "out",
+    p_fabric_id: signal.fabric_id,
+    p_journey_id: journey.id,
+    p_mandate_id: mandate.id,
+    p_article_id: articleId,
+    p_thread_id: threadId,
+    p_negotiation_id: negotiationId,
+    p_deal_id: null,
+    p_external_ref: ref,
+    p_payload: {
+      source: "avatar_commerce",
+      seller_notified: body?.seller_notified === true,
+      duplicate_interest: body?.duplicate === true,
+      workflow_state: body?.workflow_state ?? null,
+    },
+  });
+
+  return {
+    contacted: true,
+    channel: "waouh",
+    thread_id: threadId,
+    negotiation_id: negotiationId,
+    article_id: articleId,
+  };
+}
+
+async function contactInternal(
+  sb: SupabaseClient,
+  mandate: any,
+  signal: any,
+  journey: any,
+  pack: any,
+) {
+  const permission = mandateAllowsContact(mandate, pack);
+  if (!permission.allowed) {
+    return { contacted: false, reason: permission.reason };
+  }
+
+  const articleId =
+    signal.fabric_id?.startsWith("article:") ? signal.fabric_id.slice("article:".length) :
+    (signal.evidence?.article_id ?? null);
+
+  // BUY/ASK + article WAOUH : use the canonical deal writer. This creates the
+  // authoritative thread_id/negotiation instead of a parallel Avatar thread.
+  if (articleId && mandate.mode !== "sell") {
+    return await openCanonicalInternalDeal(sb, mandate, signal, journey, String(articleId));
+  }
+
   const recipient = await resolveInternalRecipient(sb, signal);
   if (!recipient?.auth_user_id || recipient.auth_user_id === mandate.owner_id) return { contacted: false, reason: "internal_recipient_missing" };
   const ref = `autonomy:waouh:${mandate.id}:${signal.fabric_id}`;
@@ -466,9 +600,6 @@ async function contactInternal(sb: SupabaseClient, mandate: any, signal: any, jo
   const message = mandate.mode === "sell"
     ? `WAOUH accompagne un vendeur dont l’offre correspond à votre besoin « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre ?`
     : `WAOUH accompagne un acheteur intéressé par « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre ?`;
-  const articleId =
-    signal.fabric_id?.startsWith("article:") ? signal.fabric_id.slice("article:".length) :
-    (signal.evidence?.article_id ?? null);
   const { error: notificationError } = await sb.from("waouh_notifications").insert({
     user_id: recipient.id,
     article_id: articleId || null,
@@ -1047,7 +1178,7 @@ Deno.serve(async (req) => {
         result.actionable++;
         const journey = await ensureJourney(sb, mandate.owner_id, mandate, signal, pack, Number(signal.scores.total_score || 0));
         let contactResult: any;
-        if (resolved.internal) contactResult = await contactInternal(sb, mandate, signal, journey);
+        if (resolved.internal) contactResult = await contactInternal(sb, mandate, signal, journey, pack);
         else contactResult = await contactExternal(sb, mandate, signal, journey, resolved);
         if (contactResult.contacted) {
           contactedThisRun++;
