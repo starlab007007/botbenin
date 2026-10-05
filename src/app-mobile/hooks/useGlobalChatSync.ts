@@ -41,7 +41,7 @@ async function fireNativeNotification(title: string, body: string, convId: strin
  * paint of /app/chat on slow networks (root cause of ERR_TIMED_OUT loops).
  */
 export function useGlobalChatSync() {
-  const { waouhUserIds, sessionId, ready } = useWaouhIdentity();
+  const { waouhUserIds, sessionId, authUserId, ready } = useWaouhIdentity();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const pathRef = useRef(pathname);
@@ -52,7 +52,7 @@ export function useGlobalChatSync() {
 
   useEffect(() => {
     if (!ready) return;
-    if (!waouhUserIds.length && !sessionId) { setTotalUnread(0); return; }
+    if (!authUserId && !waouhUserIds.length && !sessionId) { setTotalUnread(0); return; }
 
     let cancelled = false;
     let started = false;
@@ -63,13 +63,14 @@ export function useGlobalChatSync() {
       // Single aggregated COUNT (1 request) instead of N COUNT queries.
       // Pick the conversation list from waouh_users mapping when available.
       let convIds: string[] = [];
-      if (waouhUserIds.length) {
+      if (authUserId) {
+        // RLS scopes this query to every WAOUH identity owned by the account,
+        // avoiding partial unread counts when identity history is large.
         const { data } = await supabase
           .from("waouh_conversations")
           .select("id,phone_number")
-          .in("user_id", waouhUserIds)
           .order("updated_at", { ascending: false })
-          .limit(100);
+          .limit(200);
         const list = data ?? [];
         const cache: Record<string, { phone_number: string | null }> = {};
         list.forEach((c: any) => { cache[c.id] = { phone_number: c.phone_number }; });
@@ -174,16 +175,17 @@ export function useGlobalChatSync() {
         }
       } catch {}
 
-      // Realtime subscriptions, one per identity.
-      for (const uid of waouhUserIds) {
-        const ch = supabase.channel(`mobile-msgs-uid-${uid}`)
+      // One authenticated Realtime channel is enough: RLS filters events to
+      // the caller's WAOUH identities. This replaces N channels for N legacy
+      // identity rows. Guests keep the session-scoped fallback.
+      if (authUserId) {
+        const ch = supabase.channel(`mobile-msgs-auth-${authUserId}`)
           .on("postgres_changes",
-            { event: "INSERT", schema: "public", table: "waouh_messages", filter: `user_id=eq.${uid}` },
+            { event: "INSERT", schema: "public", table: "waouh_messages" },
             handler)
           .subscribe();
         channels.push(ch);
-      }
-      if (sessionId) {
+      } else if (sessionId) {
         const ch = supabase.channel(`mobile-msgs-sess-${sessionId}`)
           .on("postgres_changes",
             { event: "INSERT", schema: "public", table: "waouh_messages", filter: `web_session_id=eq.${sessionId}` },
@@ -211,7 +213,7 @@ export function useGlobalChatSync() {
       if (onRead) window.removeEventListener("waouh-chat-read", onRead);
       channels.forEach((c) => supabase.removeChannel(c));
     };
-  }, [ready, waouhUserIds.join("|"), sessionId, navigate]);
+  }, [ready, authUserId, sessionId, navigate]);
 
   return { totalUnread };
 }
