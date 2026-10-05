@@ -593,13 +593,41 @@ async function contactInternal(
   }
 
   const recipient = await resolveInternalRecipient(sb, signal);
-  if (!recipient?.auth_user_id || recipient.auth_user_id === mandate.owner_id) return { contacted: false, reason: "internal_recipient_missing" };
+  if (!recipient?.auth_user_id || recipient.auth_user_id === mandate.owner_id) {
+    return { contacted: false, reason: "internal_recipient_missing" };
+  }
   const ref = `autonomy:waouh:${mandate.id}:${signal.fabric_id}`;
-  const { data: already } = await sb.from("waouh_conversation_bus_events").select("id").eq("external_ref", ref).maybeSingle();
+  const { data: already } = await sb.from("waouh_conversation_bus_events")
+    .select("id").eq("external_ref", ref).maybeSingle();
   if (already) return { contacted: false, reason: "already_contacted" };
+
   const message = mandate.mode === "sell"
-    ? `WAOUH accompagne un vendeur dont l’offre correspond à votre besoin « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre ?`
-    : `WAOUH accompagne un acheteur intéressé par « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre ?`;
+    ? `WAOUH accompagne un vendeur dont l’offre correspond à votre besoin « ${signal.subject || mandate.goal} ». Acceptez-vous que WAOUH poursuive cette mise en relation ?`
+    : `WAOUH accompagne un acheteur intéressé par « ${signal.subject || mandate.goal} ». Acceptez-vous que WAOUH poursuive cette mise en relation ?`;
+
+  const { data: approval, error: approvalError } = await sb.from("waouh_agent_approvals").insert({
+    owner_id: recipient.auth_user_id,
+    action_type: "send_message",
+    action_summary: mandate.mode === "sell"
+      ? "Un vendeur WAOUH souhaite répondre à votre besoin."
+      : "Un acheteur WAOUH souhaite répondre à votre offre.",
+    context: {
+      operation: "opportunity_os.internal_mediated_contact",
+      from_auth_user: mandate.owner_id,
+      recipient_auth_user: recipient.auth_user_id,
+      mandate_id: mandate.id,
+      journey_id: journey.id,
+      fabric_id: signal.fabric_id,
+      source_key: signal.source_key,
+      subject: signal.subject || mandate.goal,
+      mode: mandate.mode,
+      message,
+    },
+    status: "pending",
+    expires_at: new Date(Date.now() + 24 * 3600_000).toISOString(),
+  }).select("id").single();
+  if (approvalError) throw approvalError;
+
   const { error: notificationError } = await sb.from("waouh_notifications").insert({
     user_id: recipient.id,
     article_id: articleId || null,
@@ -610,15 +638,18 @@ async function contactInternal(
       fabric_id: signal.fabric_id,
       journey_id: journey.id,
       mandate_id: mandate.id,
+      approval_id: approval.id,
+      action_type: "send_message",
       from_auth_user: mandate.owner_id,
       source_key: signal.source_key,
       subject: signal.subject || mandate.goal,
-      contactability_level: signal.contactability_level || "C2",
-      readiness_level: journey.readiness_level || null,
-      actionability_score: journey.actionability_score || null,
-      actions: articleId
-        ? [{ id: "open-opportunity:" + signal.fabric_id, label: "Voir l’opportunité" }]
-        : [],
+      contactability_level: "C4",
+      readiness_level: "R4",
+      next_best_action: "WAIT_REPLY",
+      actions: [
+        { id: "approval:" + approval.id + ":approved", label: "Accepter" },
+        { id: "approval:" + approval.id + ":rejected", label: "Refuser" },
+      ],
     },
     channel: "waouh_app",
     delivery_status: "delivered",
@@ -630,7 +661,7 @@ async function contactInternal(
 
   await sb.rpc("waouh_append_conversation_bus_event", {
     p_owner_id: mandate.owner_id,
-    p_event_type: "autonomy.internal_contact_delivered",
+    p_event_type: "autonomy.internal_contact_requested",
     p_channel: "waouh",
     p_direction: "out",
     p_fabric_id: signal.fabric_id,
@@ -642,6 +673,7 @@ async function contactInternal(
     p_deal_id: journey.deal_id || null,
     p_external_ref: ref,
     p_payload: {
+      approval_id: approval.id,
       recipient_auth_user_id: recipient.auth_user_id,
       recipient_waouh_user_id: recipient.id,
       notification_type: "avatar_opportunity_contact",
@@ -649,13 +681,18 @@ async function contactInternal(
   });
   await sb.from("waouh_opportunity_journeys").update({
     stage: "waiting_reply",
+    contactability_level: "C4",
+    readiness_level: "R4",
+    readiness_score: 86,
+    next_best_action: "WAIT_REPLY",
     contact_channel: "waouh",
-    last_action: "autonomous_contact_requested",
+    last_action: "autonomous_mediated_contact_requested",
     next_action: "WAIT_REPLY",
-    last_message: "Avatar a transmis votre intérêt dans WAOUH.",
+    last_message: "Avatar a transmis la demande dans WAOUH. Réponse de la contrepartie en attente.",
+    last_activity_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }).eq("id", journey.id);
-  return { contacted: true, channel: "waouh" };
+  return { contacted: true, channel: "waouh", approval_id: approval.id };
 }
 
 async function queueNativeOpportunityMessage(
