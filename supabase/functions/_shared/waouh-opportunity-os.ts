@@ -45,9 +45,9 @@ const channelBase = (channel: string) => {
   switch (channel) {
     case "waouh": return 100;
     case "whatsapp": return 96;
-    case "rcs": return 88;
+    case "rcs": return 92;
     case "sms":
-    case "sms_rcs": return 78;
+    case "sms_rcs": return 86;
     case "phone": return 82;
     case "email": return 72;
     case "website": return 54;
@@ -64,7 +64,9 @@ export function scoreChannel(candidate: ChannelCandidate) {
   if (candidate.reachable === true) score += 12;
   if (candidate.reachable === false) score -= 35;
   if (candidate.public_business) score += 5;
-  if (["opt_in", "partner_contract", "initiated", "public_business"].includes(String(candidate.consent_state || ""))) score += 5;
+  const consent = String(candidate.consent_state || "");
+  if (consent === "opt_in") score += 12;
+  else if (["partner_contract", "initiated", "public_business"].includes(consent)) score += 5;
   score += Math.min(10, Number(candidate.reply_count || 0) * 2);
   score -= Math.min(20, Number(candidate.failure_count || 0) * 4);
   if (candidate.last_success_at) score += 4;
@@ -76,10 +78,10 @@ export function rankChannels(channels: ChannelCandidate[]) {
   const canonicalPriority: Record<string, number> = {
     waouh: 6,
     whatsapp: 5,
-    rcs: 4.5,
+    rcs: 4.8,
+    sms: 4.4,
+    sms_rcs: 4.4,
     phone: 4,
-    sms: 3.5,
-    sms_rcs: 3.5,
     email: 3,
     website: 2,
     facebook: 1,
