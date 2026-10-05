@@ -179,9 +179,9 @@ Deno.test("Opportunity OS Chat: validation de chaque contact reste assistée", (
 });
 
 
-Deno.test("Opportunity OS: service-owner est limitée à la découverte et au mandat", () => {
+Deno.test("Opportunity OS: service-owner est limitée à la découverte NEXUS", () => {
   assertEquals(serviceMayActForOwner("nexus.global_discovery"), true);
-  assertEquals(serviceMayActForOwner("nexus.mandate.create"), true);
+  assertEquals(serviceMayActForOwner("nexus.mandate.create"), false);
   assertEquals(serviceMayActForOwner("nexus.contact.send"), false);
   assertEquals(serviceMayActForOwner("offer.respond"), false);
   assertEquals(serviceMayActForOwner("payment.create"), false);
