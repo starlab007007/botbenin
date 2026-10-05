@@ -67,8 +67,10 @@ function nearestCity(lat: number, lng: number) {
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  let requestBody: any = {};
   try {
-    const body = await req.json().catch(() => ({}));
+    requestBody = await req.json().catch(() => ({}));
+    const body = requestBody;
     const { lat, lng, query } = body;
 
     let url = "";
@@ -150,9 +152,8 @@ serve(async (req) => {
     // Geocoding is a convenience integration: upstream failure must not break
     // the commerce journey. Fall back to the curated Benin map when possible.
     try {
-      const body = await req.clone().json().catch(() => ({}));
-      const lat = Number(body?.lat);
-      const lng = Number(body?.lng);
+      const lat = Number(requestBody?.lat);
+      const lng = Number(requestBody?.lng);
       if (Number.isFinite(lat) && Number.isFinite(lng)) {
         const city = nearestCity(lat, lng);
         if (city) {
