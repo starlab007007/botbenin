@@ -32,6 +32,31 @@ serve(async (req) => {
 
     const effectiveAuthUserId = auth.authUser?.id ?? null;
 
+    // Authenticated clients may safely bind an identity created during the
+    // guest session. This replaces client-side UPDATE waouh_users attempts,
+    // which are intentionally denied by Data API privileges/RLS.
+    let linkedSessionUsers = 0;
+    if (effectiveAuthUserId && auth.sessionValid && auth.bodySessionId) {
+      const { data: linkedRows, error: linkErr } = await sb
+        .from("waouh_users")
+        .update({ auth_user_id: effectiveAuthUserId })
+        .eq("web_session_id", auth.bodySessionId)
+        .is("auth_user_id", null)
+        .select("id");
+      if (linkErr) throw linkErr;
+      linkedSessionUsers = (linkedRows || []).length;
+    }
+
+    if (body?.action === "link_session") {
+      return jsonResponse({
+        ok: true,
+        action: "link_session",
+        linked: linkedSessionUsers,
+        auth_user_id: effectiveAuthUserId,
+        session_id: auth.bodySessionId,
+      });
+    }
+
     // Pagination.
     const rawLimit = Number(body?.limit ?? 10);
     const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 10, 1), 200);
