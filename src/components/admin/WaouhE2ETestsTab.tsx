@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { WAOUH_RUNTIME_ENDPOINTS } from "@/lib/waouh/runtimeEndpoints";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -96,7 +97,7 @@ export default function WaouhE2ETestsTab() {
 
   const runAll = async () => {
     setRunning(true);
-    const { data, error } = await supabase.functions.invoke("waouh-e2e-test", {
+    const { data, error } = await supabase.functions.invoke(WAOUH_RUNTIME_ENDPOINTS.adminE2ERunner, {
       body: { scenarios: ["A", "B", "C"], sources: ["chat", "partner", "radar"] },
     });
     setRunning(false);
@@ -144,7 +145,7 @@ export default function WaouhE2ETestsTab() {
     if (!confirm(`⚠️ Ce test enverra jusqu'à ${expectedMsgs} messages (WhatsApp réels pour les parties WA, inserts in-app pour les parties App) :\n- Vendeur ${sellerPhone}\n- Acheteur ${buyerPhone}\n- Scénarios : ${waScenarios.join(", ")}\n\nContinuer ?`)) return;
     setWaRunning(true);
     setWaResult(null);
-    const { data, error } = await supabase.functions.invoke("waouh-e2e-test", {
+    const { data, error } = await supabase.functions.invoke(WAOUH_RUNTIME_ENDPOINTS.adminE2ERunner, {
       body: { mode: "whatsapp_full", seller_phone: sellerPhone, buyer_phone: buyerPhone, sources: ["chat", "partner", "radar"], scenarios: waScenarios },
     });
     setWaRunning(false);
