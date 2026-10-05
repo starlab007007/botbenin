@@ -210,6 +210,7 @@ export function buildContactPack(input: ContactPackInput) {
       verified: row.verified === true,
       reachable: row.reachable ?? null,
       public_business: row.public_business === true,
+      consent_state: row.consent_state ?? null,
       last4: row.last4 ?? null,
     })),
     masked_contacts: ranked
