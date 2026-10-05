@@ -218,8 +218,11 @@ Deno.serve(async (req) => {
 
   try {
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
-    const limit = Number(body?.limit ?? 50);
+    const requestedLimit = Number(body?.limit ?? 20);
+    const limit = Math.max(1, Math.min(Number.isFinite(requestedLimit) ? Math.floor(requestedLimit) : 20, 20));
     const manual = body?.manual === true;
+    const runStartedAt = Date.now();
+    const maxRunMs = 45_000;
 
     const outboundControl = await getWaouhModuleControl(sb, "outbound");
     if (!outboundControl.enabled) {
@@ -285,9 +288,16 @@ Deno.serve(async (req) => {
       .limit(limit);
     if (error) throw error;
 
-    let sent = 0, failed = 0, skipped = 0;
+    let sent = 0, failed = 0, skipped = 0, processed = 0;
 
     for (const it of items || []) {
+      // Keep a hard runtime budget below the Edge idle/runtime ceiling.
+      // Remaining rows stay pending and will be picked up by the next tick.
+      if (Date.now() - runStartedAt >= maxRunMs) {
+        console.warn("[waouh-outbound-dispatch] runtime budget reached", { processed, queued: items?.length || 0 });
+        break;
+      }
+      processed++;
       const maxAttempts = Number(it.max_attempts) || MAX_ATTEMPTS_DEFAULT;
       if (Number(it.attempts) >= maxAttempts) {
         await sb.from("waouh_outbound_queue").update({ status: "failed", last_error: "max_attempts reached" }).eq("id", it.id);
@@ -527,7 +537,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, processed: items?.length || 0, sent, failed, skipped }), {
+    return new Response(JSON.stringify({ ok: true, processed, queued: items?.length || 0, sent, failed, skipped, budget_ms: maxRunMs }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
