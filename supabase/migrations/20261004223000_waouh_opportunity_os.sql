@@ -376,7 +376,18 @@ begin
        )
      returning j.*
   loop
-    v_ref := 'negotiation:' || new.id::text || ':' || new.state;
+    v_ref := 'negotiation:' || new.id::text || ':' || new.state || ':journey:' || v_row.id::text;
+    if v_row.fabric_id is not null then
+      update public.waouh_contact_packs
+         set contactability_level=case when v_stage in ('negotiating','agreed') then 'C5' else contactability_level end,
+             readiness_level=case when v_stage in ('negotiating','agreed') then 'R5' else readiness_level end,
+             readiness_score=case when v_stage in ('negotiating','agreed') then 100 else readiness_score end,
+             actionability_score=case when v_stage in ('negotiating','agreed') then 100 else actionability_score end,
+             next_best_action=v_nba,
+             last_verified_at=case when v_stage in ('negotiating','agreed') then now() else last_verified_at end,
+             updated_at=now()
+       where fabric_id=v_row.fabric_id;
+    end if;
     perform public.waouh_append_conversation_bus_event(
       v_row.owner_id,
       case new.state
@@ -540,7 +551,18 @@ begin
       coalesce(new.payment_status,'') || ':' ||
       coalesce(new.seller_confirmed_at::text,'') || ':' ||
       coalesce(new.buyer_payment_selected_at::text,'') || ':' ||
-      coalesce(new.courier_user_id::text,'');
+      coalesce(new.courier_user_id::text,'') || ':journey:' || v_row.id::text;
+    if v_row.fabric_id is not null then
+      update public.waouh_contact_packs
+         set contactability_level=case when v_stage in ('agreed','executing','completed') then 'C5' else contactability_level end,
+             readiness_level=case when v_stage in ('agreed','executing','completed') then 'R5' else readiness_level end,
+             readiness_score=case when v_stage in ('agreed','executing','completed') then 100 else readiness_score end,
+             actionability_score=case when v_stage in ('agreed','executing','completed') then 100 else actionability_score end,
+             next_best_action=v_nba,
+             last_verified_at=case when v_stage in ('agreed','executing','completed') then now() else last_verified_at end,
+             updated_at=now()
+       where fabric_id=v_row.fabric_id;
+    end if;
     perform public.waouh_append_conversation_bus_event(
       v_row.owner_id,
       v_event_type,
