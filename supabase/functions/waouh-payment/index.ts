@@ -95,6 +95,28 @@ Deno.serve(async (req) => {
 
       const { data: tx, error: txErr } = await sb.from("waouh_transactions").select("*").eq("id", transaction_id).single();
       if (txErr || !tx) return json({ error: "Transaction introuvable" }, 404);
+
+      // Parcours canonique WAOUH : lorsqu'une transaction appartient à un
+      // Deal Room, aucun débit/escrow n'est initié avant la livraison.
+      // Les anciennes transactions sans deal restent compatibles.
+      if (tx.thread_id) {
+        const { data: canonicalDeal } = await sb.from("waouh_deals")
+          .select("id,status,payment_status")
+          .eq("thread_id", tx.thread_id)
+          .neq("status", "cancelled")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (canonicalDeal &&
+            !["delivered", "completed"].includes(String(canonicalDeal.status || ""))) {
+          return json({
+            error: "payment_after_delivery_only",
+            message: "Le paiement est confirmé après la remise/livraison dans WAOUH.",
+            deal_id: canonicalDeal.id,
+            current_status: canonicalDeal.status,
+          }, 409);
+        }
+      }
       const allowedBuyerId = waouhBuyerId ?? userId;
       if (tx.buyer_id && allowedBuyerId && tx.buyer_id !== allowedBuyerId && PAYMENT_MODE === "live") {
         return json({ error: "Vous n'êtes pas l'acheteur de cette transaction" }, 403);
