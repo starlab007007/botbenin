@@ -3,6 +3,8 @@
 -- The worker is safe to schedule continuously: it executes no outreach unless
 -- a user has created an explicit active Avatar mandate.
 -- Existing Avatar/NEXUS/Radar cron jobs are not modified.
+-- Production is at the Edge Function quota: the worker reuses the historical
+-- waouh-e2e-v3-relay slot, previously a disabled 410 stub.
 
 create or replace function public.waouh_schedule_opportunity_worker(
   p_base_url text default 'https://mvynepqulhflxtyymtzs.supabase.co/functions/v1'
@@ -36,7 +38,7 @@ begin
       ),
       body := '{"limit":20}'::jsonb
     );
-  $job$, rtrim(p_base_url,'/') || '/waouh-opportunity-worker'));
+  $job$, rtrim(p_base_url,'/') || '/waouh-e2e-v3-relay'));
   return true;
 end;
 $$;
