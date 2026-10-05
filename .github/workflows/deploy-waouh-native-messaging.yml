@@ -12,6 +12,10 @@ on:
       - "supabase/functions/waouh-native-simulator/**"
       - "supabase/functions/waouh-webhook/index.ts"
       - "supabase/functions/waouh-agentic-core/**"
+      - "supabase/functions/waha-connect/**"
+      - "supabase/functions/waha-dashboard-proxy/**"
+      - "supabase/functions/waha-manage-contact/**"
+      - "supabase/functions/waouh-operator-send/**"
       - "supabase/functions/_shared/waouh-nexus*"
       - "supabase/functions/_shared/waouh-signal-fabric*"
       - "supabase/migrations/*waouh_nexus*.sql"
@@ -48,6 +52,10 @@ on:
       - "supabase/functions/waouh-native-simulator/**"
       - "supabase/functions/waouh-webhook/index.ts"
       - "supabase/functions/waouh-agentic-core/**"
+      - "supabase/functions/waha-connect/**"
+      - "supabase/functions/waha-dashboard-proxy/**"
+      - "supabase/functions/waha-manage-contact/**"
+      - "supabase/functions/waouh-operator-send/**"
       - "supabase/functions/_shared/waouh-nexus*"
       - "supabase/functions/_shared/waouh-signal-fabric*"
       - "supabase/migrations/*waouh_nexus*.sql"
@@ -142,6 +150,10 @@ jobs:
             waouh-native-simulator
             waouh-webhook
             waouh-agentic-core
+            waha-connect
+            waha-dashboard-proxy
+            waha-manage-contact
+            waouh-operator-send
           )
           for function_name in "${required_functions[@]}"; do
             test -f "supabase/functions/${function_name}/index.ts" || {
@@ -213,6 +225,10 @@ jobs:
           )
           entrypoints+=(supabase/functions/waouh-webhook/index.ts)
           entrypoints+=(supabase/functions/waouh-agentic-core/index.ts)
+          entrypoints+=(supabase/functions/waha-connect/index.ts)
+          entrypoints+=(supabase/functions/waha-dashboard-proxy/index.ts)
+          entrypoints+=(supabase/functions/waha-manage-contact/index.ts)
+          entrypoints+=(supabase/functions/waouh-operator-send/index.ts)
           if [ "${#entrypoints[@]}" -eq 0 ]; then
             echo '::error::Aucun point d’entrée Native Messaging à vérifier.'
             exit 1
@@ -440,4 +456,18 @@ jobs:
             --use-api \
             --no-verify-jwt
 
-          echo '✅ Runtime Native Messaging déployé dans les slots de production existants.'
+          secured_legacy=(
+            waha-connect
+            waha-dashboard-proxy
+            waha-manage-contact
+            waouh-operator-send
+          )
+          for fn in "${secured_legacy[@]}"; do
+            echo "🔐 Deploying hardened $fn..."
+            supabase functions deploy "$fn" \
+              --project-ref "$SUPABASE_PROJECT_REF" \
+              --use-api \
+              --no-verify-jwt
+          done
+
+          echo '✅ Runtime Native Messaging et passerelles WAHA sécurisées déployés.'
