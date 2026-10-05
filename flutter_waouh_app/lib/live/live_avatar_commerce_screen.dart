@@ -671,6 +671,22 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
         _ => stage.replaceAll('_', ' '),
       };
 
+  String _journeyBusinessPhase(NexusOpportunityJourney journey) {
+    final action = (journey.lastAction ?? '').trim();
+    return switch (action) {
+      'payment_completed' => 'Terminé',
+      'delivery_completed' => 'Paiement',
+      'courier_picked_up' => 'Livraison',
+      'courier_assigned' => 'Livreur',
+      'preparation_ready_for_courier' => 'Préparation',
+      'seller_confirmed' => 'Confirmation vendeur',
+      'agreement_reached' || 'canonical_agreement' => 'Accord',
+      'canonical_counterparty_counterproposal' ||
+      'counterparty_reply_received' => 'Négociation',
+      _ => _journeyStageLabel(journey.stage),
+    };
+  }
+
   Future<void> _openJourneyDealRoom(NexusOpportunityJourney journey) async {
     final threadId = journey.threadId?.trim() ?? '';
     if (threadId.isEmpty) {
@@ -782,7 +798,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
                   '${current.progress}% · ${current.contactability}' +
                       ((current.readinessLevel ?? '').isEmpty ? '' : ' · ${current.readinessLevel}') +
                       ((current.actionabilityScore ?? 0) <= 0 ? '' : ' · Action ${current.actionabilityScore!.round()}%') +
-                      ' · ${_journeyStageLabel(current.stage)}',
+                      ' · ${_journeyBusinessPhase(current)}',
                   style: const TextStyle(
                     color: WaouhPalette.blue,
                     fontWeight: FontWeight.w900,
@@ -1162,7 +1178,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
                         (journey.threadId ?? '').trim().isNotEmpty
                     ? _openJourneyDealRoom(journey)
                     : _showJourneyProgress(journey),
-                stageLabel: _journeyStageLabel,
+                phaseLabel: _journeyBusinessPhase,
               ),
               const SizedBox(height: 12),
             ],
@@ -1426,14 +1442,14 @@ class _ActiveJourneysPanel extends StatelessWidget {
     required this.loading,
     required this.onRefresh,
     required this.onOpen,
-    required this.stageLabel,
+    required this.phaseLabel,
   });
 
   final List<NexusOpportunityJourney> journeys;
   final bool loading;
   final VoidCallback onRefresh;
   final ValueChanged<NexusOpportunityJourney> onOpen;
-  final String Function(String) stageLabel;
+  final String Function(NexusOpportunityJourney) phaseLabel;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -1530,7 +1546,7 @@ class _ActiveJourneysPanel extends StatelessWidget {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            '${journey.contactability} · ${stageLabel(journey.stage)} · ${journey.nextAction}',
+                            '${journey.contactability} · ${phaseLabel(journey)} · ${journey.nextAction}',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
