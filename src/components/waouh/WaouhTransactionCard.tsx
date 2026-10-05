@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Circle, CreditCard, Loader2, ShieldCheck, Truck, Star, PackageCheck, MessageCircle } from "lucide-react";
+import { WaouhDealPaymentDialog } from "./WaouhDealPaymentDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -17,23 +18,34 @@ type Tx = {
   payment_method?: string | null;
   buyer_id?: string | null;
   seller_id?: string | null;
+  thread_id?: string | null;
+};
+
+type Deal = {
+  id: string;
+  thread_id?: string | null;
+  status: string;
+  payment_status?: string | null;
+  amount?: number | null;
+  delivered_at?: string | null;
 };
 
 const SESSION_KEY = "waouh_web_session_id";
 const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " FCFA";
 
 const STEPS = [
-  { key: "pending", label: "En attente paiement", icon: CreditCard },
-  { key: "paid", label: "Payé (escrow)", icon: ShieldCheck },
-  { key: "released", label: "Libéré au vendeur", icon: Truck },
+  { key: "agreement", label: "Accord confirmé", icon: ShieldCheck },
+  { key: "delivery", label: "Livraison WAOUH", icon: Truck },
+  { key: "payment", label: "Paiement après livraison", icon: CreditCard },
 ];
 
-export const WaouhTransactionCard: React.FC<{ transactionId: string; onPay: (tx: Tx) => void }> = ({ transactionId, onPay }) => {
+export const WaouhTransactionCard: React.FC<{ transactionId: string }> = ({ transactionId }) => {
   const [tx, setTx] = useState<Tx | null>(null);
   const [article, setArticle] = useState<{ title: string } | null>(null);
   const [viewerRole, setViewerRole] = useState<"buyer" | "seller" | "other">("other");
   const [notFound, setNotFound] = useState(false);
-  const [confirming, setConfirming] = useState(false);
+  const [deal, setDeal] = useState<Deal | null>(null);
+  const [paymentOpen, setPaymentOpen] = useState(false);
   const [rating, setRating] = useState<number | null>(null);
   const [hasRated, setHasRated] = useState(false);
   const { user } = useAuth();
@@ -46,6 +58,17 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string; onPay: (tx:
       if (!active) return;
       if (!data) { setNotFound(true); return; }
       setTx(data as any);
+      const threadId = (data as any).thread_id as string | null | undefined;
+      if (threadId) {
+        const { data: d } = await supabase.from("waouh_deals")
+          .select("id,thread_id,status,payment_status,amount,delivered_at")
+          .eq("thread_id", threadId)
+          .neq("status", "cancelled")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (active) setDeal((d as Deal | null) ?? null);
+      }
       if ((data as any).article_id) {
         const { data: a } = await supabase.from("waouh_articles").select("title").eq("id", (data as any).article_id).maybeSingle();
         if (active) setArticle(a as any);
@@ -86,6 +109,29 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string; onPay: (tx:
     return () => { active = false; supabase.removeChannel(ch); };
   }, [transactionId, user?.id]);
 
+  useEffect(() => {
+    if (!tx?.thread_id) return;
+    let active = true;
+    const reload = async () => {
+      const { data } = await supabase.from("waouh_deals")
+        .select("id,thread_id,status,payment_status,amount,delivered_at")
+        .eq("thread_id", tx.thread_id!)
+        .neq("status", "cancelled")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (active) setDeal((data as Deal | null) ?? null);
+    };
+    void reload();
+    const channel = supabase
+      .channel(`waouh_deal_${tx.thread_id}_${Math.random().toString(36).slice(2, 8)}`)
+      .on("postgres_changes",
+        { event: "UPDATE", schema: "public", table: "waouh_deals", filter: `thread_id=eq.${tx.thread_id}` },
+        () => { void reload(); })
+      .subscribe();
+    return () => { active = false; supabase.removeChannel(channel); };
+  }, [tx?.thread_id]);
+
   const submitRating = async (stars: number) => {
     if (!tx || hasRated) return;
     const sessionId = localStorage.getItem(SESSION_KEY);
@@ -108,23 +154,6 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string; onPay: (tx:
     toast.success("Merci pour votre évaluation !");
   };
 
-  const confirmReceived = async () => {
-    if (!tx) return;
-    setConfirming(true);
-    try {
-      const sessionId = localStorage.getItem(SESSION_KEY) || "";
-      const { data, error } = await supabase.functions.invoke("waouh-payment", {
-        body: { action: "confirm_received", transaction_id: tx.id },
-        headers: sessionId ? { "x-waouh-session": sessionId } : undefined,
-      });
-      if (error || !data?.success) {
-        toast.error(data?.error || error?.message || "Échec de la confirmation");
-      } else {
-        toast.success("Réception confirmée — fonds libérés au vendeur");
-      }
-    } finally { setConfirming(false); }
-  };
-
   if (notFound) return null;
   if (!tx) {
     return (
@@ -139,10 +168,11 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string; onPay: (tx:
   // Hide card from third parties when transaction is private
   if (viewerRole === "other") return null;
 
-  const normalizedStatus = tx.status === "payment_pending" || tx.status === "initiated" ? "pending" : tx.status;
-  const statusIndex = STEPS.findIndex((s) => s.key === normalizedStatus);
-  const currentIdx = statusIndex < 0 ? 0 : statusIndex;
-  const historyMap = Object.fromEntries((tx.status_history || []).map((h) => [h.status, h.at]));
+  const workflow = deal?.status ?? "awaiting_confirmation";
+  const currentIdx =
+    workflow === "completed" || deal?.payment_status === "paid" ? 2 :
+    ["assigned", "picked_up", "delivered"].includes(workflow) ? 1 : 0;
+  const paymentReady = viewerRole === "buyer" && workflow === "delivered" && deal?.payment_status !== "paid";
 
   return (
     <Card className="my-2 max-w-sm overflow-hidden border-0 shadow-xl ring-1 ring-cyan-500/10">
@@ -171,9 +201,8 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string; onPay: (tx:
         {/* Steps */}
         <div className="space-y-2 mb-3">
           {STEPS.map((s, i) => {
-            const done = i < currentIdx || (i === currentIdx && normalizedStatus !== "pending");
+            const done = i < currentIdx || (i === 2 && currentIdx === 2);
             const current = i === currentIdx;
-            const at = historyMap[s.key];
             const Icon = done ? CheckCircle2 : current ? s.icon : Circle;
             return (
               <div key={s.key} className="flex items-center gap-2 text-xs">
@@ -181,22 +210,36 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string; onPay: (tx:
                   done ? "text-emerald-500" : current ? "text-cyan-500 animate-pulse" : "text-gray-300"
                 )} />
                 <span className={cn("flex-1 font-medium", done || current ? "text-gray-900" : "text-gray-400")}>{s.label}</span>
-                {at && <span className="text-[10px] text-gray-400">{new Date(at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>}
+                {current && <span className="text-[10px] text-gray-400">{workflow.replaceAll("_", " ")}</span>}
               </div>
             );
           })}
         </div>
 
-        {/* BUYER actions */}
-        {viewerRole === "buyer" && normalizedStatus === "pending" && (
+        {/* Parcours canonique : aucun paiement avant livraison. */}
+        {viewerRole === "buyer" && paymentReady && deal?.id && (
           <div className="space-y-2">
+            <div className="text-xs text-center text-emerald-700 font-semibold bg-emerald-50 rounded-md py-1.5 border border-emerald-100">
+              ✅ Livraison confirmée · vous pouvez maintenant enregistrer le paiement
+            </div>
             <Button
               size="lg"
               className="w-full bg-gradient-to-r from-cyan-500 via-sky-500 to-blue-600 hover:opacity-95 shadow-lg shadow-cyan-500/30 font-semibold"
-              onClick={() => onPay(tx)}
+              onClick={() => setPaymentOpen(true)}
             >
-              <CreditCard className="w-4 h-4 mr-2" /> 💳 Payer maintenant
+              <CreditCard className="w-4 h-4 mr-2" /> Confirmer le paiement
             </Button>
+          </div>
+        )}
+        {viewerRole === "buyer" && !paymentReady && workflow !== "completed" && (
+          <div className="space-y-2">
+            <div className="text-xs text-center text-slate-600 font-semibold bg-slate-50 rounded-md py-2 border border-slate-100">
+              {workflow === "picked_up"
+                ? "📦 Livraison en cours. Le paiement sera confirmé après remise."
+                : workflow === "assigned"
+                  ? "🛵 Livreur assigné. Suivez la livraison dans WAOUH."
+                  : "🤝 Accord enregistré. WAOUH conduit la préparation et la livraison."}
+            </div>
             {tx.article_id && (
               <Button
                 size="sm"
@@ -216,37 +259,25 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string; onPay: (tx:
                 }}
               >
                 <MessageCircle className="w-4 h-4 mr-1.5 text-emerald-600" />
-                Discuter avec le vendeur
+                Continuer dans le Deal Room
               </Button>
             )}
           </div>
         )}
-        {viewerRole === "buyer" && tx.status === "paid" && (
-          <div className="space-y-2">
-            <div className="text-xs text-center text-emerald-700 font-semibold bg-emerald-50 rounded-md py-1.5 border border-emerald-100">
-              🔒 Fonds sécurisés en escrow
-            </div>
-            <Button size="sm" variant="outline" className="w-full border-cyan-300 hover:bg-cyan-50" onClick={confirmReceived} disabled={confirming}>
-              {confirming ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <PackageCheck className="w-4 h-4 mr-1.5 text-cyan-600" />}
-              J'ai bien reçu l'article
-            </Button>
-          </div>
-        )}
-
-        {/* SELLER read-only states */}
-        {viewerRole === "seller" && normalizedStatus === "pending" && (
-          <div className="text-xs text-center text-amber-700 font-semibold bg-amber-50 rounded-md py-2 border border-amber-100">
-            ⏳ En attente du paiement de l'acheteur
-          </div>
-        )}
-        {viewerRole === "seller" && tx.status === "paid" && (
-          <div className="text-xs text-center text-emerald-700 font-semibold bg-emerald-50 rounded-md py-2 border border-emerald-100">
-            ✅ Paiement reçu — préparez la livraison
+        {viewerRole === "seller" && workflow !== "completed" && (
+          <div className="text-xs text-center text-slate-700 font-semibold bg-slate-50 rounded-md py-2 border border-slate-100">
+            {workflow === "delivered"
+              ? "📬 Livraison effectuée · confirmation du paiement acheteur en attente"
+              : workflow === "picked_up"
+                ? "📦 Colis pris en charge par le livreur WAOUH"
+                : workflow === "assigned"
+                  ? "🛵 Livreur assigné"
+                  : "🤝 Accord enregistré · suivez la préparation dans WAOUH"}
           </div>
         )}
 
         {/* COMPLETED - rating (buyer only) */}
-        {(tx.status === "released" || tx.status === "completed") && (
+        {(workflow === "completed" || deal?.payment_status === "paid") && (
           <div className="space-y-2">
             <div className="text-xs text-center text-emerald-700 font-bold">🎉 Transaction terminée</div>
             {viewerRole === "buyer" && !hasRated && (
@@ -265,6 +296,14 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string; onPay: (tx:
           </div>
         )}
       </div>
+      {deal?.id && (
+        <WaouhDealPaymentDialog
+          open={paymentOpen}
+          onOpenChange={setPaymentOpen}
+          dealId={deal.id}
+          amount={Number(deal.amount ?? tx.amount ?? 0)}
+        />
+      )}
     </Card>
   );
 };
