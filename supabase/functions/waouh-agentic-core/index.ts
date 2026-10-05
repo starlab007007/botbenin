@@ -1811,9 +1811,7 @@ Deno.serve(async (req: Request) => {
           const fabricId = typeof approvalContext.fabric_id === "string"
             ? approvalContext.fabric_id
             : null;
-          const subject = typeof approvalContext.subject === "string"
-            ? approvalContext.subject.slice(0, 240)
-            : "opportunité WAOUH";
+          let subject = "opportunité WAOUH";
           const now = new Date().toISOString();
 
           let journey: any = null;
@@ -1821,6 +1819,7 @@ Deno.serve(async (req: Request) => {
             const { data: currentJourney } = await sb.from("waouh_opportunity_journeys")
               .select("*").eq("id", journeyId).maybeSingle();
             journey = currentJourney;
+            if (journey?.subject) subject = String(journey.subject).slice(0, 240);
             if (journey) {
               if (decision === "approved") {
                 const { data: refreshed } = await sb.from("waouh_opportunity_journeys").update({
