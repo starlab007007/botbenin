@@ -64,7 +64,7 @@ Deno.test("Channel Router: email is a declared fallback but not fake-dispatched"
   });
   assertEquals(route.primary_channel, "email");
   assertEquals(route.can_dispatch, false);
-  assertEquals(route.reason, "provider_not_yet_bound");
+  assertEquals(route.reason, "email_provider_not_bound");
 });
 
 Deno.test("Channel Router: C0 always enriches", () => {
