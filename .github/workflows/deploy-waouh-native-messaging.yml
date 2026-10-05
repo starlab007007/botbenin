@@ -17,6 +17,15 @@ on:
       - "supabase/functions/waha-manage-contact/**"
       - "supabase/functions/waha-diagnostic/**"
       - "supabase/functions/waouh-operator-send/**"
+      - "supabase/functions/_shared/waouh-runtime-auth.ts"
+      - "supabase/functions/waouh-radar-apify/**"
+      - "supabase/functions/waouh-radar-site-scraper/**"
+      - "supabase/functions/waouh-serpapi-scout/**"
+      - "supabase/functions/waouh-radar-process/**"
+      - "supabase/functions/waouh-radar-campaign-tick/**"
+      - "supabase/functions/waouh-alerts-check/**"
+      - "supabase/functions/waouh-notify-buyers/**"
+      - "supabase/migrations/*waouh_runtime_auth_and_radar_cron_hardening*.sql"
       - "supabase/functions/_shared/waouh-nexus*"
       - "supabase/functions/_shared/waouh-signal-fabric*"
       - "supabase/migrations/*waouh_nexus*.sql"
@@ -58,6 +67,15 @@ on:
       - "supabase/functions/waha-manage-contact/**"
       - "supabase/functions/waha-diagnostic/**"
       - "supabase/functions/waouh-operator-send/**"
+      - "supabase/functions/_shared/waouh-runtime-auth.ts"
+      - "supabase/functions/waouh-radar-apify/**"
+      - "supabase/functions/waouh-radar-site-scraper/**"
+      - "supabase/functions/waouh-serpapi-scout/**"
+      - "supabase/functions/waouh-radar-process/**"
+      - "supabase/functions/waouh-radar-campaign-tick/**"
+      - "supabase/functions/waouh-alerts-check/**"
+      - "supabase/functions/waouh-notify-buyers/**"
+      - "supabase/migrations/*waouh_runtime_auth_and_radar_cron_hardening*.sql"
       - "supabase/functions/_shared/waouh-nexus*"
       - "supabase/functions/_shared/waouh-signal-fabric*"
       - "supabase/migrations/*waouh_nexus*.sql"
@@ -233,6 +251,13 @@ jobs:
           entrypoints+=(supabase/functions/waha-manage-contact/index.ts)
           entrypoints+=(supabase/functions/waha-diagnostic/index.ts)
           entrypoints+=(supabase/functions/waouh-operator-send/index.ts)
+          entrypoints+=(supabase/functions/waouh-radar-apify/index.ts)
+          entrypoints+=(supabase/functions/waouh-radar-site-scraper/index.ts)
+          entrypoints+=(supabase/functions/waouh-serpapi-scout/index.ts)
+          entrypoints+=(supabase/functions/waouh-radar-process/index.ts)
+          entrypoints+=(supabase/functions/waouh-radar-campaign-tick/index.ts)
+          entrypoints+=(supabase/functions/waouh-alerts-check/index.ts)
+          entrypoints+=(supabase/functions/waouh-notify-buyers/index.ts)
           if [ "${#entrypoints[@]}" -eq 0 ]; then
             echo '::error::Aucun point d’entrée Native Messaging à vérifier.'
             exit 1
@@ -293,7 +318,7 @@ jobs:
           import sys
           from pglast import parse_sql
 
-          migrations = sorted(set(Path('supabase/migrations').glob('*waouh_native_messaging*.sql')) | set(Path('supabase/migrations').glob('*waouh_agentic_core*.sql')) | set(Path('supabase/migrations').glob('*waouh_nexus*.sql')) | set(Path('supabase/migrations').glob('*secure_waouh_sessions_and_media*.sql')))
+          migrations = sorted(set(Path('supabase/migrations').glob('*waouh_native_messaging*.sql')) | set(Path('supabase/migrations').glob('*waouh_agentic_core*.sql')) | set(Path('supabase/migrations').glob('*waouh_nexus*.sql')) | set(Path('supabase/migrations').glob('*secure_waouh_sessions_and_media*.sql')) | set(Path('supabase/migrations').glob('*waouh_runtime_auth_and_radar_cron_hardening*.sql')))
           if not migrations:
               print('::error::Migrations WAOUH Muse/Native Messaging introuvables.')
               sys.exit(1)
