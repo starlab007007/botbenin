@@ -144,6 +144,7 @@ export default function WaouhAvatarCommercePage() {
   const [autonomyMode, setAutonomyMode] = useState<"assisted" | "semi_autonomous" | "autonomous">("semi_autonomous");
   const [maxContacts, setMaxContacts] = useState(3);
   const [maxFollowups, setMaxFollowups] = useState(1);
+  const [allowSmsRcs, setAllowSmsRcs] = useState(false);
   const [mandateBusy, setMandateBusy] = useState(false);
   const [activeMandate, setActiveMandate] = useState<NexusAvatarMandate | null>(null);
 
@@ -158,6 +159,7 @@ export default function WaouhAvatarCommercePage() {
           setAutonomyMode(current.autonomy_mode);
           setMaxContacts(current.max_contacts || 3);
           setMaxFollowups(current.max_followups ?? 1);
+          setAllowSmsRcs(current.allow_sms_rcs === true);
         }
       })
       .catch(() => {});
@@ -218,6 +220,7 @@ export default function WaouhAvatarCommercePage() {
         allow_whatsapp: true,
         allow_public_business: true,
         allow_blind_message: true,
+        allow_sms_rcs: allowSmsRcs,
         origin_surface: "web_avatar_commerce",
       });
       setActiveMandate(response.mandate);
@@ -490,6 +493,29 @@ export default function WaouhAvatarCommercePage() {
                   Jusqu’à {activeMandate.max_contacts} contacts · expire {new Date(activeMandate.expires_at).toLocaleString("fr-FR")}
                 </div>
               </div>
+              <label className="flex items-center justify-between gap-3 rounded-2xl border border-violet-100 bg-white p-3">
+                <div>
+                  <div className="text-xs font-black text-slate-900">SMS/RCS consentis</div>
+                  <div className="text-[10px] text-slate-500">Uniquement les numéros ayant déjà un consentement Native Messaging actif.</div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={activeMandate.allow_sms_rcs === true}
+                  disabled={mandateBusy}
+                  onChange={async (e) => {
+                    const value = e.target.checked;
+                    setMandateBusy(true);
+                    try {
+                      const response = await updateNexusMandate(activeMandate.id, { allow_sms_rcs: value });
+                      setActiveMandate(response.mandate);
+                      setAllowSmsRcs(value);
+                    } finally {
+                      setMandateBusy(false);
+                    }
+                  }}
+                  className="h-5 w-5 accent-violet-600"
+                />
+              </label>
               <div className="grid grid-cols-2 gap-2">
                 <Button variant="outline" disabled={mandateBusy} onClick={() => void toggleMandate()} className="rounded-xl">
                   {activeMandate.status === "active" ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
@@ -556,6 +582,20 @@ export default function WaouhAvatarCommercePage() {
                   </select>
                 </div>
               </div>
+              <label className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3">
+                <div>
+                  <div className="text-xs font-black text-slate-900">Autoriser SMS/RCS consentis</div>
+                  <div className="text-[10px] text-slate-500">
+                    Désactivé par défaut. Bot l’utilise seulement si la contrepartie a déjà accepté ce canal.
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={allowSmsRcs}
+                  onChange={(e) => setAllowSmsRcs(e.target.checked)}
+                  className="h-5 w-5 accent-violet-600"
+                />
+              </label>
               <Button
                 className="h-12 w-full rounded-2xl bg-violet-600 hover:bg-violet-700"
                 disabled={mandateBusy || !goal.trim()}
