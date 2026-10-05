@@ -18,7 +18,9 @@ const WAHA_SESSION = Deno.env.get("WAHA_SESSION") || "WaouhApp";
 const WAOUH_BUSINESS_PHONE = normalizeBeninPhone(Deno.env.get("WAOUH_BUSINESS_PHONE") || "65653468") || "22965653468";
 
 const MAX_ATTEMPTS_DEFAULT = 5;
-const WAHA_REQUEST_TIMEOUT_MS = 8_000;
+// WAHA is an external dependency. A single dead endpoint must not consume the
+// whole Supabase Edge execution window through sequential route fallbacks.
+const WAHA_REQUEST_TIMEOUT_MS = 3_000;
 
 async function wahaFetch(url: string, init: RequestInit = {}) {
   return fetch(url, {
