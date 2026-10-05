@@ -94,15 +94,19 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
       return updated;
     });
     if (unifiedIds.length) {
-      supabase
-        .from("waouh_notifications" as any)
-        .update({ opened: true })
-        .in("id", unifiedIds)
-        .then(({ error }) => {
-          if (error) console.warn("[waouh-notifs] markAllRead error", error);
-        });
+      void supabase.functions.invoke("waouh-history", {
+        headers: { "x-waouh-session": sessionId },
+        body: {
+          action: "mark_notifications_read",
+          sessionId,
+          authUserId: authUserId ?? null,
+          notificationIds: unifiedIds,
+        },
+      }).then(({ error }) => {
+        if (error) console.warn("[waouh-notifs] markAllRead error", error);
+      });
     }
-  }, [sessionId]);
+  }, [sessionId, authUserId]);
 
   // "Tout effacer" is now a soft action — we mark every notification as read
   // server-side (so they stay rechargeable from the History tab) and only hide
@@ -121,15 +125,19 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
       return updated;
     });
     if (unifiedIds.length) {
-      supabase
-        .from("waouh_notifications" as any)
-        .update({ opened: true })
-        .in("id", unifiedIds)
-        .then(({ error }) => {
-          if (error) console.warn("[waouh-notifs] clearAll error", error);
-        });
+      void supabase.functions.invoke("waouh-history", {
+        headers: { "x-waouh-session": sessionId },
+        body: {
+          action: "mark_notifications_read",
+          sessionId,
+          authUserId: authUserId ?? null,
+          notificationIds: unifiedIds,
+        },
+      }).then(({ error }) => {
+        if (error) console.warn("[waouh-notifs] clearAll error", error);
+      });
     }
-  }, [sessionId]);
+  }, [sessionId, authUserId]);
 
   const markRead = useCallback(
     (id: string) => {
@@ -138,16 +146,22 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
         if (sessionId) saveNotifs(sessionId, updated);
         return updated;
       });
-      // Best-effort DB sync (only matches unified notifications by id)
-      supabase
-        .from("waouh_notifications" as any)
-        .update({ opened: true })
-        .eq("id", id)
-        .then(({ error }) => {
+      // Server-side scoped sync works for authenticated and guest sessions.
+      if (sessionId) {
+        void supabase.functions.invoke("waouh-history", {
+          headers: { "x-waouh-session": sessionId },
+          body: {
+            action: "mark_notifications_read",
+            sessionId,
+            authUserId: authUserId ?? null,
+            notificationIds: [id],
+          },
+        }).then(({ error }) => {
           if (error) console.warn("[waouh-notifs] markRead error", error);
         });
+      }
     },
-    [sessionId]
+    [sessionId, authUserId]
   );
 
   const upsertNotif = useCallback((notif: WaouhNotification, withToast = true) => {
