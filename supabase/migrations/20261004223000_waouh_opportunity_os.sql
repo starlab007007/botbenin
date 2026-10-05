@@ -282,3 +282,306 @@ comment on table public.waouh_persistent_intents is
   'Persistent BUY/SELL/RFQ intent monitored by NEXUS instead of one-shot search.';
 comment on table public.waouh_conversation_bus_events is
   'Cross-channel normalized events linking NEXUS contact, WAOUH chat and Deal Room continuity.';
+
+
+-- ---------------------------------------------------------------------------
+-- Canonical commerce -> Opportunity OS synchronization
+-- ---------------------------------------------------------------------------
+-- These triggers NEVER create a new Opportunity Journey. They only advance an
+-- existing Journey already bound to the canonical thread/negotiation/deal.
+-- This preserves the invariant:
+-- catalog_id -> article_id -> thread_id -> negotiation_id -> deal_id
+-- with the SAME thread_id through agreement, delivery and payment.
+
+create or replace function public.waouh_sync_opportunity_from_negotiation()
+returns trigger
+language plpgsql
+security definer
+set search_path=public
+as $$
+declare
+  v_stage text;
+  v_action text;
+  v_message text;
+  v_nba text;
+  v_row record;
+  v_has_live_deal boolean := false;
+  v_ref text;
+begin
+  if new.thread_id is null then return new; end if;
+  if tg_op='UPDATE' and new.state is not distinct from old.state then return new; end if;
+
+  if new.state='countered' then
+    v_stage := 'negotiating';
+    v_action := 'canonical_counterproposal';
+    v_message := 'Contre-proposition reçue dans le Deal Room. La négociation continue.';
+    v_nba := 'NEGOTIATE';
+  elsif new.state='accepted' then
+    -- The atomic acceptance RPC also creates the deal. The deal trigger is the
+    -- authoritative source for the "agreed" phase; this branch is a safe
+    -- fallback for legacy writers that only update the negotiation.
+    v_stage := 'agreed';
+    v_action := 'canonical_agreement';
+    v_message := 'Accord conclu sur le même fil canonique.';
+    v_nba := 'EXECUTE';
+  elsif new.state='closed' then
+    select exists(
+      select 1 from public.waouh_deals d
+      where d.negotiation_id=new.id and d.status <> 'cancelled'
+    ) into v_has_live_deal;
+    if v_has_live_deal then return new; end if;
+    v_stage := 'cancelled';
+    v_action := 'canonical_negotiation_closed';
+    v_message := 'Négociation clôturée sans accord.';
+    v_nba := 'DROP_LOW_QUALITY';
+  else
+    return new;
+  end if;
+
+  for v_row in
+    update public.waouh_opportunity_journeys j
+       set stage=v_stage,
+           contactability_level=case when v_stage in ('negotiating','agreed') then 'C5' else j.contactability_level end,
+           readiness_level=case when v_stage in ('negotiating','agreed') then 'R5' else j.readiness_level end,
+           readiness_score=case when v_stage in ('negotiating','agreed') then 100 else j.readiness_score end,
+           actionability_score=case when v_stage in ('negotiating','agreed') then 100 else j.actionability_score end,
+           next_best_action=v_nba,
+           negotiation_id=new.id,
+           article_id=coalesce(j.article_id,new.article_id),
+           thread_id=coalesce(j.thread_id,new.thread_id),
+           last_action=v_action,
+           next_action=case v_stage
+             when 'negotiating' then 'NEGOTIATE'
+             when 'agreed' then 'EXECUTE'
+             when 'cancelled' then 'DROP_LOW_QUALITY'
+             else j.next_action end,
+           last_message=v_message,
+           timeline=coalesce(j.timeline,'[]'::jsonb) || jsonb_build_array(
+             jsonb_build_object(
+               'at',now(),
+               'stage',v_stage,
+               'action',v_action,
+               'thread_id',new.thread_id,
+               'negotiation_id',new.id,
+               'negotiation_state',new.state
+             )
+           ),
+           last_activity_at=now(),
+           completed_at=case when v_stage='cancelled' then coalesce(j.completed_at,now()) else j.completed_at end,
+           updated_at=now()
+     where j.stage not in ('completed','cancelled')
+       and (
+         j.thread_id=new.thread_id
+         or j.negotiation_id=new.id
+       )
+     returning j.*
+  loop
+    v_ref := 'negotiation:' || new.id::text || ':' || new.state;
+    perform public.waouh_append_conversation_bus_event(
+      v_row.owner_id,
+      case new.state
+        when 'countered' then 'commerce.negotiation_countered'
+        when 'accepted' then 'commerce.agreement_reached'
+        else 'commerce.negotiation_closed'
+      end,
+      'waouh',
+      'system',
+      v_row.fabric_id,
+      v_row.id,
+      v_row.mandate_id,
+      coalesce(v_row.article_id,new.article_id),
+      new.thread_id,
+      new.id,
+      v_row.deal_id,
+      v_ref,
+      jsonb_build_object(
+        'thread_id',new.thread_id,
+        'negotiation_id',new.id,
+        'state',new.state,
+        'last_offer_price',new.last_offer_price,
+        'last_actor',new.last_actor
+      )
+    );
+  end loop;
+  return new;
+end;
+$$;
+
+drop trigger if exists waouh_opportunity_sync_negotiation
+on public.waouh_negotiations;
+create trigger waouh_opportunity_sync_negotiation
+after insert or update of state on public.waouh_negotiations
+for each row execute function public.waouh_sync_opportunity_from_negotiation();
+
+create or replace function public.waouh_sync_opportunity_from_deal()
+returns trigger
+language plpgsql
+security definer
+set search_path=public
+as $$
+declare
+  v_stage text;
+  v_action text;
+  v_message text;
+  v_nba text;
+  v_changed boolean := true;
+  v_row record;
+  v_ref text;
+  v_event_type text;
+begin
+  if new.thread_id is null then return new; end if;
+
+  if tg_op='UPDATE' then
+    v_changed :=
+      new.status is distinct from old.status
+      or new.payment_status is distinct from old.payment_status
+      or new.seller_confirmed_at is distinct from old.seller_confirmed_at
+      or new.buyer_payment_selected_at is distinct from old.buyer_payment_selected_at
+      or new.courier_user_id is distinct from old.courier_user_id
+      or new.eta_at is distinct from old.eta_at;
+    if not v_changed then return new; end if;
+  end if;
+
+  if new.status='cancelled' then
+    v_stage := 'cancelled';
+    v_action := 'deal_cancelled';
+    v_message := 'Le deal a été annulé.';
+    v_nba := 'DROP_LOW_QUALITY';
+    v_event_type := 'commerce.deal_cancelled';
+  elsif new.status='completed' or new.payment_status='paid' then
+    v_stage := 'completed';
+    v_action := 'payment_completed';
+    v_message := 'Paiement confirmé. Parcours terminé.';
+    v_nba := 'COMPLETE';
+    v_event_type := 'commerce.completed';
+  elsif new.status='delivered' then
+    v_stage := 'executing';
+    v_action := 'delivery_completed';
+    v_message := 'Livraison effectuée. Confirmation du paiement en attente.';
+    v_nba := 'EXECUTE';
+    v_event_type := 'commerce.delivered';
+  elsif new.status='picked_up' then
+    v_stage := 'executing';
+    v_action := 'courier_picked_up';
+    v_message := 'Le livreur a récupéré le colis. Livraison en cours.';
+    v_nba := 'EXECUTE';
+    v_event_type := 'commerce.picked_up';
+  elsif new.status='assigned' then
+    v_stage := 'executing';
+    v_action := 'courier_assigned';
+    v_message := 'Livreur assigné. Suivi de la livraison en cours.';
+    v_nba := 'EXECUTE';
+    v_event_type := 'commerce.courier_assigned';
+  elsif new.status='pending_assignment' then
+    v_stage := 'executing';
+    v_action := 'preparation_ready_for_courier';
+    v_message := 'Préparation confirmée. Attribution du livreur en cours.';
+    v_nba := 'EXECUTE';
+    v_event_type := 'commerce.preparation_ready';
+  elsif new.seller_confirmed_at is not null then
+    v_stage := 'agreed';
+    v_action := 'seller_confirmed';
+    v_message := 'Le vendeur a confirmé. Préparation du deal en cours.';
+    v_nba := 'EXECUTE';
+    v_event_type := 'commerce.seller_confirmed';
+  else
+    v_stage := 'agreed';
+    v_action := 'agreement_reached';
+    v_message := 'Accord conclu. Confirmation vendeur et préparation en attente.';
+    v_nba := 'EXECUTE';
+    v_event_type := 'commerce.agreement_reached';
+  end if;
+
+  for v_row in
+    update public.waouh_opportunity_journeys j
+       set stage=v_stage,
+           contactability_level=case when v_stage in ('agreed','executing','completed') then 'C5' else j.contactability_level end,
+           readiness_level=case when v_stage in ('agreed','executing','completed') then 'R5' else j.readiness_level end,
+           readiness_score=case when v_stage in ('agreed','executing','completed') then 100 else j.readiness_score end,
+           actionability_score=case when v_stage in ('agreed','executing','completed') then 100 else j.actionability_score end,
+           next_best_action=v_nba,
+           deal_id=new.id,
+           negotiation_id=coalesce(j.negotiation_id,new.negotiation_id),
+           article_id=coalesce(j.article_id,new.article_id),
+           thread_id=coalesce(j.thread_id,new.thread_id),
+           last_action=v_action,
+           next_action=case
+             when v_stage='completed' then 'COMPLETE'
+             when v_stage='cancelled' then 'DROP_LOW_QUALITY'
+             else 'EXECUTE' end,
+           last_message=v_message,
+           timeline=coalesce(j.timeline,'[]'::jsonb) || jsonb_build_array(
+             jsonb_build_object(
+               'at',now(),
+               'stage',v_stage,
+               'action',v_action,
+               'thread_id',new.thread_id,
+               'negotiation_id',new.negotiation_id,
+               'deal_id',new.id,
+               'deal_status',new.status,
+               'payment_status',new.payment_status
+             )
+           ),
+           last_activity_at=now(),
+           completed_at=case
+             when v_stage in ('completed','cancelled') then coalesce(j.completed_at,now())
+             else j.completed_at end,
+           updated_at=now()
+     where j.stage not in ('completed','cancelled')
+       and (
+         j.thread_id=new.thread_id
+         or j.negotiation_id=new.negotiation_id
+         or j.deal_id=new.id
+       )
+     returning j.*
+  loop
+    v_ref := 'deal:' || new.id::text || ':' ||
+      coalesce(new.status,'') || ':' ||
+      coalesce(new.payment_status,'') || ':' ||
+      coalesce(new.seller_confirmed_at::text,'') || ':' ||
+      coalesce(new.buyer_payment_selected_at::text,'') || ':' ||
+      coalesce(new.courier_user_id::text,'');
+    perform public.waouh_append_conversation_bus_event(
+      v_row.owner_id,
+      v_event_type,
+      'waouh',
+      'system',
+      v_row.fabric_id,
+      v_row.id,
+      v_row.mandate_id,
+      coalesce(v_row.article_id,new.article_id),
+      new.thread_id,
+      coalesce(v_row.negotiation_id,new.negotiation_id),
+      new.id,
+      v_ref,
+      jsonb_build_object(
+        'thread_id',new.thread_id,
+        'negotiation_id',new.negotiation_id,
+        'deal_id',new.id,
+        'status',new.status,
+        'payment_status',new.payment_status,
+        'seller_confirmed',new.seller_confirmed_at is not null,
+        'payment_preference_selected',new.buyer_payment_selected_at is not null,
+        'courier_assigned',new.courier_user_id is not null,
+        'eta_at',new.eta_at,
+        'delivered_at',new.delivered_at,
+        'paid_at',new.paid_at
+      )
+    );
+  end loop;
+  return new;
+end;
+$$;
+
+drop trigger if exists waouh_opportunity_sync_deal
+on public.waouh_deals;
+create trigger waouh_opportunity_sync_deal
+after insert or update of
+  status,payment_status,seller_confirmed_at,buyer_payment_selected_at,courier_user_id,eta_at
+on public.waouh_deals
+for each row execute function public.waouh_sync_opportunity_from_deal();
+
+comment on function public.waouh_sync_opportunity_from_negotiation() is
+  'Advances existing Opportunity OS journeys from canonical negotiation state without creating parallel threads.';
+comment on function public.waouh_sync_opportunity_from_deal() is
+  'Advances existing Opportunity OS journeys through agreement, preparation, courier, delivery, payment and closure on the same thread_id.';
