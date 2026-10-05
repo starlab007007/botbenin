@@ -43,6 +43,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   String _autonomyMode = 'semi_autonomous';
   int _maxContacts = 3;
   int _maxFollowups = 1;
+  bool _allowSmsRcs = false;
   bool _mandateBusy = false;
 
   @override
@@ -104,6 +105,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
           _autonomyMode = '${current['autonomy_mode'] ?? 'semi_autonomous'}';
           _maxContacts = int.tryParse('${current['max_contacts'] ?? 3}') ?? 3;
           _maxFollowups = int.tryParse('${current['max_followups'] ?? 1}') ?? 1;
+          _allowSmsRcs = current['allow_sms_rcs'] == true;
         }
       });
     } catch (_) {}
@@ -128,6 +130,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
         budgetMax: budget,
         maxContacts: _maxContacts,
         maxFollowups: _autonomyMode == 'assisted' ? 0 : _maxFollowups,
+        allowSmsRcs: _allowSmsRcs,
         durationHours: 24,
         scanIntervalMinutes: 60,
       );
@@ -1007,6 +1010,31 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
             Text('${current['goal'] ?? ''}', maxLines: 2, overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 11, color: WaouhPalette.muted, fontWeight: FontWeight.w700)),
             const SizedBox(height: 9),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              title: const Text('SMS/RCS consentis', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+              subtitle: const Text('Seulement si la contrepartie a déjà accepté ce canal.', style: TextStyle(fontSize: 9.5)),
+              value: current['allow_sms_rcs'] == true,
+              onChanged: _mandateBusy ? null : (value) async {
+                setState(() => _mandateBusy = true);
+                try {
+                  final data = await _nexus.updateMandate(
+                    '${current['id']}',
+                    allowSmsRcs: value,
+                  );
+                  final raw = data['mandate'];
+                  if (raw is Map && mounted) {
+                    setState(() {
+                      _mandate = Map<String, dynamic>.from(raw);
+                      _allowSmsRcs = value;
+                    });
+                  }
+                } finally {
+                  if (mounted) setState(() => _mandateBusy = false);
+                }
+              },
+            ),
             OutlinedButton.icon(
               onPressed: _mandateBusy ? null : _toggleMandate,
               icon: Icon(status == 'active' ? Icons.pause_rounded : Icons.play_arrow_rounded),
@@ -1068,6 +1096,17 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
                   : (value) { if (value != null) setState(() => _maxFollowups = value); },
             ),
           ]),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            title: const Text('Autoriser SMS/RCS consentis', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+            subtitle: const Text(
+              'Désactivé par défaut. Bot l’utilise uniquement pour un consentement Native Messaging déjà actif.',
+              style: TextStyle(fontSize: 9.5, color: WaouhPalette.muted),
+            ),
+            value: _allowSmsRcs,
+            onChanged: (value) => setState(() => _allowSmsRcs = value),
+          ),
           FilledButton.icon(
             onPressed: _mandateBusy || _goal.text.trim().isEmpty ? null : _createMandate,
             icon: _mandateBusy
