@@ -113,6 +113,19 @@ async function captureOpportunityReply(
       updated_at: replyAt,
     }).eq("id", journey.id);
 
+    if (contactEvent.fabric_id ?? journey.fabric_id) {
+      await admin.from("waouh_contact_packs").update({
+        contactability_level: "C5",
+        readiness_level: "R5",
+        readiness_score: 100,
+        actionability_score: 100,
+        next_best_action: "NEGOTIATE",
+        best_channel: event.channel,
+        last_verified_at: replyAt,
+        updated_at: replyAt,
+      }).eq("fabric_id", contactEvent.fabric_id ?? journey.fabric_id);
+    }
+
     if (contactId) {
       const { data: metrics } = await admin.from("waouh_entity_contacts")
         .select("reply_count,avg_reply_delay_seconds").eq("id", contactId).maybeSingle();
