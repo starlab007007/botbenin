@@ -43,6 +43,13 @@ on:
       - "supabase/functions/_shared/waouh-nexus-followup-core.ts"
       - "supabase/functions/_shared/waouh-opportunity-os.ts"
       - "supabase/functions/_shared/waouh-channel-router.ts"
+      - "supabase/functions/_shared/agent-ai.ts"
+      - "supabase/functions/_shared/waouh-price.ts"
+      - "supabase/functions/waouh-notify-buyers/**"
+      - "supabase/functions/waouh-geocode/**"
+      - "supabase/functions/waouh-radar-apify/**"
+      - "supabase/functions/waouh-radar-site-scraper/**"
+      - "supabase/functions/waouh-price-compare/**"
       - "supabase/functions/waouh-opportunity-worker/**"
       - "supabase/functions/waouh-agentic-core/**"
       - "supabase/functions/waouh-outbound-dispatch/**"
@@ -294,6 +301,11 @@ jobs:
             waouh-nexus-followup
             waouh-avatar-briefing
             waouh-outbound-dispatch
+            waouh-notify-buyers
+            waouh-geocode
+            waouh-radar-apify
+            waouh-radar-site-scraper
+            waouh-price-compare
           )
           for fn in "${functions[@]}"; do
             echo "🚀 Deploying $fn"
