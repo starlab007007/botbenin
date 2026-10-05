@@ -73,6 +73,7 @@ class NexusContactPolicy {
     required this.canReveal,
     required this.canAutoContact,
     required this.canBlindMessage,
+    required this.canUserConfirmContact,
     required this.requiresApproval,
   });
 
@@ -81,6 +82,7 @@ class NexusContactPolicy {
   final bool canReveal;
   final bool canAutoContact;
   final bool canBlindMessage;
+  final bool canUserConfirmContact;
   final bool requiresApproval;
 
   factory NexusContactPolicy.fromJson(Map<String, dynamic> json) =>
@@ -90,7 +92,62 @@ class NexusContactPolicy {
         canReveal: _bool(json['can_reveal']),
         canAutoContact: _bool(json['can_auto_contact']),
         canBlindMessage: _bool(json['can_blind_message']),
+        canUserConfirmContact: _bool(json['can_user_confirm_contact']),
         requiresApproval: _bool(json['requires_approval']),
+      );
+}
+
+class NexusContactPack {
+  const NexusContactPack({
+    required this.fabricId,
+    required this.contactability,
+    required this.readiness,
+    required this.readinessScore,
+    required this.actionabilityScore,
+    required this.nextBestAction,
+    required this.availableChannels,
+    required this.maskedContacts,
+    this.sourceKey,
+    this.bestChannel,
+    this.messageTemplate,
+    this.entityId,
+  });
+
+  final String fabricId;
+  final String? sourceKey;
+  final String contactability;
+  final String readiness;
+  final double readinessScore;
+  final double actionabilityScore;
+  final String nextBestAction;
+  final String? bestChannel;
+  final String? messageTemplate;
+  final String? entityId;
+  final List<Map<String, dynamic>> availableChannels;
+  final List<Map<String, dynamic>> maskedContacts;
+
+  bool get immediatelyActionable =>
+      readiness == 'R4' &&
+      (nextBestAction == 'CONTACT_NOW' ||
+          nextBestAction == 'OPEN_DEAL_ROOM' ||
+          nextBestAction == 'REQUEST_APPROVAL');
+
+  factory NexusContactPack.fromJson(Map<String, dynamic> json) =>
+      NexusContactPack(
+        fabricId: _text(json['fabric_id']),
+        sourceKey: json['source_key'] == null ? null : _text(json['source_key']),
+        contactability: _text(json['contactability_level'], 'C0'),
+        readiness: _text(json['readiness_level'], 'R0'),
+        readinessScore: _number(json['readiness_score']),
+        actionabilityScore: _number(json['actionability_score']),
+        nextBestAction: _text(json['next_best_action'], 'ENRICH'),
+        bestChannel: json['best_channel'] == null ? null : _text(json['best_channel']),
+        messageTemplate: json['message_template'] == null ? null : _text(json['message_template']),
+        entityId: json['entity_id'] == null ? null : _text(json['entity_id']),
+        availableChannels: _list(json['available_channels'])
+            .map(_map).where((row) => row.isNotEmpty).toList(growable: false),
+        maskedContacts: _list(json['masked_contacts'])
+            .map(_map).where((row) => row.isNotEmpty).toList(growable: false),
       );
 }
 
@@ -113,6 +170,12 @@ class NexusDiscoveryItem {
     this.catalogId,
     this.sellerUserId,
     this.buyerUserId,
+    this.contactPack,
+    this.readinessLevel,
+    this.readinessScore,
+    this.actionabilityScore,
+    this.nextBestAction,
+    this.bestChannel,
     this.evidence = const <String, dynamic>{},
   });
 
@@ -131,6 +194,12 @@ class NexusDiscoveryItem {
   final String? catalogId;
   final String? sellerUserId;
   final String? buyerUserId;
+  final NexusContactPack? contactPack;
+  final String? readinessLevel;
+  final double? readinessScore;
+  final double? actionabilityScore;
+  final String? nextBestAction;
+  final String? bestChannel;
   final Map<String, dynamic> evidence;
   final NexusScore scores;
   final NexusContactPolicy contactPolicy;
@@ -284,6 +353,24 @@ class NexusDiscoveryItem {
       buyerUserId: optionalId(
         json['buyer_user_id'] ?? evidence['buyer_user_id'],
       ),
+      contactPack: _map(json['contact_pack']).isEmpty
+          ? null
+          : NexusContactPack.fromJson(_map(json['contact_pack'])),
+      readinessLevel: json['readiness_level'] == null
+          ? null
+          : _text(json['readiness_level']),
+      readinessScore: json['readiness_score'] == null
+          ? null
+          : _number(json['readiness_score']),
+      actionabilityScore: json['actionability_score'] == null
+          ? null
+          : _number(json['actionability_score']),
+      nextBestAction: json['next_best_action'] == null
+          ? null
+          : _text(json['next_best_action']),
+      bestChannel: json['best_channel'] == null
+          ? null
+          : _text(json['best_channel']),
       evidence: evidence,
       scores: NexusScore.fromJson(_map(json['scores'])),
       contactPolicy:
@@ -469,6 +556,10 @@ class NexusPreparedContact {
     required this.fabricId,
     required this.policy,
     required this.contacts,
+    this.contactPack,
+    this.readinessLevel,
+    this.actionabilityScore,
+    this.nextBestAction,
     this.actorName,
     this.productName,
     this.sourceUrl,
@@ -478,6 +569,10 @@ class NexusPreparedContact {
   final String fabricId;
   final NexusContactPolicy policy;
   final List<NexusContactItem> contacts;
+  final NexusContactPack? contactPack;
+  final String? readinessLevel;
+  final double? actionabilityScore;
+  final String? nextBestAction;
   final String? actorName;
   final String? productName;
   final String? sourceUrl;
@@ -491,6 +586,18 @@ class NexusPreparedContact {
             .map((value) => NexusContactItem.fromJson(_map(value)))
             .where((item) => item.value.trim().isNotEmpty)
             .toList(growable: false),
+        contactPack: _map(json['contact_pack']).isEmpty
+            ? null
+            : NexusContactPack.fromJson(_map(json['contact_pack'])),
+        readinessLevel: json['readiness_level'] == null
+            ? null
+            : _text(json['readiness_level']),
+        actionabilityScore: json['actionability_score'] == null
+            ? null
+            : _number(json['actionability_score']),
+        nextBestAction: json['next_best_action'] == null
+            ? null
+            : _text(json['next_best_action']),
         actorName:
             json['actor_name'] == null ? null : _text(json['actor_name']),
         productName:
@@ -546,11 +653,18 @@ class NexusOpportunityJourney {
     this.sourceKey,
     this.sourceUrl,
     this.contactChannel,
+    this.lastAction,
     this.lastMessage,
     this.articleId,
     this.threadId,
     this.negotiationId,
     this.dealId,
+    this.mandateId,
+    this.readinessLevel,
+    this.readinessScore,
+    this.actionabilityScore,
+    this.nextBestActionCode,
+    this.contactPack,
     this.maskedContact = const <String, dynamic>{},
     this.timeline = const <Map<String, dynamic>>[],
   });
@@ -565,11 +679,18 @@ class NexusOpportunityJourney {
   final String? sourceKey;
   final String? sourceUrl;
   final String? contactChannel;
+  final String? lastAction;
   final String? lastMessage;
   final String? articleId;
   final String? threadId;
   final String? negotiationId;
   final String? dealId;
+  final String? mandateId;
+  final String? readinessLevel;
+  final double? readinessScore;
+  final double? actionabilityScore;
+  final String? nextBestActionCode;
+  final NexusContactPack? contactPack;
   final Map<String, dynamic> maskedContact;
   final List<Map<String, dynamic>> timeline;
 
@@ -591,12 +712,22 @@ class NexusOpportunityJourney {
         contactChannel: json['contact_channel'] == null
             ? null
             : _text(json['contact_channel']),
+        lastAction:
+            json['last_action'] == null ? null : _text(json['last_action']),
         lastMessage:
             json['last_message'] == null ? null : _text(json['last_message']),
         articleId: json['article_id'] == null ? null : _text(json['article_id']),
         threadId: json['thread_id'] == null ? null : _text(json['thread_id']),
         negotiationId: json['negotiation_id'] == null ? null : _text(json['negotiation_id']),
         dealId: json['deal_id'] == null ? null : _text(json['deal_id']),
+        mandateId: json['mandate_id'] == null ? null : _text(json['mandate_id']),
+        readinessLevel: json['readiness_level'] == null ? null : _text(json['readiness_level']),
+        readinessScore: json['readiness_score'] == null ? null : _number(json['readiness_score']),
+        actionabilityScore: json['actionability_score'] == null ? null : _number(json['actionability_score']),
+        nextBestActionCode: json['next_best_action'] == null ? null : _text(json['next_best_action']),
+        contactPack: _map(json['contact_pack']).isEmpty
+            ? null
+            : NexusContactPack.fromJson(_map(json['contact_pack'])),
         maskedContact: _map(json['masked_contact']),
         timeline: _list(json['timeline'])
             .map(_map)
@@ -776,10 +907,13 @@ class LiveNexusService {
   Future<NexusOpportunityJourney> startOpportunity({
     required String fabricId,
     String mode = 'buy',
+    String? mandateId,
   }) async {
     final data = await _invoke('nexus.opportunity.start', {
       'fabric_id': fabricId,
       'mode': mode,
+      if (mandateId != null && mandateId.trim().isNotEmpty)
+        'mandate_id': mandateId.trim(),
     });
     return NexusOpportunityJourney.fromJson(_map(data['journey']));
   }
@@ -847,12 +981,78 @@ class LiveNexusService {
   Future<Map<String, dynamic>> sendContact({
     required String fabricId,
     required String message,
+    String? mandateId,
   }) =>
       _invoke('nexus.contact.send', {
         'fabric_id': fabricId,
         'message': message.trim(),
         'confirmed': true,
+        if (mandateId != null && mandateId.trim().isNotEmpty)
+          'mandate_id': mandateId.trim(),
       });
+
+  Future<Map<String, dynamic>> createMandate({
+    required String mode,
+    required String goal,
+    String autonomyMode = 'semi_autonomous',
+    String? city,
+    double? budgetMax,
+    int maxContacts = 3,
+    int maxFollowups = 1,
+    bool allowSmsRcs = false,
+    int durationHours = 24,
+    int scanIntervalMinutes = 60,
+  }) =>
+      _invoke('nexus.mandate.create', {
+        'mode': mode,
+        'goal': goal.trim(),
+        'autonomy_mode': autonomyMode,
+        if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
+        if (budgetMax != null) 'budget_max': budgetMax,
+        'max_contacts': maxContacts,
+        'max_followups': maxFollowups,
+        'allow_sms_rcs': allowSmsRcs,
+        'duration_hours': durationHours,
+        'scan_interval_minutes': scanIntervalMinutes,
+        'origin_surface': 'flutter_avatar',
+      });
+
+  Future<Map<String, dynamic>> listMandates() =>
+      _invoke('nexus.mandate.list');
+
+  Future<Map<String, dynamic>> updateMandate(
+    String mandateId, {
+    String? status,
+    String? autonomyMode,
+    bool? allowSmsRcs,
+  }) =>
+      _invoke('nexus.mandate.update', {
+        'mandate_id': mandateId,
+        if (status != null) 'status': status,
+        if (autonomyMode != null) 'autonomy_mode': autonomyMode,
+        if (allowSmsRcs != null) 'allow_sms_rcs': allowSmsRcs,
+      });
+
+  Future<Map<String, dynamic>> runMandate(String mandateId) =>
+      _invoke('nexus.mandate.run', {'mandate_id': mandateId});
+
+  Future<List<Map<String, dynamic>>> conversationBus({
+    String? fabricId,
+    String? threadId,
+    int limit = 50,
+  }) async {
+    final data = await _invoke('nexus.conversation_bus.list', {
+      if (fabricId != null && fabricId.trim().isNotEmpty)
+        'fabric_id': fabricId.trim(),
+      if (threadId != null && threadId.trim().isNotEmpty)
+        'thread_id': threadId.trim(),
+      'limit': limit,
+    });
+    return _list(data['events'])
+        .whereType<Map>()
+        .map((value) => Map<String, dynamic>.from(value))
+        .toList(growable: false);
+  }
 
   Future<String> uploadSharedImage(XFile file) async {
     final user = client.auth.currentUser;

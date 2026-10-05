@@ -13,6 +13,8 @@ import {
   prepareNexusContact,
   sendNexusDiscoveryContact,
   startNexusOpportunity,
+  listNexusConversationBus,
+  type NexusConversationBusEvent,
   type NexusOpportunityJourney,
 } from "@/lib/waouh/nexus";
 import { WaouhContactabilityBadge } from "./WaouhCommerceAgentBar";
@@ -55,6 +57,7 @@ export function WaouhNexusContactSheet({
   const [prepared, setPrepared] = useState<Prepared | null>(null);
   const [journey, setJourney] = useState<NexusOpportunityJourney | null>(null);
   const [message, setMessage] = useState("");
+  const [busEvents, setBusEvents] = useState<NexusConversationBusEvent[]>([]);
 
   const load = async () => {
     if (!user) return;
@@ -62,13 +65,20 @@ export function WaouhNexusContactSheet({
     try {
       let started = (await startNexusOpportunity(fabricId, mode)).journey;
       let contact = await prepareNexusContact(fabricId);
-      if (contact.contact_policy.level === "C0" || contact.contact_policy.level === "C1") {
+      if (contact.contact_policy.level === "C0" ||
+          (contact.contact_policy.level === "C1" && !contact.contact_policy.can_user_confirm_contact)) {
         started = (await enrichNexusOpportunity(fabricId, mode)).journey;
         contact = await prepareNexusContact(fabricId);
       }
       setJourney(started);
       setPrepared(contact);
       setMessage(interestMessage(title));
+      try {
+        const bus = await listNexusConversationBus({ fabric_id: fabricId, limit: 12 });
+        setBusEvents(bus.events || []);
+      } catch {
+        setBusEvents([]);
+      }
     } catch (error) {
       toast({ title: "Avatar poursuit la démarche", description: errorText(error) });
     } finally {
@@ -101,6 +111,10 @@ export function WaouhNexusContactSheet({
     try {
       const result = await getNexusOpportunityStatus({ journey_id: journey.id });
       setJourney(result.journey);
+      try {
+        const bus = await listNexusConversationBus({ fabric_id: fabricId, limit: 12 });
+        setBusEvents(bus.events || []);
+      } catch {}
     } finally {
       setBusy(false);
     }
@@ -117,6 +131,10 @@ export function WaouhNexusContactSheet({
       });
       if (result.journey) setJourney(result.journey as NexusOpportunityJourney);
       else if (journey) setJourney((await getNexusOpportunityStatus({ journey_id: journey.id })).journey);
+      try {
+        const bus = await listNexusConversationBus({ fabric_id: fabricId, limit: 12 });
+        setBusEvents(bus.events || []);
+      } catch {}
       toast({
         title: "Avatar a pris le relais",
         description: "Le contact est suivi dans WAOUH. Vous serez guidé dès la réponse.",
@@ -135,7 +153,15 @@ export function WaouhNexusContactSheet({
   const progress = Math.max(0, Math.min(100, journey?.progress ?? 10));
   const waiting = journey?.stage === "waiting_reply" || journey?.stage === "contacting" || level === "C4";
   const negotiating = journey?.stage === "negotiating" || level === "C5";
-  const canSend = !!prepared && (prepared.contact_policy.can_blind_message || prepared.contact_policy.can_auto_contact);
+  const canSend = !!prepared && (
+    prepared.contact_policy.can_blind_message ||
+    prepared.contact_policy.can_auto_contact ||
+    prepared.contact_policy.can_user_confirm_contact
+  );
+  const contactPack = prepared?.contact_pack ?? (journey?.contact_pack as any) ?? null;
+  const readiness = String(prepared?.readiness_level ?? journey?.readiness_level ?? contactPack?.readiness_level ?? "");
+  const actionability = Number(prepared?.actionability_score ?? journey?.actionability_score ?? contactPack?.actionability_score ?? 0);
+  const nextBestAction = String(prepared?.next_best_action ?? journey?.next_best_action ?? contactPack?.next_best_action ?? "");
 
   const masked = useMemo(() => {
     const values: string[] = [];
@@ -215,6 +241,30 @@ export function WaouhNexusContactSheet({
               </div>
             </div>
 
+            {(readiness || actionability > 0 || nextBestAction) && (
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-2xl border border-cyan-100 bg-cyan-50/70 p-3">
+                  <div className="text-[9px] font-black uppercase text-cyan-700">Préparation</div>
+                  <div className="mt-1 text-lg font-black text-cyan-950">{readiness || "R0"}</div>
+                </div>
+                <div className="rounded-2xl border border-violet-100 bg-violet-50/70 p-3">
+                  <div className="text-[9px] font-black uppercase text-violet-700">Actionnable</div>
+                  <div className="mt-1 text-lg font-black text-violet-950">{Math.round(actionability)}%</div>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-3">
+                  <div className="text-[9px] font-black uppercase text-blue-700">Prochaine action</div>
+                  <div className="mt-1 text-[11px] font-black leading-tight text-blue-950">
+                    {nextBestAction === "CONTACT_NOW" ? "Contacter" :
+                     nextBestAction === "OPEN_DEAL_ROOM" ? "Deal Room" :
+                     nextBestAction === "REQUEST_APPROVAL" ? "Valider" :
+                     nextBestAction === "WAIT_REPLY" ? "Attendre" :
+                     nextBestAction === "NEGOTIATE" ? "Négocier" :
+                     nextBestAction === "ENRICH" ? "Enrichir" : nextBestAction || "Poursuivre"}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="rounded-2xl border bg-gradient-to-br from-emerald-50/70 to-cyan-50/60 p-4">
               <div className="flex items-start gap-2">
                 <ShieldCheck className="mt-0.5 h-5 w-5 text-emerald-700" />
@@ -230,6 +280,34 @@ export function WaouhNexusContactSheet({
               </div>
             </div>
 
+            {busEvents.length > 0 && (
+              <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                <div className="text-xs font-black text-slate-900">Activité multicanale</div>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  WAOUH regroupe ici les événements du Chat, WhatsApp, NEXUS et du Deal Room.
+                </p>
+                <div className="mt-2 space-y-2">
+                  {busEvents.slice(0, 6).map((event) => (
+                    <div key={event.id} className="flex items-start gap-2 text-[10px]">
+                      <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
+                        event.direction === "in" ? "bg-emerald-500" :
+                        event.direction === "out" ? "bg-blue-500" : "bg-slate-400"
+                      }`} />
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-slate-800">
+                          {event.event_type.replaceAll(".", " ")}
+                          <span className="ml-1 font-medium text-slate-400">· {event.channel}</span>
+                        </div>
+                        <div className="text-slate-400">
+                          {new Date(event.created_at).toLocaleString("fr-FR")}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {masked.length > 0 && (
               <div className="rounded-2xl border p-3">
                 <div className="text-xs font-semibold">Contact autorisé / masqué</div>
@@ -242,11 +320,13 @@ export function WaouhNexusContactSheet({
               </div>
             )}
 
-            {(level === "C0" || level === "C1") && (
+            {(level === "C0" || (level === "C1" && !canSend)) && (
               <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-3">
                 <div className="text-sm font-semibold">Avatar enrichit le signal</div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  C0 n’est plus une erreur. WAOUH cherche un canal public ou autorisé et garde cette démarche active.
+                  {level === "C0"
+                    ? "C0 n’est plus une erreur. WAOUH cherche un canal public ou autorisé et garde cette démarche active."
+                    : "Avatar complète les canaux disponibles pour sécuriser la prise de contact."}
                 </p>
                 <Button className="mt-3" size="sm" disabled={enriching} onClick={() => void enrich()}>
                   {enriching ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Search className="mr-1 h-4 w-4" />}
@@ -256,12 +336,19 @@ export function WaouhNexusContactSheet({
             )}
 
             {canSend && !waiting && !negotiating && (
-              <div className="space-y-2 rounded-2xl border p-3">
-                <div className="text-xs font-semibold">Message proposé par votre Avatar</div>
+              <div className="space-y-2 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-3">
+                <div className="text-xs font-semibold">
+                  {level === "C1" ? "Contact professionnel public trouvé · Bot peut agir maintenant" : "Message proposé par votre Avatar"}
+                </div>
+                {level === "C1" && (
+                  <p className="text-[10px] text-muted-foreground">
+                    Votre confirmation autorise uniquement ce message vers ce contact professionnel public. WAOUH conserve la traçabilité.
+                  </p>
+                )}
                 <Textarea value={message} onChange={(event) => setMessage(event.target.value)} rows={3} />
                 <Button size="sm" disabled={busy || !message.trim()} onClick={() => void send()}>
                   {busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Send className="mr-1 h-3.5 w-3.5" />}
-                  {SEND_OFFER_LABEL}
+                  {level === "C1" ? "Bot contacte pour moi" : SEND_OFFER_LABEL}
                 </Button>
               </div>
             )}

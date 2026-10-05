@@ -272,6 +272,110 @@ export type NexusSmartDiscoveryPlan = {
   rationale: string;
 };
 
+export type NexusReadinessLevel = "R0" | "R1" | "R2" | "R3" | "R4" | "R5";
+export type NexusNextBestAction =
+  | "ENRICH"
+  | "CONTACT_NOW"
+  | "REQUEST_APPROVAL"
+  | "OPEN_DEAL_ROOM"
+  | "WAIT_REPLY"
+  | "FOLLOW_UP"
+  | "NEGOTIATE"
+  | "EXECUTE"
+  | "COMPLETE"
+  | "DROP_LOW_QUALITY";
+
+export type NexusContactPack = {
+  fabric_id: string;
+  source_key?: string | null;
+  contactability_level: string;
+  readiness_level: NexusReadinessLevel;
+  readiness_score: number;
+  actionability_score: number;
+  next_best_action: NexusNextBestAction;
+  best_channel?: string | null;
+  available_channels: Array<{
+    channel: string;
+    score: number;
+    verified?: boolean;
+    reachable?: boolean | null;
+    public_business?: boolean;
+    consent_state?: string | null;
+    last4?: string | null;
+  }>;
+  masked_contacts: Array<{ channel: string; last4?: string | null }>;
+  verified_channel?: boolean;
+  message_template?: string | null;
+  entity_id?: string | null;
+};
+
+export type NexusAvatarMandate = {
+  id: string;
+  owner_id: string;
+  mode: "buy" | "sell" | "ask";
+  autonomy_mode: "assisted" | "semi_autonomous" | "autonomous";
+  goal: string;
+  normalized_query?: string | null;
+  city?: string | null;
+  budget_max?: number | null;
+  max_contacts: number;
+  max_followups: number;
+  allow_waouh: boolean;
+  allow_whatsapp: boolean;
+  allow_public_business: boolean;
+  allow_blind_message: boolean;
+  allow_email: boolean;
+  allow_sms_rcs: boolean;
+  require_approval_for_c1: boolean;
+  min_match_score: number;
+  min_actionability_score: number;
+  status: "draft" | "active" | "paused" | "completed" | "cancelled" | "expired";
+  contacted_count: number;
+  replied_count: number;
+  qualified_count: number;
+  last_run_at?: string | null;
+  next_run_at?: string | null;
+  expires_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type NexusPersistentIntent = {
+  id: string;
+  owner_id: string;
+  mandate_id?: string | null;
+  mode: NexusDiscoveryMode;
+  query_text: string;
+  city?: string | null;
+  budget_max?: number | null;
+  min_match_score: number;
+  min_actionability_score: number;
+  scan_interval_minutes: number;
+  status: "active" | "paused" | "completed" | "cancelled" | "expired";
+  last_scan_at?: string | null;
+  next_scan_at: string;
+  last_result_count: number;
+  last_actionable_count: number;
+  expires_at?: string | null;
+};
+
+export type NexusConversationBusEvent = {
+  id: string;
+  fabric_id?: string | null;
+  journey_id?: string | null;
+  mandate_id?: string | null;
+  article_id?: string | null;
+  thread_id?: string | null;
+  negotiation_id?: string | null;
+  deal_id?: string | null;
+  channel: string;
+  direction: "in" | "out" | "system";
+  event_type: string;
+  status: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
+
 export type NexusDiscoveryResult = {
   fabric_id: string;
   source_record_id?: string | null;
@@ -312,6 +416,12 @@ export type NexusDiscoveryResult = {
     requires_approval: boolean;
     label: string;
   };
+  contact_pack?: NexusContactPack;
+  readiness_level?: NexusReadinessLevel;
+  readiness_score?: number;
+  actionability_score?: number;
+  next_best_action?: NexusNextBestAction;
+  best_channel?: string | null;
 };
 
 export type NexusDiscoverySource = {
@@ -448,15 +558,29 @@ export type NexusOpportunityJourney = {
   thread_id?: string | null;
   negotiation_id?: string | null;
   deal_id?: string | null;
+  mandate_id?: string | null;
+  readiness_level?: NexusReadinessLevel;
+  readiness_score?: number;
+  actionability_score?: number;
+  next_best_action?: NexusNextBestAction;
+  contact_pack?: NexusContactPack | Record<string, unknown>;
 };
 
-export async function startNexusOpportunity(fabricId: string, mode: "buy" | "sell" | "ask" = "buy") {
+export async function startNexusOpportunity(
+  fabricId: string,
+  mode: "buy" | "sell" | "ask" = "buy",
+  mandateId?: string,
+) {
   return invokeWaouhAgentic<{
     journey: NexusOpportunityJourney;
     contact_policy: NexusDiscoveryResult["contact_policy"];
     next_action: string;
     internal_article: boolean;
-  }>("nexus.opportunity.start", { fabric_id: fabricId, mode });
+    contact_pack?: NexusContactPack;
+    readiness_level?: NexusReadinessLevel;
+    actionability_score?: number;
+    next_best_action?: NexusNextBestAction;
+  }>("nexus.opportunity.start", { fabric_id: fabricId, mode, ...(mandateId ? { mandate_id: mandateId } : {}) });
 }
 
 export async function enrichNexusOpportunity(fabricId: string, mode: "buy" | "sell" | "ask" = "buy") {
@@ -466,11 +590,26 @@ export async function enrichNexusOpportunity(fabricId: string, mode: "buy" | "se
     public_channels: string[];
     masked_contact: Record<string, unknown>;
     next_action: string;
+    contact_pack?: NexusContactPack;
+    readiness_level?: NexusReadinessLevel;
+    actionability_score?: number;
+    next_best_action?: NexusNextBestAction;
   }>("nexus.opportunity.enrich", { fabric_id: fabricId, mode });
 }
 
 export async function getNexusOpportunityStatus(input: { journey_id?: string; fabric_id?: string }) {
   return invokeWaouhAgentic<{ journey: NexusOpportunityJourney }>("nexus.opportunity.status", input);
+}
+
+export async function listNexusOpportunityJourneys(input: { include_completed?: boolean; limit?: number } = {}) {
+  return invokeWaouhAgentic<{
+    journeys: NexusOpportunityJourney[];
+    items: NexusOpportunityJourney[];
+    active_count: number;
+  }>("nexus.opportunity.list", {
+    include_completed: input.include_completed === true,
+    limit: input.limit ?? 20,
+  });
 }
 
 export async function prepareNexusContact(fabricId: string) {
@@ -486,8 +625,13 @@ export async function prepareNexusContact(fabricId: string) {
       can_auto_contact: boolean;
       requires_approval: boolean;
       can_blind_message?: boolean;
+      can_user_confirm_contact?: boolean;
       label: string;
     };
+    contact_pack?: NexusContactPack;
+    readiness_level?: NexusReadinessLevel;
+    actionability_score?: number;
+    next_best_action?: NexusNextBestAction;
     contacts: Array<{
       id: string;
       channel: string;
@@ -506,6 +650,7 @@ export async function sendNexusDiscoveryContact(input: {
   fabric_id: string;
   message: string;
   confirmed: true;
+  mandate_id?: string;
 }) {
   return invokeWaouhAgentic<{
     queued: boolean;
@@ -517,4 +662,78 @@ export async function sendNexusDiscoveryContact(input: {
     journey?: NexusOpportunityJourney | null;
     next_action?: string | null;
   }>("nexus.contact.send", input);
+}
+
+
+export async function getNexusContactPack(fabricId: string) {
+  return invokeWaouhAgentic<{
+    contact_pack: NexusContactPack;
+    contact_policy: NexusDiscoveryResult["contact_policy"];
+  }>("nexus.contact_pack.get", { fabric_id: fabricId });
+}
+
+export async function createNexusMandate(payload: {
+  mode: "buy" | "sell" | "ask";
+  goal: string;
+  autonomy_mode?: "assisted" | "semi_autonomous" | "autonomous";
+  city?: string;
+  budget_max?: number;
+  max_contacts?: number;
+  max_followups?: number;
+  duration_hours?: number;
+  scan_interval_minutes?: number;
+  min_match_score?: number;
+  min_actionability_score?: number;
+  allow_waouh?: boolean;
+  allow_whatsapp?: boolean;
+  allow_public_business?: boolean;
+  allow_blind_message?: boolean;
+  allow_email?: boolean;
+  allow_sms_rcs?: boolean;
+  origin_surface?: string;
+}) {
+  return invokeWaouhAgentic<{
+    mandate: NexusAvatarMandate;
+    intent: NexusPersistentIntent;
+    results: NexusDiscoveryResult[];
+    actionable_count: number;
+  }>("nexus.mandate.create", payload);
+}
+
+export async function listNexusMandates() {
+  return invokeWaouhAgentic<{
+    mandates: NexusAvatarMandate[];
+    intents: NexusPersistentIntent[];
+  }>("nexus.mandate.list", {});
+}
+
+export async function updateNexusMandate(
+  mandateId: string,
+  patch: Partial<Pick<
+    NexusAvatarMandate,
+    "status" | "autonomy_mode" | "max_contacts" | "max_followups" |
+    "min_match_score" | "min_actionability_score" | "allow_waouh" |
+    "allow_whatsapp" | "allow_public_business" | "allow_blind_message" |
+    "allow_email" | "allow_sms_rcs"
+  >>,
+) {
+  return invokeWaouhAgentic<{ mandate: NexusAvatarMandate }>(
+    "nexus.mandate.update",
+    { mandate_id: mandateId, ...patch },
+  );
+}
+
+export async function runNexusMandate(mandateId: string) {
+  return invokeWaouhAgentic<{
+    mandate: NexusAvatarMandate;
+    results: NexusDiscoveryResult[];
+    actionable_count: number;
+  }>("nexus.mandate.run", { mandate_id: mandateId });
+}
+
+export async function listNexusConversationBus(input: { fabric_id?: string; thread_id?: string; limit?: number } = {}) {
+  return invokeWaouhAgentic<{ events: NexusConversationBusEvent[] }>(
+    "nexus.conversation_bus.list",
+    input,
+  );
 }

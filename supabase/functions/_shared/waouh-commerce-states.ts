@@ -64,3 +64,9 @@ export function journeyStepFor(state: string | null | undefined): string | null 
   }
   return null;
 }
+
+
+/** Paiement transactionnel autorisé uniquement après remise/livraison. */
+export function paymentAllowedAfterDelivery(status: string | null | undefined): boolean {
+  return ["delivered", "completed"].includes(String(status || ""));
+}

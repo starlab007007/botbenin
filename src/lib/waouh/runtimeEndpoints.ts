@@ -8,6 +8,7 @@
  */
 export const WAOUH_RUNTIME_ENDPOINTS = {
   agenticCore: "waouh-studio-e2e-v21465",
+  opportunityWorker: "waouh-e2e-v3-relay",
   nativeMessagingSettings: "waouh-bots-backend-health-v1",
   nativeOpenMessages: "waouh-chat-health",
   nativeSimulator: "chat-webhook",

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -7,6 +7,9 @@ import {
   Handshake,
   Loader2,
   MapPin,
+  Pause,
+  Play,
+  Zap,
   Radar,
   Search,
   ShieldCheck,
@@ -27,7 +30,14 @@ import {
   globalNexusDiscovery,
   prepareNexusContact,
   sendNexusDiscoveryContact,
+  createNexusMandate,
+  listNexusMandates,
+  listNexusOpportunityJourneys,
+  updateNexusMandate,
+  runNexusMandate,
   type NexusDiscoveryResult,
+  type NexusAvatarMandate,
+  type NexusOpportunityJourney,
 } from "@/lib/waouh/nexus";
 
 type Mode = "acheter" | "vendre" | "demander";
@@ -116,6 +126,40 @@ const sourceLabel = (key?: string | null) => {
   return "NEXUS";
 };
 
+const canonicalDealCandidate = (item: NexusDiscoveryResult) => {
+  const source = String(item.source_key || "").toLowerCase();
+  const canonicalSource = ["waouh_app", "partner", "whatsapp"].includes(source);
+  if (!canonicalSource) return false;
+  return item.fabric_id.startsWith("article:") || item.fabric_id.startsWith("catalog:");
+};
+
+const journeyBusinessPhase = (journey: NexusOpportunityJourney) => {
+  switch (String(journey.last_action || "")) {
+    case "payment_completed": return "Terminé";
+    case "delivery_completed": return "Paiement";
+    case "courier_picked_up": return "Livraison";
+    case "courier_assigned": return "Livreur";
+    case "preparation_ready_for_courier": return "Préparation";
+    case "seller_confirmed": return "Confirmation vendeur";
+    case "agreement_reached":
+    case "canonical_agreement": return "Accord";
+    case "canonical_counterparty_counterproposal":
+    case "counterparty_reply_received": return "Négociation";
+  }
+  return ({
+    discovered: "Trouvée",
+    enriching: "Vérification",
+    contact_ready: "Contact prêt",
+    contacting: "Contact en cours",
+    waiting_reply: "Réponse attendue",
+    negotiating: "Négociation",
+    agreed: "Accord",
+    executing: "Exécution",
+    completed: "Terminé",
+    cancelled: "Annulé",
+  } as Record<string, string>)[journey.stage] || journey.stage.replaceAll("_", " ");
+};
+
 export default function WaouhAvatarCommercePage() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -133,7 +177,56 @@ export default function WaouhAvatarCommercePage() {
   const [rationale, setRationale] = useState("");
   const [offerItem, setOfferItem] = useState<NexusDiscoveryResult | null>(null);
   const [offerAmount, setOfferAmount] = useState("");
+  const [autonomyMode, setAutonomyMode] = useState<"assisted" | "semi_autonomous" | "autonomous">("semi_autonomous");
+  const [maxContacts, setMaxContacts] = useState(3);
+  const [maxFollowups, setMaxFollowups] = useState(1);
+  const [allowSmsRcs, setAllowSmsRcs] = useState(false);
+  const [mandateBusy, setMandateBusy] = useState(false);
+  const [activeMandate, setActiveMandate] = useState<NexusAvatarMandate | null>(null);
+  const [journeys, setJourneys] = useState<NexusOpportunityJourney[]>([]);
+  const [journeysBusy, setJourneysBusy] = useState(false);
 
+  useEffect(() => {
+    let alive = true;
+    void listNexusMandates()
+      .then((data) => {
+        if (!alive) return;
+        const current = (data.mandates || []).find((m) => m.status === "active" || m.status === "paused") || null;
+        setActiveMandate(current);
+        if (current) {
+          setAutonomyMode(current.autonomy_mode);
+          setMaxContacts(current.max_contacts || 3);
+          setMaxFollowups(current.max_followups ?? 1);
+          setAllowSmsRcs(current.allow_sms_rcs === true);
+        }
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    setJourneysBusy(true);
+    void listNexusOpportunityJourneys({ limit: 12 })
+      .then((data) => {
+        if (alive) setJourneys(data.journeys || []);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (alive) setJourneysBusy(false);
+      });
+    return () => { alive = false; };
+  }, []);
+
+  const refreshJourneys = async () => {
+    setJourneysBusy(true);
+    try {
+      const data = await listNexusOpportunityJourneys({ limit: 12 });
+      setJourneys(data.journeys || []);
+    } finally {
+      setJourneysBusy(false);
+    }
+  };
 
   const sources = useMemo(
     () => Object.entries(sourceMix).filter(([, count]) => Number(count) > 0),
@@ -168,77 +261,131 @@ export default function WaouhAvatarCommercePage() {
     }
   };
 
+  const createMandate = async () => {
+    const query = goal.trim();
+    if (!query || mandateBusy) return;
+    setMandateBusy(true);
+    try {
+      const response = await createNexusMandate({
+        mode: mode === "vendre" ? "sell" : mode === "demander" ? "ask" : "buy",
+        goal: query,
+        autonomy_mode: autonomyMode,
+        city: city.trim() || undefined,
+        budget_max: Number(budget) || undefined,
+        max_contacts: maxContacts,
+        max_followups: autonomyMode === "assisted" ? 0 : maxFollowups,
+        duration_hours: 24,
+        scan_interval_minutes: 60,
+        min_match_score: 70,
+        min_actionability_score: 65,
+        allow_waouh: true,
+        allow_whatsapp: true,
+        allow_public_business: true,
+        allow_blind_message: true,
+        allow_sms_rcs: allowSmsRcs,
+        origin_surface: "web_avatar_commerce",
+      });
+      setActiveMandate(response.mandate);
+      if (response.results?.length) {
+        setResults(response.results);
+        const mix = response.results.reduce<Record<string, number>>((acc, row) => {
+          acc[row.source_key] = (acc[row.source_key] || 0) + 1;
+          return acc;
+        }, {});
+        setSourceMix(mix);
+      }
+      toast({
+        title: "Mandat confié à Bot",
+        description: autonomyMode === "assisted"
+          ? "Bot surveille et prépare ; vous validez chaque contact."
+          : `Bot surveille pendant 24 h et peut agir dans les limites fixées · ${response.actionable_count} opportunité(s) déjà actionnable(s).`,
+      });
+    } catch (error: any) {
+      toast({ title: "Mandat non créé", description: error?.message || String(error), variant: "destructive" });
+    } finally {
+      setMandateBusy(false);
+    }
+  };
+
+  const toggleMandate = async () => {
+    if (!activeMandate || mandateBusy) return;
+    setMandateBusy(true);
+    try {
+      const status = activeMandate.status === "active" ? "paused" : "active";
+      const response = await updateNexusMandate(activeMandate.id, { status });
+      setActiveMandate(response.mandate);
+      toast({ title: status === "active" ? "Mandat repris" : "Mandat en pause" });
+    } finally {
+      setMandateBusy(false);
+    }
+  };
+
+  const runMandateNow = async () => {
+    if (!activeMandate || mandateBusy) return;
+    setMandateBusy(true);
+    try {
+      const response = await runNexusMandate(activeMandate.id);
+      setActiveMandate(response.mandate);
+      if (response.results?.length) setResults(response.results);
+      toast({ title: "Bot a relancé la recherche", description: `${response.actionable_count} opportunité(s) actionnable(s).` });
+    } catch (error: any) {
+      toast({ title: "Relance impossible", description: error?.message || String(error), variant: "destructive" });
+    } finally {
+      setMandateBusy(false);
+    }
+  };
+
   const continueWith = async (item: NexusDiscoveryResult, initialOffer?: number) => {
     setWorkingId(item.fabric_id);
     try {
       const evidence = (item.evidence || {}) as Record<string, unknown>;
       const articleId = String(
         (evidence.article_id as string | undefined) ||
-          (item.source_key === "waouh_app" ? item.source_record_id || "" : "")
+          (item.fabric_id.startsWith("article:") ? item.fabric_id.slice("article:".length) : "")
+      ).trim();
+      const catalogId = String(
+        (evidence.catalog_id as string | undefined) ||
+          (item.fabric_id.startsWith("catalog:") ? item.fabric_id.slice("catalog:".length) : "")
       ).trim();
 
-      if (articleId) {
-        const sellerUserId = String(
-          (evidence.seller_user_id as string | undefined) ||
-            (evidence.owner_user_id as string | undefined) ||
-            (evidence.user_id as string | undefined) ||
-            ""
-        ).trim();
+      if (canonicalDealCandidate(item) && (articleId || catalogId)) {
         const title = item.subject || item.raw_text || "Annonce";
         const price = item.price_min ?? item.price_max ?? null;
         const sessionId = getWaouhSessionId();
-        const { data: authData } = await supabase.auth.getUser();
-        const text = initialOffer && initialOffer > 0
-          ? `Je propose ${Math.round(initialOffer).toLocaleString("fr-FR")} FCFA pour « ${title} ».`
-          : `Je suis intéressé par « ${title} ».`;
-        const meta = {
-          source: "avatar_commerce",
-          origin_surface: "web_avatar_commerce",
-          action: "interested",
-          intent: "interested",
-          commerce_action: "interest",
-          thread_type: "product_meet",
-          article_id: articleId,
-          seller_user_id: sellerUserId || null,
-          counterpart_user_id: sellerUserId || null,
-          title,
-          city: item.city ?? null,
-          price,
-          ...(initialOffer && initialOffer > 0 ? { offer_price: initialOffer, initial_offer_amount: initialOffer } : {}),
-          fabric_id: item.fabric_id,
-          contactability_level: item.contact_policy.level,
-          nexus_total_score: item.scores?.total_score ?? null,
-          nexus_trust_score: item.scores?.trust_score ?? null,
-          nexus_reasons: item.scores?.reasons ?? [],
-        };
-
-        const { data, error } = await supabase.functions.invoke("waouh-channel-in-secure", {
+        const { data, error } = await supabase.functions.invoke("waouh-buyer-interest", {
           headers: { "x-waouh-session": sessionId },
           body: {
-            channel: "web",
-            sessionId,
-            text,
-            authUserId: authData.user?.id ?? null,
-            meta,
+            ...(articleId ? { article_id: articleId } : {}),
+            ...(catalogId ? { catalog_id: catalogId } : {}),
+            source: "avatar_commerce",
+            ...(initialOffer && initialOffer > 0 ? { offer_price: initialOffer } : {}),
           },
         });
         if (error || data?.error) {
-          throw new Error(error?.message || data?.message || data?.error || "Impossible de créer le Deal Room.");
+          throw new Error(error?.message || data?.details || data?.error || "Impossible de créer le Deal Room.");
+        }
+        if (data?.skipped === "self") {
+          toast({ title: "Votre propre offre", description: "WAOUH ne crée pas de négociation avec votre propre annonce." });
+          return;
+        }
+        const resolvedArticleId = String(data?.article_id || articleId || "").trim();
+        const threadId = String(data?.thread_id || "").trim();
+        if (!resolvedArticleId || !threadId) {
+          throw new Error("Le writer canonique n’a pas renvoyé article_id + thread_id.");
         }
 
         const detail = {
-          article_id: data?.article_id || articleId,
-          counterpart_user_id: data?.counterpart_user_id || sellerUserId || null,
-          seller_user_id: data?.seller_user_id || sellerUserId || null,
-          buyer_user_id: data?.buyer_user_id || null,
-          thread_id: data?.thread_id || null,
+          article_id: resolvedArticleId,
+          thread_id: threadId,
           negotiation_id: data?.negotiation_id || null,
-          deal_id: data?.deal_id || null,
+          deal_id: null,
           kind: "buyer",
           title,
           price,
           city: item.city ?? null,
-          seed_text: data?.reply || text,
+          seed_text: initialOffer && initialOffer > 0
+            ? `Je propose ${Math.round(initialOffer).toLocaleString("fr-FR")} FCFA pour « ${title} ».`
+            : `Je suis intéressé par « ${title} ».`,
           source: "avatar_commerce",
         };
         try {
@@ -249,19 +396,22 @@ export default function WaouhAvatarCommercePage() {
           localStorage.setItem("waouh_pending_open", JSON.stringify(list.slice(-10)));
         } catch {}
 
+        await refreshJourneys().catch(() => {});
         navigate("/app/chat");
         window.setTimeout(() => {
           window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));
         }, 60);
         toast({
           title: "Deal Room ouvert",
-          description: "Le vendeur est notifié. Votre Avatar vous accompagne dans la négociation.",
+          description: "Même article, même thread : votre Avatar suit maintenant la négociation jusqu’à la clôture.",
         });
         return;
       }
 
       const prepared = await prepareNexusContact(item.fabric_id);
-      if (!prepared.contact_policy.can_auto_contact && !prepared.contact_policy.can_blind_message) {
+      if (!prepared.contact_policy.can_auto_contact &&
+          !prepared.contact_policy.can_blind_message &&
+          !prepared.contact_policy.can_user_confirm_contact) {
         throw new Error(
           `Le niveau ${prepared.contact_policy.level} autorise la découverte, mais pas encore un contact médié.`
         );
@@ -291,6 +441,37 @@ export default function WaouhAvatarCommercePage() {
     } finally {
       setWorkingId(null);
     }
+  };
+
+  const openJourney = (journey: NexusOpportunityJourney) => {
+    const threadId = String(journey.thread_id || "").trim();
+    if (!threadId) {
+      toast({
+        title: journeyBusinessPhase(journey),
+        description: journey.last_message || "Avatar poursuit cette démarche.",
+      });
+      return;
+    }
+    const detail = {
+      article_id: journey.article_id || null,
+      thread_id: threadId,
+      negotiation_id: journey.negotiation_id || null,
+      deal_id: journey.deal_id || null,
+      kind: journey.mode === "sell" ? "seller" : "buyer",
+      title: journey.subject || "Démarche WAOUH",
+      source: "avatar_opportunity",
+    };
+    try {
+      const raw = localStorage.getItem("waouh_pending_open");
+      const items = raw ? JSON.parse(raw) : [];
+      const list = Array.isArray(items) ? items : [];
+      list.push(detail);
+      localStorage.setItem("waouh_pending_open", JSON.stringify(list.slice(-10)));
+    } catch {}
+    navigate("/app/chat");
+    window.setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));
+    }, 60);
   };
 
   return (
@@ -349,6 +530,208 @@ export default function WaouhAvatarCommercePage() {
           </Button>
         </section>
 
+        <section className="rounded-[24px] border border-violet-100 bg-gradient-to-br from-violet-50/80 via-white to-cyan-50/70 p-4 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-violet-600 text-white">
+              <Zap className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-black text-slate-950">Mandat Avatar · Opportunity OS</div>
+              <p className="mt-1 text-[11px] font-semibold leading-relaxed text-slate-500">
+                Autorisez Bot une seule fois : il surveille NEXUS, prépare les contacts, agit dans vos limites et revient quand une vraie réponse arrive.
+              </p>
+            </div>
+          </div>
+
+          {activeMandate ? (
+            <div className="mt-4 space-y-3">
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-2xl bg-white p-3 text-center">
+                  <div className="text-[9px] font-bold uppercase text-slate-400">Contactés</div>
+                  <div className="mt-1 text-xl font-black text-violet-700">{activeMandate.contacted_count}</div>
+                </div>
+                <div className="rounded-2xl bg-white p-3 text-center">
+                  <div className="text-[9px] font-bold uppercase text-slate-400">Réponses</div>
+                  <div className="mt-1 text-xl font-black text-emerald-700">{activeMandate.replied_count}</div>
+                </div>
+                <div className="rounded-2xl bg-white p-3 text-center">
+                  <div className="text-[9px] font-bold uppercase text-slate-400">Mode</div>
+                  <div className="mt-1 text-[11px] font-black text-slate-900">
+                    {activeMandate.autonomy_mode === "assisted" ? "Assisté" : activeMandate.autonomy_mode === "autonomous" ? "Autonome" : "Semi-auto"}
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-violet-100 bg-white p-3">
+                <div className="text-xs font-black text-slate-900">{activeMandate.goal}</div>
+                <div className="mt-1 text-[10px] text-slate-500">
+                  Jusqu’à {activeMandate.max_contacts} contacts · expire {new Date(activeMandate.expires_at).toLocaleString("fr-FR")}
+                </div>
+              </div>
+              <label className="flex items-center justify-between gap-3 rounded-2xl border border-violet-100 bg-white p-3">
+                <div>
+                  <div className="text-xs font-black text-slate-900">SMS/RCS consentis</div>
+                  <div className="text-[10px] text-slate-500">Uniquement les numéros ayant déjà un consentement Native Messaging actif.</div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={activeMandate.allow_sms_rcs === true}
+                  disabled={mandateBusy}
+                  onChange={async (e) => {
+                    const value = e.target.checked;
+                    setMandateBusy(true);
+                    try {
+                      const response = await updateNexusMandate(activeMandate.id, { allow_sms_rcs: value });
+                      setActiveMandate(response.mandate);
+                      setAllowSmsRcs(value);
+                    } finally {
+                      setMandateBusy(false);
+                    }
+                  }}
+                  className="h-5 w-5 accent-violet-600"
+                />
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" disabled={mandateBusy} onClick={() => void toggleMandate()} className="rounded-xl">
+                  {activeMandate.status === "active" ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
+                  {activeMandate.status === "active" ? "Mettre en pause" : "Reprendre"}
+                </Button>
+                <Button disabled={mandateBusy || activeMandate.status !== "active"} onClick={() => void runMandateNow()} className="rounded-xl">
+                  {mandateBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Radar className="mr-2 h-4 w-4" />}
+                  Chercher maintenant
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              <div>
+                <div className="mb-2 text-[10px] font-black uppercase tracking-wide text-slate-500">Mode d’autonomie</div>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    ["assisted", "Assisté", "Vous validez"],
+                    ["semi_autonomous", "Semi-auto", "Recommandé"],
+                    ["autonomous", "Autonome", "Dans le mandat"],
+                  ] as const).map(([value, label, note]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => {
+                        setAutonomyMode(value);
+                        if (value === "assisted") setMaxFollowups(0);
+                        else if (maxFollowups === 0) setMaxFollowups(value === "autonomous" ? 2 : 1);
+                      }}
+                      className={`rounded-2xl border p-2.5 text-left transition ${autonomyMode === value ? "border-violet-500 bg-violet-50 ring-1 ring-violet-200" : "border-slate-200 bg-white"}`}
+                    >
+                      <div className="text-[11px] font-black text-slate-900">{label}</div>
+                      <div className="mt-0.5 text-[9px] font-semibold text-slate-400">{note}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="flex items-center justify-between gap-3 rounded-2xl bg-white p-3">
+                  <div>
+                    <div className="text-xs font-black">Contacts maximum</div>
+                    <div className="text-[10px] text-slate-500">Plafond cumulé du mandat.</div>
+                  </div>
+                  <select
+                    value={maxContacts}
+                    onChange={(e) => setMaxContacts(Number(e.target.value))}
+                    className="h-10 rounded-xl border bg-white px-3 text-sm font-bold"
+                  >
+                    {[1, 3, 5, 10, 20].map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
+                <div className="flex items-center justify-between gap-3 rounded-2xl bg-white p-3">
+                  <div>
+                    <div className="text-xs font-black">Relances maximum</div>
+                    <div className="text-[10px] text-slate-500">Au moins 24 h entre deux relances.</div>
+                  </div>
+                  <select
+                    value={autonomyMode === "assisted" ? 0 : maxFollowups}
+                    disabled={autonomyMode === "assisted"}
+                    onChange={(e) => setMaxFollowups(Number(e.target.value))}
+                    className="h-10 rounded-xl border bg-white px-3 text-sm font-bold disabled:opacity-60"
+                  >
+                    {[0, 1, 2, 3, 5].map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
+              </div>
+              <label className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3">
+                <div>
+                  <div className="text-xs font-black text-slate-900">Autoriser SMS/RCS consentis</div>
+                  <div className="text-[10px] text-slate-500">
+                    Désactivé par défaut. Bot l’utilise seulement si la contrepartie a déjà accepté ce canal.
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={allowSmsRcs}
+                  onChange={(e) => setAllowSmsRcs(e.target.checked)}
+                  className="h-5 w-5 accent-violet-600"
+                />
+              </label>
+              <Button
+                className="h-12 w-full rounded-2xl bg-violet-600 hover:bg-violet-700"
+                disabled={mandateBusy || !goal.trim()}
+                onClick={() => void createMandate()}
+              >
+                {mandateBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}
+                Confier cette mission à Bot pendant 24 h
+              </Button>
+              <p className="text-center text-[10px] font-semibold text-slate-500">
+                Aucun paiement, changement de budget ou révélation de contact privé n’est autorisé par ce mandat.
+              </p>
+            </div>
+          )}
+        </section>
+
+        {(journeysBusy || journeys.length > 0) && (
+          <section className="rounded-[24px] border border-blue-100 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2">
+              <Handshake className="h-4 w-4 text-blue-600" />
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-black text-slate-950">Mes démarches · même Deal Room</div>
+                <div className="text-[10px] font-semibold text-slate-500">Intérêt → négociation → accord → préparation → livreur → livraison → paiement.</div>
+              </div>
+              <Button variant="ghost" size="sm" disabled={journeysBusy} onClick={() => void refreshJourneys()} className="rounded-xl">
+                {journeysBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Actualiser"}
+              </Button>
+            </div>
+            {journeys.length > 0 && (
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {journeys.slice(0, 6).map((journey) => (
+                  <button
+                    key={journey.id}
+                    type="button"
+                    onClick={() => openJourney(journey)}
+                    className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 text-left transition hover:border-blue-200 hover:bg-blue-50/60"
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-xs font-black text-slate-950">{journey.subject || "Démarche WAOUH"}</div>
+                        <div className="mt-1 text-[10px] font-black text-blue-700">{journeyBusinessPhase(journey)} · {journey.contactability_level}</div>
+                      </div>
+                      <div className="text-[10px] font-black text-slate-500">{Math.max(0, Math.min(100, Number(journey.progress || 0)))}%</div>
+                    </div>
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
+                      <div
+                        className="h-full rounded-full bg-blue-600"
+                        style={{ width: `${Math.max(0, Math.min(100, Number(journey.progress || 0)))}%` }}
+                      />
+                    </div>
+                    <div className="mt-2 line-clamp-2 text-[10px] font-semibold leading-relaxed text-slate-500">
+                      {journey.last_message || journey.next_action || "Avatar poursuit cette démarche."}
+                    </div>
+                    {journey.thread_id && (
+                      <div className="mt-2 text-[10px] font-black text-emerald-700">Ouvrir le Deal Room →</div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
         {(rationale || sources.length > 0) && (
           <section className="rounded-[22px] border border-blue-100 bg-blue-50/60 p-4">
             <div className="flex items-center gap-2 text-xs font-black text-slate-950">
@@ -388,10 +771,26 @@ export default function WaouhAvatarCommercePage() {
                       <span>{sourceLabel(item.source_key)}</span>
                       {item.city && <span>· {item.city}</span>}
                       <span>· {item.contact_policy.level}</span>
+                      {(item.readiness_level || item.contact_pack?.readiness_level) && <span>· {item.readiness_level || item.contact_pack?.readiness_level}</span>}
+                      {item.actionability_score != null && <span>· Action {Math.round(item.actionability_score)}%</span>}
                     </div>
                   </div>
                   <div className="text-sm font-black text-blue-600">{Math.round(item.scores?.total_score || 0)}%</div>
                 </div>
+
+                {(item.next_best_action || item.contact_pack?.next_best_action) && (
+                  <div className="mt-3 rounded-2xl border border-violet-100 bg-violet-50/70 p-3">
+                    <div className="text-[9px] font-black uppercase text-violet-700">Action recommandée par Bot</div>
+                    <div className="mt-1 text-xs font-black text-violet-950">
+                      {(item.next_best_action || item.contact_pack?.next_best_action) === "CONTACT_NOW" ? "Contacter maintenant" :
+                       (item.next_best_action || item.contact_pack?.next_best_action) === "OPEN_DEAL_ROOM" ? "Ouvrir le Deal Room" :
+                       (item.next_best_action || item.contact_pack?.next_best_action) === "WAIT_REPLY" ? "Attendre la réponse" :
+                       (item.next_best_action || item.contact_pack?.next_best_action) === "NEGOTIATE" ? "Négocier" :
+                       "Enrichir le contact"}
+                      {(item.best_channel || item.contact_pack?.best_channel) ? ` · ${item.best_channel || item.contact_pack?.best_channel}` : ""}
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   {[
@@ -412,7 +811,7 @@ export default function WaouhAvatarCommercePage() {
                   La mise en relation reste médiée par WAOUH selon le niveau {item.contact_policy.level}. Les coordonnées privées ne sont pas révélées directement.
                 </div>
 
-                {item.source_key === "waouh_app" ? (
+                {canonicalDealCandidate(item) ? (
                   <Button
                     onClick={() => {
                       setOfferItem(item);

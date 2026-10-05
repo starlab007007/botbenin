@@ -325,6 +325,7 @@ export type AgenticAction =
   | "nexus.preferences.get" | "nexus.preferences.upsert"
   | "nexus.identify_visual" | "nexus.barcode_lookup" | "nexus.market_history" | "nexus.sources" | "nexus.scout.submit" | "nexus.autopilot.create"
   | "nexus.signal.ingest" | "nexus.google_places.search" | "nexus.global_discovery" | "nexus.contact.prepare" | "nexus.contact.send"
+  | "nexus.contact_pack.get" | "nexus.mandate.create" | "nexus.mandate.list" | "nexus.mandate.update" | "nexus.mandate.run" | "nexus.conversation_bus.list"
   | "media.create" | "media.list" | "domain.list";
 
 export type AgenticEnvelope<T> =

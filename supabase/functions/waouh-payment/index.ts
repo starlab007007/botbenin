@@ -1,9 +1,14 @@
 // WAOUH Payment - Qosic Mobile Money escrow flow
 // Actions: init (request from buyer), status (poll), release (deposit to seller)
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
-import { contactExchangeText } from "../_shared/waouh-format.ts";
 import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
+import { paymentAllowedAfterDelivery } from "../_shared/waouh-commerce-states.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-waouh-session",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -53,7 +58,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const action = body.action as "init" | "status" | "release";
+    const action = body.action as "init" | "status" | "release" | "confirm_received";
 
     // Try authenticated user (optional in demo mode – falls back to x-waouh-session)
     const authHeader = req.headers.get("Authorization");
@@ -96,8 +101,29 @@ Deno.serve(async (req) => {
 
       const { data: tx, error: txErr } = await sb.from("waouh_transactions").select("*").eq("id", transaction_id).single();
       if (txErr || !tx) return json({ error: "Transaction introuvable" }, 404);
+
+      // Parcours canonique WAOUH : lorsqu'une transaction appartient à un
+      // Deal Room, aucun débit/escrow n'est initié avant la livraison.
+      // Les anciennes transactions sans deal restent compatibles.
+      if (tx.thread_id) {
+        const { data: canonicalDeal } = await sb.from("waouh_deals")
+          .select("id,status,payment_status")
+          .eq("thread_id", tx.thread_id)
+          .neq("status", "cancelled")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (canonicalDeal && !paymentAllowedAfterDelivery(canonicalDeal.status)) {
+          return json({
+            error: "payment_after_delivery_only",
+            message: "Le paiement est confirmé après la remise/livraison dans WAOUH.",
+            deal_id: canonicalDeal.id,
+            current_status: canonicalDeal.status,
+          }, 409);
+        }
+      }
       const allowedBuyerId = waouhBuyerId ?? userId;
-      if (tx.buyer_id && allowedBuyerId && tx.buyer_id !== allowedBuyerId && PAYMENT_MODE === "live") {
+      if (tx.buyer_id && (!allowedBuyerId || tx.buyer_id !== allowedBuyerId) && !serviceCall) {
         return json({ error: "Vous n'êtes pas l'acheteur de cette transaction" }, 403);
       }
       if (["paid", "released", "completed"].includes(tx.status)) {
@@ -148,7 +174,7 @@ Deno.serve(async (req) => {
         if (txAfter) {
           await pushSystemMessage(sb, txAfter.buyer_id, transaction_id, `✅ Paiement confirmé (mode démo). Fonds en escrow : ${Number(txAfter.amount).toLocaleString("fr-FR")} FCFA.`);
           await pushSystemMessage(sb, txAfter.seller_id, transaction_id, `💰 Acheteur a payé (mode démo). Préparez la livraison.`);
-          await exchangeContacts(sb, txAfter.buyer_id, txAfter.seller_id, transaction_id);
+          // Contacts stay mediated inside WAOUH. No direct exchange.
         }
         return json({ success: true, status: "success", payment_id: pay.id, transref, demo: true, message: "Mode démo : paiement confirmé sans vérification." });
       }
@@ -187,6 +213,17 @@ Deno.serve(async (req) => {
     // ---------------- STATUS ----------------
     if (action === "status") {
       const { transaction_id } = body;
+      if (!transaction_id) return json({ error: "transaction_id requis" }, 400);
+      const serviceCall = authHeader === `Bearer ${SERVICE_ROLE}`;
+      const { data: statusTx } = await sb.from("waouh_transactions")
+        .select("buyer_id")
+        .eq("id", transaction_id)
+        .maybeSingle();
+      if (!statusTx) return json({ error: "Transaction introuvable" }, 404);
+      if (statusTx.buyer_id && (!waouhBuyerId || statusTx.buyer_id !== waouhBuyerId) && !serviceCall) {
+        return json({ error: "Vous n'êtes pas l'acheteur de cette transaction" }, 403);
+      }
+
       const { data: pay } = await sb
         .from("waouh_payments")
         .select("*")
@@ -237,7 +274,7 @@ Deno.serve(async (req) => {
           if (tx?.buyer_id) {
             await pushSystemMessage(sb, tx.buyer_id, transaction_id, "✅ Paiement reçu. Fonds bloqués en escrow jusqu'à confirmation de réception.");
             await pushSystemMessage(sb, tx.seller_id, transaction_id, `💰 Paiement reçu (${Number(tx.amount).toLocaleString("fr-FR")} FCFA). Préparez la livraison.`);
-            await exchangeContacts(sb, tx.buyer_id, tx.seller_id, transaction_id);
+            // Contacts stay mediated inside WAOUH. No direct exchange.
           }
         } else if (newStatus === "failed") {
           await sb.from("waouh_transactions").update({ status: "payment_pending" }).eq("id", transaction_id);
@@ -250,10 +287,10 @@ Deno.serve(async (req) => {
     // ---------------- RELEASE ----------------
     if (action === "release") {
       const { transaction_id } = body;
-      if (!userId) return json({ error: "Auth requise" }, 401);
+      if (!userId || !waouhBuyerId) return json({ error: "Auth requise" }, 401);
 
       const { data: tx } = await sb.from("waouh_transactions").select("*, seller:waouh_users!seller_id(*)").eq("id", transaction_id).single();
-      if (!tx || tx.buyer_id !== userId) return json({ error: "Non autorisé" }, 403);
+      if (!tx || tx.buyer_id !== waouhBuyerId) return json({ error: "Non autorisé" }, 403);
       if (tx.status !== "paid") return json({ error: "Transaction non payée" }, 400);
 
       const sellerPhone = (tx.seller?.phone_number || "").replace(/\D/g, "");
@@ -391,44 +428,6 @@ async function pushSystemMessage(sb: any, waouhUserId: string | null, transactio
       payloadExtra: { transaction_id, event: eventKey || "post_payment_flow" },
     });
   } catch (e) { console.warn("[waouh-payment] pushSyncedEvent", e); }
-}
-
-async function getWaouhUserContact(sb: any, id: string | null) {
-  if (!id) return null;
-  const { data } = await sb.from("waouh_users")
-    .select("id, display_name, phone_number, city, web_session_id")
-    .eq("id", id).maybeSingle();
-  return data;
-}
-
-/** Exchange both contacts (buyer↔seller) — strictement une seule fois par transaction. */
-async function exchangeContacts(sb: any, buyerId: string | null, sellerId: string | null, transaction_id: string) {
-  try {
-    // 🔒 Verrou atomique : on ne fait l'échange QUE si contacts_exchanged_at est NULL.
-    const { data: claimed } = await sb
-      .from("waouh_transactions")
-      .update({ contacts_exchanged_at: new Date().toISOString() })
-      .eq("id", transaction_id)
-      .is("contacts_exchanged_at", null)
-      .select("id")
-      .maybeSingle();
-    if (!claimed) {
-      console.log("[waouh-payment] contacts already exchanged for", transaction_id);
-      return;
-    }
-    const [buyer, seller] = await Promise.all([
-      getWaouhUserContact(sb, buyerId),
-      getWaouhUserContact(sb, sellerId),
-    ]);
-    if (buyer && seller) {
-      const toSellerText = contactExchangeText("seller_to_buyer", buyer);
-      const toBuyerText = contactExchangeText("buyer_to_seller", seller);
-      await pushSystemMessage(sb, sellerId, transaction_id, toSellerText);
-      await pushSystemMessage(sb, buyerId, transaction_id, toBuyerText);
-    }
-  } catch (e) {
-    console.warn("[waouh-payment] exchangeContacts", e);
-  }
 }
 
 function json(b: any, status = 200) {

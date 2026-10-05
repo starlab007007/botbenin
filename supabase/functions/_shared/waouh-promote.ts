@@ -19,6 +19,13 @@ export interface PromoteResult {
  * (scénarios B/C — l'utilisateur voit "Cet article ne peut pas être
  * négocié pour l'instant").
  */
+export function catalogSourceChannel(value: string | null | undefined): string {
+  const source = String(value || "").toLowerCase().trim();
+  if (source === "partner") return "partner";
+  if (source === "radar" || source === "radar_ia") return "radar_ia";
+  return "waouh_app";
+}
+
 export function normalizeArticleCategory(value: string | null | undefined): string {
   const v = String(value || "").toLowerCase();
   if (!v) return "autre";
@@ -51,10 +58,54 @@ export async function promoteCatalogToArticle(
     return { article_id: null, catalog_id, created: false, reason: "catalog inactive" };
   }
 
-  // Une offre partenaire doit avoir un interlocuteur canonique avant d'entrer
-  // dans le tunnel transactionnel. Si nécessaire, matérialiser un vendeur
-  // WhatsApp à partir du contact réel du catalogue.
+  // Une offre catalogue doit avoir un interlocuteur canonique AVANT
+  // d'entrer dans le tunnel transactionnel. Priorité au compte partenaire
+  // authentifié, puis au contact réel du vendeur. On ne crée jamais un article
+  // transactionnel orphelin simplement pour ouvrir un Deal Room.
   let sellerId = overrides.seller_id ?? null;
+
+  // Les entrées "chat" du catalogue unifié référencent l'article WAOUH
+  // source. Réutiliser son seller_id est plus fiable qu'un numéro et maintient
+  // exactement la même identité vendeur / thread que le parcours canonique.
+  if (!sellerId && cat.source_ref_id) {
+    const { data: sourceArticle } = await sb.from("waouh_articles")
+      .select("id,seller_id,status")
+      .eq("id", cat.source_ref_id)
+      .maybeSingle();
+    if (sourceArticle?.id) {
+      const status = String(sourceArticle.status || "").toLowerCase();
+      const unavailable = new Set(["sold", "reserved", "archived", "deleted"]);
+      if (unavailable.has(status)) {
+        return {
+          article_id: null,
+          catalog_id,
+          created: false,
+          reason: "source_article_unavailable",
+        };
+      }
+      if (sourceArticle.seller_id) {
+        // Chat catalogue rows are a searchable projection of an existing
+        // canonical article, not a second listing. Link the catalogue back to
+        // that same article so thread_id/negotiation/deal remain unique.
+        await sb.from("waouh_unified_catalog")
+          .update({ promoted_article_id: sourceArticle.id })
+          .eq("id", catalog_id);
+        return { article_id: sourceArticle.id, catalog_id, created: false };
+      }
+    }
+    sellerId = sourceArticle?.seller_id ?? null;
+  }
+
+  if (!sellerId && cat.partner_id) {
+    const { data: partner } = await sb.from("waouh_partners")
+      .select("user_id").eq("id", cat.partner_id).maybeSingle();
+    if (partner?.user_id) {
+      const { data: canonical } = await sb.from("waouh_users")
+        .select("id").eq("auth_user_id", partner.user_id)
+        .order("created_at", { ascending: true }).limit(1).maybeSingle();
+      sellerId = canonical?.id ?? null;
+    }
+  }
   if (!sellerId) {
     const stub = await ensureWaouhVendorStub(
       sb,
@@ -66,6 +117,14 @@ export async function promoteCatalogToArticle(
       },
     );
     sellerId = stub?.id ?? null;
+  }
+  if (!sellerId) {
+    return {
+      article_id: null,
+      catalog_id,
+      created: false,
+      reason: "seller_identity_or_contact_missing",
+    };
   }
 
   if (cat.promoted_article_id) {
@@ -100,9 +159,7 @@ export async function promoteCatalogToArticle(
 
   const price = cat.prix_min ?? cat.prix_max ?? null;
   const photos = Array.isArray(cat.photos) ? cat.photos : [];
-  const sourceChannel =
-    cat.source === "partner" ? "partner" :
-    cat.source === "radar_ia" ? "radar_ia" : "waouh_app";
+  const sourceChannel = catalogSourceChannel(cat.source);
 
   // 🔒 Normalisation OBLIGATOIRE : la table waouh_articles a une CHECK
   // constraint stricte (smartphone/ordinateur/vetement/vehicule/
@@ -124,7 +181,11 @@ export async function promoteCatalogToArticle(
       photos,
       city: cat.ville || null,
       status: "active",
-      origin: cat.source === "partner" ? "partner" : (cat.source || "waouh_app"),
+      origin: sourceChannel === "partner"
+        ? "partner"
+        : sourceChannel === "radar_ia"
+          ? "radar"
+          : (cat.source || "waouh_app"),
       source_channel: sourceChannel,
       contact_whatsapp: cat.vendeur_whatsapp || cat.vendeur_phone || null,
       partner_id: cat.partner_id || null,

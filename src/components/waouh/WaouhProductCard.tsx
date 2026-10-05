@@ -87,6 +87,12 @@ export interface WaouhResultCard {
   scores?: Record<string, unknown> | null;
   reasons?: string[] | null;
   evidence?: Record<string, unknown> | null;
+  contact_pack?: Record<string, unknown> | null;
+  readiness_level?: string | null;
+  readiness_score?: number | null;
+  actionability_score?: number | null;
+  next_best_action?: string | null;
+  best_channel?: string | null;
 }
 
 type OpenDetail = {
@@ -135,6 +141,10 @@ const marketIntelligence = (result: WaouhResultCard) => {
   const location = metric(result, "location_score");
   const freshness = metric(result, "freshness_score");
   const level = contactLevel(result);
+  const readiness = String(result.readiness_level || (result.contact_pack as any)?.readiness_level || "");
+  const actionabilityRaw = result.actionability_score ?? (result.contact_pack as any)?.actionability_score;
+  const actionability = Number.isFinite(Number(actionabilityRaw)) ? Number(actionabilityRaw) : null;
+  const bestChannel = String(result.best_channel || (result.contact_pack as any)?.best_channel || "");
   const reasons = resultReasons(result);
   const source = String(result.source || (result.intelligence_provenance as any)?.source || "NEXUS");
 
@@ -154,6 +164,9 @@ const marketIntelligence = (result: WaouhResultCard) => {
         score != null ? `match ${Math.round(score)}%` : null,
         trust != null ? `confiance ${Math.round(trust)}%` : null,
         level ? `contact ${level}` : null,
+        readiness ? `prêt ${readiness}` : null,
+        actionability != null ? `action ${Math.round(actionability)}%` : null,
+        bestChannel ? `canal ${bestChannel}` : null,
       ].filter(Boolean).join(" · "),
     recommendation:
       result.recommendation ||
@@ -283,8 +296,12 @@ export function WaouhProductCard({
   const externalOpportunity = !!result.fabric_id &&
     !["waouh", "chat", "waouh_app"].includes(String(result.source || "").toLowerCase());
   const externalDeal = directDeal && externalOpportunity && !isBuyerOpportunity(result) && isDirectDealCandidate(result.fabric_id);
-   const score = metric(result, "total_score");
+  const score = metric(result, "total_score");
   const trust = metric(result, "trust_score");
+  const actionability = metric(result, "actionability_score");
+  const readiness = String(result.readiness_level || (result.contact_pack as any)?.readiness_level || "");
+  const nextBestAction = String(result.next_best_action || (result.contact_pack as any)?.next_best_action || "");
+  const bestChannel = String(result.best_channel || (result.contact_pack as any)?.best_channel || "");
   const priceFit = metric(result, "price_score");
   const reasons = resultReasons(result);
   const intelligence = marketIntelligence(result);
@@ -482,7 +499,7 @@ export function WaouhProductCard({
         </div>
         <div className="text-base font-black text-emerald-600 dark:text-emerald-400">{priceLabel(result)}</div>
 
-        {(score != null || trust != null || priceFit != null || level) && (
+        {(score != null || trust != null || priceFit != null || level || actionability != null || readiness) && (
           <div className="flex flex-wrap gap-1.5">
             {score != null && (
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-800">
@@ -499,7 +516,34 @@ export function WaouhProductCard({
                 Prix {Math.round(priceFit)}%
               </span>
             )}
+            {actionability != null && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2 py-1 text-[10px] font-black text-violet-800">
+                <Bot className="h-3 w-3" /> Action {Math.round(actionability)}%
+              </span>
+            )}
+            {readiness && (
+              <span className="rounded-full bg-cyan-50 px-2 py-1 text-[10px] font-black text-cyan-800">
+                {readiness}
+              </span>
+            )}
             {level && <WaouhContactabilityBadge level={level} />}
+          </div>
+        )}
+
+        {(nextBestAction || bestChannel) && (
+          <div className="rounded-xl border border-violet-100 bg-violet-50/60 px-2.5 py-2">
+            <div className="text-[9px] font-black uppercase tracking-wide text-violet-800">Action recommandée par Bot</div>
+            <div className="mt-1 text-[10px] font-bold text-violet-950">
+              {nextBestAction === "CONTACT_NOW" ? "Contacter maintenant" :
+               nextBestAction === "OPEN_DEAL_ROOM" ? "Ouvrir le Deal Room" :
+               nextBestAction === "REQUEST_APPROVAL" ? "Valider le contact" :
+               nextBestAction === "WAIT_REPLY" ? "Attendre la réponse" :
+               nextBestAction === "FOLLOW_UP" ? "Relancer" :
+               nextBestAction === "NEGOTIATE" ? "Négocier" :
+               nextBestAction === "ENRICH" ? "Enrichir le contact" :
+               nextBestAction || "Poursuivre"}
+              {bestChannel ? ` · canal ${bestChannel}` : ""}
+            </div>
           </div>
         )}
 
@@ -693,9 +737,12 @@ export function WaouhProductResults({
 }) {
   const normalized = normalizeResultCards(results);
   const scored = normalized
-    .map((result, position) => ({ result, position, score: metric(result, "total_score") }))
-    .filter((entry) => entry.score != null)
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    .map((result, position) => {
+      const match = metric(result, "total_score") ?? 0;
+      const actionability = metric(result, "actionability_score") ?? 0;
+      return { result, position, score: match * 0.72 + actionability * 0.28 };
+    })
+    .sort((a, b) => b.score - a.score);
   const top = scored[0]?.result ?? normalized[0];
   const remaining = top
     ? normalized.filter((result) => !(result.id === top.id && result.index === top.index))

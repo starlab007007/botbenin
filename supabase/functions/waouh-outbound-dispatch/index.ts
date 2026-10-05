@@ -333,6 +333,20 @@ Deno.serve(async (req) => {
           last_error: err.slice(0, 500),
           next_attempt_at: shouldRetry ? new Date(Date.now() + backoffSec * 1000).toISOString() : null,
         }).eq("id", it.id);
+        const contactId = typeof it.payload?.contact_id === "string" ? it.payload.contact_id : null;
+        if (contactId && !shouldRetry) {
+          try {
+            const { data: contact } = await sb.from("waouh_entity_contacts")
+              .select("failure_count").eq("id", contactId).maybeSingle();
+            await sb.from("waouh_entity_contacts").update({
+              failure_count: Number(contact?.failure_count || 0) + 1,
+              last_failure_at: new Date().toISOString(),
+              verification_status: "unreachable",
+              is_whatsapp_reachable: false,
+              updated_at: new Date().toISOString(),
+            }).eq("id", contactId);
+          } catch (_) { /* métrique best-effort */ }
+        }
         failed++;
       };
 
@@ -457,8 +471,11 @@ Deno.serve(async (req) => {
         if (!seenChat.has(chatId)) { seenChat.add(chatId); resolvedChatIds.push(chatId); }
       }
       if (resolvedChatIds.length === 0) {
-        await sb.from("waouh_outbound_queue").update({ status: "failed", last_error: `no WA contact for ${phone}` }).eq("id", it.id);
-        failed++; continue;
+        // Definitive WAHA preflight failure: persist it through finishFailed so
+        // Opportunity OS learns that this contact is not WhatsApp-reachable and
+        // can select another consented/public channel on the next cycle.
+        await finishFailed(`no WA contact for ${phone}`, false);
+        continue;
       }
 
       let lastErr = "";
@@ -485,9 +502,24 @@ Deno.serve(async (req) => {
           await finishFailed(lastErr || "WAHA send failed", lastTransient);
           continue;
         }
+        const sentAt = new Date().toISOString();
         await sb.from("waouh_outbound_queue").update({
-          status: "sent", sent_at: new Date().toISOString(), last_error: usedChatId ? `delivered via ${usedChatId}` : null,
+          status: "sent", sent_at: sentAt, last_error: usedChatId ? `delivered via ${usedChatId}` : null,
         }).eq("id", it.id);
+        const contactId = typeof it.payload?.contact_id === "string" ? it.payload.contact_id : null;
+        if (contactId) {
+          try {
+            const { data: contact } = await sb.from("waouh_entity_contacts")
+              .select("sent_count").eq("id", contactId).maybeSingle();
+            await sb.from("waouh_entity_contacts").update({
+              sent_count: Number(contact?.sent_count || 0) + 1,
+              last_success_at: sentAt,
+              verification_status: "reachable",
+              is_whatsapp_reachable: true,
+              updated_at: sentAt,
+            }).eq("id", contactId);
+          } catch (_) { /* métrique best-effort */ }
+        }
         sent++;
       } catch (e: any) {
         // Erreur réseau → retry

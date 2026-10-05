@@ -13,7 +13,6 @@ import { useWaouhGeolocation } from "@/hooks/useWaouhGeolocation";
 import { WaouhCityBadge } from "./WaouhCityBadge";
 import { WaouhTransactionCard } from "./WaouhTransactionCard";
 import { WaouhAuthGate } from "./WaouhAuthGate";
-import { WaouhPaymentDialog } from "./WaouhPaymentDialog";
 import type { QuickAction } from "./WaouhQuickActions";
 import { WaouhSellWizard } from "./WaouhSellWizard";
 import { ChatImage } from "@/app-mobile/components/ChatImage";
@@ -739,27 +738,6 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
 
 
 
-  const [paymentTx, setPaymentTx] = useState<{ id: string; amount: number } | null>(null);
-  const [pendingPaymentTx, setPendingPaymentTx] = useState<{ id: string; amount: number } | null>(null);
-  const onPay = (tx: any) => {
-    if (!user) {
-      setPendingPaymentTx({ id: tx.id, amount: tx.amount });
-      toast({ title: "Authentification requise", description: "Connectez-vous pour finaliser le paiement en toute sécurité." });
-      setAuthOpen(true);
-    } else {
-      setPaymentTx({ id: tx.id, amount: tx.amount });
-    }
-  };
-
-  // Resume payment after successful login
-  useEffect(() => {
-    if (user && pendingPaymentTx) {
-      setPaymentTx(pendingPaymentTx);
-      setPendingPaymentTx(null);
-      setAuthOpen(false);
-    }
-  }, [user, pendingPaymentTx]);
-
   const Panel = (
     <Card
       className={cn(
@@ -993,7 +971,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
             </div>
             {m.meta?.transaction_id && m.meta?.intent !== "contact_exchange" && m.meta?.intent !== "negotiation_open" && m.meta?.intent !== "match_seller" && (
               <div className="flex justify-start mt-1">
-                <WaouhTransactionCard transactionId={m.meta.transaction_id} onPay={onPay} />
+                <WaouhTransactionCard transactionId={m.meta.transaction_id} />
               </div>
             )}
 
@@ -1104,14 +1082,6 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       </form>
 
       <WaouhAuthGate open={authOpen} onOpenChange={setAuthOpen} sessionId={sessionId} />
-      {paymentTx && (
-        <WaouhPaymentDialog
-          open={!!paymentTx}
-          onOpenChange={(v) => !v && setPaymentTx(null)}
-          transactionId={paymentTx.id}
-          amount={paymentTx.amount}
-        />
-      )}
       {variant === "native" ? (
         <NativeSellSheet
           open={sellOpen}

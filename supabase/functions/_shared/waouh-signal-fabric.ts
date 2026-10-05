@@ -124,6 +124,21 @@ export function scoreFabricSignal(input: {
   };
 }
 
+export function contactabilityFromBasis(
+  sourceDefault: string,
+  basis: string,
+  isPublicBusiness: boolean,
+): Contactability {
+  if (basis === "partner_contract") return "C4";
+  if (basis === "opt_in") return "C3";
+  if (basis === "initiated") return "C2";
+  if (basis === "public_business" || isPublicBusiness) return "C1";
+  // A connector default never creates consent. Only C2 may remain a
+  // protected/mediated path without revealing a coordinate.
+  if (sourceDefault === "C2") return "C2";
+  return "C0";
+}
+
 export function contactabilityPolicy(level: unknown) {
   const value = String(level ?? "C0") as Contactability;
   switch (value) {

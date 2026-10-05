@@ -5,7 +5,7 @@
 // - StaleWhileRevalidate pour images/fonts
 // - NetworkOnly pour Supabase / API / méthodes non-GET
 
-const VERSION = 'v14-signal-fabric-admin-20261004';
+const VERSION = 'v15-opportunity-os-20261004';
 const SHELL_CACHE = `botbj-shell-${VERSION}`;
 const ASSETS_CACHE = `botbj-assets-${VERSION}`;
 const RUNTIME_CACHE = `botbj-runtime-${VERSION}`;

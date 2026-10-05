@@ -17,6 +17,7 @@ import {
   getNexusSources,
   globalNexusDiscovery,
   ingestSharedCommerceSignal,
+  createNexusMandate,
   prepareNexusContact,
   sendNexusDiscoveryContact,
   type NexusDiscoveryMode,
@@ -97,6 +98,7 @@ export function WaouhGlobalDiscoveryPanel() {
   const [sharedSignal, setSharedSignal] = useState<SharedSignalState | null>(null);
   const [contact, setContact] = useState<PreparedContactState | null>(null);
   const [contactMessage, setContactMessage] = useState("");
+  const [mandateBusy, setMandateBusy] = useState(false);
 
   const liveSources = useMemo(
     () => (sources?.registry ?? []).filter((source) => source.operational_state === "live"),
@@ -151,6 +153,36 @@ export function WaouhGlobalDiscoveryPanel() {
       toast({ title: "Recherche impossible", description: errorText(error), variant: "destructive" });
     } finally {
       setBusy(false);
+    }
+  };
+
+  const delegateSearchToBot = async () => {
+    if (!query.trim() || mandateBusy) return;
+    setMandateBusy(true);
+    try {
+      const response = await createNexusMandate({
+        mode: resolvedMode === "find_buyers" ? "sell" : "buy",
+        goal: query.trim(),
+        autonomy_mode: "semi_autonomous",
+        city: city.trim() || undefined,
+        budget_max: resolvedMode === "find_sellers" && budget ? Number(budget) : undefined,
+        max_contacts: 3,
+        max_followups: 1,
+        duration_hours: 24,
+        scan_interval_minutes: 60,
+        min_match_score: 70,
+        min_actionability_score: 65,
+        origin_surface: "global_discovery",
+      });
+      if (response.results?.length) setResults(response.results);
+      toast({
+        title: "Recherche confiée à Bot pour 24 h",
+        description: `Maximum 3 prises de contact · ${response.actionable_count} opportunité(s) immédiatement actionnable(s).`,
+      });
+    } catch (error) {
+      toast({ title: "Mission non créée", description: errorText(error), variant: "destructive" });
+    } finally {
+      setMandateBusy(false);
     }
   };
 
@@ -318,6 +350,7 @@ export function WaouhGlobalDiscoveryPanel() {
                 )}
               </div>
             </div>
+            <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
             <Button className="w-full bg-cyan-600 text-white hover:bg-cyan-700" onClick={() => void searchEverywhere()} disabled={!query.trim() || busy}>
               {busy ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -334,6 +367,19 @@ export function WaouhGlobalDiscoveryPanel() {
                   ? "Trouver les vendeurs partout"
                   : "Trouver les acheteurs partout"}
             </Button>
+            <Button
+              variant="outline"
+              className="border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100"
+              disabled={!query.trim() || mandateBusy}
+              onClick={() => void delegateSearchToBot()}
+            >
+              {mandateBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+              Confier à Bot · 24 h
+            </Button>
+            </div>
+            <p className="text-[10px] font-semibold text-muted-foreground">
+              Mandat semi-autonome par défaut : Bot surveille, enrichit et contacte au maximum 3 opportunités autorisées. Aucun paiement ni changement de budget.
+            </p>
 
             {intelligence && (
               <div className="rounded-xl border bg-background p-3 shadow-sm">
@@ -438,9 +484,33 @@ export function WaouhGlobalDiscoveryPanel() {
                   <div className="mt-2 flex flex-wrap gap-1">
                     <Badge variant="secondary">confiance {Math.round(result.scores.trust_score)}%</Badge>
                     <Badge variant="outline">{result.contact_policy.level} · {result.contact_policy.label}</Badge>
+                    {(result.readiness_level || result.contact_pack?.readiness_level) && (
+                      <Badge variant="outline" className="border-cyan-200 text-cyan-800">
+                        {result.readiness_level || result.contact_pack?.readiness_level}
+                      </Badge>
+                    )}
+                    {result.actionability_score != null && (
+                      <Badge variant="outline" className="border-violet-200 text-violet-800">
+                        action {Math.round(result.actionability_score)}%
+                      </Badge>
+                    )}
                     {result.scores.reasons.slice(0, 2).map((reason) => <Badge key={reason} variant="outline">{reason}</Badge>)}
                   </div>
 
+                  {(result.next_best_action || result.contact_pack?.next_best_action) && (
+                    <div className="mt-2 rounded-lg bg-violet-50 px-2.5 py-2 text-[11px] font-semibold text-violet-900">
+                      Bot recommande : {(result.next_best_action || result.contact_pack?.next_best_action) === "CONTACT_NOW"
+                        ? "contacter maintenant"
+                        : (result.next_best_action || result.contact_pack?.next_best_action) === "OPEN_DEAL_ROOM"
+                          ? "ouvrir le Deal Room"
+                          : (result.next_best_action || result.contact_pack?.next_best_action) === "WAIT_REPLY"
+                            ? "attendre la réponse"
+                            : (result.next_best_action || result.contact_pack?.next_best_action) === "NEGOTIATE"
+                              ? "négocier"
+                              : "enrichir le contact"}
+                      {(result.best_channel || result.contact_pack?.best_channel) ? ` · ${result.best_channel || result.contact_pack?.best_channel}` : ""}
+                    </div>
+                  )}
                   <div className="mt-3 flex flex-wrap gap-2">
                     {result.source_url && (
                       <Button size="sm" variant="outline" onClick={() => window.open(result.source_url!, "_blank", "noopener,noreferrer")}>
@@ -480,12 +550,18 @@ export function WaouhGlobalDiscoveryPanel() {
                     </Button>
                   ))}
                 </div>
-                {(contact.contact_policy.can_auto_contact || contact.contact_policy.can_blind_message) && (
+                {(contact.contact_policy.can_auto_contact ||
+                  contact.contact_policy.can_blind_message ||
+                  contact.contact_policy.can_user_confirm_contact) && (
                   <div className="mt-3 space-y-2">
                     <Textarea value={contactMessage} onChange={(event) => setContactMessage(event.target.value)} rows={3} />
                     <Button size="sm" disabled={busy || !contactMessage.trim()} onClick={() => void sendWithWaouh()}>
                       <Send className="mr-1 h-3.5 w-3.5" />
-                      {contact.contact_policy.can_blind_message ? "Transmettre sans révéler les contacts" : "WAOUH contacte maintenant"}
+                      {contact.contact_policy.level === "C1"
+                        ? "Bot contacte ce professionnel"
+                        : contact.contact_policy.can_blind_message
+                          ? "Transmettre sans révéler les contacts"
+                          : "WAOUH contacte maintenant"}
                     </Button>
                   </div>
                 )}

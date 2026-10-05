@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import {
   getRequestUser,
+  isServiceRoleRequest,
   jsonResponse,
   waouhCorsHeaders,
 } from "../_shared/waouh-auth.ts";
@@ -10,6 +11,7 @@ import { normalizeE164, phoneLast4 } from "../_shared/waouh-tel/phone.ts";
 import { getRadarApiKey, incrementRadarUsage } from "../_shared/radar-api-config.ts";
 import {
   contactabilityPolicy,
+  contactabilityFromBasis,
   extractPublicContactHints,
   normalizeFabricText,
   redactPublicContacts,
@@ -18,6 +20,12 @@ import {
   type Contactability,
   type FabricSignal,
 } from "../_shared/waouh-signal-fabric.ts";
+import {
+  buildContactPack,
+  mandateAllowsContact,
+  serviceMayActForOwner,
+  type ChannelCandidate,
+} from "../_shared/waouh-opportunity-os.ts";
 import {
   marketStats,
   nexusTokens,
@@ -485,18 +493,6 @@ async function planNexusGoal(
 }
 
 
-function contactabilityFromBasis(
-  sourceDefault: string,
-  basis: string,
-  isPublicBusiness: boolean,
-): Contactability {
-  if (basis === "partner_contract") return "C4";
-  if (basis === "opt_in") return "C3";
-  if (basis === "initiated") return "C2";
-  if (basis === "public_business" || isPublicBusiness) return "C1";
-  return (["C0","C1","C2","C3","C4","C5"].includes(sourceDefault) ? sourceDefault : "C0") as Contactability;
-}
-
 function actorRoleFromIntent(intent: string, actorType?: string | null) {
   if (actorType && ["buyer","seller","announcer","business","broker","scout"].includes(actorType)) return actorType;
   if (intent === "BUY" || intent === "RFQ") return "buyer";
@@ -610,6 +606,11 @@ async function resolveCommerceEntity(
     isPublicBusiness: boolean;
   },
 ) {
+  // "shared_by_user" is provenance, not third-party consent. Keep such
+  // coordinates private/untrusted until another basis is established.
+  const contactConsentState = input.consentBasis === "shared_by_user"
+    ? "unknown"
+    : input.consentBasis;
   const normalizedPhones = (input.contactPhones ?? [])
     .map((phone) => normalizeE164(phone))
     .filter((phone): phone is string => !!phone);
@@ -682,9 +683,9 @@ async function resolveCommerceEntity(
       value_hash: hash,
       value_last4: phoneLast4(phone),
       is_public_business: input.isPublicBusiness,
-      consent_state: input.consentBasis,
+      consent_state: contactConsentState,
       contactability_level: input.contactability,
-      verified_at: input.isPublicBusiness || ["opt_in","partner_contract","initiated"].includes(input.consentBasis)
+      verified_at: input.isPublicBusiness || ["opt_in","partner_contract","initiated"].includes(contactConsentState)
         ? new Date().toISOString() : null,
     };
     if (existing?.id) {
@@ -713,9 +714,9 @@ async function resolveCommerceEntity(
       value_hash: hash,
       value_last4: null,
       is_public_business: input.isPublicBusiness,
-      consent_state: input.consentBasis,
+      consent_state: contactConsentState,
       contactability_level: input.contactability,
-      verified_at: input.isPublicBusiness || ["opt_in","partner_contract","initiated"].includes(input.consentBasis)
+      verified_at: input.isPublicBusiness || ["opt_in","partner_contract","initiated"].includes(contactConsentState)
         ? new Date().toISOString() : null,
     };
     if (existing?.id) await sb.from("waouh_entity_contacts").update(values).eq("id", existing.id);
@@ -737,7 +738,7 @@ async function resolveCommerceEntity(
         value_hash: hash,
         public_value: publicValue,
         is_public_business: input.isPublicBusiness,
-        consent_state: input.consentBasis,
+        consent_state: contactConsentState,
         contactability_level: input.contactability,
       };
       if (existing?.id) await sb.from("waouh_entity_contacts").update(values).eq("id", existing.id);
@@ -890,7 +891,29 @@ async function ingestCommerceSignal(
     confidence: signal.confidence,
   }, { onConflict: "signal_id,entity_id,role" });
 
-  return { signal, entity, contactability: contactabilityPolicy(contactability) };
+  const fabricSignal = {
+    fabric_id: `external:${signal.id}`,
+    source_key: signal.source_key,
+    intent: signal.intent,
+    actor_type: signal.actor_type,
+    subject: signal.product_name ?? signal.raw_text,
+    raw_text: signal.raw_text,
+    category: signal.category,
+    brand: signal.brand,
+    model: signal.model,
+    condition: signal.condition,
+    price_min: signal.price_min,
+    price_max: signal.price_max,
+    currency: signal.currency,
+    city: signal.city,
+    contactability_level: signal.contactability_level,
+    trust_score: signal.trust_score,
+    observed_at: signal.observed_at,
+    source_url: signal.source_url,
+    evidence: signal.evidence,
+  };
+  const contactPack = await buildOperationalContactPack(sb, fabricSignal, { persist: true });
+  return { signal, entity, contactability: contactabilityPolicy(contactability), contact_pack: contactPack };
 }
 
 async function refreshGooglePlaces(
@@ -966,9 +989,9 @@ async function refreshGooglePlaces(
 function publicSourceKey(urlValue: string, mode: DiscoveryMode) {
   try {
     const host = new URL(urlValue).hostname.toLowerCase().replace(/^www\./, "");
-    if (host === "facebook.com" || host.endsWith(".facebook.com") || host === "fb.com") return "facebook_business";
-    if (host === "instagram.com" || host.endsWith(".instagram.com")) return "instagram_business";
-    if (host === "tiktok.com" || host.endsWith(".tiktok.com")) return "tiktok_connected";
+    if (host === "facebook.com" || host.endsWith(".facebook.com") || host === "fb.com") return "facebook_public";
+    if (host === "instagram.com" || host.endsWith(".instagram.com")) return "instagram_public";
+    if (host === "tiktok.com" || host.endsWith(".tiktok.com")) return "tiktok_public";
     if (host === "t.me" || host.endsWith(".telegram.me") || host.endsWith(".telegram.org")) return "telegram_public";
     if (host === "monentreprise.bj" || host.endsWith(".cci.bj") || host.endsWith(".apiex.bj")) return "benin_directory";
     if (mode === "find_buyers" && (
@@ -1097,6 +1120,128 @@ async function refreshSerpApi(
   };
 }
 
+async function buildOperationalContactPack(
+  sb: SupabaseClient,
+  signal: any,
+  options: { journeyStage?: string | null; threadId?: string | null; persist?: boolean } = {},
+) {
+  const fabricId = String(signal.fabric_id ?? "");
+  const sourceKey = String(signal.source_key ?? "unknown");
+  const channels: ChannelCandidate[] = [];
+  let entityId: string | null = null;
+  let contactability = String(signal.contactability_level ?? "C0");
+  const internalArticle =
+    (fabricId.startsWith("article:") || fabricId.startsWith("catalog:") || fabricId.startsWith("buyer:")) &&
+    ["waouh_app", "whatsapp", "partner"].includes(sourceKey);
+
+  if (internalArticle) {
+    channels.push({
+      channel: "waouh",
+      verified: true,
+      reachable: true,
+      public_business: sourceKey === "partner",
+      consent_state: sourceKey === "partner" ? "partner_contract" : "initiated",
+    });
+  }
+
+  if (fabricId.startsWith("external:")) {
+    const signalId = fabricId.slice("external:".length);
+    const { data: external, error: extError } = await sb.from("waouh_external_commerce_signals")
+      .select("entity_id,contactability_level,contact_consent_basis,source_key,status")
+      .eq("id", signalId).maybeSingle();
+    if (extError) throw new ApiError(500, "contact_pack_signal_lookup_failed", extError.message);
+    entityId = external?.entity_id ?? null;
+    contactability = String(external?.contactability_level ?? contactability);
+    if (entityId) {
+      const { data: contacts, error: contactsError } = await sb.from("waouh_entity_contacts")
+        .select("channel,value_last4,public_value,contactability_level,consent_state,is_public_business,verified_at,verification_status,last_success_at,last_failure_at,reply_count,failure_count,is_whatsapp_reachable")
+        .eq("entity_id", entityId)
+        .order("contactability_level", { ascending: false })
+        .limit(20);
+      if (contactsError) throw new ApiError(500, "contact_pack_contacts_failed", contactsError.message);
+      for (const row of contacts ?? []) {
+        const channel = String(row.channel ?? "other");
+        channels.push({
+          channel,
+          last4: row.value_last4 ?? null,
+          verified: !!row.verified_at || ["verified","reachable"].includes(String(row.verification_status ?? "")),
+          reachable: row.is_whatsapp_reachable ?? (String(row.verification_status ?? "") === "reachable" ? true : null),
+          public_business: row.is_public_business === true,
+          consent_state: row.consent_state ?? null,
+          last_success_at: row.last_success_at ?? null,
+          last_failure_at: row.last_failure_at ?? null,
+          reply_count: Number(row.reply_count ?? 0),
+          failure_count: Number(row.failure_count ?? 0),
+        });
+      }
+    }
+  }
+
+  const pack = buildContactPack({
+    fabricId,
+    sourceKey,
+    contactability,
+    trustScore: Number(signal.trust_score ?? 50),
+    observedAt: signal.observed_at ?? null,
+    entityResolved: internalArticle || !!entityId,
+    internalArticle,
+    threadId: options.threadId ?? null,
+    journeyStage: options.journeyStage ?? null,
+    replyReceived: contactability === "C5",
+    channels,
+  });
+  const messageTemplate = String(signal.intent ?? "").toUpperCase() === "BUY"
+    ? `Bonjour, WAOUH accompagne un vendeur dont l’offre correspond à votre besoin « ${signal.subject ?? "votre demande"} ». Souhaitez-vous poursuivre dans WAOUH ?`
+    : `Bonjour, WAOUH accompagne un utilisateur intéressé par « ${signal.subject ?? "votre offre"} ». Souhaitez-vous poursuivre dans WAOUH ?`;
+
+  const row = {
+    fabric_id: fabricId,
+    entity_id: entityId,
+    source_key: sourceKey,
+    contactability_level: pack.contactability_level,
+    readiness_level: pack.readiness_level,
+    readiness_score: pack.readiness_score,
+    actionability_score: pack.actionability_score,
+    next_best_action: pack.next_best_action,
+    best_channel: pack.best_channel,
+    available_channels: pack.available_channels,
+    masked_contacts: pack.masked_contacts,
+    verification: {
+      verified_channel: pack.verified_channel,
+      computed_at: new Date().toISOString(),
+    },
+    message_template: messageTemplate,
+    fallback_channels: pack.available_channels.slice(1).map((row: any) => row.channel),
+    last_enriched_at: new Date().toISOString(),
+    last_verified_at: pack.verified_channel ? new Date().toISOString() : null,
+    metadata: {
+      intent: signal.intent ?? null,
+      actor_type: signal.actor_type ?? null,
+      subject: signal.subject ?? null,
+      city: signal.city ?? null,
+      internal_article: internalArticle,
+    },
+  };
+  if (options.persist !== false && fabricId) {
+    const { error } = await sb.from("waouh_contact_packs").upsert(row, { onConflict: "fabric_id" });
+    if (error) console.warn("[Opportunity OS] contact pack persist", error.message);
+  }
+  return { ...pack, message_template: messageTemplate, entity_id: entityId };
+}
+
+async function enrichDiscoveryWithOpportunityOS(sb: SupabaseClient, signal: any) {
+  const contactPack = await buildOperationalContactPack(sb, signal, { persist: true });
+  return {
+    ...signal,
+    contact_pack: contactPack,
+    readiness_level: contactPack.readiness_level,
+    readiness_score: contactPack.readiness_score,
+    actionability_score: contactPack.actionability_score,
+    next_best_action: contactPack.next_best_action,
+    best_channel: contactPack.best_channel,
+  };
+}
+
 async function globalDiscoverySearch(
   sb: SupabaseClient,
   input: {
@@ -1111,7 +1256,7 @@ async function globalDiscoverySearch(
   const { data, error } = await sb.from("waouh_signal_fabric")
     .select("*").in("intent", desired).order("observed_at", { ascending: false }).limit(3500);
   if (error) throw new ApiError(500, "nexus_global_discovery_failed", error.message);
-  const ranked = (data ?? []).map((signal: FabricSignal) => ({
+  const preRanked = (data ?? []).map((signal: FabricSignal) => ({
     ...signal,
     scores: scoreFabricSignal({
       query: input.query,
@@ -1123,8 +1268,14 @@ async function globalDiscoverySearch(
     contact_policy: contactabilityPolicy(signal.contactability_level),
   })).filter((row: any) => row.scores.relevance_score >= 18 && row.scores.total_score >= 32)
     .sort((a: any, b: any) => b.scores.total_score - a.scores.total_score)
+    .slice(0, Math.max(input.limit * 2, input.limit));
+  const enriched = await Promise.all(preRanked.map((row: any) => enrichDiscoveryWithOpportunityOS(sb, row)));
+  return enriched
+    .sort((a: any, b: any) =>
+      (b.scores.total_score * 0.72 + Number(b.actionability_score ?? 0) * 0.28) -
+      (a.scores.total_score * 0.72 + Number(a.actionability_score ?? 0) * 0.28)
+    )
     .slice(0, input.limit);
-  return ranked;
 }
 
 
@@ -1161,6 +1312,8 @@ async function ensureOpportunityJourney(
     subject?: string | null;
     city?: string | null;
     articleId?: string | null;
+    mandateId?: string | null;
+    contactPack?: Record<string, any> | null;
     metadata?: Record<string, unknown>;
   },
 ) {
@@ -1176,7 +1329,25 @@ async function ensureOpportunityJourney(
     .limit(1)
     .maybeSingle();
   if (lookupError) throw new ApiError(500, "opportunity_journey_lookup_failed", lookupError.message);
-  if (existing) return existing;
+  if (existing) {
+    if (input.contactPack || input.mandateId) {
+      const patch: Record<string, unknown> = {};
+      if (input.mandateId) patch.mandate_id = input.mandateId;
+      if (input.contactPack) {
+        patch.contact_pack = input.contactPack;
+        patch.readiness_level = input.contactPack.readiness_level ?? "R0";
+        patch.readiness_score = Number(input.contactPack.readiness_score ?? 0);
+        patch.actionability_score = Number(input.contactPack.actionability_score ?? 0);
+        patch.next_best_action = input.contactPack.next_best_action ?? "ENRICH";
+      }
+      const { data: refreshed, error: refreshError } = await sb.from("waouh_opportunity_journeys")
+        .update({ ...patch, updated_at: new Date().toISOString() })
+        .eq("id", existing.id).select("*").single();
+      if (refreshError) throw new ApiError(500, "opportunity_journey_refresh_failed", refreshError.message);
+      return refreshed;
+    }
+    return existing;
+  }
 
   const firstEvent = {
     at: new Date().toISOString(),
@@ -1198,6 +1369,12 @@ async function ensureOpportunityJourney(
       subject: input.subject ?? null,
       city: input.city ?? null,
       article_id: input.articleId ?? null,
+      mandate_id: input.mandateId ?? null,
+      readiness_level: input.contactPack?.readiness_level ?? "R0",
+      readiness_score: Number(input.contactPack?.readiness_score ?? 0),
+      actionability_score: Number(input.contactPack?.actionability_score ?? 0),
+      next_best_action: input.contactPack?.next_best_action ?? "ENRICH",
+      contact_pack: input.contactPack ?? {},
       last_action: "opportunity_started",
       next_action: journeyNextAction(stage, level),
       last_message: "Avatar a pris en charge cette opportunité.",
@@ -1222,6 +1399,8 @@ async function updateOpportunityJourney(
     threadId?: string | null;
     negotiationId?: string | null;
     dealId?: string | null;
+    mandateId?: string | null;
+    contactPack?: Record<string, any> | null;
   },
 ) {
   const { data: updated, error } = await sb.rpc("waouh_append_opportunity_journey_event", {
@@ -1241,6 +1420,14 @@ async function updateOpportunityJourney(
   if (input.threadId) patch.thread_id = input.threadId;
   if (input.negotiationId) patch.negotiation_id = input.negotiationId;
   if (input.dealId) patch.deal_id = input.dealId;
+  if (input.mandateId) patch.mandate_id = input.mandateId;
+  if (input.contactPack) {
+    patch.contact_pack = input.contactPack;
+    patch.readiness_level = input.contactPack.readiness_level ?? "R0";
+    patch.readiness_score = Number(input.contactPack.readiness_score ?? 0);
+    patch.actionability_score = Number(input.contactPack.actionability_score ?? 0);
+    patch.next_best_action = input.contactPack.next_best_action ?? "ENRICH";
+  }
   if (Object.keys(patch).length) {
     const { data, error: patchError } = await sb.from("waouh_opportunity_journeys")
       .update({ ...patch, updated_at: new Date().toISOString() })
@@ -1265,13 +1452,17 @@ Deno.serve(async (req: Request) => {
     ensureNoFinancialAction(action, payload);
 
     const authUser = await getRequestUser(req);
-    if (!authUser) throw new ApiError(401, "authentication_required");
+    const serviceCall = isServiceRoleRequest(req);
+    const serviceOwnerId = serviceCall ? req.headers.get("x-waouh-owner-id")?.trim() ?? "" : "";
+    if (!authUser && !(serviceCall && serviceOwnerId && serviceMayActForOwner(action))) {
+      throw new ApiError(401, "authentication_required");
+    }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !serviceKey) throw new ApiError(500, "server_not_configured");
     const sb = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
-    const ownerId = authUser.id;
+    const ownerId = authUser?.id ?? uuid(serviceOwnerId, "x_waouh_owner_id");
 
     switch (action) {
       case "mission.create": {
@@ -1603,6 +1794,151 @@ Deno.serve(async (req: Request) => {
         if (approval.step_id) {
           await sb.from("waouh_agent_steps").update({ status: decision === "approved" ? "queued" : "cancelled" }).eq("id", approval.step_id);
         }
+
+        const approvalContext = approval.context && typeof approval.context === "object"
+          ? approval.context as Record<string, any>
+          : {};
+        if (approvalContext.operation === "opportunity_os.internal_mediated_contact") {
+          const originAuthId = typeof approvalContext.from_auth_user === "string"
+            ? approvalContext.from_auth_user
+            : null;
+          const journeyId = typeof approvalContext.journey_id === "string"
+            ? approvalContext.journey_id
+            : null;
+          const mandateId = typeof approvalContext.mandate_id === "string"
+            ? approvalContext.mandate_id
+            : null;
+          const fabricId = typeof approvalContext.fabric_id === "string"
+            ? approvalContext.fabric_id
+            : null;
+          let subject = "opportunité WAOUH";
+          const now = new Date().toISOString();
+
+          let journey: any = null;
+          if (journeyId) {
+            const { data: currentJourney } = await sb.from("waouh_opportunity_journeys")
+              .select("*").eq("id", journeyId).maybeSingle();
+            journey = currentJourney;
+            if (journey?.subject) subject = String(journey.subject).slice(0, 240);
+            if (journey) {
+              if (decision === "approved") {
+                const { data: refreshed } = await sb.from("waouh_opportunity_journeys").update({
+                  stage: "negotiating",
+                  contactability_level: "C5",
+                  readiness_level: "R5",
+                  readiness_score: 100,
+                  actionability_score: 100,
+                  next_best_action: "NEGOTIATE",
+                  last_action: "internal_counterparty_approved",
+                  next_action: "NEGOTIATE",
+                  last_message: "La contrepartie a accepté la mise en relation. Avatar peut poursuivre vers la négociation.",
+                  last_activity_at: now,
+                  updated_at: now,
+                }).eq("id", journeyId).select("*").single();
+                if (refreshed) journey = refreshed;
+                if (fabricId) {
+                  await sb.from("waouh_contact_packs").update({
+                    contactability_level: "C5",
+                    readiness_level: "R5",
+                    readiness_score: 100,
+                    actionability_score: 100,
+                    next_best_action: "NEGOTIATE",
+                    best_channel: "waouh",
+                    last_verified_at: now,
+                    updated_at: now,
+                  }).eq("fabric_id", fabricId);
+                }
+              } else {
+                const { data: refreshed } = await sb.from("waouh_opportunity_journeys").update({
+                  stage: "cancelled",
+                  next_best_action: "DROP_LOW_QUALITY",
+                  last_action: "internal_counterparty_rejected",
+                  next_action: "DROP_LOW_QUALITY",
+                  last_message: "La contrepartie a refusé cette mise en relation.",
+                  last_activity_at: now,
+                  updated_at: now,
+                }).eq("id", journeyId).select("*").single();
+                if (refreshed) journey = refreshed;
+              }
+            }
+          }
+
+          if (originAuthId) {
+            await sb.rpc("waouh_append_conversation_bus_event", {
+              p_owner_id: originAuthId,
+              p_event_type: decision === "approved"
+                ? "nexus.counterparty_reply"
+                : "autonomy.internal_contact_rejected",
+              p_channel: "waouh",
+              p_direction: "in",
+              p_fabric_id: fabricId,
+              p_journey_id: journeyId,
+              p_mandate_id: mandateId,
+              p_article_id: journey?.article_id ?? null,
+              p_thread_id: journey?.thread_id ?? null,
+              p_negotiation_id: journey?.negotiation_id ?? null,
+              p_deal_id: journey?.deal_id ?? null,
+              p_external_ref: `approval-decision:${approvalId}`,
+              p_payload: {
+                approval_id: approvalId,
+                decision,
+                subject,
+                responder_auth_user: ownerId,
+              },
+            });
+
+            const { data: originWaouh } = await sb.from("waouh_users")
+              .select("id,web_session_id")
+              .eq("auth_user_id", originAuthId)
+              .order("created_at", { ascending: true })
+              .limit(1)
+              .maybeSingle();
+            if (originWaouh?.id) {
+              await sb.from("waouh_notifications").insert({
+                user_id: originWaouh.id,
+                article_id: journey?.article_id ?? null,
+                thread_id: journey?.thread_id ?? null,
+                notification_type: decision === "approved"
+                  ? "nexus_opportunity_reply"
+                  : "nexus_opportunity_rejected",
+                photos: [],
+                channel: "waouh_app",
+                delivery_status: "delivered",
+                delivered_at: now,
+                web_session_id: originWaouh.web_session_id ?? null,
+                dedupe_key: `opportunity-approval:${approvalId}:${decision}`,
+                payload: {
+                  text: decision === "approved"
+                    ? `💬 La contrepartie accepte de poursuivre pour « ${subject} ». Votre Avatar peut maintenant négocier.`
+                    : `La contrepartie ne souhaite pas poursuivre pour « ${subject} ».`,
+                  approval_id: approvalId,
+                  fabric_id: fabricId,
+                  journey_id: journeyId,
+                  mandate_id: mandateId,
+                  workflow_state: decision === "approved" ? "negotiating" : "cancelled",
+                  contactability_level: decision === "approved" ? "C5" : journey?.contactability_level ?? "C4",
+                  readiness_level: decision === "approved" ? "R5" : journey?.readiness_level ?? "R4",
+                  next_best_action: decision === "approved" ? "NEGOTIATE" : "DROP_LOW_QUALITY",
+                },
+              });
+            }
+          }
+
+          if (mandateId) {
+            const { data: mandate } = await sb.from("waouh_avatar_mandates")
+              .select("replied_count,qualified_count")
+              .eq("id", mandateId)
+              .maybeSingle();
+            if (mandate) {
+              await sb.from("waouh_avatar_mandates").update({
+                replied_count: Number(mandate.replied_count || 0) + 1,
+                qualified_count: Number(mandate.qualified_count || 0) + (decision === "approved" ? 1 : 0),
+                updated_at: now,
+              }).eq("id", mandateId);
+            }
+          }
+        }
+
         await audit(sb, ownerId, `approval.${decision}`, "approval", approvalId, { action_type: approval.action_type }, approval.mission_id);
         await enqueue(sb, ownerId, `approval.${decision}`, "approval", approvalId, { approval_id: approvalId }, `approval.${decision}:${approvalId}`, approval.mission_id);
         return jsonResponse({ ok: true, data: { approval: data } });
@@ -2146,6 +2482,312 @@ Retourne uniquement JSON:
         } });
       }
 
+      case "nexus.contact_pack.get": {
+        const fabricId = asString(payload.fabric_id, "fabric_id", 5, 200);
+        const signal = await queryOne<any>(
+          sb.from("waouh_signal_fabric").select("*").eq("fabric_id", fabricId).maybeSingle(),
+          "nexus_signal_not_found",
+        );
+        const contactPack = await buildOperationalContactPack(sb, signal, { persist: true });
+        return jsonResponse({ ok: true, data: {
+          contact_pack: contactPack,
+          contact_policy: contactabilityPolicy(signal.contactability_level),
+        }});
+      }
+
+      case "nexus.mandate.create": {
+        const mode = pickEnum(payload.mode, "mode", ["buy","sell","ask"] as const, "buy");
+        const autonomyMode = pickEnum(
+          payload.autonomy_mode,
+          "autonomy_mode",
+          ["assisted","semi_autonomous","autonomous"] as const,
+          "semi_autonomous",
+        );
+        const goal = asString(payload.goal, "goal", 3, 2000);
+        const city = optionalString(payload.city, "city", 120);
+        const budgetMax = positiveNumber(payload.budget_max, "budget_max", true);
+        const maxContacts = integer(payload.max_contacts, "max_contacts", 3, 1, 20);
+        const maxFollowups = integer(payload.max_followups, "max_followups", 1, 0, 5);
+        const durationHours = integer(payload.duration_hours, "duration_hours", 24, 1, 720);
+        const minMatchScore = Math.max(0, Math.min(100, Number(payload.min_match_score ?? 70)));
+        const minActionabilityScore = Math.max(0, Math.min(100, Number(payload.min_actionability_score ?? 65)));
+        const requestKey = optionalString(payload.request_key, "request_key", 240);
+
+        if (requestKey) {
+          const { data: existingMandate, error: existingMandateError } = await sb
+            .from("waouh_avatar_mandates")
+            .select("*")
+            .eq("owner_id", ownerId)
+            .contains("metadata", { request_key: requestKey })
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (existingMandateError) {
+            throw new ApiError(500, "nexus_mandate_dedupe_failed", existingMandateError.message);
+          }
+          if (existingMandate?.id) {
+            const { data: existingIntent } = await sb.from("waouh_persistent_intents")
+              .select("*").eq("mandate_id", existingMandate.id)
+              .order("created_at", { ascending: false }).limit(1).maybeSingle();
+            return jsonResponse({ ok: true, data: {
+              mandate: existingMandate,
+              intent: existingIntent ?? null,
+              results: [],
+              actionable_count: 0,
+              duplicate: true,
+            }});
+          }
+        }
+
+        const mandate = await queryOne<any>(
+          sb.from("waouh_avatar_mandates").insert({
+            owner_id: ownerId,
+            mode,
+            autonomy_mode: autonomyMode,
+            goal,
+            normalized_query: goal,
+            city,
+            budget_max: budgetMax,
+            max_contacts: maxContacts,
+            max_followups: maxFollowups,
+            allow_waouh: payload.allow_waouh !== false,
+            allow_whatsapp: payload.allow_whatsapp !== false,
+            allow_public_business: payload.allow_public_business !== false,
+            allow_blind_message: payload.allow_blind_message !== false,
+            allow_email: payload.allow_email === true,
+            allow_sms_rcs: payload.allow_sms_rcs === true,
+            require_approval_for_c1: autonomyMode === "assisted",
+            min_match_score: minMatchScore,
+            min_actionability_score: minActionabilityScore,
+            status: "active",
+            next_run_at: new Date().toISOString(),
+            expires_at: new Date(Date.now() + durationHours * 3600_000).toISOString(),
+            metadata: {
+              origin_surface: optionalString(payload.origin_surface, "origin_surface", 80),
+              user_confirmed_mandate: true,
+              request_key: requestKey,
+            },
+          }).select("*").single(),
+          "nexus_mandate_create_failed",
+        );
+        const discoveryMode: DiscoveryMode = mode === "sell" ? "find_buyers" : "find_sellers";
+        const initialRefresh: Record<string, unknown> = {};
+        try {
+          if (discoveryMode === "find_sellers") {
+            const places = await refreshGooglePlaces(
+              sb,
+              ownerId,
+              goal,
+              city,
+              Math.min(8, Math.max(maxContacts * 2, 4)),
+            );
+            initialRefresh.google_places = {
+              configured: places.configured,
+              inserted: places.inserted,
+              reason: places.reason ?? null,
+            };
+          }
+          const serp = await refreshSerpApi(
+            sb,
+            ownerId,
+            discoveryMode,
+            goal,
+            city,
+            Math.min(12, Math.max(maxContacts * 3, 6)),
+          );
+          initialRefresh.serpapi = {
+            configured: serp.configured,
+            inserted: serp.inserted,
+            reason: serp.reason ?? null,
+            surfaces: serp.surfaces ?? {},
+          };
+        } catch (refreshError) {
+          initialRefresh.error = refreshError instanceof Error
+            ? refreshError.message.slice(0, 160)
+            : "initial_refresh_failed";
+          console.warn("[Opportunity OS] initial mandate refresh", refreshError);
+        }
+
+        const intent = await queryOne<any>(
+          sb.from("waouh_persistent_intents").insert({
+            owner_id: ownerId,
+            mandate_id: mandate.id,
+            mode: discoveryMode,
+            query_text: goal,
+            city,
+            budget_max: budgetMax,
+            min_match_score: minMatchScore,
+            min_actionability_score: minActionabilityScore,
+            scan_interval_minutes: integer(payload.scan_interval_minutes, "scan_interval_minutes", 60, 15, 10080),
+            status: "active",
+            next_scan_at: new Date().toISOString(),
+            expires_at: mandate.expires_at,
+            metadata: {
+              autonomy_mode: autonomyMode,
+              last_external_refresh_at: new Date().toISOString(),
+              last_external_refresh_status: initialRefresh.error ? "partial" : "ok",
+              initial_refresh: initialRefresh,
+            },
+          }).select("*").single(),
+          "nexus_persistent_intent_create_failed",
+        );
+
+        const results = await globalDiscoverySearch(sb, {
+          query: goal,
+          mode: discoveryMode,
+          city,
+          budgetMax: mode === "buy" ? budgetMax : null,
+          limit: Math.min(20, Math.max(maxContacts * 3, 8)),
+        });
+        const actionable = results.filter((row: any) =>
+          Number(row.scores?.total_score ?? 0) >= minMatchScore &&
+          Number(row.actionability_score ?? 0) >= minActionabilityScore
+        );
+        for (const row of actionable.slice(0, maxContacts)) {
+          await ensureOpportunityJourney(sb, ownerId, {
+            fabricId: row.fabric_id,
+            mode,
+            level: row.contactability_level ?? "C0",
+            sourceKey: row.source_key ?? null,
+            sourceUrl: row.source_url ?? null,
+            subject: row.subject ?? null,
+            city: row.city ?? null,
+            mandateId: mandate.id,
+            contactPack: row.contact_pack ?? null,
+            metadata: {
+              persistent_intent_id: intent.id,
+              match_score: row.scores?.total_score ?? null,
+              actionability_score: row.actionability_score ?? null,
+            },
+          });
+        }
+        await sb.from("waouh_persistent_intents").update({
+          last_scan_at: new Date().toISOString(),
+          next_scan_at: new Date(Date.now() + Number(intent.scan_interval_minutes ?? 60) * 60_000).toISOString(),
+          last_result_count: results.length,
+          last_actionable_count: actionable.length,
+        }).eq("id", intent.id);
+        await audit(sb, ownerId, "nexus.mandate.created", "avatar_mandate", mandate.id, {
+          autonomy_mode: autonomyMode,
+          actionable_count: actionable.length,
+        });
+        await sb.rpc("waouh_append_conversation_bus_event", {
+          p_owner_id: ownerId,
+          p_event_type: "avatar.mandate.created",
+          p_channel: optionalString(payload.origin_surface, "origin_surface", 80)?.startsWith("chat") ? "waouh" : "avatar",
+          p_direction: "system",
+          p_fabric_id: null,
+          p_journey_id: null,
+          p_mandate_id: mandate.id,
+          p_article_id: null,
+          p_thread_id: null,
+          p_negotiation_id: null,
+          p_deal_id: null,
+          p_external_ref: `mandate:${mandate.id}`,
+          p_payload: {
+            goal,
+            autonomy_mode: autonomyMode,
+            max_contacts: maxContacts,
+            max_followups: maxFollowups,
+            duration_hours: durationHours,
+            actionable_count: actionable.length,
+            origin_surface: optionalString(payload.origin_surface, "origin_surface", 80),
+          },
+        });
+        return jsonResponse({ ok: true, data: {
+          mandate,
+          intent,
+          results,
+          actionable_count: actionable.length,
+          refresh: initialRefresh,
+        } }, 201);
+      }
+
+      case "nexus.mandate.list": {
+        const [mandates, intents] = await Promise.all([
+          sb.from("waouh_avatar_mandates").select("*").eq("owner_id", ownerId).order("created_at", { ascending: false }).limit(50),
+          sb.from("waouh_persistent_intents").select("*").eq("owner_id", ownerId).order("created_at", { ascending: false }).limit(50),
+        ]);
+        if (mandates.error) throw new ApiError(500, "nexus_mandate_list_failed", mandates.error.message);
+        if (intents.error) throw new ApiError(500, "nexus_intent_list_failed", intents.error.message);
+        return jsonResponse({ ok: true, data: { mandates: mandates.data ?? [], intents: intents.data ?? [] }});
+      }
+
+      case "nexus.mandate.update": {
+        const mandateId = uuid(payload.mandate_id, "mandate_id");
+        const patch: Record<string, unknown> = {};
+        if (payload.status !== undefined) patch.status = pickEnum(payload.status, "status", ["active","paused","completed","cancelled"] as const);
+        if (payload.autonomy_mode !== undefined) patch.autonomy_mode = pickEnum(payload.autonomy_mode, "autonomy_mode", ["assisted","semi_autonomous","autonomous"] as const);
+        if (payload.max_contacts !== undefined) patch.max_contacts = integer(payload.max_contacts, "max_contacts", 3, 1, 20);
+        if (payload.max_followups !== undefined) patch.max_followups = integer(payload.max_followups, "max_followups", 1, 0, 5);
+        if (payload.min_match_score !== undefined) patch.min_match_score = Math.max(0, Math.min(100, Number(payload.min_match_score)));
+        if (payload.min_actionability_score !== undefined) patch.min_actionability_score = Math.max(0, Math.min(100, Number(payload.min_actionability_score)));
+        for (const key of ["allow_waouh","allow_whatsapp","allow_public_business","allow_blind_message","allow_email","allow_sms_rcs"]) {
+          if (payload[key] !== undefined) patch[key] = payload[key] === true;
+        }
+        const mandate = await queryOne<any>(
+          sb.from("waouh_avatar_mandates").update(patch).eq("id", mandateId).eq("owner_id", ownerId).select("*").single(),
+          "nexus_mandate_update_failed",
+        );
+        return jsonResponse({ ok: true, data: { mandate }});
+      }
+
+      case "nexus.mandate.run": {
+        const mandateId = uuid(payload.mandate_id, "mandate_id");
+        const mandate = await queryOne<any>(
+          sb.from("waouh_avatar_mandates").select("*").eq("id", mandateId).eq("owner_id", ownerId).maybeSingle(),
+          "nexus_mandate_not_found",
+        );
+        if (mandate.status !== "active") throw new ApiError(409, "mandate_not_active");
+        const discoveryMode: DiscoveryMode = mandate.mode === "sell" ? "find_buyers" : "find_sellers";
+        const results = await globalDiscoverySearch(sb, {
+          query: mandate.normalized_query || mandate.goal,
+          mode: discoveryMode,
+          city: mandate.city,
+          budgetMax: mandate.mode === "buy" ? mandate.budget_max : null,
+          limit: Math.min(30, Math.max(Number(mandate.max_contacts ?? 3) * 4, 10)),
+        });
+        const actionable = results.filter((row: any) =>
+          Number(row.scores?.total_score ?? 0) >= Number(mandate.min_match_score ?? 70) &&
+          Number(row.actionability_score ?? 0) >= Number(mandate.min_actionability_score ?? 65)
+        );
+        for (const row of actionable.slice(0, Number(mandate.max_contacts ?? 3))) {
+          await ensureOpportunityJourney(sb, ownerId, {
+            fabricId: row.fabric_id,
+            mode: mandate.mode,
+            level: row.contactability_level ?? "C0",
+            sourceKey: row.source_key ?? null,
+            sourceUrl: row.source_url ?? null,
+            subject: row.subject ?? null,
+            city: row.city ?? null,
+            mandateId: mandate.id,
+            contactPack: row.contact_pack ?? null,
+            metadata: {
+              match_score: row.scores?.total_score ?? null,
+              actionability_score: row.actionability_score ?? null,
+              mandate_run: true,
+            },
+          });
+        }
+        await sb.from("waouh_avatar_mandates").update({
+          last_run_at: new Date().toISOString(),
+          next_run_at: new Date(Date.now() + 60 * 60_000).toISOString(),
+        }).eq("id", mandate.id);
+        return jsonResponse({ ok: true, data: { mandate, results, actionable_count: actionable.length }});
+      }
+
+      case "nexus.conversation_bus.list": {
+        const limit = integer(payload.limit, "limit", 50, 1, 200);
+        let q = sb.from("waouh_conversation_bus_events")
+          .select("*").or(`owner_id.eq.${ownerId},counterparty_auth_user_id.eq.${ownerId}`)
+          .order("created_at", { ascending: false }).limit(limit);
+        if (typeof payload.fabric_id === "string" && payload.fabric_id.trim()) q = q.eq("fabric_id", payload.fabric_id.trim());
+        if (typeof payload.thread_id === "string" && payload.thread_id.trim()) q = q.eq("thread_id", payload.thread_id.trim());
+        const { data, error } = await q;
+        if (error) throw new ApiError(500, "nexus_conversation_bus_failed", error.message);
+        return jsonResponse({ ok: true, data: { events: data ?? [] }});
+      }
+
       case "nexus.opportunity.start": {
         const fabricId = asString(payload.fabric_id, "fabric_id", 5, 200);
         const mode = pickEnum(payload.mode, "mode", ["buy","sell","ask"] as const, "buy");
@@ -2154,6 +2796,7 @@ Retourne uniquement JSON:
           "nexus_signal_not_found",
         );
         const policy = contactabilityPolicy(signal.contactability_level);
+        const contactPack = await buildOperationalContactPack(sb, signal, { persist: true });
         const evidence = signal.evidence && typeof signal.evidence === "object"
           ? signal.evidence as Record<string, unknown> : {};
         const articleId = typeof evidence.article_id === "string"
@@ -2169,6 +2812,8 @@ Retourne uniquement JSON:
           subject: signal.subject ?? null,
           city: signal.city ?? null,
           articleId,
+          contactPack,
+          mandateId: typeof payload.mandate_id === "string" ? payload.mandate_id : null,
           metadata: {
             intent: signal.intent ?? null,
             source_record_id: signal.source_record_id ?? null,
@@ -2178,6 +2823,10 @@ Retourne uniquement JSON:
         return jsonResponse({ ok: true, data: {
           journey,
           contact_policy: policy,
+          contact_pack: contactPack,
+          readiness_level: contactPack.readiness_level,
+          actionability_score: contactPack.actionability_score,
+          next_best_action: contactPack.next_best_action,
           next_action: journeyNextAction(journey.stage, journey.contactability_level),
           internal_article: !!articleId,
         }});
@@ -2237,6 +2886,22 @@ Retourne uniquement JSON:
         });
 
         let nextLevel = String(signal.contactability_level ?? "C0");
+        let externalSignalMeta: any = null;
+        if (fabricId.startsWith("external:")) {
+          const externalId = fabricId.slice("external:".length);
+          const { data, error: externalMetaError } = await sb.from("waouh_external_commerce_signals")
+            .select("id,entity_id,actor_type,contact_consent_basis,contactability_level,source_key")
+            .eq("id", externalId).maybeSingle();
+          if (externalMetaError) throw new ApiError(500, "nexus_external_contact_meta_failed", externalMetaError.message);
+          externalSignalMeta = data;
+        }
+        const entityId = externalSignalMeta?.entity_id ?? null;
+        const consentBasis = String(externalSignalMeta?.contact_consent_basis ?? "unknown");
+        const publicBusinessContact =
+          String(externalSignalMeta?.actor_type ?? signal.actor_type ?? "") === "business" &&
+          consentBasis === "public_business";
+        const trustedMediatedBasis = ["initiated","opt_in","partner_contract"].includes(consentBasis);
+
         const evidence = signal.evidence && typeof signal.evidence === "object"
           ? signal.evidence as Record<string, unknown> : {};
         const publicText = [
@@ -2254,8 +2919,17 @@ Retourne uniquement JSON:
         if (signal.has_whatsapp === true) publicChannels.push("whatsapp");
         if (signal.contact_phone_last4) publicChannels.push("phone_hint");
 
-        if (nextLevel === "C0" && publicChannels.length) nextLevel = "C1";
-        if (fabricId.startsWith("external:") && signal.entity_id && hints.phones.length) {
+        const hasDirectCoordinate = hints.phones.length > 0 || hints.emails.length > 0 ||
+          signal.has_whatsapp === true || !!signal.contact_phone_last4;
+        if (nextLevel === "C0" && hasDirectCoordinate && (publicBusinessContact || trustedMediatedBasis)) {
+          nextLevel = publicBusinessContact ? "C1" : "C2";
+        }
+
+        if (fabricId.startsWith("external:") && entityId && hints.phones.length) {
+          const contactLevel = publicBusinessContact ? "C1" : (trustedMediatedBasis ? "C2" : "C0");
+          const contactConsent = publicBusinessContact
+            ? "public_business"
+            : (trustedMediatedBasis ? consentBasis : "unknown");
           for (const raw of hints.phones.slice(0, 3)) {
             const e164 = normalizeE164(raw);
             if (!e164) continue;
@@ -2263,7 +2937,7 @@ Retourne uniquement JSON:
             const hashed = await hashPhone(e164);
             const { data: existingContact } = await sb.from("waouh_entity_contacts")
               .select("id")
-              .eq("entity_id", signal.entity_id)
+              .eq("entity_id", entityId)
               .eq("channel", "phone")
               .eq("value_hash", hashed)
               .limit(1)
@@ -2274,25 +2948,26 @@ Retourne uniquement JSON:
               value_last4: phoneLast4(e164),
               public_value: null,
               source_key: signal.source_key,
-              is_public_business: signal.actor_type === "business",
-              consent_state: "public_business",
-              contactability_level: "C1",
-              verified_at: new Date().toISOString(),
+              is_public_business: publicBusinessContact,
+              consent_state: contactConsent,
+              contactability_level: contactLevel,
+              verified_at: publicBusinessContact || trustedMediatedBasis ? new Date().toISOString() : null,
+              verification_status: publicBusinessContact ? "observed" : "unknown",
               updated_at: new Date().toISOString(),
             };
             const writeResult = existingContact?.id
               ? await sb.from("waouh_entity_contacts").update(contactPatch).eq("id", existingContact.id)
               : await sb.from("waouh_entity_contacts").insert({
-                  entity_id: signal.entity_id,
+                  entity_id: entityId,
                   channel: "phone",
                   ...contactPatch,
                 });
             if (writeResult.error) {
-              console.warn("[opportunity.enrich] public phone store", writeResult.error.message);
+              console.warn("[opportunity.enrich] phone store", writeResult.error.message);
             }
           }
-          if (nextLevel === "C0") nextLevel = "C1";
         }
+
         if (fabricId.startsWith("external:") && nextLevel !== String(signal.contactability_level ?? "C0")) {
           const signalId = fabricId.slice("external:".length);
           await sb.from("waouh_external_commerce_signals")
@@ -2329,6 +3004,10 @@ Retourne uniquement JSON:
           observed_at: signal.observed_at ?? null,
         };
         const stage = ["C2","C3","C4","C5"].includes(nextLevel) ? "contact_ready" : "enriching";
+        const contactPack = await buildOperationalContactPack(sb, {
+          ...signal,
+          contactability_level: nextLevel,
+        }, { journeyStage: stage, persist: true });
         const updated = await updateOpportunityJourney(sb, journey.id, {
           stage,
           level: nextLevel,
@@ -2338,10 +3017,15 @@ Retourne uniquement JSON:
             : "Avatar a trouvé de nouvelles informations de contact.",
           event: { public_channels: publicChannels, source_url: signal.source_url ?? null },
           maskedContact: masked,
+          contactPack,
         });
         return jsonResponse({ ok: true, data: {
           journey: updated,
           contact_policy: contactabilityPolicy(nextLevel),
+          contact_pack: contactPack,
+          readiness_level: contactPack.readiness_level,
+          actionability_score: contactPack.actionability_score,
+          next_best_action: contactPack.next_best_action,
           public_channels: publicChannels,
           masked_contact: masked,
           next_action: journeyNextAction(stage, nextLevel),
@@ -2384,6 +3068,7 @@ Retourne uniquement JSON:
             policy.level === "C2" &&
             !!targetAuthUserId &&
             targetAuthUserId !== ownerId;
+          const contactPack = await buildOperationalContactPack(sb, signal, { persist: true });
 
           await audit(sb, ownerId, "nexus.contact.prepared", "commerce_signal", signal.source_record_id ?? null, {
             fabric_id: fabricId,
@@ -2404,7 +3089,12 @@ Retourne uniquement JSON:
               // intégrés tant qu'aucun connecteur contractuel dédié n'est résolu.
               can_auto_contact: false,
               can_blind_message: canBlindMessage,
+              can_user_confirm_contact: canBlindMessage,
             },
+            contact_pack: contactPack,
+            readiness_level: contactPack.readiness_level,
+            actionability_score: contactPack.actionability_score,
+            next_best_action: contactPack.next_best_action,
             contacts: [],
             note: canBlindMessage
               ? "WAOUH peut transmettre votre proposition à cet utilisateur sans révéler ses coordonnées privées. Le destinataire garde le contrôle."
@@ -2449,9 +3139,16 @@ Retourne uniquement JSON:
             });
           }
         }
+        const fabricSignal = await queryOne<any>(
+          sb.from("waouh_signal_fabric").select("*").eq("fabric_id", fabricId).maybeSingle(),
+          "nexus_signal_not_found",
+        );
+        const contactPack = await buildOperationalContactPack(sb, fabricSignal, { persist: true });
         await audit(sb, ownerId, "nexus.contact.prepared", "commerce_signal", signalId, {
           contactability: signal.contactability_level,
           revealed_count: contacts.length,
+          readiness_level: contactPack.readiness_level,
+          actionability_score: contactPack.actionability_score,
         });
         return jsonResponse({ ok: true, data: {
           fabric_id: fabricId,
@@ -2459,7 +3156,11 @@ Retourne uniquement JSON:
           source_url: signal.source_url,
           actor_name: signal.actor_name,
           product_name: signal.product_name,
-          contact_policy: { ...policy, can_blind_message: canBlindMessage },
+          contact_policy: { ...policy, can_blind_message: canBlindMessage, can_user_confirm_contact: policy.level === "C1" || canBlindMessage || policy.can_auto_contact },
+          contact_pack: contactPack,
+          readiness_level: contactPack.readiness_level,
+          actionability_score: contactPack.actionability_score,
+          next_best_action: contactPack.next_best_action,
           contacts,
           note: policy.level === "C0"
             ? "Le signal peut être utilisé pour la découverte, mais WAOUH ne révèle ni ne sollicite automatiquement ce contact."
@@ -2680,6 +3381,7 @@ Retourne uniquement JSON:
             source_key: signal.source_key,
             subject: signal.subject ?? signal.product_name ?? null,
             initiated_by_auth_user: ownerId,
+            contact_id: target.id,
           },
           p_web_session_id: null,
           p_image_url: null,
@@ -2688,6 +3390,26 @@ Retourne uniquement JSON:
           p_event_type: "nexus_discovery_outreach",
         });
         if (queueError) throw new ApiError(500, "nexus_contact_queue_failed", queueError.message);
+        await sb.rpc("waouh_append_conversation_bus_event", {
+          p_owner_id: ownerId,
+          p_event_type: "nexus.contact.queued",
+          p_channel: "whatsapp",
+          p_direction: "out",
+          p_fabric_id: fabricId,
+          p_journey_id: null,
+          p_mandate_id: typeof payload.mandate_id === "string" ? payload.mandate_id : null,
+          p_article_id: null,
+          p_thread_id: null,
+          p_negotiation_id: null,
+          p_deal_id: null,
+          p_external_ref: dedupeKey,
+          p_payload: {
+            signal_id: signalId,
+            source_key: signal.source_key,
+            subject: signal.subject ?? signal.product_name ?? null,
+            phone_last4: target.value_last4,
+          },
+        });
         fetch(`${supabaseUrl}/functions/v1/waouh-outbound-dispatch`, {
           method: "POST",
           headers: { Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
@@ -3072,7 +3794,7 @@ Retourne uniquement JSON:
 
         let buyerProfile: any = null;
         if (persistIntent) {
-          const nexusUser = await getOrCreateNexusUser(sb, ownerId, authUser.email?.split("@")[0] ?? "Utilisateur WAOUH");
+          const nexusUser = await getOrCreateNexusUser(sb, ownerId, authUser?.email?.split("@")[0] ?? "Utilisateur WAOUH");
           const { data: existingProfile, error: profileLookupError } = await sb.from("waouh_buyer_profiles")
             .select("*").eq("user_id", nexusUser.id).eq("query_text", queryText).eq("is_active", true)
             .order("created_at", { ascending: false }).limit(1).maybeSingle();

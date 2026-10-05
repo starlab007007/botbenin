@@ -33,15 +33,27 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
 
   NexusDiscoveryResponse? _response;
   List<NexusOpportunityJourney> _journeys = const <NexusOpportunityJourney>[];
+  List<Map<String, dynamic>> _conversationBus = const <Map<String, dynamic>>[];
   bool _loading = false;
   bool _loadingJourneys = false;
+  bool _loadingBus = false;
   String? _error;
   String? _workingFabric;
+  Map<String, dynamic>? _mandate;
+  String _autonomyMode = 'semi_autonomous';
+  int _maxContacts = 3;
+  int _maxFollowups = 1;
+  bool _allowSmsRcs = false;
+  bool _mandateBusy = false;
 
   @override
   void initState() {
     super.initState();
-    Future<void>.microtask(_loadJourneys);
+    Future<void>.microtask(() async {
+      await _loadJourneys();
+      await _loadMandate();
+      await _loadConversationBus();
+    });
   }
 
   Future<void> _loadJourneys() async {
@@ -54,6 +66,118 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       // Search and deal remain usable even if the summary cannot refresh.
     } finally {
       if (mounted) setState(() => _loadingJourneys = false);
+    }
+  }
+
+  Future<void> _loadConversationBus() async {
+    if (legacy.supabase.auth.currentUser == null || _loadingBus) return;
+    if (mounted) setState(() => _loadingBus = true);
+    try {
+      final rows = await _nexus.conversationBus(limit: 30);
+      if (mounted) setState(() => _conversationBus = rows);
+    } catch (_) {
+      // Le parcours principal reste disponible même si le journal multicanal ne charge pas.
+    } finally {
+      if (mounted) setState(() => _loadingBus = false);
+    }
+  }
+
+  Future<void> _loadMandate() async {
+    if (legacy.supabase.auth.currentUser == null) return;
+    try {
+      final data = await _nexus.listMandates();
+      final rows = data['mandates'];
+      if (rows is! List || !mounted) return;
+      Map<String, dynamic>? current;
+      for (final raw in rows) {
+        if (raw is! Map) continue;
+        final row = Map<String, dynamic>.from(raw);
+        final status = '${row['status'] ?? ''}';
+        if (status == 'active' || status == 'paused') {
+          current = row;
+          break;
+        }
+      }
+      if (!mounted) return;
+      setState(() {
+        _mandate = current;
+        if (current != null) {
+          _autonomyMode = '${current['autonomy_mode'] ?? 'semi_autonomous'}';
+          _maxContacts = int.tryParse('${current['max_contacts'] ?? 3}') ?? 3;
+          _maxFollowups = int.tryParse('${current['max_followups'] ?? 1}') ?? 1;
+          _allowSmsRcs = current['allow_sms_rcs'] == true;
+        }
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _createMandate() async {
+    final query = _goal.text.trim();
+    if (query.isEmpty || _mandateBusy) return;
+    setState(() => _mandateBusy = true);
+    try {
+      final budget = double.tryParse(_budget.text.replaceAll(RegExp(r'[^0-9.]'), ''));
+      final mode = switch (widget.mode) {
+        LiveAvatarCommerceMode.sell => 'sell',
+        LiveAvatarCommerceMode.ask => 'ask',
+        LiveAvatarCommerceMode.buy => 'buy',
+      };
+      final data = await _nexus.createMandate(
+        mode: mode,
+        goal: query,
+        autonomyMode: _autonomyMode,
+        city: _city.text.trim().isEmpty ? null : _city.text.trim(),
+        budgetMax: budget,
+        maxContacts: _maxContacts,
+        maxFollowups: _autonomyMode == 'assisted' ? 0 : _maxFollowups,
+        allowSmsRcs: _allowSmsRcs,
+        durationHours: 24,
+        scanIntervalMinutes: 60,
+      );
+      final raw = data['mandate'];
+      if (raw is Map && mounted) {
+        setState(() => _mandate = Map<String, dynamic>.from(raw));
+      }
+      final rawResults = data['results'];
+      if (rawResults is List && mounted) {
+        final response = NexusDiscoveryResponse.fromJson(<String, dynamic>{
+          'mode': _findSellers ? 'find_sellers' : 'find_buyers',
+          'results': rawResults,
+          'source_mix': const <String, dynamic>{},
+          'refresh': const <String, dynamic>{},
+        });
+        setState(() => _response = response);
+      }
+      await _loadConversationBus();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Mandat confié à Bot pendant 24 h.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Mandat non créé : $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _mandateBusy = false);
+    }
+  }
+
+  Future<void> _toggleMandate() async {
+    final current = _mandate;
+    if (current == null || _mandateBusy) return;
+    final id = '${current['id'] ?? ''}';
+    if (id.isEmpty) return;
+    setState(() => _mandateBusy = true);
+    try {
+      final next = '${current['status']}' == 'active' ? 'paused' : 'active';
+      final data = await _nexus.updateMandate(id, status: next);
+      final raw = data['mandate'];
+      if (raw is Map && mounted) setState(() => _mandate = Map<String, dynamic>.from(raw));
+    } finally {
+      if (mounted) setState(() => _mandateBusy = false);
     }
   }
 
@@ -435,7 +559,8 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       var prepared = await _nexus.prepareContact(item.fabricId);
 
       if (!prepared.policy.canBlindMessage &&
-          !prepared.policy.canAutoContact) {
+          !prepared.policy.canAutoContact &&
+          !prepared.policy.canUserConfirmContact) {
         journey = await _nexus.enrichOpportunity(
           fabricId: item.fabricId,
           mode: widget.mode == LiveAvatarCommerceMode.sell ? 'sell' : 'buy',
@@ -444,7 +569,8 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       }
 
       if (!prepared.policy.canBlindMessage &&
-          !prepared.policy.canAutoContact) {
+          !prepared.policy.canAutoContact &&
+          !prepared.policy.canUserConfirmContact) {
         if (!mounted) return;
         avatar.showState(LiveAvatarPresenceState.watching);
         await _showJourneyStatus(item, journey);
@@ -472,6 +598,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       if (!mounted) return;
       avatar.showState(LiveAvatarPresenceState.waiting);
       await _loadJourneys();
+      await _loadConversationBus();
       if (!mounted) return;
       await _showJourneyStatus(item, journey, contactSent: true);
     } catch (e) {
@@ -543,6 +670,22 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
         'cancelled' => 'Annulé',
         _ => stage.replaceAll('_', ' '),
       };
+
+  String _journeyBusinessPhase(NexusOpportunityJourney journey) {
+    final action = (journey.lastAction ?? '').trim();
+    return switch (action) {
+      'payment_completed' => 'Terminé',
+      'delivery_completed' => 'Paiement',
+      'courier_picked_up' => 'Livraison',
+      'courier_assigned' => 'Livreur',
+      'preparation_ready_for_courier' => 'Préparation',
+      'seller_confirmed' => 'Confirmation vendeur',
+      'agreement_reached' || 'canonical_agreement' => 'Accord',
+      'canonical_counterparty_counterproposal' ||
+      'counterparty_reply_received' => 'Négociation',
+      _ => _journeyStageLabel(journey.stage),
+    };
+  }
 
   Future<void> _openJourneyDealRoom(NexusOpportunityJourney journey) async {
     final threadId = journey.threadId?.trim() ?? '';
@@ -652,7 +795,10 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '${current.progress}% · ${current.contactability} · ${_journeyStageLabel(current.stage)}',
+                  '${current.progress}% · ${current.contactability}' +
+                      ((current.readinessLevel ?? '').isEmpty ? '' : ' · ${current.readinessLevel}') +
+                      ((current.actionabilityScore ?? 0) <= 0 ? '' : ' · Action ${current.actionabilityScore!.round()}%') +
+                      ' · ${_journeyBusinessPhase(current)}',
                   style: const TextStyle(
                     color: WaouhPalette.blue,
                     fontWeight: FontWeight.w900,
@@ -845,6 +991,154 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
     }
   }
 
+  Widget _mandateSurface() {
+    final current = _mandate;
+    if (current != null) {
+      final status = '${current['status'] ?? 'active'}';
+      final contacted = '${current['contacted_count'] ?? 0}';
+      final replied = '${current['replied_count'] ?? 0}';
+      final mode = '${current['autonomy_mode'] ?? 'semi_autonomous'}';
+      final modeLabel = mode == 'assisted' ? 'Assisté' : mode == 'autonomous' ? 'Autonome' : 'Semi-auto';
+      return Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8F4FF),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFFE4D8FF)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Row(children: [
+              Icon(Icons.bolt_rounded, color: Color(0xFF6D3FD1)),
+              SizedBox(width: 7),
+              Expanded(child: Text('Mandat Avatar · Opportunity OS', style: TextStyle(fontWeight: FontWeight.w900))),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: _MandateMetric(label: 'Contactés', value: contacted)),
+              const SizedBox(width: 7),
+              Expanded(child: _MandateMetric(label: 'Réponses', value: replied)),
+              const SizedBox(width: 7),
+              Expanded(child: _MandateMetric(label: 'Mode', value: modeLabel)),
+            ]),
+            const SizedBox(height: 9),
+            Text('${current['goal'] ?? ''}', maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, color: WaouhPalette.muted, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 9),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              title: const Text('SMS/RCS consentis', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+              subtitle: const Text('Seulement si la contrepartie a déjà accepté ce canal.', style: TextStyle(fontSize: 9.5)),
+              value: current['allow_sms_rcs'] == true,
+              onChanged: _mandateBusy ? null : (value) async {
+                setState(() => _mandateBusy = true);
+                try {
+                  final data = await _nexus.updateMandate(
+                    '${current['id']}',
+                    allowSmsRcs: value,
+                  );
+                  final raw = data['mandate'];
+                  if (raw is Map && mounted) {
+                    setState(() {
+                      _mandate = Map<String, dynamic>.from(raw);
+                      _allowSmsRcs = value;
+                    });
+                  }
+                } finally {
+                  if (mounted) setState(() => _mandateBusy = false);
+                }
+              },
+            ),
+            OutlinedButton.icon(
+              onPressed: _mandateBusy ? null : _toggleMandate,
+              icon: Icon(status == 'active' ? Icons.pause_rounded : Icons.play_arrow_rounded),
+              label: Text(status == 'active' ? 'Mettre en pause' : 'Reprendre'),
+              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
+            ),
+          ],
+        ),
+      );
+    }
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F4FF),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE4D8FF)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Confier cette mission à Bot', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF382567))),
+          const SizedBox(height: 4),
+          const Text('Bot surveille NEXUS pendant 24 h et agit uniquement dans les limites que vous fixez.',
+            style: TextStyle(fontSize: 10.5, color: WaouhPalette.muted)),
+          const SizedBox(height: 9),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'assisted', label: Text('Assisté')),
+              ButtonSegment(value: 'semi_autonomous', label: Text('Semi-auto')),
+              ButtonSegment(value: 'autonomous', label: Text('Autonome')),
+            ],
+            selected: <String>{_autonomyMode},
+            onSelectionChanged: (value) => setState(() {
+              _autonomyMode = value.first;
+              if (_autonomyMode == 'assisted') {
+                _maxFollowups = 0;
+              } else if (_maxFollowups == 0) {
+                _maxFollowups = _autonomyMode == 'autonomous' ? 2 : 1;
+              }
+            }),
+            showSelectedIcon: false,
+          ),
+          const SizedBox(height: 9),
+          Row(children: [
+            const Expanded(child: Text('Contacts maximum', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800))),
+            DropdownButton<int>(
+              value: _maxContacts,
+              items: const [1,3,5,10,20].map((value) => DropdownMenuItem(value: value, child: Text('$value'))).toList(),
+              onChanged: (value) { if (value != null) setState(() => _maxContacts = value); },
+            ),
+          ]),
+          Row(children: [
+            const Expanded(child: Text('Relances maximum · 24 h min.', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800))),
+            DropdownButton<int>(
+              value: _autonomyMode == 'assisted' ? 0 : _maxFollowups,
+              items: const [0,1,2,3,5].map((value) => DropdownMenuItem(value: value, child: Text('$value'))).toList(),
+              onChanged: _autonomyMode == 'assisted'
+                  ? null
+                  : (value) { if (value != null) setState(() => _maxFollowups = value); },
+            ),
+          ]),
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            title: const Text('Autoriser SMS/RCS consentis', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+            subtitle: const Text(
+              'Désactivé par défaut. Bot l’utilise uniquement pour un consentement Native Messaging déjà actif.',
+              style: TextStyle(fontSize: 9.5, color: WaouhPalette.muted),
+            ),
+            value: _allowSmsRcs,
+            onChanged: (value) => setState(() => _allowSmsRcs = value),
+          ),
+          FilledButton.icon(
+            onPressed: _mandateBusy || _goal.text.trim().isEmpty ? null : _createMandate,
+            icon: _mandateBusy
+              ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.smart_toy_outlined),
+            label: const Text('Confier à Bot pendant 24 h'),
+            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48), backgroundColor: const Color(0xFF6D3FD1)),
+          ),
+          const SizedBox(height: 5),
+          const Text('Aucun paiement, changement de budget ou partage de contact privé sans règle explicite.',
+            style: TextStyle(fontSize: 9.5, color: WaouhPalette.muted)),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final avatar = context.watch<LiveAvatarController>();
@@ -884,7 +1178,15 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
                         (journey.threadId ?? '').trim().isNotEmpty
                     ? _openJourneyDealRoom(journey)
                     : _showJourneyProgress(journey),
-                stageLabel: _journeyStageLabel,
+                phaseLabel: _journeyBusinessPhase,
+              ),
+              const SizedBox(height: 12),
+            ],
+            if (_loadingBus || _conversationBus.isNotEmpty) ...[
+              _ConversationBusPanel(
+                events: _conversationBus,
+                loading: _loadingBus,
+                onRefresh: _loadConversationBus,
               ),
               const SizedBox(height: 12),
             ],
@@ -898,6 +1200,8 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
               showBudget: widget.mode != LiveAvatarCommerceMode.ask,
               onSearch: _search,
             ),
+            const SizedBox(height: 12),
+            _mandateSurface(),
             if (_error != null) ...[
               const SizedBox(height: 10),
               _InfoStrip(
@@ -937,20 +1241,215 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   }
 }
 
+class _MandateMetric extends StatelessWidget {
+  const _MandateMetric({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE4D8FF)),
+        ),
+        child: Column(
+          children: [
+            Text(label,
+                style: const TextStyle(
+                  color: WaouhPalette.muted,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                )),
+            const SizedBox(height: 2),
+            Text(value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Color(0xFF6D3FD1),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                )),
+          ],
+        ),
+      );
+}
+
+class _ConversationBusPanel extends StatelessWidget {
+  const _ConversationBusPanel({
+    required this.events,
+    required this.loading,
+    required this.onRefresh,
+  });
+
+  final List<Map<String, dynamic>> events;
+  final bool loading;
+  final VoidCallback onRefresh;
+
+  String _title(String type) => switch (type) {
+        'nexus.counterparty_reply' => 'Réponse reçue',
+        'autonomy.external_contact_queued' => 'Avatar a contacté une opportunité',
+        'autonomy.internal_contact_delivered' => 'Contact WAOUH transmis',
+        'autonomy.followup_queued' => 'Relance Avatar',
+        'nexus.contact.queued' => 'Contact mis en file',
+        'avatar.mandate.created' => 'Mandat Avatar activé',
+        _ => type.replaceAll('.', ' ').replaceAll('_', ' '),
+      };
+
+  String _text(Map<String, dynamic> event) {
+    final raw = event['payload'];
+    final payload = raw is Map
+        ? Map<String, dynamic>.from(raw)
+        : const <String, dynamic>{};
+    for (final key in const ['reply_preview', 'text', 'subject', 'message']) {
+      final value = '${payload[key] ?? ''}'.trim();
+      if (value.isNotEmpty) return value;
+    }
+    final fabric = '${event['fabric_id'] ?? ''}'.trim();
+    return fabric.isEmpty ? 'Événement WAOUH' : 'Opportunité $fabric';
+  }
+
+  String _date(dynamic value) {
+    final parsed = DateTime.tryParse('${value ?? ''}');
+    if (parsed == null) return '';
+    final local = parsed.toLocal();
+    String two(int number) => number.toString().padLeft(2, '0');
+    return '${two(local.day)}/${two(local.month)} ${two(local.hour)}:${two(local.minute)}';
+  }
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7FAFC),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFFDCE7F0)),
+          boxShadow: WaouhShadows.card,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const Icon(Icons.hub_outlined, color: Color(0xFF0F7B6C)),
+              const SizedBox(width: 7),
+              const Expanded(
+                child: Text(
+                  'Activité multicanale',
+                  style: TextStyle(
+                    color: WaouhPalette.ink,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Actualiser',
+                onPressed: loading ? null : onRefresh,
+                icon: loading
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh_rounded),
+              ),
+            ]),
+            const Text(
+              'WAOUH · WhatsApp · NEXUS · Deal Room dans un seul journal.',
+              style: TextStyle(
+                color: WaouhPalette.muted,
+                fontSize: 10.5,
+                height: 1.3,
+              ),
+            ),
+            if (events.isNotEmpty) ...[
+              const SizedBox(height: 9),
+              ...events.take(8).map((event) {
+                final type = '${event['event_type'] ?? 'event'}';
+                final channel = '${event['channel'] ?? 'waouh'}';
+                final direction = '${event['direction'] ?? 'system'}';
+                final threadId = '${event['thread_id'] ?? ''}'.trim();
+                final date = _date(event['created_at']);
+                final directionLabel = direction == 'in'
+                    ? 'Entrant'
+                    : direction == 'out'
+                        ? 'Sortant'
+                        : 'Système';
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 7),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: const Color(0xFFE7EDF2)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Expanded(
+                          child: Text(
+                            _title(type),
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          channel,
+                          style: const TextStyle(
+                            color: Color(0xFF0F7B6C),
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ]),
+                      const SizedBox(height: 3),
+                      Text(
+                        _text(event),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: WaouhPalette.muted,
+                          fontSize: 10.5,
+                          height: 1.3,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$directionLabel'
+                        '${date.isEmpty ? '' : ' · $date'}'
+                        '${threadId.isEmpty ? '' : ' · Deal Room lié'}',
+                        style: const TextStyle(
+                          color: WaouhPalette.muted,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ],
+        ),
+      );
+}
+
 class _ActiveJourneysPanel extends StatelessWidget {
   const _ActiveJourneysPanel({
     required this.journeys,
     required this.loading,
     required this.onRefresh,
     required this.onOpen,
-    required this.stageLabel,
+    required this.phaseLabel,
   });
 
   final List<NexusOpportunityJourney> journeys;
   final bool loading;
   final VoidCallback onRefresh;
   final ValueChanged<NexusOpportunityJourney> onOpen;
-  final String Function(String) stageLabel;
+  final String Function(NexusOpportunityJourney) phaseLabel;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -1047,7 +1546,7 @@ class _ActiveJourneysPanel extends StatelessWidget {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            '${journey.contactability} · ${stageLabel(journey.stage)} · ${journey.nextAction}',
+                            '${journey.contactability} · ${phaseLabel(journey)} · ${journey.nextAction}',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -1306,6 +1805,19 @@ class _SourceChip extends StatelessWidget {
       );
 }
 
+String _nextBestActionLabel(String? value) => switch ((value ?? '').toUpperCase()) {
+      'CONTACT_NOW' => 'contacter maintenant',
+      'OPEN_DEAL_ROOM' => 'ouvrir le Deal Room',
+      'REQUEST_APPROVAL' => 'valider le contact',
+      'WAIT_REPLY' => 'attendre la réponse',
+      'FOLLOW_UP' => 'relancer',
+      'NEGOTIATE' => 'négocier',
+      'EXECUTE' => 'exécuter l’accord',
+      'COMPLETE' => 'terminé',
+      'DROP_LOW_QUALITY' => 'priorité faible',
+      _ => 'enrichir le contact',
+    };
+
 class _OpportunityCard extends StatelessWidget {
   const _OpportunityCard({
     required this.rank,
@@ -1401,6 +1913,10 @@ class _OpportunityCard extends StatelessWidget {
                           item.sourceLabel,
                           if ((item.city ?? '').isNotEmpty) item.city!,
                           item.contactPolicy.level,
+                          if ((item.readinessLevel ?? item.contactPack?.readiness)?.isNotEmpty == true)
+                            item.readinessLevel ?? item.contactPack!.readiness,
+                          if (item.actionabilityScore != null || item.contactPack != null)
+                            'Action ${(item.actionabilityScore ?? item.contactPack!.actionabilityScore).round()}%',
                         ].join(' · '),
                         style: const TextStyle(
                           color: WaouhPalette.muted,
@@ -1437,6 +1953,13 @@ class _OpportunityCard extends StatelessWidget {
                 Expanded(child: _ScoreBar(label: 'Confiance', value: item.scores.trust)),
               ],
             ),
+            if (item.actionabilityScore != null || item.contactPack != null) ...[
+              const SizedBox(height: 7),
+              _ScoreBar(
+                label: 'Actionnable',
+                value: item.actionabilityScore ?? item.contactPack!.actionabilityScore,
+              ),
+            ],
             if (item.scores.reasons.isNotEmpty) ...[
               const SizedBox(height: 9),
               Wrap(
@@ -1475,6 +1998,17 @@ class _OpportunityCard extends StatelessWidget {
               accent: const Color(0xFF8B6500),
             ),
             const SizedBox(height: 7),
+            if (item.nextBestAction != null || item.contactPack != null) ...[
+              _InfoStrip(
+                icon: Icons.bolt_rounded,
+                text: 'Bot recommande : ' + _nextBestActionLabel(item.nextBestAction ?? item.contactPack!.nextBestAction) +
+                    ((item.bestChannel ?? item.contactPack?.bestChannel)?.isNotEmpty == true
+                        ? ' · canal ' + (item.bestChannel ?? item.contactPack!.bestChannel!)
+                        : ''),
+                accent: const Color(0xFF6D3FD1),
+              ),
+              const SizedBox(height: 7),
+            ],
             _InfoStrip(
               icon: item.internalArticle
                   ? Icons.lock_person_outlined

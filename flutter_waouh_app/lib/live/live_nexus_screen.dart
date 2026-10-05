@@ -176,14 +176,20 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
     try {
       final maxBudget =
           double.tryParse(budget.text.replaceAll(RegExp(r'\D'), ''));
-      await service.createBuyerAutopilot(
+      await service.createMandate(
+        mode: findSellers ? 'buy' : 'sell',
         goal: goal,
+        autonomyMode: 'semi_autonomous',
         city: city.text.trim(),
         budgetMax: maxBudget,
+        maxContacts: 3,
+        maxFollowups: 1,
+        durationHours: 24,
+        scanIntervalMinutes: 60,
       );
       if (!mounted) return;
       notice(
-        'Mission + veille créées. Votre Avatar continuera la recherche.',
+        'Mandat semi-autonome créé pour 24 h · 3 contacts maximum.',
         success: true,
       );
       context.read<LiveAvatarController>().showState(
@@ -598,7 +604,7 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
           ),
           const SizedBox(height: 3),
           const Text(
-            'Classés par pertinence, confiance, prix, proximité, fraîcheur et contact.',
+            'Classés par pertinence + capacité réelle de Bot à agir maintenant.',
             style: TextStyle(fontSize: 11, color: Colors.blueGrey),
           ),
           const SizedBox(height: 8),
@@ -1118,6 +1124,10 @@ class _DiscoveryCard extends StatelessWidget {
                   _Pill(item.intent),
                   if (item.city != null) _Pill(item.city!),
                   _Pill(item.contactPolicy.level),
+                  if ((item.readinessLevel ?? item.contactPack?.readiness)?.isNotEmpty == true)
+                    _Pill(item.readinessLevel ?? item.contactPack!.readiness),
+                  if (item.actionabilityScore != null || item.contactPack != null)
+                    _Pill('Action ' + (item.actionabilityScore ?? item.contactPack!.actionabilityScore).round().toString() + '%'),
                 ],
               ),
               if (item.priceMin != null || item.priceMax != null) ...[
@@ -1139,6 +1149,29 @@ class _DiscoveryCard extends StatelessWidget {
                     '%',
                 style: const TextStyle(fontSize: 11, color: Colors.blueGrey),
               ),
+              if (item.nextBestAction != null || item.contactPack != null) ...[
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(9),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7F2FF),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Bot recommande : ' +
+                        nexusActionLabel(item.nextBestAction ?? item.contactPack!.nextBestAction) +
+                        ((item.bestChannel ?? item.contactPack?.bestChannel)?.isNotEmpty == true
+                            ? ' · ' + (item.bestChannel ?? item.contactPack!.bestChannel!)
+                            : ''),
+                    style: const TextStyle(
+                      color: Color(0xFF5A36A8),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 10.5,
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 10),
               Row(
                 children: [
@@ -1223,7 +1256,8 @@ class _ContactSheetState extends State<_ContactSheet> {
   @override
   Widget build(BuildContext context) {
     final policy = widget.contact.policy;
-    final canSend = policy.canAutoContact || policy.canBlindMessage;
+    final canSend =
+        policy.canAutoContact || policy.canBlindMessage || policy.canUserConfirmContact;
     return Container(
       margin: const EdgeInsets.only(top: 60),
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 24),
@@ -1261,9 +1295,11 @@ class _ContactSheetState extends State<_ContactSheet> {
               controller: message,
               maxLines: 4,
               decoration: InputDecoration(
-                labelText: policy.canBlindMessage
-                    ? 'Message privé via WAOUH'
-                    : 'Message à transmettre',
+                labelText: policy.level == 'C1'
+                    ? 'Message vers le contact professionnel public'
+                    : policy.canBlindMessage
+                        ? 'Message privé via WAOUH'
+                        : 'Message à transmettre',
               ),
             ),
             const SizedBox(height: 10),
@@ -1388,6 +1424,19 @@ class _Pill extends StatelessWidget {
         ),
       );
 }
+
+String nexusActionLabel(String? value) => switch ((value ?? '').toUpperCase()) {
+      'CONTACT_NOW' => 'contacter maintenant',
+      'OPEN_DEAL_ROOM' => 'ouvrir le Deal Room',
+      'REQUEST_APPROVAL' => 'valider le contact',
+      'WAIT_REPLY' => 'attendre la réponse',
+      'FOLLOW_UP' => 'relancer',
+      'NEGOTIATE' => 'négocier',
+      'EXECUTE' => 'exécuter',
+      'COMPLETE' => 'terminé',
+      'DROP_LOW_QUALITY' => 'priorité faible',
+      _ => 'enrichir le contact',
+    };
 
 String sourceLabel(String key) => switch (key) {
       'waouh_app' => 'WAOUH',

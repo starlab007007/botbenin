@@ -42,6 +42,162 @@ function throwIfError(
   }
 }
 
+async function captureOpportunityReply(
+  admin: SupabaseClient,
+  telUser: any,
+  thread: any,
+  event: CanonicalInboundEvent,
+  inbound: any,
+) {
+  try {
+    const since = new Date(Date.now() - 14 * 86_400_000).toISOString();
+    const { data: contactEvent, error: contactEventError } = await admin
+      .from("waouh_conversation_bus_events")
+      .select("*")
+      .in("event_type", ["autonomy.native_contact_queued", "autonomy.native_followup_queued"])
+      .eq("channel", event.channel)
+      .contains("payload", { native_tel_user_id: telUser.id })
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (contactEventError || !contactEvent?.journey_id || !contactEvent?.owner_id) return false;
+
+    const { data: journey } = await admin.from("waouh_opportunity_journeys")
+      .select("*").eq("id", contactEvent.journey_id).maybeSingle();
+    if (!journey || ["completed","cancelled"].includes(String(journey.stage || ""))) return false;
+
+    const replyAt = new Date().toISOString();
+    const replyPreview = String(event.text || "").trim().slice(0, 180);
+    const payload = contactEvent.payload && typeof contactEvent.payload === "object"
+      ? contactEvent.payload as Record<string, unknown>
+      : {};
+    const contactId = typeof payload.contact_id === "string" ? payload.contact_id : null;
+
+    await admin.rpc("waouh_append_conversation_bus_event", {
+      p_owner_id: contactEvent.owner_id,
+      p_event_type: "nexus.counterparty_reply",
+      p_channel: event.channel,
+      p_direction: "in",
+      p_fabric_id: contactEvent.fabric_id ?? journey.fabric_id ?? null,
+      p_journey_id: journey.id,
+      p_mandate_id: contactEvent.mandate_id ?? journey.mandate_id ?? null,
+      p_article_id: journey.article_id ?? null,
+      p_thread_id: journey.thread_id ?? null,
+      p_negotiation_id: journey.negotiation_id ?? null,
+      p_deal_id: journey.deal_id ?? null,
+      p_external_ref: `native-reply:${inbound.id}`,
+      p_payload: {
+        reply_preview: replyPreview,
+        native_tel_user_id: telUser.id,
+        native_thread_id: thread.id,
+        contact_id: contactId,
+        provider_message_id: event.provider_message_id,
+      },
+    });
+
+    await admin.from("waouh_opportunity_journeys").update({
+      stage: "negotiating",
+      contactability_level: "C5",
+      readiness_level: "R5",
+      readiness_score: 100,
+      actionability_score: 100,
+      next_best_action: "NEGOTIATE",
+      contact_channel: event.channel,
+      last_action: "native_counterparty_reply",
+      next_action: "NEGOTIATE",
+      last_message: replyPreview
+        ? `Réponse reçue via ${event.channel.toUpperCase()} : ${replyPreview}`
+        : `Réponse reçue via ${event.channel.toUpperCase()}.`,
+      last_activity_at: replyAt,
+      updated_at: replyAt,
+    }).eq("id", journey.id);
+
+    if (contactEvent.fabric_id ?? journey.fabric_id) {
+      await admin.from("waouh_contact_packs").update({
+        contactability_level: "C5",
+        readiness_level: "R5",
+        readiness_score: 100,
+        actionability_score: 100,
+        next_best_action: "NEGOTIATE",
+        best_channel: event.channel,
+        last_verified_at: replyAt,
+        updated_at: replyAt,
+      }).eq("fabric_id", contactEvent.fabric_id ?? journey.fabric_id);
+    }
+
+    if (contactId) {
+      const { data: metrics } = await admin.from("waouh_entity_contacts")
+        .select("reply_count,avg_reply_delay_seconds").eq("id", contactId).maybeSingle();
+      const oldCount = Number(metrics?.reply_count || 0);
+      const oldAvg = Number(metrics?.avg_reply_delay_seconds || 0);
+      const sentAt = contactEvent.created_at ? Date.parse(contactEvent.created_at) : NaN;
+      const delaySeconds = Number.isFinite(sentAt) ? Math.max(0, (Date.now() - sentAt) / 1000) : 0;
+      const nextAvg = delaySeconds > 0
+        ? ((oldAvg * oldCount) + delaySeconds) / (oldCount + 1)
+        : oldAvg;
+      await admin.from("waouh_entity_contacts").update({
+        reply_count: oldCount + 1,
+        avg_reply_delay_seconds: nextAvg || null,
+        last_success_at: replyAt,
+        verification_status: "reachable",
+        contactability_level: "C5",
+        verified_at: replyAt,
+        updated_at: replyAt,
+      }).eq("id", contactId);
+    }
+
+    const mandateId = contactEvent.mandate_id ?? journey.mandate_id ?? null;
+    if (mandateId) {
+      const { data: mandate } = await admin.from("waouh_avatar_mandates")
+        .select("replied_count").eq("id", mandateId).maybeSingle();
+      if (mandate) {
+        await admin.from("waouh_avatar_mandates").update({
+          replied_count: Number(mandate.replied_count || 0) + 1,
+          updated_at: replyAt,
+        }).eq("id", mandateId);
+      }
+    }
+
+    const { data: ownerWaouh } = await admin.from("waouh_users")
+      .select("id,web_session_id")
+      .eq("auth_user_id", contactEvent.owner_id)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (ownerWaouh?.id) {
+      await admin.from("waouh_notifications").insert({
+        user_id: ownerWaouh.id,
+        article_id: journey.article_id ?? null,
+        thread_id: journey.thread_id ?? null,
+        notification_type: "nexus_opportunity_reply",
+        photos: [],
+        channel: "waouh_app",
+        delivery_status: "delivered",
+        delivered_at: replyAt,
+        web_session_id: ownerWaouh.web_session_id ?? null,
+        dedupe_key: `native-opportunity-reply:${inbound.id}`,
+        payload: {
+          text: `💬 Réponse reçue via ${event.channel.toUpperCase()}. Votre Avatar est prêt à poursuivre.`,
+          reply_preview: replyPreview,
+          fabric_id: contactEvent.fabric_id ?? journey.fabric_id ?? null,
+          journey_id: journey.id,
+          mandate_id: mandateId,
+          workflow_state: "negotiating",
+          contactability_level: "C5",
+          readiness_level: "R5",
+          next_best_action: "NEGOTIATE",
+          native_thread_id: thread.id,
+        },
+      });
+    }
+    return true;
+  } catch (error) {
+    console.warn("[waouh-tel-inbox] opportunity reply correlation failed", error);
+    return false;
+  }
+}
+
 export function inboundRecipientMatches(
   event: Pick<CanonicalInboundEvent, "channel" | "recipient" | "recipient_raw">,
   settings: Pick<
@@ -260,6 +416,19 @@ async function processInboundEvent(
         messageId: inbound.id,
         outcome: { event_id: event.provider_event_id, consent: "inactive" },
       };
+    }
+
+    const opportunityReply = await captureOpportunityReply(
+      admin, telUser, thread, event, inbound,
+    );
+    if (opportunityReply) {
+      await auditTel(admin, "opportunity_reply_correlated", {
+        telUserId: telUser.id,
+        threadId: thread.id,
+        actorType: "provider",
+        correlationId: inbound.correlation_id,
+        details: { channel: event.channel, provider: event.provider },
+      });
     }
 
     const roomCommand = parseRoomCommand(event.text);

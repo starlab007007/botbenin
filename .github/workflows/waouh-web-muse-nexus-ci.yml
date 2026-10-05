@@ -37,7 +37,12 @@ on:
       - "supabase/migrations/**"
       - "supabase/functions/_shared/waouh-nexus.ts"
       - "supabase/functions/_shared/waouh-signal-fabric.ts"
+      - "supabase/functions/_shared/waouh-opportunity-os*.ts"
+      - "supabase/functions/_shared/waouh-channel-router*.ts"
+      - "supabase/functions/_shared/waouh-promote*.ts"
+      - "supabase/functions/waouh-opportunity-worker/**"
       - ".github/workflows/waouh-web-muse-nexus-ci.yml"
+      - ".github/workflows/apply-waouh-opportunity-os-migrations.yml"
   pull_request:
     branches:
       - prod
@@ -73,6 +78,9 @@ on:
       - "supabase/migrations/**"
       - "supabase/functions/_shared/waouh-nexus.ts"
       - "supabase/functions/_shared/waouh-signal-fabric.ts"
+      - "supabase/functions/_shared/waouh-opportunity-os*.ts"
+      - "supabase/functions/_shared/waouh-channel-router*.ts"
+      - "supabase/functions/waouh-opportunity-worker/**"
   workflow_dispatch:
 
 concurrency:
@@ -113,6 +121,33 @@ jobs:
       - name: Check NEXUS Edge Function
         run: deno check supabase/functions/waouh-agentic-core/index.ts
 
+      - name: Check Opportunity OS worker
+        run: deno check supabase/functions/waouh-opportunity-worker/index.ts
+
+      - name: Check WAOUH webhook
+        run: deno check supabase/functions/waouh-webhook/index.ts
+
+      - name: Validate Opportunity OS SQL
+        run: |
+          python -m pip install --quiet "pglast==7.7"
+          python - <<'PY'
+          from pathlib import Path
+          from pglast import parse_sql
+          files = [
+              Path("supabase/migrations/20261004223000_waouh_opportunity_os.sql"),
+              Path("supabase/migrations/20261004224000_waouh_opportunity_worker_cron.sql"),
+          ]
+          for path in files:
+              tree = parse_sql(path.read_text())
+              print(f"{path.name}: {len(tree)} instruction(s) SQL valides")
+          PY
+
+      - name: Opportunity OS contract tests
+        run: deno test supabase/functions/_shared/waouh-opportunity-os-test.ts
+
+      - name: Channel Router contract tests
+        run: deno test supabase/functions/_shared/waouh-channel-router-test.ts
+
       - name: Check WAOUH Chat Channel
         run: deno check supabase/functions/waouh-channel-in/index.ts
 
@@ -127,6 +162,9 @@ jobs:
 
       - name: Check WAOUH Deal Operations
         run: deno check supabase/functions/waouh-deal-ops/index.ts
+
+      - name: Check WAOUH Payment
+        run: deno check supabase/functions/waouh-payment/index.ts
 
       - name: Check WAOUH Commerce Action
         run: deno check supabase/functions/waouh-commerce-action/index.ts
@@ -150,9 +188,11 @@ jobs:
           deno test supabase/functions/_shared/waouh-commands-test.ts
           deno test supabase/functions/_shared/waouh-negotiation-intent-test.ts
           deno test supabase/functions/_shared/waouh-deal-open-test.ts
+          deno test supabase/functions/_shared/waouh-promote-test.ts
           deno test supabase/functions/_shared/waouh-interest-fastpath-test.ts
           deno test supabase/functions/_shared/waouh-message-catalog-test.ts
           deno test supabase/functions/_shared/waouh-commerce-v3-test.ts
+          deno test supabase/functions/_shared/waouh-commerce-states-test.ts
           deno test supabase/functions/_shared/waouh-dedupe-test.ts
           deno test supabase/functions/_shared/waouh-notif-thread-test.ts
           deno test supabase/functions/_shared/waouh-identity-paging-test.ts
