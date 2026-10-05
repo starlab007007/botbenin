@@ -29,7 +29,7 @@ async function aiExtract(text: string): Promise<any> {
     method: "POST",
     headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash-lite",
+      model: (Deno.env.get("GEMINI_CHAT_MODEL") || "google/gemini-3.5-flash-lite"),
       messages: [
         { role: "system", content: "Extrait depuis un snippet d'annonce BJ et retourne JSON {title, price (number FCFA, null si absent), category, condition (new/like_new/good/fair), city, seller_phone (229XXXXXXXX si visible), confidence (0-1)}. Si pas une annonce de vente, confidence=0." },
         { role: "user", content: text.slice(0, 1500) },
