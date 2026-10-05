@@ -43,12 +43,17 @@ on:
       - "supabase/functions/_shared/waouh-nexus-followup-core.ts"
       - "supabase/functions/_shared/waouh-opportunity-os.ts"
       - "supabase/functions/_shared/waouh-channel-router.ts"
+      - "supabase/functions/_shared/waouh-runtime-auth.ts"
       - "supabase/functions/_shared/agent-ai.ts"
       - "supabase/functions/_shared/waouh-price.ts"
       - "supabase/functions/waouh-notify-buyers/**"
       - "supabase/functions/waouh-geocode/**"
       - "supabase/functions/waouh-radar-apify/**"
       - "supabase/functions/waouh-radar-site-scraper/**"
+      - "supabase/functions/waouh-radar-process/**"
+      - "supabase/functions/waouh-serpapi-scout/**"
+      - "supabase/functions/waouh-radar-campaign-tick/**"
+      - "supabase/functions/waouh-alerts-check/**"
       - "supabase/functions/waouh-price-compare/**"
       - "supabase/functions/waouh-opportunity-worker/**"
       - "supabase/functions/waouh-agentic-core/**"
@@ -305,6 +310,10 @@ jobs:
             waouh-geocode
             waouh-radar-apify
             waouh-radar-site-scraper
+            waouh-radar-process
+            waouh-serpapi-scout
+            waouh-radar-campaign-tick
+            waouh-alerts-check
             waouh-price-compare
           )
           for fn in "${functions[@]}"; do
