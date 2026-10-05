@@ -283,6 +283,26 @@ comment on table public.waouh_persistent_intents is
 comment on table public.waouh_conversation_bus_events is
   'Cross-channel normalized events linking NEXUS contact, WAOUH chat and Deal Room continuity.';
 
+-- Existing Web transaction card reads the canonical transaction row directly.
+-- Keep RLS strict: only an authenticated participant may read its own row.
+drop policy if exists "Participant can view own transaction" on public.waouh_transactions;
+create policy "Participant can view own transaction"
+on public.waouh_transactions
+for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.waouh_users u
+    where u.auth_user_id = auth.uid()
+      and u.id = any(array[
+        waouh_transactions.buyer_id,
+        waouh_transactions.seller_id
+      ])
+  )
+);
+
+
 
 -- ---------------------------------------------------------------------------
 -- Canonical commerce -> Opportunity OS synchronization
