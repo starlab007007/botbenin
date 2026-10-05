@@ -534,13 +534,16 @@ export function WaouhMatchChatWindow({
       ])
     );
     if (!ids.length) return;
-    supabase
-      .from("waouh_notifications" as any)
-      .update({ opened: true })
-      .in("id", ids)
-      .then(({ error }) => {
-        if (error) console.warn("[waouh-match] markRead error", error);
-      });
+    void supabase.functions.invoke("waouh-history", {
+      headers: { "x-waouh-session": sessionId },
+      body: {
+        action: "mark_notifications_read",
+        sessionId,
+        notificationIds: ids,
+      },
+    }).then(({ error }) => {
+      if (error) console.warn("[waouh-match] markRead error", error);
+    });
   }, [active, match.notification_id, (match.notification_ids || []).join(",")]);
 
 
