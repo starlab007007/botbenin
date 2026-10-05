@@ -475,12 +475,16 @@ async function openCanonicalInternalDeal(
   mandate: any,
   signal: any,
   journey: any,
-  articleId: string,
+  target: { articleId?: string | null; catalogId?: string | null },
 ) {
   const owner = await resolveMandateOwnerWaouhUser(sb, String(mandate.owner_id));
   if (!owner?.id) return { contacted: false, reason: "mandate_owner_waouh_identity_missing" };
 
-  const ref = `autonomy:internal-deal:${mandate.id}:${articleId}`;
+  const articleId = target.articleId ?? null;
+  const catalogId = target.catalogId ?? null;
+  const targetKey = articleId ? `article:${articleId}` : `catalog:${catalogId}`;
+  if (!articleId && !catalogId) return { contacted: false, reason: "canonical_target_missing" };
+  const ref = `autonomy:internal-deal:${mandate.id}:${targetKey}`;
   const { data: existingBus } = await sb.from("waouh_conversation_bus_events")
     .select("id,thread_id,negotiation_id")
     .eq("external_ref", ref)
@@ -501,7 +505,8 @@ async function openCanonicalInternalDeal(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      article_id: articleId,
+      ...(articleId ? { article_id: articleId } : {}),
+      ...(catalogId ? { catalog_id: catalogId } : {}),
       buyer_user_id: owner.id,
       source: "avatar_commerce",
     }),
@@ -516,6 +521,7 @@ async function openCanonicalInternalDeal(
   if (body?.skipped === "self") {
     return { contacted: false, reason: "self_article" };
   }
+  const resolvedArticleId = typeof body?.article_id === "string" ? body.article_id : articleId;
   const threadId = typeof body?.thread_id === "string" ? body.thread_id : null;
   const negotiationId = typeof body?.negotiation_id === "string" ? body.negotiation_id : null;
   if (!threadId) {
@@ -524,7 +530,7 @@ async function openCanonicalInternalDeal(
 
   const now = new Date().toISOString();
   await sb.from("waouh_opportunity_journeys").update({
-    article_id: articleId,
+    article_id: resolvedArticleId,
     thread_id: threadId,
     negotiation_id: negotiationId,
     stage: "waiting_reply",
@@ -550,7 +556,7 @@ async function openCanonicalInternalDeal(
     p_fabric_id: signal.fabric_id,
     p_journey_id: journey.id,
     p_mandate_id: mandate.id,
-    p_article_id: articleId,
+    p_article_id: resolvedArticleId,
     p_thread_id: threadId,
     p_negotiation_id: negotiationId,
     p_deal_id: null,
@@ -568,7 +574,7 @@ async function openCanonicalInternalDeal(
     channel: "waouh",
     thread_id: threadId,
     negotiation_id: negotiationId,
-    article_id: articleId,
+    article_id: resolvedArticleId,
   };
 }
 
@@ -587,11 +593,18 @@ async function contactInternal(
   const articleId =
     signal.fabric_id?.startsWith("article:") ? signal.fabric_id.slice("article:".length) :
     (signal.evidence?.article_id ?? null);
+  const catalogId =
+    signal.fabric_id?.startsWith("catalog:") ? signal.fabric_id.slice("catalog:".length) :
+    (signal.evidence?.catalog_id ?? null);
 
-  // BUY/ASK + article WAOUH : use the canonical deal writer. This creates the
-  // authoritative thread_id/negotiation instead of a parallel Avatar thread.
-  if (articleId && mandate.mode !== "sell") {
-    return await openCanonicalInternalDeal(sb, mandate, signal, journey, String(articleId));
+  // BUY/ASK + article/catalogue WAOUH : one canonical writer. A catalog item is
+  // first promoted to an article by waouh-buyer-interest, then the authoritative
+  // thread_id/negotiation is returned and attached to the same Journey.
+  if ((articleId || catalogId) && mandate.mode !== "sell") {
+    return await openCanonicalInternalDeal(sb, mandate, signal, journey, {
+      articleId: articleId ? String(articleId) : null,
+      catalogId: catalogId ? String(catalogId) : null,
+    });
   }
 
   const recipient = await resolveInternalRecipient(sb, signal);
