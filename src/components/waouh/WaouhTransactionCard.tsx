@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Circle, CreditCard, Loader2, ShieldCheck, Truck, Star, PackageCheck, MessageCircle } from "lucide-react";
+import { CheckCircle2, Circle, CreditCard, Loader2, ShieldCheck, Truck, Star, MessageCircle } from "lucide-react";
 import { WaouhDealPaymentDialog } from "./WaouhDealPaymentDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
