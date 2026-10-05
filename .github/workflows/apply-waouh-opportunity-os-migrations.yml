@@ -72,8 +72,10 @@ jobs:
 
           python - <<'PY'
           import json, sys
-          rows=json.load(open("/tmp/preflight-result.json", encoding="utf-8"))
-          row=(rows[0] if isinstance(rows,list) and rows else rows)
+          payload=json.load(open("/tmp/preflight-result.json", encoding="utf-8"))
+          rows=payload if isinstance(payload,list) else payload.get("result", payload.get("data", []))
+          if isinstance(rows,dict): rows=[rows]
+          row=rows[0] if rows else {}
           required=["cron_ok","net_ok","vault_ok","journeys_ok","articles_ok","threads_ok","negotiations_ok","deals_ok"]
           missing=[k for k in required if row.get(k) is not True]
           if missing:
@@ -96,8 +98,10 @@ jobs:
 
           python - <<'PY'
           import json, sys
-          rows=json.load(open("/tmp/secret-check-result.json", encoding="utf-8"))
-          row=(rows[0] if isinstance(rows,list) and rows else rows)
+          payload=json.load(open("/tmp/secret-check-result.json", encoding="utf-8"))
+          rows=payload if isinstance(payload,list) else payload.get("result", payload.get("data", []))
+          if isinstance(rows,dict): rows=[rows]
+          row=rows[0] if rows else {}
           if row.get("worker_secret_ready") is not True:
               print("::error::Secret Vault waouh_tel_internal_secret absent.")
               sys.exit(1)
@@ -139,8 +143,10 @@ jobs:
 
           python - <<'PY'
           import json, sys
-          rows=json.load(open("/tmp/core-check-result.json", encoding="utf-8"))
-          row=(rows[0] if isinstance(rows,list) and rows else rows)
+          payload=json.load(open("/tmp/core-check-result.json", encoding="utf-8"))
+          rows=payload if isinstance(payload,list) else payload.get("result", payload.get("data", []))
+          if isinstance(rows,dict): rows=[rows]
+          row=rows[0] if rows else {}
           missing=[k for k,v in row.items() if v is not True]
           if missing:
               print("::error::Schéma Opportunity OS incomplet après migration: " + ", ".join(missing))
@@ -180,8 +186,10 @@ jobs:
 
           python - <<'PY'
           import json, sys
-          rows=json.load(open("/tmp/final-check-result.json", encoding="utf-8"))
-          row=(rows[0] if isinstance(rows,list) and rows else rows)
+          payload=json.load(open("/tmp/final-check-result.json", encoding="utf-8"))
+          rows=payload if isinstance(payload,list) else payload.get("result", payload.get("data", []))
+          if isinstance(rows,dict): rows=[rows]
+          row=rows[0] if rows else {}
           missing=[k for k,v in row.items() if v is not True]
           if missing:
               print("::error::Validation finale Opportunity OS échouée: " + ", ".join(missing))
