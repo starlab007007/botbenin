@@ -231,15 +231,47 @@ jobs:
             waouh-stock-ingest
             waouh-nexus-followup
             waouh-avatar-briefing
-            waouh-agentic-core
             waouh-outbound-dispatch
-            waouh-opportunity-worker
           )
           for fn in "${functions[@]}"; do
             echo "🚀 Deploying $fn"
             supabase functions deploy "$fn"               --project-ref "$SUPABASE_PROJECT_REF"               --use-api               --no-verify-jwt
           done
           echo "✅ Existing WAOUH Chat function slots updated."
+
+      - name: Deploy Opportunity OS in existing production slots
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Production is at the Edge Function quota. Do not create new slugs.
+          # Agentic Core already runs under waouh-studio-e2e-v21465.
+          # Opportunity Worker reuses waouh-e2e-v3-relay, a documented disabled 410 stub.
+          aliases=(
+            "waouh-studio-e2e-v21465|waouh-agentic-core|true"
+            "waouh-e2e-v3-relay|waouh-opportunity-worker|false"
+          )
+          for mapping in "${aliases[@]}"; do
+            IFS='|' read -r alias source verify_jwt <<< "$mapping"
+            test -f "supabase/functions/$source/index.ts" || {
+              echo "::error::Source manquante pour $alias : $source"
+              exit 1
+            }
+            rm -rf "supabase/functions/$alias"
+            mkdir -p "supabase/functions/$alias"
+            cp "supabase/functions/$source/index.ts" "supabase/functions/$alias/index.ts"
+
+            deploy_args=(
+              functions deploy "$alias"
+              --project-ref "$SUPABASE_PROJECT_REF"
+              --use-api
+            )
+            if [ "$verify_jwt" = "false" ]; then
+              deploy_args+=(--no-verify-jwt)
+            fi
+            echo "🚀 $alias <= $source (verify_jwt=$verify_jwt)"
+            supabase "${deploy_args[@]}"
+          done
+          echo "✅ Opportunity OS deployed without creating Edge Function slots."
 
       - name: Deploy WAOUH Chat v3 commerce action
         shell: bash
