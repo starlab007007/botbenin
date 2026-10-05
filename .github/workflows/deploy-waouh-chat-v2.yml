@@ -55,6 +55,10 @@ on:
       - "supabase/functions/waouh-radar-campaign-tick/**"
       - "supabase/functions/waouh-alerts-check/**"
       - "supabase/functions/waouh-price-compare/**"
+      - "supabase/functions/waouh-radar-wa-webhook/**"
+      - "supabase/functions/waouh-stock-analyze/**"
+      - "supabase/functions/waouh-bi-query/**"
+      - "supabase/functions/waouh-agent-insights/**"
       - "supabase/functions/waouh-opportunity-worker/**"
       - "supabase/functions/waouh-agentic-core/**"
       - "supabase/functions/waouh-outbound-dispatch/**"
@@ -315,6 +319,10 @@ jobs:
             waouh-radar-campaign-tick
             waouh-alerts-check
             waouh-price-compare
+            waouh-radar-wa-webhook
+            waouh-stock-analyze
+            waouh-bi-query
+            waouh-agent-insights
           )
           for fn in "${functions[@]}"; do
             echo "🚀 Deploying $fn"
