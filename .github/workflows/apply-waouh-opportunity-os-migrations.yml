@@ -196,3 +196,60 @@ jobs:
               sys.exit(1)
           print("✅ Opportunity OS schema + scheduler prêts pour le déploiement Edge.")
           PY
+
+
+      - name: Record exact applied migration versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Record only the two migrations that this controlled workflow has
+          # just applied and verified. No historical repair or status rewrite.
+          python - <<'PY' >/tmp/history-record.json
+          import json
+          query = """
+          insert into supabase_migrations.schema_migrations
+            (version, name, statements, created_by)
+          values
+            (
+              '20261004223000',
+              'waouh_opportunity_os',
+              array['-- applied and verified by controlled Opportunity OS release']::text[],
+              'waouh-opportunity-os-workflow'
+            ),
+            (
+              '20261004224000',
+              'waouh_opportunity_worker_cron',
+              array['-- applied and verified by controlled Opportunity OS release']::text[],
+              'waouh-opportunity-os-workflow'
+            )
+          on conflict (version) do nothing;
+          """
+          print(json.dumps({"query": query}))
+          PY
+
+          curl --fail-with-body --silent --show-error             "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query"             --request POST             --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN"             --header "Content-Type: application/json"             --data-binary @/tmp/history-record.json             --output /tmp/history-record-result.json
+
+          python - <<'PY' >/tmp/history-check.json
+          import json
+          print(json.dumps({"query": """
+          select version
+          from supabase_migrations.schema_migrations
+          where version in ('20261004223000','20261004224000')
+          order by version
+          """}))
+          PY
+
+          curl --fail-with-body --silent --show-error             "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query"             --request POST             --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN"             --header "Content-Type: application/json"             --data-binary @/tmp/history-check.json             --output /tmp/history-check-result.json
+
+          python - <<'PY'
+          import json, sys
+          payload=json.load(open("/tmp/history-check-result.json", encoding="utf-8"))
+          rows=payload if isinstance(payload,list) else payload.get("result", payload.get("data", []))
+          if isinstance(rows,dict): rows=[rows]
+          versions={str(row.get("version")) for row in rows}
+          expected={"20261004223000","20261004224000"}
+          if versions != expected:
+              print("::error::Historique ciblé incomplet: " + repr(sorted(versions)))
+              sys.exit(1)
+          print("✅ Les deux versions Opportunity OS sont enregistrées dans l’historique.")
+          PY
