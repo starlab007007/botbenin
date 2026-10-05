@@ -1,0 +1,190 @@
+name: Apply WAOUH Opportunity OS migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type APPLY_OPPORTUNITY_OS to apply the two targeted production migrations"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: waouh-opportunity-os-production-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Apply targeted Opportunity OS schema
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      SUPABASE_PROJECT_REF: mvynepqulhflxtyymtzs
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+    steps:
+      - name: Require explicit production confirmation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event.inputs.confirm }}" != "APPLY_OPPORTUNITY_OS" ]; then
+            echo "::error::Confirmation invalide. Aucune migration n'a été appliquée."
+            exit 1
+          fi
+
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+
+      - name: Validate targeted files only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f supabase/migrations/20261004223000_waouh_opportunity_os.sql
+          test -f supabase/migrations/20261004224000_waouh_opportunity_worker_cron.sql
+          grep -q "waouh_contact_packs" supabase/migrations/20261004223000_waouh_opportunity_os.sql
+          grep -q "waouh-opportunity-worker-10m" supabase/migrations/20261004224000_waouh_opportunity_worker_cron.sql
+          echo "✅ Deux migrations Opportunity OS ciblées présentes."
+
+      - name: Preflight production dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python - <<'PY' >/tmp/preflight.json
+          import json
+          print(json.dumps({"query": """
+          select
+            to_regnamespace('cron') is not null as cron_ok,
+            to_regnamespace('net') is not null as net_ok,
+            to_regnamespace('vault') is not null as vault_ok,
+            to_regclass('public.waouh_opportunity_journeys') is not null as journeys_ok,
+            to_regclass('public.waouh_articles') is not null as articles_ok,
+            to_regclass('public.waouh_chat_threads') is not null as threads_ok,
+            to_regclass('public.waouh_negotiations') is not null as negotiations_ok,
+            to_regclass('public.waouh_deals') is not null as deals_ok
+          """}))
+          PY
+
+          curl --fail-with-body --silent --show-error             "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query"             --request POST             --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN"             --header "Content-Type: application/json"             --data-binary @/tmp/preflight.json             --output /tmp/preflight-result.json
+
+          python - <<'PY'
+          import json, sys
+          rows=json.load(open("/tmp/preflight-result.json", encoding="utf-8"))
+          row=(rows[0] if isinstance(rows,list) and rows else rows)
+          required=["cron_ok","net_ok","vault_ok","journeys_ok","articles_ok","threads_ok","negotiations_ok","deals_ok"]
+          missing=[k for k in required if row.get(k) is not True]
+          if missing:
+              print("::error::Préconditions absentes: " + ", ".join(missing))
+              sys.exit(1)
+          print("✅ Dépendances schéma présentes.")
+          PY
+
+          python - <<'PY' >/tmp/secret-check.json
+          import json
+          print(json.dumps({"query": """
+          select exists(
+            select 1 from vault.decrypted_secrets
+            where name='waouh_tel_internal_secret'
+          ) as worker_secret_ready
+          """}))
+          PY
+
+          curl --fail-with-body --silent --show-error             "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query"             --request POST             --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN"             --header "Content-Type: application/json"             --data-binary @/tmp/secret-check.json             --output /tmp/secret-check-result.json
+
+          python - <<'PY'
+          import json, sys
+          rows=json.load(open("/tmp/secret-check-result.json", encoding="utf-8"))
+          row=(rows[0] if isinstance(rows,list) and rows else rows)
+          if row.get("worker_secret_ready") is not True:
+              print("::error::Secret Vault waouh_tel_internal_secret absent.")
+              sys.exit(1)
+          print("✅ Secret interne du worker présent.")
+          PY
+
+      - name: Apply Opportunity OS core migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >/tmp/migration-core.json
+          import json
+          from pathlib import Path
+          sql=Path("supabase/migrations/20261004223000_waouh_opportunity_os.sql").read_text(encoding="utf-8")
+          print(json.dumps({"query": sql}))
+          PY
+
+          curl --fail-with-body --silent --show-error             "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query"             --request POST             --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN"             --header "Content-Type: application/json"             --data-binary @/tmp/migration-core.json             --output /tmp/migration-core-result.json
+          echo "✅ Migration Opportunity OS core appliquée."
+
+      - name: Verify core schema before scheduler
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >/tmp/core-check.json
+          import json
+          print(json.dumps({"query": """
+          select
+            to_regclass('public.waouh_avatar_mandates') is not null as mandates,
+            to_regclass('public.waouh_persistent_intents') is not null as intents,
+            to_regclass('public.waouh_contact_packs') is not null as packs,
+            to_regclass('public.waouh_conversation_bus_events') is not null as bus,
+            to_regprocedure('public.waouh_sync_opportunity_from_negotiation()') is not null as negotiation_sync,
+            to_regprocedure('public.waouh_sync_opportunity_from_deal()') is not null as deal_sync
+          """}))
+          PY
+
+          curl --fail-with-body --silent --show-error             "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query"             --request POST             --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN"             --header "Content-Type: application/json"             --data-binary @/tmp/core-check.json             --output /tmp/core-check-result.json
+
+          python - <<'PY'
+          import json, sys
+          rows=json.load(open("/tmp/core-check-result.json", encoding="utf-8"))
+          row=(rows[0] if isinstance(rows,list) and rows else rows)
+          missing=[k for k,v in row.items() if v is not True]
+          if missing:
+              print("::error::Schéma Opportunity OS incomplet après migration: " + ", ".join(missing))
+              sys.exit(1)
+          print("✅ Schéma Opportunity OS vérifié.")
+          PY
+
+      - name: Apply Opportunity OS scheduler migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >/tmp/migration-cron.json
+          import json
+          from pathlib import Path
+          sql=Path("supabase/migrations/20261004224000_waouh_opportunity_worker_cron.sql").read_text(encoding="utf-8")
+          print(json.dumps({"query": sql}))
+          PY
+
+          curl --fail-with-body --silent --show-error             "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query"             --request POST             --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN"             --header "Content-Type: application/json"             --data-binary @/tmp/migration-cron.json             --output /tmp/migration-cron-result.json
+          echo "✅ Scheduler Opportunity OS appliqué."
+
+      - name: Verify scheduler and final schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY' >/tmp/final-check.json
+          import json
+          print(json.dumps({"query": """
+          select
+            exists(select 1 from cron.job where jobname='waouh-opportunity-worker-10m') as cron_scheduled,
+            to_regprocedure('public.waouh_schedule_opportunity_worker(text)') is not null as scheduler_function,
+            to_regprocedure('public.waouh_unschedule_opportunity_worker()') is not null as unscheduler_function
+          """}))
+          PY
+
+          curl --fail-with-body --silent --show-error             "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query"             --request POST             --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN"             --header "Content-Type: application/json"             --data-binary @/tmp/final-check.json             --output /tmp/final-check-result.json
+
+          python - <<'PY'
+          import json, sys
+          rows=json.load(open("/tmp/final-check-result.json", encoding="utf-8"))
+          row=(rows[0] if isinstance(rows,list) and rows else rows)
+          missing=[k for k,v in row.items() if v is not True]
+          if missing:
+              print("::error::Validation finale Opportunity OS échouée: " + ", ".join(missing))
+              sys.exit(1)
+          print("✅ Opportunity OS schema + scheduler prêts pour le déploiement Edge.")
+          PY
