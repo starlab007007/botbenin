@@ -89,7 +89,7 @@ export default function ChatListScreen() {
 
   const { user } = useMobileAuth();
   const { profile } = useMobileProfile();
-  const { waouhUserIds, sessionId, ready } = useWaouhIdentity();
+  const { sessionId, ready } = useWaouhIdentity();
 
   // Snapshot hydration: render instantly from localStorage while the network
   // refetch happens in background. Eliminates blank screen on slow connections.
