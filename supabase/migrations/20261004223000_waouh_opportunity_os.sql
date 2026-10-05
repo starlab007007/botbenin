@@ -458,14 +458,14 @@ begin
     v_ref := 'negotiation:' || new.id::text || ':' || new.state || ':' ||
       coalesce(new.last_actor,'') || ':' || coalesce(new.last_offer_price::text,'') ||
       ':journey:' || v_row.id::text;
-    if v_row.fabric_id is not null then
+    if v_row.fabric_id is not null and v_row.stage in ('negotiating','agreed') then
       update public.waouh_contact_packs
-         set contactability_level=case when v_row.stage in ('negotiating','agreed') then 'C5' else contactability_level end,
-             readiness_level=case when v_row.stage in ('negotiating','agreed') then 'R5' else readiness_level end,
-             readiness_score=case when v_row.stage in ('negotiating','agreed') then 100 else readiness_score end,
-             actionability_score=case when v_row.stage in ('negotiating','agreed') then 100 else actionability_score end,
-             next_best_action=v_row.next_best_action,
-             last_verified_at=case when v_row.stage in ('negotiating','agreed') then now() else last_verified_at end,
+         set contactability_level='C5',
+             readiness_level='R5',
+             readiness_score=100,
+             actionability_score=100,
+             next_best_action='NEGOTIATE',
+             last_verified_at=now(),
              updated_at=now()
        where fabric_id=v_row.fabric_id;
     end if;
@@ -634,14 +634,13 @@ begin
       coalesce(new.seller_confirmed_at::text,'') || ':' ||
       coalesce(new.buyer_payment_selected_at::text,'') || ':' ||
       coalesce(new.courier_user_id::text,'') || ':journey:' || v_row.id::text;
-    if v_row.fabric_id is not null then
+    if v_row.fabric_id is not null and v_stage in ('agreed','executing','completed') then
       update public.waouh_contact_packs
-         set contactability_level=case when v_stage in ('agreed','executing','completed') then 'C5' else contactability_level end,
-             readiness_level=case when v_stage in ('agreed','executing','completed') then 'R5' else readiness_level end,
-             readiness_score=case when v_stage in ('agreed','executing','completed') then 100 else readiness_score end,
-             actionability_score=case when v_stage in ('agreed','executing','completed') then 100 else actionability_score end,
-             next_best_action=v_nba,
-             last_verified_at=case when v_stage in ('agreed','executing','completed') then now() else last_verified_at end,
+         set contactability_level='C5',
+             readiness_level='R5',
+             readiness_score=100,
+             actionability_score=100,
+             last_verified_at=now(),
              updated_at=now()
        where fabric_id=v_row.fabric_id;
     end if;
