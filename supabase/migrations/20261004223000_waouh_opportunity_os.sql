@@ -640,6 +640,7 @@ begin
              readiness_level='R5',
              readiness_score=100,
              actionability_score=100,
+             next_best_action=v_nba,
              last_verified_at=now(),
              updated_at=now()
        where fabric_id=v_row.fabric_id;
