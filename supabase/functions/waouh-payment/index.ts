@@ -3,6 +3,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
 import { pushSyncedEvent } from "../_shared/waouh-sync.ts";
+import { paymentAllowedAfterDelivery } from "../_shared/waouh-commerce-states.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -107,8 +108,7 @@ Deno.serve(async (req) => {
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
-        if (canonicalDeal &&
-            !["delivered", "completed"].includes(String(canonicalDeal.status || ""))) {
+        if (canonicalDeal && !paymentAllowedAfterDelivery(canonicalDeal.status)) {
           return json({
             error: "payment_after_delivery_only",
             message: "Le paiement est confirmé après la remise/livraison dans WAOUH.",
