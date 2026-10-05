@@ -107,7 +107,7 @@ async function resolvePack(sb: SupabaseClient, signal: any) {
   let entityId: string | null = null;
   let externalSignal: any = null;
   let contacts: any[] = [];
-  const nativeTargets: Array<{ channel: "sms" | "rcs"; tel_user_id: string; last4?: string | null }> = [];
+  const nativeTargets: Array<{ channel: "sms" | "rcs"; tel_user_id: string; last4?: string | null; contact_id?: string | null }> = [];
   let effectiveContactability = String(signal.contactability_level ?? "C0");
   if (internal) {
     channels.push({
@@ -176,6 +176,11 @@ async function resolvePack(sb: SupabaseClient, signal: any) {
                 .in("tel_user_id", telIds),
             ]);
             const userById = new Map((telUsers ?? []).map((row: any) => [String(row.id), row]));
+            const contactByHash = new Map(
+              contacts
+                .filter((row: any) => row.value_hash)
+                .map((row: any) => [String(row.value_hash), row]),
+            );
             const capabilityByUser = new Map((capabilities ?? []).map((row: any) => [String(row.tel_user_id), row]));
             for (const consent of consents ?? []) {
               const channel = String(consent.channel || "");
@@ -201,6 +206,7 @@ async function resolvePack(sb: SupabaseClient, signal: any) {
                 channel: channel as "sms" | "rcs",
                 tel_user_id: String(telUser.id),
                 last4: telUser.phone_last4 ?? null,
+                contact_id: contactByHash.get(String(telUser.phone_hash))?.id ?? null,
               });
             }
             if (nativeTargets.length && ["C0","C1","C2"].includes(effectiveContactability)) {
@@ -532,6 +538,7 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
       verified: row.verified,
       reachable: row.reachable,
       public_business: row.public_business,
+      consent_state: row.consent_state,
       last4: row.last4,
     })),
     contactability: externalSignal.contactability_level || pack.contactability_level,
@@ -634,6 +641,7 @@ async function runExternalFollowUp(
       verified: row.verified,
       reachable: row.reachable,
       public_business: row.public_business,
+      consent_state: row.consent_state,
       last4: row.last4,
     })),
     contactability: resolved.externalSignal?.contactability_level || resolved.pack.contactability_level,
