@@ -77,7 +77,9 @@ function send(method, params = {}) {
 async function connectCdp() {
   const started = Date.now();
   let pageTarget;
-  while (Date.now() - started < 15000) {
+  let lastError = "";
+
+  while (Date.now() - started < 30000) {
     try {
       const response = await fetch(`http://127.0.0.1:${port}/json/list`);
       if (response.ok) {
@@ -85,10 +87,33 @@ async function connectCdp() {
         pageTarget = targets.find((target) => target.type === "page" && target.webSocketDebuggerUrl);
         if (pageTarget) break;
       }
-    } catch {}
-    await sleep(200);
+
+      // Recent headless Chrome can expose the DevTools browser endpoint before
+      // it publishes an initial page target. Create one explicitly instead of
+      // failing the whole responsive smoke on runner startup timing.
+      const created = await fetch(
+        `http://127.0.0.1:${port}/json/new?${encodeURIComponent("about:blank")}`,
+        { method: "PUT" },
+      );
+      if (created.ok) {
+        const target = await created.json();
+        if (target?.type === "page" && target?.webSocketDebuggerUrl) {
+          pageTarget = target;
+          break;
+        }
+      } else {
+        lastError = `json/new HTTP ${created.status}`;
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+    await sleep(250);
   }
-  if (!pageTarget) fail("Chrome DevTools page target unavailable");
+
+  if (!pageTarget) {
+    const exited = chromeProcess.exitCode !== null ? ` chrome_exit=${chromeProcess.exitCode}` : "";
+    fail(`Chrome DevTools page target unavailable after 30s${exited}${lastError ? ` last_error=${lastError}` : ""}`);
+  }
 
   ws = new WebSocket(pageTarget.webSocketDebuggerUrl);
   await new Promise((resolve, reject) => {
