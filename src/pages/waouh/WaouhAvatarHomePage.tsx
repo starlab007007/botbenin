@@ -39,6 +39,7 @@ import { BotGreeting, botActivityLine } from "@/components/waouh/bot/BotGreeting
 import type { BotExpression } from "@/components/waouh/bot/BotCharacter";
 import { BotWorkingStrip } from "@/components/waouh/bot/BotWorkingStrip";
 import { useMobileProfile } from "@/app-mobile/hooks/useMobileProfile";
+import { buildWaouhAuthRedirect } from "@/lib/waouhAccessPolicy";
 
 type AvatarProfile = {
   name: string;
@@ -214,6 +215,12 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
     const text = value.trim();
     if (!text) return;
 
+    if (!user) {
+      const target = `/app/chat/waouh?prefill=${encodeURIComponent(text)}`;
+      navigate(buildWaouhAuthRedirect(target));
+      return;
+    }
+
     if (onAsk) {
       onAsk(text);
       return;
@@ -228,7 +235,7 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
     } else {
       navigate(`/app/chat/waouh?prefill=${encodeURIComponent(text)}`);
     }
-  }, [navigate, onAsk]);
+  }, [navigate, onAsk, user]);
 
   const submitPrompt = () => {
     const text = prompt.trim();
@@ -265,6 +272,11 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
   };
 
   const storeProfile = () => {
+    if (!user) {
+      setSettingsOpen(false);
+      navigate(buildWaouhAuthRedirect("/app/avatar"));
+      return;
+    }
     const next = { ...draft, name: draft.name.trim() || "Bot" };
     saveAvatarProfile(next);
     setProfile(next);
@@ -367,6 +379,10 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
                   variant="outline"
                   className="rounded-2xl bg-white/80"
                   onClick={() => {
+                    if (!user) {
+                      navigate(buildWaouhAuthRedirect("/app/avatar"));
+                      return;
+                    }
                     setDraft(profile);
                     setSettingsOpen(true);
                   }}
