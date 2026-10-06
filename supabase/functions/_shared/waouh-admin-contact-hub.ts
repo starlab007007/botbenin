@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { decryptPhone, sha256Hex } from "../_shared/waouh-tel/crypto.ts";
+import { decryptPhone, encryptPhone, hashPhone, sha256Hex } from "../_shared/waouh-tel/crypto.ts";
+import { buildContactPack } from "../_shared/waouh-opportunity-os.ts";
 import { formatPhoneDisplay, normalizeE164, phoneLast4, providerPhone } from "../_shared/waouh-tel/phone.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -219,6 +220,7 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
   if (!rows.length) return [];
 
   const externalIds = uniq(rows.map((r) => prefixedUuid(r.fabric_id, "external:")));
+  const legacyExternalIds = uniq(rows.map((r) => prefixedUuid(r.fabric_id, "legacy_external:")));
   const catalogIds = uniq(rows.flatMap((r) => [
     asUuid(r.evidence?.catalog_id),
     prefixedUuid(r.fabric_id, "catalog:"),
@@ -234,11 +236,16 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
   const directBusinessIds = uniq(rows.map((r) => asUuid(r.evidence?.business_id)));
   const directRadarIds = uniq(rows.map((r) => asUuid(r.evidence?.radar_signal_id)));
 
-  const [externalRes, catalogRes, articleRes] = await Promise.all([
+  const [externalRes, legacyExternalRes, catalogRes, articleRes] = await Promise.all([
     externalIds.length
       ? service.from("waouh_external_commerce_signals")
         .select("id,entity_id,actor_name,contact_consent_basis,contact_summary,source_key")
         .in("id", externalIds)
+      : Promise.resolve({ data: [], error: null }),
+    legacyExternalIds.length
+      ? service.from("waouh_external_listings")
+        .select("id,seller_name,seller_phone,source")
+        .in("id", legacyExternalIds)
       : Promise.resolve({ data: [], error: null }),
     catalogIds.length
       ? service.from("waouh_unified_catalog")
@@ -252,10 +259,12 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
       : Promise.resolve({ data: [], error: null }),
   ]);
   if (externalRes.error) throw externalRes.error;
+  if (legacyExternalRes.error) throw legacyExternalRes.error;
   if (catalogRes.error) throw catalogRes.error;
   if (articleRes.error) throw articleRes.error;
 
   const externalMap = indexBy(externalRes.data, "id");
+  const legacyExternalMap = indexBy(legacyExternalRes.data, "id");
   const catalogMap = indexBy(catalogRes.data, "id");
   const articleMap = indexBy(articleRes.data, "id");
 
@@ -337,6 +346,20 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
         });
       }
     }
+
+    const legacyExternalId = prefixedUuid(row.fabric_id, "legacy_external:");
+    const legacyExternal = legacyExternalId ? legacyExternalMap.get(legacyExternalId) : null;
+    if (legacyExternal?.seller_phone) addCandidate(contacts, {
+      channel: "phone",
+      value: legacyExternal.seller_phone,
+      source: row.source_key,
+      origin_kind: "legacy_external_listing",
+      origin_id: legacyExternal.id,
+      contactability_level: rowLevel,
+      verification_status: "observed",
+      consent_state: "unknown",
+      label: legacyExternal.seller_name || legacyExternal.source || null,
+    });
 
     const catalogId = asUuid(evidence.catalog_id) || prefixedUuid(row.fabric_id, "catalog:");
     const catalog = catalogId ? catalogMap.get(catalogId) : null;
@@ -592,6 +615,291 @@ async function updateVerifiedSource(service: any, contact: ContactCandidate, e16
   }
 }
 
+
+const CONTACT_LEVEL_RANK: Record<string, number> = { C0: 0, C1: 1, C2: 2, C3: 3, C4: 4, C5: 5 };
+
+function strongerContactLevel(left: unknown, right: unknown) {
+  const a = String(left ?? "C0").toUpperCase();
+  const b = String(right ?? "C0").toUpperCase();
+  return (CONTACT_LEVEL_RANK[a] ?? 0) >= (CONTACT_LEVEL_RANK[b] ?? 0) ? a : b;
+}
+
+function normalizedConsent(value: unknown) {
+  const consent = String(value ?? "unknown").toLowerCase();
+  return ["unknown", "public_business", "initiated", "opt_in", "partner_contract", "revoked"].includes(consent)
+    ? consent
+    : "unknown";
+}
+
+function normalizedVerification(value: unknown, reachable: boolean | null) {
+  if (reachable === true) return "reachable";
+  if (reachable === false) return "unreachable";
+  const status = String(value ?? "observed").toLowerCase();
+  return ["unknown", "observed", "verified", "reachable", "unreachable", "revoked"].includes(status)
+    ? status
+    : "observed";
+}
+
+function entityTypeFor(row: AnyRow, contact: ContactCandidate) {
+  if (contact.public_business || ["business", "organization"].includes(String(row.actor_type || "").toLowerCase())) {
+    return "business";
+  }
+  if (String(row.actor_type || "").toLowerCase() === "broker") return "broker";
+  if (String(row.actor_type || "").toLowerCase() === "scout") return "scout";
+  return "person";
+}
+
+async function cachedWahaContact(service: any, e164: string) {
+  const variants = phoneCandidates(e164).map((digits) => `+${digits}`);
+  const { data, error } = await service.from("waouh_lid_phone_map")
+    .select("jid,phone_e164,session,last_synced_at")
+    .in("phone_e164", variants)
+    .order("last_synced_at", { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  const row = (data ?? [])[0] ?? null;
+  return row
+    ? { reachable: true, chat_id: row.jid ? String(row.jid) : null, session: row.session ? String(row.session) : null }
+    : { reachable: null, chat_id: null, session: null };
+}
+
+async function ensureCanonicalEntity(
+  service: any,
+  row: AnyRow,
+  contact: ContactCandidate,
+  phoneHash: string,
+) {
+  const { data: matches, error: matchError } = await service.from("waouh_entity_contacts")
+    .select("entity_id")
+    .eq("value_hash", phoneHash)
+    .in("channel", ["phone", "whatsapp"])
+    .limit(1);
+  if (matchError) throw matchError;
+
+  let entityId = matches?.[0]?.entity_id ? String(matches[0].entity_id) : null;
+  let entity: AnyRow | null = null;
+  if (entityId) {
+    const { data, error } = await service.from("waouh_commerce_entities")
+      .select("*").eq("id", entityId).maybeSingle();
+    if (error) throw error;
+    entity = data;
+  }
+
+  const canonicalKey = `phone:${phoneHash}`;
+  if (!entity) {
+    const { data, error } = await service.from("waouh_commerce_entities")
+      .select("*").eq("canonical_key", canonicalKey)
+      .order("last_seen_at", { ascending: false })
+      .limit(1);
+    if (error) throw error;
+    entity = (data ?? [])[0] ?? null;
+  }
+
+  const sourceKeys = [...new Set([
+    ...(Array.isArray(entity?.source_keys) ? entity.source_keys : []),
+    String(row.source_key || contact.source || "unknown"),
+  ].filter(Boolean))];
+
+  if (!entity) {
+    const { data, error } = await service.from("waouh_commerce_entities").insert({
+      entity_type: entityTypeFor(row, contact),
+      primary_name: contact.label || row.subject || null,
+      canonical_key: canonicalKey,
+      country_code: "BJ",
+      city: row.city || null,
+      verification_state: contact.public_business ? "source_verified" : "unverified",
+      trust_score: contact.public_business ? 70 : Math.max(35, Math.min(100, Number(row.trust_score || 50))),
+      source_keys: sourceKeys,
+      metadata: {
+        admin_contact_backfill: true,
+        fabric_ids: [row.fabric_id],
+      },
+    }).select("*").single();
+    if (error) throw error;
+    entity = data;
+  } else {
+    const metadata = {
+      ...(entity.metadata || {}),
+      admin_contact_backfill: true,
+      fabric_ids: [...new Set([
+        ...(Array.isArray(entity.metadata?.fabric_ids) ? entity.metadata.fabric_ids : []),
+        row.fabric_id,
+      ].filter(Boolean))].slice(-100),
+    };
+    const { data, error } = await service.from("waouh_commerce_entities").update({
+      source_keys: sourceKeys,
+      primary_name: entity.primary_name || contact.label || row.subject || null,
+      city: entity.city || row.city || null,
+      last_seen_at: new Date().toISOString(),
+      metadata,
+      updated_at: new Date().toISOString(),
+    }).eq("id", entity.id).select("*").single();
+    if (error) throw error;
+    entity = data;
+  }
+
+  return entity;
+}
+
+async function persistCanonicalPhone(
+  service: any,
+  row: AnyRow,
+  contact: ContactCandidate,
+) {
+  const e164 = contact.normalized;
+  if (!e164) return null;
+
+  const phoneHash = await hashPhone(e164);
+  const entity = await ensureCanonicalEntity(service, row, contact, phoneHash);
+  const cached = await cachedWahaContact(service, e164);
+  const reachable = contact.whatsapp_reachable === true ? true : cached.reachable;
+  const channel = contact.channel === "whatsapp" || reachable === true ? "whatsapp" : "phone";
+
+  const { data: existingRows, error: existingError } = await service.from("waouh_entity_contacts")
+    .select("*")
+    .eq("entity_id", entity.id)
+    .eq("channel", channel)
+    .eq("value_hash", phoneHash)
+    .limit(1);
+  if (existingError) throw existingError;
+  const existing = (existingRows ?? [])[0] ?? null;
+
+  const now = new Date().toISOString();
+  const consent = normalizedConsent(existing?.consent_state || contact.consent_state);
+  const level = strongerContactLevel(existing?.contactability_level, contact.contactability_level);
+  const verification = normalizedVerification(
+    existing?.verification_status || contact.verification_status,
+    reachable,
+  );
+  const metrics = {
+    ...(existing?.metrics || {}),
+    admin_contact_backfill: true,
+    last_backfilled_at: now,
+    origin_kind: contact.origin_kind,
+    origin_id: contact.origin_id,
+    fabric_ids: [...new Set([
+      ...(Array.isArray(existing?.metrics?.fabric_ids) ? existing.metrics.fabric_ids : []),
+      row.fabric_id,
+    ].filter(Boolean))].slice(-100),
+    ...(cached.chat_id ? { waha_chat_id: cached.chat_id } : {}),
+    ...(cached.session ? { waha_session: cached.session } : {}),
+    ...(cached.reachable ? { last_waha_cache_match_at: now } : {}),
+  };
+
+  const values = {
+    entity_id: entity.id,
+    channel,
+    value_encrypted: await encryptPhone(e164),
+    value_hash: phoneHash,
+    value_last4: phoneLast4(e164),
+    source_key: String(row.source_key || contact.source || "unknown"),
+    is_public_business: existing?.is_public_business === true || contact.public_business === true,
+    consent_state: consent,
+    contactability_level: level,
+    verification_status: verification,
+    verified_at: reachable === true ? (existing?.verified_at || now) : (existing?.verified_at || contact.last_verified_at || null),
+    is_whatsapp_reachable: reachable,
+    updated_at: now,
+    metrics,
+  };
+
+  let saved: AnyRow;
+  if (existing?.id) {
+    const { data, error } = await service.from("waouh_entity_contacts")
+      .update(values).eq("id", existing.id).select("*").single();
+    if (error) throw error;
+    saved = data;
+  } else {
+    const { data, error } = await service.from("waouh_entity_contacts")
+      .insert(values).select("*").single();
+    if (error) throw error;
+    saved = data;
+  }
+
+  const { data: pack } = await service.from("waouh_contact_packs")
+    .select("*").eq("fabric_id", row.fabric_id).maybeSingle();
+
+  const previousChannels = Array.isArray(pack?.available_channels)
+    ? pack.available_channels.filter((item: AnyRow) => item?.channel)
+    : [];
+  const candidate = {
+    channel,
+    verified: verification === "verified" || verification === "reachable" || reachable === true,
+    reachable,
+    public_business: values.is_public_business === true,
+    consent_state: consent,
+    last4: phoneLast4(e164),
+    last_success_at: existing?.last_success_at || null,
+    last_failure_at: existing?.last_failure_at || null,
+    reply_count: Number(existing?.reply_count || 0),
+    failure_count: Number(existing?.failure_count || 0),
+  };
+  const mergedChannels = [
+    ...previousChannels.filter((item: AnyRow) =>
+      !(String(item?.channel || "") === channel && String(item?.last4 || "") === phoneLast4(e164))
+    ),
+    candidate,
+  ];
+
+  const computedPack = buildContactPack({
+    fabricId: row.fabric_id,
+    sourceKey: row.source_key,
+    contactability: strongerContactLevel(pack?.contactability_level, level),
+    trustScore: Number(row.trust_score || 50),
+    observedAt: row.observed_at || null,
+    entityResolved: true,
+    internalArticle: String(row.fabric_id || "").startsWith("article:"),
+    threadId: pack?.metadata?.thread_id || null,
+    journeyStage: pack?.metadata?.journey_stage || null,
+    replyReceived: Number(existing?.reply_count || 0) > 0,
+    channels: mergedChannels,
+  });
+
+  await service.from("waouh_contact_packs").upsert({
+    fabric_id: row.fabric_id,
+    entity_id: entity.id,
+    source_key: row.source_key,
+    contactability_level: computedPack.contactability_level,
+    readiness_level: computedPack.readiness_level,
+    readiness_score: computedPack.readiness_score,
+    actionability_score: computedPack.actionability_score,
+    next_best_action: computedPack.next_best_action,
+    best_channel: computedPack.best_channel,
+    available_channels: computedPack.available_channels,
+    masked_contacts: computedPack.masked_contacts,
+    verification: {
+      ...(pack?.verification || {}),
+      verified_channel: computedPack.verified_channel === true,
+      canonical_contact_id: saved.id,
+      waha_reachable: reachable,
+      ...(cached.chat_id ? { waha_chat_id: cached.chat_id } : {}),
+      ...(cached.session ? { waha_session: cached.session } : {}),
+    },
+    message_template: pack?.message_template || null,
+    fallback_channels: Array.isArray(pack?.fallback_channels) ? pack.fallback_channels : [],
+    last_enriched_at: now,
+    last_verified_at: reachable === true ? now : (pack?.last_verified_at || null),
+    expires_at: pack?.expires_at || null,
+    metadata: {
+      ...(pack?.metadata || {}),
+      admin_contact_backfill: true,
+      canonical_contact_id: saved.id,
+      last_backfilled_at: now,
+    },
+    updated_at: now,
+  }, { onConflict: "fabric_id" });
+
+  return {
+    contact_id: saved.id,
+    entity_id: entity.id,
+    channel,
+    reachable: reachable === true,
+    chat_id: cached.chat_id,
+    session: cached.session,
+    normalized: e164,
+  };
+}
+
 async function assertNotOptedOut(service: any, e164: string) {
   const variants = phoneCandidates(e164).map((v) => `+${v}`);
   const { data: radar } = await service.from("waouh_radar_contacts")
@@ -657,6 +965,71 @@ export async function handleAdminContactHub(
       });
     }
 
+
+    if (action === "contact_hub_backfill") {
+      const limit = Math.max(1, Math.min(Number(body?.limit || 50), 75));
+      const offset = Math.max(0, Number(body?.offset || 0));
+      const { data, error } = await service.rpc("waouh_admin_signal_fabric_search", {
+        p_q: null,
+        p_city: null,
+        p_family: body?.family || null,
+        p_source: body?.source || null,
+        p_intent: null,
+        p_contactability: null,
+        p_operational_state: null,
+        p_limit: limit,
+        p_offset: offset,
+      });
+      if (error) throw error;
+
+      const sourceRows = (data ?? []) as AnyRow[];
+      const rows = await enrichFabricRows(service, sourceRows);
+      let candidates = 0;
+      let persisted = 0;
+      let reachable = 0;
+      let failed = 0;
+      const failures: AnyRow[] = [];
+
+      for (const row of rows) {
+        for (const contact of (row.contacts || []) as ContactCandidate[]) {
+          if (!contact.whatsapp_candidate || !contact.normalized) continue;
+          candidates++;
+          try {
+            const saved = await persistCanonicalPhone(service, row, contact);
+            if (saved) {
+              persisted++;
+              if (saved.reachable) reachable++;
+            }
+          } catch (error) {
+            failed++;
+            if (failures.length < 20) failures.push({
+              fabric_id: row.fabric_id,
+              source_key: row.source_key,
+              last4: phoneLast4(contact.normalized),
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+      }
+
+      return json({
+        ok: true,
+        page: {
+          offset,
+          limit,
+          source_rows: sourceRows.length,
+          has_more: sourceRows.length === limit,
+          next_offset: sourceRows.length === limit ? offset + limit : null,
+        },
+        processed_rows: rows.length,
+        candidates,
+        persisted,
+        reachable,
+        failed,
+        failures,
+      });
+    }
+
     if (action === "contact_hub_verify") {
       const fabricId = String(body?.fabric_id || "");
       const requested = String(body?.phone || "");
@@ -716,6 +1089,7 @@ export async function handleAdminContactHub(
         admin_contact_hub: true,
         waha_verified: true,
         waha_session: check.session,
+        waha_chat_id: check.chat_id,
       };
       const { data: queueId, error: queueError } = await service.rpc("waouh_enqueue_outbound_v2", {
         p_to_phone: contact.normalized,

@@ -469,16 +469,50 @@ export default function AdminWaouhDataControlPage() {
 
   const syncWaha = async () => {
     try {
-      toast({ title: 'Synchronisation WAHA en cours…' });
-      const { data, error } = await supabase.functions.invoke('waouh-waha-sync-contacts', { body: { backfill: true } });
-      if (error) throw error;
+      toast({ title: 'Synchronisation contacts centralisés + WAHA en cours…' });
+      const { data: waha, error: wahaError } = await supabase.functions.invoke('waouh-waha-sync-contacts', {
+        body: { backfill: true, maxSessions: 3, maxContactsPerSession: 1000 },
+      });
+      if (wahaError) throw wahaError;
+
+      let offset = 0;
+      let pages = 0;
+      let persisted = 0;
+      let reachable = 0;
+      let failed = 0;
+      let processedRows = 0;
+
+      while (pages < 40) {
+        const { data: batch, error: batchError } = await supabase.functions.invoke('waouh-admin-stats', {
+          body: { action: 'contact_hub_backfill', limit: 50, offset },
+        });
+        if (batchError || !batch?.ok) {
+          throw new Error(batchError?.message || batch?.error || 'Backfill canonique indisponible');
+        }
+        persisted += Number(batch.persisted || 0);
+        reachable += Number(batch.reachable || 0);
+        failed += Number(batch.failed || 0);
+        processedRows += Number(batch.processed_rows || 0);
+        pages += 1;
+        if (!batch?.page?.has_more || batch?.page?.next_offset == null) break;
+        offset = Number(batch.page.next_offset);
+      }
+
       toast({
-        title: data?.warning ? '⚠️ Synchronisation terminée avec avertissement' : '✅ Synchro WAHA terminée',
-        description: data?.warning || `${data?.mapped ?? 0} contacts mappés · ${data?.backfilled ?? 0} annonces mises à jour`,
+        title: failed > 0 || waha?.warning
+          ? '⚠️ Synchronisation terminée avec avertissement'
+          : '✅ WAHA + contacts centralisés synchronisés',
+        description: [
+          waha?.warning || `${waha?.mapped ?? 0} contact(s) WAHA mappé(s)`,
+          `${processedRows} signal(s) analysé(s)`,
+          `${persisted} contact(s) canonique(s)`,
+          `${reachable} WhatsApp reconnu(s)`,
+          failed ? `${failed} échec(s)` : null,
+        ].filter(Boolean).join(' · '),
       });
       await refreshAll();
     } catch (e: any) {
-      toast({ title: 'Erreur synchro WAHA', description: e?.message || String(e), variant: 'destructive' });
+      toast({ title: 'Erreur synchro contacts / WAHA', description: e?.message || String(e), variant: 'destructive' });
     }
   };
 

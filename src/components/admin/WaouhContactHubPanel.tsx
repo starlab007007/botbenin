@@ -167,17 +167,53 @@ export default function WaouhContactHubPanel() {
   const syncWaha = async () => {
     setSyncing(true);
     try {
-      const { data, error } = await supabase.functions.invoke("waouh-waha-sync-contacts", {
+      const { data: waha, error: wahaError } = await supabase.functions.invoke("waouh-waha-sync-contacts", {
         body: { backfill: true, maxSessions: 3, maxContactsPerSession: 1000 },
       });
-      if (error) throw error;
+      if (wahaError) throw wahaError;
+
+      let offset = 0;
+      let pages = 0;
+      let persisted = 0;
+      let reachable = 0;
+      let failed = 0;
+      let processedRows = 0;
+
+      while (pages < 40) {
+        const { data: batch, error: batchError } = await supabase.functions.invoke("waouh-admin-stats", {
+          body: {
+            action: "contact_hub_backfill",
+            limit: 50,
+            offset,
+          },
+        });
+        if (batchError || !batch?.ok) {
+          throw new Error(batchError?.message || batch?.error || "Backfill canonique indisponible");
+        }
+        persisted += Number(batch.persisted || 0);
+        reachable += Number(batch.reachable || 0);
+        failed += Number(batch.failed || 0);
+        processedRows += Number(batch.processed_rows || 0);
+        pages += 1;
+        if (!batch?.page?.has_more || batch?.page?.next_offset == null) break;
+        offset = Number(batch.page.next_offset);
+      }
+
       toast({
-        title: data?.warning ? "Synchronisation WAHA terminée avec avertissement" : "Synchronisation WAHA terminée",
-        description: data?.warning || `${data?.mapped ?? 0} contacts mappés · ${data?.backfilled ?? 0} lignes enrichies`,
+        title: failed > 0 || waha?.warning
+          ? "Synchronisation contacts terminée avec avertissement"
+          : "Synchronisation contacts + WAHA terminée",
+        description: [
+          waha?.warning || `${waha?.mapped ?? 0} contact(s) WAHA mappé(s)`,
+          `${processedRows} signal(s) analysé(s)`,
+          `${persisted} contact(s) canonique(s)`,
+          `${reachable} WhatsApp reconnu(s)`,
+          failed ? `${failed} échec(s)` : null,
+        ].filter(Boolean).join(" · "),
       });
-      await load(page.offset);
+      await load(0);
     } catch (error: any) {
-      toast({ title: "Échec synchronisation WAHA", description: error?.message || String(error), variant: "destructive" });
+      toast({ title: "Échec synchronisation contacts / WAHA", description: error?.message || String(error), variant: "destructive" });
     } finally {
       setSyncing(false);
     }
@@ -270,7 +306,7 @@ export default function WaouhContactHubPanel() {
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={syncWaha} disabled={syncing}>
                 {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                Synchroniser WAHA
+                Synchroniser contacts + WAHA
               </Button>
               <Button onClick={() => load(0)} disabled={loading}>
                 {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}

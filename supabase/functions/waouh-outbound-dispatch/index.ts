@@ -13,20 +13,65 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const WAHA_BASE_URL = Deno.env.get("WAHA_BASE_URL");
-const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY");
+const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY")?.trim() || "";
+const WAHA_API_KEY_PLAIN = Deno.env.get("WAHA_API_KEY_PLAIN")?.trim() || "";
+const WAHA_DASHBOARD_USERNAME = Deno.env.get("WAHA_DASHBOARD_USERNAME") || Deno.env.get("WAHA_USERNAME") || "";
+const WAHA_DASHBOARD_PASSWORD = Deno.env.get("WAHA_DASHBOARD_PASSWORD") || Deno.env.get("WAHA_PASSWORD") || "";
 const WAHA_SESSION = Deno.env.get("WAHA_SESSION") || "WaouhApp";
 const WAOUH_BUSINESS_PHONE = normalizeBeninPhone(Deno.env.get("WAOUH_BUSINESS_PHONE") || "65653468") || "22965653468";
 
 const MAX_ATTEMPTS_DEFAULT = 5;
 // WAHA is an external dependency. A single dead endpoint must not consume the
 // whole Supabase Edge execution window through sequential route fallbacks.
-const WAHA_REQUEST_TIMEOUT_MS = 3_000;
+const WAHA_REQUEST_TIMEOUT_MS = 5_000;
+
+function wahaAuthHeaderVariants(extra: Record<string, string> = {}) {
+  const variants: Record<string, string>[] = [];
+  const key = WAHA_API_KEY_PLAIN || WAHA_API_KEY;
+  if (key) {
+    variants.push(
+      { "Content-Type": "application/json", "X-Api-Key": key, ...extra },
+      { "Content-Type": "application/json", "x-api-key": key, ...extra },
+      { "Content-Type": "application/json", "Authorization": `Bearer ${key}`, ...extra },
+    );
+  }
+  if (WAHA_DASHBOARD_USERNAME && WAHA_DASHBOARD_PASSWORD) {
+    variants.push({
+      "Content-Type": "application/json",
+      "Authorization": `Basic ${btoa(`${WAHA_DASHBOARD_USERNAME}:${WAHA_DASHBOARD_PASSWORD}`)}`,
+      ...extra,
+    });
+  }
+  return variants.length ? variants : [{ "Content-Type": "application/json", ...extra }];
+}
 
 async function wahaFetch(url: string, init: RequestInit = {}) {
-  return fetch(url, {
-    ...init,
-    signal: AbortSignal.timeout(WAHA_REQUEST_TIMEOUT_MS),
-  });
+  const extra = (init.headers || {}) as Record<string, string>;
+  const variants = wahaAuthHeaderVariants(extra);
+  let last: Response | null = null;
+
+  for (let i = 0; i < variants.length; i++) {
+    try {
+      const response = await fetch(url, {
+        ...init,
+        headers: variants[i],
+        signal: AbortSignal.timeout(WAHA_REQUEST_TIMEOUT_MS),
+      });
+      if (response.ok) return response;
+      last = response;
+      // Only retry another credential representation on authentication errors.
+      if (response.status !== 401 && response.status !== 403) return response;
+      await response.text().catch(() => "");
+    } catch (error) {
+      // A timeout/network failure is provider health, not a credential-format
+      // problem. Retrying the same request with 3-4 header spellings would only
+      // exhaust the Edge runtime budget and can duplicate an uncertain send.
+      throw error;
+    }
+  }
+
+  if (last) return last;
+  throw new Error("WAHA request failed without response");
 }
 
 async function requestIsAdmin(req: Request, sb: any) {
@@ -121,32 +166,25 @@ function beninPhoneCandidates(canonical: string): string[] {
 }
 
 async function sendWahaText(base: string, session: string, chatId: string, text: string, headers: Record<string, string>) {
-  const payload = JSON.stringify({ session, chatId, text });
-  let r = await wahaFetch(`${base}/api/sendText`, { method: "POST", headers, body: payload });
-  if (r.ok) return r;
-  r = await wahaFetch(`${base}/api/${session}/sendText`, { method: "POST", headers, body: JSON.stringify({ chatId, text }) });
-  return r;
+  return wahaFetch(`${base}/api/sendText`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ session, chatId, text }),
+  });
 }
 
 async function sendWahaImage(base: string, session: string, chatId: string, imageUrl: string, caption: string, headers: Record<string, string>) {
-  let r = await wahaFetch(`${base}/api/sendImage`, {
+  const r = await wahaFetch(`${base}/api/sendImage`, {
     method: "POST",
     headers,
     body: JSON.stringify({ session, chatId, file: { url: imageUrl }, caption }),
   });
   if (r.ok) return r;
 
-  // Certaines installations WAHA n'exposent pas sendImage sur ce chemin.
-  // On tente la route session, puis on dégrade TOUJOURS vers le texte :
-  // une photo indisponible ne doit jamais faire perdre une notification métier.
-  r = await wahaFetch(`${base}/api/${session}/sendImage`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ chatId, file: { url: imageUrl }, caption }),
-  });
-  if (r.ok) return r;
-
-  console.warn("[waouh-outbound-dispatch] image delivery unavailable; falling back to text", {
+  // Current WAHA contract is /api/sendImage. If media delivery is unsupported
+  // for this deployment, preserve the business notification as text instead of
+  // calling the removed /api/{session}/sendImage route.
+  console.warn("[waouh-outbound-dispatch] image delivery unavailable; falling back to canonical text", {
     chatId,
     status: r.status,
   });
@@ -164,10 +202,8 @@ async function sendWahaButtons(base: string, session: string, chatId: string, te
   if (imageUrl) richBody.header = { image: { url: imageUrl } };
   let r = await wahaFetch(`${base}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify(richBody) });
   if (r.ok) return r;
-  r = await wahaFetch(`${base}/api/${session}/sendButtons`, { method: "POST", headers, body: JSON.stringify({ ...richBody, session: undefined }) });
-  if (r.ok) return r;
-  // Legacy simple format (boutons WAHA encore acceptés). Si échec, on tombe en
-  // texte simple SANS jamais ré-injecter de liste numérotée « 1./2./3. ».
+  // Same canonical endpoint, simplified payload for older WAHA payload schemas.
+  // Do not call the removed /api/{session}/sendButtons route.
   const buttons = actions.slice(0, 3).map((a) => ({ id: a.id, text: a.label }));
   r = await wahaFetch(`${base}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify({ session, chatId, text, buttons }) });
   if (r.ok) return r;
@@ -423,7 +459,11 @@ Deno.serve(async (req) => {
       if (typeof toPhone === "string" && /@lid/i.test(toPhone)) {
         let resolved: string | null = null;
         try {
-          resolved = await lidToPhoneInline(sb, toPhone, { session: deliverySession, wahaBase: WAHA_BASE_URL, wahaApiKey: WAHA_API_KEY });
+          resolved = await lidToPhoneInline(sb, toPhone, {
+            session: deliverySession,
+            wahaBase: WAHA_BASE_URL,
+            wahaApiKey: WAHA_API_KEY_PLAIN || WAHA_API_KEY,
+          });
         } catch (_) { /* ignore */ }
         if (resolved && resolved.length >= 10) {
           toPhone = resolved;
@@ -457,7 +497,9 @@ Deno.serve(async (req) => {
       }
       const candidates = phone.includes("@lid") ? [phone] : beninPhoneCandidates(phone);
       const wahaBase = WAHA_BASE_URL.replace(/\/$/, "");
-      const wahaHeaders = { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) };
+      // Authentication is resolved centrally by wahaFetch() so every request
+      // uses the same credential fallbacks as the working WAHA client.
+      const wahaHeaders = { "Content-Type": "application/json" };
       const customActions = Array.isArray(it.payload?.actions) ? it.payload.actions : [];
       const actions = customActions.length > 0 ? customActions : defaultActionsForTemplate(it.template, it.payload || {});
       const footer = it.payload?.footer || "WAOUH • Marché conversationnel";
@@ -467,7 +509,15 @@ Deno.serve(async (req) => {
       // quand WAHA accepte un sendText vers un numéro non enregistré sur WhatsApp.
       const resolvedChatIds: string[] = [];
       const seenChat = new Set<string>();
-      for (const candidate of candidates) {
+      const verifiedChatId = it.payload?.waha_verified === true && typeof it.payload?.waha_chat_id === "string"
+        ? String(it.payload.waha_chat_id).trim()
+        : "";
+      if (verifiedChatId && verifiedChatId.includes("@")) {
+        seenChat.add(verifiedChatId);
+        resolvedChatIds.push(verifiedChatId);
+      }
+
+      for (const candidate of resolvedChatIds.length ? [] : candidates) {
         if (candidate.includes("@")) {
           if (!seenChat.has(candidate)) { seenChat.add(candidate); resolvedChatIds.push(candidate); }
           continue;
