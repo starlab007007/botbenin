@@ -402,7 +402,16 @@ async function loadContactDirectory(service: any, body: Record<string, any> = {}
   });
 
   filtered.sort((a, b) => String(b.observed_at || "").localeCompare(String(a.observed_at || "")));
-  const availableSources = [...new Map(rows.map((row) => [row.source_key, { source_key: row.source_key, source_label: row.source_label, source_family: row.source_family }])).values()]
+  const sourceOptions = new Map<string, AnyRow>();
+  for (const source of sourceRes.data ?? []) sourceOptions.set(String(source.source_key), {
+    source_key: String(source.source_key),
+    source_label: source.label || String(source.source_key).replaceAll("_", " "),
+    source_family: source.family || fallbackFamily(String(source.source_key)),
+  });
+  for (const row of rows) if (!sourceOptions.has(String(row.source_key))) sourceOptions.set(String(row.source_key), {
+    source_key: row.source_key, source_label: row.source_label, source_family: row.source_family,
+  });
+  const availableSources = [...sourceOptions.values()]
     .sort((a, b) => String(a.source_label).localeCompare(String(b.source_label), "fr"));
   const pageRows = exactFabricId ? filtered : filtered.slice(offset, offset + limit);
   return {
