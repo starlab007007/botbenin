@@ -219,6 +219,7 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
   if (!rows.length) return [];
 
   const externalIds = uniq(rows.map((r) => prefixedUuid(r.fabric_id, "external:")));
+  const legacyExternalIds = uniq(rows.map((r) => prefixedUuid(r.fabric_id, "legacy_external:")));
   const catalogIds = uniq(rows.flatMap((r) => [
     asUuid(r.evidence?.catalog_id),
     prefixedUuid(r.fabric_id, "catalog:"),
@@ -234,11 +235,16 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
   const directBusinessIds = uniq(rows.map((r) => asUuid(r.evidence?.business_id)));
   const directRadarIds = uniq(rows.map((r) => asUuid(r.evidence?.radar_signal_id)));
 
-  const [externalRes, catalogRes, articleRes] = await Promise.all([
+  const [externalRes, legacyExternalRes, catalogRes, articleRes] = await Promise.all([
     externalIds.length
       ? service.from("waouh_external_commerce_signals")
         .select("id,entity_id,actor_name,contact_consent_basis,contact_summary,source_key")
         .in("id", externalIds)
+      : Promise.resolve({ data: [], error: null }),
+    legacyExternalIds.length
+      ? service.from("waouh_external_listings")
+        .select("id,seller_name,seller_phone,source")
+        .in("id", legacyExternalIds)
       : Promise.resolve({ data: [], error: null }),
     catalogIds.length
       ? service.from("waouh_unified_catalog")
@@ -252,10 +258,12 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
       : Promise.resolve({ data: [], error: null }),
   ]);
   if (externalRes.error) throw externalRes.error;
+  if (legacyExternalRes.error) throw legacyExternalRes.error;
   if (catalogRes.error) throw catalogRes.error;
   if (articleRes.error) throw articleRes.error;
 
   const externalMap = indexBy(externalRes.data, "id");
+  const legacyExternalMap = indexBy(legacyExternalRes.data, "id");
   const catalogMap = indexBy(catalogRes.data, "id");
   const articleMap = indexBy(articleRes.data, "id");
 
@@ -337,6 +345,20 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
         });
       }
     }
+
+    const legacyExternalId = prefixedUuid(row.fabric_id, "legacy_external:");
+    const legacyExternal = legacyExternalId ? legacyExternalMap.get(legacyExternalId) : null;
+    if (legacyExternal?.seller_phone) addCandidate(contacts, {
+      channel: "phone",
+      value: legacyExternal.seller_phone,
+      source: row.source_key,
+      origin_kind: "legacy_external_listing",
+      origin_id: legacyExternal.id,
+      contactability_level: rowLevel,
+      verification_status: "observed",
+      consent_state: "unknown",
+      label: legacyExternal.seller_name || legacyExternal.source || null,
+    });
 
     const catalogId = asUuid(evidence.catalog_id) || prefixedUuid(row.fabric_id, "catalog:");
     const catalog = catalogId ? catalogMap.get(catalogId) : null;
