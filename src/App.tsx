@@ -405,12 +405,12 @@ const AppContent = () => {
                     <Route path="presence" element={<PresenceBrickHome />} />
                     <Route path="diffusion" element={<MobileDiffusion />} />
                     <Route path="partner" element={<MobilePartner />} />
-                    <Route path="partner/businesses" element={<MobilePartnerBusinesses />} />
-                    <Route path="partner/businesses/:businessId/products" element={<MobilePartnerProducts />} />
-                    <Route path="partner/b/:code/produits" element={<MobilePartnerProducts />} />
-                    <Route path="partner/sales" element={<MobilePartnerSales />} />
-                    <Route path="partner/payouts" element={<MobilePartnerPayouts />} />
-                    <Route path="partner/payments" element={<MobilePartnerPayments />} />
+                    <Route path="partner/businesses" element={<PartnerRoute><MobilePartnerBusinesses /></PartnerRoute>} />
+                    <Route path="partner/businesses/:businessId/products" element={<PartnerRoute><MobilePartnerProducts /></PartnerRoute>} />
+                    <Route path="partner/b/:code/produits" element={<PartnerRoute><MobilePartnerProducts /></PartnerRoute>} />
+                    <Route path="partner/sales" element={<PartnerRoute><MobilePartnerSales /></PartnerRoute>} />
+                    <Route path="partner/payouts" element={<PartnerRoute><MobilePartnerPayouts /></PartnerRoute>} />
+                    <Route path="partner/payments" element={<PartnerRoute><MobilePartnerPayments /></PartnerRoute>} />
                     <Route path="profile" element={<MobileProfile />} />
                     <Route path="notifications" element={<MobileNotifications />} />
                   </Route>
