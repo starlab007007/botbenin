@@ -17,8 +17,9 @@ export default function WaouhNexusPage() {
   const [tab, setTab] = useState("discover");
 
   const changeTab = (next: string) => {
-    if (next === "missions" && !user) {
-      navigate(buildWaouhAuthRedirect("/app/missions"));
+    if (!user && next !== "discover") {
+      const target = next === "missions" ? "/app/missions" : "/app/nexus?tab=lab";
+      navigate(buildWaouhAuthRedirect(target));
       return;
     }
     setTab(next);
@@ -55,7 +56,8 @@ export default function WaouhNexusPage() {
               <Globe2 className="mr-2 h-4 w-4" /> Découvrir
             </TabsTrigger>
             <TabsTrigger value="lab" className="rounded-xl font-bold">
-              <FlaskConical className="mr-2 h-4 w-4" /> NEXUS Lab
+              {user ? <FlaskConical className="mr-2 h-4 w-4" /> : <LockKeyhole className="mr-2 h-4 w-4" />}
+              NEXUS Lab
             </TabsTrigger>
             <TabsTrigger value="missions" className="rounded-xl font-bold">
               {user ? <Workflow className="mr-2 h-4 w-4" /> : <LockKeyhole className="mr-2 h-4 w-4" />}
