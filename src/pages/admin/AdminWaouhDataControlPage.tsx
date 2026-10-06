@@ -13,11 +13,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useWaouhAI } from '@/hooks/useWaouhAI';
 import { Progress } from '@/components/ui/progress';
-import WaouhContactHubPanel from '@/components/admin/WaouhContactHubPanel';
+import WaouhContactHubPanel, { type HubContact } from '@/components/admin/WaouhContactHubPanel';
 import {
   Loader2, Search, Sparkles, RefreshCw, CheckCircle2, XCircle, StopCircle, Clock,
   MoreHorizontal, Eye, Pencil, Trash2, Power, PowerOff, ShieldCheck, MapPin, ImageIcon, Phone,
-  Download, FileSpreadsheet, Archive, ExternalLink, Network, RotateCcw
+  Download, FileSpreadsheet, Archive, ExternalLink, Network, RotateCcw, ClipboardCopy, Send
 } from 'lucide-react';
 
 type CleanItemStatus = 'pending' | 'processing' | 'ok' | 'failed' | 'cancelled';
@@ -84,6 +84,11 @@ interface FabricRow {
   catalog_id: string | null;
   verified: boolean;
   is_catalog_mutable: boolean;
+  contacts?: HubContact[];
+  primary_whatsapp?: string | null;
+  contact_count?: number;
+  whatsapp_count?: number;
+  wa_reachable_count?: number;
 }
 
 const EMPTY_STATS: FabricStats = {
@@ -170,6 +175,10 @@ export default function AdminWaouhDataControlPage() {
   const [viewing, setViewing] = useState<FabricRow | null>(null);
   const [editing, setEditing] = useState<any | null>(null);
   const [editDraft, setEditDraft] = useState<any>({});
+  const [contactVerifying, setContactVerifying] = useState<string | null>(null);
+  const [messageTarget, setMessageTarget] = useState<{ row: FabricRow; contact: HubContact } | null>(null);
+  const [messageText, setMessageText] = useState('');
+  const [sendingContact, setSendingContact] = useState(false);
 
   const families = useMemo(() => {
     const values = new Set<string>(sources.map(s => s.family).filter(Boolean));
@@ -218,23 +227,97 @@ export default function AdminWaouhDataControlPage() {
 
   const search = async () => {
     setSearching(true);
-    const { data, error } = await supabase.rpc('waouh_admin_signal_fabric_search' as any, {
-      p_q: query.trim() || null,
-      p_city: ville.trim() || null,
-      p_family: familyFilter === 'all' ? null : familyFilter,
-      p_source: sourceFilter === 'all' ? null : sourceFilter,
-      p_intent: intentFilter === 'all' ? null : intentFilter,
-      p_contactability: contactFilter === 'all' ? null : contactFilter,
-      p_operational_state: sourceStateFilter === 'all' ? null : sourceStateFilter,
-      p_limit: 300,
-      p_offset: 0,
+    const { data, error } = await supabase.functions.invoke('waouh-admin-stats', {
+      body: {
+        action: 'contact_hub_search',
+        q: query.trim() || null,
+        city: ville.trim() || null,
+        family: familyFilter === 'all' ? null : familyFilter,
+        source: sourceFilter === 'all' ? null : sourceFilter,
+        intent: intentFilter === 'all' ? null : intentFilter,
+        contactability: contactFilter === 'all' ? null : contactFilter,
+        operational_state: sourceStateFilter === 'all' ? null : sourceStateFilter,
+        contacts_only: false,
+        whatsapp_only: false,
+        limit: 300,
+        offset: 0,
+      },
     });
     setSearching(false);
-    if (error) {
-      toast({ title: 'Erreur Signal Fabric', description: error.message, variant: 'destructive' });
+    if (error || !data?.ok) {
+      toast({
+        title: 'Erreur Signal Fabric',
+        description: error?.message || data?.error || 'Read-model contacts indisponible',
+        variant: 'destructive',
+      });
       return;
     }
-    setResults(((data as any) || []) as FabricRow[]);
+    setResults(((data?.rows as any) || []) as FabricRow[]);
+  };
+
+  const copyContact = async (contact: HubContact) => {
+    const value = contact.normalized || contact.value;
+    try {
+      await navigator.clipboard.writeText(value);
+      toast({ title: 'Contact copié', description: value });
+    } catch {
+      toast({ title: 'Copie impossible', variant: 'destructive' });
+    }
+  };
+
+  const verifyContact = async (row: FabricRow, contact: HubContact) => {
+    const phone = contact.normalized || contact.value;
+    const key = `${row.fabric_id}:${phone}`;
+    setContactVerifying(key);
+    try {
+      const { data, error } = await supabase.functions.invoke('waouh-admin-stats', {
+        body: { action: 'contact_hub_verify', fabric_id: row.fabric_id, phone },
+      });
+      if (error || !data?.ok) throw new Error(error?.message || data?.error || 'Vérification WAHA impossible');
+      toast({
+        title: data.exists ? 'WhatsApp vérifié' : 'Numéro absent de WhatsApp',
+        description: data.display || data.normalized || phone,
+        variant: data.exists ? 'default' : 'destructive',
+      });
+      await search();
+    } catch (error: any) {
+      toast({ title: 'Vérification WAHA échouée', description: error?.message || String(error), variant: 'destructive' });
+    } finally {
+      setContactVerifying(null);
+    }
+  };
+
+  const openContactMessage = (row: FabricRow, contact: HubContact) => {
+    setMessageTarget({ row, contact });
+    setMessageText('');
+  };
+
+  const sendContactMessage = async () => {
+    if (!messageTarget || !messageText.trim()) return;
+    setSendingContact(true);
+    try {
+      const { row, contact } = messageTarget;
+      const { data, error } = await supabase.functions.invoke('waouh-admin-stats', {
+        body: {
+          action: 'contact_hub_send',
+          fabric_id: row.fabric_id,
+          phone: contact.normalized || contact.value,
+          message: messageText.trim(),
+        },
+      });
+      if (error || !data?.ok) throw new Error(error?.message || data?.error || 'Envoi WhatsApp impossible');
+      toast({
+        title: data?.queue?.status === 'sent' ? 'Message WhatsApp envoyé' : 'Message WhatsApp mis en file',
+        description: `${data.display || data.phone || ''} · ${data?.queue?.status || 'queued'}`,
+      });
+      setMessageTarget(null);
+      setMessageText('');
+      await search();
+    } catch (error: any) {
+      toast({ title: 'Envoi WhatsApp échoué', description: error?.message || String(error), variant: 'destructive' });
+    } finally {
+      setSendingContact(false);
+    }
   };
 
   const resetFilters = () => {
@@ -353,6 +436,11 @@ export default function AdminWaouhDataControlPage() {
       devise: r.currency,
       contactabilite: r.contactability_level,
       contact_disponible: r.has_contact,
+      contacts_complets: (r.contacts || []).map(c => `${c.channel}: ${c.display || c.value}`).join(' | '),
+      whatsapp_normalises: (r.contacts || []).filter(c => c.whatsapp_candidate && c.normalized).map(c => c.normalized).join(' | '),
+      whatsapp_principal: r.primary_whatsapp || null,
+      whatsapp_verifies: (r.contacts || []).filter(c => c.whatsapp_reachable === true).map(c => c.normalized || c.value).join(' | '),
+      contacts_envoi_autorise: (r.contacts || []).filter(c => c.send_allowed).map(c => c.normalized || c.value).join(' | '),
       qualite: r.quality_tier,
       completude: r.completeness,
       confiance: r.trust_score,
@@ -648,9 +736,101 @@ export default function AdminWaouhDataControlPage() {
                           <div className="font-medium">{r.actor_type || '—'}</div>
                           {r.verified && <Badge variant="outline" className="mt-1 border-green-500 text-green-700 text-[10px]">✓ Vérifié</Badge>}
                         </TableCell>
-                        <TableCell className="text-xs">
-                          <Badge variant="outline" className={contactClass(r.contactability_level)}>{r.contactability_level || 'C0'}</Badge>
-                          <div className="mt-1 max-w-[150px]">{contactHint(r)}</div>
+                        <TableCell className="text-xs min-w-[280px] max-w-[360px]">
+                          <div className="flex flex-wrap items-center gap-1 mb-1.5">
+                            <Badge variant="outline" className={contactClass(r.contactability_level)}>
+                              {r.contactability_level || 'C0'}
+                            </Badge>
+                            {(r.whatsapp_count || 0) > 0 && (
+                              <Badge variant="outline" className="border-emerald-400 text-emerald-700">
+                                {r.whatsapp_count} WhatsApp
+                              </Badge>
+                            )}
+                            {(r.wa_reachable_count || 0) > 0 && (
+                              <Badge variant="outline" className="border-green-500 text-green-700">
+                                {r.wa_reachable_count} vérifié
+                              </Badge>
+                            )}
+                          </div>
+                          {(r.contacts || []).length > 0 ? (
+                            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                              {(r.contacts || []).map((contact, index) => {
+                                const phone = contact.normalized || contact.value;
+                                const verifyKey = `${r.fabric_id}:${phone}`;
+                                return (
+                                  <div
+                                    key={`${r.fabric_id}:${contact.channel}:${phone}:${index}`}
+                                    className="rounded border bg-background/70 px-2 py-1.5"
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="min-w-0">
+                                        <div className="font-mono font-semibold break-all">{contact.display || contact.value}</div>
+                                        {contact.normalized && contact.normalized !== contact.value && (
+                                          <div className="font-mono text-[10px] text-muted-foreground">{contact.normalized}</div>
+                                        )}
+                                        <div className="text-[10px] text-muted-foreground mt-0.5">
+                                          {contact.channel} · {contact.source}
+                                          {contact.consent_state ? ` · ${contact.consent_state}` : ''}
+                                        </div>
+                                      </div>
+                                      <Badge
+                                        variant="outline"
+                                        className={
+                                          contact.whatsapp_reachable === true
+                                            ? 'border-emerald-500 text-emerald-700'
+                                            : contact.whatsapp_reachable === false
+                                              ? 'border-red-400 text-red-700'
+                                              : contact.whatsapp_candidate
+                                                ? 'border-amber-400 text-amber-700'
+                                                : 'border-slate-300 text-slate-600'
+                                        }
+                                      >
+                                        {contact.whatsapp_reachable === true
+                                          ? 'WA ✓'
+                                          : contact.whatsapp_reachable === false
+                                            ? 'WA ✕'
+                                            : contact.whatsapp_candidate
+                                              ? 'WA ?'
+                                              : contact.channel}
+                                      </Badge>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1 mt-1.5">
+                                      <Button size="sm" variant="outline" className="h-7 px-2 text-[10px]" onClick={() => copyContact(contact)}>
+                                        <ClipboardCopy className="h-3 w-3 mr-1" />Copier
+                                      </Button>
+                                      {contact.whatsapp_candidate && (
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="h-7 px-2 text-[10px]"
+                                          onClick={() => verifyContact(r, contact)}
+                                          disabled={contactVerifying === verifyKey}
+                                        >
+                                          {contactVerifying === verifyKey
+                                            ? <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                            : <ShieldCheck className="h-3 w-3 mr-1" />}
+                                          Vérifier WAHA
+                                        </Button>
+                                      )}
+                                      {contact.whatsapp_candidate && (
+                                        <Button
+                                          size="sm"
+                                          className="h-7 px-2 text-[10px]"
+                                          onClick={() => openContactMessage(r, contact)}
+                                          disabled={!contact.send_allowed}
+                                          title={!contact.send_allowed ? 'Lecture uniquement : contact non autorisé par la Contact Layer' : undefined}
+                                        >
+                                          <Send className="h-3 w-3 mr-1" />Notifier
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="mt-1 text-muted-foreground">{contactHint(r)}</div>
+                          )}
                         </TableCell>
                         <TableCell className="text-xs min-w-[130px]">
                           <div className="flex items-center gap-1"><MapPin className="h-3 w-3" />{r.city || '—'}</div>
@@ -891,7 +1071,18 @@ export default function AdminWaouhDataControlPage() {
                 <Field label="Prix">{viewing.price_min ? `${Number(viewing.price_min).toLocaleString('fr-FR')} ${viewing.currency || 'XOF'}` : 'À confirmer'}</Field>
                 <Field label="Confiance">{Math.round(Number(viewing.trust_score || 0))}/100</Field>
                 <Field label="Qualité">{viewing.quality_tier} · {viewing.completeness}%</Field>
-                <Field label="Contact">{contactHint(viewing)}</Field>
+                <Field label="Contacts">
+                  {(viewing.contacts || []).length > 0 ? (
+                    <div className="space-y-1">
+                      {(viewing.contacts || []).map((contact, index) => (
+                        <div key={`${contact.channel}:${contact.normalized || contact.value}:${index}`}>
+                          <span className="font-mono">{contact.display || contact.value}</span>
+                          <span className="text-xs text-muted-foreground"> · {contact.channel}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : contactHint(viewing)}
+                </Field>
                 <Field label="Observé">{viewing.observed_at ? new Date(viewing.observed_at).toLocaleString('fr-FR') : '—'}</Field>
                 <Field label="Catalogue éditable">{viewing.is_catalog_mutable ? 'Oui' : 'Non · source autoritative'}</Field>
               </div>
@@ -912,6 +1103,47 @@ export default function AdminWaouhDataControlPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!messageTarget} onOpenChange={(open) => !open && setMessageTarget(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Envoyer un message WhatsApp</DialogTitle>
+          </DialogHeader>
+          {messageTarget && (
+            <div className="space-y-3">
+              <div className="rounded border bg-muted/40 p-3 text-sm">
+                <div className="font-medium">{messageTarget.row.subject || 'Signal WAOUH'}</div>
+                <div className="font-mono text-xs mt-1">
+                  {messageTarget.contact.display || messageTarget.contact.value}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {messageTarget.contact.source} · {messageTarget.contact.contactability_level}
+                  {messageTarget.contact.consent_state ? ` · ${messageTarget.contact.consent_state}` : ''}
+                </div>
+              </div>
+              <LField label="Message">
+                <Textarea
+                  rows={5}
+                  maxLength={3000}
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
+                  placeholder="Votre message…"
+                />
+              </LField>
+              <div className="text-[11px] text-muted-foreground">
+                WAOUH vérifie le numéro via WAHA avant l’envoi, respecte l’opt-out et trace le résultat dans la file outbound.
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMessageTarget(null)} disabled={sendingContact}>Annuler</Button>
+            <Button onClick={sendContactMessage} disabled={sendingContact || !messageText.trim()}>
+              {sendingContact ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+              Envoyer sur WhatsApp
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
