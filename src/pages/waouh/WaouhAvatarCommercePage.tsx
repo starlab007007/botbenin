@@ -1,7 +1,7 @@
+import { userFacingErrorText } from "@/lib/userFacingError";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
-import { userFacingErrorText } from "@/lib/userFacingError";
   ArrowLeft,
   BadgeCheck,
   Bot,
