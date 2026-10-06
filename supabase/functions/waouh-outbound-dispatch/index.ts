@@ -254,7 +254,7 @@ async function repairLegacyWahaWebhooks(
           const response = await wahaFetch(`${normalizedBase}${endpoint}`, {
             method: "PUT",
             headers: authHeaders,
-            body: JSON.stringify({ config: nextConfig }),
+            body: JSON.stringify({ name: sessionName, config: nextConfig }),
           });
           if (!response.ok) {
             await response.text().catch(() => "");
