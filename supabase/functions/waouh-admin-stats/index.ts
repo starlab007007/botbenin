@@ -288,24 +288,28 @@ async function resolveAdminSignalContacts(sb: any, fabricIds: string[]) {
         channel: "whatsapp",
         label: catalog.vendeur_nom || "WhatsApp catalogue",
         contactability_level: catalog.partner_id ? "C4" : (row.contactability_level || source.default_contactability || "C1"),
-        consent_state: catalog.partner_id ? "partner_contract" : (catalog.verified ? "public_business" : "unknown"),
-        is_public_business: !!catalog.partner_id || catalog.verified === true,
+        consent_state: (catalog.partner_id || catalog.business_id) ? "partner_contract" : "unknown",
+        is_public_business: !!catalog.partner_id || !!catalog.business_id,
       });
       if (catalog.vendeur_phone) add(row, catalog.vendeur_phone, {
         channel: "phone",
         label: catalog.vendeur_nom || "Téléphone catalogue",
         contactability_level: catalog.partner_id ? "C4" : (row.contactability_level || source.default_contactability || "C1"),
-        consent_state: catalog.partner_id ? "partner_contract" : (catalog.verified ? "public_business" : "unknown"),
-        is_public_business: !!catalog.partner_id || catalog.verified === true,
+        consent_state: (catalog.partner_id || catalog.business_id) ? "partner_contract" : "unknown",
+        is_public_business: !!catalog.partner_id || !!catalog.business_id,
       });
     }
-    if (radarRow?.contact_phone) add(row, radarRow.contact_phone, {
-      channel: "phone",
-      label: "Contact Radar",
-      contactability_level: row.contactability_level || source.default_contactability || "C0",
-      consent_state: sourceAllowsDirectWhatsApp({ ...source, source_key: row.source_key }) ? "public_business" : "unknown",
-      is_public_business: ["google_places", "facebook_business", "instagram_business", "benin_directory"].includes(String(row.source_key)),
-    });
+    if (radarRow?.contact_phone) {
+      const radarBusinessSource = ["google_places", "facebook_business", "instagram_business", "benin_directory"]
+        .includes(String(radarRow.source_type || row.source_key));
+      add(row, radarRow.contact_phone, {
+        channel: "phone",
+        label: "Contact Radar",
+        contactability_level: row.contactability_level || source.default_contactability || "C0",
+        consent_state: radarBusinessSource ? "public_business" : "unknown",
+        is_public_business: radarBusinessSource,
+      });
+    }
     if (radarRow?.waouh_user_id) addUser(row, radarRow.waouh_user_id, "Contact WAOUH Radar");
 
     addUser(row, evidence.seller_id, "Vendeur WAOUH");
