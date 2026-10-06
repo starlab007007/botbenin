@@ -1453,11 +1453,10 @@ class LiveWaouhController extends ChangeNotifier {
   }
 
   String _humanizeError(Object error) {
-    final value = error.toString();
     if (_isOfflineFailure(error)) {
       return 'Connexion indisponible. Vos actions restent en attente.';
     }
-    return value;
+    return waouhUserMessage(error);
   }
 
   Stream<T> _cacheFirstPoll<T>({
