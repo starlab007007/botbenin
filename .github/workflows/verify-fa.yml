@@ -49,7 +49,7 @@ jobs:
             https://bot.bj/fa -o /tmp/fa-public/index.html
           grep -q 'FA IA' /tmp/fa-public/index.html
           grep -q '<base href="/fa/"' /tmp/fa-public/index.html
-          grep -q '20260724-corpus-v15-1' /tmp/fa-public/index.html
+          grep -q '20260724-corpus-v15-2' /tmp/fa-public/index.html
 
           for file in \
             app.js auth-bridge.js visual-fidelity.js styles.css source-fidelity.css \
@@ -61,7 +61,7 @@ jobs:
             http_code=$(curl --silent --show-error --location \
               --retry 8 --retry-delay 4 --retry-all-errors \
               --write-out '%{http_code}' \
-              "https://bot.bj/fa/${file}?v=20260724-corpus-v15-1" \
+              "https://bot.bj/fa/${file}?v=20260724-corpus-v15-2" \
               -o "/tmp/fa-public/${file}") || {
                 echo "::error file=${file}::Téléchargement FA impossible"
                 exit 1
@@ -180,7 +180,7 @@ jobs:
             "workflow_run": "${SOURCE_RUN}",
             "validated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "url": "https://bot.bj/fa",
-            "version": "corpus-v15-1"
+            "version": "corpus-v15-2"
           }
           JSON
           git config user.name "github-actions[bot]"
@@ -191,4 +191,4 @@ jobs:
           git push --force origin HEAD:fa-production-verified
 
       - name: Résultat
-        run: echo '✅ FA IA V5.2 — corpus V15.1, interprétation intégrale nettoyée et analyses contextualisées validés.'
+        run: echo '✅ FA IA V5.2 — corpus V15.2, interprétation intégrale nettoyée et analyses contextualisées validés.'
