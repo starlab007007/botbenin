@@ -158,7 +158,7 @@ function addCandidate(target: Map<string, ContactCandidate>, candidate: Partial<
   const consent = String(candidate.consent_state ?? "").toLowerCase();
   const revoked = consentRevoked(consent) || candidate.verification_status === "revoked" || candidate.opted_out === true;
   const consentAllowsSend =
-    ["public_business", "initiated", "opt_in", "partner_contract"].includes(consent) ||
+    ["public_business", "initiated", "opt_in", "partner_contract", "existing_conversation"].includes(consent) ||
     ["C3", "C4", "C5"].includes(level);
   const existing = target.get(key);
 
@@ -466,6 +466,85 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
   });
 }
 
+async function loadWahaDirectory(service: any, body: Record<string, any>) {
+  const limit = Math.max(1, Math.min(Number(body?.limit || 100), 300));
+  const offset = Math.max(0, Number(body?.offset || 0));
+  const q = String(body?.q || "").trim() || null;
+
+  const { data, error } = await service.rpc("waouh_admin_waha_directory", {
+    p_q: q,
+    p_limit: limit,
+    p_offset: offset,
+  });
+  if (error) throw error;
+
+  const sourceRows = (data ?? []) as AnyRow[];
+  const rows: AnyRow[] = sourceRows.map((item: AnyRow) => {
+    const normalized = normalizeE164(item.phone_e164, "+229");
+    const contact: ContactCandidate = {
+      channel: "whatsapp",
+      value: String(item.phone_e164 || normalized || ""),
+      normalized,
+      display: normalized ? formatPhoneDisplay(normalized) : String(item.phone_e164 || ""),
+      whatsapp_candidate: !!normalized,
+      whatsapp_reachable: normalized ? true : null,
+      whatsapp_chat_id: item.jid || null,
+      send_allowed: false,
+      source: "whatsapp",
+      origin_kind: "waha_directory",
+      origin_id: item.id,
+      contact_id: null,
+      entity_id: null,
+      consent_state: "directory_only",
+      contactability_level: "C1",
+      verification_status: "synced_waha",
+      public_business: false,
+      opted_out: false,
+      last_verified_at: item.last_synced_at || null,
+      label: item.display_name || item.pushname || null,
+    };
+
+    return {
+      fabric_id: `waha_contact:${item.id}`,
+      source_record_id: String(item.id),
+      source_key: "whatsapp",
+      source_label: "WAHA · Annuaire synchronisé",
+      source_family: "messaging",
+      operational_state: "live",
+      intent: "CONTACT",
+      actor_type: "contact",
+      subject: contact.label || normalized || "(contact WAHA)",
+      city: null,
+      contactability_level: "C1",
+      source_url: null,
+      contacts: [contact],
+      primary_whatsapp: normalized,
+      contact_count: normalized ? 1 : 0,
+      whatsapp_count: normalized ? 1 : 0,
+      wa_reachable_count: normalized ? 1 : 0,
+    };
+  });
+
+  const totalRows = Number(sourceRows[0]?.total_count || 0);
+  return {
+    rows,
+    page: {
+      offset,
+      limit,
+      source_rows: sourceRows.length,
+      total_rows: totalRows,
+      has_more: offset + sourceRows.length < totalRows,
+    },
+    stats: {
+      rows: rows.length,
+      contacts: rows.reduce((n, row) => n + Number(row.contact_count || 0), 0),
+      whatsapp: rows.reduce((n, row) => n + Number(row.whatsapp_count || 0), 0),
+      reachable: rows.reduce((n, row) => n + Number(row.wa_reachable_count || 0), 0),
+      sendable: 0,
+    },
+  };
+}
+
 async function getFabricRow(service: any, fabricId: string) {
   const { data, error } = await service.from("waouh_signal_fabric")
     .select("*").eq("fabric_id", fabricId).maybeSingle();
@@ -618,6 +697,11 @@ export async function handleAdminContactHub(
 ): Promise<Response> {
   try {
     const action = String(body?.action || "contact_hub_search");
+    if (action === "contact_hub_directory") {
+      const directory = await loadWahaDirectory(service, body);
+      return json({ ok: true, ...directory });
+    }
+
     if (action === "contact_hub_search") {
       const limit = Math.max(1, Math.min(Number(body?.limit || 150), 300));
       const { data, error } = await service.rpc("waouh_admin_signal_fabric_search", {
@@ -710,7 +794,7 @@ export async function handleAdminContactHub(
       const payload = {
         text: message,
         fabric_id: fabricId,
-        source_key: row.source_key,
+        source_key: (row as AnyRow).source_key,
         contact_id: contact.contact_id,
         admin_user_id: user.id,
         admin_contact_hub: true,

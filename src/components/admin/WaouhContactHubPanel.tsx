@@ -76,6 +76,7 @@ interface HubPage {
   offset: number;
   limit: number;
   source_rows: number;
+  total_rows?: number;
   has_more: boolean;
 }
 
@@ -109,6 +110,7 @@ export default function WaouhContactHubPanel() {
   const [stats, setStats] = useState<HubStats>(EMPTY_STATS);
   const [page, setPage] = useState<HubPage>({ offset: 0, limit: 100, source_rows: 0, has_more: false });
   const [q, setQ] = useState("");
+  const [mode, setMode] = useState<"fabric" | "waha">("fabric");
   const [source, setSource] = useState("");
   const [whatsappOnly, setWhatsappOnly] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -123,16 +125,19 @@ export default function WaouhContactHubPanel() {
     [rows],
   );
 
-  const load = async (requestedOffset: number = page.offset) => {
+  const load = async (
+    requestedOffset: number = page.offset,
+    requestedMode: "fabric" | "waha" = mode,
+  ) => {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("waouh-admin-stats", {
         body: {
-          action: "contact_hub_search",
+          action: requestedMode === "waha" ? "contact_hub_directory" : "contact_hub_search",
           q: q.trim() || null,
-          source: source || null,
+          source: requestedMode === "fabric" ? (source || null) : null,
           contacts_only: true,
-          whatsapp_only: whatsappOnly,
+          whatsapp_only: requestedMode === "fabric" ? whatsappOnly : true,
           limit: 100,
           offset: requestedOffset,
         },
@@ -145,6 +150,7 @@ export default function WaouhContactHubPanel() {
         offset: Number(data?.page?.offset ?? requestedOffset),
         limit: Number(data?.page?.limit ?? 100),
         source_rows: Number(data?.page?.source_rows ?? 0),
+        total_rows: data?.page?.total_rows == null ? undefined : Number(data.page.total_rows),
         has_more: data?.page?.has_more === true,
       });
     } catch (error: any) {
@@ -268,6 +274,26 @@ export default function WaouhContactHubPanel() {
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Button
+                variant={mode === "fabric" ? "default" : "outline"}
+                onClick={() => {
+                  setMode("fabric");
+                  void load(0, "fabric");
+                }}
+              >
+                Signal Fabric
+              </Button>
+              <Button
+                variant={mode === "waha" ? "default" : "outline"}
+                onClick={() => {
+                  setMode("waha");
+                  setSource("");
+                  setWhatsappOnly(false);
+                  void load(0, "waha");
+                }}
+              >
+                Annuaire WAHA
+              </Button>
               <Button variant="outline" onClick={syncWaha} disabled={syncing}>
                 {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                 Synchroniser WAHA
@@ -281,7 +307,7 @@ export default function WaouhContactHubPanel() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-            <MiniStat label="Signaux avec contact" value={stats.rows} />
+            <MiniStat label={mode === "waha" ? "Contacts WAHA" : "Signaux avec contact"} value={stats.rows} />
             <MiniStat label="Contacts complets" value={stats.contacts} />
             <MiniStat label="Numéros WhatsApp" value={stats.whatsapp} />
             <MiniStat label="WAHA vérifiés" value={stats.reachable} accent="text-emerald-700" />
@@ -299,17 +325,19 @@ export default function WaouhContactHubPanel() {
               list="waouh-contact-source-options"
               value={source}
               onChange={(e) => setSource(e.target.value)}
-              placeholder="Toutes les sources"
+              placeholder={mode === "waha" ? "Source WAHA synchronisée" : "Toutes les sources"}
+              disabled={mode === "waha"}
             />
             <datalist id="waouh-contact-source-options">
               {sourceOptions.map((s) => <option key={s} value={s} />)}
             </datalist>
             <Button
-              variant={whatsappOnly ? "default" : "outline"}
+              variant={whatsappOnly || mode === "waha" ? "default" : "outline"}
               onClick={() => setWhatsappOnly((v) => !v)}
+              disabled={mode === "waha"}
             >
               <Phone className="h-4 w-4 mr-2" />
-              {whatsappOnly ? "WhatsApp uniquement" : "Tous les contacts"}
+              {mode === "waha" ? "WhatsApp synchronisés" : (whatsappOnly ? "WhatsApp uniquement" : "Tous les contacts")}
             </Button>
           </div>
 
@@ -384,7 +412,7 @@ export default function WaouhContactHubPanel() {
                             <Button size="sm" variant="outline" onClick={() => copy(contact.normalized || contact.value)}>
                               <ClipboardCopy className="h-3.5 w-3.5 mr-1" />Copier
                             </Button>
-                            {contact.whatsapp_candidate && (
+                            {contact.whatsapp_candidate && !row.fabric_id.startsWith("waha_contact:") && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -397,7 +425,7 @@ export default function WaouhContactHubPanel() {
                                 Vérifier WAHA
                               </Button>
                             )}
-                            {contact.whatsapp_candidate && (
+                            {contact.whatsapp_candidate && !row.fabric_id.startsWith("waha_contact:") && (
                               <Button
                                 size="sm"
                                 onClick={() => openSend(row, contact)}
@@ -435,7 +463,9 @@ export default function WaouhContactHubPanel() {
 
           <div className="flex items-center justify-between gap-3">
             <div className="text-xs text-muted-foreground">
-              Lot {Math.floor(page.offset / page.limit) + 1} · {page.source_rows} signal(s) analysé(s) sur ce lot · {stats.contacts} contact(s) résolu(s)
+              Lot {Math.floor(page.offset / page.limit) + 1} · {page.source_rows} {mode === "waha" ? "contact(s) WAHA parcouru(s)" : "signal(s) analysé(s)"} sur ce lot
+              {page.total_rows != null ? ` · ${page.total_rows.toLocaleString("fr-FR")} au total` : ""}
+              · {stats.contacts} contact(s) affiché(s)
             </div>
             <div className="flex gap-2">
               <Button

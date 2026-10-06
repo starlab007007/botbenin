@@ -47,6 +47,7 @@ on:
       - "supabase/functions/_shared/waouh-promote*.ts"
       - "supabase/functions/waouh-opportunity-worker/**"
       - ".github/workflows/waouh-web-muse-nexus-ci.yml"
+      - ".github/workflows/deploy-waouh-chat-v2.yml"
       - ".github/workflows/apply-waouh-opportunity-os-migrations.yml"
   pull_request:
     branches:
@@ -127,6 +128,12 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+
+      - name: Check Admin Contact Hub backend
+        run: deno check supabase/functions/waouh-admin-stats/index.ts
+
+      - name: Check WAHA contact synchronization
+        run: deno check supabase/functions/waouh-waha-sync-contacts/index.ts
 
       - name: Check NEXUS Edge Function
         run: deno check supabase/functions/waouh-agentic-core/index.ts
