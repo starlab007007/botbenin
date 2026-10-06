@@ -14,6 +14,8 @@ import 'package:provider/provider.dart';
 
 import 'live/ui/waouh_adaptive_scale.dart';
 import 'live/live_session.dart';
+import 'live/access_policy.dart';
+import 'live/user_message.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<void> main() async {
@@ -921,7 +923,7 @@ class AuthController extends ChangeNotifier {
         email: email.trim(),
         password: password,
       );
-    });
+    }, action: 'login');
   }
 
   Future<void> signUpWithEmail(
@@ -948,13 +950,13 @@ class AuthController extends ChangeNotifier {
           // Some deployments create profiles with database triggers.
         }
       }
-    });
+    }, action: 'register');
   }
 
   Future<void> resetPassword(String email) async {
     await _guard(() async {
       await supabase.auth.resetPasswordForEmail(email.trim());
-    });
+    }, action: 'reset');
   }
 
   Future<void> signInWithGoogle() async {
@@ -976,7 +978,7 @@ class AuthController extends ChangeNotifier {
         // Fallback for platforms where google_sign_in is not configured yet.
       }
       await supabase.auth.signInWithOAuth(OAuthProvider.google);
-    });
+    }, action: 'login');
   }
 
   /// True right after [verifyWhatsappOtp] resolves a brand-new account that
@@ -1002,7 +1004,7 @@ class AuthController extends ChangeNotifier {
       if (data is Map && data['error'] != null) {
         throw StateError(asString(data['error'], "Envoi du code impossible"));
       }
-    });
+    }, action: 'send');
   }
 
   /// Verifies the 6-digit WhatsApp code and finishes the same way the
@@ -1038,7 +1040,7 @@ class AuthController extends ChangeNotifier {
         type: OtpType.magiclink,
       );
       whatsappIsNewUser = data['is_new_user'] == true;
-    });
+    }, action: 'login');
   }
 
   /// Finishes onboarding for a brand-new WhatsApp account: sets the display
@@ -1069,7 +1071,7 @@ class AuthController extends ChangeNotifier {
         );
       }
       whatsappIsNewUser = false;
-    });
+    }, action: 'save');
   }
 
   String _otpErrorMessage(String? code) => switch (code) {
@@ -1120,7 +1122,7 @@ class AuthController extends ChangeNotifier {
         'avatar_url': publicUrl,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       });
-    });
+    }, action: 'upload');
   }
 
   /// Updates the editable identity fields from the Profile screen (name and
@@ -1137,14 +1139,34 @@ class AuthController extends ChangeNotifier {
       if (fullName != null) patch['full_name'] = fullName.trim();
       if (phone != null) patch['phone'] = phone.trim();
       await supabase.from('profiles').upsert(patch);
-    });
+    }, action: 'save');
   }
 
-  Future<void> signOut() async {
-    await supabase.auth.signOut();
+  Future<bool> signOut() async {
+    loading = true;
+    error = null;
+    notifyListeners();
+    try {
+      await supabase.auth.signOut();
+      _session = null;
+      profile = null;
+      whatsappIsNewUser = false;
+      return true;
+    } catch (e, stackTrace) {
+      debugPrint('[AuthController] signOut failed: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      error = waouhUserMessage(e, action: 'logout');
+      return false;
+    } finally {
+      loading = false;
+      notifyListeners();
+    }
   }
 
-  Future<void> _guard(Future<void> Function() action) async {
+  Future<void> _guard(
+    Future<void> Function() action, {
+    String action = 'generic',
+  }) async {
     loading = true;
     error = null;
     notifyListeners();
@@ -1152,14 +1174,10 @@ class AuthController extends ChangeNotifier {
       await action();
       _session = supabase.auth.currentSession;
       await _loadProfile();
-    } on AuthException catch (e) {
-      error = e.message;
-      rethrow;
-    } on FunctionException catch (e) {
-      error = e.details?.toString() ?? 'Erreur backend';
-      rethrow;
-    } catch (e) {
-      error = e.toString();
+    } catch (e, stackTrace) {
+      debugPrint('[AuthController] $action failed: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      error = waouhUserMessage(e, action: action);
       rethrow;
     } finally {
       loading = false;
@@ -2041,12 +2059,16 @@ class WaouhBootErrorApp extends StatelessWidget {
 
 String? currentNextRoute(BuildContext context) {
   try {
-    return GoRouterState.of(context).uri.queryParameters['next'];
+    return normalizeWaouhNextRoute(
+      GoRouterState.of(context).uri.queryParameters['next'],
+    );
   } catch (_) {
     try {
-      return GoRouter.of(
-        context,
-      ).routeInformationProvider.value.uri.queryParameters['next'];
+      return normalizeWaouhNextRoute(
+        GoRouter.of(
+          context,
+        ).routeInformationProvider.value.uri.queryParameters['next'],
+      );
     } catch (_) {
       return null;
     }
@@ -2054,27 +2076,19 @@ String? currentNextRoute(BuildContext context) {
 }
 
 GoRouter _buildRouter(AuthController auth) {
-  final protected = <String>[
-    '/app/chat/',
-    '/app/bots',
-    '/app/whatsapp',
-    '/app/diffusion',
-    '/app/partner',
-    '/app/profile',
-    '/app/notifications',
-  ];
   return GoRouter(
-    initialLocation: '/app/chat',
+    initialLocation: defaultPublicWaouhPath,
     refreshListenable: auth,
     redirect: (context, state) {
       final path = state.uri.path;
       final isAuthRoute = path.startsWith('/app/auth');
-      final needsAuth = protected.any(path.startsWith);
+      final needsAuth = requiresWaouhAuthentication(path);
       if (!auth.signedIn && needsAuth) {
-        return '/app/auth?next=${Uri.encodeComponent(path)}';
+        return buildWaouhAuthRoute(state.uri.toString());
       }
-      if (auth.signedIn && isAuthRoute)
-        return state.uri.queryParameters['next'] ?? '/app/chat';
+      if (auth.signedIn && isAuthRoute) {
+        return normalizeWaouhNextRoute(state.uri.queryParameters['next']);
+      }
       return null;
     },
     routes: [
