@@ -255,19 +255,9 @@ export function buildWaouhSmartEnvelope(input: WaouhSmartInput) {
     input.payload?.smart_actions ??
     null;
   const actions = cleanActions(rawActions, route);
-  if (!actions.length) {
-    actions.push({
-      id: "open_context",
-      label: openLabel(domain),
-      kind: "navigate",
-      route,
-      priority: 1,
-      // Les événements persistés (message, notification, mission, offre) sont
-      // personnels même si leur surface de découverte a un mode public.
-      requires_auth: true,
-      requires_confirmation: false,
-      payload: { route },
-    });
+  const contextual = actions.length === 0;
+  if (contextual) {
+    actions.push(...contextualActions(input, domain, route, intent));
   }
 
   const correlationId = compact(
