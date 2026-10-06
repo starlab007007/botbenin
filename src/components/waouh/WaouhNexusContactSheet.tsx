@@ -1,3 +1,4 @@
+import { userFacingErrorText } from "@/lib/userFacingError";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Loader2, MessageCircle, RefreshCw, Search, Send, ShieldCheck } from "lucide-react";
@@ -8,7 +9,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import {
-import { userFacingErrorText } from "@/lib/userFacingError";
   enrichNexusOpportunity,
   getNexusOpportunityStatus,
   prepareNexusContact,
