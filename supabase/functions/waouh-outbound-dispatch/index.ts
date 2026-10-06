@@ -459,7 +459,11 @@ Deno.serve(async (req) => {
       if (typeof toPhone === "string" && /@lid/i.test(toPhone)) {
         let resolved: string | null = null;
         try {
-          resolved = await lidToPhoneInline(sb, toPhone, { session: deliverySession, wahaBase: WAHA_BASE_URL, wahaApiKey: WAHA_API_KEY });
+          resolved = await lidToPhoneInline(sb, toPhone, {
+            session: deliverySession,
+            wahaBase: WAHA_BASE_URL,
+            wahaApiKey: WAHA_API_KEY_PLAIN || WAHA_API_KEY,
+          });
         } catch (_) { /* ignore */ }
         if (resolved && resolved.length >= 10) {
           toPhone = resolved;
