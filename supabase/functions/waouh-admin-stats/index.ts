@@ -89,16 +89,22 @@ function beninProviderCandidates(e164: string) {
   return Array.from(new Set(out));
 }
 
+let wahaHealthCache: { value: any; expiresAt: number } | null = null;
+
 async function adminWahaHealth() {
+  const now = Date.now();
+  if (wahaHealthCache && wahaHealthCache.expiresAt > now) return wahaHealthCache.value;
   if (!WAHA_BASE_URL) {
-    return { ready: false, session: WAHA_SESSION, status: "NOT_CONFIGURED", reason: "waha_not_configured" };
+    const value = { ready: false, session: WAHA_SESSION, status: "NOT_CONFIGURED", reason: "waha_not_configured" };
+    wahaHealthCache = { value, expiresAt: now + 10_000 };
+    return value;
   }
   const headers: Record<string, string> = { Accept: "application/json" };
   if (WAHA_API_KEY) headers["X-Api-Key"] = WAHA_API_KEY;
   try {
     const response = await fetch(`${WAHA_BASE_URL}/api/sessions/${encodeURIComponent(WAHA_SESSION)}`, {
       headers,
-      signal: AbortSignal.timeout(3500),
+      signal: AbortSignal.timeout(2000),
     });
     if (!response.ok) {
       return { ready: false, session: WAHA_SESSION, status: `HTTP_${response.status}`, reason: "waha_status_failed" };
@@ -106,19 +112,23 @@ async function adminWahaHealth() {
     const body = await response.json().catch(() => ({}));
     const status = String(body?.status || "UNKNOWN").toUpperCase();
     const ready = ["WORKING", "READY", "AUTHENTICATED", "CONNECTED"].includes(status);
-    return {
+    const value = {
       ready,
       session: WAHA_SESSION,
       status,
       reason: ready ? null : status === "SCAN_QR_CODE" ? "qr_required" : "waha_not_ready",
     };
+    wahaHealthCache = { value, expiresAt: now + 10_000 };
+    return value;
   } catch (error: any) {
-    return {
+    const value = {
       ready: false,
       session: WAHA_SESSION,
       status: "UNREACHABLE",
       reason: String(error?.message || "waha_unreachable"),
     };
+    wahaHealthCache = { value, expiresAt: now + 5_000 };
+    return value;
   }
 }
 
@@ -948,8 +958,10 @@ serve(async (req) => {
       return Number.isFinite(last) && now - last > intervalMs * 2;
     }).length;
     const activeWhatsAppAccounts = waAccounts.filter((row: any) =>
-      ["WORKING", "connected"].includes(String(row.status)) || row.waha_authenticated === true
+      ["WORKING", "CONNECTED", "AUTHENTICATED", "READY", "connected"].includes(String(row.status)) || row.waha_authenticated === true
     ).length;
+    const centralWaha = await adminWahaHealth();
+    const effectiveWhatsAppSessions = centralWaha.ready ? Math.max(1, activeWhatsAppAccounts) : activeWhatsAppAccounts;
 
     const alerts: any[] = [];
     const addAlert = (severity: "critical"|"warning"|"info", code: string, title: string, detail: string, target?: string) =>
@@ -971,7 +983,7 @@ serve(async (req) => {
     if (sourceNeverScanned > 0) addAlert("info", "sources_never_scanned", "Sources jamais collectées", `${sourceNeverScanned} source(s) actives n'ont encore jamais été scannées.`, "/admin/waouh?tab=radar");
     if (sourceOverdue > 0) addAlert("warning", "sources_overdue", "Collectes NEXUS en retard", `${sourceOverdue} source(s) dépassent deux fois leur fréquence de scan configurée.`, "/admin/waouh?tab=radar");
     const whatsappControl = (controls.data ?? []).find((row: any) => row.module_key === "chat_whatsapp");
-    if (whatsappControl?.enabled && activeWhatsAppAccounts === 0) {
+    if (whatsappControl?.enabled && effectiveWhatsAppSessions === 0) {
       addAlert("warning", "whatsapp_no_session", "WhatsApp sans session active", "Le module est activé mais aucune session WAHA opérationnelle n'est détectée.", "/admin/waouh/whatsapp-ops");
     }
 
@@ -1054,7 +1066,8 @@ serve(async (req) => {
           agent_pending: pendingAgentApprovals,
         },
         integrations: {
-          whatsapp_active_sessions: activeWhatsAppAccounts,
+          whatsapp_active_sessions: effectiveWhatsAppSessions,
+          central_waha: centralWaha,
           whatsapp_accounts: waAccounts,
           native_messaging: telSettings.data ?? null,
         },
