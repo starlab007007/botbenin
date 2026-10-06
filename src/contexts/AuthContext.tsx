@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { User as SupabaseUser, Session } from '@supabase/supabase-js';
 import { GuestAuthService, GuestUser } from "@/services/GuestAuthService";
 import { friendlyAuthError } from "@/lib/authErrors";
+import { normalizeWaouhRedirect } from "@/lib/waouhAccessPolicy";
 
 export interface AuthUser {
   id: string;
@@ -49,6 +50,7 @@ interface AuthContextType {
     email: string;
     phone?: string;
     password: string;
+    returnTo?: string;
   }) => Promise<boolean>;
   logout: () => Promise<boolean>;
   updateProfile: (updates: Partial<AuthUser>) => void;
@@ -315,6 +317,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     email: string;
     phone?: string;
     password: string;
+    returnTo?: string;
   }): Promise<boolean> => {
     setIsLoading(true);
 
@@ -329,6 +332,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return false;
       }
 
+      const returnTo = normalizeWaouhRedirect(userData.returnTo, "/app/chat");
+      const mobileFlow = window.location.pathname.startsWith("/app/");
+      const confirmationPath = mobileFlow
+        ? `/app/auth/email?tab=login&next=${encodeURIComponent(returnTo)}`
+        : `/auth?next=${encodeURIComponent(returnTo)}`;
+
       const { data, error } = await supabase.auth.signUp({
         email: userData.email.trim(),
         password: userData.password,
@@ -337,7 +346,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             full_name: userData.name.trim(),
             phone: userData.phone,
           },
-          emailRedirectTo: `${window.location.origin}/`,
+          emailRedirectTo: `${window.location.origin}${confirmationPath}`,
         },
       });
 
