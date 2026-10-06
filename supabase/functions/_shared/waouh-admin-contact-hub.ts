@@ -215,6 +215,228 @@ function addCandidate(target: Map<string, ContactCandidate>, candidate: Partial<
   });
 }
 
+function fallbackFamily(sourceKey: string) {
+  const key = String(sourceKey || "").toLowerCase();
+  if (key === "partner") return "partner";
+  if (key.includes("whatsapp") || key.includes("waha")) return "messaging";
+  if (key.includes("radar") || key.includes("serpapi") || key.includes("firecrawl")) return "web";
+  if (key.includes("facebook") || key.includes("instagram") || key.includes("tiktok") || key.includes("linkedin") || key.includes("youtube") || key.includes("apify")) return "social";
+  if (key.includes("google") || key.includes("map") || key.includes("place")) return "maps";
+  if (key.includes("waouh")) return "internal";
+  return "external";
+}
+
+function strongestLevel(contacts: ContactCandidate[], fallback = "C0") {
+  const order = ["C0", "C1", "C2", "C3", "C4", "C5"];
+  return contacts.reduce((best, contact) => {
+    const next = String(contact.contactability_level || "C0").toUpperCase();
+    return order.indexOf(next) > order.indexOf(best) ? next : best;
+  }, String(fallback || "C0").toUpperCase());
+}
+
+function buildDirectoryRow(
+  sourceMeta: Map<string, AnyRow>,
+  input: {
+    fabricId: string;
+    recordId: string;
+    sourceKey: string;
+    sourceLabel?: string | null;
+    subject?: string | null;
+    observedAt?: string | null;
+    contacts: ContactCandidate[];
+    fallbackLevel?: string;
+    originKind: string;
+  },
+) {
+  const meta = sourceMeta.get(input.sourceKey);
+  const contacts = input.contacts;
+  const level = strongestLevel(contacts, input.fallbackLevel || "C0");
+  return {
+    fabric_id: input.fabricId,
+    source_record_id: input.recordId,
+    source_key: input.sourceKey,
+    source_label: meta?.label || input.sourceLabel || input.sourceKey.replaceAll("_", " "),
+    source_family: meta?.family || fallbackFamily(input.sourceKey),
+    operational_state: meta?.operational_state || "live",
+    intent: "CONTACT",
+    actor_type: "CONTACT",
+    subject: input.subject || "Contact",
+    city: null,
+    contactability_level: level,
+    source_url: null,
+    observed_at: input.observedAt || null,
+    evidence: { directory: true, directory_kind: input.originKind, directory_id: input.recordId },
+    contacts,
+    primary_whatsapp: contacts.find((c) => c.whatsapp_candidate && c.send_allowed)?.normalized
+      || contacts.find((c) => c.whatsapp_candidate)?.normalized
+      || null,
+    contact_count: contacts.length,
+    whatsapp_count: contacts.filter((c) => c.whatsapp_candidate).length,
+    wa_reachable_count: contacts.filter((c) => c.whatsapp_reachable === true).length,
+  };
+}
+
+async function loadContactDirectory(service: any, body: Record<string, any> = {}) {
+  const limit = Math.max(1, Math.min(Number(body?.limit || 100), 300));
+  const offset = Math.max(0, Number(body?.offset || 0));
+  const q = String(body?.q || "").trim().toLowerCase();
+  const sourceFilter = String(body?.source || "").trim();
+  const exactFabricId = String(body?.fabric_id || "").trim();
+  const whatsappOnly = body?.whatsapp_only === true;
+  const exactMatch = exactFabricId.match(/^directory:([^:]+):([0-9a-f-]{36})$/i);
+  const exactOriginKind = exactMatch?.[1] || null;
+  const exactRecordId = exactMatch?.[2] || null;
+
+  const maybeScoped = (kind: string, query: any) => {
+    if (!exactFabricId) return query.limit(2000);
+    if (exactOriginKind !== kind || !exactRecordId) return Promise.resolve({ data: [], error: null });
+    return query.eq("id", exactRecordId).limit(1);
+  };
+
+  const [sourceRes, usersRes, catalogRes, businessRes, radarContactsRes, waContactsRes, whatsappContactsRes, entityContactsRes] = await Promise.all([
+    service.from("waouh_discovery_sources").select("source_key,label,family,operational_state"),
+    maybeScoped("waouh_user", service.from("waouh_users").select("id,display_name,phone_number,channel,created_at,updated_at").not("phone_number", "is", null)),
+    maybeScoped("catalog", service.from("waouh_unified_catalog").select("id,titre,vendeur_nom,vendeur_phone,vendeur_whatsapp,source,created_at,updated_at")),
+    maybeScoped("partner_business", service.from("waouh_partner_businesses").select("id,nom_entreprise,telephone,whatsapp,email,site_web,gerant_nom,created_at,updated_at")),
+    maybeScoped("radar_contact", service.from("waouh_radar_contacts").select("id,phone_e164,phone_e164_normalized,display_name,source,status,auto_notify,metadata,created_at,updated_at")),
+    maybeScoped("wa_contact", service.from("wa_contacts").select("id,phone_e164,display_name,source,is_whatsapp,opt_out,archived,last_validated_at,created_at,updated_at")),
+    maybeScoped("whatsapp_contact", service.from("whatsapp_contacts").select("id,phone_number,name,is_business,status,last_seen,created_at,updated_at")),
+    maybeScoped("entity_contact", service.from("waouh_entity_contacts").select("id,entity_id,channel,value_encrypted,public_value,source_key,is_public_business,consent_state,contactability_level,verified_at,verification_status,is_whatsapp_reachable,metrics,created_at,updated_at").in("channel", ["phone", "whatsapp"])),
+  ]);
+  for (const res of [sourceRes, usersRes, catalogRes, businessRes, radarContactsRes, waContactsRes, whatsappContactsRes, entityContactsRes]) {
+    if (res.error) throw res.error;
+  }
+
+  const sourceMeta = indexBy(sourceRes.data, "source_key");
+  const rows: AnyRow[] = [];
+  const push = (sourceKey: string, originKind: string, recordId: string, subject: string | null, observedAt: string | null, candidates: Array<Partial<ContactCandidate> & { channel: string; value: string }>, fallbackLevel = "C0", sourceLabel?: string | null) => {
+    const contacts = new Map<string, ContactCandidate>();
+    for (const candidate of candidates) addCandidate(contacts, candidate);
+    const list = [...contacts.values()];
+    if (!list.length) return;
+    rows.push(buildDirectoryRow(sourceMeta, {
+      fabricId: "directory:" + originKind + ":" + recordId,
+      recordId, sourceKey, sourceLabel, subject, observedAt, contacts: list, fallbackLevel, originKind,
+    }));
+  };
+
+  for (const row of usersRes.data ?? []) {
+    if (!row.phone_number) continue;
+    push("waouh_app", "waouh_user", String(row.id), row.display_name || "Utilisateur WAOUH", row.updated_at || row.created_at, [{
+      channel: "whatsapp", value: String(row.phone_number), source: row.channel || "waouh_app",
+      origin_kind: "waouh_user", origin_id: String(row.id), contactability_level: "C2",
+      consent_state: "initiated", verification_status: "observed", label: row.display_name || null,
+    }], "C2", "WAOUH App / utilisateurs");
+  }
+
+  for (const row of catalogRes.data ?? []) {
+    if (!row.vendeur_phone && !row.vendeur_whatsapp) continue;
+    const sourceKey = String(row.source || "catalog");
+    const candidates: Array<Partial<ContactCandidate> & { channel: string; value: string }> = [];
+    if (row.vendeur_whatsapp) candidates.push({
+      channel: "whatsapp", value: String(row.vendeur_whatsapp), source: sourceKey, origin_kind: "catalog", origin_id: String(row.id),
+      contactability_level: "C1", consent_state: "initiated", verification_status: "observed", label: row.vendeur_nom || row.titre || null,
+    });
+    if (row.vendeur_phone) candidates.push({
+      channel: "phone", value: String(row.vendeur_phone), source: sourceKey, origin_kind: "catalog", origin_id: String(row.id),
+      contactability_level: "C1", verification_status: "observed", label: row.vendeur_nom || row.titre || null,
+    });
+    push(sourceKey, "catalog", String(row.id), row.vendeur_nom || row.titre || "Contact catalogue", row.updated_at || row.created_at, candidates, "C1", "Catalogue · " + sourceKey);
+  }
+
+  for (const row of businessRes.data ?? []) {
+    if (!row.telephone && !row.whatsapp && !row.email) continue;
+    const candidates: Array<Partial<ContactCandidate> & { channel: string; value: string }> = [];
+    if (row.whatsapp) candidates.push({ channel: "whatsapp", value: String(row.whatsapp), source: "partner", origin_kind: "partner_business", origin_id: String(row.id), contactability_level: "C4", consent_state: "partner_contract", verification_status: "observed", public_business: true, label: row.nom_entreprise || row.gerant_nom || null });
+    if (row.telephone) candidates.push({ channel: "phone", value: String(row.telephone), source: "partner", origin_kind: "partner_business", origin_id: String(row.id), contactability_level: "C4", consent_state: "partner_contract", verification_status: "observed", public_business: true, label: row.nom_entreprise || row.gerant_nom || null });
+    if (row.email) candidates.push({ channel: "email", value: String(row.email), source: "partner", origin_kind: "partner_business", origin_id: String(row.id), contactability_level: "C4", consent_state: "partner_contract", verification_status: "observed", public_business: true, label: row.nom_entreprise || row.gerant_nom || null });
+    push("partner", "partner_business", String(row.id), row.nom_entreprise || row.gerant_nom || "Partenaire", row.updated_at || row.created_at, candidates, "C4");
+  }
+
+  for (const row of radarContactsRes.data ?? []) {
+    const phone = row.phone_e164_normalized || row.phone_e164;
+    if (!phone) continue;
+    const sourceKey = String(row.source || "radar_ia");
+    const optedOut = ["opted_out", "blocked"].includes(String(row.status || "").toLowerCase());
+    const autoNotify = row.auto_notify === true && !optedOut;
+    push(sourceKey, "radar_contact", String(row.id), row.display_name || "Contact Radar", row.updated_at || row.created_at, [{
+      channel: "phone", value: String(phone), source: sourceKey, origin_kind: "radar_contact", origin_id: String(row.id),
+      contactability_level: autoNotify ? "C3" : "C1", consent_state: autoNotify ? "opt_in" : null, verification_status: "observed",
+      opted_out: optedOut, label: row.display_name || null,
+    }], autoNotify ? "C3" : "C1", "Radar · " + sourceKey);
+  }
+
+  for (const row of waContactsRes.data ?? []) {
+    if (!row.phone_e164) continue;
+    const sourceKey = String(row.source || "whatsapp");
+    const optedOut = row.opt_out === true || row.archived === true;
+    push(sourceKey, "wa_contact", String(row.id), row.display_name || "Contact WhatsApp", row.updated_at || row.created_at, [{
+      channel: row.is_whatsapp ? "whatsapp" : "phone", value: String(row.phone_e164), source: sourceKey, origin_kind: "wa_contact", origin_id: String(row.id),
+      contactability_level: row.is_whatsapp ? "C4" : "C1", consent_state: row.is_whatsapp && !optedOut ? "initiated" : null,
+      verification_status: row.is_whatsapp ? "reachable" : "observed", whatsapp_reachable: row.is_whatsapp === true ? true : null,
+      opted_out: optedOut, last_verified_at: row.last_validated_at || null, label: row.display_name || null,
+    }], row.is_whatsapp ? "C4" : "C1", "WhatsApp / WAHA");
+  }
+
+  for (const row of whatsappContactsRes.data ?? []) {
+    if (!row.phone_number) continue;
+    const blocked = ["blocked", "opted_out"].includes(String(row.status || "").toLowerCase());
+    push("whatsapp", "whatsapp_contact", String(row.id), row.name || "Contact WhatsApp", row.last_seen || row.updated_at || row.created_at, [{
+      channel: "whatsapp", value: String(row.phone_number), source: "whatsapp", origin_kind: "whatsapp_contact", origin_id: String(row.id),
+      contactability_level: blocked ? "C1" : "C4", consent_state: blocked ? null : "initiated", verification_status: blocked ? "revoked" : "reachable",
+      whatsapp_reachable: blocked ? false : true, public_business: row.is_business === true, opted_out: blocked, label: row.name || null,
+    }], blocked ? "C1" : "C4", "WhatsApp synchronisé");
+  }
+
+  for (const row of entityContactsRes.data ?? []) {
+    const clear = row.public_value || await safeDecrypt(row.value_encrypted);
+    if (!clear) continue;
+    const sourceKey = String(row.source_key || "nexus_external");
+    const chatId = row.metrics?.waha_chat_id ? String(row.metrics.waha_chat_id) : null;
+    push(sourceKey, "entity_contact", String(row.id), row.entity_id ? "Entité " + String(row.entity_id).slice(0, 8) : "Contact NEXUS", row.updated_at || row.created_at, [{
+      channel: String(row.channel || "phone"), value: String(clear), source: sourceKey, origin_kind: "entity_contact", origin_id: String(row.id),
+      contact_id: String(row.id), entity_id: row.entity_id ? String(row.entity_id) : null, contactability_level: row.contactability_level || "C1",
+      consent_state: row.consent_state || null, verification_status: row.verification_status || null, whatsapp_reachable: row.is_whatsapp_reachable ?? null,
+      whatsapp_chat_id: chatId, public_business: row.is_public_business === true, last_verified_at: row.verified_at || null,
+    }], row.contactability_level || "C1", "NEXUS · Entity Contact");
+  }
+
+  let filtered = rows;
+  if (exactFabricId) filtered = filtered.filter((row) => row.fabric_id === exactFabricId);
+  if (sourceFilter) filtered = filtered.filter((row) => row.source_key === sourceFilter);
+  if (whatsappOnly) filtered = filtered.filter((row) => Number(row.whatsapp_count || 0) > 0);
+  if (q) filtered = filtered.filter((row) => {
+    const haystack = [row.subject, row.source_key, row.source_label, ...(row.contacts || []).flatMap((c: ContactCandidate) => [c.value, c.normalized, c.display, c.label])].filter(Boolean).join(" ").toLowerCase();
+    return haystack.includes(q);
+  });
+
+  filtered.sort((a, b) => String(b.observed_at || "").localeCompare(String(a.observed_at || "")));
+  const sourceOptions = new Map<string, AnyRow>();
+  for (const source of sourceRes.data ?? []) sourceOptions.set(String(source.source_key), {
+    source_key: String(source.source_key),
+    source_label: source.label || String(source.source_key).replaceAll("_", " "),
+    source_family: source.family || fallbackFamily(String(source.source_key)),
+  });
+  for (const row of rows) if (!sourceOptions.has(String(row.source_key))) sourceOptions.set(String(row.source_key), {
+    source_key: row.source_key, source_label: row.source_label, source_family: row.source_family,
+  });
+  const availableSources = [...sourceOptions.values()]
+    .sort((a, b) => String(a.source_label).localeCompare(String(b.source_label), "fr"));
+  const pageRows = exactFabricId ? filtered : filtered.slice(offset, offset + limit);
+  return {
+    rows: pageRows,
+    available_sources: availableSources,
+    page: { offset, limit, source_rows: filtered.length, has_more: !exactFabricId && offset + limit < filtered.length },
+    stats: {
+      rows: filtered.length,
+      contacts: filtered.reduce((n: number, row: AnyRow) => n + Number(row.contact_count || 0), 0),
+      whatsapp: filtered.reduce((n: number, row: AnyRow) => n + Number(row.whatsapp_count || 0), 0),
+      reachable: filtered.reduce((n: number, row: AnyRow) => n + Number(row.wa_reachable_count || 0), 0),
+      sendable: filtered.reduce((n: number, row: AnyRow) => n + (row.contacts || []).filter((c: ContactCandidate) => c.send_allowed).length, 0),
+    },
+  };
+}
+
 async function enrichFabricRows(service: any, rows: AnyRow[]) {
   if (!rows.length) return [];
 
@@ -474,9 +696,15 @@ async function getFabricRow(service: any, fabricId: string) {
 }
 
 async function getResolvedContact(service: any, fabricId: string, phone: string) {
-  const raw = await getFabricRow(service, fabricId);
-  if (!raw) return { row: null, contact: null };
-  const [row] = await enrichFabricRows(service, [raw]);
+  let row: AnyRow | null = null;
+  if (fabricId.startsWith("directory:")) {
+    const directory = await loadContactDirectory(service, { fabric_id: fabricId, limit: 1, offset: 0 });
+    row = directory.rows?.[0] ?? null;
+  } else {
+    const raw = await getFabricRow(service, fabricId);
+    if (raw) [row] = await enrichFabricRows(service, [raw]);
+  }
+  if (!row) return { row: null, contact: null };
   const normalized = normalizeE164(phone, "+229");
   const contact = (row?.contacts ?? []).find((c: ContactCandidate) =>
     normalized ? c.normalized === normalized : c.value === phone
@@ -589,6 +817,22 @@ async function updateVerifiedSource(service: any, contact: ContactCandidate, e16
     await service.from("waouh_partner_businesses").update({ whatsapp: e164 }).eq("id", contact.origin_id);
   } else if (contact.origin_kind === "article") {
     await service.from("waouh_articles").update({ contact_whatsapp: e164 }).eq("id", contact.origin_id);
+  } else if (contact.origin_kind === "waouh_user") {
+    await service.from("waouh_users").update({ phone_number: e164, updated_at: now }).eq("id", contact.origin_id);
+  } else if (contact.origin_kind === "wa_contact") {
+    await service.from("wa_contacts").update({
+      phone_e164: e164, is_whatsapp: true, last_validated_at: now, updated_at: now,
+    }).eq("id", contact.origin_id);
+  } else if (contact.origin_kind === "whatsapp_contact") {
+    await service.from("whatsapp_contacts").update({ phone_number: e164, updated_at: now }).eq("id", contact.origin_id);
+  } else if (contact.origin_kind === "radar_contact") {
+    const { data: radar } = await service.from("waouh_radar_contacts")
+      .select("metadata").eq("id", contact.origin_id).maybeSingle();
+    await service.from("waouh_radar_contacts").update({
+      phone_e164_normalized: e164,
+      metadata: { ...(radar?.metadata || {}), waha_chat_id: chatId, last_waha_check_at: now },
+      updated_at: now,
+    }).eq("id", contact.origin_id);
   }
 }
 
@@ -608,6 +852,13 @@ async function assertNotOptedOut(service: any, e164: string) {
   if ((wa ?? []).some((r: AnyRow) => r.opt_out === true || r.archived === true)) {
     throw new Error("CONTACT_OPTED_OUT");
   }
+
+  const rawCandidates = phoneCandidates(e164);
+  const { data: synced } = await service.from("whatsapp_contacts")
+    .select("id,status").in("phone_number", [...variants, ...rawCandidates]).limit(10);
+  if ((synced ?? []).some((r: AnyRow) => ["blocked", "opted_out"].includes(String(r.status || "").toLowerCase()))) {
+    throw new Error("CONTACT_OPTED_OUT");
+  }
 }
 
 
@@ -618,6 +869,11 @@ export async function handleAdminContactHub(
 ): Promise<Response> {
   try {
     const action = String(body?.action || "contact_hub_search");
+    if (action === "contact_hub_directory") {
+      const directory = await loadContactDirectory(service, body);
+      return json({ ok: true, ...directory });
+    }
+
     if (action === "contact_hub_search") {
       const limit = Math.max(1, Math.min(Number(body?.limit || 150), 300));
       const { data, error } = await service.rpc("waouh_admin_signal_fabric_search", {

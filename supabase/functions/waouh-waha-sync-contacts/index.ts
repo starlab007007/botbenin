@@ -69,6 +69,17 @@ Deno.serve(async (req) => {
   if (wahaApiKey) headers['X-Api-Key'] = wahaApiKey;
   if (wahaUser && wahaPass) headers['Authorization'] = 'Basic ' + btoa(`${wahaUser}:${wahaPass}`);
 
+  // Recover stale executions so the admin never shows a sync as "running" forever.
+  await supabase
+    .from('waouh_lid_sync_runs')
+    .update({
+      status: 'failed',
+      error: 'stale_run_recovered',
+      finished_at: new Date().toISOString(),
+    })
+    .eq('status', 'running')
+    .lt('started_at', new Date(Date.now() - 60 * 60 * 1000).toISOString());
+
   const runRes = await supabase
     .from('waouh_lid_sync_runs')
     .insert({ session: requestedSessions ? requestedSessions.join(',') : 'auto', status: 'running' })
@@ -85,7 +96,7 @@ Deno.serve(async (req) => {
       sessionsToUse = requestedSessions.slice(0, maxSessions);
       totalWorkingSessions = requestedSessions.length;
     } else {
-      const sRes = await fetch(`${wahaBase}/api/sessions`, { headers });
+      const sRes = await fetch(`${wahaBase}/api/sessions`, { headers, signal: AbortSignal.timeout(8000) });
       if (!sRes.ok) {
         const t = await sRes.text();
         throw new Error(`WAHA /api/sessions HTTP ${sRes.status}: ${t.slice(0, 200)}`);
@@ -137,7 +148,7 @@ Deno.serve(async (req) => {
       const sessionResult: any = { session, fetched: 0, mapped: 0, backfilled: 0, ok: false };
       try {
         const url = `${wahaBase}/api/contacts/all?session=${encodeURIComponent(session)}`;
-        const resp = await fetch(url, { headers });
+        const resp = await fetch(url, { headers, signal: AbortSignal.timeout(15000) });
         if (!resp.ok) {
           const text = await resp.text();
           sessionResult.error = `HTTP ${resp.status}: ${text.slice(0, 200)}`;
