@@ -2,6 +2,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 
+const OTP_DEV_MODE = Deno.env.get("OTP_DEV_MODE") === "1";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-waouh-session",
@@ -38,7 +40,10 @@ serve(async (req) => {
     await admin.from("whatsapp_otp_codes").update({ used: true }).eq("phone", normalized).eq("used", false);
 
     const { error: insErr } = await admin.from("whatsapp_otp_codes").insert({ phone: normalized, code_hash, expires_at });
-    if (insErr) return json({ error: insErr.message }, 500);
+    if (insErr) {
+      console.error("otp-store", insErr);
+      return json({ error: "otp_service_unavailable" }, 500);
+    }
 
     // Send via WAHA directly (no user auth required for OTP)
     const sessionName = Deno.env.get("WAHA_DEFAULT_SESSION") || "WaouhApp";
@@ -50,7 +55,10 @@ serve(async (req) => {
 
     if (!wahaBaseUrl) {
       console.error("WAHA_BASE_URL not configured");
-      return json({ ok: true, dev_code: code, warn: "waha_not_configured" });
+      if (OTP_DEV_MODE) {
+        return json({ ok: true, dev_code: code, warn: "waha_not_configured" });
+      }
+      return json({ ok: false, error: "otp_delivery_unavailable" }, 503);
     }
 
     const headerVariants: Record<string, string>[] = [];
@@ -87,12 +95,15 @@ serve(async (req) => {
 
     if (!sent) {
       console.error("WAHA sendText failed:", lastErr);
-      return json({ ok: true, dev_code: code, warn: "send_failed", detail: lastErr });
+      if (OTP_DEV_MODE) {
+        return json({ ok: true, dev_code: code, warn: "send_failed" });
+      }
+      return json({ ok: false, error: "otp_delivery_unavailable" }, 502);
     }
 
-    return json({ ok: true, dev_code: Deno.env.get("OTP_DEV_MODE") === "1" ? code : undefined });
+    return json({ ok: true, ...(OTP_DEV_MODE ? { dev_code: code } : {}) });
   } catch (e) {
     console.error("otp-send", e);
-    return json({ error: String((e as Error).message) }, 500);
+    return json({ error: "otp_service_unavailable" }, 500);
   }
 });
