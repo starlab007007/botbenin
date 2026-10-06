@@ -1,6 +1,7 @@
 import { assertChatResponse, normalizeChatReply, mergeChatRows, reconcileChatResponse } from "@/lib/chatReply";
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import { useNavigate } from "react-router-dom";
 import remarkGfm from "remark-gfm";
 
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ import { avatarBubbleInfo, avatarRevealDelayMs, openAvatarBriefing, parseAvatarB
 import { commerceRequestFromButton, sendCommerceAction } from "@/lib/waouh/commerceAction";
 
 import { userFacingErrorText } from "@/lib/userFacingError";
+import { readWaouhSmartEnvelope, waouhSmartActions } from "@/lib/waouh/smartPayload";
 type Att = { url: string; type: string; caption?: string };
 type WaouhAction = { id: string; label: string; url?: string };
 const stripLegacy = (t: string) =>
@@ -114,6 +116,7 @@ export type WaouhWebChatHandle = {
 };
 
 export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean; fullscreen?: boolean; variant?: "web" | "native"; composerTopSlot?: React.ReactNode; onAgentStateChange?: (state: WaouhWorkspaceAgentState) => void; hideAgentBar?: boolean }>(({ embedded = false, fullscreen = false, variant = "web", composerTopSlot, onAgentStateChange, hideAgentBar = false }, externalRef) => {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(embedded || fullscreen);
   const sessionId = useRef(getSessionId()).current;
   // Cache-first hydration: load last snapshot synchronously so the chat
@@ -830,6 +833,14 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
             );
           }
           const rich = normalizeChatReply(m);
+          const smart = readWaouhSmartEnvelope((m as any).meta);
+          const legacyActions = Array.isArray((m as any).meta?.actions)
+            ? ((m as any).meta.actions as WaouhAction[])
+            : [];
+          const smartFallbackActions: WaouhAction[] = waouhSmartActions((m as any).meta, 3)
+            .filter((action) => action.id !== "open_context" || smart?.domain !== "chat")
+            .map((action) => ({ id: action.id, label: action.label, url: action.route || undefined }));
+          const bubbleActions = legacyActions.length > 0 ? legacyActions : smartFallbackActions;
           return (
           <div
             key={m.id}
@@ -915,14 +926,29 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                   <WaouhAgentBlocks blocks={rich.blocks} onAction={handleAgentAction} busy={!!agentAction} />
                 )}
 
-                {m.direction === "out" && Array.isArray((m as any).meta?.actions) && (m as any).meta.actions.length > 0 && (
+                {m.direction === "out" && smart && (smart.domain !== "chat" || smart.priority === "high" || smart.priority === "urgent") && (
+                  <div className="mt-2 flex items-center gap-1.5 not-prose text-[9px] font-black uppercase tracking-wide">
+                    <span className={cn(
+                      "rounded-full px-2 py-1",
+                      smart.priority === "urgent" ? "bg-red-100 text-red-700" :
+                      smart.priority === "high" ? "bg-amber-100 text-amber-700" :
+                      "bg-slate-100 text-slate-600"
+                    )}>{smart.domain}</span>
+                    {smart.stage && <span className="text-slate-400">{smart.stage}</span>}
+                  </div>
+                )}
+
+                {m.direction === "out" && bubbleActions.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-2 not-prose">
-                    {((m as any).meta.actions as WaouhAction[]).slice(0, 4).map((a, i) => (
+                    {bubbleActions.slice(0, 3).map((a, i) => (
                       <Button
                         key={i}
                         size="sm"
                         variant="secondary"
-                        className="h-7 text-xs"
+                        className={cn(
+                          "h-8 rounded-xl px-3 text-[11px] font-black",
+                          i === 0 ? "bg-slate-950 text-white hover:bg-slate-800" : ""
+                        )}
                         onClick={async () => {
                           // Boutons d'une bulle de l'avatar : mêmes actions que l'ancienne carte (jamais d'envoi sans ce tap).
                           if (avatarBubbleInfo((m as any).meta)) {
@@ -930,6 +956,10 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                             return;
                           }
                           if (a.url) {
+                            if (a.url.startsWith("/app/")) {
+                              navigate(a.url);
+                              return;
+                            }
                             // In Capacitor, opening wa.me kicks the user to WhatsApp.
                             // Keep the user inside the app by ignoring WhatsApp deep-links.
                             try {
