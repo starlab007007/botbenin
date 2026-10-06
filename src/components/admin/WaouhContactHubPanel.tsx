@@ -275,8 +275,7 @@ export default function WaouhContactHubPanel() {
                 Répertoire contacts · WhatsApp / WAHA
               </CardTitle>
               <CardDescription className="mt-1">
-                Coordonnées complètes réservées aux administrateurs. Normalisation E.164, vérification WhatsApp via WAHA,
-                puis envoi par la file WAOUH avec retries, traçabilité et contrôle d’opt-out.
+                Répertoire global réservé aux administrateurs : WAOUH, catalogue, partenaires, Radar, WAHA/WhatsApp et NEXUS. Numéros complets normalisés en E.164, vérification WAHA puis envoi via la file WAOUH avec traçabilité et contrôle d’opt-out.
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -293,7 +292,7 @@ export default function WaouhContactHubPanel() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-            <MiniStat label="Signaux avec contact" value={stats.rows} />
+            <MiniStat label="Entrées contact" value={stats.rows} />
             <MiniStat label="Contacts complets" value={stats.contacts} />
             <MiniStat label="Numéros WhatsApp" value={stats.whatsapp} />
             <MiniStat label="WAHA vérifiés" value={stats.reachable} accent="text-emerald-700" />
@@ -314,7 +313,7 @@ export default function WaouhContactHubPanel() {
               placeholder="Toutes les sources"
             />
             <datalist id="waouh-contact-source-options">
-              {sourceOptions.map((s) => <option key={s} value={s} />)}
+              {sourceOptions.map((item) => <option key={item.source_key} value={item.source_key}>{item.source_label || item.source_key}</option>)}
             </datalist>
             <Button
               variant={whatsappOnly ? "default" : "outline"}
