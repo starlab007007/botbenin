@@ -548,19 +548,74 @@ async function materializeEntityContacts(service: any, rows: AnyRow[], adminUser
     };
   }
 
-  const { data, error } = await service
-    .from("waouh_entity_contacts")
-    .upsert(payload, {
-      onConflict: "entity_id,channel,value_hash",
-      ignoreDuplicates: true,
-    })
-    .select("id");
+  const hashes = [...new Set(payload.map((row: AnyRow) => String(row.value_hash)).filter(Boolean))];
+  const { data: existingRows, error: existingError } = hashes.length
+    ? await service.from("waouh_entity_contacts")
+      .select("id,entity_id,channel,value_hash,metrics,verified_at,verification_status,is_whatsapp_reachable")
+      .in("value_hash", hashes)
+    : { data: [], error: null };
+  if (existingError) throw existingError;
 
-  if (error) throw error;
+  const existingByKey = new Map<string, AnyRow>();
+  for (const row of existingRows ?? []) {
+    existingByKey.set(`${row.entity_id}:${row.channel}:${row.value_hash}`, row);
+  }
+
+  const inserts: AnyRow[] = [];
+  const updates: Array<{ id: string; values: AnyRow }> = [];
+  for (const row of payload) {
+    const key = `${row.entity_id}:${row.channel}:${row.value_hash}`;
+    const existing = existingByKey.get(key);
+    if (!existing) {
+      inserts.push(row);
+      continue;
+    }
+
+    updates.push({
+      id: existing.id,
+      values: {
+        source_key: row.source_key,
+        is_public_business: existing.is_public_business === true || row.is_public_business === true,
+        consent_state: existing.consent_state && existing.consent_state !== "unknown"
+          ? existing.consent_state
+          : row.consent_state,
+        contactability_level: contactLevelAllowed(existing.contactability_level)
+          ? existing.contactability_level
+          : row.contactability_level,
+        verified_at: existing.verified_at || row.verified_at,
+        verification_status: existing.verification_status && existing.verification_status !== "unknown"
+          ? existing.verification_status
+          : row.verification_status,
+        is_whatsapp_reachable: existing.is_whatsapp_reachable ?? row.is_whatsapp_reachable,
+        metrics: {
+          ...(existing.metrics || {}),
+          ...(row.metrics || {}),
+          rematerialized_at: now,
+        },
+        updated_at: now,
+      },
+    });
+  }
+
+  let inserted = 0;
+  for (let i = 0; i < inserts.length; i += 100) {
+    const batch = inserts.slice(i, i + 100);
+    const { data, error } = await service.from("waouh_entity_contacts").insert(batch).select("id");
+    if (error) throw error;
+    inserted += (data ?? []).length;
+  }
+
+  let updated = 0;
+  for (const item of updates) {
+    const { error } = await service.from("waouh_entity_contacts").update(item.values).eq("id", item.id);
+    if (error) throw error;
+    updated += 1;
+  }
 
   return {
     attempted: payload.length,
-    written: (data ?? []).length,
+    written: inserted,
+    updated,
     skipped_no_entity: skippedNoEntity,
     skipped_revoked: skippedRevoked,
     skipped_invalid: skippedInvalid,
