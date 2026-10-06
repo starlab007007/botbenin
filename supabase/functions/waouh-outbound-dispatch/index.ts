@@ -75,6 +75,172 @@ async function checkWahaProvider(
   return { ok: false, reason: lastError || "waha_health_unreachable" };
 }
 
+
+type WebhookRepairSummary = {
+  scanned: number;
+  repaired: number;
+  failed: number;
+};
+
+function canonicalWahaWebhookUrl(currentUrl: string): string {
+  let token = "";
+  try {
+    token = new URL(currentUrl).searchParams.get("token") || "";
+  } catch {
+    token = "";
+  }
+  const base = `${SUPABASE_URL}/functions/v1/waha-webhook`;
+  return token ? `${base}?token=${encodeURIComponent(token)}` : base;
+}
+
+function objectMap(value: unknown): Record<string, any> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, any>
+    : {};
+}
+
+async function repairLegacyWahaWebhooks(
+  sb: any,
+  base: string | null | undefined,
+  headers: Record<string, string>,
+): Promise<WebhookRepairSummary> {
+  const summary: WebhookRepairSummary = { scanned: 0, repaired: 0, failed: 0 };
+  if (!base) return summary;
+
+  const { data, error } = await sb
+    .from("whatsapp_accounts")
+    .select("id,session_name,webhook_url")
+    .like("webhook_url", "%/functions/v1/waha-studio-webhook%")
+    .limit(5);
+
+  if (error) {
+    console.warn("[waouh-outbound-dispatch] legacy webhook lookup failed", {
+      code: error.code || null,
+    });
+    return summary;
+  }
+
+  const normalizedBase = base.replace(/\/$/, "");
+
+  for (const row of data || []) {
+    summary.scanned++;
+    const sessionName = String(row?.session_name || "").trim();
+    const currentUrl = String(row?.webhook_url || "").trim();
+    if (!sessionName || !currentUrl.includes("/functions/v1/waha-studio-webhook")) {
+      continue;
+    }
+
+    const canonicalUrl = canonicalWahaWebhookUrl(currentUrl);
+    let currentPayload: Record<string, any> | null = null;
+
+    for (const endpoint of [
+      `/api/sessions/${encodeURIComponent(sessionName)}`,
+      `/api/v2/sessions/${encodeURIComponent(sessionName)}`,
+    ]) {
+      try {
+        const response = await wahaFetch(`${normalizedBase}${endpoint}`, { headers });
+        if (!response.ok) {
+          await response.text().catch(() => "");
+          continue;
+        }
+        currentPayload = objectMap(await response.json().catch(() => null));
+        break;
+      } catch {
+        // Try the next WAHA API shape.
+      }
+    }
+
+    if (!currentPayload) {
+      summary.failed++;
+      console.warn("[waouh-outbound-dispatch] legacy webhook repair: session unreadable", {
+        session: sessionName,
+      });
+      continue;
+    }
+
+    const config = objectMap(currentPayload.config);
+    const existingWebhooks = Array.isArray(config.webhooks)
+      ? config.webhooks.filter((item: unknown) => {
+          const url = String(objectMap(item).url || "");
+          return !url.includes("/functions/v1/waha-studio-webhook") &&
+            !url.includes("/functions/v1/waha-webhook");
+        })
+      : [];
+
+    const nextConfig = {
+      ...config,
+      webhooks: [
+        ...existingWebhooks,
+        {
+          url: canonicalUrl,
+          events: [
+            "message",
+            "message.any",
+            "message.ack",
+            "message.reaction",
+            "session.status",
+          ],
+        },
+      ],
+    };
+
+    let repairedRemote = false;
+    for (const endpoint of [
+      `/api/sessions/${encodeURIComponent(sessionName)}`,
+      `/api/v2/sessions/${encodeURIComponent(sessionName)}`,
+    ]) {
+      try {
+        const response = await wahaFetch(`${normalizedBase}${endpoint}`, {
+          method: "PUT",
+          headers,
+          body: JSON.stringify({ config: nextConfig }),
+        });
+        if (!response.ok) {
+          await response.text().catch(() => "");
+          continue;
+        }
+        repairedRemote = true;
+        break;
+      } catch {
+        // Try the next WAHA API shape.
+      }
+    }
+
+    if (!repairedRemote) {
+      summary.failed++;
+      console.warn("[waouh-outbound-dispatch] legacy webhook repair: WAHA update failed", {
+        session: sessionName,
+      });
+      continue;
+    }
+
+    const { error: updateError } = await sb
+      .from("whatsapp_accounts")
+      .update({
+        webhook_url: canonicalUrl,
+        last_activity: new Date().toISOString(),
+      })
+      .eq("id", row.id)
+      .eq("webhook_url", currentUrl);
+
+    if (updateError) {
+      summary.failed++;
+      console.warn("[waouh-outbound-dispatch] legacy webhook repair: DB sync failed", {
+        session: sessionName,
+        code: updateError.code || null,
+      });
+      continue;
+    }
+
+    summary.repaired++;
+    console.log("[waouh-outbound-dispatch] legacy WAHA webhook repaired", {
+      session: sessionName,
+    });
+  }
+
+  return summary;
+}
+
 function fmt(n: number | null | undefined) {
   if (n == null) return "prix à discuter";
   return Number(n).toLocaleString("fr-FR") + " FCFA";
@@ -250,7 +416,8 @@ Deno.serve(async (req) => {
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     const requestedLimit = Number(body?.limit ?? 20);
     const limit = Math.max(1, Math.min(Number.isFinite(requestedLimit) ? Math.floor(requestedLimit) : 20, 20));
-    const manual = body?.manual === true;
+    const repairWebhooksOnly = body?.repair_webhooks_only === true;
+    const manual = body?.manual === true || repairWebhooksOnly;
     const runStartedAt = Date.now();
     const maxRunMs = 45_000;
 
@@ -277,6 +444,32 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+    }
+
+    const wahaHeaders = {
+      "Content-Type": "application/json",
+      ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}),
+    };
+
+    const webhookRepair = await repairLegacyWahaWebhooks(
+      sb,
+      WAHA_BASE_URL,
+      wahaHeaders,
+    ).catch((error) => {
+      console.warn("[waouh-outbound-dispatch] webhook self-heal failed", {
+        message: String(error?.message || error || "unknown_error"),
+      });
+      return { scanned: 0, repaired: 0, failed: 1 } as WebhookRepairSummary;
+    });
+
+    if (repairWebhooksOnly) {
+      return new Response(JSON.stringify({
+        ok: webhookRepair.failed === 0,
+        webhook_repair: webhookRepair,
+      }), {
+        status: webhookRepair.failed === 0 ? 200 : 207,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const nowIso = new Date().toISOString();
@@ -322,10 +515,6 @@ Deno.serve(async (req) => {
     const wahaNeeded = pendingItems.some((it: any) =>
       it?.channel !== "web" && !!it?.to_phone
     );
-    const wahaHeaders = {
-      "Content-Type": "application/json",
-      ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}),
-    };
     const wahaHealth = !wahaNeeded
       ? { ok: true as const }
       : !WAHA_BASE_URL
