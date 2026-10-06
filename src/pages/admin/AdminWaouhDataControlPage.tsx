@@ -187,11 +187,12 @@ export default function AdminWaouhDataControlPage() {
   }, [sources, stats.family_counts]);
 
   const visibleSources = useMemo(() => {
-    const list = familyFilter === 'all' ? sources : sources.filter(s => s.family === familyFilter);
-    const withDataOnly = list.filter(s => (stats.source_counts?.[s.source_key] || 0) > 0);
-    const dataKeys = new Set(withDataOnly.map(s => s.source_key));
+    // Afficher toutes les sources configurées, même lorsqu’elles n’ont encore
+    // produit aucun signal, puis compléter avec les clés historiques inconnues.
+    const configured = familyFilter === 'all' ? sources : sources.filter(s => s.family === familyFilter);
+    const configuredKeys = new Set(sources.map(s => s.source_key));
     const inferred = Object.keys(stats.source_counts || {})
-      .filter(k => !dataKeys.has(k))
+      .filter(k => !configuredKeys.has(k))
       .map(k => ({
         source_key: k,
         label: k.replaceAll('_', ' '),
@@ -202,7 +203,7 @@ export default function AdminWaouhDataControlPage() {
         supports_buy: true,
         supports_sell: true,
       } as DiscoverySource));
-    return [...withDataOnly, ...inferred]
+    return [...configured, ...inferred]
       .filter(s => familyFilter === 'all' || s.family === familyFilter)
       .sort((a, b) => a.label.localeCompare(b.label, 'fr'));
   }, [sources, stats.source_counts, familyFilter]);
