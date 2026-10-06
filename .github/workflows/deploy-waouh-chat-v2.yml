@@ -49,6 +49,7 @@ on:
       - "supabase/functions/_shared/waouh-price.ts"
       - "supabase/functions/_shared/waouh-admin-contact-hub.ts"
       - "supabase/functions/waouh-admin-stats/**"
+      - "supabase/functions/waouh-waha-sync-contacts/**"
       - "supabase/functions/waouh-notify-buyers/**"
       - "supabase/functions/waouh-geocode/**"
       - "supabase/functions/waouh-radar-apify/**"
@@ -333,15 +334,21 @@ jobs:
           done
           echo "✅ Existing WAOUH Chat function slots updated."
 
-      - name: Deploy WAOUH admin backend
+      - name: Deploy WAOUH admin backend and WAHA contact sync
         shell: bash
         run: |
           set -euo pipefail
-          echo "🔐 Deploying waouh-admin-stats (JWT verified)..."
-          supabase functions deploy waouh-admin-stats \
-            --project-ref "$SUPABASE_PROJECT_REF" \
-            --use-api
-          echo "✅ WAOUH admin backend deployed with JWT verification."
+          secured_admin_functions=(
+            waouh-admin-stats
+            waouh-waha-sync-contacts
+          )
+          for fn in "${secured_admin_functions[@]}"; do
+            echo "🔐 Deploying $fn (JWT verified)..."
+            supabase functions deploy "$fn" \
+              --project-ref "$SUPABASE_PROJECT_REF" \
+              --use-api
+          done
+          echo "✅ WAOUH admin backend and WAHA contact synchronization deployed with JWT verification."
 
       - name: Deploy Opportunity OS in existing production slots
         shell: bash
