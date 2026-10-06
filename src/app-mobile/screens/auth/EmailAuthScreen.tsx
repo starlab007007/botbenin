@@ -10,20 +10,17 @@ import { SegmentedTabs } from "@/app-mobile/components/auth/SegmentedTabs";
 import { NativeTextField } from "@/app-mobile/components/auth/NativeTextField";
 import { GoogleButton } from "@/app-mobile/components/auth/GoogleButton";
 import { PasswordStrengthBar } from "@/app-mobile/components/auth/PasswordStrengthBar";
+import { DEFAULT_PUBLIC_APP_PATH, normalizeWaouhRedirect } from "@/lib/waouhAccessPolicy";
 
 type Tab = "login" | "register" | "reset";
 
 type AuthLocationState = { from?: string } | null;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const FALLBACK_REDIRECT = "/app/chat";
+const FALLBACK_REDIRECT = DEFAULT_PUBLIC_APP_PATH;
 
-const normalizeRedirect = (target?: string | null): string => {
-  if (!target || typeof target !== "string") return FALLBACK_REDIRECT;
-  if (!target.startsWith("/app")) return FALLBACK_REDIRECT;
-  if (target.startsWith("/app/auth")) return FALLBACK_REDIRECT;
-  return target;
-};
+const normalizeRedirect = (target?: string | null): string =>
+  normalizeWaouhRedirect(target, FALLBACK_REDIRECT);
 
 const waitForSupabaseSession = async (): Promise<boolean> => {
   for (let i = 0; i < 20; i += 1) {
@@ -61,6 +58,9 @@ export default function EmailAuthScreen() {
       }
     } catch {}
 
+    const queryTarget = params.get("next");
+    if (queryTarget) return normalizeRedirect(queryTarget);
+
     const stateTarget = (location.state as AuthLocationState)?.from;
     return normalizeRedirect(stateTarget);
   };
@@ -91,6 +91,9 @@ export default function EmailAuthScreen() {
     setGoogleLoading(true);
     Haptics.impact({ style: ImpactStyle.Medium }).catch(() => {});
     try {
+      try {
+        sessionStorage.setItem("waouh_post_auth_redirect", consumeRedirect());
+      } catch {}
       await loginWithGoogle();
     } finally {
       setGoogleLoading(false);
