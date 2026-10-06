@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { invokeWaouhAgentic } from "@/lib/waouh/agenticClient";
 import { listNexusConversationBus, type NexusConversationBusEvent } from "@/lib/waouh/nexus";
 import {
+import { userFacingErrorText } from "@/lib/userFacingError";
   listFromAgenticData, normalizeAgenticBlocks, type AgentActivity, type AgenticAction,
   type AgentMission, type NonFinancialApproval, type PriceWatch, type SellerPolicy, type SignedOffer,
 } from "@/lib/waouh/agenticContracts";
@@ -30,7 +31,7 @@ type CenterData = {
 
 const EMPTY: CenterData = { missions: [], watches: [], approvals: [], activity: [], bus: [], offers: [], policy: null };
 
-const errorMessage = (error: unknown) => error instanceof Error ? error.message : "Une erreur inattendue est survenue.";
+const errorMessage = (error: unknown) => userFacingErrorText(error, "generic");
 const amount = (value: string) => value.trim() ? Number(value.replace(/\s/g, "")) : undefined;
 
 export function WaouhAgentCenter({ compact = false, standalone = false }: { compact?: boolean; standalone?: boolean }) {
