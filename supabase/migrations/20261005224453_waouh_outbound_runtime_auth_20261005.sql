@@ -1,4 +1,3 @@
--- WAOUH outbound runtime-authenticated cron — 2026-10-05.
 select cron.alter_job(
   (select jobid from cron.job where jobname='waouh-outbound-dispatch-tick' limit 1),
   command := $cron$
