@@ -14,6 +14,10 @@ on:
 jobs:
   deploy-waouh-edge:
     runs-on: ubuntu-latest
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF || secrets.SUPABASE_PROJECT_REF || 'mvynepqulhflxtyymtzs' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,7 +25,7 @@ jobs:
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: "2.117.0"
 
       - name: Validate WAOUH Edge sources
         run: |
@@ -35,12 +39,33 @@ jobs:
           grep -q 'waouh-channel-in-secure' supabase/functions/waouh-channel-in-secure/index.ts
           echo '✅ Sources Edge WAOUH sécurisées prêtes'
 
-      - name: Deploy secured WAOUH Edge Functions
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: mvynepqulhflxtyymtzs
+      - name: Check deployment credentials
         run: |
           set -euo pipefail
-          supabase functions deploy waouh-history --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
-          supabase functions deploy waouh-channel-in-secure --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt
+          test -n "${SUPABASE_ACCESS_TOKEN:-}" || { echo "::error::SUPABASE_ACCESS_TOKEN absent de l'environnement production"; exit 1; }
+          test -n "${SUPABASE_PROJECT_REF:-}" || { echo "::error::SUPABASE_PROJECT_REF absent"; exit 1; }
+          echo "✅ Identifiants de déploiement disponibles"
+
+      - name: Prepare minimal Edge deployment config
+        run: |
+          set -euo pipefail
+          cp supabase/config.toml /tmp/waouh-edge-config.original.toml
+          cat > supabase/config.toml <<EOF
+          project_id = "$SUPABASE_PROJECT_REF"
+
+          [api]
+          enabled = true
+          port = 54321
+
+          [edge_runtime]
+          enabled = true
+          policy = "per_worker"
+          EOF
+          echo "✅ Configuration Edge minimale compatible CLI 2.117.0"
+
+      - name: Deploy secured WAOUH Edge Functions
+        run: |
+          set -euo pipefail
+          supabase functions deploy waouh-history --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
+          supabase functions deploy waouh-channel-in-secure --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
           echo '✅ Edge Functions WAOUH déployées'
