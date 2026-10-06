@@ -89,6 +89,39 @@ function beninProviderCandidates(e164: string) {
   return Array.from(new Set(out));
 }
 
+async function adminWahaHealth() {
+  if (!WAHA_BASE_URL) {
+    return { ready: false, session: WAHA_SESSION, status: "NOT_CONFIGURED", reason: "waha_not_configured" };
+  }
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (WAHA_API_KEY) headers["X-Api-Key"] = WAHA_API_KEY;
+  try {
+    const response = await fetch(`${WAHA_BASE_URL}/api/sessions/${encodeURIComponent(WAHA_SESSION)}`, {
+      headers,
+      signal: AbortSignal.timeout(3500),
+    });
+    if (!response.ok) {
+      return { ready: false, session: WAHA_SESSION, status: `HTTP_${response.status}`, reason: "waha_status_failed" };
+    }
+    const body = await response.json().catch(() => ({}));
+    const status = String(body?.status || "UNKNOWN").toUpperCase();
+    const ready = ["WORKING", "READY", "AUTHENTICATED", "CONNECTED"].includes(status);
+    return {
+      ready,
+      session: WAHA_SESSION,
+      status,
+      reason: ready ? null : status === "SCAN_QR_CODE" ? "qr_required" : "waha_not_ready",
+    };
+  } catch (error: any) {
+    return {
+      ready: false,
+      session: WAHA_SESSION,
+      status: "UNREACHABLE",
+      reason: String(error?.message || "waha_unreachable"),
+    };
+  }
+}
+
 async function adminWahaCheck(e164: string) {
   if (!WAHA_BASE_URL) return { reachable: null as boolean | null, chatId: null as string | null, reason: "waha_not_configured" };
   const headers: Record<string, string> = { Accept: "application/json" };
@@ -431,8 +464,10 @@ serve(async (req) => {
       const contactMap = await resolveAdminSignalContacts(sb, fabricIds);
 
       if (action === "signal_contacts_resolve") {
+        const waha = await adminWahaHealth();
         return new Response(JSON.stringify({
           ok: true,
+          waha,
           rows: fabricIds.map((fabricId) => ({
             fabric_id: fabricId,
             contacts: contactMap[fabricId] || [],
@@ -443,6 +478,13 @@ serve(async (req) => {
       }
 
       if (action === "signal_contacts_sync_waha") {
+        const waha = await adminWahaHealth();
+        if (!waha.ready) {
+          return new Response(JSON.stringify({ ok: false, error: "waha_not_ready", waha }), {
+            status: 409,
+            headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
+          });
+        }
         const all = fabricIds.flatMap((fabricId) => contactMap[fabricId] || []).filter((contact) => !!contact.normalized_e164);
         const unique = Array.from(new Map(all.map((contact) => [contact.normalized_e164!, contact])).values()).slice(0, 80);
         const checks: any[] = [];
@@ -481,6 +523,13 @@ serve(async (req) => {
         }), { headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" } });
       }
 
+      const waha = await adminWahaHealth();
+      if (!waha.ready) {
+        return new Response(JSON.stringify({ ok: false, error: "waha_not_ready", waha }), {
+          status: 503,
+          headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
+        });
+      }
       const message = String(requestBody.message || "").trim();
       if (message.length < 2 || message.length > 1200) throw new Error("invalid_message");
       const queued: any[] = [];
