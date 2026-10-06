@@ -17,7 +17,7 @@ const waouhAuthRequiredPrefixes = <String>[
 ];
 
 bool requiresWaouhAuthentication(String path) {
-  if (path == '/app/chat') return false;
+  if (path == '/app/chat' || path == '/app/presence/checkin') return false;
   for (final prefix in waouhAuthRequiredPrefixes) {
     if (prefix.endsWith('/')) {
       if (path.startsWith(prefix)) return true;
