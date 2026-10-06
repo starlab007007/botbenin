@@ -338,17 +338,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          secured_admin_functions=(
+          admin_functions=(
             waouh-admin-stats
             waouh-waha-sync-contacts
           )
-          for fn in "${secured_admin_functions[@]}"; do
-            echo "🔐 Deploying $fn (JWT verified)..."
+          for fn in "${admin_functions[@]}"; do
+            echo "🔐 Deploying $fn with verify_jwt from supabase/config.toml..."
             supabase functions deploy "$fn" \
               --project-ref "$SUPABASE_PROJECT_REF" \
               --use-api
           done
-          echo "✅ WAOUH admin backend and WAHA contact synchronization deployed with JWT verification."
+          echo "✅ WAOUH admin backend and WAHA contact synchronization deployed with canonical auth modes."
 
       - name: Deploy Opportunity OS in existing production slots
         shell: bash
