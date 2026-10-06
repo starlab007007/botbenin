@@ -1024,6 +1024,7 @@ export async function handleAdminContactHub(
         admin_contact_hub: true,
         waha_verified: true,
         waha_session: check.session,
+        waha_chat_id: check.chat_id,
       };
       const { data: queueId, error: queueError } = await service.rpc("waouh_enqueue_outbound_v2", {
         p_to_phone: contact.normalized,
