@@ -31,7 +31,7 @@ class _LiveNotificationsScreenV2State extends State<LiveNotificationsScreenV2> {
       context.go('/app/chat/${item.conversationId}');
       return;
     }
-    final action = item.actionUrl;
+    final action = item.smartActionUrl;
     if (action != null && action.startsWith('/app/')) {
       context.go(action);
       return;
@@ -92,8 +92,24 @@ class _LiveNotificationsScreenV2State extends State<LiveNotificationsScreenV2> {
                       itemCount: items.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (_, index) => _NotificationTile(
-                          item: items[index],
-                          onTap: () => _open(controller, items[index])),
+                        item: items[index],
+                        onTap: () => _open(controller, items[index]),
+                        onAction: (action) async {
+                          final item = items[index];
+                          await controller.markNotificationRead(item.id);
+                          if (!mounted) return;
+                          if (item.isMatch || action.kind == 'commerce') {
+                            await _open(controller, item);
+                            return;
+                          }
+                          final route = action.route ?? item.smartActionUrl;
+                          if (route != null && route.startsWith('/app/')) {
+                            context.go(route);
+                          } else {
+                            await _open(controller, item);
+                          }
+                        },
+                      ),
                     ),
             ),
           ]);
@@ -104,9 +120,14 @@ class _LiveNotificationsScreenV2State extends State<LiveNotificationsScreenV2> {
 }
 
 class _NotificationTile extends StatelessWidget {
-  const _NotificationTile({required this.item, required this.onTap});
+  const _NotificationTile({
+    required this.item,
+    required this.onTap,
+    required this.onAction,
+  });
   final LiveNotification item;
   final VoidCallback onTap;
+  final ValueChanged<LiveSmartAction> onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -116,6 +137,7 @@ class _NotificationTile extends StatelessWidget {
     final label = item.isMatch
         ? 'Match produit'
         : (item.type ?? 'Information').replaceAll('_', ' ');
+    final actions = item.smartActions.take(3).toList(growable: false);
     return Card(
       color: item.read ? Colors.white : const Color(0xFFE7FFF2),
       child: InkWell(
@@ -151,7 +173,7 @@ class _NotificationTile extends StatelessWidget {
                     children: [
                   Row(children: [
                     Expanded(
-                        child: Text(item.title,
+                        child: Text(item.displayTitle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -163,10 +185,57 @@ class _NotificationTile extends StatelessWidget {
                   const SizedBox(height: 3),
                   Chip(
                       label: Text(label), visualDensity: VisualDensity.compact),
-                  if (item.body.isNotEmpty)
-                    Text(item.body,
-                        maxLines: 2, overflow: TextOverflow.ellipsis),
-                  const SizedBox(height: 4),
+                  if (item.displayBody.isNotEmpty)
+                    Text(item.displayBody,
+                        maxLines: 3, overflow: TextOverflow.ellipsis),
+                  if (item.smart.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        _SmartMetaChip(
+                          label: item.smartDomain,
+                          emphasis: item.smartPriority == 'urgent' ||
+                              item.smartPriority == 'high',
+                        ),
+                        if (liveText(item.smart['stage']).trim().isNotEmpty)
+                          _SmartMetaChip(
+                            label: liveText(item.smart['stage']).trim(),
+                          ),
+                      ],
+                    ),
+                  ],
+                  if (actions.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 7,
+                      runSpacing: 7,
+                      children: [
+                        for (var index = 0; index < actions.length; index++)
+                          index == 0
+                              ? FilledButton(
+                                  onPressed: () => onAction(actions[index]),
+                                  style: FilledButton.styleFrom(
+                                    visualDensity: VisualDensity.compact,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 8),
+                                  ),
+                                  child: Text(actions[index].label),
+                                )
+                              : OutlinedButton(
+                                  onPressed: () => onAction(actions[index]),
+                                  style: OutlinedButton.styleFrom(
+                                    visualDensity: VisualDensity.compact,
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 8),
+                                  ),
+                                  child: Text(actions[index].label),
+                                ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 6),
                   Text(_stamp(item.createdAt),
                       style: const TextStyle(
                           fontSize: 11, color: Color(0xFF6B7D76))),
@@ -176,6 +245,36 @@ class _NotificationTile extends StatelessWidget {
       ),
     );
   }
+}
+
+
+class _SmartMetaChip extends StatelessWidget {
+  const _SmartMetaChip({required this.label, this.emphasis = false});
+  final String label;
+  final bool emphasis;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+        decoration: BoxDecoration(
+          color: emphasis
+              ? const Color(0xFFFFF1DA)
+              : const Color(0xFFF0F4F2),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: emphasis
+                  ? const Color(0xFF9A5B00)
+                  : const Color(0xFF52645D),
+            ),
+          ),
+        ),
+      );
 }
 
 String _stamp(DateTime date) {
