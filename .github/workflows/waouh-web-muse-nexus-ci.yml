@@ -125,7 +125,8 @@ jobs:
         run: |
           npm exec --yes --package=vitest@2.1.9 --package=jsdom@25.0.1 -- vitest run \
             src/lib/waouh/__tests__/access-policy.test.ts \
-            src/lib/waouh/__tests__/user-facing-error.test.ts
+            src/lib/waouh/__tests__/user-facing-error.test.ts \
+            src/lib/waouh/__tests__/smart-payload.test.ts
 
       - name: Deno
         uses: denoland/setup-deno@v2
