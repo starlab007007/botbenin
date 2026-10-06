@@ -1003,7 +1003,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                               }
                             }
                           }
-                          if (a.url) {
+                          if (a.url && (!a.kind || a.kind === "navigate" || a.kind === "contact")) {
                             if (a.url.startsWith("/app/")) {
                               navigate(a.url);
                               return;
