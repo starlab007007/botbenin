@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { decryptPhone, encryptPhone, hashPhone, sha256Hex } from "../_shared/waouh-tel/crypto.ts";
+import { buildContactPack } from "../_shared/waouh-opportunity-os.ts";
 import { formatPhoneDisplay, normalizeE164, phoneLast4, providerPhone } from "../_shared/waouh-tel/phone.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -817,34 +818,76 @@ async function persistCanonicalPhone(
 
   const { data: pack } = await service.from("waouh_contact_packs")
     .select("*").eq("fabric_id", row.fabric_id).maybeSingle();
-  if (pack) {
-    const channels = [...new Set([
-      ...(Array.isArray(pack.available_channels) ? pack.available_channels : []),
-      channel,
-      ...(reachable === true ? ["whatsapp"] : []),
-    ])];
-    const masked = [...(Array.isArray(pack.masked_contacts) ? pack.masked_contacts : [])];
-    const maskedKey = `${channel}:${phoneLast4(e164)}`;
-    if (!masked.some((item: AnyRow) => `${item?.channel}:${item?.last4}` === maskedKey)) {
-      masked.push({ channel, last4: phoneLast4(e164), reachable: reachable === true });
-    }
-    await service.from("waouh_contact_packs").update({
-      entity_id: entity.id,
-      source_key: row.source_key,
-      contactability_level: strongerContactLevel(pack.contactability_level, level),
-      best_channel: reachable === true ? "whatsapp" : (pack.best_channel || channel),
-      available_channels: channels,
-      masked_contacts: masked.slice(-20),
-      last_enriched_at: now,
-      last_verified_at: reachable === true ? now : pack.last_verified_at,
-      metadata: {
-        ...(pack.metadata || {}),
-        admin_contact_backfill: true,
-        canonical_contact_id: saved.id,
-      },
-      updated_at: now,
-    }).eq("fabric_id", row.fabric_id);
-  }
+
+  const previousChannels = Array.isArray(pack?.available_channels)
+    ? pack.available_channels.filter((item: AnyRow) => item?.channel)
+    : [];
+  const candidate = {
+    channel,
+    verified: verification === "verified" || verification === "reachable" || reachable === true,
+    reachable,
+    public_business: values.is_public_business === true,
+    consent_state: consent,
+    last4: phoneLast4(e164),
+    last_success_at: existing?.last_success_at || null,
+    last_failure_at: existing?.last_failure_at || null,
+    reply_count: Number(existing?.reply_count || 0),
+    failure_count: Number(existing?.failure_count || 0),
+  };
+  const mergedChannels = [
+    ...previousChannels.filter((item: AnyRow) =>
+      !(String(item?.channel || "") === channel && String(item?.last4 || "") === phoneLast4(e164))
+    ),
+    candidate,
+  ];
+
+  const computedPack = buildContactPack({
+    fabricId: row.fabric_id,
+    sourceKey: row.source_key,
+    contactability: strongerContactLevel(pack?.contactability_level, level),
+    trustScore: Number(row.trust_score || 50),
+    observedAt: row.observed_at || null,
+    entityResolved: true,
+    internalArticle: String(row.fabric_id || "").startsWith("article:"),
+    threadId: pack?.metadata?.thread_id || null,
+    journeyStage: pack?.metadata?.journey_stage || null,
+    replyReceived: Number(existing?.reply_count || 0) > 0,
+    channels: mergedChannels,
+  });
+
+  await service.from("waouh_contact_packs").upsert({
+    fabric_id: row.fabric_id,
+    entity_id: entity.id,
+    source_key: row.source_key,
+    contactability_level: computedPack.contactability_level,
+    readiness_level: computedPack.readiness_level,
+    readiness_score: computedPack.readiness_score,
+    actionability_score: computedPack.actionability_score,
+    next_best_action: computedPack.next_best_action,
+    best_channel: computedPack.best_channel,
+    available_channels: computedPack.available_channels,
+    masked_contacts: computedPack.masked_contacts,
+    verification: {
+      ...(pack?.verification || {}),
+      verified_channel: computedPack.verified_channel === true,
+      canonical_contact_id: saved.id,
+      waha_reachable: reachable,
+      ...(cached.chat_id ? { waha_chat_id: cached.chat_id } : {}),
+      ...(cached.session ? { waha_session: cached.session } : {}),
+    },
+    message_template: pack?.message_template || null,
+    fallback_channels: Array.isArray(pack?.fallback_channels) ? pack.fallback_channels : [],
+    last_enriched_at: now,
+    last_verified_at: reachable === true ? now : (pack?.last_verified_at || null),
+    expires_at: pack?.expires_at || null,
+    metadata: {
+      ...(pack?.metadata || {}),
+      admin_contact_backfill: true,
+      canonical_contact_id: saved.id,
+      last_backfilled_at: now,
+    },
+    updated_at: now,
+  }, { onConflict: "fabric_id" });
 
   return {
     contact_id: saved.id,
