@@ -53,6 +53,52 @@ function isWahaTimeout(response: Response) {
   return response.status === 504 && response.headers.get("X-WAOUH-Timeout") === "1";
 }
 
+type WahaSessionSnapshot = {
+  checked: boolean;
+  working: string[];
+  error: string | null;
+};
+
+async function loadWorkingWahaSessions(): Promise<WahaSessionSnapshot> {
+  if (!WAHA_BASE_URL) return { checked: true, working: [], error: "WAHA_BASE_URL missing" };
+  const base = WAHA_BASE_URL.replace(/\/$/, "");
+  const headers = {
+    "Accept": "application/json",
+    ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}),
+  };
+  try {
+    const response = await wahaFetch(`${base}/api/sessions`, { headers });
+    if (!response.ok) {
+      return {
+        checked: !isWahaTimeout(response),
+        working: [],
+        error: isWahaTimeout(response) ? "WAHA_SESSIONS_TIMEOUT" : `WAHA_SESSIONS_HTTP_${response.status}`,
+      };
+    }
+    const data = await response.json().catch(() => []);
+    const working = (Array.isArray(data) ? data : [])
+      .filter((row: any) => String(row?.status || "").toUpperCase() === "WORKING")
+      .map((row: any) => String(row?.name || "").trim())
+      .filter(Boolean);
+    return { checked: true, working: [...new Set(working)], error: null };
+  } catch (error) {
+    return {
+      checked: false,
+      working: [],
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+function chooseWahaSession(snapshot: WahaSessionSnapshot, requested: string) {
+  const clean = /^[A-Za-z0-9_.-]{1,96}$/.test(requested) ? requested : "";
+  if (!snapshot.checked) return clean || WAHA_SESSION;
+  if (snapshot.working.length === 0) return null;
+  if (clean && snapshot.working.includes(clean)) return clean;
+  if (snapshot.working.includes(WAHA_SESSION)) return WAHA_SESSION;
+  return snapshot.working[0];
+}
+
 async function requestIsAdmin(req: Request, sb: any) {
   const auth = req.headers.get("Authorization") || "";
   if (!auth.startsWith("Bearer ")) return false;
@@ -295,6 +341,25 @@ Deno.serve(async (req) => {
     }
 
     const nowIso = new Date().toISOString();
+    const wahaSessions = await loadWorkingWahaSessions();
+
+    // If WAHA answered successfully and confirms that no session is connected,
+    // keep the queue untouched. Burning attempts while every session is offline
+    // only creates false permanent failures.
+    if (wahaSessions.checked && wahaSessions.working.length === 0) {
+      console.warn("[waouh-outbound-dispatch] no WORKING WAHA session", {
+        error: wahaSessions.error,
+      });
+      return new Response(JSON.stringify({
+        ok: true,
+        skipped: true,
+        reason: "waha_no_working_session",
+        queued: 0,
+        session_health: "offline",
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Lease recovery: a worker may crash after claiming pending→sending.
     // Requeue stale claims so one transient crash never blocks a notification forever.
@@ -339,9 +404,12 @@ Deno.serve(async (req) => {
       const requestedWahaSession = typeof it.payload?.waha_session === "string"
         ? it.payload.waha_session.trim()
         : "";
-      const deliverySession = /^[A-Za-z0-9_.-]{1,96}$/.test(requestedWahaSession)
-        ? requestedWahaSession
-        : WAHA_SESSION;
+      const deliverySession = chooseWahaSession(wahaSessions, requestedWahaSession);
+      if (!deliverySession) {
+        // Defensive fallback: the run-level guard above normally handles this.
+        skipped++;
+        continue;
+      }
       // Keep a hard runtime budget below the Edge idle/runtime ceiling.
       // Remaining rows stay pending and will be picked up by the next tick.
       if (Date.now() - runStartedAt >= maxRunMs) {
@@ -588,7 +656,17 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, processed, queued: items?.length || 0, sent, failed, skipped, budget_ms: maxRunMs }), {
+    return new Response(JSON.stringify({
+      ok: true,
+      processed,
+      queued: items?.length || 0,
+      sent,
+      failed,
+      skipped,
+      budget_ms: maxRunMs,
+      waha_sessions: wahaSessions.working.length,
+      waha_session_health: wahaSessions.checked ? "online" : "unknown",
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
