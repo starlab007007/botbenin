@@ -11,6 +11,7 @@ import 'live_controller.dart';
 import 'live_nexus_service.dart';
 import 'live_widgets.dart';
 import 'live_theme.dart';
+import 'live_guest_action_gate.dart';
 import 'user_message.dart';
 import 'live_hot_labels.dart';
 
@@ -62,7 +63,6 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   }
 
   Future<void> loadSources() async {
-    if (legacy.supabase.auth.currentUser == null) return;
     try {
       final value = await service.sources();
       if (!mounted) return;
@@ -119,6 +119,11 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   }
 
   Future<void> recognizeProduct() async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/nexus',
+      actionLabel: 'analyser une photo avec NEXUS',
+    )) return;
     final file = await ImagePicker().pickImage(
       source: ImageSource.camera,
       imageQuality: 82,
@@ -143,6 +148,11 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   }
 
   Future<void> scanBarcode() async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/nexus',
+      actionLabel: 'analyser un code-barres avec NEXUS',
+    )) return;
     final code = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -168,6 +178,11 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   }
 
   Future<void> startBuyerAutopilot() async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/missions',
+      actionLabel: 'confier la recherche à votre Avatar',
+    )) return;
     final goal = query.text.trim();
     if (goal.isEmpty) {
       notice('Lancez d’abord une recherche.');
@@ -209,6 +224,11 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   }
 
   Future<void> pickShareImage() async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/nexus',
+      actionLabel: 'ajouter une capture à NEXUS',
+    )) return;
     final file = await ImagePicker().pickImage(
       source: ImageSource.gallery,
       imageQuality: 84,
@@ -232,6 +252,11 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   }
 
   Future<void> ingestShared() async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/nexus',
+      actionLabel: 'ajouter un signal au réseau NEXUS',
+    )) return;
     if (shareText.text.trim().isEmpty &&
         shareUrl.text.trim().isEmpty &&
         (shareImageUrl?.isEmpty ?? true)) {
@@ -265,6 +290,11 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   }
 
   Future<void> submitScout() async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/nexus',
+      actionLabel: 'contribuer au réseau de prix NEXUS',
+    )) return;
     final title = scoutTitle.text.trim();
     if (title.isEmpty) {
       notice('Indiquez le produit observé.');
@@ -297,6 +327,11 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   }
 
   Future<void> prepareContact(NexusDiscoveryItem item) async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/nexus',
+      actionLabel: 'contacter cette opportunité',
+    )) return;
     setState(() => busy = true);
     try {
       final contact = await service.prepareContact(item.fabricId);
@@ -340,30 +375,41 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
           subtitle: 'Le moteur de découverte de votre Avatar',
           back: true,
         ),
-        body: auth.signedIn
-            ? Column(
-                children: [
-                  _Hero(liveCount: sources.where((source) => source.live).length),
-                  const _Tabs(),
-                  Expanded(
-                    child: TabBarView(
-                      children: [
-                        buildSearch(),
-                        buildShare(),
-                        buildScout(),
-                        buildSources(),
-                      ],
-                    ),
+        body: Column(
+          children: [
+            _Hero(liveCount: sources.where((source) => source.live).length),
+            if (!auth.signedIn)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F5FF),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFD6E3FF)),
+                ),
+                child: const Text(
+                  'Mode invité · Recherche et sources accessibles. Connectez-vous pour partager, contribuer, contacter ou confier une mission à Bot.',
+                  style: TextStyle(
+                    color: Color(0xFF315BD8),
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
                   ),
-                ],
-              )
-            : Center(
-                child: FilledButton.icon(
-                  onPressed: () => context.go('/app/auth?next=/app/nexus'),
-                  icon: const Icon(Icons.login_rounded),
-                  label: const Text('Se connecter pour utiliser NEXUS'),
                 ),
               ),
+            const _Tabs(),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  buildSearch(),
+                  buildShare(),
+                  buildScout(),
+                  buildSources(),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
