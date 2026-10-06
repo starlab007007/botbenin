@@ -158,7 +158,7 @@ export async function pushSyncedEvent(args: PushSyncedEventArgs): Promise<PushSy
         intent,
         template: template ?? intent,
         actions: Array.isArray((payloadExtra as any)?.actions) ? (payloadExtra as any).actions : [],
-        effectiveCorrelationId,
+        correlationId: effectiveCorrelationId,
         payloadExtra: { ...meta, thread_id: v2ThreadId },
         enqueueWhatsapp: false,
       });
