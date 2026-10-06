@@ -58,6 +58,10 @@ class _LiveInboxScreenV2State extends State<LiveInboxScreenV2> {
   }
 
   Future<void> _openWaouhWith(String seed) async {
+    final controller = context.read<LiveWaouhController>();
+    // Preserve the user's intent in memory before auth. No backend write occurs
+    // until the authenticated branch below is reached.
+    controller.setComposerSeed(seed);
     if (!await requireLiveAuthentication(
       context,
       next: '/app/chat/waouh',
@@ -65,9 +69,7 @@ class _LiveInboxScreenV2State extends State<LiveInboxScreenV2> {
           ? 'commencer une discussion'
           : 'acheter, vendre ou négocier',
     )) return;
-    final controller = context.read<LiveWaouhController>();
     await controller.startNewChat();
-    controller.setComposerSeed(seed);
     if (mounted) context.go('/app/chat/waouh');
   }
 
