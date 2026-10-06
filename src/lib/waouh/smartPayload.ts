@@ -149,7 +149,15 @@ export function primaryWaouhSmartAction(value: unknown): WaouhSmartAction | null
 }
 
 export function waouhSmartActions(value: unknown, max = 3): WaouhSmartAction[] {
-  return readWaouhSmartEnvelope(value)?.actions.slice(0, Math.max(0, max)) ?? [];
+  const smart = readWaouhSmartEnvelope(value);
+  if (!smart) return [];
+  const preferred = text(smart.next_best_action);
+  const ordered = [...smart.actions].sort((a, b) => {
+    if (a.id === preferred && b.id !== preferred) return -1;
+    if (b.id === preferred && a.id !== preferred) return 1;
+    return (a.priority ?? 99) - (b.priority ?? 99);
+  });
+  return ordered.slice(0, Math.max(0, max));
 }
 
 export function waouhSmartRoute(value: unknown): string | null {
