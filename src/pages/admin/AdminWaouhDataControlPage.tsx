@@ -509,23 +509,49 @@ export default function AdminWaouhDataControlPage() {
 
   const syncWaha = async () => {
     if (!results.length) {
-      toast({ title: 'Aucun résultat à vérifier', description: 'Lancez d’abord une recherche Signal Fabric.' });
+      toast({ title: 'Aucun résultat à normaliser', description: 'Lancez d’abord une recherche Signal Fabric.' });
       return;
     }
     setSyncingWaha(true);
     try {
-      toast({ title: 'Normalisation + vérification WAHA en cours…' });
-      const [legacy, normalized] = await Promise.all([
-        supabase.functions.invoke('waouh-waha-sync-contacts', { body: { backfill: true } }),
-        supabase.functions.invoke('waouh-admin-stats', {
-          body: { action: 'signal_contacts_sync_waha', fabric_ids: results.map(r => r.fabric_id) },
-        }),
-      ]);
+      toast({ title: 'Normalisation des contacts en cours…' });
+
+      const legacyPromise = supabase.functions.invoke('waouh-waha-sync-contacts', { body: { backfill: true } });
+      const fabricIds = results.map(r => r.fabric_id);
+      const chunks: string[][] = [];
+      for (let i = 0; i < fabricIds.length; i += 25) chunks.push(fabricIds.slice(i, i + 25));
+
+      let checked = 0;
+      let reachable = 0;
+      let unreachable = 0;
+      let normalizedCount = 0;
+      let persisted = 0;
+      let latestWaha: WahaHealth | null = wahaHealth;
+      const checks: any[] = [];
+
+      for (const chunk of chunks) {
+        const { data, error } = await supabase.functions.invoke('waouh-admin-stats', {
+          body: { action: 'signal_contacts_sync_waha', fabric_ids: chunk },
+        });
+        if (error) throw error;
+        checked += Number(data?.checked || 0);
+        reachable += Number(data?.reachable || 0);
+        unreachable += Number(data?.unreachable || 0);
+        normalizedCount += Number(data?.normalized || 0);
+        persisted += Number(data?.persisted || 0);
+        if (data?.waha) latestWaha = data.waha as WahaHealth;
+        if (Array.isArray(data?.results)) checks.push(...data.results);
+      }
+
+      const legacy = await legacyPromise;
       if (legacy.error) throw legacy.error;
-      if (normalized.error) throw normalized.error;
-      const checks = Array.isArray(normalized.data?.results) ? normalized.data.results : [];
+      setWahaHealth(latestWaha);
+
       const reachability = new Map<string, boolean | null>(
-        checks.map((row: any) => [String(row.e164 || ''), row.reachable === true ? true : row.reachable === false ? false : null]),
+        checks.map((row: any) => [
+          String(row.e164 || ''),
+          row.reachable === true ? true : row.reachable === false ? false : null,
+        ]),
       );
       setContactMap(prev => Object.fromEntries(
         Object.entries(prev).map(([fabricId, contacts]) => [
@@ -538,13 +564,21 @@ export default function AdminWaouhDataControlPage() {
           })),
         ]),
       ));
-      toast({
-        title: '✅ Contacts WhatsApp synchronisés',
-        description: `${normalized.data?.checked ?? 0} vérifiés · ${normalized.data?.reachable ?? 0} joignables WAHA · ${legacy.data?.mapped ?? 0} mappings WAHA actualisés`,
-      });
-      await Promise.all([loadStats(), loadSources()]);
+
+      if (latestWaha?.ready === false) {
+        toast({
+          title: '✅ Contacts normalisés · WAHA à reconnecter',
+          description: `${normalizedCount} contact(s) normalisé(s) · ${persisted} nouveau(x) contact(s) persisté(s). La vérification/envoi WhatsApp reprendra après liaison de ${latestWaha.session}.`,
+        });
+      } else {
+        toast({
+          title: '✅ Contacts WhatsApp synchronisés',
+          description: `${normalizedCount} normalisés · ${persisted} persistés · ${checked} vérifiés · ${reachable} joignables · ${unreachable} non joignables · ${legacy.data?.mapped ?? 0} mappings WAHA actualisés`,
+        });
+      }
+      await Promise.all([loadStats(), loadSources(), loadResolvedContacts(results)]);
     } catch (e: any) {
-      toast({ title: 'Erreur synchro WAHA', description: e?.message || String(e), variant: 'destructive' });
+      toast({ title: 'Erreur normalisation / WAHA', description: e?.message || String(e), variant: 'destructive' });
     } finally {
       setSyncingWaha(false);
     }
@@ -731,10 +765,10 @@ export default function AdminWaouhDataControlPage() {
                 <Button
                   variant="outline"
                   onClick={syncWaha}
-                  disabled={syncingWaha || !results.length || wahaHealth?.ready === false}
+                  disabled={syncingWaha || !results.length}
                 >
                   {syncingWaha ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                  Normaliser + vérifier WAHA
+                  Normaliser contacts + WAHA
                 </Button>
                 {wahaHealth && (
                   <Badge
