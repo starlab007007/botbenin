@@ -1,4 +1,3 @@
--- WAOUH conversations owner INSERT policy — 2026-10-05.
 DROP POLICY IF EXISTS "waouh_conversations owner insert" ON public.waouh_conversations;
 CREATE POLICY "waouh_conversations owner insert"
 ON public.waouh_conversations
