@@ -1,3 +1,4 @@
+import { userFacingErrorText } from "@/lib/userFacingError";
 import { WaouhAvatarProgress, WaouhAvatarSynthesis } from "./WaouhAvatarProgress";
 import { assertChatResponse, normalizeChatReply, mergeChatRows, reconcileChatResponse } from "@/lib/chatReply";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -26,7 +27,6 @@ import { WaouhDealStepper } from "./WaouhDealStepper";
 import { BotDealCopilot, dealExpression } from "./bot/BotDealCopilot";
 import { BotLiveAvatar } from "./bot/BotLiveAvatar";
 import {
-import { userFacingErrorText } from "@/lib/userFacingError";
   commerceRequestFromButton,
   formatFcfa,
   latestStage,
