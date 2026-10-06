@@ -1,6 +1,8 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+import { decryptPhone } from "../_shared/waouh-tel/crypto.ts";
+import { normalizeE164, phoneLast4, providerPhone } from "../_shared/waouh-tel/phone.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,6 +12,9 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+const WAHA_BASE_URL = (Deno.env.get("WAHA_BASE_URL") || "").replace(/\/$/, "");
+const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY") || "";
+const WAHA_SESSION = Deno.env.get("WAHA_SESSION") || "WaouhApp";
 
 function countBy(rows: any[], key: string) {
   return rows.reduce((acc: Record<string, number>, row: any) => {
@@ -29,6 +34,332 @@ function isMuseMessage(message: any) {
   const meta = message?.meta || {};
   const origin = String(meta.origin_surface || meta.source || meta.surface || "").toLowerCase();
   return origin.includes("muse") || origin.includes("mission");
+}
+
+
+type ResolvedAdminContact = {
+  id: string | null;
+  fabric_id: string;
+  source_key: string;
+  label: string | null;
+  channel: string;
+  value: string;
+  normalized_e164: string | null;
+  whatsapp_chat_id: string | null;
+  value_last4: string | null;
+  contactability_level: string;
+  consent_state: string;
+  is_public_business: boolean;
+  is_whatsapp_reachable: boolean | null;
+  can_notify_whatsapp: boolean;
+  notify_reason: string;
+  entity_id: string | null;
+};
+
+function uniqStrings(values: unknown[], max = 300) {
+  return Array.from(new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))).slice(0, max);
+}
+
+function sourceAllowsDirectWhatsApp(source: any) {
+  const key = String(source?.source_key || "");
+  const family = String(source?.family || "");
+  if (["waouh_app", "whatsapp", "partner", "status", "google_places", "facebook_business", "instagram_business", "benin_directory"].includes(key)) return true;
+  return ["internal", "partner", "messaging"].includes(family);
+}
+
+function normalizedPhone(raw: unknown) {
+  const e164 = normalizeE164(raw);
+  if (!e164) return null;
+  return {
+    e164,
+    chatId: `${providerPhone(e164)}@c.us`,
+    last4: phoneLast4(e164),
+  };
+}
+
+function beninProviderCandidates(e164: string) {
+  const canonical = providerPhone(e164);
+  const out = [canonical];
+  if (canonical.startsWith("22901") && canonical.length === 13) {
+    out.push(`229${canonical.slice(5)}`);
+  } else if (canonical.startsWith("229") && canonical.length === 11) {
+    out.push(`22901${canonical.slice(3)}`);
+  }
+  return Array.from(new Set(out));
+}
+
+async function adminWahaCheck(e164: string) {
+  if (!WAHA_BASE_URL) return { reachable: null as boolean | null, chatId: null as string | null, reason: "waha_not_configured" };
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (WAHA_API_KEY) headers["X-Api-Key"] = WAHA_API_KEY;
+  for (const candidate of beninProviderCandidates(e164)) {
+    const routes = [
+      `/api/${encodeURIComponent(WAHA_SESSION)}/contacts/check-exists?phone=${encodeURIComponent(candidate)}`,
+      `/api/contacts/check-exists?phone=${encodeURIComponent(candidate)}&session=${encodeURIComponent(WAHA_SESSION)}`,
+    ];
+    for (const route of routes) {
+      try {
+        const response = await fetch(`${WAHA_BASE_URL}${route}`, {
+          headers,
+          signal: AbortSignal.timeout(3000),
+        });
+        if (!response.ok) continue;
+        const body = await response.json().catch(() => null);
+        if (body && (body.numberExists === true || body.exists === true)) {
+          return {
+            reachable: true,
+            chatId: typeof body.chatId === "string" ? body.chatId : `${candidate}@c.us`,
+            reason: null,
+          };
+        }
+      } catch (_) {}
+    }
+  }
+  return { reachable: false, chatId: null, reason: "not_on_whatsapp" };
+}
+
+async function resolveAdminSignalContacts(sb: any, fabricIds: string[]) {
+  const { data: fabricRows, error: fabricError } = await sb
+    .from("waouh_signal_fabric")
+    .select("fabric_id,source_record_id,source_key,contactability_level,evidence")
+    .in("fabric_id", fabricIds);
+  if (fabricError) throw fabricError;
+
+  const { data: sourceRows, error: sourceError } = await sb
+    .from("waouh_discovery_sources")
+    .select("source_key,family,supports_contact,default_contactability");
+  if (sourceError) throw sourceError;
+  const sourceMap = new Map((sourceRows || []).map((row: any) => [String(row.source_key), row]));
+
+  const articleIds = uniqStrings((fabricRows || []).map((row: any) => row.evidence?.article_id), 500);
+  const buyerIds = uniqStrings((fabricRows || []).map((row: any) => row.evidence?.buyer_profile_id), 500);
+  const catalogIds = uniqStrings((fabricRows || []).map((row: any) => row.evidence?.catalog_id), 500);
+  const radarIds = uniqStrings((fabricRows || []).map((row: any) => row.evidence?.radar_signal_id), 500);
+  const externalIds = uniqStrings(
+    (fabricRows || []).filter((row: any) => String(row.fabric_id).startsWith("external:"))
+      .map((row: any) => String(row.fabric_id).slice("external:".length)),
+    500,
+  );
+
+  const [articles, buyers, catalogs, radar, external] = await Promise.all([
+    articleIds.length
+      ? sb.from("waouh_articles").select("id,seller_id,contact_whatsapp,partner_id").in("id", articleIds)
+      : Promise.resolve({ data: [], error: null }),
+    buyerIds.length
+      ? sb.from("waouh_buyer_profiles").select("id,user_id,contact_whatsapp").in("id", buyerIds)
+      : Promise.resolve({ data: [], error: null }),
+    catalogIds.length
+      ? sb.from("waouh_unified_catalog").select("id,vendeur_nom,vendeur_phone,vendeur_whatsapp,partner_id,business_id,verified").in("id", catalogIds)
+      : Promise.resolve({ data: [], error: null }),
+    radarIds.length
+      ? sb.from("waouh_radar_signals").select("id,contact_phone,contact_handle,waouh_user_id,source_type").in("id", radarIds)
+      : Promise.resolve({ data: [], error: null }),
+    externalIds.length
+      ? sb.from("waouh_external_commerce_signals").select("id,entity_id,actor_name,contact_consent_basis,source_key").in("id", externalIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  for (const query of [articles, buyers, catalogs, radar, external]) if (query.error) throw query.error;
+
+  const articleMap = new Map((articles.data || []).map((row: any) => [String(row.id), row]));
+  const buyerMap = new Map((buyers.data || []).map((row: any) => [String(row.id), row]));
+  const catalogMap = new Map((catalogs.data || []).map((row: any) => [String(row.id), row]));
+  const radarMap = new Map((radar.data || []).map((row: any) => [String(row.id), row]));
+  const externalMap = new Map((external.data || []).map((row: any) => [String(row.id), row]));
+
+  const userIds = new Set<string>();
+  for (const row of fabricRows || []) {
+    if (row.evidence?.seller_id) userIds.add(String(row.evidence.seller_id));
+    if (row.evidence?.user_id) userIds.add(String(row.evidence.user_id));
+  }
+  for (const row of articles.data || []) if (row.seller_id) userIds.add(String(row.seller_id));
+  for (const row of buyers.data || []) if (row.user_id) userIds.add(String(row.user_id));
+  for (const row of radar.data || []) if (row.waouh_user_id) userIds.add(String(row.waouh_user_id));
+
+  const users = userIds.size
+    ? await sb.from("waouh_users").select("id,phone_number,display_name,auth_user_id").in("id", Array.from(userIds))
+    : { data: [], error: null };
+  if (users.error) throw users.error;
+  const userMap = new Map((users.data || []).map((row: any) => [String(row.id), row]));
+
+  const entityIds = uniqStrings((external.data || []).map((row: any) => row.entity_id), 500);
+  const entityContacts = entityIds.length
+    ? await sb.from("waouh_entity_contacts")
+      .select("id,entity_id,channel,value_encrypted,public_value,value_last4,source_key,is_public_business,consent_state,contactability_level,is_whatsapp_reachable,verification_status")
+      .in("entity_id", entityIds)
+    : { data: [], error: null };
+  if (entityContacts.error) throw entityContacts.error;
+  const contactsByEntity = new Map<string, any[]>();
+  for (const contact of entityContacts.data || []) {
+    const key = String(contact.entity_id);
+    contactsByEntity.set(key, [...(contactsByEntity.get(key) || []), contact]);
+  }
+
+  const result: Record<string, ResolvedAdminContact[]> = {};
+  const add = (fabricRow: any, raw: unknown, meta: any = {}) => {
+    const text = String(raw ?? "").trim();
+    if (!text) return;
+    const channel = String(meta.channel || "phone");
+    const normalized = ["phone", "whatsapp"].includes(channel) ? normalizedPhone(text) : null;
+    const source = sourceMap.get(String(fabricRow.source_key)) || {};
+    const level = String(meta.contactability_level || fabricRow.contactability_level || source.default_contactability || "C0");
+    const consentState = String(meta.consent_state || "unknown");
+    const isPublicBusiness = meta.is_public_business === true;
+    const allowedConsent = isPublicBusiness ||
+      ["public_business", "initiated", "opt_in", "partner_contract"].includes(consentState);
+    const directSource = sourceAllowsDirectWhatsApp({ ...source, source_key: fabricRow.source_key });
+    const canNotify = !!normalized && level !== "C0" && (allowedConsent || directSource);
+    const item: ResolvedAdminContact = {
+      id: meta.id ?? null,
+      fabric_id: String(fabricRow.fabric_id),
+      source_key: String(fabricRow.source_key),
+      label: meta.label ?? null,
+      channel,
+      value: normalized?.e164 || text,
+      normalized_e164: normalized?.e164 || null,
+      whatsapp_chat_id: normalized?.chatId || null,
+      value_last4: normalized?.last4 || meta.value_last4 || null,
+      contactability_level: level,
+      consent_state: consentState,
+      is_public_business: isPublicBusiness,
+      is_whatsapp_reachable: meta.is_whatsapp_reachable ?? null,
+      can_notify_whatsapp: canNotify,
+      notify_reason: !normalized
+        ? "contact_non_telephonique"
+        : canNotify
+          ? (allowedConsent ? "autorise_par_consentement_ou_contact_public" : "canal_waouh_ou_partenaire")
+          : "notification_whatsapp_non_autorisee",
+      entity_id: meta.entity_id ?? null,
+    };
+    const key = item.normalized_e164 ? `phone:${item.normalized_e164}` : `${item.channel}:${item.value}`;
+    const current = result[item.fabric_id] || [];
+    if (!current.some((existing) => {
+      const existingKey = existing.normalized_e164 ? `phone:${existing.normalized_e164}` : `${existing.channel}:${existing.value}`;
+      return existingKey === key;
+    })) {
+      current.push(item);
+      result[item.fabric_id] = current;
+    }
+  };
+
+  const addUser = (fabricRow: any, userId: unknown, label: string) => {
+    const user = userId ? userMap.get(String(userId)) : null;
+    if (!user?.phone_number) return;
+    add(fabricRow, user.phone_number, {
+      channel: "whatsapp",
+      label: user.display_name || label,
+      contactability_level: fabricRow.contactability_level || "C2",
+      consent_state: "initiated",
+      is_public_business: false,
+    });
+  };
+
+  for (const row of fabricRows || []) {
+    result[String(row.fabric_id)] = result[String(row.fabric_id)] || [];
+    const evidence = row.evidence || {};
+    const source = sourceMap.get(String(row.source_key)) || {};
+    const article = evidence.article_id ? articleMap.get(String(evidence.article_id)) : null;
+    const buyer = evidence.buyer_profile_id ? buyerMap.get(String(evidence.buyer_profile_id)) : null;
+    const catalog = evidence.catalog_id ? catalogMap.get(String(evidence.catalog_id)) : null;
+    const radarRow = evidence.radar_signal_id ? radarMap.get(String(evidence.radar_signal_id)) : null;
+
+    if (article) {
+      if (article.contact_whatsapp) add(row, article.contact_whatsapp, {
+        channel: "whatsapp",
+        label: "WhatsApp annonce",
+        contactability_level: article.partner_id ? "C4" : (row.contactability_level || "C2"),
+        consent_state: article.partner_id ? "partner_contract" : "initiated",
+        is_public_business: !!article.partner_id,
+      });
+      addUser(row, article.seller_id, "Vendeur WAOUH");
+    }
+    if (buyer) {
+      if (buyer.contact_whatsapp) add(row, buyer.contact_whatsapp, {
+        channel: "whatsapp",
+        label: "WhatsApp acheteur",
+        contactability_level: row.contactability_level || "C2",
+        consent_state: "initiated",
+        is_public_business: false,
+      });
+      addUser(row, buyer.user_id, "Acheteur WAOUH");
+    }
+    if (catalog) {
+      if (catalog.vendeur_whatsapp) add(row, catalog.vendeur_whatsapp, {
+        channel: "whatsapp",
+        label: catalog.vendeur_nom || "WhatsApp catalogue",
+        contactability_level: catalog.partner_id ? "C4" : (row.contactability_level || source.default_contactability || "C1"),
+        consent_state: catalog.partner_id ? "partner_contract" : (catalog.verified ? "public_business" : "unknown"),
+        is_public_business: !!catalog.partner_id || catalog.verified === true,
+      });
+      if (catalog.vendeur_phone) add(row, catalog.vendeur_phone, {
+        channel: "phone",
+        label: catalog.vendeur_nom || "Téléphone catalogue",
+        contactability_level: catalog.partner_id ? "C4" : (row.contactability_level || source.default_contactability || "C1"),
+        consent_state: catalog.partner_id ? "partner_contract" : (catalog.verified ? "public_business" : "unknown"),
+        is_public_business: !!catalog.partner_id || catalog.verified === true,
+      });
+    }
+    if (radarRow?.contact_phone) add(row, radarRow.contact_phone, {
+      channel: "phone",
+      label: "Contact Radar",
+      contactability_level: row.contactability_level || source.default_contactability || "C0",
+      consent_state: sourceAllowsDirectWhatsApp({ ...source, source_key: row.source_key }) ? "public_business" : "unknown",
+      is_public_business: ["google_places", "facebook_business", "instagram_business", "benin_directory"].includes(String(row.source_key)),
+    });
+    if (radarRow?.waouh_user_id) addUser(row, radarRow.waouh_user_id, "Contact WAOUH Radar");
+
+    addUser(row, evidence.seller_id, "Vendeur WAOUH");
+    addUser(row, evidence.user_id, "Utilisateur WAOUH");
+
+    if (String(row.fabric_id).startsWith("external:")) {
+      const externalSignal = externalMap.get(String(row.fabric_id).slice("external:".length));
+      if (externalSignal?.entity_id) {
+        for (const stored of contactsByEntity.get(String(externalSignal.entity_id)) || []) {
+          let value = String(stored.public_value || "").trim();
+          if (!value && stored.value_encrypted) {
+            try { value = await decryptPhone(stored.value_encrypted); } catch (_) { value = ""; }
+          }
+          if (!value) continue;
+          add(row, value, {
+            id: stored.id,
+            entity_id: stored.entity_id,
+            channel: stored.channel,
+            label: externalSignal.actor_name || "Contact NEXUS",
+            value_last4: stored.value_last4,
+            contactability_level: stored.contactability_level,
+            consent_state: stored.consent_state,
+            is_public_business: stored.is_public_business === true,
+            is_whatsapp_reachable: stored.is_whatsapp_reachable,
+          });
+        }
+      }
+    }
+
+    const hints = Array.isArray(evidence.contact_hints) ? evidence.contact_hints : [];
+    for (const hint of hints.slice(0, 10)) {
+      const raw = typeof hint === "string" ? hint : String(hint?.value || hint?.phone || hint?.whatsapp || "");
+      if (!raw) continue;
+      add(row, raw, {
+        channel: "phone",
+        label: "Contact public détecté",
+        contactability_level: row.contactability_level || source.default_contactability || "C0",
+        consent_state: sourceAllowsDirectWhatsApp({ ...source, source_key: row.source_key }) ? "public_business" : "unknown",
+        is_public_business: ["google_places", "facebook_business", "instagram_business", "benin_directory"].includes(String(row.source_key)),
+      });
+    }
+  }
+
+  return result;
+}
+
+async function auditContactCenter(sb: any, actorId: string, action: string, afterState: any) {
+  const { error } = await sb.from("waouh_admin_control_audit").insert({
+    module_key: "signal_fabric_contact_center",
+    actor_id: actorId,
+    action,
+    before_state: {},
+    after_state: afterState,
+  });
+  if (error) console.warn("[waouh-admin-stats] contact center audit:", error.message);
 }
 
 serve(async (req) => {
@@ -68,6 +399,133 @@ serve(async (req) => {
       ? await req.json().catch(() => ({})) as Record<string, unknown>
       : {};
     const action = String(requestBody.action ?? "stats");
+
+    if (action === "signal_contacts_resolve" || action === "signal_contacts_sync_waha" || action === "signal_contacts_notify_waha") {
+      const fabricIds = uniqStrings(
+        Array.isArray(requestBody.fabric_ids) ? requestBody.fabric_ids : [requestBody.fabric_id],
+        300,
+      );
+      if (!fabricIds.length) throw new Error("fabric_id_required");
+      const contactMap = await resolveAdminSignalContacts(sb, fabricIds);
+
+      if (action === "signal_contacts_resolve") {
+        return new Response(JSON.stringify({
+          ok: true,
+          rows: fabricIds.map((fabricId) => ({
+            fabric_id: fabricId,
+            contacts: contactMap[fabricId] || [],
+            normalized_count: (contactMap[fabricId] || []).filter((contact) => !!contact.normalized_e164).length,
+            notifyable_count: (contactMap[fabricId] || []).filter((contact) => contact.can_notify_whatsapp).length,
+          })),
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      }
+
+      if (action === "signal_contacts_sync_waha") {
+        const all = fabricIds.flatMap((fabricId) => contactMap[fabricId] || []).filter((contact) => !!contact.normalized_e164);
+        const unique = Array.from(new Map(all.map((contact) => [contact.normalized_e164!, contact])).values()).slice(0, 80);
+        const checks: any[] = [];
+        for (let index = 0; index < unique.length; index += 6) {
+          const batch = unique.slice(index, index + 6);
+          checks.push(...await Promise.all(batch.map(async (contact) => {
+            const state = await adminWahaCheck(contact.normalized_e164!);
+            if (contact.id) {
+              await sb.from("waouh_entity_contacts").update({
+                is_whatsapp_reachable: state.reachable,
+                verification_status: state.reachable === true ? "reachable" : state.reachable === false ? "unreachable" : "unknown",
+                verified_at: state.reachable === null ? null : new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              }).eq("id", contact.id);
+            }
+            return {
+              e164: contact.normalized_e164,
+              reachable: state.reachable,
+              chat_id: state.chatId,
+              reason: state.reason,
+            };
+          })));
+        }
+        await auditContactCenter(sb, user.id, "sync_whatsapp_contacts", {
+          fabric_count: fabricIds.length,
+          checked: checks.length,
+          reachable: checks.filter((row) => row.reachable === true).length,
+        });
+        return new Response(JSON.stringify({
+          ok: true,
+          checked: checks.length,
+          reachable: checks.filter((row) => row.reachable === true).length,
+          unreachable: checks.filter((row) => row.reachable === false).length,
+          truncated: unique.length < all.length,
+          results: checks,
+        }), { headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      }
+
+      const message = String(requestBody.message || "").trim();
+      if (message.length < 2 || message.length > 1200) throw new Error("invalid_message");
+      const queued: any[] = [];
+      const skipped: any[] = [];
+      const seen = new Set<string>();
+      for (const fabricId of fabricIds.slice(0, 50)) {
+        for (const contact of contactMap[fabricId] || []) {
+          if (!contact.normalized_e164) continue;
+          if (seen.has(contact.normalized_e164)) continue;
+          seen.add(contact.normalized_e164);
+          if (!contact.can_notify_whatsapp) {
+            skipped.push({ fabric_id: fabricId, phone_last4: contact.value_last4, reason: contact.notify_reason });
+            continue;
+          }
+          if (contact.is_whatsapp_reachable === false) {
+            skipped.push({ fabric_id: fabricId, phone_last4: contact.value_last4, reason: "not_on_whatsapp" });
+            continue;
+          }
+          const dedupeKey = `admin-signal:${user.id}:${fabricId}:${contact.value_last4 || "phone"}:${Date.now()}`;
+          const { error: queueError } = await sb.rpc("waouh_enqueue_outbound_v2", {
+            p_to_phone: providerPhone(contact.normalized_e164),
+            p_to_user_id: null,
+            p_template: "nexus_admin_notification",
+            p_payload: {
+              text: message,
+              actions: [],
+              fabric_id: fabricId,
+              source_key: contact.source_key,
+              contact_id: contact.id || null,
+              initiated_by_admin: user.id,
+            },
+            p_web_session_id: null,
+            p_image_url: null,
+            p_channel: "whatsapp",
+            p_dedupe_key: dedupeKey,
+            p_event_type: "admin_signal_notification",
+          });
+          if (queueError) {
+            skipped.push({ fabric_id: fabricId, phone_last4: contact.value_last4, reason: queueError.message });
+          } else {
+            queued.push({ fabric_id: fabricId, phone_last4: contact.value_last4, contact_id: contact.id || null });
+          }
+        }
+      }
+      if (queued.length) {
+        fetch(`${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ limit: 20, manual: true }),
+        }).catch(() => {});
+      }
+      await auditContactCenter(sb, user.id, "queue_whatsapp_notifications", {
+        fabric_count: fabricIds.length,
+        queued: queued.length,
+        skipped: skipped.length,
+      });
+      return new Response(JSON.stringify({
+        ok: true,
+        queued: queued.length,
+        skipped: skipped.length,
+        queue: queued,
+        skipped_rows: skipped,
+      }), {
+        status: 202,
+        headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
+      });
+    }
 
     if (action === "contact_layer_get") {
       const [sources, contacts, fabric] = await Promise.all([
