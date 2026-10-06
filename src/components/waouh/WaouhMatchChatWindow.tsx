@@ -591,9 +591,8 @@ export function WaouhMatchChatWindow({
       const message: any = messages[index] || {};
       const meta: any = message.meta || {};
       const legacyActions = Array.isArray(meta.actions) ? meta.actions : [];
-      const actions = legacyActions.length > 0
-        ? legacyActions
-        : waouhSmartActions(meta, 3).filter((action) => action.id !== "open_context");
+      const smartActions = waouhSmartActions(meta, 3).filter((action) => action.id !== "open_context");
+      const actions = smartActions.length > 0 ? smartActions : legacyActions;
       const stage = String(
         meta.workflow_state || meta.intent || meta.event || meta.notification_type || ""
       ).toLowerCase().replace(/_/g, "-");
@@ -1022,9 +1021,8 @@ export function WaouhMatchChatWindow({
           const rich = normalizeChatReply(m);
           const smart = readWaouhSmartEnvelope(m.meta);
           const legacyActions = Array.isArray(m.meta?.actions) ? m.meta.actions : [];
-          const messageActions = legacyActions.length > 0
-            ? legacyActions
-            : waouhSmartActions(m.meta, 3).filter((action) => action.id !== "open_context");
+          const smartActions = waouhSmartActions(m.meta, 3).filter((action) => action.id !== "open_context");
+          const messageActions = smartActions.length > 0 ? smartActions : legacyActions;
           return (
 
           <div
