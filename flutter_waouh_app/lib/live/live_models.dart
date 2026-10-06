@@ -839,6 +839,48 @@ class LiveStatus {
   }
 }
 
+class LiveSmartAction {
+  const LiveSmartAction({
+    required this.id,
+    required this.label,
+    required this.kind,
+    this.route,
+    this.payload = const <String, dynamic>{},
+    this.priority = 99,
+    this.requiresAuth = true,
+    this.requiresConfirmation = false,
+  });
+
+  final String id;
+  final String label;
+  final String kind;
+  final String? route;
+  final Map<String, dynamic> payload;
+  final int priority;
+  final bool requiresAuth;
+  final bool requiresConfirmation;
+
+  factory LiveSmartAction.fromJson(dynamic value, {String? fallbackRoute}) {
+    final row = liveMap(value);
+    final rawRoute = liveText(row['route'] ?? row['url']).trim();
+    final route = rawRoute.startsWith('/app/') && !rawRoute.startsWith('//')
+        ? rawRoute
+        : fallbackRoute;
+    return LiveSmartAction(
+      id: liveText(row['id'] ?? row['action'] ?? row['key']).trim(),
+      label: liveText(row['label'] ?? row['title'] ?? row['text']).trim(),
+      kind: liveText(row['kind'], 'navigate').trim().toLowerCase(),
+      route: route,
+      payload: liveMap(row['payload']),
+      priority: int.tryParse('${row['priority'] ?? 99}') ?? 99,
+      requiresAuth: row['requires_auth'] != false,
+      requiresConfirmation: row['requires_confirmation'] == true,
+    );
+  }
+
+  bool get usable => id.isNotEmpty && label.isNotEmpty;
+}
+
 class LiveNotification {
   const LiveNotification({
     required this.id,
@@ -865,6 +907,62 @@ class LiveNotification {
   final String? conversationId;
   final String? threadId;
   final Map<String, dynamic> payload;
+
+  Map<String, dynamic> get smart => liveMap(payload['smart']);
+
+  String? get smartRoute {
+    final value = liveText(
+      smart['route'] ?? payload['target_route'] ?? payload['action_url'],
+    ).trim();
+    return value.startsWith('/app/') && !value.startsWith('//') ? value : null;
+  }
+
+  List<LiveSmartAction> get smartActions {
+    final raw = smart['actions'] ?? payload['actions'];
+    if (raw is! List) return const <LiveSmartAction>[];
+    final fallback = smartRoute;
+    final actions = raw
+        .map((item) => LiveSmartAction.fromJson(item, fallbackRoute: fallback))
+        .where((item) => item.usable)
+        .toList()
+      ..sort((a, b) => a.priority.compareTo(b.priority));
+    return actions.take(5).toList(growable: false);
+  }
+
+  String? get nextBestAction {
+    final value = liveText(
+      smart['next_best_action'] ?? payload['next_best_action'],
+    ).trim();
+    if (value.isNotEmpty) return value;
+    return smartActions.isEmpty ? null : smartActions.first.id;
+  }
+
+  LiveSmartAction? get primarySmartAction {
+    final preferred = nextBestAction;
+    if (preferred != null) {
+      for (final action in smartActions) {
+        if (action.id == preferred) return action;
+      }
+    }
+    return smartActions.isEmpty ? null : smartActions.first;
+  }
+
+  String get smartDomain => liveText(smart['domain'], 'chat').trim();
+  String get smartPriority => liveText(smart['priority'], 'normal').trim();
+
+  String get displayTitle {
+    final value = liveVisibleText(liveText(smart['title'])).trim();
+    return value.isEmpty ? title : value;
+  }
+
+  String get displayBody {
+    final value = liveVisibleText(
+      liveText(smart['detail'] ?? smart['text']),
+    ).trim();
+    return value.isEmpty ? body : value;
+  }
+
+  String? get smartActionUrl => primarySmartAction?.route ?? smartRoute ?? actionUrl;
 
   factory LiveNotification.fromJson(Map<String, dynamic> row) {
     final payload = liveMap(row['payload'] ?? row['metadata']);
