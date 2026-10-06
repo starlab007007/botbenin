@@ -186,7 +186,7 @@ class LiveWaouhController extends ChangeNotifier {
   String? takeComposerSeed() {
     final value = _composerSeed;
     _composerSeed = null;
-    return waouhUserMessage(error);
+    return value;
   }
 
   Map<String, dynamic> takeComposerMeta() {
