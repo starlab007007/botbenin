@@ -359,14 +359,14 @@ const AppContent = () => {
                   <Route path="/app" element={<ErrorBoundary fallback={<MobileErrorFallback />}><MobileShell /></ErrorBoundary>}>
                     <Route index element={<Navigate to="/" replace />} />
                     <Route path="chat" element={<MobileConversations />} />
-                    <Route path="chat/waouh" element={<MobileWaouhChat />} />
+                    <Route path="chat/waouh" element={<RequireMobileAuth><MobileWaouhChat /></RequireMobileAuth>} />
                     <Route path="avatar" element={<WaouhAvatarHomePage />} />
-                    <Route path="avatar/:mode" element={<WaouhAvatarCommercePage />} />
+                    <Route path="avatar/:mode" element={<RequireMobileAuth><WaouhAvatarCommercePage /></RequireMobileAuth>} />
                     <Route path="muse" element={<Navigate to="/app/avatar" replace />} />
-                    <Route path="missions" element={<WaouhMissionsPage />} />
+                    <Route path="missions" element={<RequireMobileAuth><WaouhMissionsPage /></RequireMobileAuth>} />
                     <Route path="nexus" element={<WaouhNexusPage />} />
-                    <Route path="ia" element={<WaouhAiHubPage />} />
-                    <Route path="bots" element={<WaouhAiHubPage />} />
+                    <Route path="ia" element={<RequireMobileAuth><WaouhAiHubPage /></RequireMobileAuth>} />
+                    <Route path="bots" element={<RequireMobileAuth><WaouhAiHubPage /></RequireMobileAuth>} />
                     <Route path="apresbac" element={<ApresBacPage />} />
                     <Route path="fa-ia" element={<FaIaScreen />} />
                     <Route path="radar-map" element={<WaouhRadarMapPage />} />
