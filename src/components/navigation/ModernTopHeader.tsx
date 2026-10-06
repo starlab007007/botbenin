@@ -59,9 +59,9 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
     navigate('/home');
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
+  const handleLogout = async () => {
+    const ok = await logout();
+    if (ok) navigate('/app/chat', { replace: true });
   };
 
   const getUserInitials = (name: string | undefined) => {
