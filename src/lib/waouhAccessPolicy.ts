@@ -15,6 +15,11 @@ export const WAOUH_PUBLIC_APP_PATHS = [
 ] as const;
 
 export const WAOUH_AUTH_REQUIRED_PREFIXES = [
+  "/app/chat/",
+  "/app/avatar/",
+  "/app/missions",
+  "/app/ia",
+  "/app/bots",
   "/app/agents",
   "/app/whatsapp",
   "/app/stock",
@@ -60,18 +65,7 @@ export function buildWaouhAuthRedirect(
 }
 
 export function requiresWaouhAuthentication(pathname: string): boolean {
-  if (
-    pathname === "/app/chat" ||
-    pathname === "/app/chat/waouh" ||
-    pathname.startsWith("/app/avatar/") ||
-    pathname === "/app/missions" ||
-    pathname === "/app/ia" ||
-    pathname === "/app/bots" ||
-    pathname === "/app/presence/checkin"
-  ) return false;
-
-  // Existing personal conversation threads remain private.
-  if (pathname.startsWith("/app/chat/")) return true;
+  if (pathname === "/app/chat" || pathname === "/app/presence/checkin") return false;
 
   return WAOUH_AUTH_REQUIRED_PREFIXES.some((prefix) =>
     prefix.endsWith("/") ? pathname.startsWith(prefix) : pathname === prefix || pathname.startsWith(`${prefix}/`)
