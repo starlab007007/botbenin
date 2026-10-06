@@ -533,7 +533,7 @@ class _LivePartnerProductFormV2State extends State<LivePartnerProductFormV2> {
     } catch (error) {
       if (mounted)
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(waouhUserMessage(error, action: 'delete'))));
+            .showSnackBar(SnackBar(content: Text(waouhUserMessage(error, action: 'upload'))));
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
