@@ -33,7 +33,7 @@ export const PartnerRoute: React.FC<PartnerRouteProps> = ({ children, requireAct
   if (!requireActive) return <>{children}</>;
 
   if (!partner) {
-    return <Navigate to="/partner" replace />;
+    return <Navigate to="/app/partner" replace />;
   }
   if (partner.statut !== 'active') {
     return (
