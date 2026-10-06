@@ -469,7 +469,7 @@ export default function AdminWaouhDataControlPage() {
 
   const syncWaha = async () => {
     try {
-      toast({ title: 'Synchronisation WAHA + contacts centralisés en cours…' });
+      toast({ title: 'Synchronisation contacts + WAHA + contacts centralisés en cours…' });
       const { data: waha, error: wahaError } = await supabase.functions.invoke('waouh-waha-sync-contacts', {
         body: { backfill: true, maxSessions: 3, maxContactsPerSession: 1000 },
       });
