@@ -11,6 +11,7 @@ import 'live_controller.dart';
 import 'live_nexus_service.dart';
 import 'live_widgets.dart';
 import 'live_theme.dart';
+import 'user_message.dart';
 import 'live_hot_labels.dart';
 
 class LiveNexusScreen extends StatefulWidget {
@@ -1472,7 +1473,9 @@ String priceRange(NexusDiscoveryItem item) {
 }
 
 String errorText(Object error) =>
-    error is NexusApiException ? error.message : error.toString();
+    error is NexusApiException
+        ? error.message
+        : waouhUserMessage(error, action: 'load');
 
 Future<void> openExternal(Uri uri) async {
   if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
