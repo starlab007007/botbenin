@@ -158,7 +158,7 @@ function addCandidate(target: Map<string, ContactCandidate>, candidate: Partial<
   const consent = String(candidate.consent_state ?? "").toLowerCase();
   const revoked = consentRevoked(consent) || candidate.verification_status === "revoked" || candidate.opted_out === true;
   const consentAllowsSend =
-    ["public_business", "initiated", "opt_in", "partner_contract"].includes(consent) ||
+    ["public_business", "initiated", "opt_in", "partner_contract", "existing_conversation"].includes(consent) ||
     ["C3", "C4", "C5"].includes(level);
   const existing = target.get(key);
 
