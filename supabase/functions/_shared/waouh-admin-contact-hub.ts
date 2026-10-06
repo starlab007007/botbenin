@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { decryptPhone, sha256Hex } from "../_shared/waouh-tel/crypto.ts";
+import { decryptPhone, hashPhone, sha256Hex } from "../_shared/waouh-tel/crypto.ts";
 import { formatPhoneDisplay, normalizeE164, phoneLast4, providerPhone } from "../_shared/waouh-tel/phone.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -466,6 +466,87 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
   });
 }
 
+function contactLayerScore(row: AnyRow) {
+  const level = String(row?.contactability_level || "C0").toUpperCase();
+  const levelScore = ({ C0: 0, C1: 10, C2: 20, C3: 30, C4: 40, C5: 50 } as Record<string, number>)[level] || 0;
+  const consent = String(row?.consent_state || "").toLowerCase();
+  const consentScore = ["opt_in", "partner_contract", "initiated", "public_business"].includes(consent) ? 20 : 0;
+  const verifiedScore = row?.is_whatsapp_reachable === true ? 8 : row?.verification_status === "reachable" ? 6 : 0;
+  return levelScore + consentScore + verifiedScore + (row?.is_public_business === true ? 2 : 0);
+}
+
+async function contactLayerForPhones(service: any, phones: string[]) {
+  const uniquePhones = [...new Set(phones.filter(Boolean))];
+  if (!uniquePhones.length) return new Map<string, AnyRow>();
+
+  const hashPairs = await Promise.all(uniquePhones.map(async (phone) => ({
+    phone,
+    hash: await hashPhone(phone),
+  })));
+  const hashToPhone = new Map(hashPairs.map((pair) => [pair.hash, pair.phone]));
+  const { data, error } = await service.from("waouh_entity_contacts")
+    .select("id,entity_id,channel,value_hash,source_key,is_public_business,consent_state,contactability_level,verified_at,verification_status,is_whatsapp_reachable")
+    .in("value_hash", hashPairs.map((pair) => pair.hash))
+    .in("channel", ["phone", "whatsapp"]);
+  if (error) throw error;
+
+  const best = new Map<string, AnyRow>();
+  for (const row of data ?? []) {
+    const phone = hashToPhone.get(String(row.value_hash || ""));
+    if (!phone) continue;
+    const current = best.get(phone);
+    if (!current || contactLayerScore(row) > contactLayerScore(current)) best.set(phone, row);
+  }
+  return best;
+}
+
+function buildWahaDirectoryContact(entry: AnyRow, matched: AnyRow | null): ContactCandidate | null {
+  const normalized = normalizeE164(entry.phone_e164, "+229");
+  if (!normalized) return null;
+
+  const candidates = new Map<string, ContactCandidate>();
+  addCandidate(candidates, {
+    channel: "whatsapp",
+    value: normalized,
+    source: "waha_directory",
+    origin_kind: "waha_directory",
+    origin_id: String(entry.id),
+    contactability_level: "C0",
+    verification_status: "waha_synced",
+    whatsapp_reachable: true,
+    whatsapp_chat_id: entry.jid || null,
+    last_verified_at: entry.last_synced_at || null,
+    label: entry.display_name || entry.pushname || normalized,
+  });
+
+  if (matched) {
+    addCandidate(candidates, {
+      channel: matched.channel === "whatsapp" ? "whatsapp" : "phone",
+      value: normalized,
+      source: matched.source_key || "contact_layer",
+      origin_kind: "entity_contact",
+      origin_id: matched.id,
+      contact_id: matched.id,
+      entity_id: matched.entity_id,
+      consent_state: matched.consent_state,
+      contactability_level: matched.contactability_level || "C0",
+      verification_status: matched.verification_status,
+      whatsapp_reachable: matched.is_whatsapp_reachable,
+      public_business: matched.is_public_business,
+      last_verified_at: matched.verified_at || entry.last_synced_at || null,
+      label: entry.display_name || entry.pushname || normalized,
+    });
+  }
+
+  const contact = [...candidates.values()][0] || null;
+  if (contact) {
+    contact.whatsapp_chat_id = contact.whatsapp_chat_id || entry.jid || null;
+    contact.whatsapp_reachable = contact.whatsapp_reachable === false ? false : true;
+    contact.last_verified_at = contact.last_verified_at || entry.last_synced_at || null;
+  }
+  return contact;
+}
+
 async function searchWahaDirectory(
   service: any,
   body: Record<string, any>,
@@ -481,33 +562,15 @@ async function searchWahaDirectory(
 
   const sourceRows = (data ?? []) as AnyRow[];
   const total = Number(sourceRows[0]?.total_count || 0);
+  const normalizedPhones = sourceRows
+    .map((entry) => normalizeE164(entry.phone_e164, "+229"))
+    .filter((phone): phone is string => !!phone);
+  const contactLayer = await contactLayerForPhones(service, normalizedPhones);
+
   const rows = sourceRows.map((entry) => {
     const normalized = normalizeE164(entry.phone_e164, "+229");
     const label = entry.display_name || entry.pushname || normalized || "Contact WAHA";
-    const contact: ContactCandidate = {
-      channel: "whatsapp",
-      value: normalized || String(entry.phone_e164 || ""),
-      normalized,
-      display: normalized ? formatPhoneDisplay(normalized) : String(entry.phone_e164 || ""),
-      whatsapp_candidate: !!normalized,
-      // The row comes from a live WAHA contact sync. Reachability is therefore
-      // known at directory level, but commercial send permission remains C0.
-      whatsapp_reachable: !!normalized,
-      whatsapp_chat_id: entry.jid || null,
-      send_allowed: false,
-      source: "waha_directory",
-      origin_kind: "waha_directory",
-      origin_id: String(entry.id),
-      contact_id: null,
-      entity_id: null,
-      consent_state: null,
-      contactability_level: "C0",
-      verification_status: "waha_synced",
-      public_business: false,
-      opted_out: false,
-      last_verified_at: entry.last_synced_at || null,
-      label,
-    };
+    const contact = normalized ? buildWahaDirectoryContact(entry, contactLayer.get(normalized) || null) : null;
 
     return {
       fabric_id: `waha_directory:${entry.id}`,
@@ -528,7 +591,7 @@ async function searchWahaDirectory(
       price_max: null,
       currency: null,
       city: null,
-      contactability_level: "C0",
+      contactability_level: contact?.contactability_level || "C0",
       trust_score: 80,
       observed_at: entry.last_synced_at || null,
       source_url: null,
@@ -548,11 +611,11 @@ async function searchWahaDirectory(
       catalog_id: null,
       verified: false,
       is_catalog_mutable: false,
-      contacts: normalized ? [contact] : [],
-      primary_whatsapp: null,
-      contact_count: normalized ? 1 : 0,
-      whatsapp_count: normalized ? 1 : 0,
-      wa_reachable_count: normalized ? 1 : 0,
+      contacts: contact ? [contact] : [],
+      primary_whatsapp: contact?.send_allowed ? contact.normalized : null,
+      contact_count: contact ? 1 : 0,
+      whatsapp_count: contact?.whatsapp_candidate ? 1 : 0,
+      wa_reachable_count: contact?.whatsapp_reachable === true ? 1 : 0,
     };
   });
 
@@ -586,36 +649,16 @@ async function getWahaDirectoryContact(service: any, fabricId: string, phone: st
   );
   if (!entry) return { row: null, contact: null };
 
-  const label = entry.display_name || entry.pushname || requested;
-  const contact: ContactCandidate = {
-    channel: "whatsapp",
-    value: requested,
-    normalized: requested,
-    display: formatPhoneDisplay(requested),
-    whatsapp_candidate: true,
-    whatsapp_reachable: true,
-    whatsapp_chat_id: entry.jid || null,
-    send_allowed: false,
-    source: "waha_directory",
-    origin_kind: "waha_directory",
-    origin_id: String(entry.id),
-    contact_id: null,
-    entity_id: null,
-    consent_state: null,
-    contactability_level: "C0",
-    verification_status: "waha_synced",
-    public_business: false,
-    opted_out: false,
-    last_verified_at: entry.last_synced_at || null,
-    label,
-  };
+  const layer = await contactLayerForPhones(service, [requested]);
+  const contact = buildWahaDirectoryContact(entry, layer.get(requested) || null);
+  if (!contact) return { row: null, contact: null };
 
   return {
     row: {
       fabric_id: fabricId,
       source_key: "waha_directory",
       source_label: "WAHA · Annuaire synchronisé",
-      contactability_level: "C0",
+      contactability_level: contact.contactability_level,
       contacts: [contact],
     },
     contact,
