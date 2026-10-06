@@ -53,14 +53,21 @@ function isWahaTimeout(response: Response) {
   return response.status === 504 && response.headers.get("X-WAOUH-Timeout") === "1";
 }
 
+type WahaSessionState = {
+  name: string;
+  status: string;
+  phone: string | null;
+};
+
 type WahaSessionSnapshot = {
   checked: boolean;
   working: string[];
+  sessions: WahaSessionState[];
   error: string | null;
 };
 
 async function loadWorkingWahaSessions(): Promise<WahaSessionSnapshot> {
-  if (!WAHA_BASE_URL) return { checked: true, working: [], error: "WAHA_BASE_URL missing" };
+  if (!WAHA_BASE_URL) return { checked: true, working: [], sessions: [], error: "WAHA_BASE_URL missing" };
   const base = WAHA_BASE_URL.replace(/\/$/, "");
   const headers = {
     "Accept": "application/json",
@@ -72,19 +79,37 @@ async function loadWorkingWahaSessions(): Promise<WahaSessionSnapshot> {
       return {
         checked: !isWahaTimeout(response),
         working: [],
+        sessions: [],
         error: isWahaTimeout(response) ? "WAHA_SESSIONS_TIMEOUT" : `WAHA_SESSIONS_HTTP_${response.status}`,
       };
     }
     const data = await response.json().catch(() => []);
-    const working = (Array.isArray(data) ? data : [])
-      .filter((row: any) => String(row?.status || "").toUpperCase() === "WORKING")
-      .map((row: any) => String(row?.name || "").trim())
-      .filter(Boolean);
-    return { checked: true, working: [...new Set(working)], error: null };
+    const sessions: WahaSessionState[] = (Array.isArray(data) ? data : [])
+      .map((row: any) => {
+        const name = String(row?.name || "").trim();
+        const status = String(row?.status || "UNKNOWN").toUpperCase();
+        const rawPhone = String(
+          row?.me?.number ||
+          row?.me?.id ||
+          row?.config?.metadata?.phone_number ||
+          "",
+        ).split("@")[0];
+        return {
+          name,
+          status,
+          phone: rawPhone ? normalizeBeninPhone(rawPhone) : null,
+        };
+      })
+      .filter((row: WahaSessionState) => !!row.name);
+    const working = sessions
+      .filter((row) => row.status === "WORKING")
+      .map((row) => row.name);
+    return { checked: true, working: [...new Set(working)], sessions, error: null };
   } catch (error) {
     return {
       checked: false,
       working: [],
+      sessions: [],
       error: error instanceof Error ? error.message : String(error),
     };
   }
@@ -342,6 +367,29 @@ Deno.serve(async (req) => {
 
     const nowIso = new Date().toISOString();
     const wahaSessions = await loadWorkingWahaSessions();
+
+    // Keep the admin/backend session cache aligned with the live WAHA API.
+    // This makes the control center reflect actual connectivity instead of an
+    // old manual synchronization snapshot.
+    if (wahaSessions.checked && wahaSessions.sessions.length > 0) {
+      try {
+        await sb.from("waha_sessions_data").upsert(
+          wahaSessions.sessions.map((session) => ({
+            session_name: session.name,
+            status: session.status,
+            phone_number: session.phone,
+            server_name: "WAHA",
+            last_activity: nowIso,
+            updated_at: nowIso,
+          })),
+          { onConflict: "session_name" },
+        );
+      } catch (error) {
+        console.warn("[waouh-outbound-dispatch] WAHA session cache sync failed", {
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
 
     // If WAHA answered successfully and confirms that no session is connected,
     // keep the queue untouched. Burning attempts while every session is offline
