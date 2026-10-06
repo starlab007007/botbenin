@@ -8,6 +8,7 @@ import '../shared/waouh_business_ui.dart';
 import 'waouh_stock_models.dart';
 import 'waouh_stock_repository.dart';
 
+import '../../../live/user_message.dart';
 class WaouhAgentCatalogScreen extends StatefulWidget {
   const WaouhAgentCatalogScreen({
     super.key,
@@ -100,7 +101,7 @@ class _WaouhAgentCatalogScreenState extends State<WaouhAgentCatalogScreen> {
       }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('$error')));
+      ).showSnackBar(SnackBar(content: Text(waouhUserMessage(error, action: 'save'))));
     }
   }
 
@@ -153,7 +154,7 @@ class _WaouhAgentCatalogScreenState extends State<WaouhAgentCatalogScreen> {
       }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('$error')));
+      ).showSnackBar(SnackBar(content: Text(waouhUserMessage(error, action: 'upload'))));
     } finally {
       if (mounted) {
         setState(() {
