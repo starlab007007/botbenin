@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useWaouhIdentity } from "./useWaouhIdentity";
 import { toast } from "sonner";
+import { primaryWaouhSmartAction, readWaouhSmartEnvelope, waouhSmartDisplayText, waouhSmartRoute } from "@/lib/waouh/smartPayload";
 
 const STORAGE_KEY = "waouh_chat_read_v1";
 
@@ -11,7 +12,13 @@ function readMap(): Record<string, string> {
   catch { return {}; }
 }
 
-async function fireNativeNotification(title: string, body: string, convId: string) {
+async function fireNativeNotification(
+  title: string,
+  body: string,
+  convId: string,
+  routeOverride?: string | null,
+  smartMeta?: Record<string, unknown> | null,
+) {
   try {
     const { Capacitor } = await import("@capacitor/core");
     if (!Capacitor.isNativePlatform()) return;
@@ -27,7 +34,11 @@ async function fireNativeNotification(title: string, body: string, convId: strin
         title,
         body,
         smallIcon: "ic_stat_icon_config_sample",
-        extra: { convId, route: convId ? `/app/chat/${convId}` : `/app/chat` },
+        extra: {
+          convId,
+          route: routeOverride || (convId ? `/app/chat/${convId}` : `/app/chat`),
+          ...(smartMeta || {}),
+        },
       }],
     });
   } catch (e) {
@@ -129,9 +140,16 @@ export function useGlobalChatSync() {
         if (m.conversation_id && data) convCacheRef.current[m.conversation_id] = { phone_number: sender };
       }
       sender = sender ?? m.phone_number ?? null;
-      const title = sender ?? "WAOUH";
-      const body = (m.text ?? "").toString().slice(0, 140) || "📎 Message reçu";
-      const route = m.conversation_id ? `/app/chat/${m.conversation_id}` : `/app/chat/waouh`;
+      const fallbackTitle = sender ?? "WAOUH";
+      const fallbackBody = (m.text ?? "").toString().slice(0, 140) || "Message reçu";
+      const smart = readWaouhSmartEnvelope(m.meta);
+      const smartText = waouhSmartDisplayText(m.meta, fallbackBody);
+      const primaryAction = primaryWaouhSmartAction(m.meta);
+      const route =
+        waouhSmartRoute(m.meta) ||
+        (m.conversation_id ? `/app/chat/${m.conversation_id}` : `/app/chat/waouh`);
+      const title = smartText.title || fallbackTitle;
+      const body = smartText.detail || fallbackBody;
       const currentPath = pathRef.current || "";
       const inThisChat =
         currentPath === route ||
@@ -140,9 +158,22 @@ export function useGlobalChatSync() {
       if (!inThisChat) {
         toast.message(title, {
           description: body,
-          action: { label: "Ouvrir", onClick: () => navigate(route) },
+          action: {
+            label: primaryAction?.label || "Ouvrir",
+            onClick: () => navigate(route),
+          },
         });
-        fireNativeNotification(title, body, m.conversation_id ?? "");
+        void fireNativeNotification(
+          title,
+          body,
+          m.conversation_id ?? "",
+          route,
+          smart ? {
+            smart_action_id: primaryAction?.id ?? null,
+            correlation_id: smart.correlation_id ?? null,
+            smart_domain: smart.domain,
+          } : null,
+        );
       }
     };
 
