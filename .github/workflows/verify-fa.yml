@@ -57,10 +57,23 @@ jobs:
             corpus-loader-v14.js corpus-enforcement-v14.js corpus-pack-init-v14.js \
             corpus-pack-0-v14.js corpus-pack-1-v14.js corpus-pack-2-v14.js corpus-pack-3-v14.js corpus-pack-4-v14.js
           do
-            curl --fail --silent --show-error --location \
+            echo "🔎 FA asset: ${file}"
+            http_code=$(curl --silent --show-error --location \
               --retry 8 --retry-delay 4 --retry-all-errors \
+              --write-out '%{http_code}' \
               "https://bot.bj/fa/${file}?v=20260724-corpus-v15-1" \
-              -o "/tmp/fa-public/${file}"
+              -o "/tmp/fa-public/${file}") || {
+                echo "::error file=${file}::Téléchargement FA impossible"
+                exit 1
+              }
+            if [ "${http_code}" != "200" ]; then
+              echo "::error file=${file}::HTTP ${http_code} pour l'asset FA public"
+              exit 1
+            fi
+            test -s "/tmp/fa-public/${file}" || {
+              echo "::error file=${file}::Asset FA vide"
+              exit 1
+            }
           done
 
       - name: Vérifier la syntaxe JavaScript

@@ -141,6 +141,18 @@ server {
         expires -1;
     }
 
+    # FA IA uses stable asset names (app.js, corpus packs, CSS). Keep this
+    # subtree out of the generic SPA/immutable asset rules so a transient 404
+    # can never be cached for a year by an intermediary.
+    location ^~ /fa/ {
+        try_files \$uri =404;
+        expires -1;
+        add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+        add_header Pragma "no-cache" always;
+        add_header Expires "0" always;
+        add_header Access-Control-Allow-Origin "*" always;
+    }
+
     # URL publique canonique PrivatAI — landing page isolée du routeur React
     location = /privatia/ {
         return 308 https://bot.bj/privatia;

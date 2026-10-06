@@ -217,6 +217,7 @@ jobs:
                  curl -fsSL https://bot.bj/apresbacia/theme-v2_16.css | grep -q -- '--ab-blue' && \
                  curl -fsSL https://bot.bj/apresbacia/production-finalization-v2_17.js >/dev/null 2>&1 && \
                  curl -fsSL https://bot.bj/fa >/dev/null 2>&1 && \
+                 curl -fsSL -H 'Cache-Control: no-cache' "https://bot.bj/fa/app.js?deploy_check=${DEPLOY_SHA}" >/dev/null 2>&1 && \
                  curl -fsSL -H 'Cache-Control: no-cache' "https://bot.bj/app/chat?deploy_check=${DEPLOY_SHA}" >/dev/null 2>&1 && \
                  curl -fsSL -H 'Cache-Control: no-cache' "https://bot.bj/waouh-ui-version.txt?deploy_check=${DEPLOY_SHA}" | grep -q '2026.10.04.2' && \
                  curl -fsSL -H 'Cache-Control: no-cache' "https://bot.bj/ecqdg4yzr?deploy_check=${DEPLOY_SHA}" >/dev/null 2>&1; then
