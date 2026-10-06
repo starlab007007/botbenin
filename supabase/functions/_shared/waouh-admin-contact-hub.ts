@@ -799,6 +799,22 @@ async function updateVerifiedSource(service: any, contact: ContactCandidate, e16
     await service.from("waouh_partner_businesses").update({ whatsapp: e164 }).eq("id", contact.origin_id);
   } else if (contact.origin_kind === "article") {
     await service.from("waouh_articles").update({ contact_whatsapp: e164 }).eq("id", contact.origin_id);
+  } else if (contact.origin_kind === "waouh_user") {
+    await service.from("waouh_users").update({ phone_number: e164, updated_at: now }).eq("id", contact.origin_id);
+  } else if (contact.origin_kind === "wa_contact") {
+    await service.from("wa_contacts").update({
+      phone_e164: e164, is_whatsapp: true, last_validated_at: now, updated_at: now,
+    }).eq("id", contact.origin_id);
+  } else if (contact.origin_kind === "whatsapp_contact") {
+    await service.from("whatsapp_contacts").update({ phone_number: e164, updated_at: now }).eq("id", contact.origin_id);
+  } else if (contact.origin_kind === "radar_contact") {
+    const { data: radar } = await service.from("waouh_radar_contacts")
+      .select("metadata").eq("id", contact.origin_id).maybeSingle();
+    await service.from("waouh_radar_contacts").update({
+      phone_e164_normalized: e164,
+      metadata: { ...(radar?.metadata || {}), waha_chat_id: chatId, last_waha_check_at: now },
+      updated_at: now,
+    }).eq("id", contact.origin_id);
   }
 }
 
@@ -816,6 +832,13 @@ async function assertNotOptedOut(service: any, e164: string) {
   const { data: wa } = await service.from("wa_contacts")
     .select("id,opt_out,archived").in("phone_e164", variants).limit(10);
   if ((wa ?? []).some((r: AnyRow) => r.opt_out === true || r.archived === true)) {
+    throw new Error("CONTACT_OPTED_OUT");
+  }
+
+  const rawCandidates = phoneCandidates(e164);
+  const { data: synced } = await service.from("whatsapp_contacts")
+    .select("id,status").in("phone_number", [...variants, ...rawCandidates]).limit(10);
+  if ((synced ?? []).some((r: AnyRow) => ["blocked", "opted_out"].includes(String(r.status || "").toLowerCase()))) {
     throw new Error("CONTACT_OPTED_OUT");
   }
 }
