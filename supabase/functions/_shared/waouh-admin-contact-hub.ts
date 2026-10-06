@@ -809,7 +809,7 @@ export async function handleAdminContactHub(
       const payload = {
         text: message,
         fabric_id: fabricId,
-        source_key: row.source_key,
+        source_key: (row as AnyRow).source_key,
         contact_id: contact.contact_id,
         admin_user_id: user.id,
         admin_contact_hub: true,
