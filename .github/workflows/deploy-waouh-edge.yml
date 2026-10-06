@@ -30,7 +30,8 @@ jobs:
           test -f supabase/functions/waouh-history/index.ts
           test -f supabase/functions/waouh-channel-in-secure/index.ts
           grep -q 'invalid_guest_session' supabase/functions/_shared/waouh-auth.ts
-          grep -q 'auth_user_mismatch' supabase/functions/waouh-history/index.ts
+          grep -q 'auth_user_mismatch' supabase/functions/_shared/waouh-auth.ts
+          grep -q 'requireSameAuthUser' supabase/functions/waouh-history/index.ts
           grep -q 'waouh-channel-in-secure' supabase/functions/waouh-channel-in-secure/index.ts
           echo '✅ Sources Edge WAOUH sécurisées prêtes'
 
