@@ -50,7 +50,7 @@ interface AuthContextType {
     phone?: string;
     password: string;
   }) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<boolean>;
   updateProfile: (updates: Partial<AuthUser>) => void;
   changePassword: (currentPassword: string, newPassword: string) => Promise<boolean>;
   resetPassword: (email: string) => Promise<boolean>;
@@ -255,6 +255,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       if (error) {
+        console.error("[Auth] sign-in failed", error);
         const f = friendlyAuthError(error, "login");
         toast({ title: f.title, description: f.description, variant: "destructive" });
         return false;
@@ -280,15 +281,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const loginWithGoogle = async (): Promise<boolean> => {
     try {
+      const isMobileFlow = window.location.pathname.startsWith("/app/");
+      const callbackPath = isMobileFlow ? "/app/auth/email?tab=login" : "/auth";
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/`,
+          redirectTo: `${window.location.origin}${callbackPath}`,
           queryParams: { access_type: 'offline', prompt: 'consent' },
         },
       });
 
       if (error) {
+        console.error("[Auth] Google sign-in failed", error);
         const f = friendlyAuthError(error, "google");
         toast({ title: f.title, description: f.description, variant: "destructive" });
         return false;
@@ -362,18 +366,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
 
-  const logout = async () => {
+  const logout = async (): Promise<boolean> => {
     try {
-      await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut({ scope: "local" });
+      if (error) throw error;
+
       setUser(null);
       setSupabaseUser(null);
       setSession(null);
-      // Reset WAOUH per-browser session so a different account on the same
-      // browser doesn't inherit the previous user's chat/notifications history.
+      setIsGuest(false);
+      setGuestUser(null);
+      GuestAuthService.clearGuest();
+
+      // Reset WAOUH per-browser state so the next account cannot inherit
+      // conversations, notification caches or location context.
       try {
         localStorage.removeItem("waouh_web_session_id");
         localStorage.removeItem("waouh_geo_v1");
-        // Wipe per-session caches (notifications, open match tabs, archived list)
+        sessionStorage.removeItem("waouh_post_auth_redirect");
         Object.keys(localStorage)
           .filter((k) =>
             k.startsWith("waouh_notifs_") ||
@@ -383,16 +393,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           )
           .forEach((k) => localStorage.removeItem(k));
       } catch {}
+
       toast({
-        title: "Déconnexion",
-        description: "Vous avez été déconnecté avec succès",
+        title: "Vous êtes déconnecté",
+        description: "Vous pouvez continuer à parcourir WAOUH sans compte.",
       });
+      return true;
     } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "Erreur lors de la déconnexion",
-        variant: "destructive",
-      });
+      console.error("[Auth] sign-out failed", error);
+      const f = friendlyAuthError(error, "logout");
+      toast({ title: f.title, description: f.description, variant: "destructive" });
+      return false;
     }
   };
 
