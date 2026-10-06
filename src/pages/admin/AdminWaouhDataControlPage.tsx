@@ -697,8 +697,9 @@ export default function AdminWaouhDataControlPage() {
               </div>
 
               <div className="flex gap-2 flex-wrap">
-                <Button variant="outline" onClick={syncWaha}>
-                  <RefreshCw className="h-4 w-4 mr-2" />Synchroniser contacts WAHA
+                <Button variant="outline" onClick={syncWaha} disabled={syncingWaha || !results.length}>
+                  {syncingWaha ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                  Normaliser + vérifier WAHA
                 </Button>
                 <Button variant="outline" onClick={() => exportRows('xlsx')}>
                   <Download className="h-4 w-4 mr-2" />Télécharger Excel
@@ -713,6 +714,9 @@ export default function AdminWaouhDataControlPage() {
 
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                 <span>{results.length} résultat{results.length > 1 ? 's' : ''} · max 300</span>
+                <span>
+                  {contactsLoading ? 'Chargement contacts…' : `${Object.values(contactMap).flat().filter(c => !!c.normalized_e164).length} numéros normalisés · ${Object.values(contactMap).flat().filter(c => c.is_whatsapp_reachable === true).length} WhatsApp vérifiés`}
+                </span>
                 <span>{stats.buy} intentions d'achat · {stats.sell} offres / annonces</span>
               </div>
 
@@ -772,9 +776,35 @@ export default function AdminWaouhDataControlPage() {
                           <div className="font-medium">{r.actor_type || '—'}</div>
                           {r.verified && <Badge variant="outline" className="mt-1 border-green-500 text-green-700 text-[10px]">✓ Vérifié</Badge>}
                         </TableCell>
-                        <TableCell className="text-xs">
-                          <Badge variant="outline" className={contactClass(r.contactability_level)}>{r.contactability_level || 'C0'}</Badge>
-                          <div className="mt-1 max-w-[150px]">{contactHint(r)}</div>
+                        <TableCell className="text-xs min-w-[220px]">
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <Badge variant="outline" className={contactClass(r.contactability_level)}>{r.contactability_level || 'C0'}</Badge>
+                            {contactsFor(r).some(c => c.can_notify_whatsapp) && (
+                              <Badge className="bg-green-600 text-[10px]"><MessageCircle className="h-3 w-3 mr-1" />WhatsApp prêt</Badge>
+                            )}
+                          </div>
+                          {contactsFor(r).length > 0 ? (
+                            <div className="mt-1 space-y-1">
+                              {contactsFor(r).slice(0, 3).map((c, index) => (
+                                <div key={`${c.channel}-${c.value}-${index}`} className="rounded border px-2 py-1 bg-muted/30">
+                                  <div className="flex items-center gap-1 font-mono font-semibold">
+                                    <Phone className="h-3 w-3" />
+                                    <span>{c.normalized_e164 || c.value}</span>
+                                  </div>
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    <Badge variant="outline" className="text-[9px]">{c.channel}</Badge>
+                                    {c.is_whatsapp_reachable === true && <Badge className="bg-green-600 text-[9px]">WAHA ✓</Badge>}
+                                    {c.is_whatsapp_reachable === false && <Badge variant="outline" className="border-red-400 text-red-700 text-[9px]">WAHA ✕</Badge>}
+                                    {c.is_whatsapp_reachable == null && c.normalized_e164 && <Badge variant="outline" className="text-[9px]">WAHA ?</Badge>}
+                                    <Badge variant="outline" className="text-[9px]">{c.contactability_level}</Badge>
+                                  </div>
+                                </div>
+                              ))}
+                              {contactsFor(r).length > 3 && <div className="text-[10px] text-muted-foreground">+{contactsFor(r).length - 3} autre(s) contact(s)</div>}
+                            </div>
+                          ) : (
+                            <div className="mt-1 max-w-[180px]">{contactsLoading ? 'Résolution…' : contactHint(r)}</div>
+                          )}
                         </TableCell>
                         <TableCell className="text-xs min-w-[130px]">
                           <div className="flex items-center gap-1"><MapPin className="h-3 w-3" />{r.city || '—'}</div>
@@ -801,6 +831,19 @@ export default function AdminWaouhDataControlPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => setViewing(r)}><Eye className="h-4 w-4 mr-2" />Voir détails</DropdownMenuItem>
+                              {contactsFor(r).some(c => c.can_notify_whatsapp && c.normalized_e164) && (
+                                <DropdownMenuItem onClick={() => openWhatsAppNotification(r)}>
+                                  <Send className="h-4 w-4 mr-2" />Notifier sur WhatsApp
+                                </DropdownMenuItem>
+                              )}
+                              {contactsFor(r).some(c => c.normalized_e164) && (
+                                <DropdownMenuItem onClick={() => {
+                                  const phone = contactsFor(r).find(c => c.normalized_e164)?.normalized_e164;
+                                  if (phone) window.open(`https://wa.me/${phone.replace(/\D/g, '')}`, '_blank', 'noopener,noreferrer');
+                                }}>
+                                  <MessageCircle className="h-4 w-4 mr-2" />Ouvrir WhatsApp
+                                </DropdownMenuItem>
+                              )}
                               {r.source_url && (
                                 <DropdownMenuItem onClick={() => window.open(r.source_url!, '_blank', 'noopener,noreferrer')}>
                                   <ExternalLink className="h-4 w-4 mr-2" />Ouvrir la source
@@ -1011,7 +1054,11 @@ export default function AdminWaouhDataControlPage() {
                 <Field label="Prix">{viewing.price_min ? `${Number(viewing.price_min).toLocaleString('fr-FR')} ${viewing.currency || 'XOF'}` : 'À confirmer'}</Field>
                 <Field label="Confiance">{Math.round(Number(viewing.trust_score || 0))}/100</Field>
                 <Field label="Qualité">{viewing.quality_tier} · {viewing.completeness}%</Field>
-                <Field label="Contact">{contactHint(viewing)}</Field>
+                <Field label="Contact">
+                  {contactsFor(viewing).length
+                    ? contactsFor(viewing).map(c => c.normalized_e164 || c.value).join(' · ')
+                    : contactHint(viewing)}
+                </Field>
                 <Field label="Observé">{viewing.observed_at ? new Date(viewing.observed_at).toLocaleString('fr-FR') : '—'}</Field>
                 <Field label="Catalogue éditable">{viewing.is_catalog_mutable ? 'Oui' : 'Non · source autoritative'}</Field>
               </div>
@@ -1019,6 +1066,30 @@ export default function AdminWaouhDataControlPage() {
                 <div>
                   <div className="text-xs text-muted-foreground mb-1">Contenu / preuve textuelle</div>
                   <p className="whitespace-pre-wrap">{viewing.raw_text}</p>
+                </div>
+              )}
+              {contactsFor(viewing).length > 0 && (
+                <div className="rounded-lg border p-3 space-y-2">
+                  <div className="text-xs font-semibold">Contacts complets et normalisation WhatsApp</div>
+                  {contactsFor(viewing).map((c, index) => (
+                    <div key={`${c.channel}-${c.value}-${index}`} className="flex flex-wrap items-center justify-between gap-2 rounded border p-2">
+                      <div>
+                        <div className="font-mono font-semibold">{c.normalized_e164 || c.value}</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {c.label || c.channel} · {c.contactability_level} · {c.consent_state}
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        {c.is_whatsapp_reachable === true && <Badge className="bg-green-600">WAHA ✓</Badge>}
+                        {c.is_whatsapp_reachable === false && <Badge variant="outline" className="border-red-400 text-red-700">WAHA ✕</Badge>}
+                        {c.can_notify_whatsapp && (
+                          <Button size="sm" onClick={() => openWhatsAppNotification(viewing)}>
+                            <Send className="h-3.5 w-3.5 mr-1" />Notifier
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
               {viewing.source_url && (
@@ -1032,6 +1103,48 @@ export default function AdminWaouhDataControlPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!notifying} onOpenChange={(o) => {
+        if (!o) {
+          setNotifying(null);
+          setNotificationMessage('');
+        }
+      }}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Notifier le contact sur WhatsApp</DialogTitle>
+          </DialogHeader>
+          {notifying && (
+            <div className="space-y-4">
+              <div className="rounded border p-3 bg-muted/30">
+                <div className="font-medium">{notifying.subject || 'Opportunité WAOUH'}</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {notifying.source_label} · {contactsFor(notifying).filter(c => c.can_notify_whatsapp && c.normalized_e164).map(c => c.normalized_e164).join(' · ')}
+                </div>
+              </div>
+              <LField label="Message WhatsApp">
+                <Textarea
+                  rows={5}
+                  maxLength={1200}
+                  value={notificationMessage}
+                  onChange={e => setNotificationMessage(e.target.value)}
+                  placeholder="Message à envoyer par WAHA…"
+                />
+              </LField>
+              <div className="text-xs text-muted-foreground">
+                L’envoi passe par la file WAOUH puis <strong>waouh-outbound-dispatch</strong>. Les contacts non autorisés ou non joignables WhatsApp sont automatiquement ignorés.
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNotifying(null)}>Annuler</Button>
+            <Button onClick={sendWhatsAppNotification} disabled={sendingNotification || notificationMessage.trim().length < 2}>
+              {sendingNotification ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+              Envoyer via WAHA
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
