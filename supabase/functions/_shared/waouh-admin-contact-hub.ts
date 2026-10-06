@@ -283,16 +283,25 @@ async function loadContactDirectory(service: any, body: Record<string, any> = {}
   const sourceFilter = String(body?.source || "").trim();
   const exactFabricId = String(body?.fabric_id || "").trim();
   const whatsappOnly = body?.whatsapp_only === true;
+  const exactMatch = exactFabricId.match(/^directory:([^:]+):([0-9a-f-]{36})$/i);
+  const exactOriginKind = exactMatch?.[1] || null;
+  const exactRecordId = exactMatch?.[2] || null;
+
+  const maybeScoped = (kind: string, query: any) => {
+    if (!exactFabricId) return query.limit(2000);
+    if (exactOriginKind !== kind || !exactRecordId) return Promise.resolve({ data: [], error: null });
+    return query.eq("id", exactRecordId).limit(1);
+  };
 
   const [sourceRes, usersRes, catalogRes, businessRes, radarContactsRes, waContactsRes, whatsappContactsRes, entityContactsRes] = await Promise.all([
     service.from("waouh_discovery_sources").select("source_key,label,family,operational_state"),
-    service.from("waouh_users").select("id,display_name,phone_number,channel,created_at,updated_at").not("phone_number", "is", null).limit(2000),
-    service.from("waouh_unified_catalog").select("id,titre,vendeur_nom,vendeur_phone,vendeur_whatsapp,source,created_at,updated_at").limit(2000),
-    service.from("waouh_partner_businesses").select("id,nom_entreprise,telephone,whatsapp,email,site_web,gerant_nom,created_at,updated_at").limit(2000),
-    service.from("waouh_radar_contacts").select("id,phone_e164,phone_e164_normalized,display_name,source,status,auto_notify,metadata,created_at,updated_at").limit(2000),
-    service.from("wa_contacts").select("id,phone_e164,display_name,source,is_whatsapp,opt_out,archived,last_validated_at,created_at,updated_at").limit(2000),
-    service.from("whatsapp_contacts").select("id,phone_number,name,is_business,status,last_seen,created_at,updated_at").limit(2000),
-    service.from("waouh_entity_contacts").select("id,entity_id,channel,value_encrypted,public_value,source_key,is_public_business,consent_state,contactability_level,verified_at,verification_status,is_whatsapp_reachable,metrics,created_at,updated_at").in("channel", ["phone", "whatsapp"]).limit(2000),
+    maybeScoped("waouh_user", service.from("waouh_users").select("id,display_name,phone_number,channel,created_at,updated_at").not("phone_number", "is", null)),
+    maybeScoped("catalog", service.from("waouh_unified_catalog").select("id,titre,vendeur_nom,vendeur_phone,vendeur_whatsapp,source,created_at,updated_at")),
+    maybeScoped("partner_business", service.from("waouh_partner_businesses").select("id,nom_entreprise,telephone,whatsapp,email,site_web,gerant_nom,created_at,updated_at")),
+    maybeScoped("radar_contact", service.from("waouh_radar_contacts").select("id,phone_e164,phone_e164_normalized,display_name,source,status,auto_notify,metadata,created_at,updated_at")),
+    maybeScoped("wa_contact", service.from("wa_contacts").select("id,phone_e164,display_name,source,is_whatsapp,opt_out,archived,last_validated_at,created_at,updated_at")),
+    maybeScoped("whatsapp_contact", service.from("whatsapp_contacts").select("id,phone_number,name,is_business,status,last_seen,created_at,updated_at")),
+    maybeScoped("entity_contact", service.from("waouh_entity_contacts").select("id,entity_id,channel,value_encrypted,public_value,source_key,is_public_business,consent_state,contactability_level,verified_at,verification_status,is_whatsapp_reachable,metrics,created_at,updated_at").in("channel", ["phone", "whatsapp"])),
   ]);
   for (const res of [sourceRes, usersRes, catalogRes, businessRes, radarContactsRes, waContactsRes, whatsappContactsRes, entityContactsRes]) {
     if (res.error) throw res.error;
