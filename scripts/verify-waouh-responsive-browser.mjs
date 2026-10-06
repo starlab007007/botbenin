@@ -262,12 +262,12 @@ async function testRoot(viewport) {
   }
 
   const actionPaths = {
-    acheter: "/app/avatar/acheter",
-    vendre: "/app/avatar/vendre",
-    trouver: "/app/nexus",
-    demander: "/app/avatar/demander",
+    acheter: { path: "/app/avatar/acheter", auth: true },
+    vendre: { path: "/app/avatar/vendre", auth: true },
+    trouver: { path: "/app/nexus", auth: false },
+    demander: { path: "/app/avatar/demander", auth: true },
   };
-  for (const [action, expectedPath] of Object.entries(actionPaths)) {
+  for (const [action, expected] of Object.entries(actionPaths)) {
     await navigate("http://127.0.0.1:4173/", viewport);
     const clicked = await evaluate(`(() => {
       const element = document.querySelector('[data-waouh-action="${action}"]');
@@ -277,9 +277,14 @@ async function testRoot(viewport) {
     })()`);
     if (!clicked) fail(`${viewport.name}: Avatar action ${action} is not clickable`);
     await sleep(450);
-    const pathNow = await evaluate("location.pathname");
-    if (pathNow !== expectedPath) {
-      fail(`${viewport.name}: ${action} navigated to ${pathNow}; expected ${expectedPath}`);
+    const target = await evaluate(`({ path: location.pathname, search: location.search })`);
+    if (expected.auth) {
+      const next = new URLSearchParams(target.search).get("next");
+      if (!target.path.startsWith("/app/auth") || next !== expected.path) {
+        fail(`${viewport.name}: ${action} should require auth and preserve ${expected.path}; got ${target.path}${target.search}`);
+      }
+    } else if (target.path !== expected.path) {
+      fail(`${viewport.name}: ${action} navigated to ${target.path}; expected ${expected.path}`);
     }
   }
 
@@ -300,14 +305,13 @@ async function testRoot(viewport) {
   })()`);
   if (!asked) fail(`${viewport.name}: Bot command composer is not operable`);
   await sleep(700);
-  const afterAsk = await evaluate(`({ path: location.pathname, text: document.body.innerText })`);
-  if (viewport.width >= 1180) {
-    if (afterAsk.path !== "/") fail(`desktop: Bot command should stay on /, got ${afterAsk.path}`);
-    if (!afterAsk.text.includes("Bot · Avatar IA")) {
-      fail("desktop: Bot command did not open embedded WAOUH chat");
-    }
-  } else if (afterAsk.path !== "/app/chat/waouh") {
-    fail(`${viewport.name}: Bot command lost tablet/mobile chat route: ${afterAsk.path}`);
+  const afterAsk = await evaluate(`({ path: location.pathname, search: location.search, text: document.body.innerText })`);
+  if (!afterAsk.path.startsWith("/app/auth")) {
+    fail(`${viewport.name}: Bot command should require authentication, got ${afterAsk.path}`);
+  }
+  const askNext = new URLSearchParams(afterAsk.search).get("next");
+  if (!askNext || !askNext.startsWith("/app/chat/waouh")) {
+    fail(`${viewport.name}: Bot command did not preserve the intended WAOUH chat destination`);
   }
 }
 
@@ -318,8 +322,8 @@ async function testDesktopSidebar(viewport) {
     ["Radar", "/app/radar-map", false],
     ["WhatsApp IA", "/app/whatsapp", true],
     ["Avatar", "/app/avatar", false],
-    ["Missions & veille", "/app/missions", false],
-    ["Bots", "/app/bots", false],
+    ["Missions & veille", "/app/missions", true],
+    ["Bots", "/app/bots", true],
     ["Agents IA", "/app/whatsapp/select-agent", true],
     ["Conversationnel", "/app/whatsapp/conversationnel", true],
     ["BI WAOUH IA", "/app/whatsapp/bi", true],
@@ -360,13 +364,13 @@ async function testRoutes(viewport) {
   const routes = [
     ["/app/chat", "Demandez à Bot", false],
     ["/app/avatar", "Votre Avatar IA", false],
-    ["/app/avatar/acheter", "Acheter avec mon Avatar", false],
-    ["/app/avatar/vendre", "Vendre avec mon Avatar", false],
-    ["/app/avatar/demander", "Demander à mon Avatar", false],
+    ["/app/avatar/acheter", "Acheter avec mon Avatar", true],
+    ["/app/avatar/vendre", "Vendre avec mon Avatar", true],
+    ["/app/avatar/demander", "Demander à mon Avatar", true],
     ["/app/nexus", "WAOUH NEXUS", false],
-    ["/app/missions", "Missions", false],
-    ["/app/ia", "Bots & IA WAOUH", false],
-    ["/app/bots", "Bots WAOUH", false],
+    ["/app/missions", "Missions", true],
+    ["/app/ia", "Bots & IA WAOUH", true],
+    ["/app/bots", "Bots WAOUH", true],
     ["/app/radar-map", null, false],
     ["/app/whatsapp", null, true],
     ["/app/whatsapp/conversationnel", null, true],
