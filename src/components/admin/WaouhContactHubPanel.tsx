@@ -113,6 +113,7 @@ export default function WaouhContactHubPanel() {
   const [whatsappOnly, setWhatsappOnly] = useState(false);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [materializing, setMaterializing] = useState(false);
   const [verifying, setVerifying] = useState<string | null>(null);
   const [selected, setSelected] = useState<{ row: HubRow; contact: HubContact } | null>(null);
   const [message, setMessage] = useState("");
@@ -180,6 +181,57 @@ export default function WaouhContactHubPanel() {
       toast({ title: "Échec synchronisation WAHA", description: error?.message || String(error), variant: "destructive" });
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const materializeAll = async () => {
+    setMaterializing(true);
+    let offset = 0;
+    let attempted = 0;
+    let written = 0;
+    let skippedNoEntity = 0;
+    let skippedRevoked = 0;
+    let skippedInvalid = 0;
+
+    try {
+      for (let pageNo = 0; pageNo < 100; pageNo += 1) {
+        const { data, error } = await supabase.functions.invoke("waouh-admin-stats", {
+          body: {
+            action: "contact_hub_materialize",
+            q: null,
+            source: null,
+            contacts_only: false,
+            limit: 100,
+            offset,
+          },
+        });
+        if (error) throw error;
+        if (!data?.ok) throw new Error(data?.error || "Centralisation impossible");
+
+        attempted += Number(data.attempted || 0);
+        written += Number(data.written || 0);
+        skippedNoEntity += Number(data.skipped_no_entity || 0);
+        skippedRevoked += Number(data.skipped_revoked || 0);
+        skippedInvalid += Number(data.skipped_invalid || 0);
+
+        if (data?.page?.has_more !== true) break;
+        offset += Number(data?.page?.limit || 100);
+      }
+
+      toast({
+        title: "Contacts centralisés",
+        description:
+          `${written} nouveau(x) contact(s) persisté(s) · ${attempted} candidat(s) · ${skippedNoEntity} sans entité · ${skippedRevoked} bloqué(s) · ${skippedInvalid} invalide(s)`,
+      });
+      await load(0);
+    } catch (error: any) {
+      toast({
+        title: "Centralisation des contacts échouée",
+        description: error?.message || String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setMaterializing(false);
     }
   };
 
@@ -268,7 +320,13 @@ export default function WaouhContactHubPanel() {
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={syncWaha} disabled={syncing}>
+              <Button variant="outline" onClick={materializeAll} disabled={materializing}>
+                {materializing
+                  ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  : <Phone className="h-4 w-4 mr-2" />}
+                Centraliser toutes les sources
+              </Button>
+              <Button variant="outline" onClick={syncWaha} disabled={syncing || materializing}>
                 {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                 Synchroniser WAHA
               </Button>
