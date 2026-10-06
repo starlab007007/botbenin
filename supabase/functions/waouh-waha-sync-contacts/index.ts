@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { requireRuntimeOrAdmin } from '../_shared/waouh-runtime-auth.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -24,29 +25,11 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
-  // Auth + admin check
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader) return json({ error: 'Unauthorized' }, 401);
-  const userClient = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_ANON_KEY')!,
-    { global: { headers: { Authorization: authHeader } } },
-  );
-  const { data: userData } = await userClient.auth.getUser();
-  if (!userData?.user) return json({ error: 'Unauthorized' }, 401);
-  const { data: isAdmin, error: adminRoleError } = await supabase.rpc('has_role', {
-    _user_id: userData.user.id,
-    _role_name: 'admin',
-  });
-  const { data: isSuperAdmin, error: superAdminRoleError } = await supabase.rpc('has_role', {
-    _user_id: userData.user.id,
-    _role_name: 'super_admin',
-  });
-  if (adminRoleError || superAdminRoleError) {
-    console.error('[waouh-waha-sync-contacts] role check failed', { adminRoleError, superAdminRoleError });
-    return json({ error: 'Impossible de vérifier le rôle administrateur' }, 500);
-  }
-  if (!isAdmin && !isSuperAdmin) return json({ error: 'Forbidden — admin only' }, 403);
+  // Manual admin calls and trusted runtime/cron calls share the same guard.
+  // The function stays verify_jwt=false because pg_cron authenticates with
+  // x-waouh-internal instead of a user JWT.
+  const guard = await requireRuntimeOrAdmin(req, supabase);
+  if (!guard.ok) return guard.response;
 
   const body = await req.json().catch(() => ({}));
   const backfill = body.backfill !== false;
