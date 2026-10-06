@@ -921,11 +921,18 @@ class LiveNotification {
     final raw = smart['actions'] ?? payload['actions'];
     if (raw is! List) return const <LiveSmartAction>[];
     final fallback = smartRoute;
+    final preferred = liveText(
+      smart['next_best_action'] ?? payload['next_best_action'],
+    ).trim();
     final actions = raw
         .map((item) => LiveSmartAction.fromJson(item, fallbackRoute: fallback))
         .where((item) => item.usable)
         .toList()
-      ..sort((a, b) => a.priority.compareTo(b.priority));
+      ..sort((a, b) {
+        if (a.id == preferred && b.id != preferred) return -1;
+        if (b.id == preferred && a.id != preferred) return 1;
+        return a.priority.compareTo(b.priority);
+      });
     return actions.take(5).toList(growable: false);
   }
 
