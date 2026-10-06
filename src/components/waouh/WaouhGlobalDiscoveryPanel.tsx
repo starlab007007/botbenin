@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+import { userFacingErrorText } from "@/lib/userFacingError";
   Building2, Camera, ExternalLink, Globe2, Loader2, MapPin, MessageCircle, Radar,
   Search, Send, Share2, Sparkles, Store, Upload, Users, Wifi, WifiOff,
 } from "lucide-react";
@@ -63,7 +64,7 @@ const stateLabel = (source: NexusDiscoverySource) => {
   return "Désactivé";
 };
 
-const errorText = (error: unknown) => error instanceof Error ? error.message : "Erreur inattendue.";
+const errorText = (error: unknown) => userFacingErrorText(error, "load");
 
 type SharedSignalState = Awaited<ReturnType<typeof ingestSharedCommerceSignal>>;
 type PreparedContactState = Awaited<ReturnType<typeof prepareNexusContact>> & { result: NexusDiscoveryResult };
