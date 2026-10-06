@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/contexts/AuthContext';
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { useLocation } from 'react-router-dom';
+import { normalizeWaouhRedirect } from '@/lib/waouhAccessPolicy';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -17,7 +19,17 @@ interface AuthModalProps {
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { login, register, resetPassword, loginWithGoogle } = useAuth();
+  const [activeTab, setActiveTab] = useState('login');
+  const location = useLocation();
+  const { login, register, resetPassword, loginWithGoogle, isAuthenticated } = useAuth();
+  const returnTo = normalizeWaouhRedirect(
+    `${location.pathname}${location.search}`,
+    '/app/chat',
+  );
+
+  useEffect(() => {
+    if (isOpen && isAuthenticated) onClose();
+  }, [isAuthenticated, isOpen, onClose]);
 
   // Login form state
   const [loginEmail, setLoginEmail] = useState('');
@@ -60,10 +72,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       email: registerEmail,
       phone: '',
       password: registerPassword,
+      returnTo,
     });
     
     if (success) {
-      onClose();
+      setActiveTab('login');
       setRegisterName('');
       setRegisterEmail('');
       setRegisterPassword('');
@@ -80,6 +93,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     const success = await resetPassword(resetEmail);
     if (success) {
       setResetEmail('');
+      setActiveTab('login');
     }
     
     setIsLoading(false);
@@ -87,19 +101,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
-    await loginWithGoogle();
-    setIsLoading(false);
+    try {
+      await loginWithGoogle(returnTo);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90dvh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
-          <DialogTitle className="text-center text-lg sm:text-xl">Connexion / Inscription</DialogTitle>
+          <DialogTitle className="text-center text-lg sm:text-xl">Bienvenue sur WAOUH</DialogTitle>
+          <p className="text-center text-sm text-muted-foreground">
+            Connectez-vous pour agir. La consultation reste accessible sans compte.
+          </p>
         </DialogHeader>
         
-        <Tabs defaultValue="login" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="login" className="text-xs sm:text-sm">Connexion</TabsTrigger>
             <TabsTrigger value="register" className="text-xs sm:text-sm">Inscription</TabsTrigger>
@@ -195,11 +215,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 <button
                   type="button"
                   className="text-blue-600 hover:underline"
-                  onClick={() => {
-                    // Basculer vers l'onglet reset
-                    const resetTab = document.querySelector('[value="reset"]') as HTMLButtonElement;
-                    resetTab?.click();
-                  }}
+                  onClick={() => setActiveTab('reset')}
                 >
                   Réinitialiser
                 </button>
@@ -351,7 +367,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 className="w-full"
                 disabled={isLoading}
               >
-                {isLoading ? "Envoi..." : "Envoyer le lien de réinitialisation"}
+                {isLoading ? "Envoi..." : "Demander un lien"}
               </Button>
             </form>
             
@@ -361,11 +377,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 <button
                   type="button"
                   className="text-blue-600 hover:underline"
-                  onClick={() => {
-                    // Basculer vers l'onglet login
-                    const loginTab = document.querySelector('[value="login"]') as HTMLButtonElement;
-                    loginTab?.click();
-                  }}
+                  onClick={() => setActiveTab('login')}
                 >
                   Se connecter
                 </button>
