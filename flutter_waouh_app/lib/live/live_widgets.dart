@@ -17,6 +17,7 @@ import 'live_hot_labels.dart';
 import 'live_avatar_progress.dart';
 import 'live_avatar_guide.dart';
 
+import 'user_message.dart';
 class LiveHeader extends StatelessWidget implements PreferredSizeWidget {
   const LiveHeader({
     super.key,
@@ -3085,8 +3086,8 @@ class _PremiumNexusContactSheetState
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: Text(
-                    'Avatar poursuit la démarche. Détail technique : ' +
-                        error.toString(),
+                    'Avatar poursuit la démarche. ' +
+                        waouhUserMessage(error, action: 'send'),
                     style: const TextStyle(
                       color: Color(0xFF765200),
                       fontSize: 11,
