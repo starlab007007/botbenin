@@ -128,6 +128,12 @@ jobs:
         with:
           deno-version: v2.x
 
+      - name: Check Admin Contact Hub backend
+        run: deno check supabase/functions/waouh-admin-stats/index.ts
+
+      - name: Check WAHA contact synchronization
+        run: deno check supabase/functions/waouh-waha-sync-contacts/index.ts
+
       - name: Check NEXUS Edge Function
         run: deno check supabase/functions/waouh-agentic-core/index.ts
 
