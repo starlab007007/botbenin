@@ -94,7 +94,7 @@ export default function EmailAuthScreen() {
       try {
         sessionStorage.setItem("waouh_post_auth_redirect", consumeRedirect());
       } catch {}
-      await loginWithGoogle();
+      await loginWithGoogle(consumeRedirect());
     } finally {
       setGoogleLoading(false);
     }
