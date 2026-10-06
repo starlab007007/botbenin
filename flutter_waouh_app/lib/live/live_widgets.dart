@@ -286,9 +286,31 @@ class LiveMessageBubble extends StatelessWidget {
                   actionsEnabled: actionsEnabled,
                 ),
               ],
+              if (!outgoing &&
+                  liveMap(message.meta['smart']).isNotEmpty &&
+                  (liveText(liveMap(message.meta['smart'])['domain'], 'chat') != 'chat' ||
+                   ['high', 'urgent'].contains(liveText(liveMap(message.meta['smart'])['priority']))) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _SmartContextChip(
+                      label: liveText(liveMap(message.meta['smart'])['domain'], 'chat'),
+                      emphasis: ['high', 'urgent'].contains(
+                        liveText(liveMap(message.meta['smart'])['priority']),
+                      ),
+                    ),
+                    if (liveText(liveMap(message.meta['smart'])['stage']).trim().isNotEmpty)
+                      _SmartContextChip(
+                        label: liveText(liveMap(message.meta['smart'])['stage']).trim(),
+                      ),
+                  ],
+                ),
+              ],
               if (products.isEmpty &&
                   actions.isNotEmpty &&
-                  onPayload != null) ...[
+                  (onPayload != null || actions.any((action) => action.route != null))) ...[
                 const SizedBox(height: 10),
                 Wrap(
                   spacing: 7,
@@ -303,7 +325,13 @@ class LiveMessageBubble extends StatelessWidget {
                         foregroundColor: tone,
                         backgroundColor: tone.withValues(alpha: .10),
                       ),
-                      onPressed: () => onPayload!(action.payload),
+                      onPressed: () {
+                        if (action.route != null) {
+                          context.go(action.route!);
+                          return;
+                        }
+                        onPayload?.call(action.payload);
+                      },
                       child: Text(action.label,
                           style: const TextStyle(
                               fontWeight: FontWeight.w800, fontSize: 13)),
@@ -395,9 +423,39 @@ class LiveMessageBubble extends StatelessWidget {
 }
 
 class _SmartMessageAction {
-  const _SmartMessageAction({required this.payload, required this.label});
+  const _SmartMessageAction({
+    required this.payload,
+    required this.label,
+    this.route,
+  });
   final String payload;
   final String label;
+  final String? route;
+}
+
+class _SmartContextChip extends StatelessWidget {
+  const _SmartContextChip({required this.label, this.emphasis = false});
+  final String label;
+  final bool emphasis;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+        decoration: BoxDecoration(
+          color: emphasis ? const Color(0xFFFFF1DA) : const Color(0xFFF0F4F2),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: emphasis ? const Color(0xFF9A5B00) : const Color(0xFF52645D),
+            ),
+          ),
+        ),
+      );
 }
 
 Map<String, dynamic> liveCommercePayloadMeta(String payload) {
@@ -656,6 +714,7 @@ _SmartMessageAction _scopeMessageAction(
   return _SmartMessageAction(
     payload: liveCanonicalWorkflowPayload(kind, context: context),
     label: action.label,
+    route: action.route,
   );
 }
 
@@ -679,7 +738,11 @@ List<_SmartMessageAction> _smartMessageActions(
       intent.contains('transaction_completed')) {
     return const <_SmartMessageAction>[];
   }
-  final rawActions = message.meta['actions'];
+  final smart = liveMap(message.meta['smart']);
+  final legacyActions = message.meta['actions'];
+  final rawActions = legacyActions is List && legacyActions.isNotEmpty
+      ? legacyActions
+      : smart['actions'];
   if (rawActions is List) {
     final explicit = rawActions
         .whereType<Map>()
@@ -689,7 +752,14 @@ List<_SmartMessageAction> _smartMessageActions(
               .trim();
           final payload =
               (raw['id'] ?? raw['payload'] ?? label).toString().trim();
-          return _SmartMessageAction(payload: payload, label: label);
+          final route = liveText(raw['route'] ?? raw['url']).trim();
+          return _SmartMessageAction(
+            payload: payload,
+            label: label,
+            route: route.startsWith('/app/') && !route.startsWith('//')
+                ? route
+                : null,
+          );
         })
         .where((action) => action.payload.isNotEmpty && action.label.isNotEmpty)
         .toList(growable: false);
