@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../main.dart' as legacy;
 import 'live_controller.dart';
+import 'live_guest_action_gate.dart';
 import 'live_models.dart';
 import 'live_radar_models.dart';
 import 'live_radar_service.dart';
@@ -269,11 +270,14 @@ class _LiveRadarFeedState extends State<LiveRadarFeed>
     await _pause(
         'Demande « $intentLabel » préparée pour « ${item.title} ». Le radar est en pause.');
     if (!mounted) return;
-    if (!context.read<legacy.AuthController>().signedIn) {
-      context.go('/app/auth?next=${Uri.encodeComponent('/app/chat/waouh')}');
-      return;
-    }
-    await context.push('/app/chat/waouh');
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/chat/waouh',
+      actionLabel: intent == _RadarIntent.negotiate
+          ? 'négocier cette opportunité'
+          : 'contacter cette opportunité',
+    )) return;
+    if (mounted) await context.push('/app/chat/waouh');
   }
 
   int get _countdownSeconds {
