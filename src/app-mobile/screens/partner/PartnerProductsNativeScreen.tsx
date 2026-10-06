@@ -10,6 +10,7 @@ import { useWaouhPartner } from '@/hooks/useWaouhPartner';
 import ProductFormNativeScreen from './ProductFormNativeScreen';
 import ProductViewerDialog from './ProductViewerDialog';
 
+import { userFacingErrorText } from "@/lib/userFacingError";
 export default function PartnerProductsNativeScreen() {
   const params = useParams();
   const codeParam = (params as any).code as string | undefined;
@@ -55,7 +56,7 @@ export default function PartnerProductsNativeScreen() {
 
   const remove = async (id: string) => {
     const { error } = await supabase.from('waouh_partner_products' as any).delete().eq('id', id);
-    if (error) return toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
+    if (error) return toast({ title: 'Suppression impossible', description: userFacingErrorText(error, "delete"), variant: 'destructive' });
     toast({ title: 'Produit supprimé' });
     load();
   };
