@@ -325,12 +325,12 @@ const AppContent = () => {
                     <Route path="/admin/waouh/health-check" element={<AdminRoute><AdminWaouhHealthCheckPage /></AdminRoute>} />
                     <Route path="/admin/waouh/native-messaging" element={<AdminRoute><AdminWaouhNativeMessagingPage /></AdminRoute>} />
                     <Route path="/admin/waouh/contact-layer" element={<AdminRoute><AdminWaouhContactLayerPage /></AdminRoute>} />
-                     <Route path="/partner" element={<AuthRoute><PartnerDashboardPage /></AuthRoute>} />
-                     <Route path="/partner/businesses" element={<PartnerRoute><PartnerBusinessesPage /></PartnerRoute>} />
+                     <Route path="/partner" element={<Navigate to="/app/partner" replace />} />
+                     <Route path="/partner/businesses" element={<Navigate to="/app/partner/businesses" replace />} />
                      <Route path="/partner/b/:code/produits" element={<PartnerRoute><PartnerProductsPage /></PartnerRoute>} />
                      <Route path="/partner/businesses/:businessId/products" element={<PartnerRoute><PartnerProductsPage /></PartnerRoute>} />
-                     <Route path="/partner/sales" element={<PartnerRoute><PartnerSalesPage /></PartnerRoute>} />
-                     <Route path="/partner/payouts" element={<PartnerRoute><PartnerPayoutsPage /></PartnerRoute>} />
+                     <Route path="/partner/sales" element={<Navigate to="/app/partner/sales" replace />} />
+                     <Route path="/partner/payouts" element={<Navigate to="/app/partner/payouts" replace />} />
                   </Route>
                   
                   {/* Accueil canonique bot.bj — même moteur et même UI que /app/chat */}
