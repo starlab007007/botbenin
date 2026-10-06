@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const backfill = body.backfill !== false;
   const maxSessions = Math.max(1, Math.min(Number(body.maxSessions || 1), 3));
-  const maxContactsPerSession = Math.max(100, Math.min(Number(body.maxContactsPerSession || 500), 1000));
+  const maxContactsPerSession = Math.max(100, Math.min(Number(body.maxContactsPerSession || 1000), 5000));
   const cursor = body.cursor ? String(body.cursor) : null;
   const requestedSessions: string[] | null = Array.isArray(body.sessions) && body.sessions.length
     ? body.sessions.map((s: any) => String(s))
