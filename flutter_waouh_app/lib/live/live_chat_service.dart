@@ -456,19 +456,20 @@ class LiveChatService {
     if (archived) return const [];
 
     final sid = await session.sessionId;
-    final ids = await waouhUserIds(authUserId);
     const fields = 'id,phone_number,channel,last_message,updated_at,user_id';
     final byId = <String, LiveConversation>{};
 
-    final userConversationsFuture = ids.isEmpty
-        ? Future<List<dynamic>>.value(const <dynamic>[])
-        : client
+    // Authenticated conversation ownership is enforced by Supabase RLS.
+    // Query directly so accounts with many historical WAOUH identity rows do
+    // not lose conversations because of a client-side identity limit.
+    final userConversationsFuture = (authUserId != null && authUserId.isNotEmpty)
+        ? client
             .from('waouh_conversations')
             .select(fields)
-            .inFilter('user_id', ids)
             .order('updated_at', ascending: false)
             .limit(200)
-            .then((value) => List<dynamic>.from(value as List));
+            .then((value) => List<dynamic>.from(value as List))
+        : Future<List<dynamic>>.value(const <dynamic>[]);
 
     final sessionMessageRefsFuture = client
         .from('waouh_messages')
