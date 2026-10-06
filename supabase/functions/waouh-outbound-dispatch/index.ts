@@ -23,10 +23,34 @@ const MAX_ATTEMPTS_DEFAULT = 5;
 const WAHA_REQUEST_TIMEOUT_MS = 3_000;
 
 async function wahaFetch(url: string, init: RequestInit = {}) {
-  return fetch(url, {
-    ...init,
-    signal: AbortSignal.timeout(WAHA_REQUEST_TIMEOUT_MS),
-  });
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(WAHA_REQUEST_TIMEOUT_MS),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const timeout = /timed out|timeout|abort/i.test(message);
+    if (!timeout) throw error;
+
+    // A timeout on one WAHA route is a transport result, not a fatal exception:
+    // callers can immediately try the alternate route / degrade rich content.
+    console.warn("[waouh-outbound-dispatch] WAHA route timeout", {
+      url: url.replace(/([?&]phone=)[^&]+/i, "$1<redacted>"),
+      timeout_ms: WAHA_REQUEST_TIMEOUT_MS,
+    });
+    return new Response(JSON.stringify({ error: "WAHA_ROUTE_TIMEOUT" }), {
+      status: 504,
+      headers: {
+        "Content-Type": "application/json",
+        "X-WAOUH-Timeout": "1",
+      },
+    });
+  }
+}
+
+function isWahaTimeout(response: Response) {
+  return response.status === 504 && response.headers.get("X-WAOUH-Timeout") === "1";
 }
 
 async function requestIsAdmin(req: Request, sb: any) {
@@ -135,6 +159,10 @@ async function sendWahaImage(base: string, session: string, chatId: string, imag
     body: JSON.stringify({ session, chatId, file: { url: imageUrl }, caption }),
   });
   if (r.ok) return r;
+  if (isWahaTimeout(r)) {
+    console.warn("[waouh-outbound-dispatch] image route timed out; degrading to text", { chatId });
+    return sendWahaText(base, session, chatId, caption, headers);
+  }
 
   // Certaines installations WAHA n'exposent pas sendImage sur ce chemin.
   // On tente la route session, puis on dégrade TOUJOURS vers le texte :
@@ -145,6 +173,10 @@ async function sendWahaImage(base: string, session: string, chatId: string, imag
     body: JSON.stringify({ chatId, file: { url: imageUrl }, caption }),
   });
   if (r.ok) return r;
+  if (isWahaTimeout(r)) {
+    console.warn("[waouh-outbound-dispatch] session image route timed out; degrading to text", { chatId });
+    return sendWahaText(base, session, chatId, caption, headers);
+  }
 
   console.warn("[waouh-outbound-dispatch] image delivery unavailable; falling back to text", {
     chatId,
@@ -164,13 +196,24 @@ async function sendWahaButtons(base: string, session: string, chatId: string, te
   if (imageUrl) richBody.header = { image: { url: imageUrl } };
   let r = await wahaFetch(`${base}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify(richBody) });
   if (r.ok) return r;
+  if (isWahaTimeout(r)) {
+    console.warn("[waouh-outbound-dispatch] buttons route timed out; degrading to text", { chatId });
+    return sendWahaText(base, session, chatId, text, headers);
+  }
+
   r = await wahaFetch(`${base}/api/${session}/sendButtons`, { method: "POST", headers, body: JSON.stringify({ ...richBody, session: undefined }) });
   if (r.ok) return r;
+  if (isWahaTimeout(r)) {
+    console.warn("[waouh-outbound-dispatch] session buttons route timed out; degrading to text", { chatId });
+    return sendWahaText(base, session, chatId, text, headers);
+  }
+
   // Legacy simple format (boutons WAHA encore acceptés). Si échec, on tombe en
   // texte simple SANS jamais ré-injecter de liste numérotée « 1./2./3. ».
   const buttons = actions.slice(0, 3).map((a) => ({ id: a.id, text: a.label }));
   r = await wahaFetch(`${base}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify({ session, chatId, text, buttons }) });
   if (r.ok) return r;
+  if (isWahaTimeout(r)) return sendWahaText(base, session, chatId, text, headers);
   if (imageUrl) return sendWahaImage(base, session, chatId, imageUrl, text, headers);
   return sendWahaText(base, session, chatId, text, headers);
 }
