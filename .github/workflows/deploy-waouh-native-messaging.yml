@@ -440,6 +440,24 @@ jobs:
             --yes
           echo '✅ Migrations Supabase de production appliquées explicitement.'
 
+      - name: Prepare minimal Edge deployment config
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp supabase/config.toml /tmp/waouh-native-config.original.toml
+          cat > supabase/config.toml <<EOF
+          project_id = "$SUPABASE_PROJECT_REF"
+
+          [api]
+          enabled = true
+          port = 54321
+
+          [edge_runtime]
+          enabled = true
+          policy = "per_worker"
+          EOF
+          echo "✅ Configuration Edge minimale compatible CLI 2.117.0"
+
       - name: Deploy Native Messaging Edge Functions
         shell: bash
         run: |
