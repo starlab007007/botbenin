@@ -1,4 +1,3 @@
--- WAOUH Diffusion media bucket — 2026-10-05.
 insert into storage.buckets (
   id, name, public, file_size_limit, allowed_mime_types
 )
