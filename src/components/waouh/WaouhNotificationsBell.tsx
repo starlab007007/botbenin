@@ -261,7 +261,9 @@ export const WaouhNotificationsBell: React.FC<{
                                   setOpen(false);
                                 }}
                               >
-                                {action.label}
+                                {action.kind === "navigate"
+                                  ? action.label
+                                  : `Ouvrir pour ${action.label.toLocaleLowerCase("fr-FR")}`}
                               </button>
                             ))}
                           </div>
