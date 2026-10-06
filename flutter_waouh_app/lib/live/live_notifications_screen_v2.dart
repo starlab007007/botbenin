@@ -221,7 +221,7 @@ class _NotificationTile extends StatelessWidget {
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 12, vertical: 8),
                                   ),
-                                  child: Text(actions[index].label),
+                                  child: Text(_notificationActionLabel(actions[index])),
                                 )
                               : OutlinedButton(
                                   onPressed: () => onAction(actions[index]),
@@ -230,7 +230,7 @@ class _NotificationTile extends StatelessWidget {
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 12, vertical: 8),
                                   ),
-                                  child: Text(actions[index].label),
+                                  child: Text(_notificationActionLabel(actions[index])),
                                 ),
                       ],
                     ),
@@ -280,4 +280,12 @@ class _SmartMetaChip extends StatelessWidget {
 String _stamp(DateTime date) {
   final local = date.toLocal();
   return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')}/${local.year} ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+}
+
+
+String _notificationActionLabel(LiveSmartAction action) {
+  if (action.kind == 'navigate') return action.label;
+  final label = action.label.trim();
+  if (label.isEmpty) return 'Ouvrir';
+  return 'Ouvrir pour ${label.toLowerCase()}';
 }
