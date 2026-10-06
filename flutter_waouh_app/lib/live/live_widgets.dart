@@ -326,11 +326,19 @@ class LiveMessageBubble extends StatelessWidget {
                         backgroundColor: tone.withValues(alpha: .10),
                       ),
                       onPressed: () {
-                        if (action.route != null) {
+                        if (action.navigates && action.route != null) {
                           context.go(action.route!);
                           return;
                         }
-                        onPayload?.call(action.payload);
+                        if (onPayload != null) {
+                          onPayload!(action.payload);
+                          return;
+                        }
+                        // If a non-mutating handler is unavailable, navigation
+                        // is a safe fallback only for non-commerce actions.
+                        if (action.kind != 'commerce' && action.route != null) {
+                          context.go(action.route!);
+                        }
                       },
                       child: Text(action.label,
                           style: const TextStyle(
@@ -427,10 +435,14 @@ class _SmartMessageAction {
     required this.payload,
     required this.label,
     this.route,
+    this.kind = 'legacy',
   });
   final String payload;
   final String label;
   final String? route;
+  final String kind;
+
+  bool get navigates => kind == 'navigate';
 }
 
 class _SmartContextChip extends StatelessWidget {
@@ -715,6 +727,7 @@ _SmartMessageAction _scopeMessageAction(
     payload: liveCanonicalWorkflowPayload(kind, context: context),
     label: action.label,
     route: action.route,
+    kind: action.kind == 'legacy' ? 'commerce' : action.kind,
   );
 }
 
@@ -739,11 +752,15 @@ List<_SmartMessageAction> _smartMessageActions(
     return const <_SmartMessageAction>[];
   }
   final smart = liveMap(message.meta['smart']);
+  final smartActions = smart['actions'];
   final legacyActions = message.meta['actions'];
-  final rawActions = legacyActions is List && legacyActions.isNotEmpty
-      ? legacyActions
-      : smart['actions'];
+  final rawActions = smartActions is List && smartActions.isNotEmpty
+      ? smartActions
+      : legacyActions;
   if (rawActions is List) {
+    final preferred = liveText(
+      smart['next_best_action'] ?? message.meta['next_best_action'],
+    ).trim();
     final explicit = rawActions
         .whereType<Map>()
         .map((raw) {
@@ -751,18 +768,25 @@ List<_SmartMessageAction> _smartMessageActions(
               .toString()
               .trim();
           final payload =
-              (raw['id'] ?? raw['payload'] ?? label).toString().trim();
+              (raw['id'] ?? raw['action'] ?? raw['key'] ?? label).toString().trim();
           final route = liveText(raw['route'] ?? raw['url']).trim();
+          final kind = liveText(raw['kind'], 'legacy').trim().toLowerCase();
           return _SmartMessageAction(
             payload: payload,
             label: label,
+            kind: kind,
             route: route.startsWith('/app/') && !route.startsWith('//')
                 ? route
                 : null,
           );
         })
         .where((action) => action.payload.isNotEmpty && action.label.isNotEmpty)
-        .toList(growable: false);
+        .toList(growable: false)
+      ..sort((a, b) {
+        if (a.payload == preferred && b.payload != preferred) return -1;
+        if (b.payload == preferred && a.payload != preferred) return 1;
+        return 0;
+      });
     if (explicit.isNotEmpty) {
       return explicit
           .map((action) => _scopeMessageAction(action, message))
