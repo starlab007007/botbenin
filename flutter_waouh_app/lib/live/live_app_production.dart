@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
+import 'access_policy.dart';
 import 'avatar/live_avatar_controller.dart';
 import 'avatar/live_avatar_widgets.dart';
 import 'live_auth_screens.dart';
@@ -106,10 +107,12 @@ GoRouter _router(legacy.AuthController auth) => GoRouter(
       refreshListenable: auth,
       redirect: (_, state) {
         final path = state.uri.path;
-        // Toutes les pages sont consultables en mode découverte. Les actions
-        // métier demandent l'authentification au moment précis de leur usage.
-        if (auth.signedIn && path.startsWith('/app/auth')) {
-          return state.uri.queryParameters['next'] ?? '/app/ia';
+        final isAuthRoute = path.startsWith('/app/auth');
+        if (!auth.signedIn && requiresWaouhAuthentication(path)) {
+          return buildWaouhAuthRoute(state.uri.toString());
+        }
+        if (auth.signedIn && isAuthRoute) {
+          return normalizeWaouhNextRoute(state.uri.queryParameters['next']);
         }
         return null;
       },
