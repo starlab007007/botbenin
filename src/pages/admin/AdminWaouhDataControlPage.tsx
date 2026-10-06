@@ -13,11 +13,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useWaouhAI } from '@/hooks/useWaouhAI';
 import { Progress } from '@/components/ui/progress';
-import WaouhContactHubPanel from '@/components/admin/WaouhContactHubPanel';
+import WaouhContactHubPanel, { type HubContact } from '@/components/admin/WaouhContactHubPanel';
 import {
   Loader2, Search, Sparkles, RefreshCw, CheckCircle2, XCircle, StopCircle, Clock,
   MoreHorizontal, Eye, Pencil, Trash2, Power, PowerOff, ShieldCheck, MapPin, ImageIcon, Phone,
-  Download, FileSpreadsheet, Archive, ExternalLink, Network, RotateCcw
+  Download, FileSpreadsheet, Archive, ExternalLink, Network, RotateCcw, ClipboardCopy, Send
 } from 'lucide-react';
 
 type CleanItemStatus = 'pending' | 'processing' | 'ok' | 'failed' | 'cancelled';
@@ -84,6 +84,11 @@ interface FabricRow {
   catalog_id: string | null;
   verified: boolean;
   is_catalog_mutable: boolean;
+  contacts?: HubContact[];
+  primary_whatsapp?: string | null;
+  contact_count?: number;
+  whatsapp_count?: number;
+  wa_reachable_count?: number;
 }
 
 const EMPTY_STATS: FabricStats = {
@@ -170,6 +175,10 @@ export default function AdminWaouhDataControlPage() {
   const [viewing, setViewing] = useState<FabricRow | null>(null);
   const [editing, setEditing] = useState<any | null>(null);
   const [editDraft, setEditDraft] = useState<any>({});
+  const [contactVerifying, setContactVerifying] = useState<string | null>(null);
+  const [messageTarget, setMessageTarget] = useState<{ row: FabricRow; contact: HubContact } | null>(null);
+  const [messageText, setMessageText] = useState('');
+  const [sendingContact, setSendingContact] = useState(false);
 
   const families = useMemo(() => {
     const values = new Set<string>(sources.map(s => s.family).filter(Boolean));
@@ -218,23 +227,97 @@ export default function AdminWaouhDataControlPage() {
 
   const search = async () => {
     setSearching(true);
-    const { data, error } = await supabase.rpc('waouh_admin_signal_fabric_search' as any, {
-      p_q: query.trim() || null,
-      p_city: ville.trim() || null,
-      p_family: familyFilter === 'all' ? null : familyFilter,
-      p_source: sourceFilter === 'all' ? null : sourceFilter,
-      p_intent: intentFilter === 'all' ? null : intentFilter,
-      p_contactability: contactFilter === 'all' ? null : contactFilter,
-      p_operational_state: sourceStateFilter === 'all' ? null : sourceStateFilter,
-      p_limit: 300,
-      p_offset: 0,
+    const { data, error } = await supabase.functions.invoke('waouh-admin-stats', {
+      body: {
+        action: 'contact_hub_search',
+        q: query.trim() || null,
+        city: ville.trim() || null,
+        family: familyFilter === 'all' ? null : familyFilter,
+        source: sourceFilter === 'all' ? null : sourceFilter,
+        intent: intentFilter === 'all' ? null : intentFilter,
+        contactability: contactFilter === 'all' ? null : contactFilter,
+        operational_state: sourceStateFilter === 'all' ? null : sourceStateFilter,
+        contacts_only: false,
+        whatsapp_only: false,
+        limit: 300,
+        offset: 0,
+      },
     });
     setSearching(false);
-    if (error) {
-      toast({ title: 'Erreur Signal Fabric', description: error.message, variant: 'destructive' });
+    if (error || !data?.ok) {
+      toast({
+        title: 'Erreur Signal Fabric',
+        description: error?.message || data?.error || 'Read-model contacts indisponible',
+        variant: 'destructive',
+      });
       return;
     }
-    setResults(((data as any) || []) as FabricRow[]);
+    setResults(((data?.rows as any) || []) as FabricRow[]);
+  };
+
+  const copyContact = async (contact: HubContact) => {
+    const value = contact.normalized || contact.value;
+    try {
+      await navigator.clipboard.writeText(value);
+      toast({ title: 'Contact copié', description: value });
+    } catch {
+      toast({ title: 'Copie impossible', variant: 'destructive' });
+    }
+  };
+
+  const verifyContact = async (row: FabricRow, contact: HubContact) => {
+    const phone = contact.normalized || contact.value;
+    const key = `${row.fabric_id}:${phone}`;
+    setContactVerifying(key);
+    try {
+      const { data, error } = await supabase.functions.invoke('waouh-admin-stats', {
+        body: { action: 'contact_hub_verify', fabric_id: row.fabric_id, phone },
+      });
+      if (error || !data?.ok) throw new Error(error?.message || data?.error || 'Vérification WAHA impossible');
+      toast({
+        title: data.exists ? 'WhatsApp vérifié' : 'Numéro absent de WhatsApp',
+        description: data.display || data.normalized || phone,
+        variant: data.exists ? 'default' : 'destructive',
+      });
+      await search();
+    } catch (error: any) {
+      toast({ title: 'Vérification WAHA échouée', description: error?.message || String(error), variant: 'destructive' });
+    } finally {
+      setContactVerifying(null);
+    }
+  };
+
+  const openContactMessage = (row: FabricRow, contact: HubContact) => {
+    setMessageTarget({ row, contact });
+    setMessageText('');
+  };
+
+  const sendContactMessage = async () => {
+    if (!messageTarget || !messageText.trim()) return;
+    setSendingContact(true);
+    try {
+      const { row, contact } = messageTarget;
+      const { data, error } = await supabase.functions.invoke('waouh-admin-stats', {
+        body: {
+          action: 'contact_hub_send',
+          fabric_id: row.fabric_id,
+          phone: contact.normalized || contact.value,
+          message: messageText.trim(),
+        },
+      });
+      if (error || !data?.ok) throw new Error(error?.message || data?.error || 'Envoi WhatsApp impossible');
+      toast({
+        title: data?.queue?.status === 'sent' ? 'Message WhatsApp envoyé' : 'Message WhatsApp mis en file',
+        description: `${data.display || data.phone || ''} · ${data?.queue?.status || 'queued'}`,
+      });
+      setMessageTarget(null);
+      setMessageText('');
+      await search();
+    } catch (error: any) {
+      toast({ title: 'Envoi WhatsApp échoué', description: error?.message || String(error), variant: 'destructive' });
+    } finally {
+      setSendingContact(false);
+    }
   };
 
   const resetFilters = () => {
@@ -353,6 +436,11 @@ export default function AdminWaouhDataControlPage() {
       devise: r.currency,
       contactabilite: r.contactability_level,
       contact_disponible: r.has_contact,
+      contacts_complets: (r.contacts || []).map(c => `${c.channel}: ${c.display || c.value}`).join(' | '),
+      whatsapp_normalises: (r.contacts || []).filter(c => c.whatsapp_candidate && c.normalized).map(c => c.normalized).join(' | '),
+      whatsapp_principal: r.primary_whatsapp || null,
+      whatsapp_verifies: (r.contacts || []).filter(c => c.whatsapp_reachable === true).map(c => c.normalized || c.value).join(' | '),
+      contacts_envoi_autorise: (r.contacts || []).filter(c => c.send_allowed).map(c => c.normalized || c.value).join(' | '),
       qualite: r.quality_tier,
       completude: r.completeness,
       confiance: r.trust_score,
