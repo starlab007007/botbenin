@@ -186,7 +186,9 @@ export function buildWaouhSmartEnvelope(input: WaouhSmartInput) {
       kind: "navigate",
       route,
       priority: 1,
-      requires_auth: !["chat"].includes(domain),
+      // Les événements persistés (message, notification, mission, offre) sont
+      // personnels même si leur surface de découverte a un mode public.
+      requires_auth: true,
       requires_confirmation: false,
       payload: { route },
     });
@@ -201,6 +203,14 @@ export function buildWaouhSmartEnvelope(input: WaouhSmartInput) {
   const suggest = input.payload?.suggest && typeof input.payload.suggest === "object"
     ? input.payload.suggest as Record<string, unknown>
     : null;
+
+  const preferredAction = compact(
+    input.payload?.next_best_action ?? suggest?.best_action,
+    120,
+  );
+  const nextBestAction = actions.some((action) => action.id === preferredAction)
+    ? preferredAction
+    : actions[0]?.id ?? null;
 
   return {
     schema: "waouh.smart.v1",
@@ -225,12 +235,18 @@ export function buildWaouhSmartEnvelope(input: WaouhSmartInput) {
     },
     recipient_role: compact(input.recipientRole ?? input.payload?.recipient ?? input.payload?.role, 40) || null,
     actions,
-    next_best_action: actions[0]?.id ?? null,
+    next_best_action: nextBestAction,
     prediction: {
-      confidence: rawActions && Array.isArray(rawActions) && rawActions.length ? 0.96 : 0.72,
-      reason: rawActions && Array.isArray(rawActions) && rawActions.length
-        ? "server_action_priority"
-        : "context_navigation",
+      confidence: preferredAction && nextBestAction === preferredAction
+        ? 0.99
+        : rawActions && Array.isArray(rawActions) && rawActions.length
+          ? 0.96
+          : 0.72,
+      reason: preferredAction && nextBestAction === preferredAction
+        ? "workflow_prediction"
+        : rawActions && Array.isArray(rawActions) && rawActions.length
+          ? "server_action_priority"
+          : "context_navigation",
       next_follow_up_at: input.payload?.next_follow_up_at ?? suggest?.next_follow_up_at ?? null,
       expires_at: input.payload?.expires_at ?? suggest?.expires_at ?? null,
     },
