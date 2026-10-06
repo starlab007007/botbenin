@@ -1,11 +1,14 @@
 import { getMatchKind, type WaouhNotification } from "@/hooks/waouhNotificationTypes";
 import { correlationIdFor, traceUi } from "./waouhCorrelation";
+import { readWaouhSmartEnvelope, waouhSmartRoute } from "@/lib/waouh/smartPayload";
 
 export type OpenNotificationOptions = {
   /** Optional: invoked for `deal_payment_request` notifications to display the payment dialog. */
   onPayDialog?: (args: { dealId: string; amount?: number }) => void;
   /** Optional: invoked just before dispatching open events (used to mark notif as read). */
   beforeOpen?: () => void;
+  /** Router-aware navigation for generic Smart domains. */
+  onNavigate?: (route: string) => void;
 };
 
 /**
@@ -24,6 +27,8 @@ export function openNotificationTarget(
   const matchKind = getMatchKind(n.template);
   const isMatch = !!matchKind;
   const isPaymentRequest = n.template === "deal_payment_request" && (n.payload as any)?.deal_id;
+  const smart = readWaouhSmartEnvelope(n.payload);
+  const smartRoute = waouhSmartRoute(n.payload);
 
   if (isPaymentRequest && options.onPayDialog) {
     options.beforeOpen?.();
@@ -68,6 +73,19 @@ export function openNotificationTarget(
     return true;
   }
 
+  // Les domaines non conversationnels ouvrent leur surface canonique plutôt
+  // que de forcer artificiellement l'utilisateur dans le chat.
+  if (
+    smartRoute &&
+    smart &&
+    !["chat", "commerce"].includes(smart.domain) &&
+    options.onNavigate
+  ) {
+    options.beforeOpen?.();
+    options.onNavigate(smartRoute);
+    return true;
+  }
+
   if (n.message_id || n.transaction_id) {
     options.beforeOpen?.();
     window.dispatchEvent(
@@ -75,6 +93,12 @@ export function openNotificationTarget(
         detail: { message_id: n.message_id, transaction_id: n.transaction_id },
       })
     );
+    return true;
+  }
+
+  if (smartRoute && options.onNavigate) {
+    options.beforeOpen?.();
+    options.onNavigate(smartRoute);
     return true;
   }
 
