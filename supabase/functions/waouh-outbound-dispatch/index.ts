@@ -18,14 +18,15 @@ const WAHA_SESSION = Deno.env.get("WAHA_SESSION") || "WaouhApp";
 const WAOUH_BUSINESS_PHONE = normalizeBeninPhone(Deno.env.get("WAOUH_BUSINESS_PHONE") || "65653468") || "22965653468";
 
 const MAX_ATTEMPTS_DEFAULT = 5;
-// WAHA is an external dependency. A single dead endpoint must not consume the
-// whole Supabase Edge execution window through sequential route fallbacks.
-const WAHA_REQUEST_TIMEOUT_MS = 3_000;
+// Preflight must stay short, but real sends need more headroom: the live WAHA
+// instance can legitimately take >3s while still succeeding.
+const WAHA_PREFLIGHT_TIMEOUT_MS = 1_500;
+const WAHA_SEND_TIMEOUT_MS = 6_000;
 
-async function wahaFetch(url: string, init: RequestInit = {}) {
+async function wahaFetch(url: string, init: RequestInit = {}, timeoutMs = WAHA_SEND_TIMEOUT_MS) {
   return fetch(url, {
     ...init,
-    signal: AbortSignal.timeout(WAHA_REQUEST_TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 }
 
@@ -462,20 +463,50 @@ Deno.serve(async (req) => {
       const actions = customActions.length > 0 ? customActions : defaultActionsForTemplate(it.template, it.payload || {});
       const footer = it.payload?.footer || "WAOUH • Marché conversationnel";
 
-      // 🔎 Pré-vol checkExists : on demande à WAHA quel JID correspond réellement
-      // à chacun de nos candidats Bénin (8 vs 10 chiffres). Évite les faux 200
-      // quand WAHA accepte un sendText vers un numéro non enregistré sur WhatsApp.
+      // 🔎 Pré-vol : privilégier d'abord le mapping LID/JID local alimenté par
+      // waouh-waha-sync-contacts. Cela évite un appel réseau WAHA pour les
+      // contacts déjà connus et fiabilise le routage vers les sessions privacy.
       const resolvedChatIds: string[] = [];
       const seenChat = new Set<string>();
+
+      if (!phone.includes("@")) {
+        try {
+          const phoneDigits = phone.replace(/\D/g, "");
+          const phoneE164 = phoneDigits ? `+${phoneDigits}` : "";
+          const { data: knownMaps } = await sb
+            .from("waouh_lid_phone_map")
+            .select("lid,jid,phone,phone_e164,last_synced_at")
+            .or(`phone.eq.${phoneDigits},phone_e164.eq.${phoneE164},phone_e164.eq.${phoneDigits}`)
+            .order("last_synced_at", { ascending: false })
+            .limit(3);
+          for (const map of knownMaps || []) {
+            const directJid = typeof map?.jid === "string" && map.jid.includes("@")
+              ? map.jid
+              : (map?.lid ? `${String(map.lid).replace(/@lid$/i, "")}@lid` : null);
+            if (directJid && !seenChat.has(directJid)) {
+              seenChat.add(directJid);
+              resolvedChatIds.push(directJid);
+            }
+          }
+        } catch (e) {
+          console.warn("[waouh-outbound-dispatch] local WAHA mapping lookup failed", e);
+        }
+      }
+
+      // Si aucun mapping local ne suffit, demander à WAHA quel JID correspond
+      // réellement à chacun de nos candidats Bénin (8 vs 10 chiffres).
       for (const candidate of candidates) {
         if (candidate.includes("@")) {
           if (!seenChat.has(candidate)) { seenChat.add(candidate); resolvedChatIds.push(candidate); }
           continue;
         }
+        // Un mapping local autoritatif existe déjà : pas besoin de refaire le
+        // check-exists réseau pour ce candidat.
+        if (resolvedChatIds.length > 0) continue;
         let mappedChatId: string | null = null;
         for (const path of [`/api/${deliverySession}/contacts/check-exists?phone=${encodeURIComponent(candidate)}`, `/api/contacts/check-exists?phone=${encodeURIComponent(candidate)}&session=${encodeURIComponent(deliverySession)}`]) {
           try {
-            const cr = await wahaFetch(`${wahaBase}${path}`, { headers: wahaHeaders });
+            const cr = await wahaFetch(`${wahaBase}${path}`, { headers: wahaHeaders }, WAHA_PREFLIGHT_TIMEOUT_MS);
             if (!cr.ok) { await cr.text().catch(() => ""); continue; }
             const cj = await cr.json().catch(() => null);
             if (cj && (cj.numberExists === true || cj.exists === true) && typeof cj.chatId === "string") {
