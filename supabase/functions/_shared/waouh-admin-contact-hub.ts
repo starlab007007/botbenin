@@ -631,7 +631,11 @@ async function searchWahaDirectory(
   };
 }
 
-async function getWahaDirectoryContact(service: any, fabricId: string, phone: string) {
+async function getWahaDirectoryContact(
+  service: any,
+  fabricId: string,
+  phone: string,
+): Promise<{ row: AnyRow | null; contact: ContactCandidate | null }> {
   if (!fabricId.startsWith("waha_directory:")) return { row: null, contact: null };
   const id = asUuid(fabricId.slice("waha_directory:".length));
   const requested = normalizeE164(phone, "+229");
@@ -672,14 +676,19 @@ async function getFabricRow(service: any, fabricId: string) {
   return data;
 }
 
-async function getResolvedContact(service: any, fabricId: string, phone: string) {
+async function getResolvedContact(
+  service: any,
+  fabricId: string,
+  phone: string,
+): Promise<{ row: AnyRow | null; contact: ContactCandidate | null }> {
   if (fabricId.startsWith("waha_directory:")) {
     return getWahaDirectoryContact(service, fabricId, phone);
   }
 
   const raw = await getFabricRow(service, fabricId);
   if (!raw) return { row: null, contact: null };
-  const [row] = await enrichFabricRows(service, [raw]);
+  const [enriched] = await enrichFabricRows(service, [raw]);
+  const row = (enriched ?? null) as AnyRow | null;
   const normalized = normalizeE164(phone, "+229");
   const contact = (row?.contacts ?? []).find((c: ContactCandidate) =>
     normalized ? c.normalized === normalized : c.value === phone
