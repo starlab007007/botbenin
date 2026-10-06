@@ -52,6 +52,61 @@ serve(async (req) => {
     if (usersErr) throw usersErr;
     const userIds = (users || []).map((u: any) => u.id).filter(Boolean);
 
+    if (body?.action === "mark_notification_read") {
+      const notificationId = typeof body?.notificationId === "string"
+        ? body.notificationId.trim()
+        : "";
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(notificationId)) {
+        return jsonError(422, "invalid_notification_id");
+      }
+
+      const notificationScope: string[] = [];
+      if (userIds.length) notificationScope.push(`user_id.in.(${userIds.join(",")})`);
+      if (auth.sessionValid && auth.bodySessionId) {
+        notificationScope.push(`web_session_id.eq.${auth.bodySessionId}`);
+      }
+      if (!notificationScope.length) return jsonError(403, "notification_scope_empty");
+
+      const { data: notification, error: notificationAuthErr } = await sb
+        .from("waouh_notifications")
+        .select("id")
+        .eq("id", notificationId)
+        .or(notificationScope.join(","))
+        .maybeSingle();
+      if (notificationAuthErr) throw notificationAuthErr;
+      if (!notification) return jsonError(403, "notification_forbidden");
+
+      const { error: notificationUpdateErr } = await sb
+        .from("waouh_notifications")
+        .update({ opened: true, read_at: new Date().toISOString() })
+        .eq("id", notificationId);
+      if (notificationUpdateErr) throw notificationUpdateErr;
+
+      return jsonResponse({
+        ok: true,
+        notification_id: notificationId,
+        action: "mark_notification_read",
+      });
+    }
+
+    if (body?.action === "mark_all_notifications_read") {
+      const notificationScope: string[] = [];
+      if (userIds.length) notificationScope.push(`user_id.in.(${userIds.join(",")})`);
+      if (auth.sessionValid && auth.bodySessionId) {
+        notificationScope.push(`web_session_id.eq.${auth.bodySessionId}`);
+      }
+      if (!notificationScope.length) return jsonError(403, "notification_scope_empty");
+
+      const { error: notificationUpdateErr } = await sb
+        .from("waouh_notifications")
+        .update({ opened: true, read_at: new Date().toISOString() })
+        .or(notificationScope.join(","))
+        .eq("opened", false);
+      if (notificationUpdateErr) throw notificationUpdateErr;
+
+      return jsonResponse({ ok: true, action: "mark_all_notifications_read" });
+    }
+
     if (body?.action === "mark_read") {
       const conversationId = typeof body?.conversationId === "string" ? body.conversationId.trim() : "";
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(conversationId)) {
