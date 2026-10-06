@@ -405,10 +405,29 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
       origin_kind: "radar_signal", origin_id: radar.id, contactability_level: rowLevel,
       verification_status: "observed", label: radar.contact_handle,
     });
+    if (radar?.contact_handle) addCandidate(contacts, {
+      channel: "social", value: radar.contact_handle, source: row.source_key,
+      origin_kind: "radar_signal", origin_id: radar.id, contactability_level: rowLevel,
+      verification_status: "observed", label: radar.source_type || "Réseau social",
+    });
 
-    for (const key of ["whatsapp", "phone", "contact_phone", "vendeur_whatsapp", "vendeur_phone"]) {
+    const evidenceContacts: Array<[string, string]> = [
+      ["whatsapp", "whatsapp"],
+      ["phone", "phone"],
+      ["contact_phone", "phone"],
+      ["vendeur_whatsapp", "whatsapp"],
+      ["vendeur_phone", "phone"],
+      ["email", "email"],
+      ["contact_email", "email"],
+      ["website", "website"],
+      ["site_web", "website"],
+      ["contact_handle", "social"],
+      ["handle", "social"],
+      ["username", "social"],
+    ];
+    for (const [key, channel] of evidenceContacts) {
       if (evidence?.[key]) addCandidate(contacts, {
-        channel: key.includes("whatsapp") ? "whatsapp" : "phone",
+        channel,
         value: String(evidence[key]),
         source: row.source_key,
         origin_kind: "evidence",
@@ -607,7 +626,7 @@ export async function handleAdminContactHub(
         p_family: body?.family || null,
         p_source: body?.source || null,
         p_intent: body?.intent || null,
-        p_contactability: null,
+        p_contactability: body?.contactability || null,
         p_operational_state: body?.operational_state || null,
         p_limit: limit,
         p_offset: Math.max(0, Number(body?.offset || 0)),

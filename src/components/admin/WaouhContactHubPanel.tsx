@@ -21,7 +21,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 
-interface HubContact {
+export interface HubContact {
   channel: string;
   value: string;
   normalized: string | null;
