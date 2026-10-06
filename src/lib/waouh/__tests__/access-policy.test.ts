@@ -12,6 +12,7 @@ describe("WAOUH access policy", () => {
     ["/app/avatar", false],
     ["/app/nexus", false],
     ["/app/radar-map", false],
+    ["/app/presence/checkin", false],
     ["/app/chat/waouh", true],
     ["/app/chat/123", true],
     ["/app/avatar/buy", true],
