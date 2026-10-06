@@ -1,7 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
-import { decryptPhone } from "../_shared/waouh-tel/crypto.ts";
+import { decryptPhone, encryptPhone, hashPhone } from "../_shared/waouh-tel/crypto.ts";
 import { normalizeE164, phoneLast4, providerPhone } from "../_shared/waouh-tel/phone.ts";
 import { extractPublicContactHints } from "../_shared/waouh-signal-fabric.ts";
 
@@ -295,6 +295,9 @@ async function resolveAdminSignalContacts(sb: any, fabricIds: string[]) {
     const buyer = evidence.buyer_profile_id ? buyerMap.get(String(evidence.buyer_profile_id)) : null;
     const catalog = evidence.catalog_id ? catalogMap.get(String(evidence.catalog_id)) : null;
     const radarRow = evidence.radar_signal_id ? radarMap.get(String(evidence.radar_signal_id)) : null;
+    const externalSignal = String(row.fabric_id).startsWith("external:")
+      ? externalMap.get(String(row.fabric_id).slice("external:".length))
+      : null;
 
     if (article) {
       if (article.contact_whatsapp) add(row, article.contact_whatsapp, {
@@ -348,9 +351,7 @@ async function resolveAdminSignalContacts(sb: any, fabricIds: string[]) {
     addUser(row, evidence.seller_id, "Vendeur WAOUH");
     addUser(row, evidence.user_id, "Utilisateur WAOUH");
 
-    if (String(row.fabric_id).startsWith("external:")) {
-      const externalSignal = externalMap.get(String(row.fabric_id).slice("external:".length));
-      if (externalSignal?.entity_id) {
+    if (externalSignal?.entity_id) {
         for (const stored of contactsByEntity.get(String(externalSignal.entity_id)) || []) {
           let value = String(stored.public_value || "").trim();
           if (!value && stored.value_encrypted) {
@@ -370,7 +371,6 @@ async function resolveAdminSignalContacts(sb: any, fabricIds: string[]) {
           });
         }
       }
-    }
 
     const hints = Array.isArray(evidence.contact_hints) ? evidence.contact_hints : [];
     for (const hint of hints.slice(0, 10)) {
@@ -393,12 +393,15 @@ async function resolveAdminSignalContacts(sb: any, fabricIds: string[]) {
     ].filter(Boolean).join("\n");
     const extracted = extractPublicContactHints(publicText);
     for (const raw of extracted.phones) {
+      const extractedBusinessContact = ["google_places", "facebook_business", "instagram_business", "benin_directory"]
+        .includes(String(row.source_key));
       add(row, raw, {
+        entity_id: externalSignal?.entity_id || null,
         channel: "phone",
         label: "Téléphone extrait de la source",
         contactability_level: row.contactability_level || source.default_contactability || "C0",
-        consent_state: sourceAllowsDirectWhatsApp({ ...source, source_key: row.source_key }) ? "public_business" : "unknown",
-        is_public_business: ["google_places", "facebook_business", "instagram_business", "benin_directory"].includes(String(row.source_key)),
+        consent_state: extractedBusinessContact ? "public_business" : "unknown",
+        is_public_business: extractedBusinessContact,
       });
     }
   }
@@ -491,20 +494,58 @@ serve(async (req) => {
         for (let index = 0; index < unique.length; index += 6) {
           const batch = unique.slice(index, index + 6);
           checks.push(...await Promise.all(batch.map(async (contact) => {
+            let contactId = contact.id as string | null;
+            if (!contactId && contact.entity_id && contact.normalized_e164) {
+              try {
+                const valueHash = await hashPhone(contact.normalized_e164);
+                const { data: existing } = await sb.from("waouh_entity_contacts")
+                  .select("id")
+                  .eq("entity_id", contact.entity_id)
+                  .eq("channel", contact.channel === "whatsapp" ? "whatsapp" : "phone")
+                  .eq("value_hash", valueHash)
+                  .limit(1)
+                  .maybeSingle();
+                if (existing?.id) {
+                  contactId = existing.id;
+                } else {
+                  const valueEncrypted = await encryptPhone(contact.normalized_e164);
+                  const { data: inserted, error: insertError } = await sb.from("waouh_entity_contacts").insert({
+                    entity_id: contact.entity_id,
+                    channel: contact.channel === "whatsapp" ? "whatsapp" : "phone",
+                    value_encrypted: valueEncrypted,
+                    value_hash: valueHash,
+                    value_last4: contact.value_last4 || phoneLast4(contact.normalized_e164),
+                    public_value: null,
+                    source_key: contact.source_key,
+                    is_public_business: contact.is_public_business,
+                    consent_state: contact.consent_state,
+                    contactability_level: contact.contactability_level,
+                    verification_status: "observed",
+                    updated_at: new Date().toISOString(),
+                  }).select("id").single();
+                  if (insertError) throw insertError;
+                  contactId = inserted?.id || null;
+                }
+              } catch (storeError) {
+                console.warn("[waouh-admin-stats] contact graph persist:", storeError);
+              }
+            }
+
             const state = await adminWahaCheck(contact.normalized_e164!);
-            if (contact.id) {
+            if (contactId) {
               await sb.from("waouh_entity_contacts").update({
                 is_whatsapp_reachable: state.reachable,
                 verification_status: state.reachable === true ? "reachable" : state.reachable === false ? "unreachable" : "unknown",
                 verified_at: state.reachable === null ? null : new Date().toISOString(),
                 updated_at: new Date().toISOString(),
-              }).eq("id", contact.id);
+              }).eq("id", contactId);
             }
             return {
               e164: contact.normalized_e164,
               reachable: state.reachable,
               chat_id: state.chatId,
               reason: state.reason,
+              contact_id: contactId,
             };
           })));
         }
