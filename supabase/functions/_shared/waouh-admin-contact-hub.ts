@@ -155,7 +155,11 @@ function addCandidate(target: Map<string, ContactCandidate>, candidate: Partial<
     : `${candidate.channel}:${value.toLowerCase()}`;
 
   const level = String(candidate.contactability_level ?? "C0").toUpperCase();
-  const revoked = consentRevoked(candidate.consent_state) || candidate.verification_status === "revoked" || candidate.opted_out === true;
+  const consent = String(candidate.consent_state ?? "").toLowerCase();
+  const revoked = consentRevoked(consent) || candidate.verification_status === "revoked" || candidate.opted_out === true;
+  const consentAllowsSend =
+    ["public_business", "initiated", "opt_in", "partner_contract"].includes(consent) ||
+    ["C3", "C4", "C5"].includes(level);
   const existing = target.get(key);
 
   const next: ContactCandidate = {
@@ -166,7 +170,7 @@ function addCandidate(target: Map<string, ContactCandidate>, candidate: Partial<
     whatsapp_candidate: !!normalized,
     whatsapp_reachable: candidate.whatsapp_reachable ?? null,
     whatsapp_chat_id: candidate.whatsapp_chat_id ?? null,
-    send_allowed: !!normalized && contactLevelAllowed(level) && !revoked,
+    send_allowed: !!normalized && contactLevelAllowed(level) && consentAllowsSend && !revoked,
     source: String(candidate.source ?? "unknown"),
     origin_kind: String(candidate.origin_kind ?? "unknown"),
     origin_id: candidate.origin_id ?? null,
@@ -340,7 +344,7 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
       if (catalog.vendeur_whatsapp) addCandidate(contacts, {
         channel: "whatsapp", value: catalog.vendeur_whatsapp, source: row.source_key,
         origin_kind: "catalog", origin_id: catalog.id, contactability_level: rowLevel,
-        verification_status: "observed", label: catalog.vendeur_nom,
+        verification_status: "observed", consent_state: "initiated", label: catalog.vendeur_nom,
       });
       if (catalog.vendeur_phone) addCandidate(contacts, {
         channel: "phone", value: catalog.vendeur_phone, source: row.source_key,
@@ -354,7 +358,7 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
     if (article?.contact_whatsapp) addCandidate(contacts, {
       channel: "whatsapp", value: article.contact_whatsapp, source: row.source_key,
       origin_kind: "article", origin_id: article.id, contactability_level: rowLevel,
-      verification_status: "observed", label: article.title,
+      verification_status: "observed", consent_state: "initiated", label: article.title,
     });
 
     const userId = asUuid(evidence.user_id) || asUuid(evidence.seller_id) || asUuid(article?.seller_id);
