@@ -81,7 +81,17 @@ type WebhookRepairSummary = {
   repaired: number;
   failed: number;
   last_error?: "session_unreadable" | "remote_update_failed" | "db_sync_failed";
+  last_remote_status?: number;
+  last_remote_method?: "PUT" | "POST";
+  last_remote_message?: string;
 };
+
+function safeWahaErrorText(value: string): string {
+  return String(value || "")
+    .replace(/([?&]token=)[^&\s"'<>]+/gi, "$1***")
+    .replace(/(authorization|x-api-key)\s*[:=]\s*[^,}\s]+/gi, "$1=***")
+    .slice(0, 320);
+}
 
 function canonicalWahaWebhookUrl(currentUrl: string): string {
   let token = "";
@@ -258,7 +268,10 @@ async function repairLegacyWahaWebhooks(
               body: JSON.stringify({ name: sessionName, config: nextConfig }),
             });
             if (!response.ok) {
-              await response.text().catch(() => "");
+              const rawError = await response.text().catch(() => "");
+              summary.last_remote_status = response.status;
+              summary.last_remote_method = method;
+              summary.last_remote_message = safeWahaErrorText(rawError);
               continue;
             }
             repairedRemote = true;
