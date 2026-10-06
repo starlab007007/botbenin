@@ -371,19 +371,28 @@ Deno.serve(async (req) => {
     // Keep the admin/backend session cache aligned with the live WAHA API.
     // This makes the control center reflect actual connectivity instead of an
     // old manual synchronization snapshot.
-    if (wahaSessions.checked && wahaSessions.sessions.length > 0) {
+    if (wahaSessions.checked) {
       try {
-        await sb.from("waha_sessions_data").upsert(
-          wahaSessions.sessions.map((session) => ({
-            session_name: session.name,
-            status: session.status,
-            phone_number: session.phone,
-            server_name: "WAHA",
-            last_activity: nowIso,
-            updated_at: nowIso,
-          })),
-          { onConflict: "session_name" },
-        );
+        // The WAHA /api/sessions response is authoritative for the current
+        // server. Mark historical rows stale first so the admin never counts
+        // months-old WORKING snapshots as live sessions.
+        await sb.from("waha_sessions_data")
+          .update({ status: "STALE", updated_at: nowIso })
+          .eq("server_name", "WAHA");
+
+        if (wahaSessions.sessions.length > 0) {
+          await sb.from("waha_sessions_data").upsert(
+            wahaSessions.sessions.map((session) => ({
+              session_name: session.name,
+              status: session.status,
+              phone_number: session.phone,
+              server_name: "WAHA",
+              last_activity: nowIso,
+              updated_at: nowIso,
+            })),
+            { onConflict: "session_name" },
+          );
+        }
       } catch (error) {
         console.warn("[waouh-outbound-dispatch] WAHA session cache sync failed", {
           message: error instanceof Error ? error.message : String(error),
