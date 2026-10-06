@@ -613,12 +613,20 @@ export async function handleAdminContactHub(
         p_offset: Math.max(0, Number(body?.offset || 0)),
       });
       if (error) throw error;
-      let rows = await enrichFabricRows(service, (data ?? []) as AnyRow[]);
+      const sourceRows = (data ?? []) as AnyRow[];
+      let rows = await enrichFabricRows(service, sourceRows);
       if (body?.contacts_only !== false) rows = rows.filter((r: AnyRow) => r.contact_count > 0);
       if (body?.whatsapp_only === true) rows = rows.filter((r: AnyRow) => r.whatsapp_count > 0);
+      const offset = Math.max(0, Number(body?.offset || 0));
       return json({
         ok: true,
         rows,
+        page: {
+          offset,
+          limit,
+          source_rows: sourceRows.length,
+          has_more: sourceRows.length === limit,
+        },
         stats: {
           rows: rows.length,
           contacts: rows.reduce((n: number, r: AnyRow) => n + Number(r.contact_count || 0), 0),
