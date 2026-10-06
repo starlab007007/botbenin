@@ -1,13 +1,14 @@
 import { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useMobileAuth } from "../hooks/useMobileAuth";
+import { buildWaouhAuthRedirect, normalizeWaouhRedirect } from "@/lib/waouhAccessPolicy";
 
 const buildAuthRedirect = (path: string, search: string) => {
-  const target = `${path}${search || ""}`;
+  const target = normalizeWaouhRedirect(`${path}${search || ""}`);
   try {
     sessionStorage.setItem("waouh_post_auth_redirect", target);
   } catch {}
-  return "/app/auth/email?tab=login";
+  return buildWaouhAuthRedirect(target);
 };
 
 export const RequireMobileAuth = ({ children }: { children: ReactNode }) => {
