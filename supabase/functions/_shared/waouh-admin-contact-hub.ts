@@ -469,40 +469,25 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
 async function loadWahaDirectory(service: any, body: Record<string, any>) {
   const limit = Math.max(1, Math.min(Number(body?.limit || 100), 300));
   const offset = Math.max(0, Number(body?.offset || 0));
-  const fetchLimit = Math.min(600, Math.max(limit * 2, limit));
-  const rawQ = String(body?.q || "").trim();
-  const safeQ = rawQ.replace(/[,%()]/g, " ").trim();
+  const q = String(body?.q || "").trim() || null;
 
-  let directoryQuery = service.from("waouh_lid_phone_map")
-    .select("id,lid,jid,phone,phone_e164,display_name,pushname,session,source,last_synced_at", { count: "exact" })
-    .not("phone_e164", "is", null)
-    .order("last_synced_at", { ascending: false })
-    .range(offset, offset + fetchLimit - 1);
-
-  if (safeQ) {
-    const pattern = `%${safeQ}%`;
-    directoryQuery = directoryQuery.or(
-      `phone_e164.ilike.${pattern},display_name.ilike.${pattern},pushname.ilike.${pattern},session.ilike.${pattern}`,
-    );
-  }
-
-  const { data, error, count } = await directoryQuery;
+  const { data, error } = await service.rpc("waouh_admin_waha_directory", {
+    p_q: q,
+    p_limit: limit,
+    p_offset: offset,
+  });
   if (error) throw error;
 
-  const seen = new Set<string>();
-  const rows: AnyRow[] = [];
-  for (const item of data ?? []) {
-    const normalized = normalizeE164(item.phone_e164 || item.phone, "+229");
-    if (!normalized || seen.has(normalized)) continue;
-    seen.add(normalized);
-
+  const sourceRows = (data ?? []) as AnyRow[];
+  const rows: AnyRow[] = sourceRows.map((item: AnyRow) => {
+    const normalized = normalizeE164(item.phone_e164, "+229");
     const contact: ContactCandidate = {
       channel: "whatsapp",
-      value: String(item.phone_e164 || item.phone || normalized),
+      value: String(item.phone_e164 || normalized || ""),
       normalized,
-      display: formatPhoneDisplay(normalized),
-      whatsapp_candidate: true,
-      whatsapp_reachable: true,
+      display: normalized ? formatPhoneDisplay(normalized) : String(item.phone_e164 || ""),
+      whatsapp_candidate: !!normalized,
+      whatsapp_reachable: normalized ? true : null,
       whatsapp_chat_id: item.jid || null,
       send_allowed: false,
       source: "whatsapp",
@@ -519,7 +504,7 @@ async function loadWahaDirectory(service: any, body: Record<string, any>) {
       label: item.display_name || item.pushname || null,
     };
 
-    rows.push({
+    return {
       fabric_id: `waha_contact:${item.id}`,
       source_record_id: String(item.id),
       source_key: "whatsapp",
@@ -528,33 +513,33 @@ async function loadWahaDirectory(service: any, body: Record<string, any>) {
       operational_state: "live",
       intent: "CONTACT",
       actor_type: "contact",
-      subject: contact.label || normalized,
+      subject: contact.label || normalized || "(contact WAHA)",
       city: null,
       contactability_level: "C1",
       source_url: null,
       contacts: [contact],
       primary_whatsapp: normalized,
-      contact_count: 1,
-      whatsapp_count: 1,
-      wa_reachable_count: 1,
-    });
-    if (rows.length >= limit) break;
-  }
+      contact_count: normalized ? 1 : 0,
+      whatsapp_count: normalized ? 1 : 0,
+      wa_reachable_count: normalized ? 1 : 0,
+    };
+  });
 
+  const totalRows = Number(sourceRows[0]?.total_count || 0);
   return {
     rows,
     page: {
       offset,
       limit,
-      source_rows: data?.length || 0,
-      total_rows: Number(count || 0),
-      has_more: offset + fetchLimit < Number(count || 0),
+      source_rows: sourceRows.length,
+      total_rows: totalRows,
+      has_more: offset + sourceRows.length < totalRows,
     },
     stats: {
       rows: rows.length,
-      contacts: rows.length,
-      whatsapp: rows.length,
-      reachable: rows.length,
+      contacts: rows.reduce((n, row) => n + Number(row.contact_count || 0), 0),
+      whatsapp: rows.reduce((n, row) => n + Number(row.whatsapp_count || 0), 0),
+      reachable: rows.reduce((n, row) => n + Number(row.wa_reachable_count || 0), 0),
       sendable: 0,
     },
   };
