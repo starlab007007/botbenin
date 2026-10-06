@@ -1,3 +1,4 @@
+import { userFacingErrorText } from "@/lib/userFacingError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Activity, BellRing, Bot, Loader2, Plus, RefreshCw, ShieldCheck, Sparkles, Store } from "lucide-react";
@@ -13,7 +14,6 @@ import { useToast } from "@/hooks/use-toast";
 import { invokeWaouhAgentic } from "@/lib/waouh/agenticClient";
 import { listNexusConversationBus, type NexusConversationBusEvent } from "@/lib/waouh/nexus";
 import {
-import { userFacingErrorText } from "@/lib/userFacingError";
   listFromAgenticData, normalizeAgenticBlocks, type AgentActivity, type AgenticAction,
   type AgentMission, type NonFinancialApproval, type PriceWatch, type SellerPolicy, type SignedOffer,
 } from "@/lib/waouh/agenticContracts";
