@@ -206,6 +206,7 @@ jobs:
           deno test supabase/functions/_shared/waouh-promote-test.ts
           deno test supabase/functions/_shared/waouh-interest-fastpath-test.ts
           deno test supabase/functions/_shared/waouh-message-catalog-test.ts
+          deno test supabase/functions/_shared/waouh-smart-payload-test.ts
           deno test supabase/functions/_shared/waouh-commerce-v3-test.ts
           deno test supabase/functions/_shared/waouh-commerce-states-test.ts
           deno test supabase/functions/_shared/waouh-dedupe-test.ts
