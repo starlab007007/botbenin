@@ -207,21 +207,41 @@ serve(async (req) => {
 
     // Handle different webhook events
     switch (webhookData.event) {
-      case 'session.status':
-        // Update session status
-        const status = webhookData.payload?.body || 'unknown';
-        console.log(`Session ${sessionName} status changed to: ${status}`);
+      case 'session.status': {
+        // WAHA 2026 emits the canonical state in payload.status. Keep body/state
+        // as backward-compatible fallbacks for older engines.
+        const rawStatus = String(
+          webhookData.payload?.status ??
+          webhookData.payload?.state ??
+          webhookData.payload?.body ??
+          webhookData.status ??
+          'UNKNOWN'
+        ).trim().toUpperCase();
+        const connectedStates = new Set(['WORKING', 'AUTHENTICATED', 'READY', 'CONNECTED']);
+        const connectingStates = new Set(['SCAN_QR_CODE', 'STARTING', 'CONNECTING']);
+        const databaseStatus = connectedStates.has(rawStatus)
+          ? 'connected'
+          : connectingStates.has(rawStatus)
+            ? 'connecting'
+            : rawStatus === 'FAILED' || rawStatus === 'ERROR'
+              ? 'error'
+              : 'disconnected';
+
+        console.log(`Session ${sessionName} status changed`, {
+          raw_status: rawStatus,
+          database_status: databaseStatus,
+        });
         
         await supabase
           .from('whatsapp_accounts')
           .update({
-            status: status === 'WORKING' ? 'connected' : 
-                   status === 'SCAN_QR_CODE' ? 'connecting' : 'disconnected',
+            status: databaseStatus,
             phone_number: webhookData.me?.id || account.phone_number,
             last_activity: new Date().toISOString(),
           })
           .eq('id', account.id);
         break;
+      }
 
       case 'message':
         if (!webhookData.payload) break;
