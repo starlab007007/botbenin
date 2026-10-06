@@ -7,6 +7,7 @@ void main() {
       expect(requiresWaouhAuthentication('/app/chat'), isFalse);
       expect(requiresWaouhAuthentication('/app/avatar'), isFalse);
       expect(requiresWaouhAuthentication('/app/nexus'), isFalse);
+      expect(requiresWaouhAuthentication('/app/presence/checkin'), isFalse);
       expect(requiresWaouhAuthentication('/app/chat/waouh'), isTrue);
       expect(requiresWaouhAuthentication('/app/avatar/acheter'), isTrue);
       expect(requiresWaouhAuthentication('/app/diffusion'), isTrue);
