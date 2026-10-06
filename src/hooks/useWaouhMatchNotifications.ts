@@ -7,6 +7,7 @@ import {
 } from "@/hooks/waouhNotificationTypes";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { primaryWaouhSmartAction, waouhSmartDisplayText, waouhSmartRoute } from "@/lib/waouh/smartPayload";
 
 const TEMPLATE_TITLES: Record<string, string> = {
   match_seller: "📩 Nouvel acheteur intéressé !",
@@ -49,6 +50,18 @@ function buildBody(template: string, p: any): string {
     default:
       return p?.text || "Mise à jour WAOUH";
   }
+}
+
+function smartPresentation(template: string, payload: any) {
+  const fallbackTitle = TEMPLATE_TITLES[template] || "WAOUH";
+  const fallbackBody = buildBody(template, payload || {});
+  const display = waouhSmartDisplayText(payload, fallbackBody);
+  return {
+    title: display.title || fallbackTitle,
+    body: display.detail || fallbackBody,
+    route: waouhSmartRoute(payload),
+    primaryAction: primaryWaouhSmartAction(payload),
+  };
 }
 
 // Types & helpers purs déplacés dans "@/hooks/waouhNotificationTypes"
@@ -230,17 +243,23 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
 
       if (!active) return;
 
-      const fromQueue: WaouhNotification[] = (queue ?? []).map((row: any) => ({
-        id: row.id,
-        title: TEMPLATE_TITLES[row.template] || "WAOUH",
-        body: buildBody(row.template, row.payload || {}),
-        template: row.template,
-        created_at: row.created_at,
-        read: true, // historical → mark as read
-        image_url: row.image_url ?? null,
-        message_id: row.message_id ?? row.payload?.message_id ?? null,
-        transaction_id: row.transaction_id ?? row.payload?.transaction_id ?? null,
-      }));
+      const fromQueue: WaouhNotification[] = (queue ?? []).map((row: any) => {
+        const payload = row.payload || {};
+        const presentation = smartPresentation(row.template, payload);
+        return {
+          id: row.id,
+          title: presentation.title,
+          body: presentation.body,
+          template: row.template,
+          created_at: row.created_at,
+          read: true, // historical → mark as read
+          image_url: row.image_url ?? null,
+          message_id: row.message_id ?? payload?.message_id ?? null,
+          transaction_id: row.transaction_id ?? payload?.transaction_id ?? null,
+          article_id: payload?.article_id ?? null,
+          payload,
+        };
+      });
 
       const pickPhoto = (row: any): string | null => {
         if (Array.isArray(row.photos) && row.photos[0]) return row.photos[0];
@@ -249,19 +268,23 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
         return null;
       };
 
-      const fromUnified: WaouhNotification[] = unified.map((row: any) => ({
-        id: row.id,
-        title: TEMPLATE_TITLES[row.notification_type] || "WAOUH",
-        body: row.payload?.text || "Mise à jour WAOUH",
-        template: row.notification_type,
-        created_at: row.sent_at,
-        read: !!row.opened,
-        image_url: pickPhoto(row),
-        message_id: null,
-        transaction_id: null,
-        article_id: row.article_id ?? null,
-        payload: row.payload ?? null,
-      }));
+      const fromUnified: WaouhNotification[] = unified.map((row: any) => {
+        const payload = row.payload || {};
+        const presentation = smartPresentation(row.notification_type, payload);
+        return {
+          id: row.id,
+          title: presentation.title,
+          body: presentation.body,
+          template: row.notification_type,
+          created_at: row.sent_at,
+          read: !!row.opened,
+          image_url: pickPhoto(row),
+          message_id: payload?.message_id ?? null,
+          transaction_id: payload?.transaction_id ?? null,
+          article_id: row.article_id ?? payload?.article_id ?? null,
+          payload,
+        };
+      });
 
       // Merge with local cache, dedupe by id, sort by date desc, cap 50
       setNotifications((prev) => {
@@ -288,15 +311,19 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
 
     const onQueueInsert = async (payload: any) => {
       const row: any = payload.new;
-      const title = TEMPLATE_TITLES[row.template] || "WAOUH";
-      const body = buildBody(row.template, row.payload || {});
+      const payloadData = row.payload || {};
+      const presentation = smartPresentation(row.template, payloadData);
+      const title = presentation.title;
+      const body = presentation.body;
       const notif: WaouhNotification = {
         id: row.id, title, body, template: row.template,
         created_at: row.created_at ?? new Date().toISOString(),
         read: false,
         image_url: row.image_url ?? null,
-        message_id: row.message_id ?? row.payload?.message_id ?? null,
-        transaction_id: row.transaction_id ?? row.payload?.transaction_id ?? null,
+        message_id: row.message_id ?? payloadData?.message_id ?? null,
+        transaction_id: row.transaction_id ?? payloadData?.transaction_id ?? null,
+        article_id: payloadData?.article_id ?? null,
+        payload: payloadData,
       };
       upsertNotif(notif);
       try {
@@ -304,7 +331,12 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
           const reg = await navigator.serviceWorker?.getRegistration();
           const opts: NotificationOptions = {
             body, icon: "/favicon.ico", badge: "/favicon.ico",
-            tag: `waouh-${row.id}`, data: { url: "/waouh-chat" },
+            tag: `waouh-${row.id}`,
+            data: {
+              url: presentation.route || "/app/chat/waouh",
+              action_id: presentation.primaryAction?.id || null,
+              correlation_id: payloadData?.smart?.correlation_id || payloadData?.correlation_id || null,
+            },
           };
           if (reg) await reg.showNotification(title, opts);
           else new Notification(title, opts);
@@ -324,16 +356,18 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
         (Array.isArray(row.payload?.photos) && row.payload.photos[0]) ||
         row.payload?.image_url ||
         null;
+      const payloadData = row.payload || {};
+      const presentation = smartPresentation(row.notification_type, payloadData);
       const notif: WaouhNotification = {
         id: row.id,
-        title: TEMPLATE_TITLES[row.notification_type] || "WAOUH",
-        body: row.payload?.text || "Mise à jour WAOUH",
+        title: presentation.title,
+        body: presentation.body,
         template: row.notification_type,
         created_at: row.sent_at ?? new Date().toISOString(),
         read: !!row.opened,
         image_url: pickPhoto,
         article_id: row.article_id ?? null,
-        payload: row.payload ?? null,
+        payload: payloadData,
       };
       upsertNotif(notif);
       // Notify the list to refresh — but do NOT auto-open a chat window.
