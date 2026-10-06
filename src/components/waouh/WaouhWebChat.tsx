@@ -35,6 +35,7 @@ import { fetchAuthIdentityIds } from "@/lib/waouh/identityIds";
 import { avatarBubbleInfo, avatarRevealDelayMs, openAvatarBriefing, parseAvatarBriefing, shouldAutoOpenNow, type AvatarPrefs, type BriefingAction } from "@/lib/waouh/avatarGuide";
 import { commerceRequestFromButton, sendCommerceAction } from "@/lib/waouh/commerceAction";
 
+import { userFacingErrorText } from "@/lib/userFacingError";
 type Att = { url: string; type: string; caption?: string };
 type WaouhAction = { id: string; label: string; url?: string };
 const stripLegacy = (t: string) =>
@@ -685,7 +686,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       await invokeWaouhAgentic(action, payload);
       toast({ title: "Action enregistrée", description: "Le journal WAOUH et la mission seront actualisés." });
     } catch (error) {
-      toast({ title: "Action impossible", description: error instanceof Error ? error.message : "Réessayez.", variant: "destructive" });
+      toast({ title: "Action impossible", description: userFacingErrorText(error, "send"), variant: "destructive" });
     } finally {
       setAgentAction(null);
     }
