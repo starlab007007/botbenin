@@ -549,16 +549,17 @@ async function materializeEntityContacts(service: any, rows: AnyRow[], adminUser
   }
 
   const hashes = [...new Set(payload.map((row: AnyRow) => String(row.value_hash)).filter(Boolean))];
-  const { data: existingRows, error: existingError } = hashes.length
-    ? await service.from("waouh_entity_contacts")
-      .select("id,entity_id,channel,value_hash,metrics,verified_at,verification_status,is_whatsapp_reachable")
-      .in("value_hash", hashes)
-    : { data: [], error: null };
-  if (existingError) throw existingError;
-
   const existingByKey = new Map<string, AnyRow>();
-  for (const row of existingRows ?? []) {
-    existingByKey.set(`${row.entity_id}:${row.channel}:${row.value_hash}`, row);
+  for (let i = 0; i < hashes.length; i += 100) {
+    const hashBatch = hashes.slice(i, i + 100);
+    const { data: existingRows, error: existingError } = await service
+      .from("waouh_entity_contacts")
+      .select("id,entity_id,channel,value_hash,source_key,is_public_business,consent_state,contactability_level,metrics,verified_at,verification_status,is_whatsapp_reachable")
+      .in("value_hash", hashBatch);
+    if (existingError) throw existingError;
+    for (const row of existingRows ?? []) {
+      existingByKey.set(`${row.entity_id}:${row.channel}:${row.value_hash}`, row);
+    }
   }
 
   const inserts: AnyRow[] = [];
