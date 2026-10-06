@@ -20,7 +20,7 @@ const WAOUH_BUSINESS_PHONE = normalizeBeninPhone(Deno.env.get("WAOUH_BUSINESS_PH
 const MAX_ATTEMPTS_DEFAULT = 5;
 // WAHA is an external dependency. A single dead endpoint must not consume the
 // whole Supabase Edge execution window through sequential route fallbacks.
-const WAHA_REQUEST_TIMEOUT_MS = 3_000;
+const WAHA_REQUEST_TIMEOUT_MS = 5_000;
 
 async function wahaFetch(url: string, init: RequestInit = {}) {
   return fetch(url, {
@@ -121,31 +121,27 @@ function beninPhoneCandidates(canonical: string): string[] {
 }
 
 async function sendWahaText(base: string, session: string, chatId: string, text: string, headers: Record<string, string>) {
-  const payload = JSON.stringify({ session, chatId, text });
-  let r = await wahaFetch(`${base}/api/sendText`, { method: "POST", headers, body: payload });
-  if (r.ok) return r;
-  r = await wahaFetch(`${base}/api/${session}/sendText`, { method: "POST", headers, body: JSON.stringify({ chatId, text }) });
-  return r;
+  // WAHA production exposes the canonical session-in-payload route.
+  // The legacy /api/{session}/sendText fallback returns 404 on our runtime
+  // and only adds latency / masks the real transport error.
+  return wahaFetch(`${base}/api/sendText`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ session, chatId, text }),
+  });
 }
 
 async function sendWahaImage(base: string, session: string, chatId: string, imageUrl: string, caption: string, headers: Record<string, string>) {
-  let r = await wahaFetch(`${base}/api/sendImage`, {
+  const r = await wahaFetch(`${base}/api/sendImage`, {
     method: "POST",
     headers,
     body: JSON.stringify({ session, chatId, file: { url: imageUrl }, caption }),
   });
   if (r.ok) return r;
 
-  // Certaines installations WAHA n'exposent pas sendImage sur ce chemin.
-  // On tente la route session, puis on dégrade TOUJOURS vers le texte :
-  // une photo indisponible ne doit jamais faire perdre une notification métier.
-  r = await wahaFetch(`${base}/api/${session}/sendImage`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ chatId, file: { url: imageUrl }, caption }),
-  });
-  if (r.ok) return r;
-
+  // A media failure must not drop the business notification. Fall back
+  // directly to the canonical text endpoint instead of an unsupported
+  // session-scoped route.
   console.warn("[waouh-outbound-dispatch] image delivery unavailable; falling back to text", {
     chatId,
     status: r.status,
@@ -164,10 +160,8 @@ async function sendWahaButtons(base: string, session: string, chatId: string, te
   if (imageUrl) richBody.header = { image: { url: imageUrl } };
   let r = await wahaFetch(`${base}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify(richBody) });
   if (r.ok) return r;
-  r = await wahaFetch(`${base}/api/${session}/sendButtons`, { method: "POST", headers, body: JSON.stringify({ ...richBody, session: undefined }) });
-  if (r.ok) return r;
-  // Legacy simple format (boutons WAHA encore acceptés). Si échec, on tombe en
-  // texte simple SANS jamais ré-injecter de liste numérotée « 1./2./3. ».
+  // Legacy simple payload on the same canonical endpoint. Do not retry the
+  // unsupported /api/{session}/sendButtons route.
   const buttons = actions.slice(0, 3).map((a) => ({ id: a.id, text: a.label }));
   r = await wahaFetch(`${base}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify({ session, chatId, text, buttons }) });
   if (r.ok) return r;
