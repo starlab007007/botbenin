@@ -76,6 +76,7 @@ interface HubPage {
   offset: number;
   limit: number;
   source_rows: number;
+  total_rows?: number;
   has_more: boolean;
 }
 
@@ -148,6 +149,7 @@ export default function WaouhContactHubPanel() {
         offset: Number(data?.page?.offset ?? requestedOffset),
         limit: Number(data?.page?.limit ?? 100),
         source_rows: Number(data?.page?.source_rows ?? 0),
+        total_rows: data?.page?.total_rows == null ? undefined : Number(data.page.total_rows),
         has_more: data?.page?.has_more === true,
       });
     } catch (error: any) {
@@ -458,7 +460,7 @@ export default function WaouhContactHubPanel() {
 
           <div className="flex items-center justify-between gap-3">
             <div className="text-xs text-muted-foreground">
-              Lot {Math.floor(page.offset / page.limit) + 1} · {page.source_rows} signal(s) analysé(s) sur ce lot · {stats.contacts} contact(s) résolu(s)
+              Lot {Math.floor(page.offset / page.limit) + 1} · {page.source_rows} ligne(s) sur ce lot{page.total_rows != null ? ` · ${page.total_rows.toLocaleString("fr-FR")} au total` : ""} · {stats.contacts} contact(s) résolu(s)
             </div>
             <div className="flex gap-2">
               <Button
