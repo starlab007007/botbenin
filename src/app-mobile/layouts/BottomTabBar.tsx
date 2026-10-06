@@ -1,6 +1,8 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { MessageCircle, Bot, Sparkles, UserCircle, Store } from 'lucide-react';
+import { MessageCircle, Bot, Sparkles, UserCircle, Store, LockKeyhole } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useMobileAuth } from '../hooks/useMobileAuth';
+import { requiresWaouhAuthentication } from '@/lib/waouhAccessPolicy';
 
 const tabs = [
   { to: '/app/chat', icon: MessageCircle, label: 'Chat' },
@@ -16,6 +18,7 @@ interface Props {
 
 export const BottomTabBar = ({ unreadChat = 0 }: Props) => {
   const { pathname } = useLocation();
+  const { user } = useMobileAuth();
 
   return (
     <nav
@@ -27,10 +30,12 @@ export const BottomTabBar = ({ unreadChat = 0 }: Props) => {
         {tabs.map(({ to, icon: Icon, label }) => {
           const badge = to === '/app/chat' ? unreadChat : 0;
           const avatarHome = to === '/app/avatar' && pathname === '/';
+          const locked = !user && requiresWaouhAuthentication(to);
           return (
             <li key={to}>
               <NavLink
                 to={to}
+                aria-label={locked ? `${label} — connexion requise` : label}
                 className={({ isActive }) =>
                   cn(
                     'relative flex min-h-14 flex-col items-center justify-center gap-1 py-2 text-xs transition-colors',
@@ -45,6 +50,11 @@ export const BottomTabBar = ({ unreadChat = 0 }: Props) => {
                   {badge > 0 && (
                     <span className="absolute -top-1.5 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none shadow">
                       {badge > 99 ? '99+' : badge}
+                    </span>
+                  )}
+                  {locked && (
+                    <span className="absolute -top-1.5 -right-2 h-[16px] w-[16px] rounded-full bg-background border border-border flex items-center justify-center">
+                      <LockKeyhole className="h-2.5 w-2.5" />
                     </span>
                   )}
                 </div>
