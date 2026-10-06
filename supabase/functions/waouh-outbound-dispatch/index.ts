@@ -23,10 +23,105 @@ const MAX_ATTEMPTS_DEFAULT = 5;
 const WAHA_REQUEST_TIMEOUT_MS = 3_000;
 
 async function wahaFetch(url: string, init: RequestInit = {}) {
-  return fetch(url, {
-    ...init,
-    signal: AbortSignal.timeout(WAHA_REQUEST_TIMEOUT_MS),
-  });
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(WAHA_REQUEST_TIMEOUT_MS),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const timeout = /timed out|timeout|abort/i.test(message);
+    if (!timeout) throw error;
+
+    // A timeout on one WAHA route is a transport result, not a fatal exception:
+    // callers can immediately try the alternate route / degrade rich content.
+    console.warn("[waouh-outbound-dispatch] WAHA route timeout", {
+      url: url.replace(/([?&]phone=)[^&]+/i, "$1<redacted>"),
+      timeout_ms: WAHA_REQUEST_TIMEOUT_MS,
+    });
+    return new Response(JSON.stringify({ error: "WAHA_ROUTE_TIMEOUT" }), {
+      status: 504,
+      headers: {
+        "Content-Type": "application/json",
+        "X-WAOUH-Timeout": "1",
+      },
+    });
+  }
+}
+
+function isWahaTimeout(response: Response) {
+  return response.status === 504 && response.headers.get("X-WAOUH-Timeout") === "1";
+}
+
+type WahaSessionState = {
+  name: string;
+  status: string;
+  phone: string | null;
+};
+
+type WahaSessionSnapshot = {
+  checked: boolean;
+  working: string[];
+  sessions: WahaSessionState[];
+  error: string | null;
+};
+
+async function loadWorkingWahaSessions(): Promise<WahaSessionSnapshot> {
+  if (!WAHA_BASE_URL) return { checked: true, working: [], sessions: [], error: "WAHA_BASE_URL missing" };
+  const base = WAHA_BASE_URL.replace(/\/$/, "");
+  const headers = {
+    "Accept": "application/json",
+    ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}),
+  };
+  try {
+    const response = await wahaFetch(`${base}/api/sessions`, { headers });
+    if (!response.ok) {
+      return {
+        checked: !isWahaTimeout(response),
+        working: [],
+        sessions: [],
+        error: isWahaTimeout(response) ? "WAHA_SESSIONS_TIMEOUT" : `WAHA_SESSIONS_HTTP_${response.status}`,
+      };
+    }
+    const data = await response.json().catch(() => []);
+    const sessions: WahaSessionState[] = (Array.isArray(data) ? data : [])
+      .map((row: any) => {
+        const name = String(row?.name || "").trim();
+        const status = String(row?.status || "UNKNOWN").toUpperCase();
+        const rawPhone = String(
+          row?.me?.number ||
+          row?.me?.id ||
+          row?.config?.metadata?.phone_number ||
+          "",
+        ).split("@")[0];
+        return {
+          name,
+          status,
+          phone: rawPhone ? normalizeBeninPhone(rawPhone) : null,
+        };
+      })
+      .filter((row: WahaSessionState) => !!row.name);
+    const working = sessions
+      .filter((row) => row.status === "WORKING")
+      .map((row) => row.name);
+    return { checked: true, working: [...new Set(working)], sessions, error: null };
+  } catch (error) {
+    return {
+      checked: false,
+      working: [],
+      sessions: [],
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+function chooseWahaSession(snapshot: WahaSessionSnapshot, requested: string) {
+  const clean = /^[A-Za-z0-9_.-]{1,96}$/.test(requested) ? requested : "";
+  if (!snapshot.checked) return clean || WAHA_SESSION;
+  if (snapshot.working.length === 0) return null;
+  if (clean && snapshot.working.includes(clean)) return clean;
+  if (snapshot.working.includes(WAHA_SESSION)) return WAHA_SESSION;
+  return snapshot.working[0];
 }
 
 async function requestIsAdmin(req: Request, sb: any) {
@@ -135,6 +230,10 @@ async function sendWahaImage(base: string, session: string, chatId: string, imag
     body: JSON.stringify({ session, chatId, file: { url: imageUrl }, caption }),
   });
   if (r.ok) return r;
+  if (isWahaTimeout(r)) {
+    console.warn("[waouh-outbound-dispatch] image route timed out; degrading to text", { chatId });
+    return sendWahaText(base, session, chatId, caption, headers);
+  }
 
   // Certaines installations WAHA n'exposent pas sendImage sur ce chemin.
   // On tente la route session, puis on dégrade TOUJOURS vers le texte :
@@ -145,6 +244,10 @@ async function sendWahaImage(base: string, session: string, chatId: string, imag
     body: JSON.stringify({ chatId, file: { url: imageUrl }, caption }),
   });
   if (r.ok) return r;
+  if (isWahaTimeout(r)) {
+    console.warn("[waouh-outbound-dispatch] session image route timed out; degrading to text", { chatId });
+    return sendWahaText(base, session, chatId, caption, headers);
+  }
 
   console.warn("[waouh-outbound-dispatch] image delivery unavailable; falling back to text", {
     chatId,
@@ -164,13 +267,24 @@ async function sendWahaButtons(base: string, session: string, chatId: string, te
   if (imageUrl) richBody.header = { image: { url: imageUrl } };
   let r = await wahaFetch(`${base}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify(richBody) });
   if (r.ok) return r;
+  if (isWahaTimeout(r)) {
+    console.warn("[waouh-outbound-dispatch] buttons route timed out; degrading to text", { chatId });
+    return sendWahaText(base, session, chatId, text, headers);
+  }
+
   r = await wahaFetch(`${base}/api/${session}/sendButtons`, { method: "POST", headers, body: JSON.stringify({ ...richBody, session: undefined }) });
   if (r.ok) return r;
+  if (isWahaTimeout(r)) {
+    console.warn("[waouh-outbound-dispatch] session buttons route timed out; degrading to text", { chatId });
+    return sendWahaText(base, session, chatId, text, headers);
+  }
+
   // Legacy simple format (boutons WAHA encore acceptés). Si échec, on tombe en
   // texte simple SANS jamais ré-injecter de liste numérotée « 1./2./3. ».
   const buttons = actions.slice(0, 3).map((a) => ({ id: a.id, text: a.label }));
   r = await wahaFetch(`${base}/api/sendButtons`, { method: "POST", headers, body: JSON.stringify({ session, chatId, text, buttons }) });
   if (r.ok) return r;
+  if (isWahaTimeout(r)) return sendWahaText(base, session, chatId, text, headers);
   if (imageUrl) return sendWahaImage(base, session, chatId, imageUrl, text, headers);
   return sendWahaText(base, session, chatId, text, headers);
 }
@@ -252,6 +366,57 @@ Deno.serve(async (req) => {
     }
 
     const nowIso = new Date().toISOString();
+    const wahaSessions = await loadWorkingWahaSessions();
+
+    // Keep the admin/backend session cache aligned with the live WAHA API.
+    // This makes the control center reflect actual connectivity instead of an
+    // old manual synchronization snapshot.
+    if (wahaSessions.checked) {
+      try {
+        // The WAHA /api/sessions response is authoritative for the current
+        // server. Mark historical rows stale first so the admin never counts
+        // months-old WORKING snapshots as live sessions.
+        await sb.from("waha_sessions_data")
+          .update({ status: "STALE", updated_at: nowIso })
+          .eq("server_name", "WAHA");
+
+        if (wahaSessions.sessions.length > 0) {
+          await sb.from("waha_sessions_data").upsert(
+            wahaSessions.sessions.map((session) => ({
+              session_name: session.name,
+              status: session.status,
+              phone_number: session.phone,
+              server_name: "WAHA",
+              last_activity: nowIso,
+              updated_at: nowIso,
+            })),
+            { onConflict: "session_name" },
+          );
+        }
+      } catch (error) {
+        console.warn("[waouh-outbound-dispatch] WAHA session cache sync failed", {
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    // If WAHA answered successfully and confirms that no session is connected,
+    // keep the queue untouched. Burning attempts while every session is offline
+    // only creates false permanent failures.
+    if (wahaSessions.checked && wahaSessions.working.length === 0) {
+      console.warn("[waouh-outbound-dispatch] no WORKING WAHA session", {
+        error: wahaSessions.error,
+      });
+      return new Response(JSON.stringify({
+        ok: true,
+        skipped: true,
+        reason: "waha_no_working_session",
+        queued: 0,
+        session_health: "offline",
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Lease recovery: a worker may crash after claiming pending→sending.
     // Requeue stale claims so one transient crash never blocks a notification forever.
@@ -296,9 +461,12 @@ Deno.serve(async (req) => {
       const requestedWahaSession = typeof it.payload?.waha_session === "string"
         ? it.payload.waha_session.trim()
         : "";
-      const deliverySession = /^[A-Za-z0-9_.-]{1,96}$/.test(requestedWahaSession)
-        ? requestedWahaSession
-        : WAHA_SESSION;
+      const deliverySession = chooseWahaSession(wahaSessions, requestedWahaSession);
+      if (!deliverySession) {
+        // Defensive fallback: the run-level guard above normally handles this.
+        skipped++;
+        continue;
+      }
       // Keep a hard runtime budget below the Edge idle/runtime ceiling.
       // Remaining rows stay pending and will be picked up by the next tick.
       if (Date.now() - runStartedAt >= maxRunMs) {
@@ -528,15 +696,82 @@ Deno.serve(async (req) => {
         if (contactId) {
           try {
             const { data: contact } = await sb.from("waouh_entity_contacts")
-              .select("sent_count").eq("id", contactId).maybeSingle();
-            await sb.from("waouh_entity_contacts").update({
-              sent_count: Number(contact?.sent_count || 0) + 1,
-              last_success_at: sentAt,
-              verification_status: "reachable",
-              is_whatsapp_reachable: true,
-              updated_at: sentAt,
-            }).eq("id", contactId);
-          } catch (_) { /* métrique best-effort */ }
+              .select("id,entity_id,channel,value_encrypted,value_hash,value_last4,public_value,source_key,is_public_business,consent_state,contactability_level,sent_count,metrics")
+              .eq("id", contactId)
+              .maybeSingle();
+
+            if (contact) {
+              const metrics = {
+                ...(contact.metrics || {}),
+                waha_chat_id: usedChatId,
+                last_waha_delivery_at: sentAt,
+              };
+              await sb.from("waouh_entity_contacts").update({
+                sent_count: Number(contact.sent_count || 0) + 1,
+                last_success_at: sentAt,
+                verification_status: "reachable",
+                is_whatsapp_reachable: true,
+                metrics,
+                updated_at: sentAt,
+              }).eq("id", contactId);
+
+              // Once WAHA has delivered successfully, a canonical phone contact
+              // is proven WhatsApp-reachable. Mirror it as channel=whatsapp so
+              // every downstream read-model can reuse the verified channel.
+              if (contact.channel === "phone" && contact.entity_id && contact.value_hash) {
+                const { data: existingWa } = await sb.from("waouh_entity_contacts")
+                  .select("id,sent_count,metrics")
+                  .eq("entity_id", contact.entity_id)
+                  .eq("channel", "whatsapp")
+                  .eq("value_hash", contact.value_hash)
+                  .maybeSingle();
+
+                if (existingWa?.id) {
+                  await sb.from("waouh_entity_contacts").update({
+                    sent_count: Number(existingWa.sent_count || 0) + 1,
+                    last_success_at: sentAt,
+                    verification_status: "reachable",
+                    is_whatsapp_reachable: true,
+                    metrics: {
+                      ...(existingWa.metrics || {}),
+                      waha_chat_id: usedChatId,
+                      normalized_from_phone_contact: true,
+                      last_waha_delivery_at: sentAt,
+                    },
+                    updated_at: sentAt,
+                  }).eq("id", existingWa.id);
+                } else {
+                  await sb.from("waouh_entity_contacts").insert({
+                    entity_id: contact.entity_id,
+                    channel: "whatsapp",
+                    value_encrypted: contact.value_encrypted,
+                    value_hash: contact.value_hash,
+                    value_last4: contact.value_last4,
+                    public_value: contact.public_value,
+                    source_key: contact.source_key,
+                    is_public_business: contact.is_public_business,
+                    consent_state: contact.consent_state,
+                    contactability_level: contact.contactability_level,
+                    verified_at: sentAt,
+                    verification_status: "reachable",
+                    is_whatsapp_reachable: true,
+                    last_success_at: sentAt,
+                    sent_count: 1,
+                    metrics: {
+                      waha_chat_id: usedChatId,
+                      normalized_from_phone_contact: true,
+                      last_waha_delivery_at: sentAt,
+                    },
+                  });
+                }
+              }
+            }
+          } catch (error) {
+            console.warn("[waouh-outbound-dispatch] contact normalization metric failed", {
+              contact_id: contactId,
+              message: error instanceof Error ? error.message : String(error),
+            });
+          }
         }
         sent++;
       } catch (e: any) {
@@ -545,7 +780,17 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, processed, queued: items?.length || 0, sent, failed, skipped, budget_ms: maxRunMs }), {
+    return new Response(JSON.stringify({
+      ok: true,
+      processed,
+      queued: items?.length || 0,
+      sent,
+      failed,
+      skipped,
+      budget_ms: maxRunMs,
+      waha_sessions: wahaSessions.working.length,
+      waha_session_health: wahaSessions.checked ? "online" : "unknown",
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
