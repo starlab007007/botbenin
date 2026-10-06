@@ -289,10 +289,10 @@ async function handleStatus(
     
     let status: 'pending' | 'connected' | 'failed' = 'pending';
     
-    if (sessionData.status === 'WORKING' || sessionData.status === 'SCAN_QR_CODE') {
-      status = 'pending';
-    } else if (sessionData.status === 'AUTHENTICATED' || sessionData.status === 'READY') {
+    if (['WORKING', 'AUTHENTICATED', 'READY', 'CONNECTED'].includes(String(sessionData.status || '').toUpperCase())) {
       status = 'connected';
+    } else if (['SCAN_QR_CODE', 'STARTING'].includes(String(sessionData.status || '').toUpperCase())) {
+      status = 'pending';
     } else {
       status = 'failed';
     }
