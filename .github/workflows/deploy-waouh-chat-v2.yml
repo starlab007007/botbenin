@@ -59,6 +59,10 @@ on:
       - "supabase/functions/waouh-stock-analyze/**"
       - "supabase/functions/waouh-bi-query/**"
       - "supabase/functions/waouh-agent-insights/**"
+      - "supabase/functions/waouh-admin-stats/**"
+      - "supabase/functions/_shared/waouh-tel/crypto.ts"
+      - "supabase/functions/_shared/waouh-tel/phone.ts"
+      - "supabase/functions/_shared/waouh-tel/runtime-secret.ts"
       - "supabase/functions/waouh-opportunity-worker/**"
       - "supabase/functions/waouh-agentic-core/**"
       - "supabase/functions/waouh-outbound-dispatch/**"
@@ -329,6 +333,16 @@ jobs:
             supabase functions deploy "$fn"               --project-ref "$SUPABASE_PROJECT_REF"               --use-api               --no-verify-jwt
           done
           echo "✅ Existing WAOUH Chat function slots updated."
+
+      - name: Deploy WAOUH admin stats / contact center
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "🔐 Deploying waouh-admin-stats with JWT verification..."
+          supabase functions deploy waouh-admin-stats \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --use-api
+          echo "✅ Admin Signal Fabric contact center deployed."
 
       - name: Deploy Opportunity OS in existing production slots
         shell: bash
