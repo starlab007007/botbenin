@@ -706,6 +706,12 @@ class LiveStatusViewer extends StatelessWidget {
                           backgroundColor: WaouhPalette.neon,
                           foregroundColor: WaouhPalette.ink),
                       onPressed: () async {
+                        // Prepare the reply locally so the selected status and
+                        // intent survive the authentication round-trip.
+                        await context
+                            .read<LiveWaouhController>()
+                            .openStatusReply(status);
+                        if (!context.mounted) return;
                         if (!await requireLiveAuthentication(
                           context,
                           next: '/app/chat/waouh',
@@ -715,10 +721,6 @@ class LiveStatusViewer extends StatelessWidget {
                         }
                         if (!context.mounted) return;
                         final router = GoRouter.of(context);
-                        await context
-                            .read<LiveWaouhController>()
-                            .openStatusReply(status);
-                        if (!context.mounted) return;
                         Navigator.of(context).pop();
                         router.go('/app/chat/waouh');
                       },
