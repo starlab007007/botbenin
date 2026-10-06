@@ -302,7 +302,7 @@ class _LiveEmailAuthScreenState extends State<LiveEmailAuthScreen> {
         setState(() => tab = 0);
         return;
       }
-      context.go(_nextRoute(context) ?? '/app/ia');
+      context.go(_nextRoute(context) ?? '/app/chat');
     } catch (error) {
       if (!mounted) return;
       final message = auth.error ?? waouhUserMessage(
@@ -570,7 +570,7 @@ class _LiveWhatsAppOtpScreenState extends State<LiveWhatsAppOtpScreen> {
       if (auth.whatsappIsNewUser) {
         setState(() => verified = true);
       } else {
-        context.go(_nextRoute(context) ?? '/app/ia');
+        context.go(_nextRoute(context) ?? '/app/chat');
       }
     } catch (error) {
       if (mounted) {
@@ -597,7 +597,7 @@ class _LiveWhatsAppOtpScreenState extends State<LiveWhatsAppOtpScreen> {
         fullName: fullName.text,
         email: recoveryEmail.text,
       );
-      if (mounted) context.go(_nextRoute(context) ?? '/app/ia');
+      if (mounted) context.go(_nextRoute(context) ?? '/app/chat');
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
