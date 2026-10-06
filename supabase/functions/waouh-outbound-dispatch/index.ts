@@ -249,22 +249,25 @@ async function repairLegacyWahaWebhooks(
       `/api/sessions/${encodeURIComponent(sessionName)}`,
       `/api/v2/sessions/${encodeURIComponent(sessionName)}`,
     ]) {
-      for (const authHeaders of authVariants) {
-        try {
-          const response = await wahaFetch(`${normalizedBase}${endpoint}`, {
-            method: "PUT",
-            headers: authHeaders,
-            body: JSON.stringify({ name: sessionName, config: nextConfig }),
-          });
-          if (!response.ok) {
-            await response.text().catch(() => "");
-            continue;
+      for (const method of ["PUT", "POST"] as const) {
+        for (const authHeaders of authVariants) {
+          try {
+            const response = await wahaFetch(`${normalizedBase}${endpoint}`, {
+              method,
+              headers: authHeaders,
+              body: JSON.stringify({ name: sessionName, config: nextConfig }),
+            });
+            if (!response.ok) {
+              await response.text().catch(() => "");
+              continue;
+            }
+            repairedRemote = true;
+            break;
+          } catch {
+            // Try the next credential/method/API shape.
           }
-          repairedRemote = true;
-          break;
-        } catch {
-          // Try the next credential/API shape.
         }
+        if (repairedRemote) break;
       }
       if (repairedRemote) break;
     }
