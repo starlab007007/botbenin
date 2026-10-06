@@ -189,6 +189,7 @@ export default function WaouhContactHubPanel() {
     let offset = 0;
     let attempted = 0;
     let written = 0;
+    let updated = 0;
     let skippedNoEntity = 0;
     let skippedRevoked = 0;
     let skippedInvalid = 0;
@@ -210,6 +211,7 @@ export default function WaouhContactHubPanel() {
 
         attempted += Number(data.attempted || 0);
         written += Number(data.written || 0);
+        updated += Number(data.updated || 0);
         skippedNoEntity += Number(data.skipped_no_entity || 0);
         skippedRevoked += Number(data.skipped_revoked || 0);
         skippedInvalid += Number(data.skipped_invalid || 0);
@@ -221,7 +223,7 @@ export default function WaouhContactHubPanel() {
       toast({
         title: "Contacts centralisés",
         description:
-          `${written} nouveau(x) contact(s) persisté(s) · ${attempted} candidat(s) · ${skippedNoEntity} sans entité · ${skippedRevoked} bloqué(s) · ${skippedInvalid} invalide(s)`,
+          `${written} nouveau(x) · ${updated} enrichi(s) · ${attempted} candidat(s) · ${skippedNoEntity} sans entité · ${skippedRevoked} bloqué(s) · ${skippedInvalid} invalide(s)`,
       });
       await load(0);
     } catch (error: any) {
