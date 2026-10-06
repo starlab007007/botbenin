@@ -281,7 +281,7 @@ const AppContent = () => {
                     
                     {/* Support et compte (hors périmètre Flutter) */}
                     <Route path="/support" element={<FlutterParityGate><SupportPage /></FlutterParityGate>} />
-                    <Route path="/account" element={<FlutterParityGate><AccountPage /></FlutterParityGate>} />
+                    <Route path="/account" element={<AuthRoute><FlutterParityGate><AccountPage /></FlutterParityGate></AuthRoute>} />
                     
                     {/* Tests système */}
                     <Route path="/system-test" element={<FlutterParityGate><SystemTestPage /></FlutterParityGate>} />
