@@ -7,6 +7,8 @@ on:
       - prod
     paths:
       - "src/pages/waouh/**"
+      - "src/pages/admin/AdminWaouhDataControlPage.tsx"
+      - "src/pages/admin/WaouhWhatsAppOpsPage.tsx"
       - "src/components/waouh/**"
       - "src/lib/waouh/**"
       - "src/App.tsx"
@@ -20,6 +22,10 @@ on:
       - "scripts/verify-waouh-responsive-browser.mjs"
       - "src/app-mobile/components/ChatRightPane.tsx"
       - "supabase/functions/waouh-agentic-core/**"
+      - "supabase/functions/waouh-admin-stats/**"
+      - "supabase/functions/_shared/waouh-tel/crypto.ts"
+      - "supabase/functions/_shared/waouh-tel/phone.ts"
+      - "supabase/functions/_shared/waouh-tel/runtime-secret.ts"
       - "supabase/functions/waouh-channel-in/**"
       - "supabase/functions/waouh-webhook/**"
       - "supabase/functions/_shared/waouh-promote.ts"
@@ -48,6 +54,8 @@ on:
       - prod
     paths:
       - "src/pages/waouh/**"
+      - "src/pages/admin/AdminWaouhDataControlPage.tsx"
+      - "src/pages/admin/WaouhWhatsAppOpsPage.tsx"
       - "src/components/waouh/**"
       - "src/lib/waouh/**"
       - "src/App.tsx"
@@ -61,6 +69,10 @@ on:
       - "scripts/verify-waouh-responsive-browser.mjs"
       - "src/app-mobile/components/ChatRightPane.tsx"
       - "supabase/functions/waouh-agentic-core/**"
+      - "supabase/functions/waouh-admin-stats/**"
+      - "supabase/functions/_shared/waouh-tel/crypto.ts"
+      - "supabase/functions/_shared/waouh-tel/phone.ts"
+      - "supabase/functions/_shared/waouh-tel/runtime-secret.ts"
       - "supabase/functions/waouh-channel-in/**"
       - "supabase/functions/waouh-webhook/**"
       - "supabase/functions/_shared/waouh-promote.ts"
@@ -117,6 +129,9 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+
+      - name: Check WAOUH Admin Data Contact Center
+        run: deno check supabase/functions/waouh-admin-stats/index.ts
 
       - name: Check NEXUS Edge Function
         run: deno check supabase/functions/waouh-agentic-core/index.ts

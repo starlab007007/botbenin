@@ -16,7 +16,8 @@ import { Progress } from '@/components/ui/progress';
 import {
   Loader2, Search, Sparkles, RefreshCw, CheckCircle2, XCircle, StopCircle, Clock,
   MoreHorizontal, Eye, Pencil, Trash2, Power, PowerOff, ShieldCheck, MapPin, ImageIcon,
-  Download, FileSpreadsheet, Archive, ExternalLink, Network, RotateCcw
+  Download, FileSpreadsheet, Archive, ExternalLink, Network, RotateCcw,
+  Phone, MessageCircle, Send
 } from 'lucide-react';
 
 type CleanItemStatus = 'pending' | 'processing' | 'ok' | 'failed' | 'cancelled';
@@ -47,6 +48,39 @@ interface DiscoverySource {
   default_contactability: string;
   supports_buy: boolean;
   supports_sell: boolean;
+}
+
+interface AdminContact {
+  id?: string | null;
+  fabric_id: string;
+  source_key: string;
+  label?: string | null;
+  channel: string;
+  value: string;
+  normalized_e164?: string | null;
+  whatsapp_chat_id?: string | null;
+  value_last4?: string | null;
+  contactability_level: string;
+  consent_state: string;
+  is_public_business: boolean;
+  is_whatsapp_reachable: boolean | null;
+  can_notify_whatsapp: boolean;
+  notify_reason: string;
+  entity_id?: string | null;
+}
+
+interface WahaHealth {
+  ready: boolean;
+  session: string;
+  status: string;
+  reason?: string | null;
+}
+
+interface ContactResolveRow {
+  fabric_id: string;
+  contacts: AdminContact[];
+  normalized_count: number;
+  notifyable_count: number;
 }
 
 interface FabricRow {
@@ -159,6 +193,13 @@ export default function AdminWaouhDataControlPage() {
   const [sourceStateFilter, setSourceStateFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
+  const [contactMap, setContactMap] = useState<Record<string, AdminContact[]>>({});
+  const [wahaHealth, setWahaHealth] = useState<WahaHealth | null>(null);
+  const [contactsLoading, setContactsLoading] = useState(false);
+  const [syncingWaha, setSyncingWaha] = useState(false);
+  const [notifying, setNotifying] = useState<FabricRow | null>(null);
+  const [notificationMessage, setNotificationMessage] = useState('');
+  const [sendingNotification, setSendingNotification] = useState(false);
 
   const [cleaning, setCleaning] = useState(false);
   const [cleanItems, setCleanItems] = useState<CleanItem[]>([]);
@@ -215,6 +256,88 @@ export default function AdminWaouhDataControlPage() {
     if (!error && data) setSources(data as any);
   };
 
+  const loadResolvedContacts = async (rows: FabricRow[]) => {
+    const ids = rows.map(r => r.fabric_id).filter(Boolean);
+    if (!ids.length) {
+      setContactMap({});
+      return;
+    }
+    setContactsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('waouh-admin-stats', {
+        body: { action: 'signal_contacts_resolve', fabric_ids: ids },
+      });
+      if (error) throw error;
+      setWahaHealth(((data as any)?.waha || null) as WahaHealth | null);
+      const next: Record<string, AdminContact[]> = {};
+      for (const row of ((data as any)?.rows || []) as ContactResolveRow[]) {
+        next[row.fabric_id] = Array.isArray(row.contacts) ? row.contacts : [];
+      }
+      setContactMap(next);
+    } catch (e: any) {
+      console.warn('[Signal Fabric contacts]', e);
+      toast({
+        title: 'Contacts centralisés indisponibles',
+        description: e?.message || String(e),
+        variant: 'destructive',
+      });
+    } finally {
+      setContactsLoading(false);
+    }
+  };
+
+  const contactsFor = (row: FabricRow) => contactMap[row.fabric_id] || [];
+
+  const openWhatsAppNotification = (row: FabricRow) => {
+    if (wahaHealth && !wahaHealth.ready) {
+      toast({
+        title: 'WAHA non opérationnel',
+        description: `Session ${wahaHealth.session} · ${wahaHealth.status}. Reconnectez/scannez le QR avant l’envoi.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    const contacts = contactsFor(row).filter(c => c.can_notify_whatsapp && c.normalized_e164);
+    if (!contacts.length) {
+      toast({
+        title: 'Aucun contact WhatsApp autorisé',
+        description: 'Le numéro peut être visible pour contrôle admin, mais l’envoi est bloqué tant que le canal ou le consentement n’est pas exploitable.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setNotifying(row);
+    setNotificationMessage(`Bonjour, WAOUH vous informe au sujet de : ${row.subject || 'une opportunité commerciale'}.`);
+  };
+
+  const sendWhatsAppNotification = async () => {
+    if (!notifying) return;
+    const message = notificationMessage.trim();
+    if (message.length < 2) return;
+    setSendingNotification(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('waouh-admin-stats', {
+        body: {
+          action: 'signal_contacts_notify_waha',
+          fabric_id: notifying.fabric_id,
+          message,
+        },
+      });
+      if (error) throw error;
+      toast({
+        title: '✅ Notification WhatsApp mise en file',
+        description: `${data?.queued ?? 0} destinataire(s) · ${data?.skipped ?? 0} ignoré(s). WAHA prend en charge la livraison.`,
+      });
+      setNotifying(null);
+      setNotificationMessage('');
+      await loadResolvedContacts(results);
+    } catch (e: any) {
+      toast({ title: 'Erreur notification WhatsApp', description: e?.message || String(e), variant: 'destructive' });
+    } finally {
+      setSendingNotification(false);
+    }
+  };
+
   const search = async () => {
     setSearching(true);
     const { data, error } = await supabase.rpc('waouh_admin_signal_fabric_search' as any, {
@@ -233,7 +356,9 @@ export default function AdminWaouhDataControlPage() {
       toast({ title: 'Erreur Signal Fabric', description: error.message, variant: 'destructive' });
       return;
     }
-    setResults(((data as any) || []) as FabricRow[]);
+    const nextRows = (((data as any) || []) as FabricRow[]);
+    setResults(nextRows);
+    await loadResolvedContacts(nextRows);
   };
 
   const resetFilters = () => {
@@ -352,6 +477,10 @@ export default function AdminWaouhDataControlPage() {
       devise: r.currency,
       contactabilite: r.contactability_level,
       contact_disponible: r.has_contact,
+      contacts_complets: contactsFor(r).map(c => c.value).join(' | '),
+      whatsapp_normalise: contactsFor(r).filter(c => c.normalized_e164).map(c => c.normalized_e164).join(' | '),
+      whatsapp_joignable: contactsFor(r).filter(c => c.is_whatsapp_reachable === true).map(c => c.normalized_e164).join(' | '),
+      notification_whatsapp_autorisee: contactsFor(r).some(c => c.can_notify_whatsapp),
       qualite: r.quality_tier,
       completude: r.completeness,
       confiance: r.trust_score,
@@ -379,17 +508,79 @@ export default function AdminWaouhDataControlPage() {
   };
 
   const syncWaha = async () => {
+    if (!results.length) {
+      toast({ title: 'Aucun résultat à normaliser', description: 'Lancez d’abord une recherche Signal Fabric.' });
+      return;
+    }
+    setSyncingWaha(true);
     try {
-      toast({ title: 'Synchronisation WAHA en cours…' });
-      const { data, error } = await supabase.functions.invoke('waouh-waha-sync-contacts', { body: { backfill: true } });
-      if (error) throw error;
-      toast({
-        title: data?.warning ? '⚠️ Synchronisation terminée avec avertissement' : '✅ Synchro WAHA terminée',
-        description: data?.warning || `${data?.mapped ?? 0} contacts mappés · ${data?.backfilled ?? 0} annonces mises à jour`,
-      });
-      await refreshAll();
+      toast({ title: 'Normalisation des contacts en cours…' });
+
+      const legacyPromise = supabase.functions.invoke('waouh-waha-sync-contacts', { body: { backfill: true } });
+      const fabricIds = results.map(r => r.fabric_id);
+      const chunks: string[][] = [];
+      for (let i = 0; i < fabricIds.length; i += 25) chunks.push(fabricIds.slice(i, i + 25));
+
+      let checked = 0;
+      let reachable = 0;
+      let unreachable = 0;
+      let normalizedCount = 0;
+      let persisted = 0;
+      let latestWaha: WahaHealth | null = wahaHealth;
+      const checks: any[] = [];
+
+      for (const chunk of chunks) {
+        const { data, error } = await supabase.functions.invoke('waouh-admin-stats', {
+          body: { action: 'signal_contacts_sync_waha', fabric_ids: chunk },
+        });
+        if (error) throw error;
+        checked += Number(data?.checked || 0);
+        reachable += Number(data?.reachable || 0);
+        unreachable += Number(data?.unreachable || 0);
+        normalizedCount += Number(data?.normalized || 0);
+        persisted += Number(data?.persisted || 0);
+        if (data?.waha) latestWaha = data.waha as WahaHealth;
+        if (Array.isArray(data?.results)) checks.push(...data.results);
+      }
+
+      const legacy = await legacyPromise;
+      if (legacy.error) throw legacy.error;
+      setWahaHealth(latestWaha);
+
+      const reachability = new Map<string, boolean | null>(
+        checks.map((row: any) => [
+          String(row.e164 || ''),
+          row.reachable === true ? true : row.reachable === false ? false : null,
+        ]),
+      );
+      setContactMap(prev => Object.fromEntries(
+        Object.entries(prev).map(([fabricId, contacts]) => [
+          fabricId,
+          contacts.map(contact => ({
+            ...contact,
+            is_whatsapp_reachable: contact.normalized_e164 && reachability.has(contact.normalized_e164)
+              ? reachability.get(contact.normalized_e164) ?? null
+              : contact.is_whatsapp_reachable,
+          })),
+        ]),
+      ));
+
+      if (latestWaha?.ready === false) {
+        toast({
+          title: '✅ Contacts normalisés · WAHA à reconnecter',
+          description: `${normalizedCount} contact(s) normalisé(s) · ${persisted} nouveau(x) contact(s) persisté(s). La vérification/envoi WhatsApp reprendra après liaison de ${latestWaha.session}.`,
+        });
+      } else {
+        toast({
+          title: '✅ Contacts WhatsApp synchronisés',
+          description: `${normalizedCount} normalisés · ${persisted} persistés · ${checked} vérifiés · ${reachable} joignables · ${unreachable} non joignables · ${legacy.data?.mapped ?? 0} mappings WAHA actualisés`,
+        });
+      }
+      await Promise.all([loadStats(), loadSources(), loadResolvedContacts(results)]);
     } catch (e: any) {
-      toast({ title: 'Erreur synchro WAHA', description: e?.message || String(e), variant: 'destructive' });
+      toast({ title: 'Erreur normalisation / WAHA', description: e?.message || String(e), variant: 'destructive' });
+    } finally {
+      setSyncingWaha(false);
     }
   };
 
@@ -571,9 +762,30 @@ export default function AdminWaouhDataControlPage() {
               </div>
 
               <div className="flex gap-2 flex-wrap">
-                <Button variant="outline" onClick={syncWaha}>
-                  <RefreshCw className="h-4 w-4 mr-2" />Synchroniser contacts WAHA
+                <Button
+                  variant="outline"
+                  onClick={syncWaha}
+                  disabled={syncingWaha || !results.length}
+                >
+                  {syncingWaha ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                  Normaliser contacts + WAHA
                 </Button>
+                {wahaHealth && (
+                  <Badge
+                    variant="outline"
+                    className={wahaHealth.ready ? 'border-green-500 text-green-700 h-10 px-3' : 'border-red-400 text-red-700 h-10 px-3'}
+                  >
+                    {wahaHealth.ready ? 'WAHA prêt' : `WAHA ${wahaHealth.status}`}
+                  </Badge>
+                )}
+                {wahaHealth && !wahaHealth.ready && (
+                  <Button
+                    variant="outline"
+                    onClick={() => { window.location.href = '/admin/waouh/whatsapp-ops'; }}
+                  >
+                    <MessageCircle className="h-4 w-4 mr-2" />Reconnecter WAHA
+                  </Button>
+                )}
                 <Button variant="outline" onClick={() => exportRows('xlsx')}>
                   <Download className="h-4 w-4 mr-2" />Télécharger Excel
                 </Button>
@@ -587,6 +799,9 @@ export default function AdminWaouhDataControlPage() {
 
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                 <span>{results.length} résultat{results.length > 1 ? 's' : ''} · max 300</span>
+                <span>
+                  {contactsLoading ? 'Chargement contacts…' : `${Object.values(contactMap).flat().filter(c => !!c.normalized_e164).length} numéros normalisés · ${Object.values(contactMap).flat().filter(c => c.is_whatsapp_reachable === true).length} WhatsApp vérifiés`}
+                </span>
                 <span>{stats.buy} intentions d'achat · {stats.sell} offres / annonces</span>
               </div>
 
@@ -646,9 +861,38 @@ export default function AdminWaouhDataControlPage() {
                           <div className="font-medium">{r.actor_type || '—'}</div>
                           {r.verified && <Badge variant="outline" className="mt-1 border-green-500 text-green-700 text-[10px]">✓ Vérifié</Badge>}
                         </TableCell>
-                        <TableCell className="text-xs">
-                          <Badge variant="outline" className={contactClass(r.contactability_level)}>{r.contactability_level || 'C0'}</Badge>
-                          <div className="mt-1 max-w-[150px]">{contactHint(r)}</div>
+                        <TableCell className="text-xs min-w-[220px]">
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <Badge variant="outline" className={contactClass(r.contactability_level)}>{r.contactability_level || 'C0'}</Badge>
+                            {contactsFor(r).some(c => c.can_notify_whatsapp) && (
+                              <Badge className={`${wahaHealth?.ready ? 'bg-green-600' : 'bg-amber-600'} text-[10px]`}>
+                                <MessageCircle className="h-3 w-3 mr-1" />
+                                {wahaHealth?.ready ? 'WhatsApp prêt' : 'Contact WhatsApp'}
+                              </Badge>
+                            )}
+                          </div>
+                          {contactsFor(r).length > 0 ? (
+                            <div className="mt-1 space-y-1">
+                              {contactsFor(r).slice(0, 3).map((c, index) => (
+                                <div key={`${c.channel}-${c.value}-${index}`} className="rounded border px-2 py-1 bg-muted/30">
+                                  <div className="flex items-center gap-1 font-mono font-semibold">
+                                    <Phone className="h-3 w-3" />
+                                    <span>{c.normalized_e164 || c.value}</span>
+                                  </div>
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    <Badge variant="outline" className="text-[9px]">{c.channel}</Badge>
+                                    {c.is_whatsapp_reachable === true && <Badge className="bg-green-600 text-[9px]">WAHA ✓</Badge>}
+                                    {c.is_whatsapp_reachable === false && <Badge variant="outline" className="border-red-400 text-red-700 text-[9px]">WAHA ✕</Badge>}
+                                    {c.is_whatsapp_reachable == null && c.normalized_e164 && <Badge variant="outline" className="text-[9px]">WAHA ?</Badge>}
+                                    <Badge variant="outline" className="text-[9px]">{c.contactability_level}</Badge>
+                                  </div>
+                                </div>
+                              ))}
+                              {contactsFor(r).length > 3 && <div className="text-[10px] text-muted-foreground">+{contactsFor(r).length - 3} autre(s) contact(s)</div>}
+                            </div>
+                          ) : (
+                            <div className="mt-1 max-w-[180px]">{contactsLoading ? 'Résolution…' : contactHint(r)}</div>
+                          )}
                         </TableCell>
                         <TableCell className="text-xs min-w-[130px]">
                           <div className="flex items-center gap-1"><MapPin className="h-3 w-3" />{r.city || '—'}</div>
@@ -675,6 +919,19 @@ export default function AdminWaouhDataControlPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => setViewing(r)}><Eye className="h-4 w-4 mr-2" />Voir détails</DropdownMenuItem>
+                              {wahaHealth?.ready === true && contactsFor(r).some(c => c.can_notify_whatsapp && c.normalized_e164) && (
+                                <DropdownMenuItem onClick={() => openWhatsAppNotification(r)}>
+                                  <Send className="h-4 w-4 mr-2" />Notifier sur WhatsApp
+                                </DropdownMenuItem>
+                              )}
+                              {wahaHealth?.ready === true && contactsFor(r).some(c => c.can_notify_whatsapp && c.normalized_e164) && (
+                                <DropdownMenuItem onClick={() => {
+                                  const phone = contactsFor(r).find(c => c.can_notify_whatsapp && c.normalized_e164)?.normalized_e164;
+                                  if (phone) window.open(`https://wa.me/${phone.replace(/\D/g, '')}`, '_blank', 'noopener,noreferrer');
+                                }}>
+                                  <MessageCircle className="h-4 w-4 mr-2" />Ouvrir WhatsApp
+                                </DropdownMenuItem>
+                              )}
                               {r.source_url && (
                                 <DropdownMenuItem onClick={() => window.open(r.source_url!, '_blank', 'noopener,noreferrer')}>
                                   <ExternalLink className="h-4 w-4 mr-2" />Ouvrir la source
@@ -885,7 +1142,11 @@ export default function AdminWaouhDataControlPage() {
                 <Field label="Prix">{viewing.price_min ? `${Number(viewing.price_min).toLocaleString('fr-FR')} ${viewing.currency || 'XOF'}` : 'À confirmer'}</Field>
                 <Field label="Confiance">{Math.round(Number(viewing.trust_score || 0))}/100</Field>
                 <Field label="Qualité">{viewing.quality_tier} · {viewing.completeness}%</Field>
-                <Field label="Contact">{contactHint(viewing)}</Field>
+                <Field label="Contact">
+                  {contactsFor(viewing).length
+                    ? contactsFor(viewing).map(c => c.normalized_e164 || c.value).join(' · ')
+                    : contactHint(viewing)}
+                </Field>
                 <Field label="Observé">{viewing.observed_at ? new Date(viewing.observed_at).toLocaleString('fr-FR') : '—'}</Field>
                 <Field label="Catalogue éditable">{viewing.is_catalog_mutable ? 'Oui' : 'Non · source autoritative'}</Field>
               </div>
@@ -893,6 +1154,30 @@ export default function AdminWaouhDataControlPage() {
                 <div>
                   <div className="text-xs text-muted-foreground mb-1">Contenu / preuve textuelle</div>
                   <p className="whitespace-pre-wrap">{viewing.raw_text}</p>
+                </div>
+              )}
+              {contactsFor(viewing).length > 0 && (
+                <div className="rounded-lg border p-3 space-y-2">
+                  <div className="text-xs font-semibold">Contacts complets et normalisation WhatsApp</div>
+                  {contactsFor(viewing).map((c, index) => (
+                    <div key={`${c.channel}-${c.value}-${index}`} className="flex flex-wrap items-center justify-between gap-2 rounded border p-2">
+                      <div>
+                        <div className="font-mono font-semibold">{c.normalized_e164 || c.value}</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {c.label || c.channel} · {c.contactability_level} · {c.consent_state}
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        {c.is_whatsapp_reachable === true && <Badge className="bg-green-600">WAHA ✓</Badge>}
+                        {c.is_whatsapp_reachable === false && <Badge variant="outline" className="border-red-400 text-red-700">WAHA ✕</Badge>}
+                        {wahaHealth?.ready === true && c.can_notify_whatsapp && (
+                          <Button size="sm" onClick={() => openWhatsAppNotification(viewing)}>
+                            <Send className="h-3.5 w-3.5 mr-1" />Notifier
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
               {viewing.source_url && (
@@ -906,6 +1191,48 @@ export default function AdminWaouhDataControlPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!notifying} onOpenChange={(o) => {
+        if (!o) {
+          setNotifying(null);
+          setNotificationMessage('');
+        }
+      }}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Notifier le contact sur WhatsApp</DialogTitle>
+          </DialogHeader>
+          {notifying && (
+            <div className="space-y-4">
+              <div className="rounded border p-3 bg-muted/30">
+                <div className="font-medium">{notifying.subject || 'Opportunité WAOUH'}</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {notifying.source_label} · {contactsFor(notifying).filter(c => c.can_notify_whatsapp && c.normalized_e164).map(c => c.normalized_e164).join(' · ')}
+                </div>
+              </div>
+              <LField label="Message WhatsApp">
+                <Textarea
+                  rows={5}
+                  maxLength={1200}
+                  value={notificationMessage}
+                  onChange={e => setNotificationMessage(e.target.value)}
+                  placeholder="Message à envoyer par WAHA…"
+                />
+              </LField>
+              <div className="text-xs text-muted-foreground">
+                L’envoi passe par la file WAOUH puis <strong>waouh-outbound-dispatch</strong>. Les contacts non autorisés ou non joignables WhatsApp sont automatiquement ignorés.
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNotifying(null)}>Annuler</Button>
+            <Button onClick={sendWhatsAppNotification} disabled={sendingNotification || notificationMessage.trim().length < 2}>
+              {sendingNotification ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+              Envoyer via WAHA
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
