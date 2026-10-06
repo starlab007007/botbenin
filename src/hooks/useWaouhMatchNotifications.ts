@@ -101,7 +101,10 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
     if (!sessionId) return;
     let unifiedIds: string[] = [];
     setNotifications((prev) => {
-      unifiedIds = prev.filter((n) => !n.read && MATCH_TEMPLATES.has(n.template)).map((n) => n.id);
+      // Updating an outbound-queue id against waouh_notifications is a harmless
+      // no-op, while restricting this list to MATCH_TEMPLATES would leave new
+      // Partner/Stock/Diffusion smart notifications unread server-side.
+      unifiedIds = prev.filter((n) => !n.read).map((n) => n.id);
       const updated = prev.map((n) => ({ ...n, read: true }));
       saveNotifs(sessionId, updated);
       return updated;
@@ -125,7 +128,7 @@ export function useWaouhMatchNotifications(sessionId: string | null, authUserId?
     let unifiedIds: string[] = [];
     setNotifications((prev) => {
       unifiedIds = prev
-        .filter((n) => !n.read && MATCH_TEMPLATES.has(n.template))
+        .filter((n) => !n.read)
         .map((n) => n.id);
       // Mark everything as read locally; do NOT drop the array so the bell can
       // still show history when explicitly requested.
