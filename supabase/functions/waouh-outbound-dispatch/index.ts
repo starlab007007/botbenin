@@ -22,10 +22,14 @@ const MAX_ATTEMPTS_DEFAULT = 5;
 // whole Supabase Edge execution window through sequential route fallbacks.
 const WAHA_REQUEST_TIMEOUT_MS = 3_000;
 
-async function wahaFetch(url: string, init: RequestInit = {}) {
+async function wahaFetch(
+  url: string,
+  init: RequestInit = {},
+  timeoutMs = WAHA_REQUEST_TIMEOUT_MS,
+) {
   return fetch(url, {
     ...init,
-    signal: AbortSignal.timeout(WAHA_REQUEST_TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 }
 
@@ -202,6 +206,7 @@ async function repairLegacyWahaWebhooks(
 
     const canonicalUrl = canonicalWahaWebhookUrl(currentUrl);
     let currentPayload: Record<string, any> | null = null;
+    let preferredAuthHeaders: Record<string, string> | null = null;
 
     for (const endpoint of [
       `/api/sessions/${encodeURIComponent(sessionName)}`,
@@ -217,6 +222,7 @@ async function repairLegacyWahaWebhooks(
             continue;
           }
           currentPayload = objectMap(await response.json().catch(() => null));
+          preferredAuthHeaders = authHeaders;
           break;
         } catch {
           // Try the next credential/API shape.
@@ -261,6 +267,17 @@ async function repairLegacyWahaWebhooks(
     };
 
     let repairedRemote = false;
+    const preferredKey = preferredAuthHeaders
+      ? JSON.stringify(Object.entries(preferredAuthHeaders).sort(([a], [b]) => a.localeCompare(b)))
+      : "";
+    const updateAuthVariants = preferredAuthHeaders
+      ? [
+          preferredAuthHeaders,
+          ...authVariants.filter((variant) =>
+            JSON.stringify(Object.entries(variant).sort(([a], [b]) => a.localeCompare(b))) !== preferredKey
+          ),
+        ]
+      : authVariants;
     const updateEndpoints: Array<{ api: "v1" | "v2"; path: string }> = [
       { api: "v1", path: `/api/sessions/${encodeURIComponent(sessionName)}` },
       { api: "v1", path: `/api/sessions/${encodeURIComponent(sessionName)}/` },
@@ -271,13 +288,17 @@ async function repairLegacyWahaWebhooks(
 
     for (const endpoint of updateEndpoints) {
       for (const method of ["PUT", "POST"] as const) {
-        for (const authHeaders of authVariants) {
+        for (const authHeaders of updateAuthVariants) {
           try {
-            const response = await wahaFetch(`${normalizedBase}${typeof endpoint === "string" ? endpoint : endpoint.path}`, {
-              method,
-              headers: authHeaders,
-              body: JSON.stringify({ name: sessionName, config: nextConfig }),
-            });
+            const response = await wahaFetch(
+              `${normalizedBase}${endpoint.path}`,
+              {
+                method,
+                headers: authHeaders,
+                body: JSON.stringify({ name: sessionName, config: nextConfig }),
+              },
+              method === "PUT" && endpoint.api === "v1" ? 25_000 : 6_000,
+            );
             if (!response.ok) {
               const rawError = await response.text().catch(() => "");
               summary.last_remote_status = response.status;
@@ -293,8 +314,17 @@ async function repairLegacyWahaWebhooks(
             }
             repairedRemote = true;
             break;
-          } catch {
-            // Try the next credential/method/API shape.
+          } catch (error: any) {
+            summary.attempts?.push({
+              api: endpoint.api,
+              method,
+              status: 0,
+              message: String(error?.name || error?.message || "request_failed").slice(0, 120),
+            });
+            // A v1 PUT may restart a WORKING session and legitimately outlive
+            // the request window. Avoid issuing a second concurrent config
+            // mutation; the next repair pass will verify/retry idempotently.
+            if (endpoint.api === "v1" && method === "PUT") break;
           }
         }
         if (repairedRemote) break;
@@ -549,7 +579,7 @@ Deno.serve(async (req) => {
       ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}),
     };
 
-    const webhookRepair = await repairLegacyWahaWebhooks(
+    const runWebhookRepair = () => repairLegacyWahaWebhooks(
       sb,
       WAHA_BASE_URL,
       wahaHeaders,
@@ -561,6 +591,7 @@ Deno.serve(async (req) => {
     });
 
     if (repairWebhooksOnly) {
+      const webhookRepair = await runWebhookRepair();
       return new Response(JSON.stringify({
         ok: webhookRepair.failed === 0,
         webhook_repair: webhookRepair,
@@ -568,6 +599,13 @@ Deno.serve(async (req) => {
         status: webhookRepair.failed === 0 ? 200 : 207,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    const webhookRepairTask = runWebhookRepair();
+    try {
+      (globalThis as any).EdgeRuntime?.waitUntil?.(webhookRepairTask);
+    } catch {
+      webhookRepairTask.catch(() => undefined);
     }
 
     const nowIso = new Date().toISOString();
