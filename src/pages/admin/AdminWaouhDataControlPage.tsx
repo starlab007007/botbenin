@@ -69,6 +69,13 @@ interface AdminContact {
   entity_id?: string | null;
 }
 
+interface WahaHealth {
+  ready: boolean;
+  session: string;
+  status: string;
+  reason?: string | null;
+}
+
 interface ContactResolveRow {
   fabric_id: string;
   contacts: AdminContact[];
@@ -187,6 +194,7 @@ export default function AdminWaouhDataControlPage() {
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [contactMap, setContactMap] = useState<Record<string, AdminContact[]>>({});
+  const [wahaHealth, setWahaHealth] = useState<WahaHealth | null>(null);
   const [contactsLoading, setContactsLoading] = useState(false);
   const [syncingWaha, setSyncingWaha] = useState(false);
   const [notifying, setNotifying] = useState<FabricRow | null>(null);
@@ -260,6 +268,7 @@ export default function AdminWaouhDataControlPage() {
         body: { action: 'signal_contacts_resolve', fabric_ids: ids },
       });
       if (error) throw error;
+      setWahaHealth(((data as any)?.waha || null) as WahaHealth | null);
       const next: Record<string, AdminContact[]> = {};
       for (const row of ((data as any)?.rows || []) as ContactResolveRow[]) {
         next[row.fabric_id] = Array.isArray(row.contacts) ? row.contacts : [];
@@ -280,6 +289,14 @@ export default function AdminWaouhDataControlPage() {
   const contactsFor = (row: FabricRow) => contactMap[row.fabric_id] || [];
 
   const openWhatsAppNotification = (row: FabricRow) => {
+    if (wahaHealth && !wahaHealth.ready) {
+      toast({
+        title: 'WAHA non opérationnel',
+        description: `Session ${wahaHealth.session} · ${wahaHealth.status}. Reconnectez/scannez le QR avant l’envoi.`,
+        variant: 'destructive',
+      });
+      return;
+    }
     const contacts = contactsFor(row).filter(c => c.can_notify_whatsapp && c.normalized_e164);
     if (!contacts.length) {
       toast({
@@ -711,10 +728,30 @@ export default function AdminWaouhDataControlPage() {
               </div>
 
               <div className="flex gap-2 flex-wrap">
-                <Button variant="outline" onClick={syncWaha} disabled={syncingWaha || !results.length}>
+                <Button
+                  variant="outline"
+                  onClick={syncWaha}
+                  disabled={syncingWaha || !results.length || wahaHealth?.ready === false}
+                >
                   {syncingWaha ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                   Normaliser + vérifier WAHA
                 </Button>
+                {wahaHealth && (
+                  <Badge
+                    variant="outline"
+                    className={wahaHealth.ready ? 'border-green-500 text-green-700 h-10 px-3' : 'border-red-400 text-red-700 h-10 px-3'}
+                  >
+                    {wahaHealth.ready ? 'WAHA prêt' : `WAHA ${wahaHealth.status}`}
+                  </Badge>
+                )}
+                {wahaHealth && !wahaHealth.ready && (
+                  <Button
+                    variant="outline"
+                    onClick={() => { window.location.href = '/admin/waouh/whatsapp-ops'; }}
+                  >
+                    <MessageCircle className="h-4 w-4 mr-2" />Reconnecter WAHA
+                  </Button>
+                )}
                 <Button variant="outline" onClick={() => exportRows('xlsx')}>
                   <Download className="h-4 w-4 mr-2" />Télécharger Excel
                 </Button>
@@ -794,7 +831,10 @@ export default function AdminWaouhDataControlPage() {
                           <div className="flex items-center gap-1 flex-wrap">
                             <Badge variant="outline" className={contactClass(r.contactability_level)}>{r.contactability_level || 'C0'}</Badge>
                             {contactsFor(r).some(c => c.can_notify_whatsapp) && (
-                              <Badge className="bg-green-600 text-[10px]"><MessageCircle className="h-3 w-3 mr-1" />WhatsApp prêt</Badge>
+                              <Badge className={`${wahaHealth?.ready ? 'bg-green-600' : 'bg-amber-600'} text-[10px]`}>
+                                <MessageCircle className="h-3 w-3 mr-1" />
+                                {wahaHealth?.ready ? 'WhatsApp prêt' : 'Contact WhatsApp'}
+                              </Badge>
                             )}
                           </div>
                           {contactsFor(r).length > 0 ? (
@@ -845,12 +885,12 @@ export default function AdminWaouhDataControlPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => setViewing(r)}><Eye className="h-4 w-4 mr-2" />Voir détails</DropdownMenuItem>
-                              {contactsFor(r).some(c => c.can_notify_whatsapp && c.normalized_e164) && (
+                              {wahaHealth?.ready === true && contactsFor(r).some(c => c.can_notify_whatsapp && c.normalized_e164) && (
                                 <DropdownMenuItem onClick={() => openWhatsAppNotification(r)}>
                                   <Send className="h-4 w-4 mr-2" />Notifier sur WhatsApp
                                 </DropdownMenuItem>
                               )}
-                              {contactsFor(r).some(c => c.can_notify_whatsapp && c.normalized_e164) && (
+                              {wahaHealth?.ready === true && contactsFor(r).some(c => c.can_notify_whatsapp && c.normalized_e164) && (
                                 <DropdownMenuItem onClick={() => {
                                   const phone = contactsFor(r).find(c => c.can_notify_whatsapp && c.normalized_e164)?.normalized_e164;
                                   if (phone) window.open(`https://wa.me/${phone.replace(/\D/g, '')}`, '_blank', 'noopener,noreferrer');
@@ -1096,7 +1136,7 @@ export default function AdminWaouhDataControlPage() {
                       <div className="flex gap-1">
                         {c.is_whatsapp_reachable === true && <Badge className="bg-green-600">WAHA ✓</Badge>}
                         {c.is_whatsapp_reachable === false && <Badge variant="outline" className="border-red-400 text-red-700">WAHA ✕</Badge>}
-                        {c.can_notify_whatsapp && (
+                        {wahaHealth?.ready === true && c.can_notify_whatsapp && (
                           <Button size="sm" onClick={() => openWhatsAppNotification(viewing)}>
                             <Send className="h-3.5 w-3.5 mr-1" />Notifier
                           </Button>
