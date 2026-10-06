@@ -21,6 +21,7 @@ import 'live_thread_flow.dart';
 import 'live_theme.dart';
 import 'live_widgets.dart';
 
+import 'user_message.dart';
 class LiveMatchChatV2 extends StatefulWidget {
   const LiveMatchChatV2({super.key, required this.matchKey, this.initial});
   final String matchKey;
@@ -220,7 +221,7 @@ class _LiveMatchChatV2State extends State<LiveMatchChatV2> {
     } catch (error) {
       if (mounted)
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$error')));
+            .showSnackBar(SnackBar(content: Text(waouhUserMessage(error, action: 'upload'))));
     }
   }
 
