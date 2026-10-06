@@ -39,7 +39,14 @@ import { commerceRequestFromButton, sendCommerceAction } from "@/lib/waouh/comme
 import { userFacingErrorText } from "@/lib/userFacingError";
 import { readWaouhSmartEnvelope, waouhSmartActions } from "@/lib/waouh/smartPayload";
 type Att = { url: string; type: string; caption?: string };
-type WaouhAction = { id: string; label: string; url?: string };
+type WaouhAction = {
+  id: string;
+  label: string;
+  url?: string;
+  kind?: "navigate" | "reply" | "commerce" | "approve" | "contact" | "retry" | "dismiss";
+  payload?: Record<string, unknown>;
+  requires_confirmation?: boolean;
+};
 const stripLegacy = (t: string) =>
   (t || "")
     .replace(/\n*👉\s*Appuyez sur \*?Payer\*?[^\n]*/gi, "")
@@ -839,8 +846,17 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
             : [];
           const smartFallbackActions: WaouhAction[] = waouhSmartActions((m as any).meta, 3)
             .filter((action) => action.id !== "open_context" || smart?.domain !== "chat")
-            .map((action) => ({ id: action.id, label: action.label, url: action.route || undefined }));
-          const bubbleActions = legacyActions.length > 0 ? legacyActions : smartFallbackActions;
+            .map((action) => ({
+              id: action.id,
+              label: action.label,
+              url: action.route || undefined,
+              kind: action.kind,
+              payload: action.payload,
+              requires_confirmation: action.requires_confirmation,
+            }));
+          // Smart actions are normalized by the server/DB and carry the
+          // predictive ordering. Legacy actions remain a compatibility fallback.
+          const bubbleActions = smartFallbackActions.length > 0 ? smartFallbackActions : legacyActions;
           return (
           <div
             key={m.id}
@@ -954,6 +970,38 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                           if (avatarBubbleInfo((m as any).meta)) {
                             await handleBriefingAction({ ...(a as any), id: a.id, label: a.label });
                             return;
+                          }
+                          if (a.kind === "commerce") {
+                            const request = commerceRequestFromButton(a.id, {
+                              thread_id: (m as any).meta?.thread_id ?? null,
+                              negotiation_id: (m as any).meta?.negotiation_id ?? null,
+                              deal_id: (m as any).meta?.deal_id ?? null,
+                              article_id: (m as any).meta?.article_id ?? null,
+                            });
+                            if (request) {
+                              try {
+                                const response = await sendCommerceAction({
+                                  ...request,
+                                  source: "web_smart_message",
+                                }, sessionId);
+                                if (response) {
+                                  toast({
+                                    title: response.reply.title,
+                                    description: response.reply.detail,
+                                  });
+                                  window.dispatchEvent(new CustomEvent("waouh:match-updated", {
+                                    detail: { article_id: (m as any).meta?.article_id ?? null },
+                                  }));
+                                  return;
+                                }
+                              } catch {
+                                toast({
+                                  title: "Action non validée",
+                                  description: "Réessayez dans quelques instants.",
+                                });
+                                return;
+                              }
+                            }
                           }
                           if (a.url) {
                             if (a.url.startsWith("/app/")) {
