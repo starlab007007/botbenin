@@ -26,6 +26,7 @@ import { WaouhDealStepper } from "./WaouhDealStepper";
 import { BotDealCopilot, dealExpression } from "./bot/BotDealCopilot";
 import { BotLiveAvatar } from "./bot/BotLiveAvatar";
 import {
+import { userFacingErrorText } from "@/lib/userFacingError";
   commerceRequestFromButton,
   formatFcfa,
   latestStage,
@@ -161,7 +162,7 @@ export function WaouhMatchChatWindow({
       await invokeWaouhAgentic(action, payload);
       toast.success("Action WAOUH enregistrée");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Action impossible");
+      toast.error(userFacingErrorText(error, "send"));
     } finally {
       setAgentAction(null);
     }
