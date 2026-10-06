@@ -8,6 +8,7 @@ on:
     paths:
       - "src/pages/waouh/**"
       - "src/pages/admin/AdminWaouhDataControlPage.tsx"
+      - "src/pages/admin/WaouhWhatsAppOpsPage.tsx"
       - "src/components/waouh/**"
       - "src/lib/waouh/**"
       - "src/App.tsx"
@@ -54,6 +55,7 @@ on:
     paths:
       - "src/pages/waouh/**"
       - "src/pages/admin/AdminWaouhDataControlPage.tsx"
+      - "src/pages/admin/WaouhWhatsAppOpsPage.tsx"
       - "src/components/waouh/**"
       - "src/lib/waouh/**"
       - "src/App.tsx"
