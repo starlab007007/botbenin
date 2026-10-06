@@ -1,10 +1,11 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdminRole } from '@/hooks/useAdminRole';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ShieldAlert } from 'lucide-react';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { buildWaouhAuthRedirect } from '@/lib/waouhAccessPolicy';
 
 interface AdminRouteProps {
   children: React.ReactNode;
@@ -13,13 +14,19 @@ interface AdminRouteProps {
 export const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
   const { user, isLoading: authLoading } = useAuth();
   const { isAdmin, isLoading: roleLoading } = useAdminRole();
+  const location = useLocation();
 
   if (authLoading || roleLoading) {
     return <LoadingSpinner />;
   }
 
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    return (
+      <Navigate
+        to={buildWaouhAuthRedirect(`${location.pathname}${location.search}`, "/auth")}
+        replace
+      />
+    );
   }
 
   if (!isAdmin) {
