@@ -130,6 +130,9 @@ jobs:
         with:
           deno-version: v2.x
 
+      - name: Check WAOUH Admin Data Contact Center
+        run: deno check supabase/functions/waouh-admin-stats/index.ts
+
       - name: Check NEXUS Edge Function
         run: deno check supabase/functions/waouh-agentic-core/index.ts
 
