@@ -1,6 +1,6 @@
+import { userFacingErrorText } from "@/lib/userFacingError";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-import { userFacingErrorText } from "@/lib/userFacingError";
   Barcode, Bot, Camera, Database, Loader2, MapPin, ScanSearch, Sparkles, Store, Upload, Users,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
