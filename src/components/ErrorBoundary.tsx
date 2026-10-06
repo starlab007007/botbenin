@@ -75,7 +75,7 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   handleGoHome = () => {
-    window.location.href = '/';
+    window.location.href = '/app/chat';
   };
 
   render() {
@@ -99,19 +99,6 @@ export class ErrorBoundary extends Component<Props, State> {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {process.env.NODE_ENV === 'development' && this.state.error && (
-                <div className="bg-muted p-4 rounded-md overflow-auto max-h-60">
-                  <p className="font-mono text-sm text-destructive mb-2">
-                    {this.state.error.toString()}
-                  </p>
-                  {this.state.errorInfo && (
-                    <pre className="text-xs text-muted-foreground overflow-x-auto">
-                      {this.state.errorInfo.componentStack}
-                    </pre>
-                  )}
-                </div>
-              )}
-
               <div className="flex gap-2 flex-wrap">
                 <Button onClick={this.handleReset} variant="default">
                   <RefreshCw className="mr-2 h-4 w-4" />
