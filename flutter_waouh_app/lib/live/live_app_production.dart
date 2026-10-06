@@ -309,15 +309,7 @@ class LiveProductionShell extends StatelessWidget {
   final Widget child;
 
   int get _index {
-    // WAOUH_CONVERSATIONNEL_IA_INDEX_START
-
-    if (path.startsWith('/app/whatsapp/conversationnel')) {
-      return 2;
-    }
-
-    // WAOUH_CONVERSATIONNEL_IA_INDEX_END
-
-    if (path.startsWith('/app/ia')) return 1;
+    if (path.startsWith('/app/bots')) return 1;
     if (path.startsWith('/app/ia') ||
         path.startsWith('/app/whatsapp') ||
         path.startsWith('/app/apresbac') ||
@@ -400,8 +392,8 @@ class LiveProductionShell extends StatelessWidget {
                     selectedIndex: _index,
                     onDestinationSelected: (index) =>
                         context.go(switch (index) {
-                      1 => '/app/ia',
-                      2 => '/app/whatsapp/conversationnel',
+                      1 => '/app/bots',
+                      2 => '/app/ia',
                       3 => '/app/avatar',
                       4 => '/app/partner',
                       _ => '/app/chat',
