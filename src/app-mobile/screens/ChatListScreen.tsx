@@ -13,6 +13,7 @@ import { Search, Plus, ShoppingBag, Menu, Radar as RadarIcon, Sparkles, PanelLef
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { chatSpaceMode, readDrawerPinned, unreadBadge, writeDrawerPinned } from "../utils/chatSpaceLayout";
 import { useNotifications } from "../hooks/useNotifications";
+import { buildWaouhAuthRedirect } from "@/lib/waouhAccessPolicy";
 
 import { WaouhNotificationsBell } from "@/components/waouh/WaouhNotificationsBell";
 import { useWaouhMatchNotifications } from "@/hooks/useWaouhMatchNotifications";
@@ -266,8 +267,7 @@ export default function ChatListScreen() {
   const initials = (profile?.full_name ?? profile?.phone ?? "U").slice(0, 2).toUpperCase();
 
   const goToAuth = (target: string) => {
-    try { sessionStorage.setItem("waouh_post_auth_redirect", target); } catch {}
-    navigate("/app/auth/email?tab=login", { state: { from: target } });
+    navigate(buildWaouhAuthRedirect(target));
   };
 
   const requireAuth = (target: string): boolean => {
