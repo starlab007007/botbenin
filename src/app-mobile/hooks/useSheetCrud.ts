@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { queueGoogleSheetsOperation } from '@/services/googleSheetsQueue';
 import { toast } from 'sonner';
+import { userFacingErrorText } from '@/lib/userFacingError';
 
 export interface SheetRow {
   id: string;
@@ -85,7 +86,7 @@ export function useSheetCrud(
     } catch (err) {
       console.error('useSheetCrud load error', err);
       toast.error('Impossible de charger les données', {
-        description: err instanceof Error ? err.message : 'Erreur inconnue'
+        description: userFacingErrorText(err, 'load')
       });
       return [];
     } finally {
@@ -122,7 +123,7 @@ export function useSheetCrud(
       }
       return false;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur ajout');
+      toast.error(userFacingErrorText(err, 'save'));
       return false;
     } finally {
       writingRef.current = false;
@@ -158,7 +159,7 @@ export function useSheetCrud(
       await load();
       return false;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur mise à jour');
+      toast.error(userFacingErrorText(err, 'save'));
       await load();
       return false;
     } finally {
@@ -192,7 +193,7 @@ export function useSheetCrud(
       }
       return false;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erreur suppression');
+      toast.error(userFacingErrorText(err, 'delete'));
       return false;
     } finally {
       setIsWriting(false);
