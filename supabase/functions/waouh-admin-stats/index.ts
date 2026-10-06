@@ -481,57 +481,94 @@ serve(async (req) => {
       }
 
       if (action === "signal_contacts_sync_waha") {
+        const all = fabricIds
+          .flatMap((fabricId) => contactMap[fabricId] || [])
+          .filter((contact) => !!contact.normalized_e164);
+        const uniqueAll = Array.from(
+          new Map(all.map((contact) => [contact.normalized_e164!, contact])).values(),
+        ).slice(0, 300);
+
+        let persisted = 0;
+        const persistedIds = new Map<string, string>();
+        for (const contact of uniqueAll) {
+          if (!contact.entity_id || !contact.normalized_e164) continue;
+          try {
+            const valueHash = await hashPhone(contact.normalized_e164);
+            const channel = contact.channel === "whatsapp" ? "whatsapp" : "phone";
+            const { data: existing } = await sb.from("waouh_entity_contacts")
+              .select("id")
+              .eq("entity_id", contact.entity_id)
+              .eq("channel", channel)
+              .eq("value_hash", valueHash)
+              .limit(1)
+              .maybeSingle();
+
+            let contactId = existing?.id as string | undefined;
+            if (!contactId) {
+              const valueEncrypted = await encryptPhone(contact.normalized_e164);
+              const { data: inserted, error: insertError } = await sb.from("waouh_entity_contacts").insert({
+                entity_id: contact.entity_id,
+                channel,
+                value_encrypted: valueEncrypted,
+                value_hash: valueHash,
+                value_last4: contact.value_last4 || phoneLast4(contact.normalized_e164),
+                public_value: null,
+                source_key: contact.source_key,
+                is_public_business: contact.is_public_business,
+                consent_state: contact.consent_state,
+                contactability_level: contact.contactability_level,
+                verification_status: "observed",
+                updated_at: new Date().toISOString(),
+              }).select("id").single();
+              if (insertError) throw insertError;
+              contactId = inserted?.id;
+              if (contactId) persisted++;
+            } else {
+              await sb.from("waouh_entity_contacts").update({
+                source_key: contact.source_key,
+                is_public_business: contact.is_public_business,
+                consent_state: contact.consent_state,
+                contactability_level: contact.contactability_level,
+                updated_at: new Date().toISOString(),
+              }).eq("id", contactId);
+            }
+            if (contactId) persistedIds.set(contact.normalized_e164, contactId);
+          } catch (storeError) {
+            console.warn("[waouh-admin-stats] contact graph persist:", storeError);
+          }
+        }
+
         const waha = await adminWahaHealth();
         if (!waha.ready) {
-          return new Response(JSON.stringify({ ok: false, error: "waha_not_ready", waha }), {
-            status: 409,
+          await auditContactCenter(sb, user.id, "normalize_contacts_waha_offline", {
+            fabric_count: fabricIds.length,
+            normalized: uniqueAll.length,
+            persisted,
+            waha_status: waha.status,
+          });
+          return new Response(JSON.stringify({
+            ok: true,
+            normalized: uniqueAll.length,
+            persisted,
+            checked: 0,
+            reachable: 0,
+            unreachable: 0,
+            waha,
+            warning: "waha_not_ready",
+            results: [],
+          }), {
+            status: 200,
             headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
           });
         }
-        const all = fabricIds.flatMap((fabricId) => contactMap[fabricId] || []).filter((contact) => !!contact.normalized_e164);
-        const unique = Array.from(new Map(all.map((contact) => [contact.normalized_e164!, contact])).values()).slice(0, 80);
+
+        const unique = uniqueAll.slice(0, 80);
         const checks: any[] = [];
         for (let index = 0; index < unique.length; index += 6) {
           const batch = unique.slice(index, index + 6);
           checks.push(...await Promise.all(batch.map(async (contact) => {
-            let contactId = contact.id as string | null;
-            if (!contactId && contact.entity_id && contact.normalized_e164) {
-              try {
-                const valueHash = await hashPhone(contact.normalized_e164);
-                const { data: existing } = await sb.from("waouh_entity_contacts")
-                  .select("id")
-                  .eq("entity_id", contact.entity_id)
-                  .eq("channel", contact.channel === "whatsapp" ? "whatsapp" : "phone")
-                  .eq("value_hash", valueHash)
-                  .limit(1)
-                  .maybeSingle();
-                if (existing?.id) {
-                  contactId = existing.id;
-                } else {
-                  const valueEncrypted = await encryptPhone(contact.normalized_e164);
-                  const { data: inserted, error: insertError } = await sb.from("waouh_entity_contacts").insert({
-                    entity_id: contact.entity_id,
-                    channel: contact.channel === "whatsapp" ? "whatsapp" : "phone",
-                    value_encrypted: valueEncrypted,
-                    value_hash: valueHash,
-                    value_last4: contact.value_last4 || phoneLast4(contact.normalized_e164),
-                    public_value: null,
-                    source_key: contact.source_key,
-                    is_public_business: contact.is_public_business,
-                    consent_state: contact.consent_state,
-                    contactability_level: contact.contactability_level,
-                    verification_status: "observed",
-                    updated_at: new Date().toISOString(),
-                  }).select("id").single();
-                  if (insertError) throw insertError;
-                  contactId = inserted?.id || null;
-                }
-              } catch (storeError) {
-                console.warn("[waouh-admin-stats] contact graph persist:", storeError);
-              }
-            }
-
             const state = await adminWahaCheck(contact.normalized_e164!);
+            const contactId = (contact.id as string | null) || persistedIds.get(contact.normalized_e164!) || null;
             if (contactId) {
               await sb.from("waouh_entity_contacts").update({
                 is_whatsapp_reachable: state.reachable,
@@ -551,15 +588,20 @@ serve(async (req) => {
         }
         await auditContactCenter(sb, user.id, "sync_whatsapp_contacts", {
           fabric_count: fabricIds.length,
+          normalized: uniqueAll.length,
+          persisted,
           checked: checks.length,
           reachable: checks.filter((row) => row.reachable === true).length,
         });
         return new Response(JSON.stringify({
           ok: true,
+          normalized: uniqueAll.length,
+          persisted,
           checked: checks.length,
           reachable: checks.filter((row) => row.reachable === true).length,
           unreachable: checks.filter((row) => row.reachable === false).length,
-          truncated: unique.length < all.length,
+          truncated: unique.length < uniqueAll.length,
+          waha,
           results: checks,
         }), { headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" } });
       }
