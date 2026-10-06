@@ -306,7 +306,7 @@ export default function WaouhContactHubPanel() {
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={syncWaha} disabled={syncing}>
                 {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                Synchroniser WAHA
+                Synchroniser contacts + WAHA
               </Button>
               <Button onClick={() => load(0)} disabled={loading}>
                 {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
