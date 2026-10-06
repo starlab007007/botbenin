@@ -76,6 +76,7 @@ interface HubPage {
   offset: number;
   limit: number;
   source_rows: number;
+  total_rows?: number;
   has_more: boolean;
 }
 
@@ -110,6 +111,7 @@ export default function WaouhContactHubPanel() {
   const [page, setPage] = useState<HubPage>({ offset: 0, limit: 100, source_rows: 0, has_more: false });
   const [q, setQ] = useState("");
   const [source, setSource] = useState("");
+  const [allSources, setAllSources] = useState<Array<{ source_key: string; label: string }>>([]);
   const [whatsappOnly, setWhatsappOnly] = useState(false);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -118,10 +120,12 @@ export default function WaouhContactHubPanel() {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
 
-  const sourceOptions = useMemo(
-    () => [...new Set(rows.map((r) => r.source_key).filter(Boolean))].sort(),
-    [rows],
-  );
+  const sourceOptions = useMemo(() => {
+    if (allSources.length) return allSources;
+    return [...new Set(rows.map((r) => r.source_key).filter(Boolean))]
+      .sort()
+      .map((source_key) => ({ source_key, label: source_key }));
+  }, [allSources, rows]);
 
   const load = async (requestedOffset: number = page.offset) => {
     setLoading(true);
@@ -145,6 +149,7 @@ export default function WaouhContactHubPanel() {
         offset: Number(data?.page?.offset ?? requestedOffset),
         limit: Number(data?.page?.limit ?? 100),
         source_rows: Number(data?.page?.source_rows ?? 0),
+        total_rows: data?.page?.total_rows == null ? undefined : Number(data.page.total_rows),
         has_more: data?.page?.has_more === true,
       });
     } catch (error: any) {
@@ -159,7 +164,23 @@ export default function WaouhContactHubPanel() {
   };
 
   useEffect(() => {
-    void load(0);
+    void (async () => {
+      const { data } = await supabase
+        .from("waouh_discovery_sources" as any)
+        .select("source_key,label")
+        .order("label");
+      if (data) {
+        setAllSources(
+          (data as any[])
+            .filter((row) => row?.source_key)
+            .map((row) => ({
+              source_key: String(row.source_key),
+              label: String(row.label || row.source_key),
+            })),
+        );
+      }
+      await load(0);
+    })();
     // Initialisation uniquement.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -168,7 +189,7 @@ export default function WaouhContactHubPanel() {
     setSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke("waouh-waha-sync-contacts", {
-        body: { backfill: true, maxSessions: 3, maxContactsPerSession: 1000 },
+        body: { backfill: true, maxSessions: 3, maxContactsPerSession: 3000 },
       });
       if (error) throw error;
       toast({
@@ -302,7 +323,11 @@ export default function WaouhContactHubPanel() {
               placeholder="Toutes les sources"
             />
             <datalist id="waouh-contact-source-options">
-              {sourceOptions.map((s) => <option key={s} value={s} />)}
+              {sourceOptions.map((s) => (
+                <option key={s.source_key} value={s.source_key}>
+                  {s.label}
+                </option>
+              ))}
             </datalist>
             <Button
               variant={whatsappOnly ? "default" : "outline"}
@@ -435,7 +460,7 @@ export default function WaouhContactHubPanel() {
 
           <div className="flex items-center justify-between gap-3">
             <div className="text-xs text-muted-foreground">
-              Lot {Math.floor(page.offset / page.limit) + 1} · {page.source_rows} signal(s) analysé(s) sur ce lot · {stats.contacts} contact(s) résolu(s)
+              Lot {Math.floor(page.offset / page.limit) + 1} · {page.source_rows} ligne(s) sur ce lot{page.total_rows != null ? ` · ${page.total_rows.toLocaleString("fr-FR")} au total` : ""} · {stats.contacts} contact(s) résolu(s)
             </div>
             <div className="flex gap-2">
               <Button

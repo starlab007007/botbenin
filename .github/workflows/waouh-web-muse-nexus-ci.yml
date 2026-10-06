@@ -146,6 +146,9 @@ jobs:
       - name: Check NEXUS Edge Function
         run: deno check supabase/functions/waouh-agentic-core/index.ts
 
+      - name: Check WAOUH Admin Contact Hub
+        run: deno check supabase/functions/waouh-admin-stats/index.ts
+
       - name: Check Opportunity OS worker
         run: deno check supabase/functions/waouh-opportunity-worker/index.ts
 
