@@ -13,9 +13,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useWaouhAI } from '@/hooks/useWaouhAI';
 import { Progress } from '@/components/ui/progress';
+import WaouhContactHubPanel from '@/components/admin/WaouhContactHubPanel';
 import {
   Loader2, Search, Sparkles, RefreshCw, CheckCircle2, XCircle, StopCircle, Clock,
-  MoreHorizontal, Eye, Pencil, Trash2, Power, PowerOff, ShieldCheck, MapPin, ImageIcon,
+  MoreHorizontal, Eye, Pencil, Trash2, Power, PowerOff, ShieldCheck, MapPin, ImageIcon, Phone,
   Download, FileSpreadsheet, Archive, ExternalLink, Network, RotateCcw
 } from 'lucide-react';
 
@@ -502,6 +503,7 @@ export default function AdminWaouhDataControlPage() {
       <Tabs defaultValue="search">
         <TabsList>
           <TabsTrigger value="search"><Search className="h-4 w-4 mr-1" />Signal Fabric</TabsTrigger>
+          <TabsTrigger value="contacts"><Phone className="h-4 w-4 mr-1" />Contacts WhatsApp</TabsTrigger>
           <TabsTrigger value="sources"><Network className="h-4 w-4 mr-1" />Sources</TabsTrigger>
           <TabsTrigger value="clean"><Sparkles className="h-4 w-4 mr-1" />Nettoyage IA</TabsTrigger>
           <TabsTrigger value="restore"><RefreshCw className="h-4 w-4 mr-1" />Restauration</TabsTrigger>
@@ -713,6 +715,10 @@ export default function AdminWaouhDataControlPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="contacts">
+          <WaouhContactHubPanel />
         </TabsContent>
 
         <TabsContent value="sources">
