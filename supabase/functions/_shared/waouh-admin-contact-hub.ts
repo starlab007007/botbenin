@@ -215,7 +215,7 @@ function addCandidate(target: Map<string, ContactCandidate>, candidate: Partial<
   });
 }
 
-async function enrichFabricRows(service: any, rows: AnyRow[]) {
+async function enrichFabricRows(service: any, rows: AnyRow[]): Promise<AnyRow[]> {
   if (!rows.length) return [];
 
   const externalIds = uniq(rows.map((r) => prefixedUuid(r.fabric_id, "external:")));
@@ -473,7 +473,7 @@ async function getFabricRow(service: any, fabricId: string) {
   return data;
 }
 
-async function getResolvedContact(service: any, fabricId: string, phone: string) {
+async function getResolvedContact(service: any, fabricId: string, phone: string): Promise<{ row: AnyRow | null; contact: ContactCandidate | null }> {
   const raw = await getFabricRow(service, fabricId);
   if (!raw) return { row: null, contact: null };
   const [row] = await enrichFabricRows(service, [raw]);
