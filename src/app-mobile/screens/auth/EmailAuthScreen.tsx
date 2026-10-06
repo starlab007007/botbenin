@@ -91,10 +91,11 @@ export default function EmailAuthScreen() {
     setGoogleLoading(true);
     Haptics.impact({ style: ImpactStyle.Medium }).catch(() => {});
     try {
+      const target = consumeRedirect();
       try {
-        sessionStorage.setItem("waouh_post_auth_redirect", consumeRedirect());
+        sessionStorage.setItem("waouh_post_auth_redirect", target);
       } catch {}
-      await loginWithGoogle(consumeRedirect());
+      await loginWithGoogle(target);
     } finally {
       setGoogleLoading(false);
     }
@@ -157,7 +158,7 @@ export default function EmailAuthScreen() {
   };
 
   const title = tab === "login" ? "Se connecter" : tab === "register" ? "Créer un compte" : "Mot de passe";
-  const cta = tab === "login" ? "Se connecter" : tab === "register" ? "Créer le compte" : "Envoyer le lien";
+  const cta = tab === "login" ? "Se connecter" : tab === "register" ? "Créer le compte" : "Demander un lien";
 
   return (
     <div className="fixed inset-0 flex flex-col bg-background">
