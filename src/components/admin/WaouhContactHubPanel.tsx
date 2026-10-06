@@ -110,6 +110,7 @@ export default function WaouhContactHubPanel() {
   const [page, setPage] = useState<HubPage>({ offset: 0, limit: 100, source_rows: 0, has_more: false });
   const [q, setQ] = useState("");
   const [source, setSource] = useState("");
+  const [allSources, setAllSources] = useState<Array<{ source_key: string; label: string }>>([]);
   const [whatsappOnly, setWhatsappOnly] = useState(false);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -118,10 +119,12 @@ export default function WaouhContactHubPanel() {
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
 
-  const sourceOptions = useMemo(
-    () => [...new Set(rows.map((r) => r.source_key).filter(Boolean))].sort(),
-    [rows],
-  );
+  const sourceOptions = useMemo(() => {
+    if (allSources.length) return allSources;
+    return [...new Set(rows.map((r) => r.source_key).filter(Boolean))]
+      .sort()
+      .map((source_key) => ({ source_key, label: source_key }));
+  }, [allSources, rows]);
 
   const load = async (requestedOffset: number = page.offset) => {
     setLoading(true);
@@ -159,7 +162,23 @@ export default function WaouhContactHubPanel() {
   };
 
   useEffect(() => {
-    void load(0);
+    void (async () => {
+      const { data } = await supabase
+        .from("waouh_discovery_sources" as any)
+        .select("source_key,label")
+        .order("label");
+      if (data) {
+        setAllSources(
+          (data as any[])
+            .filter((row) => row?.source_key)
+            .map((row) => ({
+              source_key: String(row.source_key),
+              label: String(row.label || row.source_key),
+            })),
+        );
+      }
+      await load(0);
+    })();
     // Initialisation uniquement.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -302,7 +321,11 @@ export default function WaouhContactHubPanel() {
               placeholder="Toutes les sources"
             />
             <datalist id="waouh-contact-source-options">
-              {sourceOptions.map((s) => <option key={s} value={s} />)}
+              {sourceOptions.map((s) => (
+                <option key={s.source_key} value={s.source_key}>
+                  {s.label}
+                </option>
+              ))}
             </datalist>
             <Button
               variant={whatsappOnly ? "default" : "outline"}
