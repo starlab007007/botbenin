@@ -19,6 +19,7 @@ import 'live_session.dart';
 import 'live_status_service.dart';
 import 'live_thread_flow.dart';
 
+import 'user_message.dart';
 final Random _waouhSecureRandom = Random.secure();
 
 String _waouhUuidV4() {
@@ -185,7 +186,7 @@ class LiveWaouhController extends ChangeNotifier {
   String? takeComposerSeed() {
     final value = _composerSeed;
     _composerSeed = null;
-    return value;
+    return waouhUserMessage(error);
   }
 
   Map<String, dynamic> takeComposerMeta() {
