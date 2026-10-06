@@ -16,7 +16,8 @@ import { Progress } from '@/components/ui/progress';
 import {
   Loader2, Search, Sparkles, RefreshCw, CheckCircle2, XCircle, StopCircle, Clock,
   MoreHorizontal, Eye, Pencil, Trash2, Power, PowerOff, ShieldCheck, MapPin, ImageIcon,
-  Download, FileSpreadsheet, Archive, ExternalLink, Network, RotateCcw
+  Download, FileSpreadsheet, Archive, ExternalLink, Network, RotateCcw,
+  Phone, MessageCircle, Send
 } from 'lucide-react';
 
 type CleanItemStatus = 'pending' | 'processing' | 'ok' | 'failed' | 'cancelled';
@@ -47,6 +48,32 @@ interface DiscoverySource {
   default_contactability: string;
   supports_buy: boolean;
   supports_sell: boolean;
+}
+
+interface AdminContact {
+  id?: string | null;
+  fabric_id: string;
+  source_key: string;
+  label?: string | null;
+  channel: string;
+  value: string;
+  normalized_e164?: string | null;
+  whatsapp_chat_id?: string | null;
+  value_last4?: string | null;
+  contactability_level: string;
+  consent_state: string;
+  is_public_business: boolean;
+  is_whatsapp_reachable: boolean | null;
+  can_notify_whatsapp: boolean;
+  notify_reason: string;
+  entity_id?: string | null;
+}
+
+interface ContactResolveRow {
+  fabric_id: string;
+  contacts: AdminContact[];
+  normalized_count: number;
+  notifyable_count: number;
 }
 
 interface FabricRow {
@@ -159,6 +186,12 @@ export default function AdminWaouhDataControlPage() {
   const [sourceStateFilter, setSourceStateFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
+  const [contactMap, setContactMap] = useState<Record<string, AdminContact[]>>({});
+  const [contactsLoading, setContactsLoading] = useState(false);
+  const [syncingWaha, setSyncingWaha] = useState(false);
+  const [notifying, setNotifying] = useState<FabricRow | null>(null);
+  const [notificationMessage, setNotificationMessage] = useState('');
+  const [sendingNotification, setSendingNotification] = useState(false);
 
   const [cleaning, setCleaning] = useState(false);
   const [cleanItems, setCleanItems] = useState<CleanItem[]>([]);
@@ -215,6 +248,79 @@ export default function AdminWaouhDataControlPage() {
     if (!error && data) setSources(data as any);
   };
 
+  const loadResolvedContacts = async (rows: FabricRow[]) => {
+    const ids = rows.map(r => r.fabric_id).filter(Boolean);
+    if (!ids.length) {
+      setContactMap({});
+      return;
+    }
+    setContactsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('waouh-admin-contact-center', {
+        body: { action: 'resolve', fabric_ids: ids },
+      });
+      if (error) throw error;
+      const next: Record<string, AdminContact[]> = {};
+      for (const row of ((data as any)?.rows || []) as ContactResolveRow[]) {
+        next[row.fabric_id] = Array.isArray(row.contacts) ? row.contacts : [];
+      }
+      setContactMap(next);
+    } catch (e: any) {
+      console.warn('[Signal Fabric contacts]', e);
+      toast({
+        title: 'Contacts centralisés indisponibles',
+        description: e?.message || String(e),
+        variant: 'destructive',
+      });
+    } finally {
+      setContactsLoading(false);
+    }
+  };
+
+  const contactsFor = (row: FabricRow) => contactMap[row.fabric_id] || [];
+
+  const openWhatsAppNotification = (row: FabricRow) => {
+    const contacts = contactsFor(row).filter(c => c.can_notify_whatsapp && c.normalized_e164);
+    if (!contacts.length) {
+      toast({
+        title: 'Aucun contact WhatsApp autorisé',
+        description: 'Le numéro peut être visible pour contrôle admin, mais l’envoi est bloqué tant que le canal ou le consentement n’est pas exploitable.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setNotifying(row);
+    setNotificationMessage(`Bonjour, WAOUH vous informe au sujet de : ${row.subject || 'une opportunité commerciale'}.`);
+  };
+
+  const sendWhatsAppNotification = async () => {
+    if (!notifying) return;
+    const message = notificationMessage.trim();
+    if (message.length < 2) return;
+    setSendingNotification(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('waouh-admin-contact-center', {
+        body: {
+          action: 'notify',
+          fabric_id: notifying.fabric_id,
+          message,
+        },
+      });
+      if (error) throw error;
+      toast({
+        title: '✅ Notification WhatsApp mise en file',
+        description: `${data?.queued ?? 0} destinataire(s) · ${data?.skipped ?? 0} ignoré(s). WAHA prend en charge la livraison.`,
+      });
+      setNotifying(null);
+      setNotificationMessage('');
+      await loadResolvedContacts(results);
+    } catch (e: any) {
+      toast({ title: 'Erreur notification WhatsApp', description: e?.message || String(e), variant: 'destructive' });
+    } finally {
+      setSendingNotification(false);
+    }
+  };
+
   const search = async () => {
     setSearching(true);
     const { data, error } = await supabase.rpc('waouh_admin_signal_fabric_search' as any, {
@@ -233,7 +339,9 @@ export default function AdminWaouhDataControlPage() {
       toast({ title: 'Erreur Signal Fabric', description: error.message, variant: 'destructive' });
       return;
     }
-    setResults(((data as any) || []) as FabricRow[]);
+    const nextRows = (((data as any) || []) as FabricRow[]);
+    setResults(nextRows);
+    await loadResolvedContacts(nextRows);
   };
 
   const resetFilters = () => {
@@ -352,6 +460,10 @@ export default function AdminWaouhDataControlPage() {
       devise: r.currency,
       contactabilite: r.contactability_level,
       contact_disponible: r.has_contact,
+      contacts_complets: contactsFor(r).map(c => c.value).join(' | '),
+      whatsapp_normalise: contactsFor(r).filter(c => c.normalized_e164).map(c => c.normalized_e164).join(' | '),
+      whatsapp_joignable: contactsFor(r).filter(c => c.is_whatsapp_reachable === true).map(c => c.normalized_e164).join(' | '),
+      notification_whatsapp_autorisee: contactsFor(r).some(c => c.can_notify_whatsapp),
       qualite: r.quality_tier,
       completude: r.completeness,
       confiance: r.trust_score,
@@ -379,17 +491,31 @@ export default function AdminWaouhDataControlPage() {
   };
 
   const syncWaha = async () => {
+    if (!results.length) {
+      toast({ title: 'Aucun résultat à vérifier', description: 'Lancez d’abord une recherche Signal Fabric.' });
+      return;
+    }
+    setSyncingWaha(true);
     try {
-      toast({ title: 'Synchronisation WAHA en cours…' });
-      const { data, error } = await supabase.functions.invoke('waouh-waha-sync-contacts', { body: { backfill: true } });
-      if (error) throw error;
+      toast({ title: 'Normalisation + vérification WAHA en cours…' });
+      const [legacy, normalized] = await Promise.all([
+        supabase.functions.invoke('waouh-waha-sync-contacts', { body: { backfill: true } }),
+        supabase.functions.invoke('waouh-admin-contact-center', {
+          body: { action: 'sync', fabric_ids: results.map(r => r.fabric_id) },
+        }),
+      ]);
+      if (legacy.error) throw legacy.error;
+      if (normalized.error) throw normalized.error;
       toast({
-        title: data?.warning ? '⚠️ Synchronisation terminée avec avertissement' : '✅ Synchro WAHA terminée',
-        description: data?.warning || `${data?.mapped ?? 0} contacts mappés · ${data?.backfilled ?? 0} annonces mises à jour`,
+        title: '✅ Contacts WhatsApp synchronisés',
+        description: `${normalized.data?.checked ?? 0} vérifiés · ${normalized.data?.reachable ?? 0} joignables WAHA · ${legacy.data?.mapped ?? 0} mappings WAHA actualisés`,
       });
-      await refreshAll();
+      await loadResolvedContacts(results);
+      await Promise.all([loadStats(), loadSources()]);
     } catch (e: any) {
       toast({ title: 'Erreur synchro WAHA', description: e?.message || String(e), variant: 'destructive' });
+    } finally {
+      setSyncingWaha(false);
     }
   };
 
