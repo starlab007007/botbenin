@@ -189,7 +189,7 @@ export default function WaouhContactHubPanel() {
     setSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke("waouh-waha-sync-contacts", {
-        body: { backfill: true, maxSessions: 3, maxContactsPerSession: 1000 },
+        body: { backfill: true, maxSessions: 3, maxContactsPerSession: 3000 },
       });
       if (error) throw error;
       toast({
