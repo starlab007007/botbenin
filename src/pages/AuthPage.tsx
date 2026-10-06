@@ -108,7 +108,7 @@ const AuthPage: React.FC = () => {
       try {
         sessionStorage.setItem("waouh_post_auth_redirect", redirectTo);
       } catch {}
-      await loginWithGoogle();
+      await loginWithGoogle(redirectTo);
     } finally {
       setLoading(false);
     }
