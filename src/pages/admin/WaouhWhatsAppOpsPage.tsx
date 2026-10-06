@@ -38,6 +38,12 @@ export default function WaouhWhatsAppOpsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [cfg, setCfg] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
+  const [centralWaha, setCentralWaha] = useState<any>(null);
+  const [centralWahaBusy, setCentralWahaBusy] = useState(false);
+  const [centralQr, setCentralQr] = useState<string | null>(null);
+  const [pairPhone, setPairPhone] = useState('');
+  const [pairCode, setPairCode] = useState<string | null>(null);
+  const CENTRAL_WAHA_SESSION = 'WaouhApp';
 
   // Replay state
   const [replayInput, setReplayInput] = useState("");
@@ -69,7 +75,86 @@ export default function WaouhWhatsAppOpsPage() {
     setHistory((data as any) || []);
   };
 
-  useEffect(() => { loadQueue(); loadConfig(); loadHistory(); }, []);
+  const loadCentralWaha = async () => {
+    setCentralWahaBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('waha-connect', {
+        body: { action: 'status', sessionName: CENTRAL_WAHA_SESSION },
+      });
+      if (error) throw error;
+      setCentralWaha(data || null);
+    } catch (e: any) {
+      setCentralWaha({ session: CENTRAL_WAHA_SESSION, status: 'failed', error: e?.message || String(e) });
+    } finally {
+      setCentralWahaBusy(false);
+    }
+  };
+
+  const startCentralWaha = async () => {
+    setCentralWahaBusy(true);
+    setCentralQr(null);
+    setPairCode(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('waha-connect', {
+        body: { action: 'start', sessionName: CENTRAL_WAHA_SESSION },
+      });
+      if (error) throw error;
+      setCentralWaha(data || null);
+      if (data?.qr_base64) setCentralQr(String(data.qr_base64));
+      toast({
+        title: data?.qr_base64 ? 'QR WAHA disponible' : 'Session WAHA démarrée',
+        description: data?.qr_base64 ? 'Scannez le QR avec le WhatsApp du compte WAOUH.' : 'Actualisez le statut dans quelques secondes.',
+      });
+    } catch (e: any) {
+      toast({ title: 'Démarrage WAHA impossible', description: e?.message || String(e), variant: 'destructive' });
+    } finally {
+      setCentralWahaBusy(false);
+    }
+  };
+
+  const restartCentralWaha = async () => {
+    setCentralWahaBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('waha-connect', {
+        body: { action: 'restart', sessionName: CENTRAL_WAHA_SESSION },
+      });
+      if (error) throw error;
+      setCentralWaha(data || null);
+      toast({ title: 'Redémarrage WAHA demandé' });
+      setTimeout(() => { loadCentralWaha(); }, 1500);
+    } catch (e: any) {
+      toast({ title: 'Redémarrage WAHA impossible', description: e?.message || String(e), variant: 'destructive' });
+      setCentralWahaBusy(false);
+    }
+  };
+
+  const requestCentralPairCode = async () => {
+    if (!pairPhone.trim()) {
+      toast({ title: 'Numéro requis', description: 'Saisissez le numéro WhatsApp en format international.', variant: 'destructive' });
+      return;
+    }
+    setCentralWahaBusy(true);
+    setPairCode(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('waha-connect', {
+        body: {
+          action: 'pair-code',
+          sessionName: CENTRAL_WAHA_SESSION,
+          phoneNumber: pairPhone.trim(),
+        },
+      });
+      if (error) throw error;
+      setPairCode(data?.code || null);
+      setCentralWaha(data || null);
+      toast({ title: data?.code ? 'Code de liaison généré' : 'Demande envoyée' });
+    } catch (e: any) {
+      toast({ title: 'Code de liaison impossible', description: e?.message || String(e), variant: 'destructive' });
+    } finally {
+      setCentralWahaBusy(false);
+    }
+  };
+
+  useEffect(() => { loadQueue(); loadConfig(); loadHistory(); loadCentralWaha(); }, []);
   useEffect(() => { loadQueue(); }, [statusFilter]);
   useEffect(() => {
     const t = setInterval(() => { loadQueue(); }, 10000);
@@ -155,6 +240,61 @@ export default function WaouhWhatsAppOpsPage() {
         <h1 className="text-2xl font-bold">WhatsApp Ops · WAOUH</h1>
         <p className="text-sm text-muted-foreground">Monitoring queue WAHA, replay manuel, tests E2E et alertes.</p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex flex-wrap items-center justify-between gap-2">
+            <span>Session WAHA centrale · {CENTRAL_WAHA_SESSION}</span>
+            <Badge variant={centralWaha?.status === 'connected' ? 'default' : 'destructive'}>
+              {centralWahaBusy ? 'Vérification…' : centralWaha?.status === 'connected' ? 'Connectée' : centralWaha?.status === 'pending' ? 'QR / liaison requise' : 'Non connectée'}
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={loadCentralWaha} disabled={centralWahaBusy}>
+              {centralWahaBusy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Actualiser
+            </Button>
+            <Button onClick={startCentralWaha} disabled={centralWahaBusy}>
+              <Play className="h-4 w-4 mr-2" />Démarrer / afficher QR
+            </Button>
+            <Button variant="secondary" onClick={restartCentralWaha} disabled={centralWahaBusy}>
+              <RefreshCw className="h-4 w-4 mr-2" />Redémarrer
+            </Button>
+          </div>
+
+          <div className="grid md:grid-cols-[1fr_auto] gap-2 items-end">
+            <div>
+              <Label>Numéro du compte WhatsApp à lier</Label>
+              <Input value={pairPhone} onChange={e => setPairPhone(e.target.value)} placeholder="22901XXXXXXXX" />
+            </div>
+            <Button variant="outline" onClick={requestCentralPairCode} disabled={centralWahaBusy || !pairPhone.trim()}>
+              Générer un code de liaison
+            </Button>
+          </div>
+
+          {pairCode && (
+            <div className="rounded-lg border bg-muted p-4 text-center">
+              <div className="text-xs text-muted-foreground">Code de liaison</div>
+              <div className="text-3xl font-mono font-bold tracking-widest mt-1">{pairCode}</div>
+            </div>
+          )}
+
+          {centralQr && (
+            <div className="rounded-lg border p-4 flex flex-col items-center gap-2">
+              <div className="text-sm font-medium">Scannez ce QR avec WhatsApp</div>
+              <img
+                src={centralQr.startsWith('data:') ? centralQr : `data:image/png;base64,${centralQr}`}
+                alt="QR WAHA"
+                className="w-64 h-64 object-contain bg-white p-2 rounded"
+              />
+            </div>
+          )}
+
+          {centralWaha?.error && <div className="text-sm text-destructive">{centralWaha.error}</div>}
+        </CardContent>
+      </Card>
 
       <Tabs defaultValue="queue">
         <TabsList>
