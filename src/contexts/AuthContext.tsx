@@ -43,7 +43,7 @@ interface AuthContextType {
   disableGuestMode: () => void;
   login: (email: string, password: string) => Promise<boolean>;
   loginWithPhone: (phone: string, password: string) => Promise<boolean>;
-  loginWithGoogle: () => Promise<boolean>;
+  loginWithGoogle: (returnTo?: string) => Promise<boolean>;
   register: (userData: {
     name: string;
     email: string;
@@ -279,10 +279,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return login(phone, password);
   };
 
-  const loginWithGoogle = async (): Promise<boolean> => {
+  const loginWithGoogle = async (returnTo?: string): Promise<boolean> => {
     try {
       const isMobileFlow = window.location.pathname.startsWith("/app/");
-      const callbackPath = isMobileFlow ? "/app/auth/email?tab=login" : "/auth";
+      const callbackBase = isMobileFlow ? "/app/auth/email?tab=login" : "/auth";
+      const separator = callbackBase.includes("?") ? "&" : "?";
+      const callbackPath = returnTo
+        ? `${callbackBase}${separator}next=${encodeURIComponent(returnTo)}`
+        : callbackBase;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -518,8 +522,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       toast({
-        title: "Email envoyé",
-        description: "Un lien de réinitialisation a été envoyé à votre adresse email.",
+        title: "Demande prise en compte",
+        description: "Si un compte correspond à cet email, vous recevrez un lien de réinitialisation.",
       });
       setIsLoading(false);
       return true;
