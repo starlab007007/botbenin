@@ -109,11 +109,16 @@ export function readWaouhSmartEnvelope(value: unknown): WaouhSmartEnvelope | nul
   if (text(raw.schema) !== "waouh.smart.v1") return legacyFallback(payload);
 
   const route = safeWaouhRoute(raw.route ?? payload.target_route);
-  const actions = (Array.isArray(raw.actions) ? raw.actions : payload.actions)
-    ?.map((item: unknown) => normalizeAction(item, route))
-    .filter(Boolean)
-    .sort((a: WaouhSmartAction, b: WaouhSmartAction) => (a.priority ?? 99) - (b.priority ?? 99))
-    .slice(0, 5) ?? [];
+  const actionSource: unknown[] = Array.isArray(raw.actions)
+    ? raw.actions
+    : Array.isArray(payload.actions)
+      ? payload.actions
+      : [];
+  const actions = actionSource
+    .map((item: unknown) => normalizeAction(item, route))
+    .filter((action): action is WaouhSmartAction => action != null)
+    .sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99))
+    .slice(0, 5);
 
   return {
     schema: text(raw.schema) || "waouh.smart.v1",
