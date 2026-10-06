@@ -46,6 +46,8 @@ on:
       - "supabase/functions/_shared/waouh-runtime-auth.ts"
       - "supabase/functions/_shared/agent-ai.ts"
       - "supabase/functions/_shared/waouh-price.ts"
+      - "supabase/functions/_shared/waouh-admin-contact-hub.ts"
+      - "supabase/functions/waouh-admin-stats/**"
       - "supabase/functions/waouh-notify-buyers/**"
       - "supabase/functions/waouh-geocode/**"
       - "supabase/functions/waouh-radar-apify/**"
@@ -59,7 +61,6 @@ on:
       - "supabase/functions/waouh-stock-analyze/**"
       - "supabase/functions/waouh-bi-query/**"
       - "supabase/functions/waouh-agent-insights/**"
-      - "supabase/functions/waouh-admin-contact-hub/**"
       - "supabase/functions/waouh-opportunity-worker/**"
       - "supabase/functions/waouh-agentic-core/**"
       - "supabase/functions/waouh-outbound-dispatch/**"
@@ -324,13 +325,22 @@ jobs:
             waouh-stock-analyze
             waouh-bi-query
             waouh-agent-insights
-            waouh-admin-contact-hub
           )
           for fn in "${functions[@]}"; do
             echo "🚀 Deploying $fn"
             supabase functions deploy "$fn"               --project-ref "$SUPABASE_PROJECT_REF"               --use-api               --no-verify-jwt
           done
           echo "✅ Existing WAOUH Chat function slots updated."
+
+      - name: Deploy WAOUH admin backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "🔐 Deploying waouh-admin-stats (JWT verified)..."
+          supabase functions deploy waouh-admin-stats \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --use-api
+          echo "✅ WAOUH admin backend deployed with JWT verification."
 
       - name: Deploy Opportunity OS in existing production slots
         shell: bash
