@@ -1,7 +1,3 @@
--- WAOUH admin list hot-path optimization — 2026-10-05.
--- Preserve existing access semantics while evaluating role/session predicates
--- once per statement and supporting "latest first" admin screens with indexes.
-
 CREATE INDEX IF NOT EXISTS idx_waouh_articles_created_at_desc
   ON public.waouh_articles(created_at DESC);
 
