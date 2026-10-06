@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, BrainCircuit, FlaskConical, Globe2, LockKeyhole, Sparkles, Workflow } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -13,8 +13,12 @@ import { buildWaouhAuthRedirect } from "@/lib/waouhAccessPolicy";
 
 export default function WaouhNexusPage() {
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
   const { user } = useAuth();
-  const [tab, setTab] = useState("discover");
+  const requestedTab = params.get("tab");
+  const [tab, setTab] = useState(
+    requestedTab === "lab" || requestedTab === "missions" ? requestedTab : "discover",
+  );
 
   const changeTab = (next: string) => {
     if (!user && next !== "discover") {
@@ -23,6 +27,10 @@ export default function WaouhNexusPage() {
       return;
     }
     setTab(next);
+    const updated = new URLSearchParams(params);
+    if (next === "discover") updated.delete("tab");
+    else updated.set("tab", next);
+    setParams(updated, { replace: true });
   };
 
   return (
