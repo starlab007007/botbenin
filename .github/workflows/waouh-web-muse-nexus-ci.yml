@@ -9,6 +9,14 @@ on:
       - "src/pages/waouh/**"
       - "src/components/waouh/**"
       - "src/lib/waouh/**"
+      - "src/lib/waouhAccessPolicy.ts"
+      - "src/lib/userFacingError.ts"
+      - "src/contexts/AuthContext.tsx"
+      - "src/pages/AuthPage.tsx"
+      - "src/components/auth/**"
+      - "src/app-mobile/screens/auth/**"
+      - "src/app-mobile/guards/**"
+      - "src/app-mobile/hooks/useMobileAuth.ts"
       - "src/App.tsx"
       - "src/app-mobile/screens/ChatListScreen.tsx"
       - "src/app-mobile/screens/WaouhChatScreen.tsx"
@@ -112,6 +120,12 @@ jobs:
 
       - name: Verify Flutter/Web route and navigation parity
         run: node scripts/verify-waouh-web-parity.mjs
+
+      - name: WAOUH access and user-message contract tests
+        run: |
+          npm exec --yes --package=vitest@2.1.9 --package=jsdom@25.0.1 -- vitest run \
+            src/lib/waouh/__tests__/access-policy.test.ts \
+            src/lib/waouh/__tests__/user-facing-error.test.ts
 
       - name: Deno
         uses: denoland/setup-deno@v2
