@@ -1164,14 +1164,14 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<void> _guard(
-    Future<void> Function() action, {
+    Future<void> Function() operation, {
     String action = 'generic',
   }) async {
     loading = true;
     error = null;
     notifyListeners();
     try {
-      await action();
+      await operation();
       _session = supabase.auth.currentSession;
       await _loadProfile();
     } catch (e, stackTrace) {
