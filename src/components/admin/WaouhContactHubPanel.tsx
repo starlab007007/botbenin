@@ -72,6 +72,13 @@ interface HubStats {
   sendable: number;
 }
 
+interface HubPage {
+  offset: number;
+  limit: number;
+  source_rows: number;
+  has_more: boolean;
+}
+
 const EMPTY_STATS: HubStats = { rows: 0, contacts: 0, whatsapp: 0, reachable: 0, sendable: 0 };
 
 function levelClass(level?: string) {
@@ -100,6 +107,7 @@ export default function WaouhContactHubPanel() {
   const { toast } = useToast();
   const [rows, setRows] = useState<HubRow[]>([]);
   const [stats, setStats] = useState<HubStats>(EMPTY_STATS);
+  const [page, setPage] = useState<HubPage>({ offset: 0, limit: 100, source_rows: 0, has_more: false });
   const [q, setQ] = useState("");
   const [source, setSource] = useState("");
   const [whatsappOnly, setWhatsappOnly] = useState(false);
@@ -115,7 +123,7 @@ export default function WaouhContactHubPanel() {
     [rows],
   );
 
-  const load = async () => {
+  const load = async (requestedOffset: number = page.offset) => {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("waouh-admin-stats", {
@@ -125,13 +133,20 @@ export default function WaouhContactHubPanel() {
           source: source || null,
           contacts_only: true,
           whatsapp_only: whatsappOnly,
-          limit: 250,
+          limit: 100,
+          offset: requestedOffset,
         },
       });
       if (error) throw error;
       if (!data?.ok) throw new Error(data?.error || "Contact Hub indisponible");
       setRows((data.rows || []) as HubRow[]);
       setStats({ ...EMPTY_STATS, ...(data.stats || {}) });
+      setPage({
+        offset: Number(data?.page?.offset ?? requestedOffset),
+        limit: Number(data?.page?.limit ?? 100),
+        source_rows: Number(data?.page?.source_rows ?? 0),
+        has_more: data?.page?.has_more === true,
+      });
     } catch (error: any) {
       toast({
         title: "Contact Hub indisponible",
@@ -144,7 +159,7 @@ export default function WaouhContactHubPanel() {
   };
 
   useEffect(() => {
-    void load();
+    void load(0);
     // Initialisation uniquement.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -160,7 +175,7 @@ export default function WaouhContactHubPanel() {
         title: data?.warning ? "Synchronisation WAHA terminée avec avertissement" : "Synchronisation WAHA terminée",
         description: data?.warning || `${data?.mapped ?? 0} contacts mappés · ${data?.backfilled ?? 0} lignes enrichies`,
       });
-      await load();
+      await load(page.offset);
     } catch (error: any) {
       toast({ title: "Échec synchronisation WAHA", description: error?.message || String(error), variant: "destructive" });
     } finally {
@@ -185,7 +200,7 @@ export default function WaouhContactHubPanel() {
           : data.normalized || phone,
         variant: data.exists ? "default" : "destructive",
       });
-      await load();
+      await load(page.offset);
     } catch (error: any) {
       toast({ title: "Vérification WAHA échouée", description: error?.message || String(error), variant: "destructive" });
     } finally {
@@ -220,7 +235,7 @@ export default function WaouhContactHubPanel() {
       });
       setSelected(null);
       setMessage("");
-      await load();
+      await load(page.offset);
     } catch (error: any) {
       toast({ title: "Envoi WhatsApp échoué", description: error?.message || String(error), variant: "destructive" });
     } finally {
@@ -257,7 +272,7 @@ export default function WaouhContactHubPanel() {
                 {syncing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                 Synchroniser WAHA
               </Button>
-              <Button onClick={load} disabled={loading}>
+              <Button onClick={() => load(0)} disabled={loading}>
                 {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
                 Rechercher
               </Button>
@@ -277,7 +292,7 @@ export default function WaouhContactHubPanel() {
             <Input
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") void load(); }}
+              onKeyDown={(e) => { if (e.key === "Enter") void load(0); }}
               placeholder="Nom, produit, ville, numéro, source…"
             />
             <Input
@@ -416,6 +431,30 @@ export default function WaouhContactHubPanel() {
                 )}
               </TableBody>
             </Table>
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-xs text-muted-foreground">
+              Lot {Math.floor(page.offset / page.limit) + 1} · {page.source_rows} signal(s) analysé(s) sur ce lot · {stats.contacts} contact(s) résolu(s)
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={loading || page.offset === 0}
+                onClick={() => load(Math.max(0, page.offset - page.limit))}
+              >
+                Précédent
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={loading || !page.has_more}
+                onClick={() => load(page.offset + page.limit)}
+              >
+                Suivant
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
