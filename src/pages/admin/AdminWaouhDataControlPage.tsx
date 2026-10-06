@@ -850,9 +850,9 @@ export default function AdminWaouhDataControlPage() {
                                   <Send className="h-4 w-4 mr-2" />Notifier sur WhatsApp
                                 </DropdownMenuItem>
                               )}
-                              {contactsFor(r).some(c => c.normalized_e164) && (
+                              {contactsFor(r).some(c => c.can_notify_whatsapp && c.normalized_e164) && (
                                 <DropdownMenuItem onClick={() => {
-                                  const phone = contactsFor(r).find(c => c.normalized_e164)?.normalized_e164;
+                                  const phone = contactsFor(r).find(c => c.can_notify_whatsapp && c.normalized_e164)?.normalized_e164;
                                   if (phone) window.open(`https://wa.me/${phone.replace(/\D/g, '')}`, '_blank', 'noopener,noreferrer');
                                 }}>
                                   <MessageCircle className="h-4 w-4 mr-2" />Ouvrir WhatsApp
