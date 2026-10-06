@@ -9,6 +9,7 @@ export const WAOUH_PUBLIC_APP_PATHS = [
   "/app/avatar",
   "/app/nexus",
   "/app/radar-map",
+  "/app/presence/checkin",
   "/app/apresbac",
   "/app/fa-ia",
 ] as const;
@@ -64,7 +65,7 @@ export function buildWaouhAuthRedirect(
 }
 
 export function requiresWaouhAuthentication(pathname: string): boolean {
-  if (pathname === "/app/chat") return false;
+  if (pathname === "/app/chat" || pathname === "/app/presence/checkin") return false;
   return WAOUH_AUTH_REQUIRED_PREFIXES.some((prefix) =>
     prefix.endsWith("/") ? pathname.startsWith(prefix) : pathname === prefix || pathname.startsWith(`${prefix}/`)
   );
