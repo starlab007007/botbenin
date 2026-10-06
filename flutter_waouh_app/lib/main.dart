@@ -13,6 +13,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import 'live/ui/waouh_adaptive_scale.dart';
+import 'live/live_session.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<void> main() async {
@@ -1174,24 +1175,20 @@ class AuthController extends ChangeNotifier {
 }
 
 class WaouhChatController extends ChangeNotifier {
-  WaouhChatController(this.auth) {
-    sessionId = _makeSessionId();
-  }
+  WaouhChatController(this.auth);
 
   final AuthController auth;
-  late final String sessionId;
+  final LiveSessionStore _sessionStore = LiveSessionStore();
   final List<WaouhMessage> optimisticMessages = [];
   String? _waouhUserId;
 
-  String _makeSessionId() {
-    final rnd = Random().nextInt(0xFFFFFF).toRadixString(16);
-    return 'flutter_${DateTime.now().millisecondsSinceEpoch}_$rnd';
-  }
+  Future<String> _sessionId() => _sessionStore.sessionId;
 
   Future<String?> resolveWaouhUserId() async {
     if (_waouhUserId != null) return _waouhUserId;
     final uid = auth.user?.id;
     if (uid == null) return null;
+    final sessionId = await _sessionId();
     try {
       final rows = await supabase
           .from('waouh_users')
@@ -1205,14 +1202,12 @@ class WaouhChatController extends ChangeNotifier {
           orElse: () => list.first,
         );
         _waouhUserId = asString(linked['id']);
-        if (linked['auth_user_id'] == null) {
-          await supabase
-              .from('waouh_users')
-              .update({'auth_user_id': uid})
-              .eq('id', _waouhUserId!);
-        }
+        // Do not mutate an anonymous identity directly from Flutter. The
+        // canonical secure writer links this persistent session to auth.uid()
+        // server-side on the next message.
         return _waouhUserId;
       }
+
       final created = await supabase
           .from('waouh_users')
           .insert({
@@ -1233,6 +1228,7 @@ class WaouhChatController extends ChangeNotifier {
 
   Future<List<String>> resolveWaouhUserIds() async {
     final uid = auth.user?.id;
+    final sessionId = await _sessionId();
     final clauses = <String>[];
     if (uid != null) clauses.add('auth_user_id.eq.$uid');
     if (sessionId.isNotEmpty) clauses.add('web_session_id.eq.$sessionId');
@@ -1264,7 +1260,7 @@ class WaouhChatController extends ChangeNotifier {
           (row) =>
               WaouhConversation.fromJson(Map<String, dynamic>.from(row as Map)),
         )
-        .where((c) => !c.archived)
+        .where((conversation) => !conversation.archived)
         .toList();
   }
 
@@ -1275,17 +1271,40 @@ class WaouhChatController extends ChangeNotifier {
     ).asyncMap((_) => fetchConversations());
   }
 
-  Stream<List<WaouhMessage>> mainMessages() {
-    return supabase
-        .from('waouh_messages')
-        .stream(primaryKey: ['id'])
-        .eq('web_session_id', sessionId)
-        .order('created_at')
+  Future<List<WaouhMessage>> _loadMainMessages() async {
+    final sessionId = await _sessionId();
+    final response = await supabase.functions.invoke(
+      'waouh-history',
+      headers: <String, String>{'x-waouh-session': sessionId},
+      body: {
+        'sessionId': sessionId,
+        'authUserId': auth.user?.id,
+        'limit': 200,
+        'includeMeta': true,
+      },
+    );
+    final data = response.data;
+    if (data is! Map || data['ok'] != true || data['messages'] is! List) {
+      throw StateError('Historique WAOUH indisponible');
+    }
+    final messages = (data['messages'] as List)
+        .whereType<Map>()
         .map(
-          (rows) =>
-              [...rows.map(WaouhMessage.fromJson), ...optimisticMessages]
-                ..sort((a, b) => a.createdAt.compareTo(b.createdAt)),
-        );
+          (row) => WaouhMessage.fromJson(
+            Map<String, dynamic>.from(row),
+          ),
+        )
+        .toList()
+      ..addAll(optimisticMessages);
+    messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return messages;
+  }
+
+  Stream<List<WaouhMessage>> mainMessages() async* {
+    yield await _loadMainMessages();
+    yield* Stream.periodic(
+      const Duration(seconds: 4),
+    ).asyncMap((_) => _loadMainMessages());
   }
 
   Stream<List<WaouhMessage>> conversationMessages(String conversationId) {
@@ -1300,6 +1319,7 @@ class WaouhChatController extends ChangeNotifier {
   Future<void> sendWaouhMessage(String content, {WaouhIntent? intent}) async {
     final trimmed = content.trim();
     if (trimmed.isEmpty) return;
+    final sessionId = await _sessionId();
     final local = WaouhMessage(
       id: 'local-${DateTime.now().microsecondsSinceEpoch}',
       content: trimmed,
@@ -1311,37 +1331,36 @@ class WaouhChatController extends ChangeNotifier {
     optimisticMessages.add(local);
     notifyListeners();
     try {
-      final fn = intent?.edgeFunction ?? 'waouh-channel-in';
-      try {
-        await supabase.functions.invoke(
-          fn,
-          body: {
-            'message': trimmed,
-            'text': trimmed,
-            'web_session_id': sessionId,
-            'auth_user_id': auth.user?.id,
-            'source': 'flutter_native',
-            'intent': intent?.name,
-          },
-        );
-      } catch (_) {
-        final waouhUserId = await resolveWaouhUserId();
-        await supabase.from('waouh_messages').insert({
-          'text': trimmed,
+      final requestedFunction = intent?.edgeFunction ?? 'waouh-channel-in';
+      final functionName = requestedFunction == 'waouh-channel-in'
+          ? 'waouh-channel-in-secure'
+          : requestedFunction;
+      final response = await supabase.functions.invoke(
+        functionName,
+        headers: <String, String>{'x-waouh-session': sessionId},
+        body: {
+          'channel': 'web',
+          'sessionId': sessionId,
           'web_session_id': sessionId,
-          if (waouhUserId != null) 'user_id': waouhUserId,
-          'channel': 'flutter',
-          'direction': 'in',
-          'attachments': [],
+          'message': trimmed,
+          'text': trimmed,
+          'auth_user_id': auth.user?.id,
+          'source': 'flutter_native',
+          'intent': intent?.name,
           'meta': {
             'source': 'flutter_native',
-            'intent': intent?.name,
-            'fallback': true,
+            if (intent != null) 'intent': intent.name,
           },
-        });
+        },
+      );
+      final data = response.data;
+      if (data is Map && (data['ok'] == false || data['error'] != null)) {
+        throw StateError(
+          asString(data['message'] ?? data['error'] ?? 'Envoi WAOUH impossible'),
+        );
       }
     } finally {
-      optimisticMessages.removeWhere((m) => m.id == local.id);
+      optimisticMessages.removeWhere((message) => message.id == local.id);
       notifyListeners();
     }
   }
@@ -1352,27 +1371,20 @@ class WaouhChatController extends ChangeNotifier {
   ) async {
     final text = body.trim();
     if (text.isEmpty) return;
-    try {
-      await supabase.functions.invoke(
-        'waouh-operator-send',
-        body: {
-          'conversation_id': conversationId,
-          'message': text,
-          'auth_user_id': auth.user?.id,
-          'source': 'flutter_native',
-        },
-      );
-    } catch (_) {
-      final waouhUserId = await resolveWaouhUserId();
-      await supabase.from('waouh_messages').insert({
+    final response = await supabase.functions.invoke(
+      'waouh-operator-send',
+      body: {
         'conversation_id': conversationId,
-        'text': text,
-        if (waouhUserId != null) 'user_id': waouhUserId,
-        'channel': 'flutter',
-        'direction': 'out',
-        'attachments': [],
-        'meta': {'source': 'operator_fallback'},
-      });
+        'message': text,
+        'auth_user_id': auth.user?.id,
+        'source': 'flutter_native',
+      },
+    );
+    final data = response.data;
+    if (data is Map && (data['ok'] == false || data['error'] != null)) {
+      throw StateError(
+        asString(data['message'] ?? data['error'] ?? 'Envoi opérateur impossible'),
+      );
     }
   }
 
@@ -1486,6 +1498,8 @@ class StatusController extends ChangeNotifier {
 }
 
 class NotificationsController {
+  final LiveSessionStore _sessionStore = LiveSessionStore();
+
   Future<List<String>> _waouhUserIds(User? user) async {
     if (user == null) return const [];
     try {
@@ -1532,19 +1546,50 @@ class NotificationsController {
   }
 
   Future<void> markRead(String id) async {
-    await supabase
-        .from('waouh_notifications')
-        .update({'opened': true, 'read_at': DateTime.now().toIso8601String()})
-        .eq('id', id);
+    final cleanId = id.trim();
+    if (cleanId.isEmpty) return;
+    final sid = await _sessionStore.sessionId;
+    final response = await supabase.functions.invoke(
+      'waouh-history',
+      headers: <String, String>{'x-waouh-session': sid},
+      body: {
+        'action': 'mark_notification_read',
+        'sessionId': sid,
+        'notificationId': cleanId,
+      },
+    );
+    final data = response.data;
+    if (data is! Map || data['ok'] != true) {
+      throw StateError(
+        asString(
+          data is Map ? data['error'] : null,
+          'Notification impossible à marquer comme lue',
+        ),
+      );
+    }
   }
 
   Future<void> markAllRead(User? user) async {
-    final ids = await _waouhUserIds(user);
-    if (ids.isEmpty) return;
-    await supabase
-        .from('waouh_notifications')
-        .update({'opened': true, 'read_at': DateTime.now().toIso8601String()})
-        .inFilter('user_id', ids);
+    if (user == null) return;
+    final sid = await _sessionStore.sessionId;
+    final response = await supabase.functions.invoke(
+      'waouh-history',
+      headers: <String, String>{'x-waouh-session': sid},
+      body: {
+        'action': 'mark_all_notifications_read',
+        'sessionId': sid,
+        'authUserId': user.id,
+      },
+    );
+    final data = response.data;
+    if (data is! Map || data['ok'] != true) {
+      throw StateError(
+        asString(
+          data is Map ? data['error'] : null,
+          'Notifications impossibles à marquer comme lues',
+        ),
+      );
+    }
   }
 }
 
