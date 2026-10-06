@@ -161,6 +161,82 @@ function openLabel(domain: WaouhSmartDomain): string {
   }
 }
 
+function contextualActions(
+  input: WaouhSmartInput,
+  domain: WaouhSmartDomain,
+  route: string,
+  intent: string,
+): WaouhSmartAction[] {
+  const payload = input.payload || {};
+  const negotiationId = compact(input.negotiationId ?? payload.negotiation_id, 80);
+  const dealId = compact(input.dealId ?? payload.deal_id, 80);
+  const role = compact(input.recipientRole ?? payload.recipient ?? payload.role, 40).toLowerCase();
+
+  const open = (label = openLabel(domain)): WaouhSmartAction => ({
+    id: "open_context",
+    label,
+    kind: "navigate",
+    route,
+    payload: { route },
+    priority: 1,
+    requires_auth: true,
+    requires_confirmation: false,
+  });
+  const commerce = (id: string, label: string, priority: number): WaouhSmartAction => ({
+    id,
+    label,
+    kind: "commerce",
+    route,
+    payload: { action_id: id },
+    priority,
+    requires_auth: true,
+    requires_confirmation: needsConfirmation(id),
+  });
+
+  if (domain === "commerce") {
+    if (negotiationId && /new_buyer|offer_received|negotiation_open|negotiation_counter|counter/.test(intent)) {
+      return [
+        open("Répondre à l'offre"),
+        commerce(`accepter:${negotiationId}`, "Accepter", 2),
+        commerce(`contre-proposition:${negotiationId}`, "Contre-proposer", 3),
+        commerce(`refuser:${negotiationId}`, "Refuser", 4),
+      ];
+    }
+    if (dealId && /deal_accepted|payment_preference_required|pay_mode|payment_request/.test(intent)) {
+      if (role === "seller") {
+        return [
+          open("Continuer le deal"),
+          commerce(`confirmer-disponibilite:${dealId}`, "Confirmer la disponibilité", 2),
+        ];
+      }
+      return [
+        open("Continuer le deal"),
+        commerce(`payer-mobile:${dealId}`, "Mobile Money", 2),
+        commerce(`paiement-livraison:${dealId}`, "Paiement à la livraison", 3),
+      ];
+    }
+    if (dealId && /delivered|payment_confirm/.test(intent)) {
+      const method = compact(payload.payment_method ?? payload.method, 40).toLowerCase();
+      const suffix = method.includes("mobile") ? "mobile" : "cash";
+      return [
+        open("Finaliser le deal"),
+        commerce(`confirmer-paiement-${suffix}:${dealId}`, "Confirmer le paiement", 2),
+      ];
+    }
+    return [open()];
+  }
+
+  if (domain === "whatsapp") return [open("Répondre sur WhatsApp")];
+  if (domain === "diffusion") return [open("Suivre la diffusion")];
+  if (domain === "partner") return [open("Gérer l'espace partenaire")];
+  if (domain === "stock") return [open(/low_stock|out_of_stock|reorder/.test(intent) ? "Réapprovisionner" : "Voir le stock")];
+  if (domain === "missions") return [open("Continuer la mission")];
+  if (domain === "ai") return [open("Continuer avec mon IA")];
+  if (domain === "profile") return [open("Vérifier mon profil")];
+  if (domain === "notifications") return [open("Voir le détail")];
+  return [open()];
+}
+
 function priorityFor(intentRaw: unknown): WaouhSmartPriority {
   const intent = compact(intentRaw, 120).toLowerCase();
   if (/payment_request|confirm_payment|security|blocked|failed|urgent/.test(intent)) return "urgent";
@@ -241,12 +317,16 @@ export function buildWaouhSmartEnvelope(input: WaouhSmartInput) {
         ? 0.99
         : rawActions && Array.isArray(rawActions) && rawActions.length
           ? 0.96
-          : 0.72,
+          : contextual && actions.length > 1
+            ? 0.88
+            : 0.72,
       reason: preferredAction && nextBestAction === preferredAction
         ? "workflow_prediction"
         : rawActions && Array.isArray(rawActions) && rawActions.length
           ? "server_action_priority"
-          : "context_navigation",
+          : contextual && actions.length > 1
+            ? "workflow_context"
+            : "context_navigation",
       next_follow_up_at: input.payload?.next_follow_up_at ?? suggest?.next_follow_up_at ?? null,
       expires_at: input.payload?.expires_at ?? suggest?.expires_at ?? null,
     },
