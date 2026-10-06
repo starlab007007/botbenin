@@ -71,6 +71,8 @@ jobs:
           flutter test test/live_bot_home_test.dart
           flutter test test/live_interest_identity_promotion_test.dart
           flutter test test/live_chat_premium_cards_test.dart
+          flutter test test/live_access_policy_test.dart
+          flutter test test/live_user_message_test.dart
 
       - name: Build optimized arm64 test APK
         env:
