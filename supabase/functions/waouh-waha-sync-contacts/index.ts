@@ -119,17 +119,52 @@ Deno.serve(async (req) => {
     for (const session of sessionsToUse) {
       const sessionResult: any = { session, fetched: 0, mapped: 0, backfilled: 0, ok: false };
       try {
-        const url = `${wahaBase}/api/contacts/all?session=${encodeURIComponent(session)}`;
-        const resp = await fetch(url, { headers });
-        if (!resp.ok) {
-          const text = await resp.text();
-          sessionResult.error = `HTTP ${resp.status}: ${text.slice(0, 200)}`;
-          perSession.push(sessionResult);
-          continue;
+        const url = `${wahaBase}/api/contacts/all?session=${encodeURIComponent(session)}&limit=${maxContactsPerSession}&offset=0&sortBy=id&sortOrder=asc`;
+        const resp = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
+
+        let contacts: WahaContact[] = [];
+        let fetched = 0;
+
+        if (resp.ok) {
+          const payload = await resp.json().catch(() => []);
+          const allContacts = Array.isArray(payload)
+            ? payload
+            : (Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.items) ? payload.items : []);
+          contacts = allContacts.slice(0, maxContactsPerSession);
+          fetched = allContacts.length;
+        } else {
+          const contactError = await resp.text().catch(() => "");
+          // WAHA NOWEB may expose a WORKING session while its contact Store is
+          // unavailable. The official LID API still provides LID -> PN mappings,
+          // which is exactly what WAOUH needs to normalize phone destinations.
+          const lidsUrl = `${wahaBase}/api/${encodeURIComponent(session)}/lids?limit=${maxContactsPerSession}&offset=0`;
+          const lidsResp = await fetch(lidsUrl, { headers, signal: AbortSignal.timeout(15_000) });
+          if (!lidsResp.ok) {
+            const lidError = await lidsResp.text().catch(() => "");
+            sessionResult.error =
+              `contacts HTTP ${resp.status}: ${contactError.slice(0, 160)} | lids HTTP ${lidsResp.status}: ${lidError.slice(0, 160)}`;
+            perSession.push(sessionResult);
+            continue;
+          }
+          const lidsPayload = await lidsResp.json().catch(() => []);
+          const lids = Array.isArray(lidsPayload)
+            ? lidsPayload
+            : (Array.isArray(lidsPayload?.data) ? lidsPayload.data : Array.isArray(lidsPayload?.items) ? lidsPayload.items : []);
+          contacts = lids.slice(0, maxContactsPerSession).map((entry: any) => {
+            const lidRaw = String(entry?.lid || "").replace(/@lid$/i, "");
+            const pnRaw = String(entry?.pn || entry?.phone || entry?.phoneNumber || "")
+              .replace(/@c\.us$/i, "")
+              .replace(/@s\.whatsapp\.net$/i, "");
+            return {
+              id: lidRaw ? `${lidRaw}@lid` : "",
+              lid: lidRaw || undefined,
+              number: pnRaw || undefined,
+            } as WahaContact;
+          }).filter((entry: WahaContact) => !!entry.id && !!entry.number);
+          fetched = contacts.length;
+          sessionResult.warning = `WAHA contacts/all indisponible (${resp.status}); fallback LID→PN utilisé.`;
         }
-        const allContacts: WahaContact[] = await resp.json();
-        const contacts = Array.isArray(allContacts) ? allContacts.slice(0, maxContactsPerSession) : [];
-        const fetched = Array.isArray(allContacts) ? allContacts.length : 0;
+
         sessionResult.fetched = fetched;
         sessionResult.processed = contacts.length;
         if (fetched > contacts.length) sessionResult.warning = `Lot limité à ${contacts.length}/${fetched} contacts pour éviter la limite CPU Supabase.`;
@@ -227,25 +262,35 @@ Deno.serve(async (req) => {
       perSession.push(sessionResult);
     }
 
+    const successfulSessions = perSession.filter((row: any) => row.ok === true).length;
+    const failedSessions = perSession.filter((row: any) => row.ok !== true).length;
+    const runStatus = successfulSessions > 0 ? 'success' : 'failed';
+    const runError = successfulSessions > 0
+      ? null
+      : perSession.map((row: any) => row.error).filter(Boolean).join(' | ').slice(0, 1000) || 'all_sessions_failed';
+
     await supabase.from('waouh_lid_sync_runs').update({
       contacts_fetched: totalFetched,
       contacts_mapped: totalMapped,
       rows_backfilled: totalBackfilled,
-      status: 'success',
+      status: runStatus,
+      error: runError,
       finished_at: new Date().toISOString(),
     }).eq('id', runId);
 
     const hasMore = !requestedSessions && startIndex + sessionsToUse.length < totalWorkingSessions;
     const nextCursor = hasMore ? sessionsToUse[sessionsToUse.length - 1] : null;
     return json({
-      ok: true,
+      ok: successfulSessions > 0,
       sessions: sessionsToUse,
       fetched: totalFetched,
       mapped: totalMapped,
       backfilled: totalBackfilled,
+      successfulSessions,
+      failedSessions,
       nextCursor,
       perSession,
-    });
+    }, successfulSessions > 0 ? 200 : 502);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await supabase.from('waouh_lid_sync_runs').update({
