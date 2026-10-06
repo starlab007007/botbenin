@@ -696,15 +696,82 @@ Deno.serve(async (req) => {
         if (contactId) {
           try {
             const { data: contact } = await sb.from("waouh_entity_contacts")
-              .select("sent_count").eq("id", contactId).maybeSingle();
-            await sb.from("waouh_entity_contacts").update({
-              sent_count: Number(contact?.sent_count || 0) + 1,
-              last_success_at: sentAt,
-              verification_status: "reachable",
-              is_whatsapp_reachable: true,
-              updated_at: sentAt,
-            }).eq("id", contactId);
-          } catch (_) { /* métrique best-effort */ }
+              .select("id,entity_id,channel,value_encrypted,value_hash,value_last4,public_value,source_key,is_public_business,consent_state,contactability_level,sent_count,metrics")
+              .eq("id", contactId)
+              .maybeSingle();
+
+            if (contact) {
+              const metrics = {
+                ...(contact.metrics || {}),
+                waha_chat_id: usedChatId,
+                last_waha_delivery_at: sentAt,
+              };
+              await sb.from("waouh_entity_contacts").update({
+                sent_count: Number(contact.sent_count || 0) + 1,
+                last_success_at: sentAt,
+                verification_status: "reachable",
+                is_whatsapp_reachable: true,
+                metrics,
+                updated_at: sentAt,
+              }).eq("id", contactId);
+
+              // Once WAHA has delivered successfully, a canonical phone contact
+              // is proven WhatsApp-reachable. Mirror it as channel=whatsapp so
+              // every downstream read-model can reuse the verified channel.
+              if (contact.channel === "phone" && contact.entity_id && contact.value_hash) {
+                const { data: existingWa } = await sb.from("waouh_entity_contacts")
+                  .select("id,sent_count,metrics")
+                  .eq("entity_id", contact.entity_id)
+                  .eq("channel", "whatsapp")
+                  .eq("value_hash", contact.value_hash)
+                  .maybeSingle();
+
+                if (existingWa?.id) {
+                  await sb.from("waouh_entity_contacts").update({
+                    sent_count: Number(existingWa.sent_count || 0) + 1,
+                    last_success_at: sentAt,
+                    verification_status: "reachable",
+                    is_whatsapp_reachable: true,
+                    metrics: {
+                      ...(existingWa.metrics || {}),
+                      waha_chat_id: usedChatId,
+                      normalized_from_phone_contact: true,
+                      last_waha_delivery_at: sentAt,
+                    },
+                    updated_at: sentAt,
+                  }).eq("id", existingWa.id);
+                } else {
+                  await sb.from("waouh_entity_contacts").insert({
+                    entity_id: contact.entity_id,
+                    channel: "whatsapp",
+                    value_encrypted: contact.value_encrypted,
+                    value_hash: contact.value_hash,
+                    value_last4: contact.value_last4,
+                    public_value: contact.public_value,
+                    source_key: contact.source_key,
+                    is_public_business: contact.is_public_business,
+                    consent_state: contact.consent_state,
+                    contactability_level: contact.contactability_level,
+                    verified_at: sentAt,
+                    verification_status: "reachable",
+                    is_whatsapp_reachable: true,
+                    last_success_at: sentAt,
+                    sent_count: 1,
+                    metrics: {
+                      waha_chat_id: usedChatId,
+                      normalized_from_phone_contact: true,
+                      last_waha_delivery_at: sentAt,
+                    },
+                  });
+                }
+              }
+            }
+          } catch (error) {
+            console.warn("[waouh-outbound-dispatch] contact normalization metric failed", {
+              contact_id: contactId,
+              message: error instanceof Error ? error.message : String(error),
+            });
+          }
         }
         sent++;
       } catch (e: any) {
