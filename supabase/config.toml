@@ -187,6 +187,9 @@ verify_jwt = false
 [functions.waouh-admin-stats]
 verify_jwt = true
 
+[functions.waouh-admin-contact-hub]
+verify_jwt = false
+
 [functions.waouh-waha-control]
 verify_jwt = true
 
