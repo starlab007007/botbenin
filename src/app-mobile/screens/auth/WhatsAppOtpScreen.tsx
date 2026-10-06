@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -6,21 +6,26 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp
 import { ArrowLeft, MessageCircle } from "lucide-react";
 import { useWhatsAppOtpFlow } from "@/hooks/useWhatsAppOtpFlow";
 import { useEffect } from "react";
+import { DEFAULT_PUBLIC_APP_PATH, normalizeWaouhRedirect } from "@/lib/waouhAccessPolicy";
 
 export default function WhatsAppOtpScreen() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const flow = useWhatsAppOtpFlow();
 
   useEffect(() => {
     if (flow.step === "done") {
-      let target = "/app/chat";
+      let target = normalizeWaouhRedirect(params.get("next"), DEFAULT_PUBLIC_APP_PATH);
       try {
         const t = sessionStorage.getItem("waouh_post_auth_redirect");
-        if (t) { sessionStorage.removeItem("waouh_post_auth_redirect"); target = t; }
+        if (t) {
+          sessionStorage.removeItem("waouh_post_auth_redirect");
+          target = normalizeWaouhRedirect(t, target);
+        }
       } catch {}
       navigate(target, { replace: true });
     }
-  }, [flow.step, navigate]);
+  }, [flow.step, navigate, params]);
 
   const back = () => {
     if (flow.step === "otp") flow.setStep("phone");
