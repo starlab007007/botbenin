@@ -198,6 +198,9 @@ export function buildWaouhSmartEnvelope(input: WaouhSmartInput) {
     input.payload?.trace_id,
     160,
   ) || null;
+  const suggest = input.payload?.suggest && typeof input.payload.suggest === "object"
+    ? input.payload.suggest as Record<string, unknown>
+    : null;
 
   return {
     schema: "waouh.smart.v1",
@@ -228,8 +231,8 @@ export function buildWaouhSmartEnvelope(input: WaouhSmartInput) {
       reason: rawActions && Array.isArray(rawActions) && rawActions.length
         ? "server_action_priority"
         : "context_navigation",
-      next_follow_up_at: input.payload?.next_follow_up_at ?? input.payload?.suggest && (input.payload?.suggest as any)?.next_follow_up_at ?? null,
-      expires_at: input.payload?.expires_at ?? input.payload?.suggest && (input.payload?.suggest as any)?.expires_at ?? null,
+      next_follow_up_at: input.payload?.next_follow_up_at ?? suggest?.next_follow_up_at ?? null,
+      expires_at: input.payload?.expires_at ?? suggest?.expires_at ?? null,
     },
     display: {
       variant: domain === "commerce" ? "journey_card" : domain === "missions" ? "assistant_card" : "smart_card",
