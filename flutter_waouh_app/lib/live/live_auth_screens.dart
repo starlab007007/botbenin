@@ -574,8 +574,13 @@ class _LiveWhatsAppOtpScreenState extends State<LiveWhatsAppOtpScreen> {
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(error.toString())));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              auth.error ?? waouhUserMessage(error, action: 'login'),
+            ),
+          ),
+        );
       }
     }
   }
@@ -595,8 +600,13 @@ class _LiveWhatsAppOtpScreenState extends State<LiveWhatsAppOtpScreen> {
       if (mounted) context.go(_nextRoute(context) ?? '/app/ia');
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(error.toString())));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              auth.error ?? waouhUserMessage(error, action: 'save'),
+            ),
+          ),
+        );
       }
     }
   }
