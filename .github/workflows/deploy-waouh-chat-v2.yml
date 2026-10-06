@@ -59,6 +59,7 @@ on:
       - "supabase/functions/waouh-stock-analyze/**"
       - "supabase/functions/waouh-bi-query/**"
       - "supabase/functions/waouh-agent-insights/**"
+      - "supabase/functions/waouh-admin-contact-hub/**"
       - "supabase/functions/waouh-opportunity-worker/**"
       - "supabase/functions/waouh-agentic-core/**"
       - "supabase/functions/waouh-outbound-dispatch/**"
@@ -323,6 +324,7 @@ jobs:
             waouh-stock-analyze
             waouh-bi-query
             waouh-agent-insights
+            waouh-admin-contact-hub
           )
           for fn in "${functions[@]}"; do
             echo "🚀 Deploying $fn"
