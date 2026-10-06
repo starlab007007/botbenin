@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Bell, BellOff, Check, ShoppingBag, Target, Radar, Truck, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +12,7 @@ import {
   getMatchBadgeLabel,
 } from "@/hooks/waouhNotificationTypes";
 import { WaouhDealPaymentDialog } from "./WaouhDealPaymentDialog";
+import { readWaouhSmartEnvelope, waouhSmartActions, waouhSmartDisplayText, waouhSmartRoute } from "@/lib/waouh/smartPayload";
 
 const BADGE_STYLES: Record<string, string> = {
   radar_match: "bg-violet-600 text-white",
@@ -56,6 +58,7 @@ export const WaouhNotificationsBell: React.FC<{
   onMarkRead?: (id: string) => void;
   onClearAll: () => void;
 }> = ({ permission, notifications, unreadCount, onRequestPermission, onMarkAllRead, onMarkRead, onClearAll }) => {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [payDialog, setPayDialog] = useState<{ dealId: string; amount?: number } | null>(null);
   const [view, setView] = useState<"active" | "history">("active");
@@ -130,7 +133,11 @@ export const WaouhNotificationsBell: React.FC<{
                 const matchKind = getMatchKind(n.template);
                 const isMatch = !!matchKind;
                 const isPaymentRequest = n.template === "deal_payment_request" && n.payload?.deal_id;
-                const clickable = isMatch || isPaymentRequest || !!(n.message_id || n.transaction_id);
+                const smart = readWaouhSmartEnvelope(n.payload);
+                const smartActions = waouhSmartActions(n.payload, 3);
+                const smartRoute = waouhSmartRoute(n.payload);
+                const smartText = waouhSmartDisplayText(n.payload, n.body);
+                const clickable = isMatch || isPaymentRequest || !!(n.message_id || n.transaction_id) || !!smartRoute;
                 const badgeLabel = getMatchBadgeLabel(n.template);
 
                 const handleClick = () => {
@@ -165,6 +172,8 @@ export const WaouhNotificationsBell: React.FC<{
                         detail: { message_id: n.message_id, transaction_id: n.transaction_id },
                       })
                     );
+                  } else if (smartRoute) {
+                    navigate(smartRoute);
                   }
                   onMarkRead?.(n.id);
                   setOpen(false);
@@ -196,7 +205,7 @@ export const WaouhNotificationsBell: React.FC<{
                       ) : null}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-medium truncate flex-1">{n.title}</span>
+                          <span className="font-medium truncate flex-1">{smartText.title || n.title}</span>
                           {!n.read && (
                             <span
                               className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"
@@ -215,7 +224,48 @@ export const WaouhNotificationsBell: React.FC<{
                             {badgeLabel}
                           </Badge>
                         )}
-                        <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{n.body}</div>
+                        <div className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{smartText.detail}</div>
+                        {smart && (
+                          <div className="mt-1.5 flex items-center gap-1.5">
+                            <span className={cn(
+                              "rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
+                              smart.priority === "urgent" ? "bg-red-100 text-red-700" :
+                              smart.priority === "high" ? "bg-amber-100 text-amber-700" :
+                              "bg-slate-100 text-slate-600"
+                            )}>
+                              {smart.domain}
+                            </span>
+                            {smart.stage && <span className="text-[9px] font-semibold text-slate-400">{smart.stage}</span>}
+                          </div>
+                        )}
+                        {smartActions.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1.5" onClick={(event) => event.stopPropagation()}>
+                            {smartActions.map((action, index) => (
+                              <button
+                                key={action.id}
+                                type="button"
+                                className={cn(
+                                  "rounded-xl px-2.5 py-1.5 text-[10px] font-black transition",
+                                  index === 0
+                                    ? "bg-slate-950 text-white hover:bg-slate-800"
+                                    : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                                )}
+                                onClick={() => {
+                                  onMarkRead?.(n.id);
+                                  if (action.kind === "commerce" || isMatch || isPaymentRequest) {
+                                    handleClick();
+                                    return;
+                                  }
+                                  const route = action.route || smartRoute;
+                                  if (route) navigate(route);
+                                  setOpen(false);
+                                }}
+                              >
+                                {action.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                         <div className="text-[10px] text-muted-foreground mt-1">
                           {new Date(n.created_at).toLocaleString("fr-FR")}
                           {clickable && <span className="ml-2 text-emerald-600">↗ Ouvrir</span>}
