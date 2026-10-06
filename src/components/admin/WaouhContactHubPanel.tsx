@@ -79,6 +79,12 @@ interface HubPage {
   has_more: boolean;
 }
 
+interface HubSourceOption {
+  source_key: string;
+  source_label: string;
+  source_family: string;
+}
+
 const EMPTY_STATS: HubStats = { rows: 0, contacts: 0, whatsapp: 0, reachable: 0, sendable: 0 };
 
 function levelClass(level?: string) {
@@ -110,6 +116,7 @@ export default function WaouhContactHubPanel() {
   const [page, setPage] = useState<HubPage>({ offset: 0, limit: 100, source_rows: 0, has_more: false });
   const [q, setQ] = useState("");
   const [source, setSource] = useState("");
+  const [availableSources, setAvailableSources] = useState<HubSourceOption[]>([]);
   const [whatsappOnly, setWhatsappOnly] = useState(false);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -119,8 +126,12 @@ export default function WaouhContactHubPanel() {
   const [sending, setSending] = useState(false);
 
   const sourceOptions = useMemo(
-    () => [...new Set(rows.map((r) => r.source_key).filter(Boolean))].sort(),
-    [rows],
+    () => availableSources.length
+      ? availableSources
+      : [...new Set(rows.map((r) => r.source_key).filter(Boolean))].sort().map((source_key) => ({
+          source_key, source_label: source_key, source_family: "external",
+        })),
+    [availableSources, rows],
   );
 
   const load = async (requestedOffset: number = page.offset) => {
@@ -128,7 +139,7 @@ export default function WaouhContactHubPanel() {
     try {
       const { data, error } = await supabase.functions.invoke("waouh-admin-stats", {
         body: {
-          action: "contact_hub_search",
+          action: "contact_hub_directory",
           q: q.trim() || null,
           source: source || null,
           contacts_only: true,
@@ -140,6 +151,7 @@ export default function WaouhContactHubPanel() {
       if (error) throw error;
       if (!data?.ok) throw new Error(data?.error || "Contact Hub indisponible");
       setRows((data.rows || []) as HubRow[]);
+      setAvailableSources((data.available_sources || []) as HubSourceOption[]);
       setStats({ ...EMPTY_STATS, ...(data.stats || {}) });
       setPage({
         offset: Number(data?.page?.offset ?? requestedOffset),
@@ -260,7 +272,7 @@ export default function WaouhContactHubPanel() {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <MessageCircle className="h-5 w-5 text-emerald-600" />
-                Contact Hub · WhatsApp / WAHA
+                Répertoire contacts · WhatsApp / WAHA
               </CardTitle>
               <CardDescription className="mt-1">
                 Coordonnées complètes réservées aux administrateurs. Normalisation E.164, vérification WhatsApp via WAHA,
