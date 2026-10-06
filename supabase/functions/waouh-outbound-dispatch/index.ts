@@ -84,6 +84,12 @@ type WebhookRepairSummary = {
   last_remote_status?: number;
   last_remote_method?: "PUT" | "POST";
   last_remote_message?: string;
+  attempts?: Array<{
+    api: "v1" | "v2";
+    method: "PUT" | "POST";
+    status: number;
+    message?: string;
+  }>;
 };
 
 function safeWahaErrorText(value: string): string {
@@ -203,7 +209,7 @@ async function repairLegacyWahaWebhooks(
     ]) {
       for (const authHeaders of authVariants) {
         try {
-          const response = await wahaFetch(`${normalizedBase}${endpoint}`, {
+          const response = await wahaFetch(`${normalizedBase}${typeof endpoint === "string" ? endpoint : endpoint.path}`, {
             headers: authHeaders,
           });
           if (!response.ok) {
@@ -255,14 +261,19 @@ async function repairLegacyWahaWebhooks(
     };
 
     let repairedRemote = false;
-    for (const endpoint of [
-      `/api/sessions/${encodeURIComponent(sessionName)}`,
-      `/api/v2/sessions/${encodeURIComponent(sessionName)}`,
-    ]) {
+    const updateEndpoints: Array<{ api: "v1" | "v2"; path: string }> = [
+      { api: "v1", path: `/api/sessions/${encodeURIComponent(sessionName)}` },
+      { api: "v1", path: `/api/sessions/${encodeURIComponent(sessionName)}/` },
+      { api: "v2", path: `/api/v2/sessions/${encodeURIComponent(sessionName)}` },
+      { api: "v2", path: `/api/v2/sessions/${encodeURIComponent(sessionName)}/` },
+    ];
+    summary.attempts = [];
+
+    for (const endpoint of updateEndpoints) {
       for (const method of ["PUT", "POST"] as const) {
         for (const authHeaders of authVariants) {
           try {
-            const response = await wahaFetch(`${normalizedBase}${endpoint}`, {
+            const response = await wahaFetch(`${normalizedBase}${typeof endpoint === "string" ? endpoint : endpoint.path}`, {
               method,
               headers: authHeaders,
               body: JSON.stringify({ name: sessionName, config: nextConfig }),
@@ -272,6 +283,12 @@ async function repairLegacyWahaWebhooks(
               summary.last_remote_status = response.status;
               summary.last_remote_method = method;
               summary.last_remote_message = safeWahaErrorText(rawError);
+              summary.attempts?.push({
+                api: endpoint.api,
+                method,
+                status: response.status,
+                ...(rawError ? { message: safeWahaErrorText(rawError) } : {}),
+              });
               continue;
             }
             repairedRemote = true;
