@@ -54,18 +54,23 @@ class _LiveInboxProductionScreenState extends State<LiveInboxProductionScreen> {
   }
 
   Future<void> _newChat() async {
+    // Local-only preparation: no network/backend mutation before authentication.
+    await context.read<LiveWaouhController>().startNewChat();
+    if (!mounted) return;
     if (!await requireLiveAuthentication(
       context,
       next: '/app/chat/waouh',
       actionLabel: 'commencer une discussion personnelle',
     )) return;
-    await context.read<LiveWaouhController>().startNewChat();
     if (mounted) context.go('/app/chat/waouh');
   }
 
   Future<void> _openWaouhWith(String seed) async {
     final controller = context.read<LiveWaouhController>();
+    // Prepare a fresh local thread first, then preserve the intent across auth.
+    await controller.startNewChat();
     controller.setComposerSeed(seed);
+    if (!mounted) return;
     if (!await requireLiveAuthentication(
       context,
       next: '/app/chat/waouh',
@@ -73,7 +78,6 @@ class _LiveInboxProductionScreenState extends State<LiveInboxProductionScreen> {
           ? 'commencer une discussion'
           : 'acheter, vendre ou négocier',
     )) return;
-    await controller.startNewChat();
     if (mounted) context.go('/app/chat/waouh');
   }
 
