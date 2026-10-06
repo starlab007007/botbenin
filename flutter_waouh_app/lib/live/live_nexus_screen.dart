@@ -397,13 +397,23 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
                   ),
                 ),
               ),
-            const _Tabs(),
+            _Tabs(signedIn: auth.signedIn),
             Expanded(
               child: TabBarView(
                 children: [
                   buildSearch(),
-                  buildShare(),
-                  buildScout(),
+                  auth.signedIn
+                      ? buildShare()
+                      : const _GuestLockedNexusPane(
+                          title: 'Partager à WAOUH',
+                          description: 'Connectez-vous pour analyser et ajouter un signal personnel au Signal Fabric.',
+                        ),
+                  auth.signedIn
+                      ? buildScout()
+                      : const _GuestLockedNexusPane(
+                          title: 'Scout terrain',
+                          description: 'Connectez-vous pour contribuer au réseau de prix et publier une observation.',
+                        ),
                   buildSources(),
                 ],
               ),
@@ -930,7 +940,8 @@ class _Hero extends StatelessWidget {
 }
 
 class _Tabs extends StatelessWidget {
-  const _Tabs();
+  const _Tabs({required this.signedIn});
+  final bool signedIn;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -941,12 +952,12 @@ class _Tabs extends StatelessWidget {
           color: const Color(0xFFF0F4FB),
           borderRadius: BorderRadius.circular(16),
         ),
-        child: const TabBar(
+        child: TabBar(
           isScrollable: true,
           tabAlignment: TabAlignment.start,
           dividerColor: Colors.transparent,
           indicatorSize: TabBarIndicatorSize.tab,
-          indicator: BoxDecoration(
+          indicator: const BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.all(Radius.circular(12)),
             boxShadow: [
@@ -959,15 +970,91 @@ class _Tabs extends StatelessWidget {
           ),
           labelColor: WaouhPalette.blue,
           unselectedLabelColor: WaouhPalette.muted,
-          labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+          labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
           unselectedLabelStyle:
-              TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+              const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
           tabs: [
-            Tab(icon: Icon(Icons.search_rounded, size: 17), text: 'Chercher'),
-            Tab(icon: Icon(Icons.share_rounded, size: 17), text: 'Partager'),
-            Tab(icon: Icon(Icons.explore_outlined, size: 17), text: 'Scout'),
-            Tab(icon: Icon(Icons.hub_outlined, size: 17), text: 'Sources'),
+            const Tab(icon: Icon(Icons.search_rounded, size: 17), text: 'Chercher'),
+            Tab(
+              icon: Icon(
+                signedIn ? Icons.share_rounded : Icons.lock_outline_rounded,
+                size: 17,
+              ),
+              text: 'Partager',
+            ),
+            Tab(
+              icon: Icon(
+                signedIn ? Icons.explore_outlined : Icons.lock_outline_rounded,
+                size: 17,
+              ),
+              text: 'Scout',
+            ),
+            const Tab(icon: Icon(Icons.hub_outlined, size: 17), text: 'Sources'),
           ],
+        ),
+      );
+}
+
+class _GuestLockedNexusPane extends StatelessWidget {
+  const _GuestLockedNexusPane({
+    required this.title,
+    required this.description,
+  });
+
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: WaouhPalette.line),
+                boxShadow: WaouhShadows.card,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.lock_person_outlined,
+                    size: 42,
+                    color: WaouhPalette.blue,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: WaouhPalette.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    description,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: WaouhPalette.muted,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: () => context.go('/app/auth?next=/app/nexus'),
+                    icon: const Icon(Icons.login_rounded),
+                    label: const Text('Se connecter'),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       );
 }
