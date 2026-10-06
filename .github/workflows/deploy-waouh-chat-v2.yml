@@ -144,12 +144,6 @@ jobs:
           test -n "${SUPABASE_DB_PASSWORD:-}" || { echo "::error::SUPABASE_DB_PASSWORD absent"; exit 1; }
           test -n "${SUPABASE_PROJECT_REF:-}" || { echo "::error::SUPABASE_PROJECT_REF absent"; exit 1; }
 
-      - name: Link Bot.Bj production
-        shell: bash
-        run: |
-          set -euo pipefail
-          supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
-
       - name: Detect WAOUH migration changes
         id: migration_gate
         shell: bash
@@ -181,6 +175,13 @@ jobs:
             echo "ℹ️ They are intentionally excluded from generic db push because production has known historical migration drift."
             echo "ℹ️ Release runbook: apply only these validated additive SQL files through the controlled Supabase release step before merging/deploying."
           fi
+
+      - name: Link Bot.Bj production for database migrations
+        if: steps.migration_gate.outputs.apply_migrations == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
 
       - name: Skip database push when migrations are unchanged
         if: steps.migration_gate.outputs.apply_migrations != 'true'
