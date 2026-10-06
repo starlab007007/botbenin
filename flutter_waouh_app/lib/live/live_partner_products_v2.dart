@@ -7,6 +7,7 @@ import '../main.dart' as legacy;
 import 'live_theme.dart';
 import 'live_visuals.dart';
 
+import 'user_message.dart';
 const _productCategories = [
   'Alimentation',
   'Boissons',
@@ -101,7 +102,7 @@ class LivePartnerProductsScreenV2 extends StatelessWidget {
     } catch (error) {
       if (context.mounted)
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$error')));
+            .showSnackBar(SnackBar(content: Text(waouhUserMessage(error, action: 'delete'))));
     }
   }
 
@@ -532,7 +533,7 @@ class _LivePartnerProductFormV2State extends State<LivePartnerProductFormV2> {
     } catch (error) {
       if (mounted)
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$error')));
+            .showSnackBar(SnackBar(content: Text(waouhUserMessage(error, action: 'delete'))));
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
