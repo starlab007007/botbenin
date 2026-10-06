@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import {
+import { userFacingErrorText } from "@/lib/userFacingError";
   enrichNexusOpportunity,
   getNexusOpportunityStatus,
   prepareNexusContact,
@@ -22,8 +23,7 @@ import { contactabilityActionLabel, findChannelLabel, interestMessage, SEND_OFFE
 
 type Prepared = Awaited<ReturnType<typeof prepareNexusContact>>;
 
-const errorText = (error: unknown) =>
-  error instanceof Error ? error.message : "Action indisponible.";
+const errorText = (error: unknown) => userFacingErrorText(error, "send");
 
 const stageLabels = [
   ["Trouvé", 10],
