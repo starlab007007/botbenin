@@ -78,7 +78,8 @@ const AuthPage: React.FC = () => {
         name,
         email,
         password,
-        phone: ''
+        phone: '',
+        returnTo: redirectTo,
       });
       if (success) setActiveTab('login');
     } finally {
