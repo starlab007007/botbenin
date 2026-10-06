@@ -17,6 +17,7 @@ import { runParcours, cleanupParcours, type Parcours } from "./parcours.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const WAHA_BASE_URL = Deno.env.get("WAHA_BASE_URL") || "";
 const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY") || "";
 const WAHA_SESSION = Deno.env.get("WAHA_SESSION") || "douarou";
@@ -624,14 +625,46 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    const authHeader = req.headers.get("authorization") || "";
+    if (!authHeader.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ ok: false, error: "AUTH_REQUIRED" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
+      global: { headers: { Authorization: authHeader } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) {
+      return new Response(JSON.stringify({ ok: false, error: "AUTH_REQUIRED" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const sb = createClient(SUPABASE_URL, SERVICE_ROLE, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const [adminRole, superRole] = await Promise.all([
+      sb.rpc("has_role", { _user_id: user.id, _role_name: "admin" }),
+      sb.rpc("has_role", { _user_id: user.id, _role_name: "super_admin" }),
+    ]);
+    if (adminRole.data !== true && superRole.data !== true) {
+      return new Response(JSON.stringify({ ok: false, error: "ADMIN_REQUIRED" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const body = await req.json().catch(() => ({}));
     const mode: "auto" | "whatsapp_full" | "negotiation" | "parcours" =
       body.mode === "whatsapp_full" ? "whatsapp_full"
         : body.mode === "negotiation" ? "negotiation"
         : body.mode === "parcours" ? "parcours"
         : "auto";
-
-    const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
     if (mode === "parcours") {
       const list: Parcours[] = (body.parcours || body.scenarios || ["A", "B", "C"])

@@ -82,6 +82,9 @@ verify_jwt = false
 [functions.waha-session-manager]
 verify_jwt = true
 
+[functions.waha-session-mobile]
+verify_jwt = true
+
 [functions.waha-dashboard-proxy]
 verify_jwt = false
 
@@ -186,7 +189,6 @@ verify_jwt = false
 
 [functions.waouh-admin-stats]
 verify_jwt = true
-
 
 [functions.waouh-waha-control]
 verify_jwt = true
@@ -340,6 +342,10 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.waouh-agentic-core]
+verify_jwt = true
+
+# Dormant production slot reused for the admin-only WAOUH E2E runner.
+[functions.setup-test-accounts]
 verify_jwt = true
 
 [functions.waouh-native-messaging-settings]

@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ChatImage } from '@/app-mobile/components/ChatImage';
 import { ProductPhotoUploader } from '@/components/waouh/ProductPhotoUploader';
 
+import { userFacingErrorText } from "@/lib/userFacingError";
 interface Props {
   product: any;
   open: boolean;
@@ -38,7 +39,7 @@ export default function ProductViewerDialog({ product, open, onClose, onUpdated,
       .update({ photos })
       .eq('id', product.id);
     setSaving(false);
-    if (error) return toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
+    if (error) return toast({ title: 'Mise à jour impossible', description: userFacingErrorText(error, "save"), variant: 'destructive' });
     toast({ title: 'Photos mises à jour' });
     setEditingPhotos(false);
     onUpdated?.();

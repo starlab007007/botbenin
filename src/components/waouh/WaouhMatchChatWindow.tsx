@@ -1,3 +1,4 @@
+import { userFacingErrorText } from "@/lib/userFacingError";
 import { WaouhAvatarProgress, WaouhAvatarSynthesis } from "./WaouhAvatarProgress";
 import { assertChatResponse, normalizeChatReply, mergeChatRows, reconcileChatResponse } from "@/lib/chatReply";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -23,6 +24,7 @@ import { engageWaouhChatSyncLock } from "./waouhChatSyncLock";
 import { correlationIdFor, traceUi } from "./waouhCorrelation";
 import type { WaouhWorkspaceDealState } from "@/lib/waouh/workspaceState";
 import { WaouhDealStepper } from "./WaouhDealStepper";
+import { readWaouhSmartEnvelope, waouhSmartActions } from "@/lib/waouh/smartPayload";
 import { BotDealCopilot, dealExpression } from "./bot/BotDealCopilot";
 import { BotLiveAvatar } from "./bot/BotLiveAvatar";
 import {
@@ -161,7 +163,7 @@ export function WaouhMatchChatWindow({
       await invokeWaouhAgentic(action, payload);
       toast.success("Action WAOUH enregistrée");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Action impossible");
+      toast.error(userFacingErrorText(error, "send"));
     } finally {
       setAgentAction(null);
     }
@@ -588,7 +590,9 @@ export function WaouhMatchChatWindow({
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       const message: any = messages[index] || {};
       const meta: any = message.meta || {};
-      const actions = Array.isArray(meta.actions) ? meta.actions : [];
+      const legacyActions = Array.isArray(meta.actions) ? meta.actions : [];
+      const smartActions = waouhSmartActions(meta, 3).filter((action) => action.id !== "open_context");
+      const actions = smartActions.length > 0 ? smartActions : legacyActions;
       const stage = String(
         meta.workflow_state || meta.intent || meta.event || meta.notification_type || ""
       ).toLowerCase().replace(/_/g, "-");
@@ -1015,6 +1019,10 @@ export function WaouhMatchChatWindow({
 
         {messages.map((m) => {
           const rich = normalizeChatReply(m);
+          const smart = readWaouhSmartEnvelope(m.meta);
+          const legacyActions = Array.isArray(m.meta?.actions) ? m.meta.actions : [];
+          const smartActions = waouhSmartActions(m.meta, 3).filter((action) => action.id !== "open_context");
+          const messageActions = smartActions.length > 0 ? smartActions : legacyActions;
           return (
 
           <div
@@ -1067,9 +1075,20 @@ export function WaouhMatchChatWindow({
             {m.direction === "out" && m.id === latestAvatarProgressId && <WaouhAvatarProgress progress={m.meta.avatar_progress} />}
             {m.direction === "out" && m.meta?.avatar_synthesis && <WaouhAvatarSynthesis synthesis={m.meta.avatar_synthesis} />}
             {rich.blocks.length > 0 && <WaouhAgentBlocks blocks={rich.blocks} onAction={authUserId ? handleAgentAction : undefined} busy={!!agentAction} />}
-            {m.direction === "out" && m.id === latestActionMessageId && Array.isArray(m.meta?.actions) && m.meta.actions.length > 0 && (
+            {m.direction === "out" && smart && (smart.domain !== "chat" || smart.priority === "high" || smart.priority === "urgent") && (
+              <div className="mt-2 flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wide">
+                <span className={cn(
+                  "rounded-full px-2 py-1",
+                  smart.priority === "urgent" ? "bg-red-100 text-red-700" :
+                  smart.priority === "high" ? "bg-amber-100 text-amber-700" :
+                  "bg-slate-100 text-slate-600"
+                )}>{smart.domain}</span>
+                {smart.stage && <span className="text-slate-400">{smart.stage}</span>}
+              </div>
+            )}
+            {m.direction === "out" && m.id === latestActionMessageId && messageActions.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {(m.meta.actions as Array<{ id?: string; label?: string }>).slice(0, 3).map((action, index) => {
+                {(messageActions as Array<{ id?: string; label?: string }>).slice(0, 3).map((action, index) => {
                   const actionId = String(action.id || "").trim();
                   const label = String(action.label || actionId || "Choisir").trim();
                   return (

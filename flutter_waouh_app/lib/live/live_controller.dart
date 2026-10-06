@@ -19,6 +19,7 @@ import 'live_session.dart';
 import 'live_status_service.dart';
 import 'live_thread_flow.dart';
 
+import 'user_message.dart';
 final Random _waouhSecureRandom = Random.secure();
 
 String _waouhUuidV4() {
@@ -1452,11 +1453,10 @@ class LiveWaouhController extends ChangeNotifier {
   }
 
   String _humanizeError(Object error) {
-    final value = error.toString();
     if (_isOfflineFailure(error)) {
       return 'Connexion indisponible. Vos actions restent en attente.';
     }
-    return value;
+    return waouhUserMessage(error);
   }
 
   Stream<T> _cacheFirstPoll<T>({

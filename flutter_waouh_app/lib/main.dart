@@ -13,6 +13,9 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import 'live/ui/waouh_adaptive_scale.dart';
+import 'live/live_session.dart';
+import 'live/access_policy.dart';
+import 'live/user_message.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<void> main() async {
@@ -920,7 +923,7 @@ class AuthController extends ChangeNotifier {
         email: email.trim(),
         password: password,
       );
-    });
+    }, action: 'login');
   }
 
   Future<void> signUpWithEmail(
@@ -947,13 +950,13 @@ class AuthController extends ChangeNotifier {
           // Some deployments create profiles with database triggers.
         }
       }
-    });
+    }, action: 'register');
   }
 
   Future<void> resetPassword(String email) async {
     await _guard(() async {
       await supabase.auth.resetPasswordForEmail(email.trim());
-    });
+    }, action: 'reset');
   }
 
   Future<void> signInWithGoogle() async {
@@ -975,7 +978,7 @@ class AuthController extends ChangeNotifier {
         // Fallback for platforms where google_sign_in is not configured yet.
       }
       await supabase.auth.signInWithOAuth(OAuthProvider.google);
-    });
+    }, action: 'login');
   }
 
   /// True right after [verifyWhatsappOtp] resolves a brand-new account that
@@ -1001,7 +1004,7 @@ class AuthController extends ChangeNotifier {
       if (data is Map && data['error'] != null) {
         throw StateError(asString(data['error'], "Envoi du code impossible"));
       }
-    });
+    }, action: 'send');
   }
 
   /// Verifies the 6-digit WhatsApp code and finishes the same way the
@@ -1037,7 +1040,7 @@ class AuthController extends ChangeNotifier {
         type: OtpType.magiclink,
       );
       whatsappIsNewUser = data['is_new_user'] == true;
-    });
+    }, action: 'login');
   }
 
   /// Finishes onboarding for a brand-new WhatsApp account: sets the display
@@ -1068,7 +1071,7 @@ class AuthController extends ChangeNotifier {
         );
       }
       whatsappIsNewUser = false;
-    });
+    }, action: 'save');
   }
 
   String _otpErrorMessage(String? code) => switch (code) {
@@ -1119,7 +1122,7 @@ class AuthController extends ChangeNotifier {
         'avatar_url': publicUrl,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       });
-    });
+    }, action: 'upload');
   }
 
   /// Updates the editable identity fields from the Profile screen (name and
@@ -1136,29 +1139,45 @@ class AuthController extends ChangeNotifier {
       if (fullName != null) patch['full_name'] = fullName.trim();
       if (phone != null) patch['phone'] = phone.trim();
       await supabase.from('profiles').upsert(patch);
-    });
+    }, action: 'save');
   }
 
-  Future<void> signOut() async {
-    await supabase.auth.signOut();
-  }
-
-  Future<void> _guard(Future<void> Function() action) async {
+  Future<bool> signOut() async {
     loading = true;
     error = null;
     notifyListeners();
     try {
-      await action();
+      await supabase.auth.signOut();
+      _session = null;
+      profile = null;
+      whatsappIsNewUser = false;
+      return true;
+    } catch (e, stackTrace) {
+      debugPrint('[AuthController] signOut failed: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      error = waouhUserMessage(e, action: 'logout');
+      return false;
+    } finally {
+      loading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _guard(
+    Future<void> Function() operation, {
+    String action = 'generic',
+  }) async {
+    loading = true;
+    error = null;
+    notifyListeners();
+    try {
+      await operation();
       _session = supabase.auth.currentSession;
       await _loadProfile();
-    } on AuthException catch (e) {
-      error = e.message;
-      rethrow;
-    } on FunctionException catch (e) {
-      error = e.details?.toString() ?? 'Erreur backend';
-      rethrow;
-    } catch (e) {
-      error = e.toString();
+    } catch (e, stackTrace) {
+      debugPrint('[AuthController] $action failed: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      error = waouhUserMessage(e, action: action);
       rethrow;
     } finally {
       loading = false;
@@ -1174,24 +1193,20 @@ class AuthController extends ChangeNotifier {
 }
 
 class WaouhChatController extends ChangeNotifier {
-  WaouhChatController(this.auth) {
-    sessionId = _makeSessionId();
-  }
+  WaouhChatController(this.auth);
 
   final AuthController auth;
-  late final String sessionId;
+  final LiveSessionStore _sessionStore = LiveSessionStore();
   final List<WaouhMessage> optimisticMessages = [];
   String? _waouhUserId;
 
-  String _makeSessionId() {
-    final rnd = Random().nextInt(0xFFFFFF).toRadixString(16);
-    return 'flutter_${DateTime.now().millisecondsSinceEpoch}_$rnd';
-  }
+  Future<String> _sessionId() => _sessionStore.sessionId;
 
   Future<String?> resolveWaouhUserId() async {
     if (_waouhUserId != null) return _waouhUserId;
     final uid = auth.user?.id;
     if (uid == null) return null;
+    final sessionId = await _sessionId();
     try {
       final rows = await supabase
           .from('waouh_users')
@@ -1205,14 +1220,12 @@ class WaouhChatController extends ChangeNotifier {
           orElse: () => list.first,
         );
         _waouhUserId = asString(linked['id']);
-        if (linked['auth_user_id'] == null) {
-          await supabase
-              .from('waouh_users')
-              .update({'auth_user_id': uid})
-              .eq('id', _waouhUserId!);
-        }
+        // Do not mutate an anonymous identity directly from Flutter. The
+        // canonical secure writer links this persistent session to auth.uid()
+        // server-side on the next message.
         return _waouhUserId;
       }
+
       final created = await supabase
           .from('waouh_users')
           .insert({
@@ -1233,6 +1246,7 @@ class WaouhChatController extends ChangeNotifier {
 
   Future<List<String>> resolveWaouhUserIds() async {
     final uid = auth.user?.id;
+    final sessionId = await _sessionId();
     final clauses = <String>[];
     if (uid != null) clauses.add('auth_user_id.eq.$uid');
     if (sessionId.isNotEmpty) clauses.add('web_session_id.eq.$sessionId');
@@ -1264,7 +1278,7 @@ class WaouhChatController extends ChangeNotifier {
           (row) =>
               WaouhConversation.fromJson(Map<String, dynamic>.from(row as Map)),
         )
-        .where((c) => !c.archived)
+        .where((conversation) => !conversation.archived)
         .toList();
   }
 
@@ -1275,17 +1289,40 @@ class WaouhChatController extends ChangeNotifier {
     ).asyncMap((_) => fetchConversations());
   }
 
-  Stream<List<WaouhMessage>> mainMessages() {
-    return supabase
-        .from('waouh_messages')
-        .stream(primaryKey: ['id'])
-        .eq('web_session_id', sessionId)
-        .order('created_at')
+  Future<List<WaouhMessage>> _loadMainMessages() async {
+    final sessionId = await _sessionId();
+    final response = await supabase.functions.invoke(
+      'waouh-history',
+      headers: <String, String>{'x-waouh-session': sessionId},
+      body: {
+        'sessionId': sessionId,
+        'authUserId': auth.user?.id,
+        'limit': 200,
+        'includeMeta': true,
+      },
+    );
+    final data = response.data;
+    if (data is! Map || data['ok'] != true || data['messages'] is! List) {
+      throw StateError('Historique WAOUH indisponible');
+    }
+    final messages = (data['messages'] as List)
+        .whereType<Map>()
         .map(
-          (rows) =>
-              [...rows.map(WaouhMessage.fromJson), ...optimisticMessages]
-                ..sort((a, b) => a.createdAt.compareTo(b.createdAt)),
-        );
+          (row) => WaouhMessage.fromJson(
+            Map<String, dynamic>.from(row),
+          ),
+        )
+        .toList()
+      ..addAll(optimisticMessages);
+    messages.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    return messages;
+  }
+
+  Stream<List<WaouhMessage>> mainMessages() async* {
+    yield await _loadMainMessages();
+    yield* Stream.periodic(
+      const Duration(seconds: 4),
+    ).asyncMap((_) => _loadMainMessages());
   }
 
   Stream<List<WaouhMessage>> conversationMessages(String conversationId) {
@@ -1300,6 +1337,7 @@ class WaouhChatController extends ChangeNotifier {
   Future<void> sendWaouhMessage(String content, {WaouhIntent? intent}) async {
     final trimmed = content.trim();
     if (trimmed.isEmpty) return;
+    final sessionId = await _sessionId();
     final local = WaouhMessage(
       id: 'local-${DateTime.now().microsecondsSinceEpoch}',
       content: trimmed,
@@ -1311,37 +1349,36 @@ class WaouhChatController extends ChangeNotifier {
     optimisticMessages.add(local);
     notifyListeners();
     try {
-      final fn = intent?.edgeFunction ?? 'waouh-channel-in';
-      try {
-        await supabase.functions.invoke(
-          fn,
-          body: {
-            'message': trimmed,
-            'text': trimmed,
-            'web_session_id': sessionId,
-            'auth_user_id': auth.user?.id,
-            'source': 'flutter_native',
-            'intent': intent?.name,
-          },
-        );
-      } catch (_) {
-        final waouhUserId = await resolveWaouhUserId();
-        await supabase.from('waouh_messages').insert({
-          'text': trimmed,
+      final requestedFunction = intent?.edgeFunction ?? 'waouh-channel-in';
+      final functionName = requestedFunction == 'waouh-channel-in'
+          ? 'waouh-channel-in-secure'
+          : requestedFunction;
+      final response = await supabase.functions.invoke(
+        functionName,
+        headers: <String, String>{'x-waouh-session': sessionId},
+        body: {
+          'channel': 'web',
+          'sessionId': sessionId,
           'web_session_id': sessionId,
-          if (waouhUserId != null) 'user_id': waouhUserId,
-          'channel': 'flutter',
-          'direction': 'in',
-          'attachments': [],
+          'message': trimmed,
+          'text': trimmed,
+          'auth_user_id': auth.user?.id,
+          'source': 'flutter_native',
+          'intent': intent?.name,
           'meta': {
             'source': 'flutter_native',
-            'intent': intent?.name,
-            'fallback': true,
+            if (intent != null) 'intent': intent.name,
           },
-        });
+        },
+      );
+      final data = response.data;
+      if (data is Map && (data['ok'] == false || data['error'] != null)) {
+        throw StateError(
+          asString(data['message'] ?? data['error'] ?? 'Envoi WAOUH impossible'),
+        );
       }
     } finally {
-      optimisticMessages.removeWhere((m) => m.id == local.id);
+      optimisticMessages.removeWhere((message) => message.id == local.id);
       notifyListeners();
     }
   }
@@ -1352,27 +1389,20 @@ class WaouhChatController extends ChangeNotifier {
   ) async {
     final text = body.trim();
     if (text.isEmpty) return;
-    try {
-      await supabase.functions.invoke(
-        'waouh-operator-send',
-        body: {
-          'conversation_id': conversationId,
-          'message': text,
-          'auth_user_id': auth.user?.id,
-          'source': 'flutter_native',
-        },
-      );
-    } catch (_) {
-      final waouhUserId = await resolveWaouhUserId();
-      await supabase.from('waouh_messages').insert({
+    final response = await supabase.functions.invoke(
+      'waouh-operator-send',
+      body: {
         'conversation_id': conversationId,
-        'text': text,
-        if (waouhUserId != null) 'user_id': waouhUserId,
-        'channel': 'flutter',
-        'direction': 'out',
-        'attachments': [],
-        'meta': {'source': 'operator_fallback'},
-      });
+        'message': text,
+        'auth_user_id': auth.user?.id,
+        'source': 'flutter_native',
+      },
+    );
+    final data = response.data;
+    if (data is Map && (data['ok'] == false || data['error'] != null)) {
+      throw StateError(
+        asString(data['message'] ?? data['error'] ?? 'Envoi opérateur impossible'),
+      );
     }
   }
 
@@ -1486,6 +1516,8 @@ class StatusController extends ChangeNotifier {
 }
 
 class NotificationsController {
+  final LiveSessionStore _sessionStore = LiveSessionStore();
+
   Future<List<String>> _waouhUserIds(User? user) async {
     if (user == null) return const [];
     try {
@@ -1532,19 +1564,50 @@ class NotificationsController {
   }
 
   Future<void> markRead(String id) async {
-    await supabase
-        .from('waouh_notifications')
-        .update({'opened': true, 'read_at': DateTime.now().toIso8601String()})
-        .eq('id', id);
+    final cleanId = id.trim();
+    if (cleanId.isEmpty) return;
+    final sid = await _sessionStore.sessionId;
+    final response = await supabase.functions.invoke(
+      'waouh-history',
+      headers: <String, String>{'x-waouh-session': sid},
+      body: {
+        'action': 'mark_notification_read',
+        'sessionId': sid,
+        'notificationId': cleanId,
+      },
+    );
+    final data = response.data;
+    if (data is! Map || data['ok'] != true) {
+      throw StateError(
+        asString(
+          data is Map ? data['error'] : null,
+          'Notification impossible à marquer comme lue',
+        ),
+      );
+    }
   }
 
   Future<void> markAllRead(User? user) async {
-    final ids = await _waouhUserIds(user);
-    if (ids.isEmpty) return;
-    await supabase
-        .from('waouh_notifications')
-        .update({'opened': true, 'read_at': DateTime.now().toIso8601String()})
-        .inFilter('user_id', ids);
+    if (user == null) return;
+    final sid = await _sessionStore.sessionId;
+    final response = await supabase.functions.invoke(
+      'waouh-history',
+      headers: <String, String>{'x-waouh-session': sid},
+      body: {
+        'action': 'mark_all_notifications_read',
+        'sessionId': sid,
+        'authUserId': user.id,
+      },
+    );
+    final data = response.data;
+    if (data is! Map || data['ok'] != true) {
+      throw StateError(
+        asString(
+          data is Map ? data['error'] : null,
+          'Notifications impossibles à marquer comme lues',
+        ),
+      );
+    }
   }
 }
 
@@ -1980,10 +2043,10 @@ class WaouhBootErrorApp extends StatelessWidget {
                   style: TextStyle(color: WaouhColors.muted, height: 1.4),
                 ),
                 const SizedBox(height: 16),
-                Text(
-                  error.toString(),
+                const Text(
+                  "Réessayez dans quelques instants. Si le problème persiste, vérifiez votre connexion.",
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: WaouhColors.red, fontSize: 12),
+                  style: TextStyle(color: WaouhColors.muted, fontSize: 12),
                 ),
               ],
             ),
@@ -1996,12 +2059,16 @@ class WaouhBootErrorApp extends StatelessWidget {
 
 String? currentNextRoute(BuildContext context) {
   try {
-    return GoRouterState.of(context).uri.queryParameters['next'];
+    return normalizeWaouhNextRoute(
+      GoRouterState.of(context).uri.queryParameters['next'],
+    );
   } catch (_) {
     try {
-      return GoRouter.of(
-        context,
-      ).routeInformationProvider.value.uri.queryParameters['next'];
+      return normalizeWaouhNextRoute(
+        GoRouter.of(
+          context,
+        ).routeInformationProvider.value.uri.queryParameters['next'],
+      );
     } catch (_) {
       return null;
     }
@@ -2009,27 +2076,19 @@ String? currentNextRoute(BuildContext context) {
 }
 
 GoRouter _buildRouter(AuthController auth) {
-  final protected = <String>[
-    '/app/chat/',
-    '/app/bots',
-    '/app/whatsapp',
-    '/app/diffusion',
-    '/app/partner',
-    '/app/profile',
-    '/app/notifications',
-  ];
   return GoRouter(
-    initialLocation: '/app/chat',
+    initialLocation: defaultPublicWaouhPath,
     refreshListenable: auth,
     redirect: (context, state) {
       final path = state.uri.path;
       final isAuthRoute = path.startsWith('/app/auth');
-      final needsAuth = protected.any(path.startsWith);
+      final needsAuth = requiresWaouhAuthentication(path);
       if (!auth.signedIn && needsAuth) {
-        return '/app/auth?next=${Uri.encodeComponent(path)}';
+        return buildWaouhAuthRoute(state.uri.toString());
       }
-      if (auth.signedIn && isAuthRoute)
-        return state.uri.queryParameters['next'] ?? '/app/chat';
+      if (auth.signedIn && isAuthRoute) {
+        return normalizeWaouhNextRoute(state.uri.queryParameters['next']);
+      }
       return null;
     },
     routes: [

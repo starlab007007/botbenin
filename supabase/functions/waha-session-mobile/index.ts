@@ -366,7 +366,7 @@ async function getOwnedAccount(
   const { data, error } = await admin
     .from("whatsapp_accounts")
     .select(
-      "id,user_id,session_name,status,phone_number,waha_session_data,created_at",
+      "id,user_id,session_name,status,phone_number,webhook_url,waha_session_data,created_at",
     )
     .eq("user_id", userId)
     .eq("session_name", sessionName)
@@ -391,6 +391,99 @@ async function getOwnedAccount(
   return mapOf(data);
 }
 
+function webhookTokenOf(account: Record<string, unknown>) {
+  const stored = textOf(studioMeta(account).webhook_token);
+  if (stored) return stored;
+
+  const current = textOf(account.webhook_url);
+  if (!current) return "";
+  try {
+    return new URL(current).searchParams.get("token") || "";
+  } catch {
+    return "";
+  }
+}
+
+function canonicalWebhookUrl(
+  supabaseUrl: string,
+  account: Record<string, unknown>,
+) {
+  const token = webhookTokenOf(account);
+  const base = `${supabaseUrl}/functions/v1/waha-webhook`;
+  return token ? `${base}?token=${encodeURIComponent(token)}` : base;
+}
+
+async function repairLegacyWebhook(
+  credentials: WahaCredentials,
+  admin: any,
+  account: Record<string, unknown>,
+  supabaseUrl: string,
+  sessionName: string,
+  currentPayload: Record<string, unknown>,
+) {
+  const currentUrl = textOf(account.webhook_url);
+  if (!currentUrl.includes("/functions/v1/waha-studio-webhook")) return;
+
+  const webhookUrl = canonicalWebhookUrl(supabaseUrl, account);
+  const config = mapOf(currentPayload.config);
+  const existingWebhooks = Array.isArray(config.webhooks)
+    ? config.webhooks.filter((item) => {
+        const value = mapOf(item);
+        const url = textOf(value.url);
+        return !url.includes("/functions/v1/waha-studio-webhook") &&
+          !url.includes("/functions/v1/waha-webhook");
+      })
+    : [];
+
+  const nextConfig = {
+    ...config,
+    webhooks: [
+      ...existingWebhooks,
+      {
+        url: webhookUrl,
+        events: [
+          "message",
+          "message.any",
+          "message.ack",
+          "message.reaction",
+          "session.status",
+        ],
+      },
+    ],
+  };
+
+  const candidates = [
+    `/api/sessions/${encodeURIComponent(sessionName)}`,
+    `/api/v2/sessions/${encodeURIComponent(sessionName)}`,
+  ];
+
+  for (const path of candidates) {
+    try {
+      const response = await wahaFetch(credentials, path, {
+        method: "PUT",
+        body: JSON.stringify({ config: nextConfig }),
+      });
+      if (!response.ok) continue;
+
+      await admin
+        .from("whatsapp_accounts")
+        .update({
+          webhook_url: webhookUrl,
+          last_activity: new Date().toISOString(),
+        })
+        .eq("id", textOf(account.id))
+        .eq("user_id", textOf(account.user_id));
+
+      console.log(`✅ WAHA webhook repaired for session=${sessionName}`);
+      return;
+    } catch (error) {
+      console.warn("WAHA webhook repair attempt failed", error);
+    }
+  }
+
+  console.warn(`WAHA webhook repair deferred for session=${sessionName}`);
+}
+
 async function updateAccount(
   admin: any,
   account: Record<string, unknown>,
@@ -405,7 +498,7 @@ async function updateAccount(
     .eq("id", textOf(account.id))
     .eq("user_id", textOf(account.user_id))
     .select(
-      "id,user_id,session_name,status,phone_number,waha_session_data,created_at",
+      "id,user_id,session_name,status,phone_number,webhook_url,waha_session_data,created_at",
     )
     .single();
 
@@ -543,7 +636,7 @@ serve(async (req) => {
       const sessionName = technicalSessionName(user.id, displayName);
       const webhookToken = crypto.randomUUID().replace(/-/g, "");
       const webhookUrl =
-        `${supabaseUrl}/functions/v1/waha-studio-webhook?token=${webhookToken}`;
+        `${supabaseUrl}/functions/v1/waha-webhook?token=${webhookToken}`;
 
       const candidates = [
         "/api/sessions",
@@ -621,7 +714,7 @@ serve(async (req) => {
           },
         )
         .select(
-          "id,user_id,session_name,status,phone_number,waha_session_data,created_at",
+          "id,user_id,session_name,status,phone_number,webhook_url,waha_session_data,created_at",
         )
         .single();
 
@@ -728,6 +821,15 @@ serve(async (req) => {
           `Lecture du statut WAHA impossible. ${lastError}`,
         );
       }
+
+      await repairLegacyWebhook(
+        credentials,
+        admin,
+        account,
+        supabaseUrl,
+        sessionName,
+        payload,
+      );
 
       const updated = await updateAccount(admin, account, {
         status: databaseStatus(payload),

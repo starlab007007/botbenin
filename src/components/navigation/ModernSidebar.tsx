@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAdminRole } from '@/hooks/useAdminRole';
 import { 
@@ -30,8 +30,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
-import { AuthModal } from '@/components/AuthModal';
 import whatsappIcon from '@/assets/whatsapp-icon.png';
+import { buildWaouhAuthRedirect } from '@/lib/waouhAccessPolicy';
 
 interface ModernSidebarProps {
   isOpen: boolean;
@@ -128,8 +128,6 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
   const navigate = useNavigate();
   const { user } = useAuth();
   const { isAdmin } = useAdminRole();
-  const [authOpen, setAuthOpen] = useState(false);
-  const [pendingPath, setPendingPath] = useState<string | null>(null);
 
   const isActive = (path: string) => {
     const routePath = path.split('?')[0];
@@ -153,8 +151,8 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
     const handleClick = (e: React.MouseEvent) => {
       if (needsAuth) {
         e.preventDefault();
-        setPendingPath(item.path);
-        setAuthOpen(true);
+        navigate(buildWaouhAuthRedirect(item.path, "/auth"));
+        onClose();
         return;
       }
       onClose();
@@ -306,23 +304,12 @@ export const ModernSidebar: React.FC<ModernSidebarProps> = ({ isOpen, onClose })
         <div className="pt-4">
           <div className="space-y-2">
             {bottomItems.map((item) => (
-              <NavItem key={item.path} item={item} />
+              <NavItem key={item.path} item={item} requireAuth />
             ))}
           </div>
         </div>
       </nav>
 
-      <AuthModal
-        isOpen={authOpen}
-        onClose={() => {
-          setAuthOpen(false);
-          if (pendingPath && user) {
-            navigate(pendingPath);
-            onClose();
-          }
-          setPendingPath(null);
-        }}
-      />
     </div>
   );
 };

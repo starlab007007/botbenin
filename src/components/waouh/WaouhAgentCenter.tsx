@@ -1,3 +1,4 @@
+import { userFacingErrorText } from "@/lib/userFacingError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Activity, BellRing, Bot, Loader2, Plus, RefreshCw, ShieldCheck, Sparkles, Store } from "lucide-react";
@@ -30,7 +31,7 @@ type CenterData = {
 
 const EMPTY: CenterData = { missions: [], watches: [], approvals: [], activity: [], bus: [], offers: [], policy: null };
 
-const errorMessage = (error: unknown) => error instanceof Error ? error.message : "Une erreur inattendue est survenue.";
+const errorMessage = (error: unknown) => userFacingErrorText(error, "generic");
 const amount = (value: string) => value.trim() ? Number(value.replace(/\s/g, "")) : undefined;
 
 export function WaouhAgentCenter({ compact = false, standalone = false }: { compact?: boolean; standalone?: boolean }) {

@@ -179,6 +179,7 @@ export default function WaouhChatPage({ embedded = false }: { embedded?: boolean
     openNotificationTarget(notification, {
       beforeOpen: () => markRead(notification.id),
       onPayDialog: (args) => setPayDialog(args),
+      onNavigate: (route) => navigate(route),
     });
   };
 

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useWaouhIdentity } from "./useWaouhIdentity";
 import { toast } from "sonner";
+import { primaryWaouhSmartAction, readWaouhSmartEnvelope, waouhSmartDisplayText, waouhSmartRoute } from "@/lib/waouh/smartPayload";
 
 const STORAGE_KEY = "waouh_chat_read_v1";
 
@@ -11,7 +12,13 @@ function readMap(): Record<string, string> {
   catch { return {}; }
 }
 
-async function fireNativeNotification(title: string, body: string, convId: string) {
+async function fireNativeNotification(
+  title: string,
+  body: string,
+  convId: string,
+  routeOverride?: string | null,
+  smartMeta?: Record<string, unknown> | null,
+) {
   try {
     const { Capacitor } = await import("@capacitor/core");
     if (!Capacitor.isNativePlatform()) return;
@@ -27,7 +34,11 @@ async function fireNativeNotification(title: string, body: string, convId: strin
         title,
         body,
         smallIcon: "ic_stat_icon_config_sample",
-        extra: { convId, route: convId ? `/app/chat/${convId}` : `/app/chat` },
+        extra: {
+          convId,
+          route: routeOverride || (convId ? `/app/chat/${convId}` : `/app/chat`),
+          ...(smartMeta || {}),
+        },
       }],
     });
   } catch (e) {
@@ -41,7 +52,7 @@ async function fireNativeNotification(title: string, body: string, convId: strin
  * paint of /app/chat on slow networks (root cause of ERR_TIMED_OUT loops).
  */
 export function useGlobalChatSync() {
-  const { waouhUserIds, sessionId, ready } = useWaouhIdentity();
+  const { waouhUserIds, sessionId, authUserId, ready } = useWaouhIdentity();
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const pathRef = useRef(pathname);
@@ -52,7 +63,7 @@ export function useGlobalChatSync() {
 
   useEffect(() => {
     if (!ready) return;
-    if (!waouhUserIds.length && !sessionId) { setTotalUnread(0); return; }
+    if (!authUserId && !waouhUserIds.length && !sessionId) { setTotalUnread(0); return; }
 
     let cancelled = false;
     let started = false;
@@ -63,13 +74,14 @@ export function useGlobalChatSync() {
       // Single aggregated COUNT (1 request) instead of N COUNT queries.
       // Pick the conversation list from waouh_users mapping when available.
       let convIds: string[] = [];
-      if (waouhUserIds.length) {
+      if (authUserId) {
+        // RLS scopes this query to every WAOUH identity owned by the account,
+        // avoiding partial unread counts when identity history is large.
         const { data } = await supabase
           .from("waouh_conversations")
           .select("id,phone_number")
-          .in("user_id", waouhUserIds)
           .order("updated_at", { ascending: false })
-          .limit(100);
+          .limit(200);
         const list = data ?? [];
         const cache: Record<string, { phone_number: string | null }> = {};
         list.forEach((c: any) => { cache[c.id] = { phone_number: c.phone_number }; });
@@ -128,9 +140,16 @@ export function useGlobalChatSync() {
         if (m.conversation_id && data) convCacheRef.current[m.conversation_id] = { phone_number: sender };
       }
       sender = sender ?? m.phone_number ?? null;
-      const title = sender ?? "WAOUH";
-      const body = (m.text ?? "").toString().slice(0, 140) || "📎 Message reçu";
-      const route = m.conversation_id ? `/app/chat/${m.conversation_id}` : `/app/chat/waouh`;
+      const fallbackTitle = sender ?? "WAOUH";
+      const fallbackBody = (m.text ?? "").toString().slice(0, 140) || "Message reçu";
+      const smart = readWaouhSmartEnvelope(m.meta);
+      const smartText = waouhSmartDisplayText(m.meta, fallbackBody);
+      const primaryAction = primaryWaouhSmartAction(m.meta);
+      const route =
+        waouhSmartRoute(m.meta) ||
+        (m.conversation_id ? `/app/chat/${m.conversation_id}` : `/app/chat/waouh`);
+      const title = smartText.title || fallbackTitle;
+      const body = smartText.detail || fallbackBody;
       const currentPath = pathRef.current || "";
       const inThisChat =
         currentPath === route ||
@@ -139,9 +158,22 @@ export function useGlobalChatSync() {
       if (!inThisChat) {
         toast.message(title, {
           description: body,
-          action: { label: "Ouvrir", onClick: () => navigate(route) },
+          action: {
+            label: primaryAction?.label || "Ouvrir",
+            onClick: () => navigate(route),
+          },
         });
-        fireNativeNotification(title, body, m.conversation_id ?? "");
+        void fireNativeNotification(
+          title,
+          body,
+          m.conversation_id ?? "",
+          route,
+          smart ? {
+            smart_action_id: primaryAction?.id ?? null,
+            correlation_id: smart.correlation_id ?? null,
+            smart_domain: smart.domain,
+          } : null,
+        );
       }
     };
 
@@ -174,16 +206,17 @@ export function useGlobalChatSync() {
         }
       } catch {}
 
-      // Realtime subscriptions, one per identity.
-      for (const uid of waouhUserIds) {
-        const ch = supabase.channel(`mobile-msgs-uid-${uid}`)
+      // One authenticated Realtime channel is enough: RLS filters events to
+      // the caller's WAOUH identities. This replaces N channels for N legacy
+      // identity rows. Guests keep the session-scoped fallback.
+      if (authUserId) {
+        const ch = supabase.channel(`mobile-msgs-auth-${authUserId}`)
           .on("postgres_changes",
-            { event: "INSERT", schema: "public", table: "waouh_messages", filter: `user_id=eq.${uid}` },
+            { event: "INSERT", schema: "public", table: "waouh_messages" },
             handler)
           .subscribe();
         channels.push(ch);
-      }
-      if (sessionId) {
+      } else if (sessionId) {
         const ch = supabase.channel(`mobile-msgs-sess-${sessionId}`)
           .on("postgres_changes",
             { event: "INSERT", schema: "public", table: "waouh_messages", filter: `web_session_id=eq.${sessionId}` },
@@ -211,7 +244,7 @@ export function useGlobalChatSync() {
       if (onRead) window.removeEventListener("waouh-chat-read", onRead);
       channels.forEach((c) => supabase.removeChannel(c));
     };
-  }, [ready, waouhUserIds.join("|"), sessionId, navigate]);
+  }, [ready, authUserId, sessionId, navigate]);
 
   return { totalUnread };
 }

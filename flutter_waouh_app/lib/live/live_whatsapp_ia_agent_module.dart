@@ -14,6 +14,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'live_ia_premium_ui.dart';
 import 'live_whatsapp_ia_models.dart';
 
+import 'user_message.dart';
 part 'live_whatsapp_ia_smart_agent_wizard.dart';
 part 'live_whatsapp_ia_agent_management.dart';
 
@@ -4343,12 +4344,12 @@ String _edgeDiagnostic(String raw) {
       lower.contains('gemini_api_key') ||
       lower.contains('google_api_key') ||
       lower.contains('gemini')) {
-    return 'Le moteur IA Gemini ne répond pas pour le moment. Réessayez dans quelques instants.';
+    return 'Le moteur IA ne répond pas pour le moment. Réessayez dans quelques instants.';
   }
   if (lower.contains('function_not_deployed') ||
       lower.contains('failed to send a request') ||
       lower.contains('function not found')) {
-    return 'Le service Agent IA doit être finalisé côté serveur. Réessayez après la synchronisation.';
+    return 'Le service Agent IA est temporairement indisponible. Réessayez dans quelques instants.';
   }
   if (lower.contains('unauthorized') ||
       lower.contains('401') ||
@@ -4363,5 +4364,8 @@ String _edgeDiagnostic(String raw) {
       lower.contains('transcription')) {
     return 'Le moteur IA ne répond pas correctement pour le moment. Réessayez dans quelques instants.';
   }
-  return raw.replaceFirst('LiveWhatsAppIaException: ', '');
+  return waouhUserMessage(
+    raw.replaceFirst('LiveWhatsAppIaException: ', ''),
+    action: 'load',
+  );
 }

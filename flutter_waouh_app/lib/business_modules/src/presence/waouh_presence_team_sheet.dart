@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'waouh_presence_models.dart';
 import 'waouh_presence_repository.dart';
 
+import '../../../live/user_message.dart';
 class WaouhPresenceTeamSheet extends StatefulWidget {
   const WaouhPresenceTeamSheet({
     super.key,
@@ -74,7 +75,7 @@ class _WaouhPresenceTeamSheetState extends State<WaouhPresenceTeamSheet> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('$error')));
+      ).showSnackBar(SnackBar(content: Text(waouhUserMessage(error, action: 'save'))));
     }
   }
 

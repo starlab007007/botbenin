@@ -7,6 +7,7 @@ import 'live_controller_extensions.dart';
 import 'live_models.dart';
 import 'live_widgets.dart';
 
+import 'user_message.dart';
 class LiveResolvedMatchChatScreen extends StatefulWidget {
   const LiveResolvedMatchChatScreen(
       {super.key, required this.matchKey, this.initial});
@@ -93,7 +94,7 @@ class _LiveResolvedMatchChatScreenState
       if (mounted) {
         setState(() => attachments.addAll(files));
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(error.toString())));
+            .showSnackBar(SnackBar(content: Text(waouhUserMessage(error, action: 'send'))));
       }
     } finally {
       if (mounted) setState(() => sending = false);

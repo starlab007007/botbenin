@@ -23,12 +23,18 @@ export default function ProfileScreen() {
   };
 
   const logout = async () => {
-    await signOut();
+    const { error } = await signOut();
+    if (error) {
+      console.error("[Profile] sign-out failed", error);
+      toast.error("Déconnexion impossible. Réessayez dans quelques instants.");
+      return;
+    }
     try {
       const { Preferences } = await import("@capacitor/preferences");
       await Preferences.clear();
     } catch {}
-    navigate("/app/auth", { replace: true });
+    toast.success("Vous êtes déconnecté. La consultation reste disponible.");
+    navigate("/app/chat", { replace: true });
   };
 
   return (

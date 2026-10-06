@@ -1,11 +1,12 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAdminRole } from '@/hooks/useAdminRole';
 import { useWaouhPartner } from '@/hooks/useWaouhPartner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ShieldAlert, Clock } from 'lucide-react';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { buildWaouhAuthRedirect } from '@/lib/waouhAccessPolicy';
 
 interface PartnerRouteProps {
   children: React.ReactNode;
@@ -17,14 +18,22 @@ export const PartnerRoute: React.FC<PartnerRouteProps> = ({ children, requireAct
   const { user, isLoading: authLoading } = useAuth();
   const { isAdmin, isLoading: roleLoading } = useAdminRole();
   const { partner, loading: partnerLoading } = useWaouhPartner();
+  const location = useLocation();
 
   if (authLoading || roleLoading || partnerLoading) return <LoadingSpinner />;
-  if (!user) return <Navigate to="/auth" replace />;
+  if (!user) {
+    return (
+      <Navigate
+        to={buildWaouhAuthRedirect(`${location.pathname}${location.search}`, "/auth")}
+        replace
+      />
+    );
+  }
   if (isAdmin) return <>{children}</>;
   if (!requireActive) return <>{children}</>;
 
   if (!partner) {
-    return <Navigate to="/partner" replace />;
+    return <Navigate to="/app/partner" replace />;
   }
   if (partner.statut !== 'active') {
     return (
@@ -48,7 +57,15 @@ export const PartnerRoute: React.FC<PartnerRouteProps> = ({ children, requireAct
 
 export const AuthRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, isLoading } = useAuth();
+  const location = useLocation();
   if (isLoading) return <LoadingSpinner />;
-  if (!user) return <Navigate to="/auth" replace />;
+  if (!user) {
+    return (
+      <Navigate
+        to={buildWaouhAuthRedirect(`${location.pathname}${location.search}`, "/auth")}
+        replace
+      />
+    );
+  }
   return <>{children}</>;
 };

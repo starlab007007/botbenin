@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import RadarApiConfigPanel from "./RadarApiConfigPanel";
 import RadarAutoControlPanel from "@/components/admin/RadarAutoControlPanel";
 
+import { userFacingErrorText } from "@/lib/userFacingError";
 type Source = { id: string; type: string; identifier: string; label: string | null; active: boolean; scan_freq_min: number; last_scan_at: string | null; last_signal_count: number };
 type Signal = { id: string; source_type: string; intent: string; product: any; price: number | null; city: string | null; contact_phone: string | null; contact_handle: string | null; confidence: number; status: string; captured_at: string; raw_url: string | null; raw_text: string | null; promoted_article_id: string | null; promoted_buyer_profile_id: string | null };
 type Profile = { id: string; contact_phone: string; display_name: string | null; role: string; categories: string[]; cities: string[]; signals_count: number; reliability_score: number; last_seen_at: string | null };
@@ -54,7 +55,7 @@ export default function WaouhRadarTab() {
   const addSource = async () => {
     if (!newSrc.identifier) return toast.error("Identifiant requis");
     const { error } = await supabase.from("waouh_radar_sources").insert(newSrc);
-    if (error) toast.error(error.message);
+    if (error) toast.error(userFacingErrorText(error, "save"));
     else { toast.success("Source ajoutée"); setNewSrc({ type: "fb_marketplace", identifier: "", label: "" }); load(); }
   };
 
@@ -73,8 +74,8 @@ export default function WaouhRadarTab() {
     toast.loading(`Lancement ${fn}…`, { id: fn });
     const { data, error } = await supabase.functions.invoke(fn, { body: {} });
     toast.dismiss(fn);
-    if (error) toast.error(error.message);
-    else toast.success(`OK : ${JSON.stringify(data).slice(0, 80)}`);
+    if (error) toast.error(userFacingErrorText(error, "save"));
+    else toast.success("Analyse terminée. Les données Radar ont été actualisées.");
     load();
   };
 
@@ -82,7 +83,7 @@ export default function WaouhRadarTab() {
     setBusyId(id);
     const { data, error } = await supabase.rpc("waouh_promote_signal" as any, { p_signal_id: id });
     setBusyId(null);
-    if (error) toast.error(error.message);
+    if (error) toast.error(userFacingErrorText(error, "save"));
     else { toast.success(`Promu en ${(data as any)?.kind}`); load(); }
   };
 
@@ -90,7 +91,7 @@ export default function WaouhRadarTab() {
     setBusyId(id);
     const { data, error } = await supabase.rpc("waouh_match_signal" as any, { p_signal_id: id });
     setBusyId(null);
-    if (error) toast.error(error.message);
+    if (error) toast.error(userFacingErrorText(error, "save"));
     else toast.success(`${(data as any)?.count ?? 0} correspondance(s)`);
   };
 

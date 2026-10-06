@@ -11,6 +11,8 @@ import 'live_controller.dart';
 import 'live_nexus_service.dart';
 import 'live_widgets.dart';
 import 'live_theme.dart';
+import 'live_guest_action_gate.dart';
+import 'user_message.dart';
 import 'live_hot_labels.dart';
 
 class LiveNexusScreen extends StatefulWidget {
@@ -61,7 +63,6 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   }
 
   Future<void> loadSources() async {
-    if (legacy.supabase.auth.currentUser == null) return;
     try {
       final value = await service.sources();
       if (!mounted) return;
@@ -118,6 +119,11 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   }
 
   Future<void> recognizeProduct() async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/nexus',
+      actionLabel: 'analyser une photo avec NEXUS',
+    )) return;
     final file = await ImagePicker().pickImage(
       source: ImageSource.camera,
       imageQuality: 82,
@@ -142,6 +148,11 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   }
 
   Future<void> scanBarcode() async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/nexus',
+      actionLabel: 'analyser un code-barres avec NEXUS',
+    )) return;
     final code = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
@@ -167,6 +178,11 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   }
 
   Future<void> startBuyerAutopilot() async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/missions',
+      actionLabel: 'confier la recherche à votre Avatar',
+    )) return;
     final goal = query.text.trim();
     if (goal.isEmpty) {
       notice('Lancez d’abord une recherche.');
@@ -208,6 +224,11 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   }
 
   Future<void> pickShareImage() async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/nexus',
+      actionLabel: 'ajouter une capture à NEXUS',
+    )) return;
     final file = await ImagePicker().pickImage(
       source: ImageSource.gallery,
       imageQuality: 84,
@@ -231,6 +252,11 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   }
 
   Future<void> ingestShared() async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/nexus',
+      actionLabel: 'ajouter un signal au réseau NEXUS',
+    )) return;
     if (shareText.text.trim().isEmpty &&
         shareUrl.text.trim().isEmpty &&
         (shareImageUrl?.isEmpty ?? true)) {
@@ -264,6 +290,11 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   }
 
   Future<void> submitScout() async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/nexus',
+      actionLabel: 'contribuer au réseau de prix NEXUS',
+    )) return;
     final title = scoutTitle.text.trim();
     if (title.isEmpty) {
       notice('Indiquez le produit observé.');
@@ -296,6 +327,11 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
   }
 
   Future<void> prepareContact(NexusDiscoveryItem item) async {
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/nexus',
+      actionLabel: 'contacter cette opportunité',
+    )) return;
     setState(() => busy = true);
     try {
       final contact = await service.prepareContact(item.fabricId);
@@ -339,30 +375,51 @@ class _LiveNexusScreenState extends State<LiveNexusScreen> {
           subtitle: 'Le moteur de découverte de votre Avatar',
           back: true,
         ),
-        body: auth.signedIn
-            ? Column(
-                children: [
-                  _Hero(liveCount: sources.where((source) => source.live).length),
-                  const _Tabs(),
-                  Expanded(
-                    child: TabBarView(
-                      children: [
-                        buildSearch(),
-                        buildShare(),
-                        buildScout(),
-                        buildSources(),
-                      ],
-                    ),
+        body: Column(
+          children: [
+            _Hero(liveCount: sources.where((source) => source.live).length),
+            if (!auth.signedIn)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0F5FF),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFFD6E3FF)),
+                ),
+                child: const Text(
+                  'Mode invité · Recherche et sources accessibles. Connectez-vous pour partager, contribuer, contacter ou confier une mission à Bot.',
+                  style: TextStyle(
+                    color: Color(0xFF315BD8),
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
                   ),
-                ],
-              )
-            : Center(
-                child: FilledButton.icon(
-                  onPressed: () => context.go('/app/auth?next=/app/nexus'),
-                  icon: const Icon(Icons.login_rounded),
-                  label: const Text('Se connecter pour utiliser NEXUS'),
                 ),
               ),
+            _Tabs(signedIn: auth.signedIn),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  buildSearch(),
+                  auth.signedIn
+                      ? buildShare()
+                      : const _GuestLockedNexusPane(
+                          title: 'Partager à WAOUH',
+                          description: 'Connectez-vous pour analyser et ajouter un signal personnel au Signal Fabric.',
+                        ),
+                  auth.signedIn
+                      ? buildScout()
+                      : const _GuestLockedNexusPane(
+                          title: 'Scout terrain',
+                          description: 'Connectez-vous pour contribuer au réseau de prix et publier une observation.',
+                        ),
+                  buildSources(),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -883,7 +940,8 @@ class _Hero extends StatelessWidget {
 }
 
 class _Tabs extends StatelessWidget {
-  const _Tabs();
+  const _Tabs({required this.signedIn});
+  final bool signedIn;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -894,12 +952,12 @@ class _Tabs extends StatelessWidget {
           color: const Color(0xFFF0F4FB),
           borderRadius: BorderRadius.circular(16),
         ),
-        child: const TabBar(
+        child: TabBar(
           isScrollable: true,
           tabAlignment: TabAlignment.start,
           dividerColor: Colors.transparent,
           indicatorSize: TabBarIndicatorSize.tab,
-          indicator: BoxDecoration(
+          indicator: const BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.all(Radius.circular(12)),
             boxShadow: [
@@ -912,15 +970,91 @@ class _Tabs extends StatelessWidget {
           ),
           labelColor: WaouhPalette.blue,
           unselectedLabelColor: WaouhPalette.muted,
-          labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+          labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
           unselectedLabelStyle:
-              TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+              const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
           tabs: [
-            Tab(icon: Icon(Icons.search_rounded, size: 17), text: 'Chercher'),
-            Tab(icon: Icon(Icons.share_rounded, size: 17), text: 'Partager'),
-            Tab(icon: Icon(Icons.explore_outlined, size: 17), text: 'Scout'),
-            Tab(icon: Icon(Icons.hub_outlined, size: 17), text: 'Sources'),
+            const Tab(icon: Icon(Icons.search_rounded, size: 17), text: 'Chercher'),
+            Tab(
+              icon: Icon(
+                signedIn ? Icons.share_rounded : Icons.lock_outline_rounded,
+                size: 17,
+              ),
+              text: 'Partager',
+            ),
+            Tab(
+              icon: Icon(
+                signedIn ? Icons.explore_outlined : Icons.lock_outline_rounded,
+                size: 17,
+              ),
+              text: 'Scout',
+            ),
+            const Tab(icon: Icon(Icons.hub_outlined, size: 17), text: 'Sources'),
           ],
+        ),
+      );
+}
+
+class _GuestLockedNexusPane extends StatelessWidget {
+  const _GuestLockedNexusPane({
+    required this.title,
+    required this.description,
+  });
+
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: WaouhPalette.line),
+                boxShadow: WaouhShadows.card,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.lock_person_outlined,
+                    size: 42,
+                    color: WaouhPalette.blue,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: WaouhPalette.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    description,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: WaouhPalette.muted,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: () => context.go('/app/auth?next=/app/nexus'),
+                    icon: const Icon(Icons.login_rounded),
+                    label: const Text('Se connecter'),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       );
 }
@@ -1472,7 +1606,9 @@ String priceRange(NexusDiscoveryItem item) {
 }
 
 String errorText(Object error) =>
-    error is NexusApiException ? error.message : error.toString();
+    error is NexusApiException
+        ? error.message
+        : waouhUserMessage(error, action: 'load');
 
 Future<void> openExternal(Uri uri) async {
   if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {

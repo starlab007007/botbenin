@@ -17,6 +17,7 @@ import 'live_radar_service.dart';
 import 'live_widgets.dart';
 import 'live_theme.dart';
 import 'live_hot_labels.dart';
+import 'live_guest_action_gate.dart';
 
 /// Carte Radar native : GPS réel, rayons 1/5/20/100 km et résultats Supabase.
 class LiveRadarMapScreen extends StatefulWidget {
@@ -306,11 +307,14 @@ class _LiveRadarMapScreenState extends State<LiveRadarMapScreen>
       'role': isBuyerRequest ? 'seller' : 'buyer',
     });
 
-    if (!context.read<legacy.AuthController>().signedIn) {
-      context.go('/app/auth?next=${Uri.encodeComponent('/app/chat/waouh')}');
-      return;
-    }
-    await context.push('/app/chat/waouh');
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/chat/waouh',
+      actionLabel: action == _MapRadarAction.negotiate
+          ? 'négocier cette opportunité'
+          : 'contacter cette opportunité',
+    )) return;
+    if (mounted) await context.push('/app/chat/waouh');
   }
 
   void _centerMap() => _map.move(

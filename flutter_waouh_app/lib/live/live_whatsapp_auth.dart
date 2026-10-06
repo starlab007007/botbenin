@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../main.dart' as legacy;
 import 'live_theme.dart';
+import 'user_message.dart';
 import 'live_widgets.dart';
 
 class LiveOtpException implements Exception {
@@ -162,7 +163,7 @@ class _LiveWhatsAppOtpScreenV2State extends State<LiveWhatsAppOtpScreenV2> {
       _startTimer();
       _message('Code envoye sur WhatsApp. Il expire dans 5 minutes.', success: true);
     } catch (error) {
-      _message(error.toString());
+      _message(waouhUserMessage(error, action: 'login'));
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -183,7 +184,7 @@ class _LiveWhatsAppOtpScreenV2State extends State<LiveWhatsAppOtpScreenV2> {
         context.go(_next(context) ?? '/app/chat');
       }
     } catch (error) {
-      _message(error.toString());
+      _message(waouhUserMessage(error, action: 'login'));
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -195,7 +196,7 @@ class _LiveWhatsAppOtpScreenV2State extends State<LiveWhatsAppOtpScreenV2> {
       await _service.completeProfile(fullName: fullName.text, email: recoveryEmail.text);
       if (mounted) context.go(_next(context) ?? '/app/chat');
     } catch (error) {
-      _message(error.toString());
+      _message(waouhUserMessage(error, action: 'login'));
     } finally {
       if (mounted) setState(() => loading = false);
     }

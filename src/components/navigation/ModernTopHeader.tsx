@@ -17,7 +17,6 @@ import {
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useAuth } from '@/contexts/AuthContext';
-import { AuthModal } from '@/components/AuthModal';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { BotBjLogo } from '@/components/ui/BotBjLogo';
 import { Input } from '@/components/ui/input';
@@ -48,7 +47,6 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
   onMenuClick, 
   sidebarOpen 
 }) => {
-  const [showAuthModal, setShowAuthModal] = useState(false);
   const [showCommandDialog, setShowCommandDialog] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const { user, isAuthenticated, isLoading, logout } = useAuth();
@@ -59,9 +57,9 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
     navigate('/home');
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
+  const handleLogout = async () => {
+    const ok = await logout();
+    if (ok) navigate('/app/chat', { replace: true });
   };
 
   const getUserInitials = (name: string | undefined) => {
@@ -238,7 +236,9 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
             </DropdownMenu>
           ) : (
             <Button
-              onClick={() => setShowAuthModal(true)}
+              onClick={() =>
+                navigate(`/auth?next=${encodeURIComponent(location.pathname + location.search)}`)
+              }
               className="bg-blue-600 hover:bg-blue-700 text-white px-2 sm:px-4"
               size="sm"
               aria-label="Connexion"
@@ -249,12 +249,6 @@ export const ModernTopHeader: React.FC<ModernTopHeaderProps> = ({
           )}
         </div>
       </header>
-
-      {/* Auth Modal */}
-      <AuthModal 
-        isOpen={showAuthModal} 
-        onClose={() => setShowAuthModal(false)} 
-      />
 
       {/* Notification Panel */}
       <NotificationPanel 

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
+import 'access_policy.dart';
 import 'avatar/live_avatar_controller.dart';
 import 'avatar/live_avatar_widgets.dart';
 import 'live_controller.dart';
@@ -53,14 +54,30 @@ class _LiveInboxProductionScreenState extends State<LiveInboxProductionScreen> {
   }
 
   Future<void> _newChat() async {
+    // Local-only preparation: no network/backend mutation before authentication.
     await context.read<LiveWaouhController>().startNewChat();
+    if (!mounted) return;
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/chat/waouh',
+      actionLabel: 'commencer une discussion personnelle',
+    )) return;
     if (mounted) context.go('/app/chat/waouh');
   }
 
   Future<void> _openWaouhWith(String seed) async {
     final controller = context.read<LiveWaouhController>();
+    // Prepare a fresh local thread first, then preserve the intent across auth.
     await controller.startNewChat();
     controller.setComposerSeed(seed);
+    if (!mounted) return;
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/chat/waouh',
+      actionLabel: seed.trim().isEmpty
+          ? 'commencer une discussion'
+          : 'acheter, vendre ou négocier',
+    )) return;
     if (mounted) context.go('/app/chat/waouh');
   }
 
@@ -117,9 +134,11 @@ class _LiveInboxProductionScreenState extends State<LiveInboxProductionScreen> {
             displayName: _displayName(fullName),
             imageUrl: auth.profile?.avatarUrl,
             onlineLabel: auth.signedIn ? 'WAOUH actif' : 'Mode invité',
+            signedIn: auth.signedIn,
             notificationCountStream: controller.notificationItems(),
             onProfile: () => context.go('/app/profile'),
             onNotifications: () => context.go('/app/notifications'),
+            onLogin: () => context.go(buildWaouhAuthRoute('/app/chat')),
             onNewChat: _newChat,
           ),
           body: Column(
@@ -184,18 +203,22 @@ class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.displayName,
     required this.imageUrl,
     required this.onlineLabel,
+    required this.signedIn,
     required this.notificationCountStream,
     required this.onProfile,
     required this.onNotifications,
+    required this.onLogin,
     required this.onNewChat,
   });
 
   final String displayName;
   final String? imageUrl;
   final String onlineLabel;
+  final bool signedIn;
   final Stream<List<LiveNotification>> notificationCountStream;
   final VoidCallback onProfile;
   final VoidCallback onNotifications;
+  final VoidCallback onLogin;
   final VoidCallback onNewChat;
 
   @override
@@ -245,20 +268,27 @@ class _InboxAppBar extends StatelessWidget implements PreferredSizeWidget {
           ],
         ),
         actions: [
-          StreamBuilder<List<LiveNotification>>(
-            stream: notificationCountStream,
-            builder: (_, snapshot) => _HeaderIcon(
-              icon: Icons.notifications_none_rounded,
-              count: (snapshot.data ?? const <LiveNotification>[])
-                  .where((item) => !item.read)
-                  .length,
-              tooltip: 'Notifications',
-              onTap: onNotifications,
+          if (signedIn)
+            StreamBuilder<List<LiveNotification>>(
+              stream: notificationCountStream,
+              builder: (_, snapshot) => _HeaderIcon(
+                icon: Icons.notifications_none_rounded,
+                count: (snapshot.data ?? const <LiveNotification>[])
+                    .where((item) => !item.read)
+                    .length,
+                tooltip: 'Notifications',
+                onTap: onNotifications,
+              ),
+            )
+          else
+            IconButton(
+              onPressed: onLogin,
+              tooltip: 'Se connecter',
+              icon: const Icon(Icons.login_rounded),
             ),
-          ),
           IconButton.filledTonal(
             onPressed: onNewChat,
-            tooltip: 'Nouveau',
+            tooltip: signedIn ? 'Nouveau' : 'Se connecter pour discuter',
             style: IconButton.styleFrom(
               backgroundColor: const Color(0xFFF0F5FF),
               foregroundColor: WaouhPalette.blue,

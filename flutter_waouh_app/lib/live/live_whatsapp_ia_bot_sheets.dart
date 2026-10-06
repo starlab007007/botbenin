@@ -6,6 +6,7 @@ import 'live_whatsapp_ia_models.dart';
 import 'live_whatsapp_ia_sheets.dart';
 import 'live_ia_premium_ui.dart';
 
+import 'user_message.dart';
 Future<void> showNativeWhatsAppBotLinkSheet(
   BuildContext context, {
   required String sessionName,
@@ -59,7 +60,7 @@ class _BotSheetState extends State<_BotSheet> {
     } catch (error) {
       if (mounted)
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$error')));
+            .showSnackBar(SnackBar(content: Text(waouhUserMessage(error, action: 'save'))));
     } finally {
       if (mounted) setState(() => busy = false);
     }
@@ -172,7 +173,7 @@ class _WebhookSheetState extends State<_WebhookSheet> {
     } catch (error) {
       if (mounted)
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$error')));
+            .showSnackBar(SnackBar(content: Text(waouhUserMessage(error, action: 'save'))));
     } finally {
       if (mounted) setState(() => busy = false);
     }

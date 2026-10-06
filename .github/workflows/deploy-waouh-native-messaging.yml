@@ -13,6 +13,7 @@ on:
       - "supabase/functions/waouh-webhook/index.ts"
       - "supabase/functions/waouh-agentic-core/**"
       - "supabase/functions/waha-connect/**"
+      - "supabase/functions/waha-session-mobile/**"
       - "supabase/functions/waha-dashboard-proxy/**"
       - "supabase/functions/waha-manage-contact/**"
       - "supabase/functions/waha-diagnostic/**"
@@ -63,6 +64,7 @@ on:
       - "supabase/functions/waouh-webhook/index.ts"
       - "supabase/functions/waouh-agentic-core/**"
       - "supabase/functions/waha-connect/**"
+      - "supabase/functions/waha-session-mobile/**"
       - "supabase/functions/waha-dashboard-proxy/**"
       - "supabase/functions/waha-manage-contact/**"
       - "supabase/functions/waha-diagnostic/**"
@@ -171,6 +173,7 @@ jobs:
             waouh-webhook
             waouh-agentic-core
             waha-connect
+            waha-session-mobile
             waha-dashboard-proxy
             waha-manage-contact
             waha-diagnostic
@@ -215,7 +218,7 @@ jobs:
               for path in Path('supabase/functions').iterdir()
               if path.is_dir() and path.name.startswith('waouh-tel-')
           )
-          functions.extend(['waouh-native-messaging-settings', 'waouh-native-simulator', 'waouh-webhook', 'waouh-agentic-core'])
+          functions.extend(['waouh-native-messaging-settings', 'waouh-native-simulator', 'waouh-webhook', 'waouh-agentic-core', 'waha-session-mobile'])
 
           errors = []
           function_config = config.get('functions', {})
@@ -247,6 +250,7 @@ jobs:
           entrypoints+=(supabase/functions/waouh-webhook/index.ts)
           entrypoints+=(supabase/functions/waouh-agentic-core/index.ts)
           entrypoints+=(supabase/functions/waha-connect/index.ts)
+          entrypoints+=(supabase/functions/waha-session-mobile/index.ts)
           entrypoints+=(supabase/functions/waha-dashboard-proxy/index.ts)
           entrypoints+=(supabase/functions/waha-manage-contact/index.ts)
           entrypoints+=(supabase/functions/waha-diagnostic/index.ts)
@@ -396,14 +400,15 @@ jobs:
           fi
           echo '✅ Identifiants Supabase présents; aucune valeur secrète ne sera affichée.'
 
-      - name: Link production project
+      - name: Link production project for database migrations
+        if: github.event_name == 'workflow_dispatch' && inputs.apply_migrations == true
         shell: bash
         run: |
           set -euo pipefail
           supabase link \
             --project-ref "$SUPABASE_PROJECT_REF" \
             --password "$SUPABASE_DB_PASSWORD"
-          echo '✅ Projet Supabase de production lié.'
+          echo '✅ Projet Supabase de production lié pour la migration explicite.'
 
       - name: Explain migration gate
         if: github.event_name != 'workflow_dispatch' || inputs.apply_migrations != true
@@ -484,6 +489,11 @@ jobs:
             --project-ref "$SUPABASE_PROJECT_REF" \
             --use-api \
             --no-verify-jwt
+
+          echo "🔐 Deploying authenticated mobile WAHA session manager..."
+          supabase functions deploy waha-session-mobile \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --use-api
 
           secured_legacy=(
             waha-connect

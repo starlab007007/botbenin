@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { formatPhoneDisplay } from '@/lib/phone';
 import BusinessFormNativeScreen from './BusinessFormNativeScreen';
 
+import { userFacingErrorText } from "@/lib/userFacingError";
 export default function PartnerBusinessesNativeScreen() {
   const { partner, loading } = useWaouhPartner();
   const { toast } = useToast();
@@ -42,11 +43,11 @@ export default function PartnerBusinessesNativeScreen() {
     const { count } = await supabase.from('waouh_partner_sales' as any).select('id', { count: 'exact', head: true }).eq('business_id', id);
     if (count && count > 0) {
       const { error } = await supabase.from('waouh_partner_businesses' as any).update({ statut: 'pause' }).eq('id', id);
-      if (error) return toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
+      if (error) return toast({ title: 'Action impossible', description: userFacingErrorText(error, "delete"), variant: 'destructive' });
       toast({ title: 'Entreprise désactivée', description: `${count} vente(s) liée(s).` });
     } else {
       const { error } = await supabase.from('waouh_partner_businesses' as any).delete().eq('id', id);
-      if (error) return toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
+      if (error) return toast({ title: 'Action impossible', description: userFacingErrorText(error, "delete"), variant: 'destructive' });
       toast({ title: '🗑️ Entreprise supprimée' });
     }
     load();

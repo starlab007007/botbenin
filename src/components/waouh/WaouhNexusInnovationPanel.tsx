@@ -1,3 +1,4 @@
+import { userFacingErrorText } from "@/lib/userFacingError";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Barcode, Bot, Camera, Database, Loader2, MapPin, ScanSearch, Sparkles, Store, Upload, Users,
@@ -27,7 +28,7 @@ import {
   type NexusSourceStatus,
 } from "@/lib/waouh/nexus";
 
-const message = (error: unknown) => error instanceof Error ? error.message : "Une erreur inattendue est survenue.";
+const message = (error: unknown) => userFacingErrorText(error, "load");
 
 function SearchPreview({ result, history }: { result: NexusSearchResponse | null; history?: Array<{ observed_at: string; median_amount?: number | null; sample_count?: number }> }) {
   if (!result) return null;

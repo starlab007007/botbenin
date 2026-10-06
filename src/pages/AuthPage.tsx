@@ -11,12 +11,16 @@ import { Loader2, Eye, EyeOff, Mail, Lock, User, MessageCircle } from 'lucide-re
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import WhatsAppLoginDialog from '@/components/auth/WhatsAppLoginDialog';
+import { normalizeWaouhRedirect, DEFAULT_PUBLIC_APP_PATH } from '@/lib/waouhAccessPolicy';
 
 const AuthPage: React.FC = () => {
   const { login, register, resetPassword, loginWithGoogle, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const redirectTo = searchParams.get('redirect') || '/home';
+  const redirectTo = normalizeWaouhRedirect(
+    searchParams.get('redirect') || searchParams.get('next'),
+    DEFAULT_PUBLIC_APP_PATH,
+  );
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [waOpen, setWaOpen] = useState(false);
@@ -31,7 +35,6 @@ const AuthPage: React.FC = () => {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      console.log('[AuthPage] User authenticated, redirecting to:', redirectTo);
       navigate(redirectTo, { replace: true });
     }
   }, [isAuthenticated, navigate, redirectTo]);
@@ -46,16 +49,10 @@ const AuthPage: React.FC = () => {
     setLoading(true);
     try {
       const success = await login(email, password);
-      if (success) {
-        toast.success('Connexion réussie');
-        navigate(redirectTo);
-      } else {
-        toast.error('Erreur lors de la connexion');
-      }
-    } catch (error) {
-      toast.error('Une erreur est survenue');
+      if (success) navigate(redirectTo, { replace: true });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -81,18 +78,13 @@ const AuthPage: React.FC = () => {
         name,
         email,
         password,
-        phone: ''
+        phone: '',
+        returnTo: redirectTo,
       });
-      if (success) {
-        toast.success('Inscription réussie ! Vérifiez votre email pour confirmer votre compte.');
-        setActiveTab('login');
-      } else {
-        toast.error('Erreur lors de l\'inscription');
-      }
-    } catch (error) {
-      toast.error('Une erreur est survenue');
+      if (success) setActiveTab('login');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -105,29 +97,26 @@ const AuthPage: React.FC = () => {
     setLoading(true);
     try {
       const success = await resetPassword(email);
-      if (success) {
-        toast.success('Email de réinitialisation envoyé');
-      } else {
-        toast.error('Erreur lors de la réinitialisation');
-      }
-    } catch (error) {
-      toast.error('Une erreur est survenue');
+      if (success) setActiveTab('login');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
-      await loginWithGoogle();
-    } catch (error) {
-      toast.error('Erreur lors de la connexion avec Google');
+      try {
+        sessionStorage.setItem("waouh_post_auth_redirect", redirectTo);
+      } catch {}
+      await loginWithGoogle(redirectTo);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleClose = () => {
-    navigate('/');
+    navigate(DEFAULT_PUBLIC_APP_PATH, { replace: true });
   };
 
   return (
@@ -135,7 +124,10 @@ const AuthPage: React.FC = () => {
       <Dialog open={true} onOpenChange={handleClose}>
         <DialogContent className="max-w-[95vw] sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-center text-xl sm:text-2xl">Connexion / Inscription</DialogTitle>
+            <DialogTitle className="text-center text-xl sm:text-2xl">Bienvenue sur WAOUH</DialogTitle>
+            <p className="text-center text-sm text-muted-foreground">
+              Connectez-vous pour agir. La consultation reste accessible sans compte.
+            </p>
           </DialogHeader>
           
           <Button

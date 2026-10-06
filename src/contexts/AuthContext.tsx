@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { User as SupabaseUser, Session } from '@supabase/supabase-js';
 import { GuestAuthService, GuestUser } from "@/services/GuestAuthService";
 import { friendlyAuthError } from "@/lib/authErrors";
+import { normalizeWaouhRedirect } from "@/lib/waouhAccessPolicy";
 
 export interface AuthUser {
   id: string;
@@ -43,14 +44,15 @@ interface AuthContextType {
   disableGuestMode: () => void;
   login: (email: string, password: string) => Promise<boolean>;
   loginWithPhone: (phone: string, password: string) => Promise<boolean>;
-  loginWithGoogle: () => Promise<boolean>;
+  loginWithGoogle: (returnTo?: string) => Promise<boolean>;
   register: (userData: {
     name: string;
     email: string;
     phone?: string;
     password: string;
+    returnTo?: string;
   }) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<boolean>;
   updateProfile: (updates: Partial<AuthUser>) => void;
   changePassword: (currentPassword: string, newPassword: string) => Promise<boolean>;
   resetPassword: (email: string) => Promise<boolean>;
@@ -255,6 +257,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       if (error) {
+        console.error("[Auth] sign-in failed", error);
         const f = friendlyAuthError(error, "login");
         toast({ title: f.title, description: f.description, variant: "destructive" });
         return false;
@@ -278,17 +281,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return login(phone, password);
   };
 
-  const loginWithGoogle = async (): Promise<boolean> => {
+  const loginWithGoogle = async (returnTo?: string): Promise<boolean> => {
     try {
+      const isMobileFlow = window.location.pathname.startsWith("/app/");
+      const callbackBase = isMobileFlow ? "/app/auth/email?tab=login" : "/auth";
+      const separator = callbackBase.includes("?") ? "&" : "?";
+      const callbackPath = returnTo
+        ? `${callbackBase}${separator}next=${encodeURIComponent(returnTo)}`
+        : callbackBase;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/`,
+          redirectTo: `${window.location.origin}${callbackPath}`,
           queryParams: { access_type: 'offline', prompt: 'consent' },
         },
       });
 
       if (error) {
+        console.error("[Auth] Google sign-in failed", error);
         const f = friendlyAuthError(error, "google");
         toast({ title: f.title, description: f.description, variant: "destructive" });
         return false;
@@ -307,6 +317,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     email: string;
     phone?: string;
     password: string;
+    returnTo?: string;
   }): Promise<boolean> => {
     setIsLoading(true);
 
@@ -321,6 +332,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return false;
       }
 
+      const returnTo = normalizeWaouhRedirect(userData.returnTo, "/app/chat");
+      const mobileFlow = window.location.pathname.startsWith("/app/");
+      const confirmationPath = mobileFlow
+        ? `/app/auth/email?tab=login&next=${encodeURIComponent(returnTo)}`
+        : `/auth?next=${encodeURIComponent(returnTo)}`;
+
       const { data, error } = await supabase.auth.signUp({
         email: userData.email.trim(),
         password: userData.password,
@@ -329,7 +346,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             full_name: userData.name.trim(),
             phone: userData.phone,
           },
-          emailRedirectTo: `${window.location.origin}/`,
+          emailRedirectTo: `${window.location.origin}${confirmationPath}`,
         },
       });
 
@@ -362,37 +379,47 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
 
-  const logout = async () => {
+  const logout = async (): Promise<boolean> => {
     try {
-      await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut({ scope: "local" });
+      if (error) throw error;
+
       setUser(null);
       setSupabaseUser(null);
       setSession(null);
-      // Reset WAOUH per-browser session so a different account on the same
-      // browser doesn't inherit the previous user's chat/notifications history.
+      setIsGuest(false);
+      setGuestUser(null);
+      GuestAuthService.clearGuest();
+
+      // Reset WAOUH per-browser state so the next account cannot inherit
+      // conversations, notification caches or location context.
       try {
         localStorage.removeItem("waouh_web_session_id");
         localStorage.removeItem("waouh_geo_v1");
-        // Wipe per-session caches (notifications, open match tabs, archived list)
+        localStorage.removeItem("waouh_pending_open");
+        sessionStorage.removeItem("waouh_post_auth_redirect");
         Object.keys(localStorage)
           .filter((k) =>
             k.startsWith("waouh_notifs_") ||
             k.startsWith("waouh_open_matches_") ||
             k.startsWith("waouh_active_match_") ||
-            k.startsWith("waouh_archived_matches_")
+            k.startsWith("waouh_archived_matches_") ||
+            k.startsWith("waouh_chatlist_snapshot_v1:") ||
+            k.startsWith("waouh.avatar.")
           )
           .forEach((k) => localStorage.removeItem(k));
       } catch {}
+
       toast({
-        title: "Déconnexion",
-        description: "Vous avez été déconnecté avec succès",
+        title: "Vous êtes déconnecté",
+        description: "Vous pouvez continuer à parcourir WAOUH sans compte.",
       });
+      return true;
     } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "Erreur lors de la déconnexion",
-        variant: "destructive",
-      });
+      console.error("[Auth] sign-out failed", error);
+      const f = friendlyAuthError(error, "logout");
+      toast({ title: f.title, description: f.description, variant: "destructive" });
+      return false;
     }
   };
 
@@ -507,8 +534,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       toast({
-        title: "Email envoyé",
-        description: "Un lien de réinitialisation a été envoyé à votre adresse email.",
+        title: "Demande prise en compte",
+        description: "Si un compte correspond à cet email, vous recevrez un lien de réinitialisation.",
       });
       setIsLoading(false);
       return true;

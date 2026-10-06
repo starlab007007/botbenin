@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useWaouhGeolocation } from "@/hooks/useWaouhGeolocation";
 import { useMobileAuth } from "../../hooks/useMobileAuth";
+import { buildWaouhAuthRedirect } from "@/lib/waouhAccessPolicy";
 import { RADAR_RINGS, formatDistance } from "../../utils/geo";
 import { DEFAULT_FILTERS, useRadarScan, type RadarFilters, type RadarItem } from "../../hooks/useRadarScan";
 import { useRadarLifecycle } from "../../hooks/useRadarLifecycle";
@@ -109,7 +110,7 @@ export function RadarPanel({ query = "" }: { query?: string }) {
     });
     const target = `/app/chat/waouh?${params.toString()}`;
     if (!user) {
-      navigate(`/app/auth?redirect=${encodeURIComponent(target)}`);
+      navigate(buildWaouhAuthRedirect(target));
       return;
     }
     navigate(target);

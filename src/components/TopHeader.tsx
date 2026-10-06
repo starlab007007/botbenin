@@ -33,9 +33,9 @@ export const TopHeader: React.FC = () => {
     navigate('/');
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
+  const handleLogout = async () => {
+    const ok = await logout();
+    if (ok) navigate('/app/chat', { replace: true });
   };
 
   const getUserInitials = (name: string) => {

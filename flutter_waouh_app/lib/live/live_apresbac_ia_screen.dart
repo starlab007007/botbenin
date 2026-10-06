@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'apresbac_notes_sheet.dart';
 import 'apresbac_ocr_service.dart';
 
+import 'user_message.dart';
 class LiveApresBacIaScreen extends StatefulWidget {
   const LiveApresBacIaScreen({super.key, required this.client});
 
@@ -357,13 +358,11 @@ class _LiveApresBacIaScreenState extends State<LiveApresBacIaScreen> {
           return _responseMessage(Map<String, dynamic>.from(decoded));
         }
       } catch (_) {
-        return details.trim();
+        return waouhUserMessage(details, action: 'load');
       }
     }
 
-    return error.reasonPhrase?.trim().isNotEmpty == true
-        ? error.reasonPhrase!.trim()
-        : 'Le service AprèsBac IA est momentanément indisponible.';
+    return waouhUserMessage(error, action: 'load');
   }
 
   Future<void> _healthCheck() async {
@@ -1184,15 +1183,14 @@ class _LiveApresBacIaScreenState extends State<LiveApresBacIaScreen> {
   }
 
   String _responseMessage(Map<String, dynamic> data) {
-    for (final key in ['message', 'details', 'technical_message', 'error']) {
+    for (final key in ['user_message', 'message']) {
       final value = data[key];
-
-      if (value != null && value.toString().trim().isNotEmpty) {
-        return value.toString().trim();
+      final message = value?.toString().trim() ?? '';
+      if (message.isNotEmpty && !waouhLooksTechnical(message)) {
+        return message;
       }
     }
-
-    return 'Erreur AprèsBac IA.';
+    return 'AprèsBac IA ne peut pas terminer cette action pour le moment. Réessaie.';
   }
 
   String _friendlyError(Object error) {

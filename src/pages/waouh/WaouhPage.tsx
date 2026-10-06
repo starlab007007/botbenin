@@ -18,6 +18,7 @@ import WaouhRadarTab from "@/components/waouh/WaouhRadarTab";
 import { PhoneCell } from "@/components/waouh/PhoneCell";
 import WaouhAdminCommandCenter from "@/components/admin/WaouhAdminCommandCenter";
 
+import { userFacingErrorText } from "@/lib/userFacingError";
 type Stats = {
   total_articles: number;
   active_articles: number;
@@ -137,7 +138,7 @@ export default function WaouhPage() {
 
   const saveSetting = async (key: string, value: any) => {
     const { error } = await supabase.from("waouh_settings").upsert({ key, value });
-    if (error) toast.error(error.message); else { toast.success("Paramètre enregistré"); setSettings((s) => ({ ...s, [key]: value })); }
+    if (error) toast.error(userFacingErrorText(error, "save")); else { toast.success("Paramètre enregistré"); setSettings((s) => ({ ...s, [key]: value })); }
   };
 
   return (

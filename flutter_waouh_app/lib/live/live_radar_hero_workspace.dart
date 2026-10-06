@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../main.dart' as legacy;
 import 'brand_mark.dart';
 import 'live_controller.dart';
+import 'live_guest_action_gate.dart';
 import 'live_models.dart';
 import 'live_radar_models.dart';
 import 'live_radar_service.dart';
@@ -185,11 +186,14 @@ class _LiveRadarHeroWorkspaceState extends State<LiveRadarHeroWorkspace>
       'role': isBuyerRequest ? 'seller' : 'buyer',
     });
     if (!mounted) return;
-    if (!context.read<legacy.AuthController>().signedIn) {
-      context.go('/app/auth?next=${Uri.encodeComponent('/app/chat/waouh')}');
-    } else {
-      await context.push('/app/chat/waouh');
-    }
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/chat/waouh',
+      actionLabel: action == _RadarAction.negotiate
+          ? 'négocier cette opportunité'
+          : 'contacter cette opportunité',
+    )) return;
+    if (mounted) await context.push('/app/chat/waouh');
   }
 
   @override

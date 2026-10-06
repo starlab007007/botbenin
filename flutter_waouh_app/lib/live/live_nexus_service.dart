@@ -747,9 +747,13 @@ class LiveNexusService {
     String action, [
     Map<String, dynamic> payload = const {},
   ]) async {
-    if (client.auth.currentUser == null) {
+    const publicActions = <String>{
+      'nexus.global_discovery',
+      'nexus.sources',
+    };
+    if (client.auth.currentUser == null && !publicActions.contains(action)) {
       throw const NexusApiException(
-        'Connectez-vous pour utiliser WAOUH NEXUS.',
+        'Connectez-vous pour continuer cette action.',
       );
     }
     final response = await client.functions.invoke(

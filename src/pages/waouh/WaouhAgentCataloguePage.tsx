@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { stockRepository, type StockProduct } from "@/lib/waouh/stockRepository";
 
+import { userFacingErrorText } from "@/lib/userFacingError";
 type ManualProduct = {
   id: string;
   name: string;
@@ -63,7 +64,7 @@ export default function WaouhAgentCataloguePage() {
     } catch (error) {
       toast({
         title: "Catalogue indisponible",
-        description: error instanceof Error ? error.message : String(error),
+        description: userFacingErrorText(error, "load"),
         variant: "destructive",
       });
     } finally {
@@ -104,7 +105,7 @@ export default function WaouhAgentCataloguePage() {
     } catch (error) {
       toast({
         title: "Mise à jour impossible",
-        description: error instanceof Error ? error.message : String(error),
+        description: userFacingErrorText(error, "save"),
         variant: "destructive",
       });
     }
@@ -155,7 +156,7 @@ export default function WaouhAgentCataloguePage() {
     } catch (error) {
       toast({
         title: "Import impossible",
-        description: error instanceof Error ? error.message : String(error),
+        description: userFacingErrorText(error, "upload"),
         variant: "destructive",
       });
     } finally {

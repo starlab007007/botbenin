@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
 import 'live_theme.dart';
+import 'user_message.dart';
 
 class LiveProfileScreenV2 extends StatefulWidget {
   const LiveProfileScreenV2({super.key});
@@ -40,7 +41,11 @@ class _LiveProfileScreenV2State extends State<LiveProfileScreenV2> {
       setState(() => _dirty = false);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profil mis à jour.')));
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(auth.error ?? waouhUserMessage(error, action: 'save'))),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -54,7 +59,11 @@ class _LiveProfileScreenV2State extends State<LiveProfileScreenV2> {
       await auth.updateAvatar(bytes: await image.readAsBytes(), fileName: image.name);
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Photo de profil mise à jour.')));
     } catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(auth.error ?? waouhUserMessage(error, action: 'upload'))),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -81,8 +90,18 @@ class _LiveProfileScreenV2State extends State<LiveProfileScreenV2> {
   }
 
   Future<void> _signOut(legacy.AuthController auth) async {
-    await auth.signOut();
-    if (mounted) context.go('/app/auth');
+    final ok = await auth.signOut();
+    if (!mounted) return;
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vous êtes déconnecté. La consultation reste disponible.')),
+      );
+      context.go('/app/chat');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(auth.error ?? 'Déconnexion impossible. Réessayez.')),
+      );
+    }
   }
 
   void _back() {

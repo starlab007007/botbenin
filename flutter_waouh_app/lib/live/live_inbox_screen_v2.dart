@@ -6,6 +6,7 @@ import '../main.dart' as legacy;
 import 'brand_mark.dart';
 import 'live_controller.dart';
 import 'live_controller_match_actions.dart';
+import 'live_guest_action_gate.dart';
 import 'live_match_navigation.dart';
 import 'live_models.dart';
 import 'live_radar_screen.dart';
@@ -47,7 +48,14 @@ class _LiveInboxScreenV2State extends State<LiveInboxScreenV2> {
   }
 
   Future<void> _newChat() async {
+    // Local-only preparation: no network/backend mutation before authentication.
     await context.read<LiveWaouhController>().startNewChat();
+    if (!mounted) return;
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/chat/waouh',
+      actionLabel: 'commencer une discussion personnelle',
+    )) return;
     if (mounted) context.go('/app/chat/waouh');
   }
 
@@ -55,6 +63,14 @@ class _LiveInboxScreenV2State extends State<LiveInboxScreenV2> {
     final controller = context.read<LiveWaouhController>();
     await controller.startNewChat();
     controller.setComposerSeed(seed);
+    if (!mounted) return;
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/chat/waouh',
+      actionLabel: seed.trim().isEmpty
+          ? 'commencer une discussion'
+          : 'acheter, vendre ou négocier',
+    )) return;
     if (mounted) context.go('/app/chat/waouh');
   }
 
@@ -163,7 +179,9 @@ class _LiveInboxScreenV2State extends State<LiveInboxScreenV2> {
       leading: _ProfileAvatar(
         name: displayName,
         imageUrl: profile?.avatarUrl,
-        onTap: () => context.go('/app/profile'),
+        onTap: () => auth.signedIn
+            ? context.go('/app/profile')
+            : context.go('/app/auth?next=${Uri.encodeComponent('/app/profile')}'),
       ),
       title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -185,24 +203,35 @@ class _LiveInboxScreenV2State extends State<LiveInboxScreenV2> {
             ]),
           ]),
       actions: [
-        StreamBuilder<List<LiveNotification>>(
-          stream: controller.notificationItems(),
-          builder: (_, snapshot) {
-            final count = (snapshot.data ?? const <LiveNotification>[])
-                .where((item) => !item.read)
-                .length;
-            return _IconBadgeButton(
-              count: count,
-              tooltip: 'Notifications',
-              icon: Icons.notifications_none_rounded,
-              onPressed: () => context.go('/app/notifications'),
-            );
-          },
-        ),
+        if (auth.signedIn)
+          StreamBuilder<List<LiveNotification>>(
+            stream: controller.notificationItems(),
+            builder: (_, snapshot) {
+              final count = (snapshot.data ?? const <LiveNotification>[])
+                  .where((item) => !item.read)
+                  .length;
+              return _IconBadgeButton(
+                count: count,
+                tooltip: 'Notifications',
+                icon: Icons.notifications_none_rounded,
+                onPressed: () => context.go('/app/notifications'),
+              );
+            },
+          )
+        else
+          IconButton(
+            onPressed: () => context.go(
+              '/app/auth?next=${Uri.encodeComponent('/app/chat')}',
+            ),
+            icon: const Icon(Icons.login_rounded),
+            tooltip: 'Se connecter',
+          ),
         IconButton(
             onPressed: _newChat,
             icon: const Icon(Icons.add_rounded),
-            tooltip: 'Nouveau chat WAOUH'),
+            tooltip: auth.signedIn
+                ? 'Nouveau chat WAOUH'
+                : 'Se connecter pour discuter'),
       ],
       flexibleSpace: const DecoratedBox(
         decoration: BoxDecoration(

@@ -1,6 +1,7 @@
 import { assertChatResponse, normalizeChatReply, mergeChatRows, reconcileChatResponse } from "@/lib/chatReply";
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import { useNavigate } from "react-router-dom";
 import remarkGfm from "remark-gfm";
 
 import { Button } from "@/components/ui/button";
@@ -35,8 +36,17 @@ import { fetchAuthIdentityIds } from "@/lib/waouh/identityIds";
 import { avatarBubbleInfo, avatarRevealDelayMs, openAvatarBriefing, parseAvatarBriefing, shouldAutoOpenNow, type AvatarPrefs, type BriefingAction } from "@/lib/waouh/avatarGuide";
 import { commerceRequestFromButton, sendCommerceAction } from "@/lib/waouh/commerceAction";
 
+import { userFacingErrorText } from "@/lib/userFacingError";
+import { readWaouhSmartEnvelope, waouhSmartActions } from "@/lib/waouh/smartPayload";
 type Att = { url: string; type: string; caption?: string };
-type WaouhAction = { id: string; label: string; url?: string };
+type WaouhAction = {
+  id: string;
+  label: string;
+  url?: string;
+  kind?: "navigate" | "reply" | "commerce" | "approve" | "contact" | "retry" | "dismiss";
+  payload?: Record<string, unknown>;
+  requires_confirmation?: boolean;
+};
 const stripLegacy = (t: string) =>
   (t || "")
     .replace(/\n*👉\s*Appuyez sur \*?Payer\*?[^\n]*/gi, "")
@@ -113,6 +123,7 @@ export type WaouhWebChatHandle = {
 };
 
 export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean; fullscreen?: boolean; variant?: "web" | "native"; composerTopSlot?: React.ReactNode; onAgentStateChange?: (state: WaouhWorkspaceAgentState) => void; hideAgentBar?: boolean }>(({ embedded = false, fullscreen = false, variant = "web", composerTopSlot, onAgentStateChange, hideAgentBar = false }, externalRef) => {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(embedded || fullscreen);
   const sessionId = useRef(getSessionId()).current;
   // Cache-first hydration: load last snapshot synchronously so the chat
@@ -685,7 +696,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
       await invokeWaouhAgentic(action, payload);
       toast({ title: "Action enregistrée", description: "Le journal WAOUH et la mission seront actualisés." });
     } catch (error) {
-      toast({ title: "Action impossible", description: error instanceof Error ? error.message : "Réessayez.", variant: "destructive" });
+      toast({ title: "Action impossible", description: userFacingErrorText(error, "send"), variant: "destructive" });
     } finally {
       setAgentAction(null);
     }
@@ -829,6 +840,23 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
             );
           }
           const rich = normalizeChatReply(m);
+          const smart = readWaouhSmartEnvelope((m as any).meta);
+          const legacyActions = Array.isArray((m as any).meta?.actions)
+            ? ((m as any).meta.actions as WaouhAction[])
+            : [];
+          const smartFallbackActions: WaouhAction[] = waouhSmartActions((m as any).meta, 3)
+            .filter((action) => action.id !== "open_context" || smart?.domain !== "chat")
+            .map((action) => ({
+              id: action.id,
+              label: action.label,
+              url: action.route || undefined,
+              kind: action.kind,
+              payload: action.payload,
+              requires_confirmation: action.requires_confirmation,
+            }));
+          // Smart actions are normalized by the server/DB and carry the
+          // predictive ordering. Legacy actions remain a compatibility fallback.
+          const bubbleActions = smartFallbackActions.length > 0 ? smartFallbackActions : legacyActions;
           return (
           <div
             key={m.id}
@@ -914,21 +942,72 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                   <WaouhAgentBlocks blocks={rich.blocks} onAction={handleAgentAction} busy={!!agentAction} />
                 )}
 
-                {m.direction === "out" && Array.isArray((m as any).meta?.actions) && (m as any).meta.actions.length > 0 && (
+                {m.direction === "out" && smart && (smart.domain !== "chat" || smart.priority === "high" || smart.priority === "urgent") && (
+                  <div className="mt-2 flex items-center gap-1.5 not-prose text-[9px] font-black uppercase tracking-wide">
+                    <span className={cn(
+                      "rounded-full px-2 py-1",
+                      smart.priority === "urgent" ? "bg-red-100 text-red-700" :
+                      smart.priority === "high" ? "bg-amber-100 text-amber-700" :
+                      "bg-slate-100 text-slate-600"
+                    )}>{smart.domain}</span>
+                    {smart.stage && <span className="text-slate-400">{smart.stage}</span>}
+                  </div>
+                )}
+
+                {m.direction === "out" && bubbleActions.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-2 not-prose">
-                    {((m as any).meta.actions as WaouhAction[]).slice(0, 4).map((a, i) => (
+                    {bubbleActions.slice(0, 3).map((a, i) => (
                       <Button
                         key={i}
                         size="sm"
                         variant="secondary"
-                        className="h-7 text-xs"
+                        className={cn(
+                          "h-8 rounded-xl px-3 text-[11px] font-black",
+                          i === 0 ? "bg-slate-950 text-white hover:bg-slate-800" : ""
+                        )}
                         onClick={async () => {
                           // Boutons d'une bulle de l'avatar : mêmes actions que l'ancienne carte (jamais d'envoi sans ce tap).
                           if (avatarBubbleInfo((m as any).meta)) {
                             await handleBriefingAction({ ...(a as any), id: a.id, label: a.label });
                             return;
                           }
-                          if (a.url) {
+                          if (a.kind === "commerce") {
+                            const request = commerceRequestFromButton(a.id, {
+                              thread_id: (m as any).meta?.thread_id ?? null,
+                              negotiation_id: (m as any).meta?.negotiation_id ?? null,
+                              deal_id: (m as any).meta?.deal_id ?? null,
+                              article_id: (m as any).meta?.article_id ?? null,
+                            });
+                            if (request) {
+                              try {
+                                const response = await sendCommerceAction({
+                                  ...request,
+                                  source: "web_smart_message",
+                                }, sessionId);
+                                if (response) {
+                                  toast({
+                                    title: response.reply.title,
+                                    description: response.reply.detail,
+                                  });
+                                  window.dispatchEvent(new CustomEvent("waouh:match-updated", {
+                                    detail: { article_id: (m as any).meta?.article_id ?? null },
+                                  }));
+                                  return;
+                                }
+                              } catch {
+                                toast({
+                                  title: "Action non validée",
+                                  description: "Réessayez dans quelques instants.",
+                                });
+                                return;
+                              }
+                            }
+                          }
+                          if (a.url && (!a.kind || a.kind === "navigate" || a.kind === "contact")) {
+                            if (a.url.startsWith("/app/")) {
+                              navigate(a.url);
+                              return;
+                            }
                             // In Capacitor, opening wa.me kicks the user to WhatsApp.
                             // Keep the user inside the app by ignoring WhatsApp deep-links.
                             try {

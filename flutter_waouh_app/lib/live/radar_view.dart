@@ -11,6 +11,7 @@ import 'radar_filters.dart';
 import 'radar_hero.dart';
 import 'radar_results.dart';
 import 'live_hot_labels.dart';
+import 'live_guest_action_gate.dart';
 
 class RadarView extends StatefulWidget {
   const RadarView({super.key});
@@ -172,13 +173,14 @@ class _RadarViewState extends State<RadarView>
       },
     );
     if (!mounted) return;
-    if (!context.read<legacy.AuthController>().signedIn) {
-      context.push(
-        '/app/auth?next=${Uri.encodeComponent('/app/chat/waouh')}',
-      );
-      return;
-    }
-    await context.push('/app/chat/waouh');
+    if (!await requireLiveAuthentication(
+      context,
+      next: '/app/chat/waouh',
+      actionLabel: action == RadarItemAction.negotiate
+          ? 'négocier cette opportunité'
+          : 'contacter cette opportunité',
+    )) return;
+    if (mounted) await context.push('/app/chat/waouh');
   }
 
   @override

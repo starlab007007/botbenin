@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { MapPin, LogIn, Coffee, Play, LogOut, Loader2, CheckCircle2, AlertTriangle, RefreshCw, Navigation } from "lucide-react";
 import { toast } from "sonner";
 
+import { userFacingErrorText } from "@/lib/userFacingError";
 const ACTIONS = [
   { id: "arrival", label: "Arrivée", icon: LogIn, color: "bg-green-500" },
   { id: "break_start", label: "Début pause", icon: Coffee, color: "bg-amber-500" },
@@ -100,7 +101,7 @@ export default function PublicCheckinScreen() {
       });
       setDone(data?.message || "Pointage enregistré");
     } catch (error: any) {
-      toast.error(error?.message || "Le pointage n'a pas pu être enregistré");
+      toast.error(userFacingErrorText(error, "save"));
     } finally {
       setLoading(false);
     }

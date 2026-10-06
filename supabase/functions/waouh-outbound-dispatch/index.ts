@@ -3,15 +3,15 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-api-key",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-api-key, x-waouh-internal",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 import { resolveRealPhoneE164, stripLegacyPaymentText, lidToPhoneInline } from "../_shared/waouh-format.ts";
 import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
+import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const WAHA_BASE_URL = Deno.env.get("WAHA_BASE_URL");
 const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY");
 const WAHA_SESSION = Deno.env.get("WAHA_SESSION") || "WaouhApp";
@@ -29,25 +29,50 @@ async function wahaFetch(url: string, init: RequestInit = {}) {
   });
 }
 
-async function requestIsAdmin(req: Request, sb: any) {
-  const auth = req.headers.get("Authorization") || "";
-  if (!auth.startsWith("Bearer ")) return false;
-  const bearer = auth.replace(/^Bearer\s+/i, "").trim();
-  if (bearer === SERVICE_ROLE) return true;
-  try {
-    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-      global: { headers: { Authorization: auth } },
-    });
-    const { data: { user } } = await userClient.auth.getUser();
-    if (!user) return false;
-    const [admin, superAdmin] = await Promise.all([
-      sb.rpc("has_role", { _user_id: user.id, _role_name: "admin" }),
-      sb.rpc("has_role", { _user_id: user.id, _role_name: "super_admin" }),
-    ]);
-    return admin.data === true || superAdmin.data === true;
-  } catch {
-    return false;
+async function checkWahaProvider(
+  base: string,
+  session: string,
+  headers: Record<string, string>,
+): Promise<{ ok: boolean; reason?: string; state?: string }> {
+  const normalized = base.replace(/\/$/, "");
+  let lastError = "";
+
+  for (const endpoint of [
+    `/api/sessions/${encodeURIComponent(session)}`,
+    "/api/sessions",
+  ]) {
+    try {
+      const response = await wahaFetch(`${normalized}${endpoint}`, { headers });
+      if (!response.ok) {
+        lastError = `waha_health_http_${response.status}`;
+        await response.text().catch(() => "");
+        continue;
+      }
+
+      const payload = await response.json().catch(() => null);
+      const candidates = Array.isArray(payload) ? payload : [payload];
+      const current = candidates.find((row: any) => {
+        const name = String(row?.name || row?.session || row?.session_name || "").trim();
+        return !name || name === session;
+      });
+
+      if (!current) return { ok: false, reason: "waha_session_not_found" };
+
+      const state = String(
+        current?.status || current?.state || current?.engine?.state || "",
+      ).trim().toUpperCase();
+
+      if (["FAILED", "STOPPED", "DISCONNECTED", "SCAN_QR_CODE", "STARTING"].includes(state)) {
+        return { ok: false, reason: `waha_session_${state.toLowerCase()}`, state };
+      }
+
+      return { ok: true, state: state || undefined };
+    } catch (error: any) {
+      lastError = String(error?.message || error || "waha_health_unreachable");
+    }
   }
+
+  return { ok: false, reason: lastError || "waha_health_unreachable" };
 }
 
 function fmt(n: number | null | undefined) {
@@ -218,6 +243,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
+  const runtimeGuard = await requireRuntimeOrAdmin(req, sb);
+  if (!runtimeGuard.ok) return runtimeGuard.response;
+
   try {
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     const requestedLimit = Number(body?.limit ?? 20);
@@ -243,7 +271,7 @@ Deno.serve(async (req) => {
           reason: "outbound_automation_paused",
         }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
-      if (!(await requestIsAdmin(req, sb))) {
+      if (runtimeGuard.actor !== "admin" && runtimeGuard.actor !== "service") {
         return new Response(JSON.stringify({ ok: false, error: "admin_required_for_manual_dispatch" }), {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -290,15 +318,59 @@ Deno.serve(async (req) => {
       .limit(limit);
     if (error) throw error;
 
+    const pendingItems = items || [];
+    const wahaNeeded = pendingItems.some((it: any) =>
+      it?.channel !== "web" && !!it?.to_phone
+    );
+    const wahaHeaders = {
+      "Content-Type": "application/json",
+      ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}),
+    };
+    const wahaHealth = !wahaNeeded
+      ? { ok: true as const }
+      : !WAHA_BASE_URL
+        ? { ok: false as const, reason: "waha_base_url_missing" }
+        : await checkWahaProvider(WAHA_BASE_URL, WAHA_SESSION, wahaHeaders);
+
+    if (!wahaHealth.ok) {
+      console.warn("[waouh-outbound-dispatch] WAHA unavailable; WhatsApp rows stay pending", wahaHealth);
+    }
+
+    const wahaHealthBySession = new Map<string, { ok: boolean; reason?: string; state?: string }>();
+    wahaHealthBySession.set(WAHA_SESSION, wahaHealth);
+    let degraded = !wahaHealth.ok;
+    let degradationReason = wahaHealth.ok ? null : (wahaHealth.reason || "waha_unavailable");
+
     let sent = 0, failed = 0, skipped = 0, processed = 0;
 
-    for (const it of items || []) {
+    for (const it of pendingItems) {
       const requestedWahaSession = typeof it.payload?.waha_session === "string"
         ? it.payload.waha_session.trim()
         : "";
       const deliverySession = /^[A-Za-z0-9_.-]{1,96}$/.test(requestedWahaSession)
         ? requestedWahaSession
         : WAHA_SESSION;
+      const requiresWaha = it?.channel !== "web" && !!it?.to_phone;
+
+      if (requiresWaha) {
+        let deliveryHealth = wahaHealthBySession.get(deliverySession);
+        if (!deliveryHealth) {
+          deliveryHealth = !WAHA_BASE_URL
+            ? { ok: false, reason: "waha_base_url_missing" }
+            : await checkWahaProvider(WAHA_BASE_URL, deliverySession, wahaHeaders);
+          wahaHealthBySession.set(deliverySession, deliveryHealth);
+        }
+        if (!deliveryHealth.ok) {
+          degraded = true;
+          degradationReason = deliveryHealth.reason || "waha_unavailable";
+          console.warn("[waouh-outbound-dispatch] WAHA delivery session unavailable", {
+            deliverySession,
+            health: deliveryHealth,
+          });
+          skipped++;
+          continue;
+        }
+      }
       // Keep a hard runtime budget below the Edge idle/runtime ceiling.
       // Remaining rows stay pending and will be picked up by the next tick.
       if (Date.now() - runStartedAt >= maxRunMs) {
@@ -456,8 +528,7 @@ Deno.serve(async (req) => {
         skipped++; continue;
       }
       const candidates = phone.includes("@lid") ? [phone] : beninPhoneCandidates(phone);
-      const wahaBase = WAHA_BASE_URL.replace(/\/$/, "");
-      const wahaHeaders = { "Content-Type": "application/json", ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}) };
+      const wahaBase = WAHA_BASE_URL!.replace(/\/$/, "");
       const customActions = Array.isArray(it.payload?.actions) ? it.payload.actions : [];
       const actions = customActions.length > 0 ? customActions : defaultActionsForTemplate(it.template, it.payload || {});
       const footer = it.payload?.footer || "WAOUH • Marché conversationnel";
@@ -545,7 +616,17 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ ok: true, processed, queued: items?.length || 0, sent, failed, skipped, budget_ms: maxRunMs }), {
+    return new Response(JSON.stringify({
+      ok: true,
+      degraded,
+      degradation_reason: degradationReason,
+      processed,
+      queued: pendingItems.length,
+      sent,
+      failed,
+      skipped,
+      budget_ms: maxRunMs,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {

@@ -24,25 +24,13 @@ export function QuotaBanner() {
         <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
         <div className="flex-1 text-sm">
           <div className="font-semibold mb-1">
-            Service temporairement limité (quota dépassé)
+            Service temporairement limité
           </div>
           <div className="opacity-90 leading-snug">
-            Le backend Supabase a dépassé son quota mensuel (egress). Les données
-            en cache restent visibles mais les nouvelles requêtes échoueront.
-            <br />
-            <strong>Actions&nbsp;:</strong> ouvrez le tableau de bord Supabase →
-            Billing, retirez le plafond de dépenses ou passez au plan Pro pour
-            rétablir le service immédiatement.
+            Certaines actions sont momentanément indisponibles. Les contenus déjà
+            chargés restent accessibles. Réessayez dans quelques instants.
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
-            <a
-              href="https://supabase.com/dashboard/project/mvynepqulhflxtyymtzs/settings/billing"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center rounded-md bg-background text-foreground px-3 py-1.5 text-xs font-medium hover:opacity-90"
-            >
-              Ouvrir Supabase Billing
-            </a>
             <button
               onClick={() => {
                 clearQuotaBlock();

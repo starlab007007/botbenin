@@ -1,7 +1,9 @@
+import { userFacingErrorText } from "@/lib/userFacingError";
+import { useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Building2, Camera, ExternalLink, Globe2, Loader2, MapPin, MessageCircle, Radar,
-  Search, Send, Share2, Sparkles, Store, Upload, Users, Wifi, WifiOff,
+  Search, Send, Share2, Sparkles, Store, Upload, Users, Wifi, WifiOff, LockKeyhole,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { buildWaouhAuthRedirect } from "@/lib/waouhAccessPolicy";
 import { supabase } from "@/integrations/supabase/client";
 import {
   getNexusSources,
@@ -63,7 +66,7 @@ const stateLabel = (source: NexusDiscoverySource) => {
   return "Désactivé";
 };
 
-const errorText = (error: unknown) => error instanceof Error ? error.message : "Erreur inattendue.";
+const errorText = (error: unknown) => userFacingErrorText(error, "load");
 
 type SharedSignalState = Awaited<ReturnType<typeof ingestSharedCommerceSignal>>;
 type PreparedContactState = Awaited<ReturnType<typeof prepareNexusContact>> & { result: NexusDiscoveryResult };
@@ -72,7 +75,14 @@ type PreparedContactItem = PreparedContactState["contacts"][number];
 
 export function WaouhGlobalDiscoveryPanel() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const { user } = useAuth();
+
+  const requireAuth = (next = "/app/nexus"): boolean => {
+    if (user) return true;
+    navigate(buildWaouhAuthRedirect(next));
+    return false;
+  };
   const shareImageInput = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<NexusDiscoveryMode>("auto");
   const [resolvedMode, setResolvedMode] = useState<NexusResolvedDiscoveryMode>("find_sellers");
@@ -158,6 +168,7 @@ export function WaouhGlobalDiscoveryPanel() {
 
   const delegateSearchToBot = async () => {
     if (!query.trim() || mandateBusy) return;
+    if (!requireAuth("/app/missions")) return;
     setMandateBusy(true);
     try {
       const response = await createNexusMandate({
@@ -187,10 +198,7 @@ export function WaouhGlobalDiscoveryPanel() {
   };
 
   const uploadSharedImage = async (file: File) => {
-    if (!user) {
-      toast({ title: "Connexion requise", description: "Connectez-vous pour analyser une capture ou une photo.", variant: "destructive" });
-      return;
-    }
+    if (!requireAuth("/app/nexus")) return;
     setBusy(true);
     try {
       const extension = (file.name.split(".").pop() || "jpg").toLowerCase();
@@ -214,6 +222,7 @@ export function WaouhGlobalDiscoveryPanel() {
 
   const ingestShare = async () => {
     if (!shareText.trim() && !shareImageUrl && !shareUrl.trim()) return;
+    if (!requireAuth("/app/nexus")) return;
     setBusy(true);
     try {
       const response = await ingestSharedCommerceSignal({
@@ -241,6 +250,7 @@ export function WaouhGlobalDiscoveryPanel() {
   };
 
   const prepareContact = async (result: NexusDiscoveryResult) => {
+    if (!requireAuth("/app/nexus")) return;
     setBusy(true);
     try {
       const prepared = await prepareNexusContact(result.fabric_id);
@@ -258,6 +268,7 @@ export function WaouhGlobalDiscoveryPanel() {
   };
 
   const openUserInitiatedContact = (channel: string, value: string) => {
+    if (!requireAuth("/app/nexus")) return;
     if (channel === "phone" || channel === "whatsapp") {
       const digits = value.replace(/\D/g, "");
       if (channel === "whatsapp") window.open(`https://wa.me/${digits}`, "_blank", "noopener,noreferrer");
@@ -270,6 +281,7 @@ export function WaouhGlobalDiscoveryPanel() {
 
   const sendWithWaouh = async () => {
     if (!contact?.fabric_id || !contactMessage.trim()) return;
+    if (!requireAuth("/app/nexus")) return;
     setBusy(true);
     try {
       const sent = await sendNexusDiscoveryContact({
@@ -373,8 +385,12 @@ export function WaouhGlobalDiscoveryPanel() {
               disabled={!query.trim() || mandateBusy}
               onClick={() => void delegateSearchToBot()}
             >
-              {mandateBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-              Confier à Bot · 24 h
+              {mandateBusy
+                ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                : user
+                  ? <Sparkles className="mr-2 h-4 w-4" />
+                  : <LockKeyhole className="mr-2 h-4 w-4" />}
+              {user ? "Confier à Bot · 24 h" : "Se connecter pour confier à Bot"}
             </Button>
             </div>
             <p className="text-[10px] font-semibold text-muted-foreground">
@@ -615,7 +631,9 @@ export function WaouhGlobalDiscoveryPanel() {
                 variant="outline"
                 className="h-auto min-h-20 gap-2 sm:w-36 sm:flex-col"
                 disabled={busy}
-                onClick={() => shareImageInput.current?.click()}
+                onClick={() => {
+                  if (requireAuth("/app/nexus")) shareImageInput.current?.click();
+                }}
               >
                 {shareImageUrl ? <Camera className="h-5 w-5" /> : <Upload className="h-5 w-5" />}
                 <span className="text-xs">{shareImageUrl ? "Changer l’image" : "Capture / photo"}</span>

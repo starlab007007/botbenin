@@ -10,20 +10,17 @@ import { SegmentedTabs } from "@/app-mobile/components/auth/SegmentedTabs";
 import { NativeTextField } from "@/app-mobile/components/auth/NativeTextField";
 import { GoogleButton } from "@/app-mobile/components/auth/GoogleButton";
 import { PasswordStrengthBar } from "@/app-mobile/components/auth/PasswordStrengthBar";
+import { DEFAULT_PUBLIC_APP_PATH, normalizeWaouhRedirect } from "@/lib/waouhAccessPolicy";
 
 type Tab = "login" | "register" | "reset";
 
 type AuthLocationState = { from?: string } | null;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const FALLBACK_REDIRECT = "/app/chat";
+const FALLBACK_REDIRECT = DEFAULT_PUBLIC_APP_PATH;
 
-const normalizeRedirect = (target?: string | null): string => {
-  if (!target || typeof target !== "string") return FALLBACK_REDIRECT;
-  if (!target.startsWith("/app")) return FALLBACK_REDIRECT;
-  if (target.startsWith("/app/auth")) return FALLBACK_REDIRECT;
-  return target;
-};
+const normalizeRedirect = (target?: string | null): string =>
+  normalizeWaouhRedirect(target, FALLBACK_REDIRECT);
 
 const waitForSupabaseSession = async (): Promise<boolean> => {
   for (let i = 0; i < 20; i += 1) {
@@ -61,6 +58,9 @@ export default function EmailAuthScreen() {
       }
     } catch {}
 
+    const queryTarget = params.get("next");
+    if (queryTarget) return normalizeRedirect(queryTarget);
+
     const stateTarget = (location.state as AuthLocationState)?.from;
     return normalizeRedirect(stateTarget);
   };
@@ -91,7 +91,11 @@ export default function EmailAuthScreen() {
     setGoogleLoading(true);
     Haptics.impact({ style: ImpactStyle.Medium }).catch(() => {});
     try {
-      await loginWithGoogle();
+      const target = consumeRedirect();
+      try {
+        sessionStorage.setItem("waouh_post_auth_redirect", target);
+      } catch {}
+      await loginWithGoogle(target);
     } finally {
       setGoogleLoading(false);
     }
@@ -129,7 +133,13 @@ export default function EmailAuthScreen() {
       }
       setLoading(true);
       try {
-        const ok = await register({ name, email, password, phone: "" });
+        const ok = await register({
+          name,
+          email,
+          password,
+          phone: "",
+          returnTo: normalizeRedirect(params.get("next") || (location.state as AuthLocationState)?.from),
+        });
         if (ok) {
           Haptics.notification({ type: NotificationType.Success }).catch(() => {});
           setTab("login");
@@ -154,7 +164,7 @@ export default function EmailAuthScreen() {
   };
 
   const title = tab === "login" ? "Se connecter" : tab === "register" ? "Créer un compte" : "Mot de passe";
-  const cta = tab === "login" ? "Se connecter" : tab === "register" ? "Créer le compte" : "Envoyer le lien";
+  const cta = tab === "login" ? "Se connecter" : tab === "register" ? "Créer le compte" : "Demander un lien";
 
   return (
     <div className="fixed inset-0 flex flex-col bg-background">

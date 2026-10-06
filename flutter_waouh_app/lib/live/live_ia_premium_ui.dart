@@ -24,7 +24,7 @@ String waouhIaSessionLabel(dynamic session) {
 }
 
 /// Converts technical error text into a concise customer-facing summary.
-/// Full text remains available in the existing technical detail expander.
+/// Raw diagnostics remain in logs/monitoring and are never rendered in the UI.
 String waouhIaReadableError(String raw) {
   final value = raw.trim().toLowerCase();
   if (value.contains('permission') ||
@@ -555,8 +555,6 @@ class WaouhIaFeedbackCard extends StatefulWidget {
 }
 
 class _WaouhIaFeedbackCardState extends State<WaouhIaFeedbackCard> {
-  bool _showDetails = false;
-
   @override
   Widget build(BuildContext context) {
     return WaouhIaSurface(
@@ -608,43 +606,7 @@ class _WaouhIaFeedbackCardState extends State<WaouhIaFeedbackCard> {
                   icon: const Icon(Icons.refresh_rounded, size: 18),
                   label: Text(widget.actionLabel),
                 ),
-                if ((widget.technicalDetails ?? '').trim().isNotEmpty)
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _showDetails = !_showDetails;
-                      });
-                    },
-                    style: TextButton.styleFrom(
-                      foregroundColor: WaouhIaPalette.muted,
-                      padding: EdgeInsets.zero,
-                      minimumSize: const Size(0, 30),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: Text(
-                      _showDetails
-                          ? 'Masquer le détail technique'
-                          : 'Voir le détail technique',
-                    ),
-                  ),
-                if (_showDetails)
-                  Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.only(top: 4),
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.72),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: SelectableText(
-                      widget.technicalDetails!,
-                      style: const TextStyle(
-                        color: WaouhIaPalette.muted,
-                        fontSize: 11.5,
-                        height: 1.3,
-                      ),
-                    ),
-                  ),
+
               ],
             ),
           ),

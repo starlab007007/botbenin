@@ -13,6 +13,7 @@ import { Search, Plus, ShoppingBag, Menu, Radar as RadarIcon, Sparkles, PanelLef
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { chatSpaceMode, readDrawerPinned, unreadBadge, writeDrawerPinned } from "../utils/chatSpaceLayout";
 import { useNotifications } from "../hooks/useNotifications";
+import { buildWaouhAuthRedirect } from "@/lib/waouhAccessPolicy";
 
 import { WaouhNotificationsBell } from "@/components/waouh/WaouhNotificationsBell";
 import { useWaouhMatchNotifications } from "@/hooks/useWaouhMatchNotifications";
@@ -89,7 +90,7 @@ export default function ChatListScreen() {
 
   const { user } = useMobileAuth();
   const { profile } = useMobileProfile();
-  const { waouhUserIds, sessionId, ready } = useWaouhIdentity();
+  const { sessionId, ready } = useWaouhIdentity();
 
   // Snapshot hydration: render instantly from localStorage while the network
   // refetch happens in background. Eliminates blank screen on slow connections.
@@ -174,15 +175,16 @@ export default function ChatListScreen() {
     const load = async () => {
       const fields = "id,phone_number,channel,last_message,updated_at,user_id";
       const all: Record<string, Conv> = {};
-      if (waouhUserIds.length) {
-        const { data } = await supabase
-          .from("waouh_conversations")
-          .select(fields)
-          .in("user_id", waouhUserIds)
-          .order("updated_at", { ascending: false })
-          .limit(200);
-        (data ?? []).forEach((c: any) => { all[c.id] = c; });
-      }
+      // waouh_conversations is owner-scoped by RLS. Querying the table directly
+      // avoids truncating history for accounts that accumulated many WAOUH
+      // identity rows over time.
+      const { data: ownedConversations, error: ownedError } = await supabase
+        .from("waouh_conversations")
+        .select(fields)
+        .order("updated_at", { ascending: false })
+        .limit(200);
+      if (ownedError) throw ownedError;
+      (ownedConversations ?? []).forEach((c: any) => { all[c.id] = c; });
       // Also surface conversations reachable from this device's session messages
       if (sessionId) {
         const { data: msgs } = await supabase
@@ -230,16 +232,12 @@ export default function ChatListScreen() {
       }
     };
     load();
-    const channels: any[] = [];
-    for (const uid of waouhUserIds) {
-      channels.push(
-        supabase.channel(`mobile-conv-list-${uid}`)
-          .on("postgres_changes", { event: "*", schema: "public", table: "waouh_conversations", filter: `user_id=eq.${uid}` }, load)
-          .subscribe()
-      );
-    }
-    return () => { mounted = false; channels.forEach((c) => supabase.removeChannel(c)); };
-  }, [ready, waouhUserIds.join("|"), sessionId, isGuest, snapshotKey]);
+    const channel = supabase
+      .channel(`mobile-conv-list-${user?.id ?? "guest"}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "waouh_conversations" }, load)
+      .subscribe();
+    return () => { mounted = false; supabase.removeChannel(channel); };
+  }, [ready, sessionId, isGuest, snapshotKey, user?.id]);
 
   const enriched = useMemo(
     () => convs.map((c) => {
@@ -269,8 +267,7 @@ export default function ChatListScreen() {
   const initials = (profile?.full_name ?? profile?.phone ?? "U").slice(0, 2).toUpperCase();
 
   const goToAuth = (target: string) => {
-    try { sessionStorage.setItem("waouh_post_auth_redirect", target); } catch {}
-    navigate("/app/auth/email?tab=login", { state: { from: target } });
+    navigate(buildWaouhAuthRedirect(target));
   };
 
   const requireAuth = (target: string): boolean => {

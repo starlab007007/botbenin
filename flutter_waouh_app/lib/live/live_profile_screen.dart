@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 
 import '../main.dart' as legacy;
 import 'live_theme.dart';
+import 'user_message.dart';
 
 class LiveProfileScreen extends StatefulWidget {
   const LiveProfileScreen({super.key});
@@ -49,7 +50,9 @@ class _LiveProfileScreenState extends State<LiveProfileScreen> {
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(auth.error ?? waouhUserMessage(error, action: 'save'))),
+        );
       }
     } finally {
       if (mounted) setState(() => savingName = false);
@@ -69,7 +72,9 @@ class _LiveProfileScreenState extends State<LiveProfileScreen> {
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.toString())));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(auth.error ?? waouhUserMessage(error, action: 'upload'))),
+        );
       }
     } finally {
       if (mounted) setState(() => uploadingAvatar = false);

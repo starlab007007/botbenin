@@ -12,4 +12,5 @@ export const WAOUH_RUNTIME_ENDPOINTS = {
   nativeMessagingSettings: "waouh-bots-backend-health-v1",
   nativeOpenMessages: "waouh-chat-health",
   nativeSimulator: "chat-webhook",
+  adminE2ERunner: "setup-test-accounts",
 } as const;

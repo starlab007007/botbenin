@@ -10,6 +10,7 @@ import 'fa_web_consultation_screen.dart';
 import 'fa_web_theme.dart';
 import 'fa_web_widgets.dart';
 
+import '../../../live/user_message.dart';
 class FaWebResultScreen extends StatefulWidget {
   const FaWebResultScreen({
     super.key,
@@ -90,7 +91,7 @@ class _FaWebResultScreenState extends State<FaWebResultScreen> {
       });
       await _store.saveEntry(_entry);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$error')),
+        SnackBar(content: Text(waouhUserMessage(error, action: 'send'))),
       );
       _scrollToBottom();
     }

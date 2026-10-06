@@ -14,6 +14,7 @@ import 'live_commerce_action_client.dart';
 import 'live_controller.dart';
 import 'live_commerce_agent_ui.dart';
 import 'live_guest_action_gate.dart';
+import 'user_message.dart';
 import 'live_match_navigation.dart';
 import 'live_models.dart';
 import 'live_sell_sheet.dart';
@@ -90,7 +91,7 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
           await context.read<LiveWaouhController>().uploadChatImage(file);
       if (mounted) setState(() => attachments.add(item));
     } catch (error) {
-      if (mounted) _notice(error.toString());
+      if (mounted) _notice(waouhUserMessage(error, action: 'upload'));
     }
   }
 
@@ -372,8 +373,8 @@ class _LiveMainChatScreenState extends State<LiveMainChatScreen> {
           SnackBar(
             content: Text(
               interested
-                  ? 'Intérêt non finalisé : ${error.toString()}'
-                  : 'Message non envoyé.',
+                  ? waouhUserMessage(error, action: 'send')
+                  : 'Message non envoyé. Réessayez.',
             ),
             action: SnackBarAction(
               label: 'Réessayer',

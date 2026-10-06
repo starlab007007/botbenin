@@ -12,6 +12,7 @@ import 'live_theme.dart';
 import 'live_visuals.dart';
 import 'live_widgets.dart';
 
+import 'user_message.dart';
 class LiveStatusFeed extends StatefulWidget {
   const LiveStatusFeed({super.key});
   @override
@@ -336,7 +337,7 @@ class _LiveStatusComposerScreenState extends State<LiveStatusComposerScreen> {
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
+        SnackBar(content: Text(waouhUserMessage(error, action: 'send'))),
       );
     } finally {
       if (mounted) setState(() => publishing = false);
@@ -705,6 +706,12 @@ class LiveStatusViewer extends StatelessWidget {
                           backgroundColor: WaouhPalette.neon,
                           foregroundColor: WaouhPalette.ink),
                       onPressed: () async {
+                        // Prepare the reply locally so the selected status and
+                        // intent survive the authentication round-trip.
+                        await context
+                            .read<LiveWaouhController>()
+                            .openStatusReply(status);
+                        if (!context.mounted) return;
                         if (!await requireLiveAuthentication(
                           context,
                           next: '/app/chat/waouh',
@@ -714,10 +721,6 @@ class LiveStatusViewer extends StatelessWidget {
                         }
                         if (!context.mounted) return;
                         final router = GoRouter.of(context);
-                        await context
-                            .read<LiveWaouhController>()
-                            .openStatusReply(status);
-                        if (!context.mounted) return;
                         Navigator.of(context).pop();
                         router.go('/app/chat/waouh');
                       },

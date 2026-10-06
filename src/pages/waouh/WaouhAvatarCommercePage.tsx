@@ -1,3 +1,4 @@
+import { userFacingErrorText } from "@/lib/userFacingError";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
@@ -253,7 +254,7 @@ export default function WaouhAvatarCommercePage() {
     } catch (error: any) {
       toast({
         title: "Recherche indisponible",
-        description: error?.message || String(error),
+        description: userFacingErrorText(error, "load"),
         variant: "destructive",
       });
     } finally {
@@ -301,7 +302,7 @@ export default function WaouhAvatarCommercePage() {
           : `Bot surveille pendant 24 h et peut agir dans les limites fixées · ${response.actionable_count} opportunité(s) déjà actionnable(s).`,
       });
     } catch (error: any) {
-      toast({ title: "Mandat non créé", description: error?.message || String(error), variant: "destructive" });
+      toast({ title: "Mandat non créé", description: userFacingErrorText(error, "save"), variant: "destructive" });
     } finally {
       setMandateBusy(false);
     }
@@ -329,7 +330,7 @@ export default function WaouhAvatarCommercePage() {
       if (response.results?.length) setResults(response.results);
       toast({ title: "Bot a relancé la recherche", description: `${response.actionable_count} opportunité(s) actionnable(s).` });
     } catch (error: any) {
-      toast({ title: "Relance impossible", description: error?.message || String(error), variant: "destructive" });
+      toast({ title: "Relance impossible", description: userFacingErrorText(error, "send"), variant: "destructive" });
     } finally {
       setMandateBusy(false);
     }
@@ -435,7 +436,7 @@ export default function WaouhAvatarCommercePage() {
     } catch (error: any) {
       toast({
         title: "Impossible de poursuivre",
-        description: error?.message || String(error),
+        description: userFacingErrorText(error, "send"),
         variant: "destructive",
       });
     } finally {

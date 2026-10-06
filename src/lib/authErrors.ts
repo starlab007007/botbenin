@@ -98,12 +98,12 @@ export function friendlyAuthError(
     };
   }
 
-  // Réinitialisation
+  // Réinitialisation : ne jamais confirmer si une adresse est enregistrée.
   if (msg.includes("email not found") || msg.includes("user not found")) {
     return {
-      title: "Aucun compte trouvé",
+      title: "Demande prise en compte",
       description:
-        "Aucun compte n'est associé à cet email. Vérifiez ou créez un compte.",
+        "Si un compte correspond à cet email, vous recevrez un lien de réinitialisation.",
     };
   }
 
@@ -156,8 +156,8 @@ export function friendlyAuthError(
       description: "Impossible de créer votre compte pour le moment. Réessayez dans un instant.",
     },
     reset: {
-      title: "Réinitialisation impossible",
-      description: "Impossible d'envoyer l'email de réinitialisation. Réessayez.",
+      title: "Réinitialisation indisponible",
+      description: "La demande n'a pas pu être traitée. Réessayez dans quelques instants.",
     },
     password: {
       title: "Changement impossible",

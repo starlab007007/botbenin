@@ -17,5 +17,5 @@ export function useMobileAuth() {
     return () => subscription.unsubscribe();
   }, []);
 
-  return { session, user, loading, signOut: () => supabase.auth.signOut() };
+  return { session, user, loading, signOut: () => supabase.auth.signOut({ scope: "local" }) };
 }

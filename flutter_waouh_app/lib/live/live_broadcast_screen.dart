@@ -5,6 +5,7 @@ import 'live_diffusion_data.dart';
 import 'live_diffusion_models.dart';
 import 'live_guest_action_gate.dart';
 import 'live_theme.dart';
+import 'user_message.dart';
 
 class LiveBroadcastScreen extends StatefulWidget {
   const LiveBroadcastScreen({super.key});
@@ -83,7 +84,7 @@ class _LiveBroadcastScreenState extends State<LiveBroadcastScreen> {
                 }
                 if (snapshot.hasError) {
                   return _LoadFailure(
-                      onRetry: _refresh, error: snapshot.error.toString());
+                      onRetry: _refresh, error: waouhUserMessage(snapshot.error, action: 'load'));
                 }
                 return switch (_tab) {
                   0 => _CreateAiDiffusion(
@@ -352,7 +353,7 @@ class _CreateAiDiffusionState extends State<_CreateAiDiffusion> {
           _quota.text = '${result.total}';
       });
     } catch (error) {
-      _notice(error.toString());
+      _notice(waouhUserMessage(error, action: 'load'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -397,7 +398,7 @@ class _CreateAiDiffusionState extends State<_CreateAiDiffusion> {
           success: true);
       await widget.onSubmitted();
     } catch (error) {
-      if (mounted) _notice(error.toString());
+      if (mounted) _notice(waouhUserMessage(error, action: 'send'));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -797,7 +798,7 @@ class _RequestsTab extends StatelessWidget {
     } catch (error) {
       if (context.mounted)
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(error.toString().replaceFirst('Bad state: ', ''))));
+            content: Text(waouhUserMessage(error, action: 'save'))));
     }
   }
 

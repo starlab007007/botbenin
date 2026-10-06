@@ -6,6 +6,7 @@ import '../shared/waouh_business_ui.dart';
 import 'waouh_agent_insights_models.dart';
 import 'waouh_agent_insights_repository.dart';
 
+import '../../../live/user_message.dart';
 class WaouhAgentInsightsScreen extends StatefulWidget {
   const WaouhAgentInsightsScreen({
     super.key,
@@ -100,7 +101,7 @@ class _WaouhAgentInsightsScreenState extends State<WaouhAgentInsightsScreen> {
       }
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('$error')));
+      ).showSnackBar(SnackBar(content: Text(waouhUserMessage(error, action: 'send'))));
     } finally {
       if (mounted) {
         setState(() {

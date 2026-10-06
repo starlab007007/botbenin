@@ -27,6 +27,7 @@ import { recentDuplicateExists } from "../_shared/waouh-dedupe.ts";
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
 import { isServiceCaller } from "../_shared/waouh-internal-auth.ts";
 import { optionalUuid, sanitizeActions } from "../_shared/waouh-notify-actions.ts";
+import { enrichWaouhSmartPayload } from "../_shared/waouh-smart-payload.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -118,6 +119,13 @@ serve(async (req) => {
   try {
     const body = await req.json();
     let { kind, article_id, catalog_id, buyer_profile_id, recipient, extra_text, counterpart_user_id } = body || {};
+    const correlationId = String(
+      body?.correlation_id ??
+      body?.trace_id ??
+      body?.request_id ??
+      body?.idem ??
+      crypto.randomUUID()
+    ).trim();
     // Boutons de décision, thread et négociation calculés par l'appelant
     // (waouh-deal-open) : transmis tels quels au message du fil et à la file WhatsApp.
     const bodyActions = sanitizeActions(body?.actions);
@@ -236,7 +244,7 @@ serve(async (req) => {
           p_to_phone: target.whatsapp,
           p_to_user_id: notifTargetUserId,
           p_template: kind,
-          p_payload: {
+          p_payload: enrichWaouhSmartPayload({
             text,
             actions: bodyActions,
             thread_id: bodyThreadId,
@@ -247,7 +255,17 @@ serve(async (req) => {
             buyer_profile_id: buyer_profile_id ?? null,
             counterpart_user_id: counterpart_user_id ?? null,
             buyer_user_id: counterpart_user_id ?? null,
-          },
+            correlation_id: correlationId,
+          }, {
+            intent: kind,
+            text,
+            threadId: bodyThreadId,
+            correlationId,
+            articleId: article_id,
+            negotiationId: bodyNegotiationId,
+            recipientRole: recipient,
+            actions: bodyActions,
+          }),
           p_web_session_id: null,
           p_image_url: photos?.[0] ?? null,
           p_channel: "whatsapp",
@@ -274,6 +292,7 @@ serve(async (req) => {
                   intent: kind,
                   template: kind,
                   actions: bodyActions,
+                  correlationId,
                   attachments: photos.slice(0, 4).map((url) => ({ url, type: "image/jpeg" })),
                   imageUrl: photos[0] ?? null,
                   payloadExtra: { article_id, recipient, negotiation_id: bodyNegotiationId, counterpart_user_id: counterpart_user_id ?? null, buyer_user_id: counterpart_user_id ?? null, actions: bodyActions },
@@ -325,6 +344,7 @@ serve(async (req) => {
               eventType: kind,
               threadId: bodyThreadId,
               negotiationId: bodyNegotiationId,
+              correlationId,
               attachments: photos.slice(0, 4).map((url) => ({ url, type: "image/jpeg" })),
               imageUrl: photos[0] ?? null,
               dedupSuffix: `notify:${recipient}${counterpart_user_id ? `:cp_${counterpart_user_id}` : (buyer_profile_id ? `:${buyer_profile_id}` : "")}`,
@@ -366,7 +386,7 @@ serve(async (req) => {
         photos,
         web_session_id: notifSession,
         dedupe_key: dedupeKey,
-        payload: {
+        payload: enrichWaouhSmartPayload({
           text,
           recipient,
           buyer_profile_id: buyer_profile_id ?? null,
@@ -377,8 +397,18 @@ serve(async (req) => {
           negotiation_id: bodyNegotiationId,
           actions: bodyActions,
           photos,
+          correlation_id: correlationId,
           contact: { channel: target.channel, whatsapp: target.whatsapp, partner_id: target.partnerId },
-        },
+        }, {
+          intent: kind,
+          text,
+          threadId: bodyThreadId,
+          correlationId,
+          articleId: article_id,
+          negotiationId: bodyNegotiationId,
+          recipientRole: recipient,
+          actions: bodyActions,
+        }),
 
         channel: channelUsed,
         delivered_at: waResult?.ok ? new Date().toISOString() : null,

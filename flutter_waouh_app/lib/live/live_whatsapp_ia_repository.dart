@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'live_whatsapp_ia_gateway.dart';
 import 'live_whatsapp_ia_models.dart';
 
+import 'user_message.dart';
 /// Repository du nouveau WhatsApp IA Studio.
 ///
 /// Toutes les actions WAHA passent par `waha-session-mobile`, qui vérifie
@@ -233,13 +234,15 @@ class LiveWhatsAppIaRepository {
     }
 
     if (lower.contains('pair_code_unavailable')) {
-      return 'Le code de liaison n’est pas disponible sur ce serveur WAHA. Utilisez le QR Code.';
+      return 'Le code de liaison n’est pas disponible. Utilisez le QR Code.';
     }
 
     if (lower.contains('waha_not_configured')) {
-      return 'La connexion WAHA n’est pas encore configurée sur le serveur.';
+      return 'La connexion WhatsApp est temporairement indisponible. Réessayez plus tard.';
     }
 
-    return value.isEmpty ? 'Une erreur est survenue dans WhatsApp IA.' : value;
+    return value.isEmpty
+        ? 'WhatsApp IA ne peut pas terminer cette action pour le moment.'
+        : waouhUserMessage(value, action: 'load');
   }
 }

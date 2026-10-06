@@ -11,6 +11,7 @@ import { useWaouhPartner } from '@/hooks/useWaouhPartner';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
+import { userFacingErrorText } from "@/lib/userFacingError";
 const PRODUCT_CATEGORIES = [
   'Alimentation', 'Boissons', 'Électronique', 'Mode & Vêtements', 'Maison & Décoration',
   'Beauté & Cosmétiques', 'Bureautique & Papeterie', 'Auto & Moto', 'Téléphonie & Accessoires',
@@ -84,7 +85,7 @@ export default function ProductFormNativeScreen({ businessId, initial, onClose, 
       ? await supabase.from('waouh_partner_products' as any).update(payload).eq('id', initial.id)
       : await supabase.from('waouh_partner_products' as any).insert({ ...payload, partner_id: partner.id, business_id: businessId });
     setSaving(false);
-    if (error) return toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
+    if (error) return toast({ title: 'Enregistrement impossible', description: userFacingErrorText(error, "save"), variant: 'destructive' });
     toast({ title: initial ? '✅ Produit modifié' : '✅ Produit ajouté' });
     onSaved();
     onClose();

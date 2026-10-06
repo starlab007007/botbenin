@@ -4,7 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { UserProvider } from "./contexts/UserContext";
 import { ThemeProvider } from "./components/ThemeProvider";
@@ -222,6 +222,16 @@ const queryClient = new QueryClient({
   },
 });
 
+const LegacyPartnerCodeProductRedirect = () => {
+  const { code } = useParams();
+  return <Navigate to={`/app/partner/b/${encodeURIComponent(code || "")}/produits`} replace />;
+};
+
+const LegacyPartnerBusinessProductRedirect = () => {
+  const { businessId } = useParams();
+  return <Navigate to={`/app/partner/businesses/${encodeURIComponent(businessId || "")}/products`} replace />;
+};
+
 const AppContent = () => {
   useActivityTracking();
   
@@ -281,7 +291,7 @@ const AppContent = () => {
                     
                     {/* Support et compte (hors périmètre Flutter) */}
                     <Route path="/support" element={<FlutterParityGate><SupportPage /></FlutterParityGate>} />
-                    <Route path="/account" element={<FlutterParityGate><AccountPage /></FlutterParityGate>} />
+                    <Route path="/account" element={<AuthRoute><FlutterParityGate><AccountPage /></FlutterParityGate></AuthRoute>} />
                     
                     {/* Tests système */}
                     <Route path="/system-test" element={<FlutterParityGate><SystemTestPage /></FlutterParityGate>} />
@@ -325,12 +335,12 @@ const AppContent = () => {
                     <Route path="/admin/waouh/health-check" element={<AdminRoute><AdminWaouhHealthCheckPage /></AdminRoute>} />
                     <Route path="/admin/waouh/native-messaging" element={<AdminRoute><AdminWaouhNativeMessagingPage /></AdminRoute>} />
                     <Route path="/admin/waouh/contact-layer" element={<AdminRoute><AdminWaouhContactLayerPage /></AdminRoute>} />
-                     <Route path="/partner" element={<AuthRoute><PartnerDashboardPage /></AuthRoute>} />
-                     <Route path="/partner/businesses" element={<PartnerRoute><PartnerBusinessesPage /></PartnerRoute>} />
-                     <Route path="/partner/b/:code/produits" element={<PartnerRoute><PartnerProductsPage /></PartnerRoute>} />
-                     <Route path="/partner/businesses/:businessId/products" element={<PartnerRoute><PartnerProductsPage /></PartnerRoute>} />
-                     <Route path="/partner/sales" element={<PartnerRoute><PartnerSalesPage /></PartnerRoute>} />
-                     <Route path="/partner/payouts" element={<PartnerRoute><PartnerPayoutsPage /></PartnerRoute>} />
+                     <Route path="/partner" element={<Navigate to="/app/partner" replace />} />
+                     <Route path="/partner/businesses" element={<Navigate to="/app/partner/businesses" replace />} />
+                     <Route path="/partner/b/:code/produits" element={<LegacyPartnerCodeProductRedirect />} />
+                     <Route path="/partner/businesses/:businessId/products" element={<LegacyPartnerBusinessProductRedirect />} />
+                     <Route path="/partner/sales" element={<Navigate to="/app/partner/sales" replace />} />
+                     <Route path="/partner/payouts" element={<Navigate to="/app/partner/payouts" replace />} />
                   </Route>
                   
                   {/* Accueil canonique bot.bj — même moteur et même UI que /app/chat */}
@@ -357,16 +367,16 @@ const AppContent = () => {
                   <Route path="/app/auth/email" element={<MobileAuthEmail />} />
                   <Route path="/app/auth/whatsapp" element={<MobileAuthOtp />} />
                   <Route path="/app" element={<ErrorBoundary fallback={<MobileErrorFallback />}><MobileShell /></ErrorBoundary>}>
-                    <Route index element={<Navigate to="/" replace />} />
+                    <Route index element={<Navigate to="/app/chat" replace />} />
                     <Route path="chat" element={<MobileConversations />} />
-                    <Route path="chat/waouh" element={<MobileWaouhChat />} />
+                    <Route path="chat/waouh" element={<RequireMobileAuth><MobileWaouhChat /></RequireMobileAuth>} />
                     <Route path="avatar" element={<WaouhAvatarHomePage />} />
-                    <Route path="avatar/:mode" element={<WaouhAvatarCommercePage />} />
+                    <Route path="avatar/:mode" element={<RequireMobileAuth><WaouhAvatarCommercePage /></RequireMobileAuth>} />
                     <Route path="muse" element={<Navigate to="/app/avatar" replace />} />
-                    <Route path="missions" element={<WaouhMissionsPage />} />
+                    <Route path="missions" element={<RequireMobileAuth><WaouhMissionsPage /></RequireMobileAuth>} />
                     <Route path="nexus" element={<WaouhNexusPage />} />
-                    <Route path="ia" element={<WaouhAiHubPage />} />
-                    <Route path="bots" element={<WaouhAiHubPage />} />
+                    <Route path="ia" element={<RequireMobileAuth><WaouhAiHubPage /></RequireMobileAuth>} />
+                    <Route path="bots" element={<RequireMobileAuth><WaouhAiHubPage /></RequireMobileAuth>} />
                     <Route path="apresbac" element={<ApresBacPage />} />
                     <Route path="fa-ia" element={<FaIaScreen />} />
                     <Route path="radar-map" element={<WaouhRadarMapPage />} />
@@ -405,12 +415,12 @@ const AppContent = () => {
                     <Route path="presence" element={<PresenceBrickHome />} />
                     <Route path="diffusion" element={<MobileDiffusion />} />
                     <Route path="partner" element={<MobilePartner />} />
-                    <Route path="partner/businesses" element={<MobilePartnerBusinesses />} />
-                    <Route path="partner/businesses/:businessId/products" element={<MobilePartnerProducts />} />
-                    <Route path="partner/b/:code/produits" element={<MobilePartnerProducts />} />
-                    <Route path="partner/sales" element={<MobilePartnerSales />} />
-                    <Route path="partner/payouts" element={<MobilePartnerPayouts />} />
-                    <Route path="partner/payments" element={<MobilePartnerPayments />} />
+                    <Route path="partner/businesses" element={<PartnerRoute><MobilePartnerBusinesses /></PartnerRoute>} />
+                    <Route path="partner/businesses/:businessId/products" element={<PartnerRoute><MobilePartnerProducts /></PartnerRoute>} />
+                    <Route path="partner/b/:code/produits" element={<PartnerRoute><MobilePartnerProducts /></PartnerRoute>} />
+                    <Route path="partner/sales" element={<PartnerRoute><MobilePartnerSales /></PartnerRoute>} />
+                    <Route path="partner/payouts" element={<PartnerRoute><MobilePartnerPayouts /></PartnerRoute>} />
+                    <Route path="partner/payments" element={<PartnerRoute><MobilePartnerPayments /></PartnerRoute>} />
                     <Route path="profile" element={<MobileProfile />} />
                     <Route path="notifications" element={<MobileNotifications />} />
                   </Route>

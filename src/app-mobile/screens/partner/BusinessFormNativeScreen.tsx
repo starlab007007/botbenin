@@ -16,6 +16,7 @@ import { useWaouhPartner } from '@/hooks/useWaouhPartner';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
+import { userFacingErrorText } from "@/lib/userFacingError";
 export type BusinessFormState = {
   nom_entreprise: string;
   categorie: string;
@@ -152,7 +153,7 @@ export default function BusinessFormNativeScreen({ initial, onClose, onSaved }: 
       ? await supabase.from('waouh_partner_businesses' as any).update(payload).eq('id', initial.id)
       : await supabase.from('waouh_partner_businesses' as any).insert({ ...payload, partner_id: partner.id });
     setSaving(false);
-    if (error) return toast({ title: 'Erreur', description: error.message, variant: 'destructive' });
+    if (error) return toast({ title: 'Enregistrement impossible', description: userFacingErrorText(error, "save"), variant: 'destructive' });
     toast({ title: initial ? '✅ Entreprise modifiée' : '✅ Entreprise enregistrée' });
     onSaved();
     onClose();

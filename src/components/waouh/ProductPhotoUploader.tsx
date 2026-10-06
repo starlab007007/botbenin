@@ -6,6 +6,7 @@ import { Upload, X, Loader2, ImagePlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { compressImage, uploadOptions, thumbUrl } from '@/lib/imageOptimize';
 
+import { userFacingErrorText } from "@/lib/userFacingError";
 interface Props {
   value: string[];
   onChange: (urls: string[]) => void;
@@ -47,7 +48,7 @@ export const ProductPhotoUploader = React.memo(function ProductPhotoUploader({
       // (C) Long cache-control — filenames are immutable, safe for 1 year.
       const { error } = await supabase.storage.from(bucket).upload(path, f, uploadOptions(f.type));
       if (error) {
-        toast({ title: 'Échec upload', description: error.message, variant: 'destructive' });
+        toast({ title: 'Échec upload', description: userFacingErrorText(error, "upload"), variant: 'destructive' });
         continue;
       }
       const { data } = supabase.storage.from(bucket).getPublicUrl(path);
