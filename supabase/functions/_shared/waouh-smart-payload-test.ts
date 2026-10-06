@@ -45,3 +45,22 @@ Deno.test("smart payload: diffusion, partner, missions and whatsapp route to the
     assertEquals(smart.route, route);
   }
 });
+
+
+Deno.test("smart payload: workflow recommendation overrides array order", () => {
+  const payload = enrichWaouhSmartPayload({
+    actions: [
+      { id: "counter:demo", label: "Contre-proposer" },
+      { id: "accept:demo", label: "Accepter" },
+    ],
+    suggest: { best_action: "accept:demo" },
+  }, {
+    intent: "offer_received",
+    correlationId: "corr-predictive",
+  });
+  const smart = payload.smart as Record<string, any>;
+  assertEquals(smart.next_best_action, "accept:demo");
+  assertEquals(smart.prediction.reason, "workflow_prediction");
+  assertEquals(smart.prediction.confidence, 0.99);
+  assertEquals(smart.actions[0].requires_auth, true);
+});
