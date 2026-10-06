@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, BrainCircuit, FlaskConical, Globe2, Sparkles, Workflow } from "lucide-react";
+import { ArrowLeft, BrainCircuit, FlaskConical, Globe2, LockKeyhole, Sparkles, Workflow } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,10 +8,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WaouhGlobalDiscoveryPanel } from "@/components/waouh/WaouhGlobalDiscoveryPanel";
 import { WaouhNexusDashboard } from "@/components/waouh/WaouhNexusDashboard";
 import { WaouhNexusInnovationPanel } from "@/components/waouh/WaouhNexusInnovationPanel";
+import { useAuth } from "@/contexts/AuthContext";
+import { buildWaouhAuthRedirect } from "@/lib/waouhAccessPolicy";
 
 export default function WaouhNexusPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [tab, setTab] = useState("discover");
+
+  const changeTab = (next: string) => {
+    if (next === "missions" && !user) {
+      navigate(buildWaouhAuthRedirect("/app/missions"));
+      return;
+    }
+    setTab(next);
+  };
 
   return (
     <main className="h-full min-h-0 overflow-y-auto bg-[radial-gradient(circle_at_20%_0%,rgba(34,211,238,.08),transparent_30%),linear-gradient(180deg,#f8fbff_0%,#ffffff_55%)]">
@@ -38,7 +49,7 @@ export default function WaouhNexusPage() {
           </Button>
         </div>
 
-        <Tabs value={tab} onValueChange={setTab} className="space-y-3">
+        <Tabs value={tab} onValueChange={changeTab} className="space-y-3">
           <TabsList className="grid h-12 w-full grid-cols-3 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
             <TabsTrigger value="discover" className="rounded-xl font-bold">
               <Globe2 className="mr-2 h-4 w-4" /> Découvrir
@@ -47,7 +58,8 @@ export default function WaouhNexusPage() {
               <FlaskConical className="mr-2 h-4 w-4" /> NEXUS Lab
             </TabsTrigger>
             <TabsTrigger value="missions" className="rounded-xl font-bold">
-              <Workflow className="mr-2 h-4 w-4" /> Missions
+              {user ? <Workflow className="mr-2 h-4 w-4" /> : <LockKeyhole className="mr-2 h-4 w-4" />}
+              Missions
             </TabsTrigger>
           </TabsList>
 
