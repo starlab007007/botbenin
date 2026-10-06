@@ -133,7 +133,13 @@ export default function EmailAuthScreen() {
       }
       setLoading(true);
       try {
-        const ok = await register({ name, email, password, phone: "" });
+        const ok = await register({
+          name,
+          email,
+          password,
+          phone: "",
+          returnTo: normalizeRedirect(params.get("next") || (location.state as AuthLocationState)?.from),
+        });
         if (ok) {
           Haptics.notification({ type: NotificationType.Success }).catch(() => {});
           setTab("login");
