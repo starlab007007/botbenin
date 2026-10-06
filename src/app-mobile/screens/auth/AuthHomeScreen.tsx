@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
   Mail,
@@ -7,11 +7,17 @@ import {
   Search,
   Handshake,
 } from "lucide-react";
+import { DEFAULT_PUBLIC_APP_PATH, normalizeWaouhRedirect } from "@/lib/waouhAccessPolicy";
 
 /* ---------------------------- Existing auth UI ---------------------------- */
 
 export default function AuthHomeScreen() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const next = normalizeWaouhRedirect(params.get("next"));
+
+  const authHref = (path: string) =>
+    `${path}?next=${encodeURIComponent(next)}`;
 
   const pillars = [
     { icon: ShoppingBag, title: "Vendre", subtitle: "Publiez un article en 30s", bg: "bg-[#10b981]", delay: "0ms" },
@@ -67,7 +73,7 @@ export default function AuthHomeScreen() {
             <Button
               size="lg"
               className="w-full bg-[#25D366] hover:bg-[#1da851] text-white h-14 text-base font-semibold rounded-2xl shadow-lg shadow-black/20"
-              onClick={() => navigate("/app/auth/whatsapp")}
+              onClick={() => navigate(authHref("/app/auth/whatsapp"))}
             >
               <MessageCircle className="mr-2 h-5 w-5" /> Continuer avec WhatsApp
             </Button>
@@ -75,12 +81,22 @@ export default function AuthHomeScreen() {
               size="lg"
               variant="secondary"
               className="w-full h-14 text-base font-semibold bg-white text-[hsl(165_91%_18%)] hover:bg-white/90 rounded-2xl shadow-md"
-              onClick={() => navigate("/app/auth/email")}
+              onClick={() => navigate(authHref("/app/auth/email"))}
             >
               <Mail className="mr-2 h-5 w-5" /> Continuer avec Email
             </Button>
-            <p className="text-xs text-white/60 mt-2 text-center">
-              En continuant, vous acceptez nos conditions d'utilisation.
+            <button
+              type="button"
+              onClick={() => navigate(DEFAULT_PUBLIC_APP_PATH, { replace: true })}
+              className="w-full h-12 rounded-2xl text-sm font-semibold text-white/90 hover:bg-white/10"
+            >
+              Continuer sans compte
+            </button>
+            <p className="text-xs text-white/60 mt-1 text-center">
+              La consultation est libre. Une connexion est demandée seulement pour agir.
+            </p>
+            <p className="text-[11px] text-white/50 text-center">
+              En vous connectant, vous acceptez nos conditions d'utilisation.
             </p>
           </div>
 
