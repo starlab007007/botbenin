@@ -47,6 +47,7 @@ on:
       - "supabase/functions/_shared/waouh-promote*.ts"
       - "supabase/functions/waouh-opportunity-worker/**"
       - ".github/workflows/waouh-web-muse-nexus-ci.yml"
+      - ".github/workflows/deploy-waouh-chat-v2.yml"
       - ".github/workflows/apply-waouh-opportunity-os-migrations.yml"
   pull_request:
     branches:
