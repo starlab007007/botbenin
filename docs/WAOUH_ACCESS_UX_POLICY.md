@@ -12,8 +12,10 @@ Un visiteur peut comprendre WAOUH, parcourir les surfaces de découverte et cons
 | --- | --- | --- | --- |
 | Accueil WAOUH / Chat d’entrée | Consultation | Oui | Oui |
 | Avatar — accueil / démonstration | Consultation | Oui | Oui |
-| NEXUS — découverte / comparaison | Consultation | Oui | Oui |
+| NEXUS — découverte / comparaison / sources publiques | Consultation | Oui | Oui |
+| NEXUS — partage, Scout, mandat, contact | Connexion requise | Oui | Oui |
 | Radar — carte / signaux publics autorisés | Consultation | Oui | Oui |
+| Pointage présence public (`/app/presence/checkin`) | Oui | Oui | Oui |
 | AprèsBac IA / FA IA publics | Oui | Oui | Oui |
 | Ouvrir une conversation personnelle | Connexion requise | Oui | Oui |
 | Envoyer un message / intérêt / proposition | Connexion requise | Oui | Oui |
@@ -22,7 +24,7 @@ Un visiteur peut comprendre WAOUH, parcourir les surfaces de découverte et cons
 | Missions / veilles / validations Avatar | Connexion requise | Oui | Oui |
 | Diffusion | Connexion requise | Oui selon droits | Oui |
 | Bots / Agents IA / WhatsApp | Connexion requise | Oui selon droits | Oui |
-| Partenaire / stock / présence | Connexion requise | Oui selon rôle | Oui |
+| Partenaire / stock / présence interne | Connexion requise | Oui selon rôle | Oui |
 | Profil / notifications | Connexion requise | Oui | Oui |
 | Administration | Non | Non sans rôle admin | Oui |
 
