@@ -506,11 +506,25 @@ export default function AdminWaouhDataControlPage() {
       ]);
       if (legacy.error) throw legacy.error;
       if (normalized.error) throw normalized.error;
+      const checks = Array.isArray(normalized.data?.results) ? normalized.data.results : [];
+      const reachability = new Map<string, boolean | null>(
+        checks.map((row: any) => [String(row.e164 || ''), row.reachable === true ? true : row.reachable === false ? false : null]),
+      );
+      setContactMap(prev => Object.fromEntries(
+        Object.entries(prev).map(([fabricId, contacts]) => [
+          fabricId,
+          contacts.map(contact => ({
+            ...contact,
+            is_whatsapp_reachable: contact.normalized_e164 && reachability.has(contact.normalized_e164)
+              ? reachability.get(contact.normalized_e164) ?? null
+              : contact.is_whatsapp_reachable,
+          })),
+        ]),
+      ));
       toast({
         title: '✅ Contacts WhatsApp synchronisés',
         description: `${normalized.data?.checked ?? 0} vérifiés · ${normalized.data?.reachable ?? 0} joignables WAHA · ${legacy.data?.mapped ?? 0} mappings WAHA actualisés`,
       });
-      await loadResolvedContacts(results);
       await Promise.all([loadStats(), loadSources()]);
     } catch (e: any) {
       toast({ title: 'Erreur synchro WAHA', description: e?.message || String(e), variant: 'destructive' });
