@@ -466,6 +466,100 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
   });
 }
 
+async function loadWahaDirectory(service: any, body: Record<string, any>) {
+  const limit = Math.max(1, Math.min(Number(body?.limit || 100), 300));
+  const offset = Math.max(0, Number(body?.offset || 0));
+  const fetchLimit = Math.min(600, Math.max(limit * 2, limit));
+  const rawQ = String(body?.q || "").trim();
+  const safeQ = rawQ.replace(/[,%()]/g, " ").trim();
+
+  let directoryQuery = service.from("waouh_lid_phone_map")
+    .select("id,lid,jid,phone,phone_e164,display_name,pushname,session,source,last_synced_at", { count: "exact" })
+    .not("phone_e164", "is", null)
+    .order("last_synced_at", { ascending: false })
+    .range(offset, offset + fetchLimit - 1);
+
+  if (safeQ) {
+    const pattern = `%${safeQ}%`;
+    directoryQuery = directoryQuery.or(
+      `phone_e164.ilike.${pattern},display_name.ilike.${pattern},pushname.ilike.${pattern},session.ilike.${pattern}`,
+    );
+  }
+
+  const { data, error, count } = await directoryQuery;
+  if (error) throw error;
+
+  const seen = new Set<string>();
+  const rows: AnyRow[] = [];
+  for (const item of data ?? []) {
+    const normalized = normalizeE164(item.phone_e164 || item.phone, "+229");
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+
+    const contact: ContactCandidate = {
+      channel: "whatsapp",
+      value: String(item.phone_e164 || item.phone || normalized),
+      normalized,
+      display: formatPhoneDisplay(normalized),
+      whatsapp_candidate: true,
+      whatsapp_reachable: true,
+      whatsapp_chat_id: item.jid || null,
+      send_allowed: false,
+      source: "whatsapp",
+      origin_kind: "waha_directory",
+      origin_id: item.id,
+      contact_id: null,
+      entity_id: null,
+      consent_state: "directory_only",
+      contactability_level: "C1",
+      verification_status: "synced_waha",
+      public_business: false,
+      opted_out: false,
+      last_verified_at: item.last_synced_at || null,
+      label: item.display_name || item.pushname || null,
+    };
+
+    rows.push({
+      fabric_id: `waha_contact:${item.id}`,
+      source_record_id: String(item.id),
+      source_key: "whatsapp",
+      source_label: "WAHA · Annuaire synchronisé",
+      source_family: "messaging",
+      operational_state: "live",
+      intent: "CONTACT",
+      actor_type: "contact",
+      subject: contact.label || normalized,
+      city: null,
+      contactability_level: "C1",
+      source_url: null,
+      contacts: [contact],
+      primary_whatsapp: normalized,
+      contact_count: 1,
+      whatsapp_count: 1,
+      wa_reachable_count: 1,
+    });
+    if (rows.length >= limit) break;
+  }
+
+  return {
+    rows,
+    page: {
+      offset,
+      limit,
+      source_rows: data?.length || 0,
+      total_rows: Number(count || 0),
+      has_more: offset + fetchLimit < Number(count || 0),
+    },
+    stats: {
+      rows: rows.length,
+      contacts: rows.length,
+      whatsapp: rows.length,
+      reachable: rows.length,
+      sendable: 0,
+    },
+  };
+}
+
 async function getFabricRow(service: any, fabricId: string) {
   const { data, error } = await service.from("waouh_signal_fabric")
     .select("*").eq("fabric_id", fabricId).maybeSingle();
@@ -618,6 +712,11 @@ export async function handleAdminContactHub(
 ): Promise<Response> {
   try {
     const action = String(body?.action || "contact_hub_search");
+    if (action === "contact_hub_directory") {
+      const directory = await loadWahaDirectory(service, body);
+      return json({ ok: true, ...directory });
+    }
+
     if (action === "contact_hub_search") {
       const limit = Math.max(1, Math.min(Number(body?.limit || 150), 300));
       const { data, error } = await service.rpc("waouh_admin_signal_fabric_search", {
