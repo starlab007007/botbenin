@@ -3,6 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { decryptPhone } from "../_shared/waouh-tel/crypto.ts";
 import { normalizeE164, phoneLast4, providerPhone } from "../_shared/waouh-tel/phone.ts";
+import { extractPublicContactHints } from "../_shared/waouh-signal-fabric.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -121,7 +122,7 @@ async function adminWahaCheck(e164: string) {
 async function resolveAdminSignalContacts(sb: any, fabricIds: string[]) {
   const { data: fabricRows, error: fabricError } = await sb
     .from("waouh_signal_fabric")
-    .select("fabric_id,source_record_id,source_key,contactability_level,evidence")
+    .select("fabric_id,source_record_id,source_key,contactability_level,raw_text,source_url,evidence")
     .in("fabric_id", fabricIds);
   if (fabricError) throw fabricError;
 
@@ -341,6 +342,23 @@ async function resolveAdminSignalContacts(sb: any, fabricIds: string[]) {
       add(row, raw, {
         channel: "phone",
         label: "Contact public détecté",
+        contactability_level: row.contactability_level || source.default_contactability || "C0",
+        consent_state: sourceAllowsDirectWhatsApp({ ...source, source_key: row.source_key }) ? "public_business" : "unknown",
+        is_public_business: ["google_places", "facebook_business", "instagram_business", "benin_directory"].includes(String(row.source_key)),
+      });
+    }
+
+    const publicText = [
+      row.raw_text,
+      typeof evidence.raw_text === "string" ? evidence.raw_text : null,
+      typeof evidence.description === "string" ? evidence.description : null,
+      typeof evidence.contact === "string" ? evidence.contact : null,
+    ].filter(Boolean).join("\n");
+    const extracted = extractPublicContactHints(publicText);
+    for (const raw of extracted.phones) {
+      add(row, raw, {
+        channel: "phone",
+        label: "Téléphone extrait de la source",
         contactability_level: row.contactability_level || source.default_contactability || "C0",
         consent_state: sourceAllowsDirectWhatsApp({ ...source, source_key: row.source_key }) ? "public_business" : "unknown",
         is_public_business: ["google_places", "facebook_business", "instagram_business", "benin_directory"].includes(String(row.source_key)),
