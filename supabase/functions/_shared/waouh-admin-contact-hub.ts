@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { decryptPhone, sha256Hex } from "../_shared/waouh-tel/crypto.ts";
+import { decryptPhone, encryptPhone, hashPhone, sha256Hex } from "../_shared/waouh-tel/crypto.ts";
 import { formatPhoneDisplay, normalizeE164, phoneLast4, providerPhone } from "../_shared/waouh-tel/phone.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -315,6 +315,7 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
 
     const externalId = prefixedUuid(row.fabric_id, "external:");
     const external = externalId ? externalMap.get(externalId) : null;
+    const resolvedEntityId = asUuid(external?.entity_id) || asUuid(evidence.entity_id);
     if (external?.entity_id) {
       for (const c of contactsByEntity.get(String(external.entity_id)) ?? []) {
         const clear = decryptedByContact.get(String(c.id));
@@ -457,6 +458,7 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
 
     return {
       ...row,
+      resolved_entity_id: resolvedEntityId,
       contacts: list,
       primary_whatsapp: list.find((c) => c.whatsapp_candidate && c.send_allowed)?.normalized ?? null,
       contact_count: list.length,
@@ -464,6 +466,105 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
       wa_reachable_count: list.filter((c) => c.whatsapp_reachable === true).length,
     };
   });
+}
+
+
+function safeConsentState(value: unknown) {
+  const v = String(value ?? "").toLowerCase();
+  return ["unknown", "public_business", "initiated", "opt_in", "partner_contract", "revoked"].includes(v)
+    ? v
+    : "unknown";
+}
+
+function safeVerificationStatus(value: unknown, reachable: boolean | null) {
+  if (reachable === true) return "reachable";
+  if (reachable === false) return "unreachable";
+  const v = String(value ?? "").toLowerCase();
+  return ["unknown", "observed", "verified", "reachable", "unreachable", "revoked"].includes(v)
+    ? v
+    : "observed";
+}
+
+async function materializeEntityContacts(service: any, rows: AnyRow[], adminUserId: string) {
+  const now = new Date().toISOString();
+  const candidates = new Map<string, AnyRow>();
+  let skippedNoEntity = 0;
+  let skippedRevoked = 0;
+  let skippedInvalid = 0;
+
+  for (const row of rows) {
+    const rowEntityId = asUuid(row.resolved_entity_id);
+    for (const contact of (row.contacts ?? []) as ContactCandidate[]) {
+      const entityId = asUuid(contact.entity_id) || rowEntityId;
+      const e164 = contact.normalized ? normalizeE164(contact.normalized, "+229") : null;
+      if (!entityId) { skippedNoEntity++; continue; }
+      if (!e164) { skippedInvalid++; continue; }
+      if (contact.opted_out || consentRevoked(contact.consent_state)) { skippedRevoked++; continue; }
+
+      const channel = contact.channel === "whatsapp" ? "whatsapp" : "phone";
+      const valueHash = await hashPhone(e164);
+      const key = `${entityId}:${channel}:${valueHash}`;
+      if (candidates.has(key)) continue;
+
+      candidates.set(key, {
+        entity_id: entityId,
+        channel,
+        value_encrypted: await encryptPhone(e164),
+        value_hash: valueHash,
+        value_last4: phoneLast4(e164),
+        public_value: null,
+        source_key: contact.source || row.source_key || "signal_fabric",
+        is_public_business: contact.public_business === true,
+        consent_state: safeConsentState(contact.consent_state),
+        contactability_level: contactLevelAllowed(contact.contactability_level)
+          ? String(contact.contactability_level).toUpperCase()
+          : "C0",
+        verified_at: contact.whatsapp_reachable === true
+          ? (contact.last_verified_at || now)
+          : null,
+        verification_status: safeVerificationStatus(contact.verification_status, contact.whatsapp_reachable),
+        is_whatsapp_reachable: contact.whatsapp_reachable,
+        metrics: {
+          materialized_from: "admin_contact_hub",
+          fabric_id: row.fabric_id,
+          origin_kind: contact.origin_kind,
+          origin_id: contact.origin_id,
+          admin_user_id: adminUserId,
+          materialized_at: now,
+        },
+        updated_at: now,
+      });
+    }
+  }
+
+  const payload = [...candidates.values()];
+  if (!payload.length) {
+    return {
+      attempted: 0,
+      written: 0,
+      skipped_no_entity: skippedNoEntity,
+      skipped_revoked: skippedRevoked,
+      skipped_invalid: skippedInvalid,
+    };
+  }
+
+  const { data, error } = await service
+    .from("waouh_entity_contacts")
+    .upsert(payload, {
+      onConflict: "entity_id,channel,value_hash",
+      ignoreDuplicates: true,
+    })
+    .select("id");
+
+  if (error) throw error;
+
+  return {
+    attempted: payload.length,
+    written: (data ?? []).length,
+    skipped_no_entity: skippedNoEntity,
+    skipped_revoked: skippedRevoked,
+    skipped_invalid: skippedInvalid,
+  };
 }
 
 async function getFabricRow(service: any, fabricId: string) {
@@ -653,6 +754,36 @@ export async function handleAdminContactHub(
           reachable: rows.reduce((n: number, r: AnyRow) => n + Number(r.wa_reachable_count || 0), 0),
           sendable: rows.reduce((n: number, r: AnyRow) =>
             n + (r.contacts || []).filter((c: ContactCandidate) => c.send_allowed).length, 0),
+        },
+      });
+    }
+
+    if (action === "contact_hub_materialize") {
+      const limit = Math.max(1, Math.min(Number(body?.limit || 100), 150));
+      const offset = Math.max(0, Number(body?.offset || 0));
+      const { data, error } = await service.rpc("waouh_admin_signal_fabric_search", {
+        p_q: body?.q ? String(body.q).trim() : null,
+        p_city: body?.city ? String(body.city).trim() : null,
+        p_family: body?.family || null,
+        p_source: body?.source || null,
+        p_intent: body?.intent || null,
+        p_contactability: body?.contactability || null,
+        p_operational_state: body?.operational_state || null,
+        p_limit: limit,
+        p_offset: offset,
+      });
+      if (error) throw error;
+      const sourceRows = (data ?? []) as AnyRow[];
+      const rows = await enrichFabricRows(service, sourceRows);
+      const result = await materializeEntityContacts(service, rows, user.id);
+      return json({
+        ok: true,
+        ...result,
+        page: {
+          offset,
+          limit,
+          source_rows: sourceRows.length,
+          has_more: sourceRows.length === limit,
         },
       });
     }
