@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
+import { userFacingErrorText } from "@/lib/userFacingError";
 type Tx = {
   id: string;
   amount: number;
@@ -158,7 +159,7 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string }> = ({ tran
     const { error } = await supabase.from("waouh_ratings").insert({
       transaction_id: tx.id, rater_id: waouhId, ratee_id: tx.seller_id, rating: stars,
     });
-    if (error) { toast.error(error.message); return; }
+    if (error) { toast.error(userFacingErrorText(error, "save")); return; }
     setHasRated(true);
     setRating(stars);
     toast.success("Merci pour votre évaluation !");
