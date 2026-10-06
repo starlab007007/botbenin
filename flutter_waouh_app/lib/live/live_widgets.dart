@@ -289,7 +289,7 @@ class LiveMessageBubble extends StatelessWidget {
               if (!outgoing &&
                   liveMap(message.meta['smart']).isNotEmpty &&
                   (liveText(liveMap(message.meta['smart'])['domain'], 'chat') != 'chat' ||
-                   ['high', 'urgent'].contains(liveText(liveMap(message.meta['smart'])['priority']))) ...[
+                   ['high', 'urgent'].contains(liveText(liveMap(message.meta['smart'])['priority'])))) ...[
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 6,
