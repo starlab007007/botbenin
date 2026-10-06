@@ -2043,10 +2043,10 @@ class WaouhBootErrorApp extends StatelessWidget {
                   style: TextStyle(color: WaouhColors.muted, height: 1.4),
                 ),
                 const SizedBox(height: 16),
-                Text(
-                  error.toString(),
+                const Text(
+                  "Réessayez dans quelques instants. Si le problème persiste, vérifiez votre connexion.",
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: WaouhColors.red, fontSize: 12),
+                  style: TextStyle(color: WaouhColors.muted, fontSize: 12),
                 ),
               ],
             ),
