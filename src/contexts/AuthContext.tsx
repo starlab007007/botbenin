@@ -387,13 +387,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       try {
         localStorage.removeItem("waouh_web_session_id");
         localStorage.removeItem("waouh_geo_v1");
+        localStorage.removeItem("waouh_pending_open");
         sessionStorage.removeItem("waouh_post_auth_redirect");
         Object.keys(localStorage)
           .filter((k) =>
             k.startsWith("waouh_notifs_") ||
             k.startsWith("waouh_open_matches_") ||
             k.startsWith("waouh_active_match_") ||
-            k.startsWith("waouh_archived_matches_")
+            k.startsWith("waouh_archived_matches_") ||
+            k.startsWith("waouh_chatlist_snapshot_v1:") ||
+            k.startsWith("waouh.avatar.")
           )
           .forEach((k) => localStorage.removeItem(k));
       } catch {}
