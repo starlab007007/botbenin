@@ -4,7 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext";
 import { UserProvider } from "./contexts/UserContext";
 import { ThemeProvider } from "./components/ThemeProvider";
@@ -222,6 +222,16 @@ const queryClient = new QueryClient({
   },
 });
 
+const LegacyPartnerCodeProductRedirect = () => {
+  const { code } = useParams();
+  return <Navigate to={`/app/partner/b/${encodeURIComponent(code || "")}/produits`} replace />;
+};
+
+const LegacyPartnerBusinessProductRedirect = () => {
+  const { businessId } = useParams();
+  return <Navigate to={`/app/partner/businesses/${encodeURIComponent(businessId || "")}/products`} replace />;
+};
+
 const AppContent = () => {
   useActivityTracking();
   
@@ -327,8 +337,8 @@ const AppContent = () => {
                     <Route path="/admin/waouh/contact-layer" element={<AdminRoute><AdminWaouhContactLayerPage /></AdminRoute>} />
                      <Route path="/partner" element={<Navigate to="/app/partner" replace />} />
                      <Route path="/partner/businesses" element={<Navigate to="/app/partner/businesses" replace />} />
-                     <Route path="/partner/b/:code/produits" element={<PartnerRoute><PartnerProductsPage /></PartnerRoute>} />
-                     <Route path="/partner/businesses/:businessId/products" element={<PartnerRoute><PartnerProductsPage /></PartnerRoute>} />
+                     <Route path="/partner/b/:code/produits" element={<LegacyPartnerCodeProductRedirect />} />
+                     <Route path="/partner/businesses/:businessId/products" element={<LegacyPartnerBusinessProductRedirect />} />
                      <Route path="/partner/sales" element={<Navigate to="/app/partner/sales" replace />} />
                      <Route path="/partner/payouts" element={<Navigate to="/app/partner/payouts" replace />} />
                   </Route>
