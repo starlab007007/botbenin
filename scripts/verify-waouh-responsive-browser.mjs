@@ -350,7 +350,8 @@ async function testDesktopSidebar(viewport) {
     })`);
     const authRedirect = authProtected && (
       state.path === "/app/auth" ||
-      state.path.startsWith("/app/auth/")
+      state.path.startsWith("/app/auth/") ||
+      state.path.startsWith("/app/auth?")
     );
     if (state.path !== expectedPath && !authRedirect) {
       fail(`desktop: sidebar ${label} navigated to ${state.path}; expected ${expectedPath}${authProtected ? " or authentication" : ""}`);
@@ -391,7 +392,8 @@ async function testRoutes(viewport) {
     if (state.overflowX) fail(`${viewport.name}: horizontal overflow on ${route}`);
     const authRedirect = authProtected && (
       state.path === "/app/auth" ||
-      state.path.startsWith("/app/auth/")
+      state.path.startsWith("/app/auth/") ||
+      state.path.startsWith("/app/auth?")
     );
     if (authRedirect) continue;
     if (marker && !state.text.includes(marker) && !state.fallback) {
