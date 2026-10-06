@@ -1,7 +1,3 @@
--- WAOUH Radar duplicate-contact merge fix — 2026-10-05.
--- The legacy DELETE ... RETURNING 1 INTO cnt fails when more than one duplicate
--- row is removed. Use ROW_COUNT after DELETE and reserve the helper for backend use.
-
 CREATE OR REPLACE FUNCTION public.merge_radar_contacts_duplicates()
 RETURNS TABLE(merged_phone text, merged_count integer)
 LANGUAGE plpgsql
