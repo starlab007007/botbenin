@@ -256,8 +256,8 @@ export default function AdminWaouhDataControlPage() {
     }
     setContactsLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('waouh-admin-contact-center', {
-        body: { action: 'resolve', fabric_ids: ids },
+      const { data, error } = await supabase.functions.invoke('waouh-admin-stats', {
+        body: { action: 'signal_contacts_resolve', fabric_ids: ids },
       });
       if (error) throw error;
       const next: Record<string, AdminContact[]> = {};
@@ -299,9 +299,9 @@ export default function AdminWaouhDataControlPage() {
     if (message.length < 2) return;
     setSendingNotification(true);
     try {
-      const { data, error } = await supabase.functions.invoke('waouh-admin-contact-center', {
+      const { data, error } = await supabase.functions.invoke('waouh-admin-stats', {
         body: {
-          action: 'notify',
+          action: 'signal_contacts_notify_waha',
           fabric_id: notifying.fabric_id,
           message,
         },
@@ -500,8 +500,8 @@ export default function AdminWaouhDataControlPage() {
       toast({ title: 'Normalisation + vérification WAHA en cours…' });
       const [legacy, normalized] = await Promise.all([
         supabase.functions.invoke('waouh-waha-sync-contacts', { body: { backfill: true } }),
-        supabase.functions.invoke('waouh-admin-contact-center', {
-          body: { action: 'sync', fabric_ids: results.map(r => r.fabric_id) },
+        supabase.functions.invoke('waouh-admin-stats', {
+          body: { action: 'signal_contacts_sync_waha', fabric_ids: results.map(r => r.fabric_id) },
         }),
       ]);
       if (legacy.error) throw legacy.error;
