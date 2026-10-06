@@ -12,6 +12,7 @@ import 'live_theme.dart';
 import 'live_visuals.dart';
 import 'live_widgets.dart';
 
+import 'user_message.dart';
 class LiveStatusFeed extends StatefulWidget {
   const LiveStatusFeed({super.key});
   @override
@@ -336,7 +337,7 @@ class _LiveStatusComposerScreenState extends State<LiveStatusComposerScreen> {
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.toString())),
+        SnackBar(content: Text(waouhUserMessage(error, action: 'send'))),
       );
     } finally {
       if (mounted) setState(() => publishing = false);
