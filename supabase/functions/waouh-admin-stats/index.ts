@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+import { handleAdminContactHub } from "../_shared/waouh-admin-contact-hub.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -69,6 +70,10 @@ serve(async (req) => {
       : {};
     const action = String(requestBody.action ?? "stats");
 
+    if (action.startsWith("contact_hub_")) {
+      return handleAdminContactHub(sb, { id: user.id }, requestBody as Record<string, any>);
+    }
+
     if (action === "contact_layer_get") {
       const [sources, contacts, fabric] = await Promise.all([
         sb.from("waouh_discovery_sources")
@@ -93,7 +98,8 @@ serve(async (req) => {
         { level: "C1", label: "Contact professionnel public", can_reveal: true, can_auto_contact: false, requires_approval: false },
         { level: "C2", label: "Conversation privée / blind matching", can_reveal: false, can_auto_contact: false, requires_approval: true },
         { level: "C3", label: "Opt-in commercial", can_reveal: true, can_auto_contact: true, requires_approval: true },
-        { level: "C4", label: "Contact établi", can_reveal: true, can_auto_contact: true, requires_approval: false },\n        { level: "C5", label: "Prêt à négocier", can_reveal: true, can_auto_contact: true, requires_approval: false },
+        { level: "C4", label: "Contact établi", can_reveal: true, can_auto_contact: true, requires_approval: false },
+        { level: "C5", label: "Prêt à négocier", can_reveal: true, can_auto_contact: true, requires_approval: false },
       ];
       return new Response(JSON.stringify({
         ok: true,

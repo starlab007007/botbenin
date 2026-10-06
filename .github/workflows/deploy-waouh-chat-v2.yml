@@ -46,6 +46,8 @@ on:
       - "supabase/functions/_shared/waouh-runtime-auth.ts"
       - "supabase/functions/_shared/agent-ai.ts"
       - "supabase/functions/_shared/waouh-price.ts"
+      - "supabase/functions/_shared/waouh-admin-contact-hub.ts"
+      - "supabase/functions/waouh-admin-stats/**"
       - "supabase/functions/waouh-notify-buyers/**"
       - "supabase/functions/waouh-geocode/**"
       - "supabase/functions/waouh-radar-apify/**"
@@ -329,6 +331,16 @@ jobs:
             supabase functions deploy "$fn"               --project-ref "$SUPABASE_PROJECT_REF"               --use-api               --no-verify-jwt
           done
           echo "✅ Existing WAOUH Chat function slots updated."
+
+      - name: Deploy WAOUH admin backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "🔐 Deploying waouh-admin-stats (JWT verified)..."
+          supabase functions deploy waouh-admin-stats \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --use-api
+          echo "✅ WAOUH admin backend deployed with JWT verification."
 
       - name: Deploy Opportunity OS in existing production slots
         shell: bash

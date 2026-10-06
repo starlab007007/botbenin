@@ -293,6 +293,12 @@ Deno.serve(async (req) => {
     let sent = 0, failed = 0, skipped = 0, processed = 0;
 
     for (const it of items || []) {
+      const requestedWahaSession = typeof it.payload?.waha_session === "string"
+        ? it.payload.waha_session.trim()
+        : "";
+      const deliverySession = /^[A-Za-z0-9_.-]{1,96}$/.test(requestedWahaSession)
+        ? requestedWahaSession
+        : WAHA_SESSION;
       // Keep a hard runtime budget below the Edge idle/runtime ceiling.
       // Remaining rows stay pending and will be picked up by the next tick.
       if (Date.now() - runStartedAt >= maxRunMs) {
@@ -417,7 +423,7 @@ Deno.serve(async (req) => {
       if (typeof toPhone === "string" && /@lid/i.test(toPhone)) {
         let resolved: string | null = null;
         try {
-          resolved = await lidToPhoneInline(sb, toPhone, { session: WAHA_SESSION, wahaBase: WAHA_BASE_URL, wahaApiKey: WAHA_API_KEY });
+          resolved = await lidToPhoneInline(sb, toPhone, { session: deliverySession, wahaBase: WAHA_BASE_URL, wahaApiKey: WAHA_API_KEY });
         } catch (_) { /* ignore */ }
         if (resolved && resolved.length >= 10) {
           toPhone = resolved;
@@ -467,7 +473,7 @@ Deno.serve(async (req) => {
           continue;
         }
         let mappedChatId: string | null = null;
-        for (const path of [`/api/${WAHA_SESSION}/contacts/check-exists?phone=${encodeURIComponent(candidate)}`, `/api/contacts/check-exists?phone=${encodeURIComponent(candidate)}&session=${encodeURIComponent(WAHA_SESSION)}`]) {
+        for (const path of [`/api/${deliverySession}/contacts/check-exists?phone=${encodeURIComponent(candidate)}`, `/api/contacts/check-exists?phone=${encodeURIComponent(candidate)}&session=${encodeURIComponent(deliverySession)}`]) {
           try {
             const cr = await wahaFetch(`${wahaBase}${path}`, { headers: wahaHeaders });
             if (!cr.ok) { await cr.text().catch(() => ""); continue; }
@@ -498,11 +504,11 @@ Deno.serve(async (req) => {
         for (const chatId of resolvedChatIds) {
           let r: Response;
           if (actions.length > 0) {
-            r = await sendWahaButtons(wahaBase, WAHA_SESSION, chatId, text, actions, wahaHeaders, footer, undefined, it.image_url || null);
+            r = await sendWahaButtons(wahaBase, deliverySession, chatId, text, actions, wahaHeaders, footer, undefined, it.image_url || null);
           } else if (it.image_url) {
-            r = await sendWahaImage(wahaBase, WAHA_SESSION, chatId, it.image_url, text, wahaHeaders);
+            r = await sendWahaImage(wahaBase, deliverySession, chatId, it.image_url, text, wahaHeaders);
           } else {
-            r = await sendWahaText(wahaBase, WAHA_SESSION, chatId, text, wahaHeaders);
+            r = await sendWahaText(wahaBase, deliverySession, chatId, text, wahaHeaders);
           }
           if (r.ok) { delivered = true; usedChatId = chatId; break; }
           const body = await r.text();
