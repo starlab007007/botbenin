@@ -118,9 +118,9 @@ export default function WaouhContactHubPanel() {
   const load = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("waouh-admin-contact-hub", {
+      const { data, error } = await supabase.functions.invoke("waouh-admin-stats", {
         body: {
-          action: "search",
+          action: "contact_hub_search",
           q: q.trim() || null,
           source: source || null,
           contacts_only: true,
@@ -173,8 +173,8 @@ export default function WaouhContactHubPanel() {
     const key = `${row.fabric_id}:${phone}`;
     setVerifying(key);
     try {
-      const { data, error } = await supabase.functions.invoke("waouh-admin-contact-hub", {
-        body: { action: "verify", fabric_id: row.fabric_id, phone },
+      const { data, error } = await supabase.functions.invoke("waouh-admin-stats", {
+        body: { action: "contact_hub_verify", fabric_id: row.fabric_id, phone },
       });
       if (error) throw error;
       if (!data?.ok) throw new Error(data?.error || "Vérification WAHA impossible");
@@ -203,9 +203,9 @@ export default function WaouhContactHubPanel() {
     setSending(true);
     try {
       const { row, contact } = selected;
-      const { data, error } = await supabase.functions.invoke("waouh-admin-contact-hub", {
+      const { data, error } = await supabase.functions.invoke("waouh-admin-stats", {
         body: {
-          action: "send",
+          action: "contact_hub_send",
           fabric_id: row.fabric_id,
           phone: contact.normalized || contact.value,
           message: message.trim(),
