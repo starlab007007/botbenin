@@ -78,7 +78,7 @@ export const ErpBrickCanvas = ({ brick }: { brick: BrickId }) => {
         <p className="max-w-sm text-sm text-muted-foreground">
           Connectez-vous pour piloter cette brique ERP depuis le centre de commande.
         </p>
-        <Button type="button" onClick={() => navigate('/app/auth/email?tab=login')}>
+        <Button type="button" onClick={() => navigate(buildWaouhAuthRedirect(window.location.pathname + window.location.search))}>
           Se connecter
         </Button>
       </div>
