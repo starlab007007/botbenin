@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Lock, Check, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { userFacingErrorText } from '@/lib/userFacingError';
 
 export const ResetPasswordPage: React.FC = () => {
   const [newPassword, setNewPassword] = useState('');
@@ -60,9 +61,10 @@ export const ResetPasswordPage: React.FC = () => {
         navigate('/auth');
       }, 2000);
     } catch (err: any) {
-      console.error('Erreur lors de la mise à jour du mot de passe:', err);
-      setError(err.message || 'Une erreur est survenue lors de la mise à jour du mot de passe');
-      toast.error('Erreur lors de la mise à jour du mot de passe');
+      console.error('[Auth] password reset update failed:', err);
+      const message = userFacingErrorText(err, 'save');
+      setError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
