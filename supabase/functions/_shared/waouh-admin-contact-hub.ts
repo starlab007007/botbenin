@@ -472,36 +472,26 @@ async function searchWahaDirectory(
   limit: number,
   offset: number,
 ) {
-  let query = service.from("waouh_lid_phone_map")
-    .select("id,lid,jid,phone,phone_e164,display_name,pushname,session,last_synced_at", { count: "exact" })
-    .not("phone_e164", "is", null)
-    .order("last_synced_at", { ascending: false })
-    .range(offset, offset + limit - 1);
-
-  const rawQ = String(body?.q || "").trim();
-  if (rawQ) {
-    const safeQ = rawQ.replace(/[,%()]/g, " ").replace(/\s+/g, " ").trim();
-    if (safeQ) {
-      query = query.or(
-        `phone_e164.ilike.%${safeQ}%,display_name.ilike.%${safeQ}%,pushname.ilike.%${safeQ}%,session.ilike.%${safeQ}%`,
-      );
-    }
-  }
-
-  const { data, error, count } = await query;
+  const { data, error } = await service.rpc("waouh_admin_waha_directory", {
+    p_q: body?.q ? String(body.q).trim() : null,
+    p_limit: limit,
+    p_offset: offset,
+  });
   if (error) throw error;
 
-  const rows = ((data ?? []) as AnyRow[]).map((entry) => {
-    const normalized = normalizeE164(entry.phone_e164 || entry.phone, "+229");
+  const sourceRows = (data ?? []) as AnyRow[];
+  const total = Number(sourceRows[0]?.total_count || 0);
+  const rows = sourceRows.map((entry) => {
+    const normalized = normalizeE164(entry.phone_e164, "+229");
     const label = entry.display_name || entry.pushname || normalized || "Contact WAHA";
     const contact: ContactCandidate = {
       channel: "whatsapp",
-      value: normalized || String(entry.phone_e164 || entry.phone || ""),
+      value: normalized || String(entry.phone_e164 || ""),
       normalized,
-      display: normalized ? formatPhoneDisplay(normalized) : String(entry.phone_e164 || entry.phone || ""),
+      display: normalized ? formatPhoneDisplay(normalized) : String(entry.phone_e164 || ""),
       whatsapp_candidate: !!normalized,
-      // This directory comes from a live WAHA contact sync, but presence in the
-      // address book is not treated as commercial consent.
+      // The row comes from a live WAHA contact sync. Reachability is therefore
+      // known at directory level, but commercial send permission remains C0.
       whatsapp_reachable: !!normalized,
       whatsapp_chat_id: entry.jid || null,
       send_allowed: false,
@@ -546,6 +536,7 @@ async function searchWahaDirectory(
         waha_directory: true,
         waha_session: entry.session || null,
         jid: entry.jid || null,
+        source: entry.source || null,
       },
       photo_url: null,
       has_photo: false,
@@ -571,7 +562,7 @@ async function searchWahaDirectory(
 
   return {
     rows: filtered,
-    count: Number(count || 0),
+    count: total,
     offset,
     limit,
   };
@@ -580,32 +571,34 @@ async function searchWahaDirectory(
 async function getWahaDirectoryContact(service: any, fabricId: string, phone: string) {
   if (!fabricId.startsWith("waha_directory:")) return { row: null, contact: null };
   const id = asUuid(fabricId.slice("waha_directory:".length));
-  if (!id) return { row: null, contact: null };
-
-  const { data, error } = await service.from("waouh_lid_phone_map")
-    .select("id,lid,jid,phone,phone_e164,display_name,pushname,session,last_synced_at")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) return { row: null, contact: null };
-
-  const normalized = normalizeE164(data.phone_e164 || data.phone, "+229");
   const requested = normalizeE164(phone, "+229");
-  if (!normalized || (requested && requested !== normalized)) return { row: null, contact: null };
+  if (!id || !requested) return { row: null, contact: null };
 
-  const label = data.display_name || data.pushname || normalized;
+  const { data, error } = await service.rpc("waouh_admin_waha_directory", {
+    p_q: requested,
+    p_limit: 20,
+    p_offset: 0,
+  });
+  if (error) throw error;
+
+  const entry = ((data ?? []) as AnyRow[]).find((row) =>
+    String(row.id) === id && normalizeE164(row.phone_e164, "+229") === requested
+  );
+  if (!entry) return { row: null, contact: null };
+
+  const label = entry.display_name || entry.pushname || requested;
   const contact: ContactCandidate = {
     channel: "whatsapp",
-    value: normalized,
-    normalized,
-    display: formatPhoneDisplay(normalized),
+    value: requested,
+    normalized: requested,
+    display: formatPhoneDisplay(requested),
     whatsapp_candidate: true,
     whatsapp_reachable: true,
-    whatsapp_chat_id: data.jid || null,
+    whatsapp_chat_id: entry.jid || null,
     send_allowed: false,
     source: "waha_directory",
     origin_kind: "waha_directory",
-    origin_id: String(data.id),
+    origin_id: String(entry.id),
     contact_id: null,
     entity_id: null,
     consent_state: null,
@@ -613,7 +606,7 @@ async function getWahaDirectoryContact(service: any, fabricId: string, phone: st
     verification_status: "waha_synced",
     public_business: false,
     opted_out: false,
-    last_verified_at: data.last_synced_at || null,
+    last_verified_at: entry.last_synced_at || null,
     label,
   };
 
