@@ -659,7 +659,7 @@ async function contactInternal(
     notification_type: "avatar_opportunity_contact",
     photos: [],
     payload: {
-      text: message,
+      text: `${message} Référence ${journeyReplyToken(journey.id)}`,
       fabric_id: signal.fabric_id,
       journey_id: journey.id,
       mandate_id: mandate.id,
@@ -782,8 +782,8 @@ async function queueNativeOpportunityMessage(
       : "autonomous_native_contact_queued",
     next_action: "WAIT_REPLY",
     last_message: options.followupIndex
-      ? `Avatar a relancé cette opportunité par ${channel.toUpperCase()}.`
-      : `Avatar a contacté cette opportunité par ${channel.toUpperCase()} selon votre mandat.`,
+      ? `Relance mise en file par ${channel.toUpperCase()}. Livraison en attente.`
+      : `Contact mis en file par ${channel.toUpperCase()} selon votre mandat. Livraison en attente.`,
     last_activity_at: now,
     updated_at: now,
   }).eq("id", journey.id);
@@ -843,7 +843,7 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
 
   const level = String(externalSignal.contactability_level || "C0");
   const target = contacts.find((row: any) => {
-    if (!row.value_encrypted || !["whatsapp","phone"].includes(String(row.channel))) return false;
+    if (row.consent_state === "revoked" || row.is_whatsapp_reachable === false || !row.value_encrypted || !["whatsapp","phone"].includes(String(row.channel))) return false;
     if (level === "C1") {
       return mandate.allow_public_business !== false &&
         (row.is_public_business === true || row.consent_state === "public_business");
@@ -958,7 +958,7 @@ async function runExternalFollowUp(
 
   const level = String(resolved.externalSignal?.contactability_level || "C0");
   const target = resolved.contacts.find((row: any) => {
-    if (!row.value_encrypted || !["whatsapp","phone"].includes(String(row.channel))) return false;
+    if (row.consent_state === "revoked" || row.is_whatsapp_reachable === false || !row.value_encrypted || !["whatsapp","phone"].includes(String(row.channel))) return false;
     if (level === "C1") {
       return mandate.allow_public_business !== false &&
         (row.is_public_business === true || row.consent_state === "public_business");
@@ -1112,6 +1112,27 @@ async function runBoundedFollowUps(sb: SupabaseClient, limit = 30) {
         skipped++;
         continue;
       }
+      if (["whatsapp", "phone"].includes(journey.contact_channel)) {
+        const { data: delivery } = await sb.from("waouh_outbound_queue").select("id,status,payload")
+          .contains("payload", { journey_id: journey.id }).order("created_at", { ascending: false }).limit(1).maybeSingle();
+        if (delivery && ["pending", "processing", "queued", "retry"].includes(delivery.status)) { skipped++; continue; }
+        if (delivery?.status === "failed") {
+          const { data: signal } = await sb.from("waouh_signal_fabric").select("*").eq("fabric_id", journey.fabric_id).maybeSingle();
+          const resolved = signal ? await resolvePack(sb, signal) : null;
+          const alternate = mandate.allow_sms_rcs && resolved?.nativeTargets?.find((t: any) => ["sms", "rcs"].includes(t.channel));
+          if (alternate && signal) {
+            await queueNativeOpportunityMessage(sb, mandate, signal, journey, resolved, alternate.channel,
+              `Bonjour, WAOUH vous contacte au sujet de « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre ?`);
+            sent++;
+          } else {
+            await sb.from("waouh_opportunity_journeys").update({ stage: "cancelled", last_action: "delivery_failed_no_fallback",
+              last_message: "Échec de livraison du message. Aucun autre canal autorisé et configuré n’est disponible.", completed_at: new Date().toISOString() }).eq("id", journey.id);
+            await avatarNotice(sb, mandate.owner_id, `delivery-failed:${delivery.id}`, "Le message n’a pas été livré. Avatar poursuit les autres pistes ; aucun canal de repli autorisé n’est disponible.", journey);
+            skipped++;
+          }
+          continue;
+        }
+      }
       const maxFollowups = Math.max(0, Math.min(5, Number(mandate.max_followups || 0)));
       if (maxFollowups <= 0) {
         skipped++;
@@ -1264,11 +1285,37 @@ Deno.serve(async (req) => {
 
       let contactedThisRun = 0;
       let actionableThisRun = 0;
-      for (const signal of ranked) {
+      const visited = new Set<string>();
+      for (let signal of ranked) {
+        if (Date.now() - started > 65000) break;
+        if (/^(radar|legacy_external):/.test(signal.fabric_id)) {
+          const response = await fetch(`${SUPABASE_URL}/functions/v1/${AGENTIC_FUNCTION}`, {
+            method: "POST", headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json", "x-waouh-owner-id": mandate.owner_id },
+            body: JSON.stringify({ action: "nexus.legacy.promote", payload: { fabric_id: signal.fabric_id } }), signal: AbortSignal.timeout(15000),
+          });
+          const promoted = await response.json();
+          if (response.ok && promoted.data?.signal) signal = { ...promoted.data.signal, scores: signal.scores };
+        }
+        if (visited.has(signal.fabric_id)) continue;
+        visited.add(signal.fabric_id);
         if (contactedThisRun >= remainingContacts) break;
         let resolved = await resolvePack(sb, signal);
         if (!["R3","R4","R5"].includes(String(resolved.pack?.readiness_level || ""))) {
           resolved = await enrichPublicBusinessContact(sb, signal, resolved);
+        }
+        if (resolved.pack?.readiness_level === "R3" && mandate.allow_whatsapp && resolved.externalSignal?.contactability_level !== "C0") {
+          const contact = resolved.contacts.find((c: any) => ["phone", "whatsapp"].includes(c.channel) && c.value_encrypted && c.consent_state !== "revoked" && c.is_whatsapp_reachable == null);
+          if (contact) {
+            const phone = await decryptPhone(contact.value_encrypted);
+            const check = await fetch(`${SUPABASE_URL}/functions/v1/waouh-check-whatsapp`, { method: "POST",
+              headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" }, body: JSON.stringify({ phone }), signal: AbortSignal.timeout(10000) });
+            const verdict = await check.json();
+            if (check.ok && verdict.ok === true) {
+              await sb.from("waouh_entity_contacts").update({ is_whatsapp_reachable: verdict.isWhatsApp === true,
+                verification_status: verdict.isWhatsApp ? "reachable" : "unreachable", verified_at: new Date().toISOString() }).eq("id", contact.id);
+              resolved = await resolvePack(sb, signal);
+            }
+          }
         }
         const pack = resolved.pack;
         if (Number(pack.actionability_score || 0) < Number(intent.min_actionability_score || 65)) {

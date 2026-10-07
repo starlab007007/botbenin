@@ -739,6 +739,19 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   }
 
   Future<void> _showJourneyProgress(NexusOpportunityJourney journey) async {
+    if (journey.lastAction == 'article_selection_required') {
+      final inventory = await _nexus.ownedArticles();
+      if (!mounted) return;
+      final rows = (inventory['articles'] as List? ?? []);
+      final selected = await showModalBottomSheet<String>(context: context, builder: (ctx) => SafeArea(child: ListView(shrinkWrap: true, children: [
+        const ListTile(title: Text('Choisir l’article à proposer')),
+        if (rows.isEmpty) const ListTile(title: Text('Publiez d’abord un article dans WAOUH.')),
+        ...rows.map((row) => ListTile(title: Text('${row['title']}'), subtitle: Text('${row['price']} FCFA'), onTap: () => Navigator.pop(ctx, '${row['id']}'))),
+      ])));
+      if (selected != null) { await _nexus.bindJourneyArticle(journey.id, selected); await _loadJourneys(); }
+      return;
+    }
+
     NexusOpportunityJourney current = journey;
     try {
       current = await _nexus.opportunityStatus(journeyId: journey.id);

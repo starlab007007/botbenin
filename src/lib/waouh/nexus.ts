@@ -744,3 +744,7 @@ export async function listNexusConversationBus(input: { fabric_id?: string; thre
     input,
   );
 }
+
+export async function bindNexusJourneyArticle(journeyId: string, articleId: string) {
+  return invokeWaouhAgentic("nexus.opportunity.bind_article", { journey_id: journeyId, article_id: articleId });
+}

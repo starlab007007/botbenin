@@ -1,6 +1,6 @@
 import { classifyAvatarReply, selectReplyJourney, followupDelayHours, planAvatarNegotiation, withinMandateBudget } from './waouh-avatar-lifecycle.ts';
 import { routeOpportunityChannel } from './waouh-channel-router.ts';
-import { boundedFollowUpDecision } from './waouh-opportunity-os.ts';
+import { boundedFollowUpDecision, buildContactPack } from './waouh-opportunity-os.ts';
 const equal = (actual: unknown, expected: unknown) => { if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error(`${JSON.stringify(actual)} != ${JSON.stringify(expected)}`); };
 Deno.test('Refus, STOP, prix isolé et salutation ne constituent pas une réponse positive', () => {
   equal(classifyAvatarReply('Non merci'), 'negative'); equal(classifyAvatarReply('STOP'), 'stop');
@@ -32,4 +32,11 @@ Deno.test('Une approbation C3 est nécessaire avant le dispatch', () => {
   const route = { channels: [{ channel: 'whatsapp', reachable: true }], contactability: 'C3' };
   equal(routeOpportunityChannel(route).can_dispatch, false);
   equal(routeOpportunityChannel({ ...route, approvalGranted: true }).can_dispatch, true);
+});
+
+Deno.test('Joignabilité inconnue et consentement révoqué ne sont pas actionnables', () => {
+ equal(buildContactPack({ fabricId:'external:1', contactability:'C3', entityResolved:true, channels:[{ channel:'whatsapp', verified:true, reachable:null }] }).readiness_level, 'R3');
+ equal(routeOpportunityChannel({ channels:[{ channel:'whatsapp', reachable:true, consent_state:'revoked' }], contactability:'C5', approvalGranted:true }).can_dispatch, false);
+ equal(classifyAvatarReply("pas d'accord"), 'negative');
+ equal(classifyAvatarReply('disponible ?'), 'ambiguous');
 });

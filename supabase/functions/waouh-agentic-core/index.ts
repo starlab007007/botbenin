@@ -2471,6 +2471,31 @@ Retourne uniquement JSON:
         return jsonResponse({ ok: true, data: refreshed });
       }
 
+      case "nexus.legacy.promote": {
+        const fabricId = asString(payload.fabric_id, "fabric_id", 5, 100);
+        const match = fabricId.match(/^(radar|legacy_external):([0-9a-f-]{36})$/i);
+        if (!match) throw new ApiError(422, "legacy_fabric_required");
+        const { data: f } = await sb.from("waouh_signal_fabric").select("*").eq("fabric_id", fabricId).maybeSingle();
+        if (!f) throw new ApiError(404, "signal_not_found");
+        const { data: raw } = await sb.from(match[1] === "radar" ? "waouh_radar_signals" : "waouh_external_listings")
+          .select("*").eq("id", match[2]).maybeSingle();
+        if (!raw) throw new ApiError(404, "signal_not_found");
+        const existing = await sb.from("waouh_external_commerce_signals").select("id").eq("source_key", "radar_ia").eq("source_external_id", fabricId).maybeSingle();
+        let canonicalId = existing.data?.id;
+        if (!canonicalId) {
+          const result = await ingestCommerceSignal(sb, ownerId, { source_key: "radar_ia", source_external_id: fabricId,
+            raw_text: f.raw_text || f.subject, product_name: f.subject, source_url: f.source_url,
+            city: f.city, category: f.category, price_min: f.price_min, price_max: f.price_max,
+            contact_phones: [raw.contact_phone || raw.seller_phone].filter(Boolean),
+            actor_name: raw.seller_name || null, contact_consent_basis: f.contactability_level === "C3" ? "opt_in" : "unknown",
+            evidence: { legacy_fabric_id: fabricId }, observed_at: f.observed_at,
+          }, { expectedIntent: f.intent });
+          canonicalId = result.signal.id;
+        }
+        const { data: canonical } = await sb.from("waouh_signal_fabric").select("*").eq("fabric_id", `external:${canonicalId}`).single();
+        return jsonResponse({ ok: true, data: { signal: canonical } });
+      }
+
       case "nexus.global_discovery": {
         const queryText = asString(payload.query, "query", 2, 1000);
         const requestedMode = pickEnum(
@@ -2601,6 +2626,26 @@ Retourne uniquement JSON:
           contact_pack: contactPack,
           contact_policy: contactabilityPolicy(signal.contactability_level),
         }});
+      }
+
+      case "nexus.opportunity.bind_article": {
+        const journeyId = uuid(payload.journey_id, "journey_id");
+        const articleId = uuid(payload.article_id, "article_id");
+        const { data: journey } = await sb.from("waouh_opportunity_journeys").select("*").eq("id", journeyId).eq("owner_id", ownerId).single();
+        if (!journey || journey.mode !== "sell" || journey.last_action !== "article_selection_required") throw new ApiError(409, "article_selection_not_pending");
+        const article = await ownedArticle(sb, ownerId, articleId);
+        if (article.status !== "active") throw new ApiError(409, "article_unavailable");
+        const { data: approvals } = await sb.from("waouh_agent_approvals").select("id,context").eq("status", "approved")
+          .contains("context", { from_auth_user: ownerId, fabric_id: journey.fabric_id });
+        if (!approvals?.length) throw new ApiError(409, "counterparty_approval_required");
+        await sb.from("waouh_opportunity_journeys").update({ article_id: articleId }).eq("id", journeyId);
+        for (const approval of approvals) {
+          const context = { ...approval.context, article_id: articleId, journey_id: journeyId };
+          delete context.lifecycle_processed_at;
+          await sb.from("waouh_agent_approvals").update({ context }).eq("id", approval.id);
+        }
+        wakeOpportunityWorker(supabaseUrl, serviceKey, null);
+        return jsonResponse({ ok: true, data: { queued: true } });
       }
 
       case "nexus.owned_articles": {

@@ -995,6 +995,8 @@ class LiveNexusService {
           'mandate_id': mandateId.trim(),
       });
 
+  Future<Map<String, dynamic>> bindJourneyArticle(String journeyId, String articleId) => _invoke('nexus.opportunity.bind_article', {'journey_id': journeyId, 'article_id': articleId});
+
   Future<Map<String, dynamic>> ownedArticles() => _invoke('nexus.owned_articles', {});
 
   Future<Map<String, dynamic>> createMandate({

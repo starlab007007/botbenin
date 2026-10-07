@@ -30,6 +30,7 @@ import { WaouhNexusContactSheet } from "@/components/waouh/WaouhNexusContactShee
 import {
   globalNexusDiscovery,
   listNexusOwnedArticles,
+  bindNexusJourneyArticle,
   prepareNexusContact,
   sendNexusDiscoveryContact,
   createNexusMandate,
@@ -452,7 +453,12 @@ export default function WaouhAvatarCommercePage() {
     }
   };
 
+  const [articleJourney, setArticleJourney] = useState<NexusOpportunityJourney | null>(null);
   const openJourney = (journey: NexusOpportunityJourney) => {
+    if (journey.last_action === "article_selection_required" && journey.mode === "sell") {
+      void listNexusOwnedArticles().then(data => { setOwnedArticles(data.articles); setArticleJourney(journey); });
+      return;
+    }
     const threadId = String(journey.thread_id || "").trim();
     if (!threadId) {
       toast({
@@ -485,6 +491,17 @@ export default function WaouhAvatarCommercePage() {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_20%_0%,rgba(79,127,255,.10),transparent_32%),linear-gradient(180deg,#f7faff_0%,#ffffff_52%)]">
+      <Dialog open={!!articleJourney} onOpenChange={() => setArticleJourney(null)}>
+        <DialogContent><DialogHeader><DialogTitle>Choisir l’article à proposer</DialogTitle></DialogHeader>
+          {ownedArticles.length === 0 && <p>Publiez d’abord un article dans WAOUH.</p>}
+          {ownedArticles.map(article => <Button key={article.id} variant="outline" onClick={() => {
+            if (!articleJourney) return;
+            void bindNexusJourneyArticle(articleJourney.id, article.id).then(() => { setArticleJourney(null); void refreshJourneys(); })
+              .catch(() => toast({ title: "La mise en relation nécessite une vérification", variant: "destructive" }));
+          }}>{article.title} · {article.price} FCFA</Button>)}
+        </DialogContent>
+      </Dialog>
+
       <div className="mx-auto w-full max-w-5xl space-y-4 px-3 py-4 sm:px-5">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" className="rounded-2xl" onClick={() => navigate("/app/avatar")}>

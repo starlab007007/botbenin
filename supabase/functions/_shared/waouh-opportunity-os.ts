@@ -106,7 +106,7 @@ export function readinessLevel(input: {
   replyReceived?: boolean;
 }) : ReadinessLevel {
   if (input.replyReceived) return "R5";
-  if (input.actionableChannel) return "R4";
+  if (input.actionableChannel && input.verifiedChannel) return "R4";
   if ((input.channels ?? []).length > 0) return "R3";
   if (input.entityResolved) return "R2";
   if (input.entityResolved === false) return "R1";
@@ -163,7 +163,7 @@ export function buildContactPack(input: ContactPackInput) {
   const internal = input.internalArticle === true;
   const hasActionableChannel =
     internal ||
-    ranked.some((row) => row.reachable !== false && (
+    ranked.some((row) => row.consent_state !== "revoked" && row.reachable === true && (
       row.channel === "waouh" ||
       row.channel === "whatsapp" ||
       row.channel === "rcs" ||
@@ -176,7 +176,7 @@ export function buildContactPack(input: ContactPackInput) {
   const readiness = readinessLevel({
     entityResolved: input.entityResolved,
     channels: ranked,
-    verifiedChannel: verified,
+    verifiedChannel: internal || verified,
     actionableChannel: hasActionableChannel && level !== "C0",
     replyReceived: input.replyReceived || level === "C5",
   });
@@ -343,6 +343,7 @@ export function parseChatMandateDirective(
 
 export const OPPORTUNITY_OS_SERVICE_OWNER_ACTIONS = Object.freeze([
   "nexus.global_discovery",
+  "nexus.legacy.promote",
 ] as const);
 
 export function serviceMayActForOwner(action: unknown) {
