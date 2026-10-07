@@ -451,10 +451,21 @@ function json(body: unknown, status = 200) {
 }
 
 function normalizeWahaPhone(value?: string | null) {
-  const digits = (value || '').replace(/\D/g, '');
+  const raw = String(value || '').trim();
+  const digits = raw.replace(/\D/g, '');
   if (!digits) return null;
-  if (digits.startsWith('229') && digits.length === 11) return `+22901${digits.slice(3)}`;
-  return digits.startsWith('229') ? `+${digits}` : `+${digits}`;
+
+  // Bénin: conserve le plan national actuel à 10 chiffres (01xxxxxxxx)
+  // et convertit les anciens formats 8 chiffres / +229xxxxxxxx.
+  if (/^22901\d{8}$/.test(digits)) return `+${digits}`;
+  if (/^229\d{8}$/.test(digits)) return `+22901${digits.slice(3)}`;
+  if (/^01\d{8}$/.test(digits)) return `+229${digits}`;
+  if (/^\d{8}$/.test(digits)) return `+22901${digits}`;
+
+  // WAHA renvoie généralement les numéros internationaux avec l'indicatif
+  // mais sans '+'. Ne jamais leur préfixer +229.
+  if (/^[1-9]\d{7,14}$/.test(digits)) return `+${digits}`;
+  return null;
 }
 
 function isBjPhoneDigits(digits: string) {
