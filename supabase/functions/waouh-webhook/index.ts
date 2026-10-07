@@ -778,10 +778,10 @@ serve(async (req) => {
               }
 
               if (externalBuyer?.id) {
-                const response = await fetch(`${SUPABASE_URL}/functions/v1/waouh-buyer-interest`, {
+                const response = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/waouh-buyer-interest`, {
                   method: "POST",
                   headers: {
-                    Authorization: `Bearer ${SERVICE_ROLE}`,
+                    Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
                     "Content-Type": "application/json",
                   },
                   body: JSON.stringify({
