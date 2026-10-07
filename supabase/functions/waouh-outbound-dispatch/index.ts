@@ -766,6 +766,27 @@ Deno.serve(async (req) => {
       };
 
 
+      // A queued message is not an irrevocable permission: recheck immediately before dispatch.
+      if (it.template === "nexus_discovery_outreach") {
+        let blocked: string | null = null;
+        if (it.payload?.contact_id) {
+          const { data: contact, error } = await sb.from("waouh_entity_contacts").select("consent_state").eq("id", it.payload.contact_id).maybeSingle();
+          if (error || !contact || contact.consent_state === "revoked") blocked = "contact_permission_unavailable";
+        }
+        if (it.payload?.mandate_id) {
+          const { data: mandate, error } = await sb.from("waouh_avatar_mandates").select("status,expires_at,metadata").eq("id", it.payload.mandate_id).maybeSingle();
+          if (error || !mandate || mandate.status !== "active" || Date.parse(mandate.expires_at) <= Date.now() || mandate.metadata?.agreement_reached_at) blocked = "mandate_inactive";
+        }
+        if (it.payload?.journey_id) {
+          const { data: journey, error } = await sb.from("waouh_opportunity_journeys").select("stage").eq("id", it.payload.journey_id).maybeSingle();
+          if (error || !journey || ["cancelled", "completed", "agreed", "executing"].includes(journey.stage)) blocked = "journey_inactive";
+        }
+        if (blocked) {
+          await sb.from("waouh_outbound_queue").update({ status: "failed", last_error: blocked, next_attempt_at: null }).eq("id", it.id).eq("status", "sending");
+          skipped++; continue;
+        }
+      }
+
       // Web-only : pas de téléphone → realtime web suffit
       if ((it.channel && it.channel === "web") || !it.to_phone) {
         await sb.from("waouh_outbound_queue").update({

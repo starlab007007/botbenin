@@ -271,6 +271,7 @@ jobs:
           entrypoints+=(supabase/functions/waouh-waha-control/index.ts)
           entrypoints+=(supabase/functions/waouh-negotiation-router/index.ts)
           entrypoints+=(supabase/functions/waouh-deal-ops/index.ts)
+          entrypoints+=(supabase/functions/waouh-outbound-dispatch/index.ts)
           entrypoints+=(supabase/functions/waha-connect/index.ts)
           entrypoints+=(supabase/functions/waha-session-mobile/index.ts)
           entrypoints+=(supabase/functions/waha-dashboard-proxy/index.ts)
@@ -556,6 +557,7 @@ jobs:
             waouh-waha-control
             waouh-negotiation-router
             waouh-deal-ops
+            waouh-outbound-dispatch
             waha-connect
             waha-dashboard-proxy
             waha-manage-contact
