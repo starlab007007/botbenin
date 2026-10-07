@@ -157,7 +157,7 @@ async function resolvePack(sb: SupabaseClient, signal: any) {
       // We never synthesize consent from a public phone number.
       const phoneHashes = [...new Set(
         contacts
-          .filter((row: any) => ["phone","whatsapp"].includes(String(row.channel || "")) && row.value_hash)
+          .filter((row: any) => row.consent_state !== "revoked" && ["phone","whatsapp"].includes(String(row.channel || "")) && row.value_hash)
           .map((row: any) => String(row.value_hash)),
       )];
       if (phoneHashes.length) {
