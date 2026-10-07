@@ -403,6 +403,11 @@ async function enrichPublicBusinessContact(sb: SupabaseClient, signal: any, reso
 }
 
 async function ensureJourney(sb: SupabaseClient, ownerId: string, mandate: any, signal: any, pack: any, matchScore: number) {
+  const mandateArticleId = mandate.mode === "sell" &&
+    mandate.metadata && typeof mandate.metadata === "object" &&
+    typeof mandate.metadata.article_id === "string"
+    ? mandate.metadata.article_id
+    : null;
   const { data: existing } = await sb.from("waouh_opportunity_journeys")
     .select("*").eq("owner_id", ownerId).eq("fabric_id", signal.fabric_id)
     .not("stage", "in", '("completed","cancelled")')
@@ -410,6 +415,7 @@ async function ensureJourney(sb: SupabaseClient, ownerId: string, mandate: any, 
   if (existing) {
     await sb.from("waouh_opportunity_journeys").update({
       mandate_id: mandate.id,
+      article_id: existing.article_id ?? mandateArticleId,
       readiness_level: pack.readiness_level,
       readiness_score: pack.readiness_score,
       actionability_score: pack.actionability_score,
@@ -425,6 +431,7 @@ async function ensureJourney(sb: SupabaseClient, ownerId: string, mandate: any, 
   const { data, error } = await sb.from("waouh_opportunity_journeys").insert({
     owner_id: ownerId,
     mandate_id: mandate.id,
+    article_id: mandateArticleId,
     fabric_id: signal.fabric_id,
     mode: mandate.mode,
     stage,
@@ -591,8 +598,9 @@ async function contactInternal(
   }
 
   const articleId =
-    signal.fabric_id?.startsWith("article:") ? signal.fabric_id.slice("article:".length) :
-    (signal.evidence?.article_id ?? null);
+    journey.article_id ??
+    (signal.fabric_id?.startsWith("article:") ? signal.fabric_id.slice("article:".length) :
+      (signal.evidence?.article_id ?? null));
   const catalogId =
     signal.fabric_id?.startsWith("catalog:") ? signal.fabric_id.slice("catalog:".length) :
     (signal.evidence?.catalog_id ?? null);
@@ -635,6 +643,7 @@ async function contactInternal(
       fabric_id: signal.fabric_id,
       source_key: signal.source_key,
       mode: mandate.mode,
+      article_id: articleId || null,
     },
     status: "pending",
     expires_at: new Date(Date.now() + 24 * 3600_000).toISOString(),
