@@ -39,6 +39,9 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   bool _loadingBus = false;
   String? _error;
   String? _workingFabric;
+  List<Map<String, dynamic>> _ownedArticles = [];
+  String? _selectedArticle;
+  String _priceFloor = '';
   Map<String, dynamic>? _mandate;
   String _autonomyMode = 'semi_autonomous';
   int _maxContacts = 3;
@@ -85,6 +88,10 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   Future<void> _loadMandate() async {
     if (legacy.supabase.auth.currentUser == null) return;
     try {
+      if (widget.mode == LiveAvatarCommerceMode.sell) {
+        final inventory = await _nexus.ownedArticles();
+        if (mounted) setState(() => _ownedArticles = (inventory['articles'] as List? ?? []).map((r) => Map<String, dynamic>.from(r as Map)).toList());
+      }
       final data = await _nexus.listMandates();
       final rows = data['mandates'];
       if (rows is! List || !mounted) return;
@@ -93,7 +100,8 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
         if (raw is! Map) continue;
         final row = Map<String, dynamic>.from(raw);
         final status = '${row['status'] ?? ''}';
-        if (status == 'active' || status == 'paused') {
+        final targetMode = widget.mode == LiveAvatarCommerceMode.sell ? 'sell' : widget.mode == LiveAvatarCommerceMode.ask ? 'ask' : 'buy';
+        if ((status == 'active' || status == 'paused') && row['mode'] == targetMode) {
           current = row;
           break;
         }
@@ -125,13 +133,15 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       final data = await _nexus.createMandate(
         mode: mode,
         goal: query,
+        articleId: widget.mode == LiveAvatarCommerceMode.sell ? _selectedArticle : null,
+        priceFloor: widget.mode == LiveAvatarCommerceMode.sell ? double.tryParse(_priceFloor) : null,
         autonomyMode: _autonomyMode,
         city: _city.text.trim().isEmpty ? null : _city.text.trim(),
         budgetMax: budget,
         maxContacts: _maxContacts,
         maxFollowups: _autonomyMode == 'assisted' ? 0 : _maxFollowups,
         allowSmsRcs: _allowSmsRcs,
-        durationHours: 24,
+        durationHours: 72,
         scanIntervalMinutes: 60,
       );
       final raw = data['mandate'];
@@ -151,7 +161,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       await _loadConversationBus();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Mandat confié à Bot pendant 24 h.')),
+          const SnackBar(content: Text('Mandat confié à Bot pendant 72 h.')),
         );
       }
     } catch (e) {
@@ -729,6 +739,19 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   }
 
   Future<void> _showJourneyProgress(NexusOpportunityJourney journey) async {
+    if (journey.lastAction == 'article_selection_required') {
+      final inventory = await _nexus.ownedArticles();
+      if (!mounted) return;
+      final rows = (inventory['articles'] as List? ?? []);
+      final selected = await showModalBottomSheet<String>(context: context, builder: (ctx) => SafeArea(child: ListView(shrinkWrap: true, children: [
+        const ListTile(title: Text('Choisir l’article à proposer')),
+        if (rows.isEmpty) const ListTile(title: Text('Publiez d’abord un article dans WAOUH.')),
+        ...rows.map((row) => ListTile(title: Text('${row['title']}'), subtitle: Text('${row['price']} FCFA'), onTap: () => Navigator.pop(ctx, '${row['id']}'))),
+      ])));
+      if (selected != null) { await _nexus.bindJourneyArticle(journey.id, selected); await _loadJourneys(); }
+      return;
+    }
+
     NexusOpportunityJourney current = journey;
     try {
       current = await _nexus.opportunityStatus(journeyId: journey.id);
@@ -1071,9 +1094,19 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (widget.mode == LiveAvatarCommerceMode.sell) ...[
+            DropdownButtonFormField<String>(
+              value: _selectedArticle,
+              decoration: const InputDecoration(labelText: 'Article à vendre'),
+              items: _ownedArticles.map((a) => DropdownMenuItem(value: '${a['id']}', child: Text('${a['title']}', overflow: TextOverflow.ellipsis))).toList(),
+              onChanged: (value) => setState(() => _selectedArticle = value),
+            ),
+            TextFormField(keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Prix minimum autorisé (FCFA)'), onChanged: (value) => _priceFloor = value),
+            const SizedBox(height: 12),
+          ],
           const Text('Confier cette mission à Bot', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF382567))),
           const SizedBox(height: 4),
-          const Text('Bot surveille NEXUS pendant 24 h et agit uniquement dans les limites que vous fixez.',
+          const Text('Bot surveille NEXUS pendant 72 h et agit uniquement dans les limites que vous fixez.',
             style: TextStyle(fontSize: 10.5, color: WaouhPalette.muted)),
           const SizedBox(height: 9),
           SegmentedButton<String>(
@@ -1124,15 +1157,15 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
             onChanged: (value) => setState(() => _allowSmsRcs = value),
           ),
           FilledButton.icon(
-            onPressed: _mandateBusy || _goal.text.trim().isEmpty ? null : _createMandate,
+            onPressed: _mandateBusy || _goal.text.trim().isEmpty || (widget.mode == LiveAvatarCommerceMode.sell && _selectedArticle == null) ? null : _createMandate,
             icon: _mandateBusy
               ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
               : const Icon(Icons.smart_toy_outlined),
-            label: const Text('Confier à Bot pendant 24 h'),
+            label: const Text('Confier à Bot pendant 72 h'),
             style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48), backgroundColor: const Color(0xFF6D3FD1)),
           ),
           const SizedBox(height: 5),
-          const Text('Aucun paiement, changement de budget ou partage de contact privé sans règle explicite.',
+          const Text('Les contre-offres respectent votre limite. Vous confirmez l’accord final.',
             style: TextStyle(fontSize: 9.5, color: WaouhPalette.muted)),
         ],
       ),

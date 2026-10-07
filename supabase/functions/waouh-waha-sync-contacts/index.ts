@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { encryptPhone, hashPhone } from '../_shared/waouh-tel/crypto.ts';
+import { requireRuntimeOrAdmin } from '../_shared/waouh-runtime-auth.ts';
 import { phoneLast4 } from '../_shared/waouh-tel/phone.ts';
 
 const corsHeaders = {
@@ -23,6 +24,7 @@ async function materializeWahaDirectoryContacts(
   supabase: any,
   rows: any[],
   session: string,
+  fresh = true,
 ) {
   const now = new Date().toISOString();
   const unique = new Map<string, { e164: string; hash: string; name: string | null }>();
@@ -56,6 +58,7 @@ async function materializeWahaDirectoryContacts(
     existingContacts.push(...(data || []));
   }
 
+  const revokedHashes = new Set(existingContacts.filter(c => c.consent_state === "revoked").map(c => c.value_hash));
   const entityByHash = new Map<string, string>();
   const whatsappExisting = new Set<string>();
   for (const contact of existingContacts) {
@@ -92,7 +95,7 @@ async function materializeWahaDirectoryContacts(
       primary_name: row.name,
       canonical_key: 'phone:' + row.hash,
       country_code: 'BJ',
-      verification_state: 'source_verified',
+      verification_state: fresh ? 'source_verified' : 'unverified',
       trust_score: 50,
       source_keys: ['waha_directory'],
       metadata: {
@@ -120,7 +123,7 @@ async function materializeWahaDirectoryContacts(
   }
 
   let contactsVerified = 0;
-  for (let i = 0; i < hashes.length; i += 100) {
+  for (let i = 0; fresh && i < hashes.length; i += 100) {
     const { data, error } = await supabase
       .from('waouh_entity_contacts')
       .update({
@@ -129,7 +132,8 @@ async function materializeWahaDirectoryContacts(
         verified_at: now,
         updated_at: now,
       })
-      .in('value_hash', hashes.slice(i, i + 100))
+      .in('value_hash', hashes.slice(i, i + 100).filter(hash => !revokedHashes.has(hash)))
+      .in('channel', ['phone', 'whatsapp'])
       .select('id');
     if (error) throw error;
     contactsVerified += (data || []).length;
@@ -148,16 +152,17 @@ async function materializeWahaDirectoryContacts(
       public_value: null,
       source_key: 'waha_directory',
       is_public_business: false,
-      consent_state: 'unknown',
+      consent_state: revokedHashes.has(row.hash) ? 'revoked' : 'unknown',
       contactability_level: 'C0',
-      verified_at: now,
-      verification_status: 'reachable',
-      is_whatsapp_reachable: true,
+      verified_at: fresh ? now : null,
+      verification_status: revokedHashes.has(row.hash) ? 'revoked' : fresh ? 'reachable' : 'unknown',
+      is_whatsapp_reachable: revokedHashes.has(row.hash) ? false : fresh ? true : null,
       metrics: {
         materialized_from: 'waouh-waha-sync-contacts',
         waha_session: session,
         waha_directory: true,
-        last_waha_sync_at: now,
+        last_waha_sync_at: fresh ? now : null,
+        cached_directory_import: !fresh,
       },
       updated_at: now,
     });
@@ -188,31 +193,22 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
-  // Auth + admin check
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader) return json({ error: 'Unauthorized' }, 401);
-  const userClient = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_ANON_KEY')!,
-    { global: { headers: { Authorization: authHeader } } },
-  );
-  const { data: userData } = await userClient.auth.getUser();
-  if (!userData?.user) return json({ error: 'Unauthorized' }, 401);
-  const { data: isAdmin, error: adminRoleError } = await supabase.rpc('has_role', {
-    _user_id: userData.user.id,
-    _role_name: 'admin',
-  });
-  const { data: isSuperAdmin, error: superAdminRoleError } = await supabase.rpc('has_role', {
-    _user_id: userData.user.id,
-    _role_name: 'super_admin',
-  });
-  if (adminRoleError || superAdminRoleError) {
-    console.error('[waouh-waha-sync-contacts] role check failed', { adminRoleError, superAdminRoleError });
-    return json({ error: 'Impossible de vérifier le rôle administrateur' }, 500);
-  }
-  if (!isAdmin && !isSuperAdmin) return json({ error: 'Forbidden — admin only' }, 403);
+  const guard = await requireRuntimeOrAdmin(req, supabase);
+  if (!guard.ok) return guard.response;
 
   const body = await req.json().catch(() => ({}));
+  if (body.import_cached === true) {
+    const cached: any[] = [];
+    for (let offset = 0; offset < 10000; offset += 1000) {
+      const { data, error } = await supabase.from('waouh_lid_phone_map').select('phone_e164,phone,display_name').range(offset, offset + 999);
+      if (error) return json({ ok: false, error: error.message }, 500);
+      cached.push(...(data ?? []));
+      if ((data ?? []).length < 1000) break;
+    }
+    const result = await materializeWahaDirectoryContacts(supabase, cached, 'historical_directory', false);
+    return json({ ok: true, mode: 'cached_import_not_live_verification', ...result });
+  }
+
   const backfill = body.backfill !== false;
   const maxSessions = Math.max(1, Math.min(Number(body.maxSessions || 1), 3));
   // WAHA currently exposes >1,700 contacts on the canonical session.
@@ -355,7 +351,9 @@ Deno.serve(async (req) => {
           for (const name of [displayName, pushname]) {
             const key = nameKey(name);
             if (key && !phoneIsActuallyLid && isBjPhoneDigits(digits)) {
-              phoneRowsByName.set(key, { ...rowBase, lid: lidId || id });
+              const previous = phoneRowsByName.get(key);
+              if (previous && previous.phone_e164 !== phone_e164) phoneRowsByName.set(key, { ambiguous: true });
+              else if (!previous?.ambiguous) phoneRowsByName.set(key, { ...rowBase, lid: lidId || id });
             }
           }
         }
@@ -366,7 +364,7 @@ Deno.serve(async (req) => {
           if (!id.endsWith('@lid')) continue;
           const lidId = c.lid || id.split('@')[0];
           const linked = phoneRowsByName.get(nameKey(c.name || c.shortName)) || phoneRowsByName.get(nameKey(c.pushname));
-          if (linked && lidId) rows.push({ ...linked, lid: lidId, jid: id });
+          if (linked && !linked.ambiguous && lidId) rows.push({ ...linked, lid: lidId, jid: id });
         }
 
         // Dedupe rows by lid (last wins)
@@ -421,14 +419,14 @@ Deno.serve(async (req) => {
       contacts_fetched: totalFetched,
       contacts_mapped: totalMapped,
       rows_backfilled: totalBackfilled,
-      status: 'success',
+      status: perSession.every((s: any) => s.ok) ? 'success' : 'failed',
       finished_at: new Date().toISOString(),
     }).eq('id', runId);
 
     const hasMore = !requestedSessions && startIndex + sessionsToUse.length < totalWorkingSessions;
     const nextCursor = hasMore ? sessionsToUse[sessionsToUse.length - 1] : null;
     return json({
-      ok: true,
+      ok: perSession.every((s: any) => s.ok),
       sessions: sessionsToUse,
       fetched: totalFetched,
       mapped: totalMapped,

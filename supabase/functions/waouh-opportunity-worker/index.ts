@@ -1,3 +1,5 @@
+import { followupDelayHours, withinMandateBudget, journeyReplyToken } from "../_shared/waouh-avatar-lifecycle.ts";
+import { advanceAvatarLifecycle, finishLegacySearch, requestAvatarApproval, avatarNotice } from "../_shared/waouh-avatar-orchestrator.ts";
 import { releaseHeaders } from "../_shared/waouh-release.ts";
 // deno-lint-ignore-file no-explicit-any
 // WAOUH Opportunity OS worker — bounded autonomous discovery/contact.
@@ -37,8 +39,8 @@ async function discoverPersistentIntentWithNexus(
   const lastExternalRaw = typeof metadata.last_external_refresh_at === "string"
     ? Date.parse(metadata.last_external_refresh_at)
     : NaN;
-  const refreshExternal = !Number.isFinite(lastExternalRaw) ||
-    Date.now() - lastExternalRaw >= 6 * 3600_000;
+  const refreshExternal = mandate.metadata?.external_refresh_enabled !== false && (!Number.isFinite(lastExternalRaw) ||
+    Date.now() - lastExternalRaw >= 6 * 3600_000);
   const discoveryMode = intent.mode === "find_buyers" ? "find_buyers" : "find_sellers";
   const limit = Math.min(30, Math.max(Number(mandate.max_contacts || 3) * 4, 12));
 
@@ -425,7 +427,7 @@ async function ensureJourney(sb: SupabaseClient, ownerId: string, mandate: any, 
       metadata: { ...(existing.metadata || {}), match_score: matchScore, worker_seen_at: new Date().toISOString() },
       updated_at: new Date().toISOString(),
     }).eq("id", existing.id);
-    return { ...existing, mandate_id: mandate.id, contact_pack: pack };
+    return { ...existing, article_id: existing.article_id ?? mandateArticleId, mandate_id: mandate.id, contact_pack: pack };
   }
   const stage = pack.next_best_action === "CONTACT_NOW" || pack.next_best_action === "OPEN_DEAL_ROOM"
     ? "contact_ready" : "enriching";
@@ -657,7 +659,7 @@ async function contactInternal(
     notification_type: "avatar_opportunity_contact",
     photos: [],
     payload: {
-      text: message,
+      text: `${message} Référence ${journeyReplyToken(journey.id)}`,
       fabric_id: signal.fabric_id,
       journey_id: journey.id,
       mandate_id: mandate.id,
@@ -780,8 +782,8 @@ async function queueNativeOpportunityMessage(
       : "autonomous_native_contact_queued",
     next_action: "WAIT_REPLY",
     last_message: options.followupIndex
-      ? `Avatar a relancé cette opportunité par ${channel.toUpperCase()}.`
-      : `Avatar a contacté cette opportunité par ${channel.toUpperCase()} selon votre mandat.`,
+      ? `Relance mise en file par ${channel.toUpperCase()}. Livraison en attente.`
+      : `Contact mis en file par ${channel.toUpperCase()} selon votre mandat. Livraison en attente.`,
     last_activity_at: now,
     updated_at: now,
   }).eq("id", journey.id);
@@ -807,8 +809,6 @@ async function queueNativeOpportunityMessage(
 async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, journey: any, resolved: any) {
   const { pack, contacts, externalSignal } = resolved;
   if (!externalSignal?.entity_id) return { contacted: false, reason: "external_entity_missing" };
-  const permission = mandateAllowsContact(mandate, pack);
-  if (!permission.allowed) return { contacted: false, reason: permission.reason };
   const route = routeOpportunityChannel({
     channels: (pack.available_channels || []).map((row: any) => ({
       channel: row.channel,
@@ -823,8 +823,11 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
     allowPublicBusiness: mandate.allow_public_business !== false,
     allowEmail: mandate.allow_email === true,
     allowSmsRcs: mandate.allow_sms_rcs === true,
+    approvalGranted: journey.metadata?.contact_approved === true,
   });
   if (!route.can_dispatch) return { contacted: false, reason: route.reason };
+  const permission = mandateAllowsContact(mandate, { ...pack, best_channel: route.primary_channel, next_best_action: journey.metadata?.contact_approved ? "CONTACT_NOW" : pack.next_best_action });
+  if (!permission.allowed) return { contacted: false, reason: permission.reason };
   const message = mandate.mode === "sell"
     ? `Bonjour, WAOUH accompagne un vendeur dont l’offre correspond à votre besoin « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre dans WAOUH ?`
     : `Bonjour, WAOUH accompagne un utilisateur intéressé par « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre dans WAOUH ?`;
@@ -840,7 +843,7 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
 
   const level = String(externalSignal.contactability_level || "C0");
   const target = contacts.find((row: any) => {
-    if (!row.value_encrypted || !["whatsapp","phone"].includes(String(row.channel))) return false;
+    if (row.consent_state === "revoked" || row.is_whatsapp_reachable === false || !row.value_encrypted || !["whatsapp","phone"].includes(String(row.channel))) return false;
     if (level === "C1") {
       return mandate.allow_public_business !== false &&
         (row.is_public_business === true || row.consent_state === "public_business");
@@ -863,7 +866,7 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
     p_to_user_id: null,
     p_template: "nexus_discovery_outreach",
     p_payload: {
-      text: message,
+      text: `${message} Référence ${journeyReplyToken(journey.id)} (à reprendre dans votre réponse).`,
       actions: [],
       fabric_id: signal.fabric_id,
       signal_id: externalSignal.id,
@@ -904,7 +907,8 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
       ? "autonomous_public_phone_whatsapp_probe_queued"
       : "autonomous_whatsapp_queued",
     next_action: "WAIT_REPLY",
-    last_message: "Avatar a contacté cette opportunité selon votre mandat.",
+    last_message: "Message préparé et mis en file. Confirmation d’envoi en attente.",
+    last_activity_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }).eq("id", journey.id);
   return { contacted: true, channel: "whatsapp" };
@@ -932,6 +936,7 @@ async function runExternalFollowUp(
     allowPublicBusiness: mandate.allow_public_business !== false,
     allowEmail: mandate.allow_email === true,
     allowSmsRcs: mandate.allow_sms_rcs === true,
+    approvalGranted: journey.metadata?.contact_approved === true,
   });
   if (!route.can_dispatch) {
     return { sent: false, reason: route.reason || "no_followup_channel" };
@@ -953,7 +958,7 @@ async function runExternalFollowUp(
 
   const level = String(resolved.externalSignal?.contactability_level || "C0");
   const target = resolved.contacts.find((row: any) => {
-    if (!row.value_encrypted || !["whatsapp","phone"].includes(String(row.channel))) return false;
+    if (row.consent_state === "revoked" || row.is_whatsapp_reachable === false || !row.value_encrypted || !["whatsapp","phone"].includes(String(row.channel))) return false;
     if (level === "C1") {
       return mandate.allow_public_business !== false &&
         (row.is_public_business === true || row.consent_state === "public_business");
@@ -975,7 +980,7 @@ async function runExternalFollowUp(
     p_to_user_id: null,
     p_template: "nexus_discovery_outreach",
     p_payload: {
-      text: message,
+      text: `${message} Référence ${journeyReplyToken(journey.id)} (à reprendre dans votre réponse).`,
       actions: [],
       fabric_id: signal.fabric_id,
       signal_id: resolved.externalSignal.id,
@@ -1086,7 +1091,7 @@ async function runInternalFollowUp(
 }
 
 async function runBoundedFollowUps(sb: SupabaseClient, limit = 30) {
-  const cutoff = new Date(Date.now() - 24 * 3600_000).toISOString();
+  const cutoff = new Date(Date.now() - 3600_000).toISOString();
   const { data: journeys, error } = await sb.from("waouh_opportunity_journeys")
     .select("*")
     .eq("stage", "waiting_reply")
@@ -1107,6 +1112,27 @@ async function runBoundedFollowUps(sb: SupabaseClient, limit = 30) {
         skipped++;
         continue;
       }
+      if (["whatsapp", "phone"].includes(journey.contact_channel)) {
+        const { data: delivery } = await sb.from("waouh_outbound_queue").select("id,status,payload")
+          .contains("payload", { journey_id: journey.id }).order("created_at", { ascending: false }).limit(1).maybeSingle();
+        if (delivery && ["pending", "processing", "queued", "retry"].includes(delivery.status)) { skipped++; continue; }
+        if (delivery?.status === "failed") {
+          const { data: signal } = await sb.from("waouh_signal_fabric").select("*").eq("fabric_id", journey.fabric_id).maybeSingle();
+          const resolved = signal ? await resolvePack(sb, signal) : null;
+          const alternate = mandate.allow_sms_rcs && resolved?.nativeTargets?.find((t: any) => ["sms", "rcs"].includes(t.channel));
+          if (alternate && signal) {
+            await queueNativeOpportunityMessage(sb, mandate, signal, journey, resolved, alternate.channel,
+              `Bonjour, WAOUH vous contacte au sujet de « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre ?`);
+            sent++;
+          } else {
+            await sb.from("waouh_opportunity_journeys").update({ stage: "cancelled", last_action: "delivery_failed_no_fallback",
+              last_message: "Échec de livraison du message. Aucun autre canal autorisé et configuré n’est disponible.", completed_at: new Date().toISOString() }).eq("id", journey.id);
+            await avatarNotice(sb, mandate.owner_id, `delivery-failed:${delivery.id}`, "Le message n’a pas été livré. Avatar poursuit les autres pistes ; aucun canal de repli autorisé n’est disponible.", journey);
+            skipped++;
+          }
+          continue;
+        }
+      }
       const maxFollowups = Math.max(0, Math.min(5, Number(mandate.max_followups || 0)));
       if (maxFollowups <= 0) {
         skipped++;
@@ -1115,15 +1141,20 @@ async function runBoundedFollowUps(sb: SupabaseClient, limit = 30) {
       const { count } = await sb.from("waouh_conversation_bus_events")
         .select("id", { count: "exact", head: true })
         .eq("journey_id", journey.id)
-        .eq("event_type", "autonomy.followup_queued");
+        .in("event_type", ["autonomy.followup_queued", "autonomy.native_followup_queued"]);
       const decision = boundedFollowUpDecision({
         autonomyMode: mandate.autonomy_mode,
         stage: journey.stage,
         lastActivityAt: journey.last_activity_at,
         maxFollowups,
         followupsSent: Number(count || 0),
+        delayHours: Number(mandate.metadata?.followup_hours ?? followupDelayHours((Date.parse(mandate.expires_at) - Date.parse(mandate.created_at)) / 3600000, maxFollowups)),
       });
       if (!decision.due) {
+        if (decision.reason === "followup_limit_reached") {
+          await sb.from("waouh_opportunity_journeys").update({ stage: "cancelled", last_action: "no_response", last_message: "Aucune réponse après les relances autorisées. Avatar poursuit les autres pistes.", completed_at: new Date().toISOString() }).eq("id", journey.id);
+          await avatarNotice(sb, mandate.owner_id, `no-reply:${journey.id}`, "Cette piste n’a pas répondu après vos relances. Consultez les autres opportunités.", journey);
+        }
         skipped++;
         continue;
       }
@@ -1156,6 +1187,12 @@ Deno.serve(async (req) => {
     return json({ ok: false, code: "service_role_required" }, 401);
   }
 
+  const lease = crypto.randomUUID();
+  const { data: claimed, error: claimError } = await sb.rpc("waouh_avatar_claim_worker", { p_token: lease });
+  if (claimError) return json({ ok: false, code: "worker_claim_failed" }, 500);
+  if (!claimed) return json({ ok: true, skipped: "worker_already_running" });
+  const started = Date.now();
+  try {
   const body = await req.json().catch(() => ({}));
   const limit = Math.min(50, Math.max(1, Number(body?.limit) || 20));
   const requestedMandateId = typeof body?.mandate_id === "string" &&
@@ -1163,8 +1200,16 @@ Deno.serve(async (req) => {
     ? body.mandate_id
     : null;
   const now = new Date();
-  await sb.from("waouh_avatar_mandates").update({ status: "expired" })
-    .eq("status", "active").lt("expires_at", now.toISOString());
+  const { error: bridgeError } = await sb.rpc("waouh_avatar_bridge_missions", { p_limit: 20 });
+  if (bridgeError) throw bridgeError;
+  const lifecycle = await advanceAvatarLifecycle(sb, 15);
+  const { data: expired } = await sb.from("waouh_avatar_mandates").update({ status: "expired" })
+    .eq("status", "active").is("metadata->agreement_reached_at", null).lt("expires_at", now.toISOString()).select("id,owner_id,contacted_count,replied_count");
+  for (const m of expired ?? []) {
+    await sb.from("waouh_opportunity_journeys").update({ stage: "cancelled", last_action: "mandate_expired", completed_at: now.toISOString(),
+      last_message: "Délai de mission atteint. Aucun nouvel envoi ne sera effectué." }).eq("mandate_id", m.id).in("stage", ["discovered", "enriching", "contact_ready", "contacting", "waiting_reply"]);
+    await avatarNotice(sb, m.owner_id, `avatar-expired:${m.id}`, `Mission arrivée à échéance : ${m.contacted_count} contacts sollicités, ${m.replied_count} réponses. Consultez les pistes ou créez un nouveau mandat.`, { mandate_id: m.id });
+  }
   await sb.from("waouh_persistent_intents").update({ status: "expired" })
     .eq("status", "active").lt("expires_at", now.toISOString());
 
@@ -1176,7 +1221,7 @@ Deno.serve(async (req) => {
     // service/tick-only; users cannot bypass mandate ownership or limits.
     intentQuery = intentQuery.eq("mandate_id", requestedMandateId);
   } else {
-    intentQuery = intentQuery.lte("next_scan_at", now.toISOString());
+    intentQuery = intentQuery.lte("next_scan_at", new Date().toISOString());
   }
   const { data: intents, error } = await intentQuery
     .order("next_scan_at", { ascending: true })
@@ -1185,6 +1230,7 @@ Deno.serve(async (req) => {
 
   const result = { scanned_intents: 0, matches: 0, actionable: 0, contacted: 0, skipped: 0, errors: 0 };
   for (const intent of intents ?? []) {
+    if (Date.now() - started > 65000) break;
     result.scanned_intents++;
     try {
       const mandate = intent.waouh_avatar_mandates;
@@ -1233,29 +1279,69 @@ Deno.serve(async (req) => {
           .filter((row: any) => Number(row.scores?.total_score || 0) >= Number(intent.min_match_score || 75))
           .slice(0, Math.max(Number(mandate.max_contacts || 3) * 4, 12));
       }
+      ranked = ranked.filter((signal: any) => withinMandateBudget(mandate, signal));
       result.matches += ranked.length;
+      await finishLegacySearch(sb, mandate, ranked);
+      if (mandate.metadata?.completion_goal === "recommendations") continue;
 
       let contactedThisRun = 0;
       let actionableThisRun = 0;
-      for (const signal of ranked) {
+      const visited = new Set<string>();
+      for (let signal of ranked) {
+        if (Date.now() - started > 65000) break;
+        if (/^(radar|legacy_external):/.test(signal.fabric_id)) {
+          const response = await fetch(`${SUPABASE_URL}/functions/v1/${AGENTIC_FUNCTION}`, {
+            method: "POST", headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json", "x-waouh-owner-id": mandate.owner_id },
+            body: JSON.stringify({ action: "nexus.legacy.promote", payload: { fabric_id: signal.fabric_id } }), signal: AbortSignal.timeout(15000),
+          });
+          const promoted = await response.json();
+          if (response.ok && promoted.data?.signal) signal = { ...promoted.data.signal, scores: signal.scores };
+        }
+        if (visited.has(signal.fabric_id)) continue;
+        visited.add(signal.fabric_id);
         if (contactedThisRun >= remainingContacts) break;
         let resolved = await resolvePack(sb, signal);
         if (!["R3","R4","R5"].includes(String(resolved.pack?.readiness_level || ""))) {
           resolved = await enrichPublicBusinessContact(sb, signal, resolved);
         }
+        if (resolved.pack?.readiness_level === "R3" && mandate.allow_whatsapp && resolved.externalSignal?.contactability_level !== "C0") {
+          const contact = resolved.contacts.find((c: any) => ["phone", "whatsapp"].includes(c.channel) && c.value_encrypted && c.consent_state !== "revoked" && c.is_whatsapp_reachable == null);
+          if (contact) {
+            const phone = await decryptPhone(contact.value_encrypted);
+            const check = await fetch(`${SUPABASE_URL}/functions/v1/waouh-check-whatsapp`, { method: "POST",
+              headers: { Authorization: `Bearer ${SERVICE_ROLE}`, "Content-Type": "application/json" }, body: JSON.stringify({ phone }), signal: AbortSignal.timeout(10000) });
+            const verdict = await check.json();
+            if (check.ok && verdict.ok === true) {
+              await sb.from("waouh_entity_contacts").update({ is_whatsapp_reachable: verdict.isWhatsApp === true,
+                verification_status: verdict.isWhatsApp ? "reachable" : "unreachable", verified_at: new Date().toISOString() }).eq("id", contact.id);
+              resolved = await resolvePack(sb, signal);
+            }
+          }
+        }
         const pack = resolved.pack;
-        if (Number(pack.actionability_score || 0) < Number(intent.min_actionability_score || 65)) continue;
+        if (Number(pack.actionability_score || 0) < Number(intent.min_actionability_score || 65)) {
+          await ensureJourney(sb, mandate.owner_id, mandate, signal, pack, Number(signal.scores?.total_score || 0));
+          continue;
+        }
         actionableThisRun++;
         result.actionable++;
         const journey = await ensureJourney(sb, mandate.owner_id, mandate, signal, pack, Number(signal.scores.total_score || 0));
+        if (["waiting_reply", "negotiating", "agreed", "executing", "completed", "cancelled"].includes(journey.stage)) continue;
+        if ((mandate.autonomy_mode === "assisted" || pack.next_best_action === "REQUEST_APPROVAL") && !journey.metadata?.contact_approved) {
+          await requestAvatarApproval(sb, mandate, journey, "send_message", `contact:${journey.id}`, `Autoriser Avatar à contacter cette piste : ${signal.subject || mandate.goal} ?`);
+          continue;
+        }
+        const authorizedMandate = journey.metadata?.contact_approved ? { ...mandate, autonomy_mode: "semi_autonomous", require_approval_for_c1: false } : mandate;
+        const authorizedPack = journey.metadata?.contact_approved ? { ...pack, next_best_action: "CONTACT_NOW" } : pack;
         let contactResult: any;
-        if (resolved.internal) contactResult = await contactInternal(sb, mandate, signal, journey, pack);
-        else contactResult = await contactExternal(sb, mandate, signal, journey, resolved);
+        if (resolved.internal) contactResult = await contactInternal(sb, authorizedMandate, signal, journey, authorizedPack);
+        else contactResult = await contactExternal(sb, authorizedMandate, signal, journey, { ...resolved, pack: authorizedPack });
         if (contactResult.contacted) {
           contactedThisRun++;
           result.contacted++;
         } else {
           result.skipped++;
+          await sb.from("waouh_opportunity_journeys").update({ last_action: contactResult.reason || "channel_unavailable", next_action: "Vérifier le canal ou choisir une autre piste", last_message: "Le contact n’a pas encore été envoyé. Une autre voie de contact est nécessaire." }).eq("id", journey.id);
         }
       }
 
@@ -1285,5 +1371,8 @@ Deno.serve(async (req) => {
       body: JSON.stringify({ limit: Math.min(100, Math.max(20, (result.contacted + followups.sent) * 3)) }),
     }).catch(() => {});
   }
-  return json({ ok: true, ...result, followups });
+  return json({ ok: true, ...result, followups, lifecycle });
+  } finally {
+    await sb.rpc("waouh_avatar_release_worker", { p_token: lease });
+  }
 });

@@ -995,7 +995,13 @@ class LiveNexusService {
           'mandate_id': mandateId.trim(),
       });
 
+  Future<Map<String, dynamic>> bindJourneyArticle(String journeyId, String articleId) => _invoke('nexus.opportunity.bind_article', {'journey_id': journeyId, 'article_id': articleId});
+
+  Future<Map<String, dynamic>> ownedArticles() => _invoke('nexus.owned_articles', {});
+
   Future<Map<String, dynamic>> createMandate({
+    String? articleId,
+    double? priceFloor,
     required String mode,
     required String goal,
     String autonomyMode = 'semi_autonomous',
@@ -1004,10 +1010,12 @@ class LiveNexusService {
     int maxContacts = 3,
     int maxFollowups = 1,
     bool allowSmsRcs = false,
-    int durationHours = 24,
+    int durationHours = 72,
     int scanIntervalMinutes = 60,
   }) =>
       _invoke('nexus.mandate.create', {
+        if (articleId != null) 'article_id': articleId,
+        if (priceFloor != null) 'price_floor': priceFloor,
         'mode': mode,
         'goal': goal.trim(),
         'autonomy_mode': autonomyMode,

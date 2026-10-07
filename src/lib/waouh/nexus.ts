@@ -672,7 +672,14 @@ export async function getNexusContactPack(fabricId: string) {
   }>("nexus.contact_pack.get", { fabric_id: fabricId });
 }
 
+export async function listNexusOwnedArticles() {
+  return invokeWaouhAgentic<{ articles: Array<{ id: string; title: string; price: number }> }>("nexus.owned_articles", {});
+}
+
 export async function createNexusMandate(payload: {
+  article_id?: string;
+  price_floor?: number;
+  completion_goal?: "transaction" | "agreement" | "recommendations";
   mode: "buy" | "sell" | "ask";
   goal: string;
   autonomy_mode?: "assisted" | "semi_autonomous" | "autonomous";
@@ -736,4 +743,8 @@ export async function listNexusConversationBus(input: { fabric_id?: string; thre
     "nexus.conversation_bus.list",
     input,
   );
+}
+
+export async function bindNexusJourneyArticle(journeyId: string, articleId: string) {
+  return invokeWaouhAgentic("nexus.opportunity.bind_article", { journey_id: journeyId, article_id: articleId });
 }

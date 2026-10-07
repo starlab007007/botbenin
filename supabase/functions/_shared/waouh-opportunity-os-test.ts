@@ -155,7 +155,7 @@ Deno.test("Opportunity OS Chat: délégation explicite semi-autonome bornée", (
   assertEquals(directive?.autonomyMode, "semi_autonomous");
   assertEquals(directive?.maxContacts, 5);
   assertEquals(directive?.maxFollowups, 1);
-  assertEquals(directive?.durationHours, 24);
+  assertEquals(directive?.durationHours, 72);
 });
 
 Deno.test("Opportunity OS Chat: autonomie explicite et limites plafonnées", () => {

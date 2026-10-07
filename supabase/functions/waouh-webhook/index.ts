@@ -1,3 +1,5 @@
+import { classifyAvatarReply, selectReplyJourney } from "../_shared/waouh-avatar-lifecycle.ts";
+import { avatarNotice, revokeAvatarContacts } from "../_shared/waouh-avatar-orchestrator.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
@@ -510,14 +512,35 @@ serve(async (req) => {
       try {
         const normalizedReplyPhone = String(phone).replace(/\D/g, "");
         const sinceNexus = new Date(Date.now() - 14 * 86400_000).toISOString();
-        const { data: nexusOutbound } = await sb.from("waouh_outbound_queue")
-          .select("id,to_phone,payload,created_at")
+        const { data: outreachRows } = await sb.from("waouh_outbound_queue")
+          .select("id,to_phone,payload,created_at,status")
           .eq("template", "nexus_discovery_outreach")
           .eq("to_phone", normalizedReplyPhone)
           .gte("created_at", sinceNexus)
           .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .in("status", ["sent", "delivered"])
+          .limit(50);
+
+        const replyJourneyIds = [...new Set((outreachRows ?? []).map((r: any) => r.payload?.journey_id).filter(Boolean))];
+        const { data: liveReplyJourneys } = replyJourneyIds.length ? await sb.from("waouh_opportunity_journeys")
+          .select("id,owner_id,stage").in("id", replyJourneyIds).not("stage", "in", '("completed","cancelled")') : { data: [] };
+        const liveIds = new Set((liveReplyJourneys ?? []).map((r: any) => r.id));
+        const candidates = (outreachRows ?? []).filter((r: any) => liveIds.has(r.payload?.journey_id));
+        if (classifyAvatarReply(text) === "stop" && (outreachRows ?? []).length) {
+          await revokeAvatarContacts(sb, (outreachRows ?? []).map((r: any) => r.payload?.contact_id).filter(Boolean));
+          for (const j of liveReplyJourneys ?? []) {
+            await sb.from("waouh_opportunity_journeys").update({ stage: "cancelled", last_action: "contact_opted_out", completed_at: new Date().toISOString() }).eq("id", j.id).in("stage", ["discovered", "enriching", "contact_ready", "contacting", "waiting_reply", "negotiating"]);
+            await avatarNotice(sb, j.owner_id, `avatar-optout:${j.id}`, "Ce contact a demandé l’arrêt des messages. Les relances sont arrêtées.", j);
+          }
+          return new Response(JSON.stringify({ ok: true, handled: "avatar_optout" }), { headers: { "Content-Type": "application/json" } });
+        }
+        const nexusOutbound = selectReplyJourney(candidates, String(text || "")) as any;
+        if (!nexusOutbound && candidates.length) {
+          for (const j of liveReplyJourneys ?? []) await avatarNotice(sb, j.owner_id,
+            `ambiguous-reply:${j.id}:${inboundMessageRef || new Date().toISOString().slice(0,10)}`,
+            "Une réponse concerne plusieurs missions possibles. Précisez la référence WA de l’échange avant de poursuivre.", { journey_id: j.id });
+          return new Response(JSON.stringify({ ok: true, handled: "avatar_reply_needs_reference" }), { headers: { "Content-Type": "application/json" } });
+        }
 
         const nexusPayload = nexusOutbound?.payload && typeof nexusOutbound.payload === "object"
           ? nexusOutbound.payload as Record<string, any>
@@ -540,7 +563,23 @@ serve(async (req) => {
             .limit(1)
             .maybeSingle();
 
-          if (signal && journey) {
+          if (signal && journey && !["negotiating", "agreed", "executing"].includes(journey.stage)) {
+            const disposition = classifyAvatarReply(text);
+            if (disposition !== "positive" && journey.stage !== "negotiating") {
+              const terminal = disposition === "negative" || disposition === "stop";
+              await sb.from("waouh_opportunity_journeys").update({
+                stage: terminal ? "cancelled" : "waiting_reply", last_response_at: new Date().toISOString(),
+                last_action: terminal ? "counterparty_declined" : "reply_needs_clarification",
+                last_message: terminal ? "La contrepartie ne souhaite pas poursuivre cette piste." : "Réponse reçue. Une précision est nécessaire avant de négocier.",
+                metadata: { ...journey.metadata, reply_disposition: disposition, reply_preview: String(text || "").slice(0,180) },
+                ...(terminal ? { completed_at: new Date().toISOString() } : {}),
+              }).eq("id", journey.id);
+              if (disposition === "stop" && nexusContactId) await sb.from("waouh_entity_contacts")
+                .update({ verification_status: "revoked", contactability_level: "C0", consent_state: "revoked" }).eq("id", nexusContactId);
+              await avatarNotice(sb, journey.owner_id, `avatar-reply:${journey.id}:${inboundMessageRef || disposition}`,
+                terminal ? "Cette piste a refusé. Avatar poursuit les autres opportunités autorisées." : "Réponse reçue : précisez les conditions dans votre parcours Avatar.", journey);
+              return new Response(JSON.stringify({ ok: true, handled: "avatar_reply", disposition }), { headers: { "Content-Type": "application/json" } });
+            }
             const replyAt = new Date().toISOString();
             if (nexusContactId) {
               try {
@@ -619,17 +658,6 @@ serve(async (req) => {
               last_verified_at: replyAt,
               updated_at: replyAt,
             }).eq("fabric_id", nexusFabricId);
-            if (signal.entity_id) {
-              await sb.from("waouh_entity_contacts")
-                .update({
-                  contactability_level: "C5",
-                  verified_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString(),
-                })
-                .eq("entity_id", signal.entity_id)
-                .in("channel", ["whatsapp","phone"]);
-            }
-
             let journeyArticleId: string | null = journey.article_id ?? null;
             let journeyThreadId: string | null = journey.thread_id ?? null;
             let journeyNegotiationId: string | null = journey.negotiation_id ?? null;
@@ -810,7 +838,7 @@ serve(async (req) => {
               "waouh_append_opportunity_journey_event",
               {
                 p_journey_id: journey.id,
-                p_stage: "negotiating",
+                p_stage: journeyThreadId ? "negotiating" : "contact_ready",
                 p_contactability_level: "C5",
                 p_progress: 68,
                 p_last_action: "counterparty_reply_received",

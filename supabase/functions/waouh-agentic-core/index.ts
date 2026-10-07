@@ -1,3 +1,4 @@
+import { followupDelayHours } from "../_shared/waouh-avatar-lifecycle.ts";
 import { releaseHeaders } from "../_shared/waouh-release.ts";
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import {
@@ -188,7 +189,7 @@ declare const EdgeRuntime: {
 function wakeOpportunityWorker(
   supabaseUrl: string,
   serviceKey: string,
-  mandateId: string,
+  mandateId: string | null,
 ) {
   const task = fetch(`${supabaseUrl}/functions/v1/waouh-opportunity-worker`, {
     method: "POST",
@@ -1551,6 +1552,7 @@ Deno.serve(async (req: Request) => {
           if (updateError) throw new ApiError(500, "mission_plan_link_failed", updateError.message);
           await audit(sb, ownerId, "mission.created", "mission", mission.id, { channel, locale }, mission.id);
           await enqueue(sb, ownerId, "mission.created", "mission", mission.id, { mission_id: mission.id }, `mission.created:${mission.id}`, mission.id);
+          wakeOpportunityWorker(supabaseUrl, serviceKey, null);
           return jsonResponse({ ok: true, data: { mission: updated } }, 201);
         } catch (error) {
           await sb.from("waouh_agent_missions").delete().eq("id", mission.id);
@@ -1596,6 +1598,10 @@ Deno.serve(async (req: Request) => {
           .update({ status: nextStatus, completed_at: nextStatus === "cancelled" ? new Date().toISOString() : null })
           .eq("id", missionId).eq("owner_id", ownerId).select("*").single();
         if (error) throw new ApiError(500, "mission_update_failed", error.message);
+        const { error: mandateError } = await sb.from("waouh_avatar_mandates").update({ status: nextStatus })
+          .eq("owner_id", ownerId).contains("metadata", { legacy_mission_id: missionId }).in("status", ["active", "paused"]);
+        if (mandateError) throw new ApiError(500, "mandate_sync_failed", mandateError.message);
+        if (nextStatus === "active") wakeOpportunityWorker(supabaseUrl, serviceKey, null);
         await audit(sb, ownerId, `mission.${nextStatus}`, "mission", missionId, {}, missionId);
         return jsonResponse({ ok: true, data: { mission: data } });
       }
@@ -1611,12 +1617,15 @@ Deno.serve(async (req: Request) => {
           last_error: null,
         }).eq("id", missionId).eq("owner_id", ownerId).select("*").single();
         if (error) throw new ApiError(500, "mission_run_failed", error.message);
+        await sb.from("waouh_avatar_mandates").update({ status: "active" }).eq("owner_id", ownerId)
+          .contains("metadata", { legacy_mission_id: missionId }).eq("status", "paused");
         const runId = crypto.randomUUID();
         await enqueue(sb, ownerId, "mission.run_requested", "mission", missionId, {
           mission_id: missionId,
           run_id: runId,
         }, `mission.run_requested:${missionId}:${runId}`, missionId);
         await audit(sb, ownerId, "mission.run_requested", "mission", missionId, { run_id: runId }, missionId);
+        wakeOpportunityWorker(supabaseUrl, serviceKey, null);
         return jsonResponse({ ok: true, data: { mission: data, run_id: runId } }, 202);
       }
 
@@ -2039,6 +2048,7 @@ Deno.serve(async (req: Request) => {
 
         await audit(sb, ownerId, `approval.${decision}`, "approval", approvalId, { action_type: approval.action_type }, approval.mission_id);
         await enqueue(sb, ownerId, `approval.${decision}`, "approval", approvalId, { approval_id: approvalId }, `approval.${decision}:${approvalId}`, approval.mission_id);
+        wakeOpportunityWorker(supabaseUrl, serviceKey, null);
         return jsonResponse({ ok: true, data: { approval: data } });
       }
 
@@ -2461,6 +2471,31 @@ Retourne uniquement JSON:
         return jsonResponse({ ok: true, data: refreshed });
       }
 
+      case "nexus.legacy.promote": {
+        const fabricId = asString(payload.fabric_id, "fabric_id", 5, 100);
+        const match = fabricId.match(/^(radar|legacy_external):([0-9a-f-]{36})$/i);
+        if (!match) throw new ApiError(422, "legacy_fabric_required");
+        const { data: f } = await sb.from("waouh_signal_fabric").select("*").eq("fabric_id", fabricId).maybeSingle();
+        if (!f) throw new ApiError(404, "signal_not_found");
+        const { data: raw } = await sb.from(match[1] === "radar" ? "waouh_radar_signals" : "waouh_external_listings")
+          .select("*").eq("id", match[2]).maybeSingle();
+        if (!raw) throw new ApiError(404, "signal_not_found");
+        const existing = await sb.from("waouh_external_commerce_signals").select("id").eq("source_key", "radar_ia").eq("source_external_id", fabricId).maybeSingle();
+        let canonicalId = existing.data?.id;
+        if (!canonicalId) {
+          const result = await ingestCommerceSignal(sb, ownerId, { source_key: "radar_ia", source_external_id: fabricId,
+            raw_text: f.raw_text || f.subject, product_name: f.subject, source_url: f.source_url,
+            city: f.city, category: f.category, price_min: f.price_min, price_max: f.price_max,
+            contact_phones: [raw.contact_phone || raw.seller_phone].filter(Boolean),
+            actor_name: raw.seller_name || null, contact_consent_basis: f.contactability_level === "C3" ? "opt_in" : "unknown",
+            evidence: { legacy_fabric_id: fabricId }, observed_at: f.observed_at,
+          }, { expectedIntent: f.intent });
+          canonicalId = result.signal.id;
+        }
+        const { data: canonical } = await sb.from("waouh_signal_fabric").select("*").eq("fabric_id", `external:${canonicalId}`).single();
+        return jsonResponse({ ok: true, data: { signal: canonical } });
+      }
+
       case "nexus.global_discovery": {
         const queryText = asString(payload.query, "query", 2, 1000);
         const requestedMode = pickEnum(
@@ -2593,6 +2628,35 @@ Retourne uniquement JSON:
         }});
       }
 
+      case "nexus.opportunity.bind_article": {
+        const journeyId = uuid(payload.journey_id, "journey_id");
+        const articleId = uuid(payload.article_id, "article_id");
+        const { data: journey } = await sb.from("waouh_opportunity_journeys").select("*").eq("id", journeyId).eq("owner_id", ownerId).single();
+        if (!journey || journey.mode !== "sell" || journey.last_action !== "article_selection_required") throw new ApiError(409, "article_selection_not_pending");
+        const article = await ownedArticle(sb, ownerId, articleId);
+        if (article.status !== "active") throw new ApiError(409, "article_unavailable");
+        const { data: approvals } = await sb.from("waouh_agent_approvals").select("id,context").eq("status", "approved")
+          .contains("context", { from_auth_user: ownerId, fabric_id: journey.fabric_id });
+        if (!approvals?.length) throw new ApiError(409, "counterparty_approval_required");
+        await sb.from("waouh_opportunity_journeys").update({ article_id: articleId }).eq("id", journeyId);
+        for (const approval of approvals) {
+          const context = { ...approval.context, article_id: articleId, journey_id: journeyId };
+          delete context.lifecycle_processed_at;
+          await sb.from("waouh_agent_approvals").update({ context }).eq("id", approval.id);
+        }
+        wakeOpportunityWorker(supabaseUrl, serviceKey, null);
+        return jsonResponse({ ok: true, data: { queued: true } });
+      }
+
+      case "nexus.owned_articles": {
+        const { data: users, error: identityError } = await sb.from("waouh_users").select("id").eq("auth_user_id", ownerId);
+        if (identityError) throw new ApiError(500, "identity_lookup_failed");
+        const ids = (users ?? []).map((row: any) => row.id);
+        if (!ids.length) return jsonResponse({ ok: true, data: { articles: [] } });
+        const { data, error } = await sb.from("waouh_articles").select("id,title,price,city").in("seller_id", ids).eq("status", "active").order("updated_at", { ascending: false }).limit(100);
+        if (error) throw new ApiError(500, "owned_articles_failed");
+        return jsonResponse({ ok: true, data: { articles: data ?? [] } });
+      }
       case "nexus.mandate.create": {
         const mode = pickEnum(payload.mode, "mode", ["buy","sell","ask"] as const, "buy");
         const autonomyMode = pickEnum(
@@ -2606,11 +2670,12 @@ Retourne uniquement JSON:
         const budgetMax = positiveNumber(payload.budget_max, "budget_max", true);
         const maxContacts = integer(payload.max_contacts, "max_contacts", 3, 1, 20);
         const maxFollowups = integer(payload.max_followups, "max_followups", 1, 0, 5);
-        const durationHours = integer(payload.duration_hours, "duration_hours", 24, 1, 720);
+        const durationHours = integer(payload.duration_hours, "duration_hours", 72, 1, 720);
         const minMatchScore = Math.max(0, Math.min(100, Number(payload.min_match_score ?? 70)));
         const minActionabilityScore = Math.max(0, Math.min(100, Number(payload.min_actionability_score ?? 65)));
         const requestKey = optionalString(payload.request_key, "request_key", 240);
         const mandateArticleId = payload.article_id ? uuid(payload.article_id, "article_id") : null;
+        if (mode === "sell" && !mandateArticleId) throw new ApiError(422, "sell_article_required", "Sélectionnez l’article à vendre avant de confier la mission.");
         if (mandateArticleId) {
           if (mode !== "sell") throw new ApiError(422, "article_id_requires_sell_mode");
           await ownedArticle(sb, ownerId, mandateArticleId);
@@ -2668,6 +2733,10 @@ Retourne uniquement JSON:
             metadata: {
               origin_surface: optionalString(payload.origin_surface, "origin_surface", 80),
               user_confirmed_mandate: true,
+              followup_hours: followupDelayHours(durationHours, maxFollowups),
+              max_negotiation_rounds: integer(payload.max_negotiation_rounds, "max_negotiation_rounds", 3, 0, 5),
+              price_floor: positiveNumber(payload.price_floor, "price_floor", true),
+              completion_goal: pickEnum(payload.completion_goal, "completion_goal", ["transaction", "agreement", "recommendations"] as const, mode === "ask" ? "recommendations" : "transaction"),
               request_key: requestKey,
               article_id: mandateArticleId,
             },

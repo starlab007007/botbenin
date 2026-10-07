@@ -42,6 +42,12 @@ on:
       - "src/lib/waouh/agenticContracts.ts"
       - "src/pages/waouh/WaouhMusePage.tsx"
       - "supabase/migrations/*waouh_native_messaging*.sql"
+      - "supabase/functions/_shared/waouh-avatar*"
+      - "supabase/functions/waouh-opportunity-worker/**"
+      - "supabase/functions/waouh-waha-sync-contacts/**"
+      - "supabase/functions/waouh-negotiation-router/**"
+      - "supabase/functions/waouh-deal-ops/**"
+      - "supabase/migrations/*waouh_avatar*.sql"
       - "src/App.tsx"
       - "src/hooks/useAdminRole.ts"
       - "src/lib/waouh/nativeMessagingSettings.ts"
@@ -93,6 +99,12 @@ on:
       - "src/lib/waouh/agenticContracts.ts"
       - "src/pages/waouh/WaouhMusePage.tsx"
       - "supabase/migrations/*waouh_native_messaging*.sql"
+      - "supabase/functions/_shared/waouh-avatar*"
+      - "supabase/functions/waouh-opportunity-worker/**"
+      - "supabase/functions/waouh-waha-sync-contacts/**"
+      - "supabase/functions/waouh-negotiation-router/**"
+      - "supabase/functions/waouh-deal-ops/**"
+      - "supabase/migrations/*waouh_avatar*.sql"
       - "src/App.tsx"
       - "src/hooks/useAdminRole.ts"
       - "src/lib/waouh/nativeMessagingSettings.ts"
@@ -252,6 +264,10 @@ jobs:
           )
           entrypoints+=(supabase/functions/waouh-webhook/index.ts)
           entrypoints+=(supabase/functions/waouh-agentic-core/index.ts)
+          entrypoints+=(supabase/functions/waouh-opportunity-worker/index.ts)
+          entrypoints+=(supabase/functions/waouh-waha-sync-contacts/index.ts)
+          entrypoints+=(supabase/functions/waouh-negotiation-router/index.ts)
+          entrypoints+=(supabase/functions/waouh-deal-ops/index.ts)
           entrypoints+=(supabase/functions/waha-connect/index.ts)
           entrypoints+=(supabase/functions/waha-session-mobile/index.ts)
           entrypoints+=(supabase/functions/waha-dashboard-proxy/index.ts)
@@ -277,6 +293,8 @@ jobs:
 
       - name: Test WAOUH NEXUS ranking contracts
         run: |
+          deno test --no-config supabase/functions/_shared/waouh-avatar-lifecycle-test.ts
+          deno test --no-config supabase/functions/_shared/waouh-opportunity-os-test.ts
           deno test --no-config supabase/functions/_shared/waouh-nexus-test.ts
           deno test --no-config supabase/functions/_shared/waouh-signal-fabric-test.ts
 
@@ -325,7 +343,7 @@ jobs:
           import sys
           from pglast import parse_sql
 
-          migrations = sorted(set(Path('supabase/migrations').glob('*waouh_native_messaging*.sql')) | set(Path('supabase/migrations').glob('*waouh_agentic_core*.sql')) | set(Path('supabase/migrations').glob('*waouh_nexus*.sql')) | set(Path('supabase/migrations').glob('*secure_waouh_sessions_and_media*.sql')) | set(Path('supabase/migrations').glob('*waouh_runtime_auth_and_radar_cron_hardening*.sql')))
+          migrations = sorted(set(Path('supabase/migrations').glob('*waouh_avatar*.sql')) | set(Path('supabase/migrations').glob('*waouh_native_messaging*.sql')) | set(Path('supabase/migrations').glob('*waouh_agentic_core*.sql')) | set(Path('supabase/migrations').glob('*waouh_nexus*.sql')) | set(Path('supabase/migrations').glob('*secure_waouh_sessions_and_media*.sql')) | set(Path('supabase/migrations').glob('*waouh_runtime_auth_and_radar_cron_hardening*.sql')))
           if not migrations:
               print('::error::Migrations WAOUH Muse/Native Messaging introuvables.')
               sys.exit(1)
@@ -530,6 +548,10 @@ jobs:
             --use-api
 
           secured_legacy=(
+            waouh-opportunity-worker
+            waouh-waha-sync-contacts
+            waouh-negotiation-router
+            waouh-deal-ops
             waha-connect
             waha-dashboard-proxy
             waha-manage-contact
