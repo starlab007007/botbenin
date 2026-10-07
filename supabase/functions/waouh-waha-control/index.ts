@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
+import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,15 +33,9 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    // Auth: require admin
-    const auth = req.headers.get("Authorization");
-    if (!auth) return json({ error: "Unauthorized" }, 401);
-    const sb = createClient(SUPABASE_URL, ANON, { global: { headers: { Authorization: auth } } });
-    const { data: claims } = await sb.auth.getClaims(auth.replace("Bearer ", ""));
-    if (!claims?.claims?.sub) return json({ error: "Unauthorized" }, 401);
-    const { data: isAdmin, error: adminErr } = await sb.rpc("is_admin", { user_uuid: claims.claims.sub });
-    if (adminErr) console.error("is_admin rpc error", adminErr);
-    if (!isAdmin) return json({ error: "Forbidden", details: adminErr?.message }, 403);
+    const service = createClient(SUPABASE_URL, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const guard = await requireRuntimeOrAdmin(req, service);
+    if (!guard.ok) return guard.response;
 
     if (!WAHA_BASE_URL) return json({ error: "WAHA_BASE_URL secret missing" }, 500);
     const base = WAHA_BASE_URL.replace(/\/$/, "");
@@ -103,6 +98,9 @@ serve(async (req) => {
         }
         break;
       }
+      case "session-restart":
+        res = await fetchWaha(base, `/api/sessions/${encodeURIComponent(session)}/restart`, { method: "POST" }, headers);
+        break;
       case "session-stop":
         res = await fetchWaha(base, `/api/sessions/${session}/stop`, { method: "POST" }, headers);
         break;

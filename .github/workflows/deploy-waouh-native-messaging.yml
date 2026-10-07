@@ -45,6 +45,7 @@ on:
       - "supabase/functions/_shared/waouh-avatar*"
       - "supabase/functions/waouh-opportunity-worker/**"
       - "supabase/functions/waouh-waha-sync-contacts/**"
+      - "supabase/functions/waouh-waha-control/**"
       - "supabase/functions/waouh-negotiation-router/**"
       - "supabase/functions/waouh-deal-ops/**"
       - "supabase/migrations/*waouh_avatar*.sql"
@@ -102,6 +103,7 @@ on:
       - "supabase/functions/_shared/waouh-avatar*"
       - "supabase/functions/waouh-opportunity-worker/**"
       - "supabase/functions/waouh-waha-sync-contacts/**"
+      - "supabase/functions/waouh-waha-control/**"
       - "supabase/functions/waouh-negotiation-router/**"
       - "supabase/functions/waouh-deal-ops/**"
       - "supabase/migrations/*waouh_avatar*.sql"
@@ -266,6 +268,7 @@ jobs:
           entrypoints+=(supabase/functions/waouh-agentic-core/index.ts)
           entrypoints+=(supabase/functions/waouh-opportunity-worker/index.ts)
           entrypoints+=(supabase/functions/waouh-waha-sync-contacts/index.ts)
+          entrypoints+=(supabase/functions/waouh-waha-control/index.ts)
           entrypoints+=(supabase/functions/waouh-negotiation-router/index.ts)
           entrypoints+=(supabase/functions/waouh-deal-ops/index.ts)
           entrypoints+=(supabase/functions/waha-connect/index.ts)
@@ -550,6 +553,7 @@ jobs:
           secured_legacy=(
             waouh-opportunity-worker
             waouh-waha-sync-contacts
+            waouh-waha-control
             waouh-negotiation-router
             waouh-deal-ops
             waha-connect

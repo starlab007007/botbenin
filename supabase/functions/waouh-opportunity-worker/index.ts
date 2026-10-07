@@ -1,3 +1,4 @@
+import { maintainAvatarQueues } from "../_shared/waouh-avatar-maintenance.ts";
 import { followupDelayHours, withinMandateBudget, journeyReplyToken } from "../_shared/waouh-avatar-lifecycle.ts";
 import { advanceAvatarLifecycle, finishLegacySearch, requestAvatarApproval, avatarNotice } from "../_shared/waouh-avatar-orchestrator.ts";
 import { releaseHeaders } from "../_shared/waouh-release.ts";
@@ -1202,6 +1203,7 @@ Deno.serve(async (req) => {
   const now = new Date();
   const { error: bridgeError } = await sb.rpc("waouh_avatar_bridge_missions", { p_limit: 20 });
   if (bridgeError) throw bridgeError;
+  const maintenance = await maintainAvatarQueues(sb);
   const lifecycle = await advanceAvatarLifecycle(sb, 15);
   const { data: expired } = await sb.from("waouh_avatar_mandates").update({ status: "expired" })
     .eq("status", "active").is("metadata->agreement_reached_at", null).lt("expires_at", now.toISOString()).select("id,owner_id,contacted_count,replied_count");
@@ -1371,7 +1373,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({ limit: Math.min(100, Math.max(20, (result.contacted + followups.sent) * 3)) }),
     }).catch(() => {});
   }
-  return json({ ok: true, ...result, followups, lifecycle });
+  return json({ ok: true, ...result, followups, lifecycle, maintenance });
   } finally {
     await sb.rpc("waouh_avatar_release_worker", { p_token: lease });
   }
