@@ -2539,6 +2539,11 @@ Retourne uniquement JSON:
         const minMatchScore = Math.max(0, Math.min(100, Number(payload.min_match_score ?? 70)));
         const minActionabilityScore = Math.max(0, Math.min(100, Number(payload.min_actionability_score ?? 65)));
         const requestKey = optionalString(payload.request_key, "request_key", 240);
+        const mandateArticleId = payload.article_id ? uuid(payload.article_id, "article_id") : null;
+        if (mandateArticleId) {
+          if (mode !== "sell") throw new ApiError(422, "article_id_requires_sell_mode");
+          await ownedArticle(sb, ownerId, mandateArticleId);
+        }
 
         if (requestKey) {
           const { data: existingMandate, error: existingMandateError } = await sb
@@ -2593,6 +2598,7 @@ Retourne uniquement JSON:
               origin_surface: optionalString(payload.origin_surface, "origin_surface", 80),
               user_confirmed_mandate: true,
               request_key: requestKey,
+              article_id: mandateArticleId,
             },
           }).select("*").single(),
           "nexus_mandate_create_failed",
@@ -2654,6 +2660,7 @@ Retourne uniquement JSON:
               last_external_refresh_at: new Date().toISOString(),
               last_external_refresh_status: initialRefresh.error ? "partial" : "ok",
               initial_refresh: initialRefresh,
+              article_id: mandateArticleId,
             },
           }).select("*").single(),
           "nexus_persistent_intent_create_failed",
@@ -2680,6 +2687,7 @@ Retourne uniquement JSON:
             subject: row.subject ?? null,
             city: row.city ?? null,
             mandateId: mandate.id,
+            articleId: mandateArticleId,
             contactPack: row.contact_pack ?? null,
             metadata: {
               persistent_intent_id: intent.id,
@@ -2719,6 +2727,7 @@ Retourne uniquement JSON:
             duration_hours: durationHours,
             actionable_count: actionable.length,
             origin_surface: optionalString(payload.origin_surface, "origin_surface", 80),
+            article_id: mandateArticleId,
           },
         });
         wakeOpportunityWorker(supabaseUrl, serviceKey, mandate.id);
@@ -2768,6 +2777,11 @@ Retourne uniquement JSON:
         );
         if (mandate.status !== "active") throw new ApiError(409, "mandate_not_active");
         const discoveryMode: DiscoveryMode = mandate.mode === "sell" ? "find_buyers" : "find_sellers";
+        const mandateArticleId = mandate.mode === "sell" &&
+          mandate.metadata && typeof mandate.metadata === "object" &&
+          typeof mandate.metadata.article_id === "string"
+          ? mandate.metadata.article_id
+          : null;
         const results = await globalDiscoverySearch(sb, {
           query: mandate.normalized_query || mandate.goal,
           mode: discoveryMode,
@@ -2789,6 +2803,7 @@ Retourne uniquement JSON:
             subject: row.subject ?? null,
             city: row.city ?? null,
             mandateId: mandate.id,
+            articleId: mandateArticleId,
             contactPack: row.contact_pack ?? null,
             metadata: {
               match_score: row.scores?.total_score ?? null,
