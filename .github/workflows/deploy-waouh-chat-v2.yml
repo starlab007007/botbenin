@@ -49,6 +49,7 @@ on:
       - "supabase/functions/_shared/waouh-price.ts"
       - "supabase/functions/_shared/waouh-admin-contact-hub.ts"
       - "supabase/functions/waouh-admin-stats/**"
+      - "supabase/functions/waouh-waha-sync-contacts/**"
       - "supabase/functions/waouh-notify-buyers/**"
       - "supabase/functions/waouh-geocode/**"
       - "supabase/functions/waouh-radar-apify/**"
@@ -395,6 +396,7 @@ jobs:
             waouh-stock-analyze
             waouh-bi-query
             waouh-agent-insights
+            waouh-waha-sync-contacts
           )
           for fn in "${functions[@]}"; do
             echo "🚀 Deploying $fn"
