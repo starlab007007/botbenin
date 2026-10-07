@@ -1,14 +1,12 @@
 /**
  * Production web test rollout marker: Native SMS/RCS + WAOUH Muse.
- * Temporary production aliases used while the Supabase project is at its
- * Edge Function quota. Each alias points to the newly validated WAOUH code
- * deployed over an unused legacy/test function slot.
- *
- * Remove these aliases once dedicated function slots are available again.
+ * Runtime endpoints used by the Web client.
+ * Agentic Core still uses its validated production alias; Opportunity Worker
+ * now has a dedicated production slug and must never fall back to an E2E stub.
  */
 export const WAOUH_RUNTIME_ENDPOINTS = {
   agenticCore: "waouh-studio-e2e-v21465",
-  opportunityWorker: "waouh-e2e-v3-relay",
+  opportunityWorker: "waouh-opportunity-worker",
   nativeMessagingSettings: "waouh-bots-backend-health-v1",
   nativeOpenMessages: "waouh-chat-health",
   nativeSimulator: "chat-webhook",
