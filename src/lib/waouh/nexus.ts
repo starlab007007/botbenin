@@ -675,6 +675,7 @@ export async function getNexusContactPack(fabricId: string) {
 export async function createNexusMandate(payload: {
   mode: "buy" | "sell" | "ask";
   goal: string;
+  article_id?: string;
   autonomy_mode?: "assisted" | "semi_autonomous" | "autonomous";
   city?: string;
   budget_max?: number;
