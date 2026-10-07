@@ -312,6 +312,18 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
     const contacts = new Map<string, ContactCandidate>();
     const evidence = row.evidence || {};
     const rowLevel = String(row.contactability_level || "C0").toUpperCase();
+    const sourceKey = String(row.source_key || "");
+    const sourceFamily = String(row.source_family || "").toLowerCase();
+    const sourceIsPartner = sourceKey === "partner" || sourceFamily === "partner";
+    const sourceIsPublicBusiness =
+      sourceIsPartner ||
+      ["maps", "directory", "b2b"].includes(sourceFamily) ||
+      ["google_places", "benin_directory", "facebook_business", "instagram_business", "b2b_rfq"].includes(sourceKey);
+    const sourceConsent = sourceIsPartner
+      ? "partner_contract"
+      : sourceIsPublicBusiness
+        ? "public_business"
+        : null;
 
     const externalId = prefixedUuid(row.fabric_id, "external:");
     const external = externalId ? externalMap.get(externalId) : null;
@@ -350,7 +362,7 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
       if (catalog.vendeur_phone) addCandidate(contacts, {
         channel: "phone", value: catalog.vendeur_phone, source: row.source_key,
         origin_kind: "catalog", origin_id: catalog.id, contactability_level: rowLevel,
-        verification_status: "observed", label: catalog.vendeur_nom,
+        verification_status: "observed", consent_state: "initiated", label: catalog.vendeur_nom,
       });
     }
 
@@ -404,7 +416,8 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
     if (radar?.contact_phone) addCandidate(contacts, {
       channel: "phone", value: radar.contact_phone, source: row.source_key,
       origin_kind: "radar_signal", origin_id: radar.id, contactability_level: rowLevel,
-      verification_status: "observed", label: radar.contact_handle,
+      verification_status: "observed", consent_state: sourceConsent,
+      public_business: sourceIsPublicBusiness, label: radar.contact_handle,
     });
     if (radar?.contact_handle) addCandidate(contacts, {
       channel: "social", value: radar.contact_handle, source: row.source_key,
@@ -435,6 +448,8 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
         origin_id: row.source_record_id || null,
         contactability_level: rowLevel,
         verification_status: "observed",
+        consent_state: sourceConsent,
+        public_business: sourceIsPublicBusiness,
       });
     }
 
@@ -445,6 +460,7 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
       channel: "phone", value: e164, source: row.source_key,
       origin_kind: "raw_text", origin_id: row.source_record_id || null,
       contactability_level: rowLevel, verification_status: "unknown",
+      consent_state: sourceConsent, public_business: sourceIsPublicBusiness,
     });
 
     const list = [...contacts.values()].sort((a, b) => {
@@ -1181,7 +1197,6 @@ export async function handleAdminContactHub(
         fabric_id: fabricId || null,
         contact_id: contact.contact_id || contactId || null,
         source_key: row.source_key,
-        contact_id: contact.contact_id,
         admin_user_id: user.id,
         admin_contact_hub: true,
         waha_verified: true,
