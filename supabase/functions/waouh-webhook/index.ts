@@ -751,6 +751,59 @@ serve(async (req) => {
                   }
                 }
               }
+            } else if (
+              ["BUY","RFQ"].includes(String(signal.intent || "").toUpperCase()) &&
+              journeyArticleId
+            ) {
+              // Mirror path for a seller mandate: the external buyer replied to
+              // an Avatar outreach. Materialize a mediated buyer identity, then
+              // reuse the canonical buyer-interest writer on the seller's
+              // explicitly selected article.
+              let externalBuyer: any = null;
+              const { data: knownBuyer } = await sb.from("waouh_users")
+                .select("*").eq("phone_number", normalizedReplyPhone)
+                .order("updated_at", { ascending: false })
+                .limit(1).maybeSingle();
+              externalBuyer = knownBuyer;
+              if (!externalBuyer) {
+                const { data: createdBuyer } = await sb.from("waouh_users").insert({
+                  phone_number: normalizedReplyPhone,
+                  display_name: signal.actor_name || signal.actor_handle || "Acheteur NEXUS",
+                  city: signal.city || null,
+                  country: signal.country_code || "BJ",
+                  channel: "whatsapp",
+                  is_verified: false,
+                }).select("*").single();
+                externalBuyer = createdBuyer;
+              }
+
+              if (externalBuyer?.id) {
+                const response = await fetch(`${SUPABASE_URL}/functions/v1/waouh-buyer-interest`, {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${SERVICE_ROLE}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    article_id: journeyArticleId,
+                    buyer_user_id: externalBuyer.id,
+                    source: "avatar_external_buyer_reply",
+                  }),
+                });
+                const dealRoom = await response.json().catch(() => ({}));
+                if (response.ok && !dealRoom?.error && dealRoom?.thread_id) {
+                  journeyArticleId = String(dealRoom.article_id || journeyArticleId);
+                  journeyThreadId = String(dealRoom.thread_id);
+                  journeyNegotiationId = typeof dealRoom.negotiation_id === "string"
+                    ? dealRoom.negotiation_id
+                    : null;
+                } else {
+                  console.warn("[nexus-opportunity-reply] external buyer Deal Room materialization failed", {
+                    status: response.status,
+                    error: dealRoom?.error || null,
+                  });
+                }
+              }
             }
 
             const { data: advancedJourney } = await sb.rpc(
