@@ -995,9 +995,19 @@ class LiveNexusService {
           'mandate_id': mandateId.trim(),
       });
 
+  Future<List<Map<String, dynamic>>> sellerArticles() async {
+    final data = await _invoke('nexus.seller_opportunities');
+    return _list(data['articles'])
+        .whereType<Map>()
+        .map((group) => _map(group['article']))
+        .where((article) => _text(article['id']).isNotEmpty)
+        .toList(growable: false);
+  }
+
   Future<Map<String, dynamic>> createMandate({
     required String mode,
     required String goal,
+    String? articleId,
     String autonomyMode = 'semi_autonomous',
     String? city,
     double? budgetMax,
@@ -1010,6 +1020,8 @@ class LiveNexusService {
       _invoke('nexus.mandate.create', {
         'mode': mode,
         'goal': goal.trim(),
+        if (articleId != null && articleId.trim().isNotEmpty)
+          'article_id': articleId.trim(),
         'autonomy_mode': autonomyMode,
         if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
         if (budgetMax != null) 'budget_max': budgetMax,
