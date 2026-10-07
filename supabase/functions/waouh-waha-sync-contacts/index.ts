@@ -24,6 +24,7 @@ async function materializeWahaDirectoryContacts(
   supabase: any,
   rows: any[],
   session: string,
+  fresh = true,
 ) {
   const now = new Date().toISOString();
   const unique = new Map<string, { e164: string; hash: string; name: string | null }>();
@@ -94,7 +95,7 @@ async function materializeWahaDirectoryContacts(
       primary_name: row.name,
       canonical_key: 'phone:' + row.hash,
       country_code: 'BJ',
-      verification_state: 'source_verified',
+      verification_state: fresh ? 'source_verified' : 'unverified',
       trust_score: 50,
       source_keys: ['waha_directory'],
       metadata: {
@@ -122,7 +123,7 @@ async function materializeWahaDirectoryContacts(
   }
 
   let contactsVerified = 0;
-  for (let i = 0; i < hashes.length; i += 100) {
+  for (let i = 0; fresh && i < hashes.length; i += 100) {
     const { data, error } = await supabase
       .from('waouh_entity_contacts')
       .update({
@@ -153,14 +154,15 @@ async function materializeWahaDirectoryContacts(
       is_public_business: false,
       consent_state: revokedHashes.has(row.hash) ? 'revoked' : 'unknown',
       contactability_level: 'C0',
-      verified_at: now,
-      verification_status: revokedHashes.has(row.hash) ? 'revoked' : 'reachable',
-      is_whatsapp_reachable: !revokedHashes.has(row.hash),
+      verified_at: fresh ? now : null,
+      verification_status: revokedHashes.has(row.hash) ? 'revoked' : fresh ? 'reachable' : 'unknown',
+      is_whatsapp_reachable: revokedHashes.has(row.hash) ? false : fresh ? true : null,
       metrics: {
         materialized_from: 'waouh-waha-sync-contacts',
         waha_session: session,
         waha_directory: true,
-        last_waha_sync_at: now,
+        last_waha_sync_at: fresh ? now : null,
+        cached_directory_import: !fresh,
       },
       updated_at: now,
     });
@@ -195,6 +197,18 @@ Deno.serve(async (req) => {
   if (!guard.ok) return guard.response;
 
   const body = await req.json().catch(() => ({}));
+  if (body.import_cached === true) {
+    const cached: any[] = [];
+    for (let offset = 0; offset < 10000; offset += 1000) {
+      const { data, error } = await supabase.from('waouh_lid_phone_map').select('phone_e164,phone,display_name').range(offset, offset + 999);
+      if (error) return json({ ok: false, error: error.message }, 500);
+      cached.push(...(data ?? []));
+      if ((data ?? []).length < 1000) break;
+    }
+    const result = await materializeWahaDirectoryContacts(supabase, cached, 'historical_directory', false);
+    return json({ ok: true, mode: 'cached_import_not_live_verification', ...result });
+  }
+
   const backfill = body.backfill !== false;
   const maxSessions = Math.max(1, Math.min(Number(body.maxSessions || 1), 3));
   // WAHA currently exposes >1,700 contacts on the canonical session.
@@ -268,7 +282,7 @@ Deno.serve(async (req) => {
 
     if (sessionsToUse.length === 0) {
       await supabase.from('waouh_lid_sync_runs').update({
-        status: 'success', contacts_fetched: 0, contacts_mapped: 0, rows_backfilled: 0,
+        status: perSession.every((s: any) => s.ok) ? 'success' : 'failed', contacts_fetched: 0, contacts_mapped: 0, rows_backfilled: 0,
         error: 'Aucune session WAHA active (WORKING). Veuillez scanner le QR-code dans WAHA pour activer au moins une session.',
         finished_at: new Date().toISOString(),
       }).eq('id', runId);
@@ -412,7 +426,7 @@ Deno.serve(async (req) => {
     const hasMore = !requestedSessions && startIndex + sessionsToUse.length < totalWorkingSessions;
     const nextCursor = hasMore ? sessionsToUse[sessionsToUse.length - 1] : null;
     return json({
-      ok: true,
+      ok: perSession.every((s: any) => s.ok),
       sessions: sessionsToUse,
       fetched: totalFetched,
       mapped: totalMapped,
