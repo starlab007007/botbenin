@@ -1,3 +1,5 @@
+import { classifyAvatarReply, selectReplyJourney } from "../waouh-avatar-lifecycle.ts";
+import { avatarNotice, revokeAvatarContacts, openAvatarReplyRoom } from "../waouh-avatar-orchestrator.ts";
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import { auditTel } from "./config.ts";
 import { decryptSensitiveJson } from "./crypto.ts";
@@ -51,7 +53,7 @@ async function captureOpportunityReply(
 ) {
   try {
     const since = new Date(Date.now() - 14 * 86_400_000).toISOString();
-    const { data: contactEvent, error: contactEventError } = await admin
+    const { data: contactEvents, error: contactEventError } = await admin
       .from("waouh_conversation_bus_events")
       .select("*")
       .in("event_type", ["autonomy.native_contact_queued", "autonomy.native_followup_queued"])
@@ -59,14 +61,46 @@ async function captureOpportunityReply(
       .contains("payload", { native_tel_user_id: telUser.id })
       .gte("created_at", since)
       .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(50);
+    if (contactEventError) throw contactEventError;
+    const ids = [...new Set((contactEvents ?? []).map((r: any) => r.journey_id).filter(Boolean))];
+    if (!ids.length) return false;
+    const { data: live } = await admin.from("waouh_opportunity_journeys").select("id,owner_id,stage").in("id", ids).not("stage", "in", '("completed","cancelled")');
+    if (classifyAvatarReply(event.text) === "stop") {
+      await revokeAvatarContacts(admin, (contactEvents ?? []).map((r: any) => r.payload?.contact_id).filter(Boolean));
+      for (const j of live ?? []) {
+        await admin.from("waouh_opportunity_journeys").update({ stage: "cancelled", last_action: "contact_opted_out", completed_at: new Date().toISOString() }).eq("id", j.id).in("stage", ["contact_ready", "contacting", "waiting_reply", "negotiating"]);
+        await avatarNotice(admin, j.owner_id, `native-optout:${inbound.id}:${j.id}`, "Le contact a demandé l’arrêt des messages.", j);
+      }
+      return true;
+    }
+    const liveIds = new Set((live ?? []).map((j: any) => j.id));
+    const candidates = (contactEvents ?? []).filter((r: any) => liveIds.has(r.journey_id)).map((row: any) => ({ ...row, payload: { ...row.payload, journey_id: row.journey_id } }));
+    const contactEvent: any = selectReplyJourney(candidates, String(event.text || ""));
+    if (!contactEvent && candidates.length) {
+      for (const j of live ?? []) await avatarNotice(admin, j.owner_id, `native-ambiguous:${inbound.id}:${j.id}`, "La réponse concerne plusieurs missions. Précisez la référence WA de l’échange.", j);
+      return true;
+    }
     if (contactEventError || !contactEvent?.journey_id || !contactEvent?.owner_id) return false;
 
     const { data: journey } = await admin.from("waouh_opportunity_journeys")
       .select("*").eq("id", contactEvent.journey_id).maybeSingle();
     if (!journey || ["completed","cancelled"].includes(String(journey.stage || ""))) return false;
 
+    if (["negotiating", "agreed", "executing"].includes(journey.stage)) return false;
+    const disposition = classifyAvatarReply(event.text);
+    if (disposition !== "positive") {
+      const terminal = disposition === "negative" || disposition === "stop";
+      await admin.from("waouh_opportunity_journeys").update({ stage: terminal ? "cancelled" : "waiting_reply",
+        last_action: terminal ? "counterparty_declined" : "reply_needs_clarification",
+        last_message: terminal ? "La contrepartie a refusé cette piste." : "Réponse reçue, précision nécessaire.",
+        ...(terminal ? { completed_at: new Date().toISOString() } : {}),
+      }).eq("id", journey.id);
+      await avatarNotice(admin, journey.owner_id, `native-disposition:${inbound.id}`, terminal ? "Cette piste ne souhaite pas poursuivre." : "Avatar attend une précision sur la réponse reçue.", journey);
+      return true;
+    }
+    const room = await openAvatarReplyRoom(admin, journey, event.sender, event.channel);
+    journey.thread_id = room.threadId; journey.article_id = room.articleId; journey.negotiation_id = room.negotiationId;
     const replyAt = new Date().toISOString();
     const replyPreview = String(event.text || "").trim().slice(0, 180);
     const payload = contactEvent.payload && typeof contactEvent.payload === "object"
@@ -97,7 +131,7 @@ async function captureOpportunityReply(
     });
 
     await admin.from("waouh_opportunity_journeys").update({
-      stage: "negotiating",
+      stage: journey.thread_id ? "negotiating" : "contact_ready",
       contactability_level: "C5",
       readiness_level: "R5",
       readiness_score: 100,
@@ -183,7 +217,7 @@ async function captureOpportunityReply(
           fabric_id: contactEvent.fabric_id ?? journey.fabric_id ?? null,
           journey_id: journey.id,
           mandate_id: mandateId,
-          workflow_state: "negotiating",
+          workflow_state: journey.thread_id ? "negotiating" : "contact_ready",
           contactability_level: "C5",
           readiness_level: "R5",
           next_best_action: "NEGOTIATE",

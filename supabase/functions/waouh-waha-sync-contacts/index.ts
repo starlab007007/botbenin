@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { encryptPhone, hashPhone } from '../_shared/waouh-tel/crypto.ts';
+import { requireRuntimeOrAdmin } from '../_shared/waouh-runtime-auth.ts';
 import { phoneLast4 } from '../_shared/waouh-tel/phone.ts';
 
 const corsHeaders = {
@@ -56,6 +57,7 @@ async function materializeWahaDirectoryContacts(
     existingContacts.push(...(data || []));
   }
 
+  const revokedHashes = new Set(existingContacts.filter(c => c.consent_state === "revoked").map(c => c.value_hash));
   const entityByHash = new Map<string, string>();
   const whatsappExisting = new Set<string>();
   for (const contact of existingContacts) {
@@ -129,7 +131,8 @@ async function materializeWahaDirectoryContacts(
         verified_at: now,
         updated_at: now,
       })
-      .in('value_hash', hashes.slice(i, i + 100))
+      .in('value_hash', hashes.slice(i, i + 100).filter(hash => !revokedHashes.has(hash)))
+      .in('channel', ['phone', 'whatsapp'])
       .select('id');
     if (error) throw error;
     contactsVerified += (data || []).length;
@@ -148,11 +151,11 @@ async function materializeWahaDirectoryContacts(
       public_value: null,
       source_key: 'waha_directory',
       is_public_business: false,
-      consent_state: 'unknown',
+      consent_state: revokedHashes.has(row.hash) ? 'revoked' : 'unknown',
       contactability_level: 'C0',
       verified_at: now,
-      verification_status: 'reachable',
-      is_whatsapp_reachable: true,
+      verification_status: revokedHashes.has(row.hash) ? 'revoked' : 'reachable',
+      is_whatsapp_reachable: !revokedHashes.has(row.hash),
       metrics: {
         materialized_from: 'waouh-waha-sync-contacts',
         waha_session: session,
@@ -188,29 +191,8 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
-  // Auth + admin check
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader) return json({ error: 'Unauthorized' }, 401);
-  const userClient = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_ANON_KEY')!,
-    { global: { headers: { Authorization: authHeader } } },
-  );
-  const { data: userData } = await userClient.auth.getUser();
-  if (!userData?.user) return json({ error: 'Unauthorized' }, 401);
-  const { data: isAdmin, error: adminRoleError } = await supabase.rpc('has_role', {
-    _user_id: userData.user.id,
-    _role_name: 'admin',
-  });
-  const { data: isSuperAdmin, error: superAdminRoleError } = await supabase.rpc('has_role', {
-    _user_id: userData.user.id,
-    _role_name: 'super_admin',
-  });
-  if (adminRoleError || superAdminRoleError) {
-    console.error('[waouh-waha-sync-contacts] role check failed', { adminRoleError, superAdminRoleError });
-    return json({ error: 'Impossible de vérifier le rôle administrateur' }, 500);
-  }
-  if (!isAdmin && !isSuperAdmin) return json({ error: 'Forbidden — admin only' }, 403);
+  const guard = await requireRuntimeOrAdmin(req, supabase);
+  if (!guard.ok) return guard.response;
 
   const body = await req.json().catch(() => ({}));
   const backfill = body.backfill !== false;
@@ -355,7 +337,9 @@ Deno.serve(async (req) => {
           for (const name of [displayName, pushname]) {
             const key = nameKey(name);
             if (key && !phoneIsActuallyLid && isBjPhoneDigits(digits)) {
-              phoneRowsByName.set(key, { ...rowBase, lid: lidId || id });
+              const previous = phoneRowsByName.get(key);
+              if (previous && previous.phone_e164 !== phone_e164) phoneRowsByName.set(key, { ambiguous: true });
+              else if (!previous?.ambiguous) phoneRowsByName.set(key, { ...rowBase, lid: lidId || id });
             }
           }
         }
@@ -366,7 +350,7 @@ Deno.serve(async (req) => {
           if (!id.endsWith('@lid')) continue;
           const lidId = c.lid || id.split('@')[0];
           const linked = phoneRowsByName.get(nameKey(c.name || c.shortName)) || phoneRowsByName.get(nameKey(c.pushname));
-          if (linked && lidId) rows.push({ ...linked, lid: lidId, jid: id });
+          if (linked && !linked.ambiguous && lidId) rows.push({ ...linked, lid: lidId, jid: id });
         }
 
         // Dedupe rows by lid (last wins)

@@ -25,10 +25,12 @@ export function routeOpportunityChannel(input: {
   allowPublicBusiness?: boolean;
   allowEmail?: boolean;
   allowSmsRcs?: boolean;
+  approvalGranted?: boolean;
 }) : OpportunityChannelRoute {
   const ranked = rankChannels(input.channels ?? []);
   const level = String(input.contactability ?? "C0").toUpperCase();
   const allowed = (row: ChannelCandidate & { score: number }) => {
+    if (row.consent_state === "revoked") return false;
     const channel = String(row.channel || "").toLowerCase();
     if (channel === "waouh") return input.allowWaouh !== false;
     if (channel === "whatsapp") {
@@ -48,7 +50,7 @@ export function routeOpportunityChannel(input: {
     }
     if (channel === "phone") {
       if (row.reachable === false) return false;
-      return level === "C1" && input.allowPublicBusiness !== false && row.public_business === true;
+      return input.allowWhatsapp !== false && level === "C1" && input.allowPublicBusiness !== false && row.public_business === true;
     }
     return false;
   };
@@ -88,7 +90,7 @@ export function routeOpportunityChannel(input: {
   }
   const channel = String(primary.channel).toLowerCase();
   if (channel === "whatsapp") {
-    if (level === "C3") {
+    if (level === "C3" && input.approvalGranted !== true) {
       return {
         primary_channel: channel,
         mode: "approval",

@@ -1171,6 +1171,12 @@ Deno.serve(async (req) => {
       }, 503);
     }
 
+    if (action === "reconcile") {
+      if (req.headers.get("authorization") !== `Bearer ${SERVICE_ROLE}`) return json({ error: "service_role_required" }, 401);
+      if (!body.deal_id) return json({ error: "deal_id_required" }, 400);
+      const deal = await advanceReadyDeal(sb, body.deal_id);
+      return json({ ok: true, status: deal?.status ?? null });
+    }
     if (["seller_confirm", "payment_preference", "cancel", "payment"].includes(action)) {
       const actor = await resolveDealActor(req, sb, body);
       if (!actor.ok) return json({ error: actor.error || "unauthorized" }, actor.status || 401);

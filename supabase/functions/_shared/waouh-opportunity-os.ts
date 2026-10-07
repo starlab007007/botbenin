@@ -260,6 +260,7 @@ export function boundedFollowUpDecision(input: {
   maxFollowups?: unknown;
   followupsSent?: unknown;
   nowMs?: number;
+  delayHours?: number;
 }) {
   const autonomy = String(input.autonomyMode ?? "assisted");
   const stage = String(input.stage ?? "");
@@ -270,7 +271,7 @@ export function boundedFollowUpDecision(input: {
   if (autonomy === "assisted") return { due: false, reason: "assisted" as const, next_index: sent + 1 };
   if (stage !== "waiting_reply") return { due: false, reason: "not_waiting_reply" as const, next_index: sent + 1 };
   if (sent >= maxFollowups) return { due: false, reason: "followup_limit_reached" as const, next_index: sent + 1 };
-  if (!Number.isFinite(last) || now - last < 24 * 3600_000) {
+  if (!Number.isFinite(last) || now - last < Math.max(1, Number(input.delayHours ?? 24)) * 3600_000) {
     return { due: false, reason: "too_early" as const, next_index: sent + 1 };
   }
   return { due: true, reason: "due" as const, next_index: sent + 1 };
@@ -329,7 +330,7 @@ export function parseChatMandateDirective(
     ? 0
     : Math.max(0, Math.min(5, Number.isFinite(requestedFollowups) ? requestedFollowups : 1));
 
-  let durationHours = 24;
+  let durationHours = 72;
   const hours = normalized.match(/\b(?:pendant|durant|sur)\s+(\d{1,3})\s*h(?:eures?)?\b/i);
   const days = normalized.match(/\b(?:pendant|durant|sur)\s+(\d{1,2})\s*jours?\b/i);
   if (hours) durationHours = Number(hours[1]);

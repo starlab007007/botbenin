@@ -1,3 +1,4 @@
+import { followupDelayHours } from "../_shared/waouh-avatar-lifecycle.ts";
 import { releaseHeaders } from "../_shared/waouh-release.ts";
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import {
@@ -188,7 +189,7 @@ declare const EdgeRuntime: {
 function wakeOpportunityWorker(
   supabaseUrl: string,
   serviceKey: string,
-  mandateId: string,
+  mandateId: string | null,
 ) {
   const task = fetch(`${supabaseUrl}/functions/v1/waouh-opportunity-worker`, {
     method: "POST",
@@ -1551,6 +1552,7 @@ Deno.serve(async (req: Request) => {
           if (updateError) throw new ApiError(500, "mission_plan_link_failed", updateError.message);
           await audit(sb, ownerId, "mission.created", "mission", mission.id, { channel, locale }, mission.id);
           await enqueue(sb, ownerId, "mission.created", "mission", mission.id, { mission_id: mission.id }, `mission.created:${mission.id}`, mission.id);
+          wakeOpportunityWorker(supabaseUrl, serviceKey, null);
           return jsonResponse({ ok: true, data: { mission: updated } }, 201);
         } catch (error) {
           await sb.from("waouh_agent_missions").delete().eq("id", mission.id);
@@ -1596,6 +1598,10 @@ Deno.serve(async (req: Request) => {
           .update({ status: nextStatus, completed_at: nextStatus === "cancelled" ? new Date().toISOString() : null })
           .eq("id", missionId).eq("owner_id", ownerId).select("*").single();
         if (error) throw new ApiError(500, "mission_update_failed", error.message);
+        const { error: mandateError } = await sb.from("waouh_avatar_mandates").update({ status: nextStatus })
+          .eq("owner_id", ownerId).contains("metadata", { legacy_mission_id: missionId }).in("status", ["active", "paused"]);
+        if (mandateError) throw new ApiError(500, "mandate_sync_failed", mandateError.message);
+        if (nextStatus === "active") wakeOpportunityWorker(supabaseUrl, serviceKey, null);
         await audit(sb, ownerId, `mission.${nextStatus}`, "mission", missionId, {}, missionId);
         return jsonResponse({ ok: true, data: { mission: data } });
       }
@@ -1611,12 +1617,15 @@ Deno.serve(async (req: Request) => {
           last_error: null,
         }).eq("id", missionId).eq("owner_id", ownerId).select("*").single();
         if (error) throw new ApiError(500, "mission_run_failed", error.message);
+        await sb.from("waouh_avatar_mandates").update({ status: "active" }).eq("owner_id", ownerId)
+          .contains("metadata", { legacy_mission_id: missionId }).eq("status", "paused");
         const runId = crypto.randomUUID();
         await enqueue(sb, ownerId, "mission.run_requested", "mission", missionId, {
           mission_id: missionId,
           run_id: runId,
         }, `mission.run_requested:${missionId}:${runId}`, missionId);
         await audit(sb, ownerId, "mission.run_requested", "mission", missionId, { run_id: runId }, missionId);
+        wakeOpportunityWorker(supabaseUrl, serviceKey, null);
         return jsonResponse({ ok: true, data: { mission: data, run_id: runId } }, 202);
       }
 
@@ -2039,6 +2048,7 @@ Deno.serve(async (req: Request) => {
 
         await audit(sb, ownerId, `approval.${decision}`, "approval", approvalId, { action_type: approval.action_type }, approval.mission_id);
         await enqueue(sb, ownerId, `approval.${decision}`, "approval", approvalId, { approval_id: approvalId }, `approval.${decision}:${approvalId}`, approval.mission_id);
+        wakeOpportunityWorker(supabaseUrl, serviceKey, null);
         return jsonResponse({ ok: true, data: { approval: data } });
       }
 
@@ -2593,6 +2603,15 @@ Retourne uniquement JSON:
         }});
       }
 
+      case "nexus.owned_articles": {
+        const { data: users, error: identityError } = await sb.from("waouh_users").select("id").eq("auth_user_id", ownerId);
+        if (identityError) throw new ApiError(500, "identity_lookup_failed");
+        const ids = (users ?? []).map((row: any) => row.id);
+        if (!ids.length) return jsonResponse({ ok: true, data: { articles: [] } });
+        const { data, error } = await sb.from("waouh_articles").select("id,title,price,city").in("seller_id", ids).eq("status", "active").order("updated_at", { ascending: false }).limit(100);
+        if (error) throw new ApiError(500, "owned_articles_failed");
+        return jsonResponse({ ok: true, data: { articles: data ?? [] } });
+      }
       case "nexus.mandate.create": {
         const mode = pickEnum(payload.mode, "mode", ["buy","sell","ask"] as const, "buy");
         const autonomyMode = pickEnum(
@@ -2606,11 +2625,12 @@ Retourne uniquement JSON:
         const budgetMax = positiveNumber(payload.budget_max, "budget_max", true);
         const maxContacts = integer(payload.max_contacts, "max_contacts", 3, 1, 20);
         const maxFollowups = integer(payload.max_followups, "max_followups", 1, 0, 5);
-        const durationHours = integer(payload.duration_hours, "duration_hours", 24, 1, 720);
+        const durationHours = integer(payload.duration_hours, "duration_hours", 72, 1, 720);
         const minMatchScore = Math.max(0, Math.min(100, Number(payload.min_match_score ?? 70)));
         const minActionabilityScore = Math.max(0, Math.min(100, Number(payload.min_actionability_score ?? 65)));
         const requestKey = optionalString(payload.request_key, "request_key", 240);
         const mandateArticleId = payload.article_id ? uuid(payload.article_id, "article_id") : null;
+        if (mode === "sell" && !mandateArticleId) throw new ApiError(422, "sell_article_required", "Sélectionnez l’article à vendre avant de confier la mission.");
         if (mandateArticleId) {
           if (mode !== "sell") throw new ApiError(422, "article_id_requires_sell_mode");
           await ownedArticle(sb, ownerId, mandateArticleId);
@@ -2668,6 +2688,10 @@ Retourne uniquement JSON:
             metadata: {
               origin_surface: optionalString(payload.origin_surface, "origin_surface", 80),
               user_confirmed_mandate: true,
+              followup_hours: followupDelayHours(durationHours, maxFollowups),
+              max_negotiation_rounds: integer(payload.max_negotiation_rounds, "max_negotiation_rounds", 3, 0, 5),
+              price_floor: positiveNumber(payload.price_floor, "price_floor", true),
+              completion_goal: pickEnum(payload.completion_goal, "completion_goal", ["transaction", "agreement", "recommendations"] as const, mode === "ask" ? "recommendations" : "transaction"),
               request_key: requestKey,
               article_id: mandateArticleId,
             },

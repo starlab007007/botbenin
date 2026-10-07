@@ -29,6 +29,7 @@ import { getWaouhSessionId } from "@/app-mobile/hooks/useWaouhIdentity";
 import { WaouhNexusContactSheet } from "@/components/waouh/WaouhNexusContactSheet";
 import {
   globalNexusDiscovery,
+  listNexusOwnedArticles,
   prepareNexusContact,
   sendNexusDiscoveryContact,
   createNexusMandate,
@@ -168,6 +169,11 @@ export default function WaouhAvatarCommercePage() {
   const mode: Mode = rawMode in modeCopy ? rawMode : "demander";
   const copy = modeCopy[mode];
 
+  const [ownedArticles, setOwnedArticles] = useState<Array<{ id: string; title: string; price: number }>>([]);
+  const [selectedArticle, setSelectedArticle] = useState("");
+  const [priceFloor, setPriceFloor] = useState("");
+  useEffect(() => { if (mode === "vendre") void listNexusOwnedArticles().then(data => setOwnedArticles(data.articles)).catch(() => {}); }, [mode]);
+
   const [goal, setGoal] = useState("");
   const [city, setCity] = useState("");
   const [budget, setBudget] = useState("");
@@ -192,7 +198,7 @@ export default function WaouhAvatarCommercePage() {
     void listNexusMandates()
       .then((data) => {
         if (!alive) return;
-        const current = (data.mandates || []).find((m) => m.status === "active" || m.status === "paused") || null;
+        const current = (data.mandates || []).find((m) => (m.status === "active" || m.status === "paused") && m.mode === (mode === "vendre" ? "sell" : mode === "demander" ? "ask" : "buy")) || null;
         setActiveMandate(current);
         if (current) {
           setAutonomyMode(current.autonomy_mode);
@@ -203,7 +209,7 @@ export default function WaouhAvatarCommercePage() {
       })
       .catch(() => {});
     return () => { alive = false; };
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
     let alive = true;
@@ -270,12 +276,14 @@ export default function WaouhAvatarCommercePage() {
       const response = await createNexusMandate({
         mode: mode === "vendre" ? "sell" : mode === "demander" ? "ask" : "buy",
         goal: query,
+        article_id: mode === "vendre" ? selectedArticle : undefined,
+        price_floor: mode === "vendre" ? Number(priceFloor) || undefined : undefined,
         autonomy_mode: autonomyMode,
         city: city.trim() || undefined,
         budget_max: Number(budget) || undefined,
         max_contacts: maxContacts,
         max_followups: autonomyMode === "assisted" ? 0 : maxFollowups,
-        duration_hours: 24,
+        duration_hours: 72,
         scan_interval_minutes: 60,
         min_match_score: 70,
         min_actionability_score: 65,
@@ -299,7 +307,7 @@ export default function WaouhAvatarCommercePage() {
         title: "Mandat confié à Bot",
         description: autonomyMode === "assisted"
           ? "Bot surveille et prépare ; vous validez chaque contact."
-          : `Bot surveille pendant 24 h et peut agir dans les limites fixées · ${response.actionable_count} opportunité(s) déjà actionnable(s).`,
+          : `Bot surveille pendant 72 h et peut agir dans les limites fixées · ${response.actionable_count} opportunité(s) déjà actionnable(s).`,
       });
     } catch (error: any) {
       toast({ title: "Mandat non créé", description: userFacingErrorText(error, "save"), variant: "destructive" });
@@ -604,6 +612,15 @@ export default function WaouhAvatarCommercePage() {
             </div>
           ) : (
             <div className="mt-4 space-y-3">
+              {mode === "vendre" && <div className="space-y-2">
+                <label className="text-sm font-semibold" htmlFor="avatar-sale-article">Article à vendre</label>
+                <select id="avatar-sale-article" value={selectedArticle} onChange={e => setSelectedArticle(e.target.value)} className="w-full rounded-xl border p-3">
+                  <option value="">Choisir une annonce active</option>
+                  {ownedArticles.map(a => <option key={a.id} value={a.id}>{a.title} · {a.price} FCFA</option>)}
+                </select>
+                <Input type="number" min="1" value={priceFloor} onChange={e => setPriceFloor(e.target.value)} placeholder="Prix minimum autorisé (FCFA)" aria-label="Prix minimum autorisé" />
+                {!ownedArticles.length && <p className="text-sm">Publiez votre article avant de lancer une mission de vente.</p>}
+              </div>}
               <div>
                 <div className="mb-2 text-[10px] font-black uppercase tracking-wide text-slate-500">Mode d’autonomie</div>
                 <div className="grid grid-cols-3 gap-2">
@@ -673,14 +690,14 @@ export default function WaouhAvatarCommercePage() {
               </label>
               <Button
                 className="h-12 w-full rounded-2xl bg-violet-600 hover:bg-violet-700"
-                disabled={mandateBusy || !goal.trim()}
+                disabled={mandateBusy || !goal.trim() || (mode === "vendre" && !selectedArticle)}
                 onClick={() => void createMandate()}
               >
                 {mandateBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}
-                Confier cette mission à Bot pendant 24 h
+                Confier cette mission à Bot pendant 72 h
               </Button>
               <p className="text-center text-[10px] font-semibold text-slate-500">
-                Aucun paiement, changement de budget ou révélation de contact privé n’est autorisé par ce mandat.
+                Les contre-offres respectent votre limite. Vous confirmez l’accord final ; le paiement reste une action distincte.
               </p>
             </div>
           )}

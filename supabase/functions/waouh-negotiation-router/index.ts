@@ -220,7 +220,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { phone, text, user_id, thread_id, negotiation_id, button_payload, withdrawn } = await req.json();
+    const { phone, text, user_id, thread_id, negotiation_id, button_payload, withdrawn, avatar_approval_id } = await req.json();
     // Parcours v3 : textes courts + boutons du catalogue (interrupteur
     // chat_catalog_v3). Coupé : textes et boutons historiques, à l'identique.
     const v3 = await chatCatalogV3Enabled(sb);
@@ -492,7 +492,8 @@ Deno.serve(async (req) => {
 
       // Atomic commerce transition: negotiation + deal + transaction + article
       // reservation + thread binding commit together or all roll back.
-      const { data: atomicResult, error: atomicError } = await sb.rpc("waouh_accept_negotiation_atomic", {
+      const { data: atomicResult, error: atomicError } = await sb.rpc(avatar_approval_id ? "waouh_avatar_accept_approved_offer" : "waouh_accept_negotiation_atomic", {
+        ...(avatar_approval_id ? { p_approval_id: avatar_approval_id } : {}),
         p_negotiation_id: neg.id,
         p_thread_id: activeThreadId,
         p_actor_user_id: user.id,
