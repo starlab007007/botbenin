@@ -400,6 +400,19 @@ jobs:
           fi
           echo '✅ Identifiants Supabase présents; aucune valeur secrète ne sera affichée.'
 
+      - name: Validate Supabase Management API token
+        shell: bash
+        run: |
+          set -euo pipefail
+          http_code=$(curl --silent --show-error             "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF"             --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN"             --output /tmp/supabase-project.json             --write-out "%{http_code}" || true)
+          if [ "$http_code" != "200" ]; then
+            echo "::error::Le SUPABASE_ACCESS_TOKEN de l'environnement GitHub production n'autorise pas le Management API (HTTP $http_code)."
+            echo "::error::Créez/rottez un Personal Access Token Supabase scoped sur le projet $SUPABASE_PROJECT_REF avec Edge Functions Read-Write, puis remplacez le secret GitHub production SUPABASE_ACCESS_TOKEN."
+            cat /tmp/supabase-project.json 2>/dev/null | head -c 500 || true
+            exit 1
+          fi
+          echo "✅ PAT Supabase valide pour le projet de production."
+
       - name: Link production project for database migrations
         if: github.event_name == 'workflow_dispatch' && inputs.apply_migrations == true
         shell: bash
