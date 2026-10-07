@@ -461,7 +461,7 @@ async function repairLegacyWebhook(
     try {
       const response = await wahaFetch(credentials, path, {
         method: "PUT",
-        body: JSON.stringify({ config: nextConfig }),
+        body: JSON.stringify({ name: sessionName, config: nextConfig }),
       });
       if (!response.ok) continue;
 
