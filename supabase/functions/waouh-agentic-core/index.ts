@@ -1890,6 +1890,59 @@ Deno.serve(async (req: Request) => {
             }
           }
 
+          if (
+            decision === "approved" &&
+            journey?.mode === "sell" &&
+            journey?.article_id &&
+            !journey?.thread_id
+          ) {
+            try {
+              const { data: buyerIdentity } = await sb.from("waouh_users")
+                .select("id,auth_user_id")
+                .eq("auth_user_id", ownerId)
+                .order("created_at", { ascending: true })
+                .limit(1)
+                .maybeSingle();
+              if (buyerIdentity?.id) {
+                const response = await fetch(`${supabaseUrl}/functions/v1/waouh-buyer-interest`, {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${serviceKey}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    article_id: journey.article_id,
+                    buyer_user_id: buyerIdentity.id,
+                    source: "avatar_internal_approval",
+                  }),
+                });
+                const body = await response.json().catch(() => ({}));
+                if (response.ok && !body?.error && body?.thread_id) {
+                  const { data: linkedJourney } = await sb.from("waouh_opportunity_journeys").update({
+                    article_id: body.article_id || journey.article_id,
+                    thread_id: body.thread_id,
+                    negotiation_id: body.negotiation_id || null,
+                    stage: body.negotiation_id ? "negotiating" : "waiting_reply",
+                    contact_channel: "waouh",
+                    next_best_action: body.negotiation_id ? "NEGOTIATE" : "WAIT_REPLY",
+                    last_action: "internal_deal_room_materialized",
+                    next_action: body.negotiation_id ? "NEGOTIATE" : "WAIT_REPLY",
+                    last_message: body.negotiation_id
+                      ? "La contrepartie a accepté. Avatar a ouvert le Deal Room et la négociation canonique."
+                      : "La contrepartie a accepté. Avatar a ouvert le fil canonique.",
+                    last_activity_at: now,
+                    updated_at: now,
+                  }).eq("id", journey.id).select("*").single();
+                  if (linkedJourney) journey = linkedJourney;
+                } else {
+                  console.warn("[Opportunity OS] internal Deal Room materialization failed", response.status, body?.error || body?.code || "unknown");
+                }
+              }
+            } catch (dealRoomError) {
+              console.warn("[Opportunity OS] internal Deal Room materialization failed", dealRoomError);
+            }
+          }
+
           if (originAuthId) {
             await sb.rpc("waouh_append_conversation_bus_event", {
               p_owner_id: originAuthId,
@@ -1946,6 +1999,17 @@ Deno.serve(async (req: Request) => {
                   contactability_level: decision === "approved" ? "C5" : journey?.contactability_level ?? "C4",
                   readiness_level: decision === "approved" ? "R5" : journey?.readiness_level ?? "R4",
                   next_best_action: decision === "approved" ? "NEGOTIATE" : "DROP_LOW_QUALITY",
+                  thread_id: journey?.thread_id ?? null,
+                  negotiation_id: journey?.negotiation_id ?? null,
+                  article_id: journey?.article_id ?? null,
+                  actions: decision === "approved" && journey?.thread_id
+                    ? [{
+                        id: "ouvrir-deal-room:" + journey.thread_id,
+                        label: "Continuer la négociation",
+                        kind: "navigate",
+                        route: "/app/chat/waouh",
+                      }]
+                    : [],
                 },
               });
             }
