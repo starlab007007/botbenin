@@ -218,6 +218,12 @@ export async function revokeAvatarContacts(sb: any, contactIds: string[]) {
   const hashes = [...new Set((contacts ?? []).map((c: any) => c.value_hash).filter(Boolean))];
   if (hashes.length) await sb.from('waouh_entity_contacts').update({ consent_state: 'revoked', contactability_level: 'C0',
     verification_status: 'revoked', is_whatsapp_reachable: false }).in('value_hash', hashes);
+  if (hashes.length) {
+    const { data: endpoints } = await sb.from('waouh_entity_contacts').select('id').in('value_hash', hashes);
+    const ids = (endpoints ?? []).map((c: any) => c.id);
+    if (ids.length) await sb.from('waouh_outbound_queue').update({ status: 'failed', last_error: 'contact_opted_out', next_attempt_at: null })
+      .in('payload->>contact_id', ids).eq('template', 'nexus_discovery_outreach').eq('status', 'pending');
+  }
 }
 
 export async function openAvatarReplyRoom(sb: any, journey: any, phone: string, channel: string) {
