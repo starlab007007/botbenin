@@ -214,7 +214,7 @@ async function repairLegacyWahaWebhooks(
     ]) {
       for (const authHeaders of authVariants) {
         try {
-          const response = await wahaFetch(`${normalizedBase}${typeof endpoint === "string" ? endpoint : endpoint.path}`, {
+          const response = await wahaFetch(`${normalizedBase}${endpoint}`, {
             headers: authHeaders,
           });
           if (!response.ok) {
