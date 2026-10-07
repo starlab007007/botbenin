@@ -282,7 +282,7 @@ Deno.serve(async (req) => {
 
     if (sessionsToUse.length === 0) {
       await supabase.from('waouh_lid_sync_runs').update({
-        status: perSession.every((s: any) => s.ok) ? 'success' : 'failed', contacts_fetched: 0, contacts_mapped: 0, rows_backfilled: 0,
+        status: 'success', contacts_fetched: 0, contacts_mapped: 0, rows_backfilled: 0,
         error: 'Aucune session WAHA active (WORKING). Veuillez scanner le QR-code dans WAHA pour activer au moins une session.',
         finished_at: new Date().toISOString(),
       }).eq('id', runId);
@@ -419,7 +419,7 @@ Deno.serve(async (req) => {
       contacts_fetched: totalFetched,
       contacts_mapped: totalMapped,
       rows_backfilled: totalBackfilled,
-      status: 'success',
+      status: perSession.every((s: any) => s.ok) ? 'success' : 'failed',
       finished_at: new Date().toISOString(),
     }).eq('id', runId);
 

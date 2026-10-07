@@ -1200,7 +1200,8 @@ Deno.serve(async (req) => {
     ? body.mandate_id
     : null;
   const now = new Date();
-  await sb.rpc("waouh_avatar_bridge_missions", { p_limit: 20 });
+  const { error: bridgeError } = await sb.rpc("waouh_avatar_bridge_missions", { p_limit: 20 });
+  if (bridgeError) throw bridgeError;
   const lifecycle = await advanceAvatarLifecycle(sb, 15);
   const { data: expired } = await sb.from("waouh_avatar_mandates").update({ status: "expired" })
     .eq("status", "active").is("metadata->agreement_reached_at", null).lt("expires_at", now.toISOString()).select("id,owner_id,contacted_count,replied_count");
@@ -1220,7 +1221,7 @@ Deno.serve(async (req) => {
     // service/tick-only; users cannot bypass mandate ownership or limits.
     intentQuery = intentQuery.eq("mandate_id", requestedMandateId);
   } else {
-    intentQuery = intentQuery.lte("next_scan_at", now.toISOString());
+    intentQuery = intentQuery.lte("next_scan_at", new Date().toISOString());
   }
   const { data: intents, error } = await intentQuery
     .order("next_scan_at", { ascending: true })
