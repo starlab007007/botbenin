@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
     const dispatchRes = await fetch(dispatchUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` },
-      body: JSON.stringify({ limit: 20 }),
+      body: JSON.stringify({ limit: 20, manual: true }),
     });
     const dispatchJson = await dispatchRes.json().catch(() => ({}));
 

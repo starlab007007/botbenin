@@ -1,5 +1,5 @@
-2026.10.04.2
+2026.10.07.1
 ui=opportunity-os-v1+signal-fabric-admin+responsive-premium
 chat=bot-copilot-v2+actionability
-flutter=18.27.0+1790884001
+flutter=18.28.0+1791406341
 backend=opportunity-os-v1+contact-pack+channel-router+conversation-bus

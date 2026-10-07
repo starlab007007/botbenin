@@ -215,7 +215,10 @@ Deno.serve(async (req) => {
   const body = await req.json().catch(() => ({}));
   const backfill = body.backfill !== false;
   const maxSessions = Math.max(1, Math.min(Number(body.maxSessions || 1), 3));
-  const maxContactsPerSession = Math.max(100, Math.min(Number(body.maxContactsPerSession || 500), 1000));
+  // WAHA currently exposes >1,700 contacts on the canonical session.
+  // Process the complete address book by default; writes are already chunked
+  // by 500 rows below, so raising this cap does not create oversized upserts.
+  const maxContactsPerSession = Math.max(100, Math.min(Number(body.maxContactsPerSession || 2500), 5000));
   const cursor = body.cursor ? String(body.cursor) : null;
   const requestedSessions: string[] | null = Array.isArray(body.sessions) && body.sessions.length
     ? body.sessions.map((s: any) => String(s))

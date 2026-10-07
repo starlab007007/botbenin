@@ -1,3 +1,4 @@
+import { releaseHeaders } from "../_shared/waouh-release.ts";
 // deno-lint-ignore-file no-explicit-any
 // WAOUH Opportunity OS worker — bounded autonomous discovery/contact.
 // Service/tick only. Executes only within an explicit active Avatar mandate.
@@ -23,7 +24,7 @@ const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AGENTIC_FUNCTION =
   Deno.env.get("WAOUH_AGENTIC_CORE_FUNCTION") || "waouh-studio-e2e-v21465";
 const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+  new Response(JSON.stringify(body), { status, headers: { ...releaseHeaders, "Content-Type": "application/json" } });
 
 async function discoverPersistentIntentWithNexus(
   sb: SupabaseClient,
@@ -403,6 +404,11 @@ async function enrichPublicBusinessContact(sb: SupabaseClient, signal: any, reso
 }
 
 async function ensureJourney(sb: SupabaseClient, ownerId: string, mandate: any, signal: any, pack: any, matchScore: number) {
+  const mandateArticleId = mandate.mode === "sell" &&
+    mandate.metadata && typeof mandate.metadata === "object" &&
+    typeof mandate.metadata.article_id === "string"
+    ? mandate.metadata.article_id
+    : null;
   const { data: existing } = await sb.from("waouh_opportunity_journeys")
     .select("*").eq("owner_id", ownerId).eq("fabric_id", signal.fabric_id)
     .not("stage", "in", '("completed","cancelled")')
@@ -410,6 +416,7 @@ async function ensureJourney(sb: SupabaseClient, ownerId: string, mandate: any, 
   if (existing) {
     await sb.from("waouh_opportunity_journeys").update({
       mandate_id: mandate.id,
+      article_id: existing.article_id ?? mandateArticleId,
       readiness_level: pack.readiness_level,
       readiness_score: pack.readiness_score,
       actionability_score: pack.actionability_score,
@@ -425,6 +432,7 @@ async function ensureJourney(sb: SupabaseClient, ownerId: string, mandate: any, 
   const { data, error } = await sb.from("waouh_opportunity_journeys").insert({
     owner_id: ownerId,
     mandate_id: mandate.id,
+    article_id: mandateArticleId,
     fabric_id: signal.fabric_id,
     mode: mandate.mode,
     stage,
@@ -591,8 +599,9 @@ async function contactInternal(
   }
 
   const articleId =
-    signal.fabric_id?.startsWith("article:") ? signal.fabric_id.slice("article:".length) :
-    (signal.evidence?.article_id ?? null);
+    journey.article_id ??
+    (signal.fabric_id?.startsWith("article:") ? signal.fabric_id.slice("article:".length) :
+      (signal.evidence?.article_id ?? null));
   const catalogId =
     signal.fabric_id?.startsWith("catalog:") ? signal.fabric_id.slice("catalog:".length) :
     (signal.evidence?.catalog_id ?? null);
@@ -635,6 +644,7 @@ async function contactInternal(
       fabric_id: signal.fabric_id,
       source_key: signal.source_key,
       mode: mandate.mode,
+      article_id: articleId || null,
     },
     status: "pending",
     expires_at: new Date(Date.now() + 24 * 3600_000).toISOString(),
@@ -1148,16 +1158,27 @@ Deno.serve(async (req) => {
 
   const body = await req.json().catch(() => ({}));
   const limit = Math.min(50, Math.max(1, Number(body?.limit) || 20));
+  const requestedMandateId = typeof body?.mandate_id === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.mandate_id)
+    ? body.mandate_id
+    : null;
   const now = new Date();
   await sb.from("waouh_avatar_mandates").update({ status: "expired" })
     .eq("status", "active").lt("expires_at", now.toISOString());
   await sb.from("waouh_persistent_intents").update({ status: "expired" })
     .eq("status", "active").lt("expires_at", now.toISOString());
 
-  const { data: intents, error } = await sb.from("waouh_persistent_intents")
+  let intentQuery = sb.from("waouh_persistent_intents")
     .select("*,waouh_avatar_mandates(*)")
-    .eq("status", "active")
-    .lte("next_scan_at", now.toISOString())
+    .eq("status", "active");
+  if (requestedMandateId) {
+    // Immediate wake after explicit mandate creation/run. This endpoint remains
+    // service/tick-only; users cannot bypass mandate ownership or limits.
+    intentQuery = intentQuery.eq("mandate_id", requestedMandateId);
+  } else {
+    intentQuery = intentQuery.lte("next_scan_at", now.toISOString());
+  }
+  const { data: intents, error } = await intentQuery
     .order("next_scan_at", { ascending: true })
     .limit(limit);
   if (error) return json({ ok: false, code: "intent_load_failed", message: error.message }, 500);

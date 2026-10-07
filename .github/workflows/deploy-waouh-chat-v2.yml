@@ -126,6 +126,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Verify WAOUH release alignment
+        run: python3 scripts/verify-waouh-release.py
+
       - name: Detect Supabase deployment scope
         id: deploy_scope
         shell: bash

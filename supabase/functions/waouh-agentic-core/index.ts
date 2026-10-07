@@ -1,8 +1,9 @@
+import { releaseHeaders } from "../_shared/waouh-release.ts";
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import {
   getRequestUser,
   isServiceRoleRequest,
-  jsonResponse,
+  jsonResponse as baseJsonResponse,
   waouhCorsHeaders,
 } from "../_shared/waouh-auth.ts";
 import { chatCompletion, visionCompletion } from "../_shared/agent-ai.ts";
@@ -172,6 +173,39 @@ async function queryOne<T>(promise: PromiseLike<{ data: T | null; error: { messa
   if (error) throw new ApiError(500, code, error.message);
   if (!data) throw new ApiError(404, code);
   return data;
+}
+
+function jsonResponse(payload: unknown, status = 200) {
+  const response = baseJsonResponse(payload, status);
+  response.headers.set("X-Waouh-Release", releaseHeaders["X-Waouh-Release"]);
+  return response;
+}
+
+declare const EdgeRuntime: {
+  waitUntil(promise: Promise<unknown>): void;
+};
+
+function wakeOpportunityWorker(
+  supabaseUrl: string,
+  serviceKey: string,
+  mandateId: string,
+) {
+  const task = fetch(`${supabaseUrl}/functions/v1/waouh-opportunity-worker`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${serviceKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ limit: 5, mandate_id: mandateId }),
+  }).then(async (response) => {
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      console.warn("[Opportunity OS] immediate worker wake failed", response.status, detail.slice(0, 200));
+    }
+  }).catch((error) => {
+    console.warn("[Opportunity OS] immediate worker wake failed", error);
+  });
+  EdgeRuntime.waitUntil(task);
 }
 
 async function ownedArticle(sb: SupabaseClient, authUserId: string, articleId: string) {
@@ -1863,6 +1897,59 @@ Deno.serve(async (req: Request) => {
             }
           }
 
+          if (
+            decision === "approved" &&
+            journey?.mode === "sell" &&
+            journey?.article_id &&
+            !journey?.thread_id
+          ) {
+            try {
+              const { data: buyerIdentity } = await sb.from("waouh_users")
+                .select("id,auth_user_id")
+                .eq("auth_user_id", ownerId)
+                .order("created_at", { ascending: true })
+                .limit(1)
+                .maybeSingle();
+              if (buyerIdentity?.id) {
+                const response = await fetch(`${supabaseUrl}/functions/v1/waouh-buyer-interest`, {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${serviceKey}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    article_id: journey.article_id,
+                    buyer_user_id: buyerIdentity.id,
+                    source: "avatar_internal_approval",
+                  }),
+                });
+                const body = await response.json().catch(() => ({}));
+                if (response.ok && !body?.error && body?.thread_id) {
+                  const { data: linkedJourney } = await sb.from("waouh_opportunity_journeys").update({
+                    article_id: body.article_id || journey.article_id,
+                    thread_id: body.thread_id,
+                    negotiation_id: body.negotiation_id || null,
+                    stage: body.negotiation_id ? "negotiating" : "waiting_reply",
+                    contact_channel: "waouh",
+                    next_best_action: body.negotiation_id ? "NEGOTIATE" : "WAIT_REPLY",
+                    last_action: "internal_deal_room_materialized",
+                    next_action: body.negotiation_id ? "NEGOTIATE" : "WAIT_REPLY",
+                    last_message: body.negotiation_id
+                      ? "La contrepartie a accepté. Avatar a ouvert le Deal Room et la négociation canonique."
+                      : "La contrepartie a accepté. Avatar a ouvert le fil canonique.",
+                    last_activity_at: now,
+                    updated_at: now,
+                  }).eq("id", journey.id).select("*").single();
+                  if (linkedJourney) journey = linkedJourney;
+                } else {
+                  console.warn("[Opportunity OS] internal Deal Room materialization failed", response.status, body?.error || body?.code || "unknown");
+                }
+              }
+            } catch (dealRoomError) {
+              console.warn("[Opportunity OS] internal Deal Room materialization failed", dealRoomError);
+            }
+          }
+
           if (originAuthId) {
             await sb.rpc("waouh_append_conversation_bus_event", {
               p_owner_id: originAuthId,
@@ -1919,6 +2006,17 @@ Deno.serve(async (req: Request) => {
                   contactability_level: decision === "approved" ? "C5" : journey?.contactability_level ?? "C4",
                   readiness_level: decision === "approved" ? "R5" : journey?.readiness_level ?? "R4",
                   next_best_action: decision === "approved" ? "NEGOTIATE" : "DROP_LOW_QUALITY",
+                  thread_id: journey?.thread_id ?? null,
+                  negotiation_id: journey?.negotiation_id ?? null,
+                  article_id: journey?.article_id ?? null,
+                  actions: decision === "approved" && journey?.thread_id
+                    ? [{
+                        id: "ouvrir-deal-room:" + journey.thread_id,
+                        label: "Continuer la négociation",
+                        kind: "navigate",
+                        route: "/app/chat/waouh",
+                      }]
+                    : [],
                 },
               });
             }
@@ -2512,6 +2610,11 @@ Retourne uniquement JSON:
         const minMatchScore = Math.max(0, Math.min(100, Number(payload.min_match_score ?? 70)));
         const minActionabilityScore = Math.max(0, Math.min(100, Number(payload.min_actionability_score ?? 65)));
         const requestKey = optionalString(payload.request_key, "request_key", 240);
+        const mandateArticleId = payload.article_id ? uuid(payload.article_id, "article_id") : null;
+        if (mandateArticleId) {
+          if (mode !== "sell") throw new ApiError(422, "article_id_requires_sell_mode");
+          await ownedArticle(sb, ownerId, mandateArticleId);
+        }
 
         if (requestKey) {
           const { data: existingMandate, error: existingMandateError } = await sb
@@ -2566,6 +2669,7 @@ Retourne uniquement JSON:
               origin_surface: optionalString(payload.origin_surface, "origin_surface", 80),
               user_confirmed_mandate: true,
               request_key: requestKey,
+              article_id: mandateArticleId,
             },
           }).select("*").single(),
           "nexus_mandate_create_failed",
@@ -2627,6 +2731,7 @@ Retourne uniquement JSON:
               last_external_refresh_at: new Date().toISOString(),
               last_external_refresh_status: initialRefresh.error ? "partial" : "ok",
               initial_refresh: initialRefresh,
+              article_id: mandateArticleId,
             },
           }).select("*").single(),
           "nexus_persistent_intent_create_failed",
@@ -2653,6 +2758,7 @@ Retourne uniquement JSON:
             subject: row.subject ?? null,
             city: row.city ?? null,
             mandateId: mandate.id,
+            articleId: mandateArticleId,
             contactPack: row.contact_pack ?? null,
             metadata: {
               persistent_intent_id: intent.id,
@@ -2692,8 +2798,10 @@ Retourne uniquement JSON:
             duration_hours: durationHours,
             actionable_count: actionable.length,
             origin_surface: optionalString(payload.origin_surface, "origin_surface", 80),
+            article_id: mandateArticleId,
           },
         });
+        wakeOpportunityWorker(supabaseUrl, serviceKey, mandate.id);
         return jsonResponse({ ok: true, data: {
           mandate,
           intent,
@@ -2740,6 +2848,11 @@ Retourne uniquement JSON:
         );
         if (mandate.status !== "active") throw new ApiError(409, "mandate_not_active");
         const discoveryMode: DiscoveryMode = mandate.mode === "sell" ? "find_buyers" : "find_sellers";
+        const mandateArticleId = mandate.mode === "sell" &&
+          mandate.metadata && typeof mandate.metadata === "object" &&
+          typeof mandate.metadata.article_id === "string"
+          ? mandate.metadata.article_id
+          : null;
         const results = await globalDiscoverySearch(sb, {
           query: mandate.normalized_query || mandate.goal,
           mode: discoveryMode,
@@ -2761,6 +2874,7 @@ Retourne uniquement JSON:
             subject: row.subject ?? null,
             city: row.city ?? null,
             mandateId: mandate.id,
+            articleId: mandateArticleId,
             contactPack: row.contact_pack ?? null,
             metadata: {
               match_score: row.scores?.total_score ?? null,
@@ -2773,6 +2887,7 @@ Retourne uniquement JSON:
           last_run_at: new Date().toISOString(),
           next_run_at: new Date(Date.now() + 60 * 60_000).toISOString(),
         }).eq("id", mandate.id);
+        wakeOpportunityWorker(supabaseUrl, serviceKey, mandate.id);
         return jsonResponse({ ok: true, data: { mandate, results, actionable_count: actionable.length }});
       }
 
