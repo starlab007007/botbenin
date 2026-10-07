@@ -122,12 +122,14 @@ jobs:
           grep -q 'Interprétation intégrale - ${displayedName}' /tmp/fa-public/corpus-enforcement-v14.js
           grep -q 'cleanAnswer' /tmp/fa-public/corpus-enforcement-v14.js
           grep -q 'PROFILES' /tmp/fa-public/corpus-enforcement-v14.js
-          grep -q 'analysis_contract' /tmp/fa-public/corpus-enforcement-v14.js
-          grep -q 'use_exact_interpretation_as_primary_basis: true' /tmp/fa-public/corpus-enforcement-v14.js
-          grep -q 'contextualize_with_consultation: true' /tmp/fa-public/corpus-enforcement-v14.js
-          grep -q 'no_source_reference_in_answer: true' /tmp/fa-public/corpus-enforcement-v14.js
-          grep -q 'do_not_mention_book: true' /tmp/fa-public/corpus-enforcement-v14.js
+          grep -q 'free_question' /tmp/fa-public/corpus-enforcement-v14.js
+          grep -q 'compactHistory' /tmp/fa-public/corpus-enforcement-v14.js
+          grep -q 'compatiblePayload' /tmp/fa-public/corpus-enforcement-v14.js
+          grep -q 'INTERPRÉTATION INTÉGRALE DU SIGNE' /tmp/fa-public/corpus-enforcement-v14.js
+          grep -q 'history: compactHistory(payload.history)' /tmp/fa-public/corpus-enforcement-v14.js
           grep -q 'response.status === 402' /tmp/fa-public/corpus-enforcement-v14.js
+          ! grep -q 'analysis_contract:' /tmp/fa-public/corpus-enforcement-v14.js
+          ! grep -q 'primary_interpretation:' /tmp/fa-public/corpus-enforcement-v14.js
           grep -q '2026-07-24-corpus-presentation-v15' /tmp/fa-public/corpus-loader-v14.js
           grep -q 'max_words: 320' /tmp/fa-public/app.js
           grep -q 'fallback(message, history)' /tmp/fa-public/app.js

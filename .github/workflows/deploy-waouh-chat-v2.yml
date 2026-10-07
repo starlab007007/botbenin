@@ -147,6 +147,19 @@ jobs:
           test -n "${SUPABASE_DB_PASSWORD:-}" || { echo "::error::SUPABASE_DB_PASSWORD absent"; exit 1; }
           test -n "${SUPABASE_PROJECT_REF:-}" || { echo "::error::SUPABASE_PROJECT_REF absent"; exit 1; }
 
+      - name: Validate Supabase Management API token
+        shell: bash
+        run: |
+          set -euo pipefail
+          http_code=$(curl --silent --show-error             "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF"             --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN"             --output /tmp/supabase-project.json             --write-out "%{http_code}" || true)
+          if [ "$http_code" != "200" ]; then
+            echo "::error::Le SUPABASE_ACCESS_TOKEN de l'environnement GitHub production n'autorise pas le Management API (HTTP $http_code)."
+            echo "::error::Créez/rottez un Personal Access Token Supabase scoped sur le projet $SUPABASE_PROJECT_REF avec Edge Functions Read-Write, puis remplacez le secret GitHub production SUPABASE_ACCESS_TOKEN."
+            cat /tmp/supabase-project.json 2>/dev/null | head -c 500 || true
+            exit 1
+          fi
+          echo "✅ PAT Supabase valide pour le projet de production."
+
       - name: Detect WAOUH migration changes
         id: migration_gate
         shell: bash
@@ -178,6 +191,574 @@ jobs:
             echo "ℹ️ They are intentionally excluded from generic db push because production has known historical migration drift."
             echo "ℹ️ Release runbook: apply only these validated additive SQL files through the controlled Supabase release step before merging/deploying."
           fi
+
+      - name: Detect Edge deployment scope
+        id: edge_scope
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "deploy_all_core=true" >> "$GITHUB_OUTPUT"
+            echo "core_functions=" >> "$GITHUB_OUTPUT"
+            echo "admin=true" >> "$GITHUB_OUTPUT"
+            echo "e2e=true" >> "$GITHUB_OUTPUT"
+            echo "opportunity=true" >> "$GITHUB_OUTPUT"
+            echo "commerce=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BEFORE="${EVENT_BEFORE:-}"
+          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            BEFORE="HEAD^"
+          fi
+          CHANGED=$(git diff --name-only "$BEFORE" "$GITHUB_SHA" || true)
+          printf '%s\n' "$CHANGED"
+
+          admin=false
+          e2e=false
+          opportunity=false
+          commerce=false
+          deploy_all_core=false
+
+          echo "$CHANGED" | grep -Eq '^supabase/functions/(waouh-admin-stats/|_shared/waouh-admin-contact-hub\.ts$)' && admin=true || true
+          echo "$CHANGED" | grep -Eq '^supabase/functions/waouh-e2e-test/' && e2e=true || true
+          echo "$CHANGED" | grep -Eq '^supabase/functions/(waouh-agentic-core/|waouh-opportunity-worker/|_shared/waouh-opportunity-os.*\.ts$)' && opportunity=true || true
+          echo "$CHANGED" | grep -Eq '^supabase/functions/(waouh-commerce-action/|_shared/waouh-commerce-.*\.ts$|_shared/waouh-commerce-states\.ts$)' && commerce=true || true
+
+          # A shared runtime change can affect several functions: preserve the
+          # safe all-core deployment in that case. Direct function changes only
+          # redeploy the touched function slots.
+          if echo "$CHANGED" | grep -E '^supabase/functions/_shared/' | grep -Ev 'waouh-admin-contact-hub\.ts
+        if: steps.migration_gate.outputs.apply_migrations == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Skip database push when migrations are unchanged
+        if: steps.migration_gate.outputs.apply_migrations != 'true'
+        run: |
+          echo "ℹ️ No legacy auto-push WAOUH migration changed in this deployment."
+          echo "ℹ️ Opportunity OS additive migrations use the controlled release step and are not sent through generic db push."
+          echo "ℹ️ Skipping db push so unrelated historical migration drift cannot block Edge Function deployment."
+
+      - name: Preview additive Chat v2 migrations
+        if: steps.migration_gate.outputs.apply_migrations == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db push --linked --password "$SUPABASE_DB_PASSWORD" --dry-run
+
+      - name: Apply pending migrations
+        if: steps.migration_gate.outputs.apply_migrations == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The 27/09 backfill migration only INSTALLS the batch function.
+          # It never mutates historical messages automatically.
+          # If migration history is out of sync, this step must fail rather
+          # than repairing production history automatically.
+          supabase db push --linked --password "$SUPABASE_DB_PASSWORD" --yes
+
+      - name: Prepare minimal Edge deployment config
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp supabase/config.toml /tmp/waouh-config.original.toml
+          cat > supabase/config.toml <<EOF
+          project_id = "$SUPABASE_PROJECT_REF"
+
+          [api]
+          enabled = true
+          port = 54321
+
+          [edge_runtime]
+          enabled = true
+          policy = "per_worker"
+          EOF
+          echo "✅ Minimal Supabase Edge config prepared for CI deployment."
+
+      - name: Verify Opportunity OS schema readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The project has historical migration drift; do NOT run a generic
+          # db push here. Opportunity OS migrations are applied separately by
+          # the controlled release step. This preflight prevents publishing
+          # Edge code against a partial schema.
+          python - <<'PY' >/tmp/opportunity-os-schema-query.json
+          import json
+          query = """
+          select
+            to_regclass('public.waouh_avatar_mandates') is not null as avatar_mandates,
+            to_regclass('public.waouh_persistent_intents') is not null as persistent_intents,
+            to_regclass('public.waouh_contact_packs') is not null as contact_packs,
+            to_regclass('public.waouh_conversation_bus_events') is not null as conversation_bus,
+            to_regprocedure('public.waouh_append_conversation_bus_event(uuid,text,text,text,text,uuid,uuid,uuid,uuid,uuid,uuid,text,jsonb)') is not null as conversation_bus_rpc,
+            to_regprocedure('public.waouh_sync_opportunity_from_negotiation()') is not null as negotiation_sync_rpc,
+            to_regprocedure('public.waouh_sync_opportunity_from_deal()') is not null as deal_sync_rpc,
+            exists(
+              select 1 from pg_trigger
+              where tgname='waouh_opportunity_sync_negotiation' and not tgisinternal
+            ) as negotiation_sync_trigger,
+            exists(
+              select 1 from pg_trigger
+              where tgname='waouh_opportunity_sync_deal' and not tgisinternal
+            ) as deal_sync_trigger,
+            exists(
+              select 1 from cron.job
+              where jobname='waouh-opportunity-worker-10m'
+                and active
+                and command like '%/waouh-e2e-v3-relay%'
+            ) as opportunity_worker_cron
+          """
+          print(json.dumps({"query": query}))
+          PY
+
+          http_code=$(curl --silent --show-error \
+            "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query" \
+            --request POST \
+            --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data-binary @/tmp/opportunity-os-schema-query.json \
+            --output /tmp/opportunity-os-schema-result.json \
+            --write-out "%{http_code}" || true)
+
+          if [ "$http_code" = "401" ] || [ "$http_code" = "403" ]; then
+            echo "::warning::Management API schema preflight unavailable (HTTP $http_code)."
+            echo "::warning::Skipping this advisory preflight; controlled migrations and runtime deployment remain authoritative."
+            exit 0
+          fi
+
+          if [ "$http_code" != "200" ]; then
+            echo "::error::Opportunity OS schema preflight failed with HTTP $http_code"
+            cat /tmp/opportunity-os-schema-result.json || true
+            exit 1
+          fi
+
+          python - <<'PY'
+          import json, sys
+          with open("/tmp/opportunity-os-schema-result.json", encoding="utf-8") as fh:
+              payload = json.load(fh)
+          rows = payload if isinstance(payload, list) else payload.get("result", payload.get("data", []))
+          if isinstance(rows, dict):
+              rows = [rows]
+          row = rows[0] if rows else {}
+          required = [
+              "avatar_mandates", "persistent_intents", "contact_packs",
+              "conversation_bus", "conversation_bus_rpc",
+              "negotiation_sync_rpc", "deal_sync_rpc",
+              "negotiation_sync_trigger", "deal_sync_trigger",
+              "opportunity_worker_cron",
+          ]
+          missing = [name for name in required if row.get(name) is not True]
+          if missing:
+              print("::error::Opportunity OS schema absent/incomplet: " + ", ".join(missing))
+              print("::error::Apply controlled migrations 20261004223000 and 20261004224000 before Edge deployment.")
+              sys.exit(1)
+          print("✅ Opportunity OS production schema is ready.")
+          PY
+
+      - name: Deploy existing WAOUH Chat functions
+        if: steps.edge_scope.outputs.deploy_all_core == 'true' || steps.edge_scope.outputs.core_functions != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          functions=(
+            waouh-match-history
+            waouh-negotiation-router
+            waouh-deal-ops
+            waouh-buyer-interest
+            waouh-buy-handler
+            waouh-payment
+            waouh-deal-dispatch
+            waouh-notify-dispatch
+            waouh-webhook
+            waouh-channel-in
+            waouh-status-publish
+            waouh-sell-handler
+            waouh-negotiate-handler
+            waouh-presence-public-page
+            waouh-stock-ingest
+            waouh-nexus-followup
+            waouh-avatar-briefing
+            waouh-outbound-dispatch
+            waouh-notify-buyers
+            waouh-geocode
+            waouh-radar-apify
+            waouh-radar-site-scraper
+            waouh-radar-process
+            waouh-serpapi-scout
+            waouh-radar-campaign-tick
+            waouh-alerts-check
+            waouh-price-compare
+            waouh-radar-wa-webhook
+            waouh-stock-analyze
+            waouh-bi-query
+            waouh-agent-insights
+          )
+          if [ "${{ steps.edge_scope.outputs.deploy_all_core }}" != "true" ]; then
+            requested=" ${{ steps.edge_scope.outputs.core_functions }} "
+            selected=()
+            for fn in "${functions[@]}"; do
+              if [[ "$requested" == *" $fn "* ]]; then selected+=("$fn"); fi
+            done
+            functions=("${selected[@]}")
+          fi
+          for fn in "${functions[@]}"; do
+            echo "🚀 Deploying $fn"
+            supabase functions deploy "$fn"               --project-ref "$SUPABASE_PROJECT_REF"               --use-api               --no-verify-jwt
+          done
+          echo "✅ Existing WAOUH Chat function slots updated."
+
+      - name: Deploy WAOUH admin backend
+        if: steps.edge_scope.outputs.admin == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "🔐 Deploying waouh-admin-stats (JWT verified)..."
+          supabase functions deploy waouh-admin-stats \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --use-api
+          echo "✅ WAOUH admin backend deployed with JWT verification."
+
+      - name: Deploy admin E2E runner in dormant production slot
+        if: steps.edge_scope.outputs.e2e == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The canonical waouh-e2e-test slug is reserved by Native Messaging
+          # while the project is at the Edge Function quota. Reuse the dormant
+          # setup-test-accounts slot for the admin-only E2E runner.
+          rm -rf supabase/functions/setup-test-accounts
+          cp -R supabase/functions/waouh-e2e-test supabase/functions/setup-test-accounts
+          supabase functions deploy setup-test-accounts \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --use-api
+          echo "✅ Admin E2E runner deployed in setup-test-accounts (verify_jwt=true)."
+
+      - name: Deploy Opportunity OS in existing production slots
+        if: steps.edge_scope.outputs.opportunity == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Production is at the Edge Function quota. Do not create new slugs.
+          # Agentic Core already runs under waouh-studio-e2e-v21465.
+          # Opportunity Worker reuses waouh-e2e-v3-relay, a documented disabled 410 stub.
+          aliases=(
+            "waouh-studio-e2e-v21465|waouh-agentic-core|true"
+            "waouh-e2e-v3-relay|waouh-opportunity-worker|false"
+          )
+          for mapping in "${aliases[@]}"; do
+            IFS='|' read -r alias source verify_jwt <<< "$mapping"
+            test -f "supabase/functions/$source/index.ts" || {
+              echo "::error::Source manquante pour $alias : $source"
+              exit 1
+            }
+            rm -rf "supabase/functions/$alias"
+            mkdir -p "supabase/functions/$alias"
+            cp "supabase/functions/$source/index.ts" "supabase/functions/$alias/index.ts"
+
+            deploy_args=(
+              functions deploy "$alias"
+              --project-ref "$SUPABASE_PROJECT_REF"
+              --use-api
+            )
+            if [ "$verify_jwt" = "false" ]; then
+              deploy_args+=(--no-verify-jwt)
+            fi
+            echo "🚀 $alias <= $source (verify_jwt=$verify_jwt)"
+            supabase "${deploy_args[@]}"
+          done
+          echo "✅ Opportunity OS deployed without creating Edge Function slots."
+
+      - name: Deploy WAOUH Chat v3 commerce action
+        if: steps.edge_scope.outputs.commerce == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Parcours v3 (Lot 2) : déploie le point d'entrée canonique.
+          # Ce workflow ne modifie aucun feature flag ; l'état des flags reste
+          # celui contrôlé depuis l'administration / la base de production.
+          supabase functions deploy waouh-commerce-action \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --use-api \
+            --no-verify-jwt
+          echo "✅ waouh-commerce-action deployed; feature flags unchanged."
+
+      - name: Safety reminder
+        run: |
+          echo "Feature flags are NOT changed by this workflow."
+          echo "Historical backfill is NOT executed by this workflow."
+          echo "Database migration history is never auto-repaired in production."
+          echo "The CI-only minimal Edge config does not modify the repository config.toml."
+ | grep -q .; then
+            deploy_all_core=true
+          fi
+
+          core_functions=$(echo "$CHANGED"             | sed -n 's#^supabase/functions/\([^/_][^/]*\)/.*#\1#p'             | grep -E '^(waouh-match-history|waouh-negotiation-router|waouh-deal-ops|waouh-buyer-interest|waouh-buy-handler|waouh-payment|waouh-deal-dispatch|waouh-notify-dispatch|waouh-webhook|waouh-channel-in|waouh-status-publish|waouh-sell-handler|waouh-negotiate-handler|waouh-presence-public-page|waouh-stock-ingest|waouh-nexus-followup|waouh-avatar-briefing|waouh-outbound-dispatch|waouh-notify-buyers|waouh-geocode|waouh-radar-apify|waouh-radar-site-scraper|waouh-radar-process|waouh-serpapi-scout|waouh-radar-campaign-tick|waouh-alerts-check|waouh-price-compare|waouh-radar-wa-webhook|waouh-stock-analyze|waouh-bi-query|waouh-agent-insights)
+        if: steps.migration_gate.outputs.apply_migrations == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Skip database push when migrations are unchanged
+        if: steps.migration_gate.outputs.apply_migrations != 'true'
+        run: |
+          echo "ℹ️ No legacy auto-push WAOUH migration changed in this deployment."
+          echo "ℹ️ Opportunity OS additive migrations use the controlled release step and are not sent through generic db push."
+          echo "ℹ️ Skipping db push so unrelated historical migration drift cannot block Edge Function deployment."
+
+      - name: Preview additive Chat v2 migrations
+        if: steps.migration_gate.outputs.apply_migrations == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db push --linked --password "$SUPABASE_DB_PASSWORD" --dry-run
+
+      - name: Apply pending migrations
+        if: steps.migration_gate.outputs.apply_migrations == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The 27/09 backfill migration only INSTALLS the batch function.
+          # It never mutates historical messages automatically.
+          # If migration history is out of sync, this step must fail rather
+          # than repairing production history automatically.
+          supabase db push --linked --password "$SUPABASE_DB_PASSWORD" --yes
+
+      - name: Prepare minimal Edge deployment config
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp supabase/config.toml /tmp/waouh-config.original.toml
+          cat > supabase/config.toml <<EOF
+          project_id = "$SUPABASE_PROJECT_REF"
+
+          [api]
+          enabled = true
+          port = 54321
+
+          [edge_runtime]
+          enabled = true
+          policy = "per_worker"
+          EOF
+          echo "✅ Minimal Supabase Edge config prepared for CI deployment."
+
+      - name: Verify Opportunity OS schema readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The project has historical migration drift; do NOT run a generic
+          # db push here. Opportunity OS migrations are applied separately by
+          # the controlled release step. This preflight prevents publishing
+          # Edge code against a partial schema.
+          python - <<'PY' >/tmp/opportunity-os-schema-query.json
+          import json
+          query = """
+          select
+            to_regclass('public.waouh_avatar_mandates') is not null as avatar_mandates,
+            to_regclass('public.waouh_persistent_intents') is not null as persistent_intents,
+            to_regclass('public.waouh_contact_packs') is not null as contact_packs,
+            to_regclass('public.waouh_conversation_bus_events') is not null as conversation_bus,
+            to_regprocedure('public.waouh_append_conversation_bus_event(uuid,text,text,text,text,uuid,uuid,uuid,uuid,uuid,uuid,text,jsonb)') is not null as conversation_bus_rpc,
+            to_regprocedure('public.waouh_sync_opportunity_from_negotiation()') is not null as negotiation_sync_rpc,
+            to_regprocedure('public.waouh_sync_opportunity_from_deal()') is not null as deal_sync_rpc,
+            exists(
+              select 1 from pg_trigger
+              where tgname='waouh_opportunity_sync_negotiation' and not tgisinternal
+            ) as negotiation_sync_trigger,
+            exists(
+              select 1 from pg_trigger
+              where tgname='waouh_opportunity_sync_deal' and not tgisinternal
+            ) as deal_sync_trigger,
+            exists(
+              select 1 from cron.job
+              where jobname='waouh-opportunity-worker-10m'
+                and active
+                and command like '%/waouh-e2e-v3-relay%'
+            ) as opportunity_worker_cron
+          """
+          print(json.dumps({"query": query}))
+          PY
+
+          http_code=$(curl --silent --show-error \
+            "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query" \
+            --request POST \
+            --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data-binary @/tmp/opportunity-os-schema-query.json \
+            --output /tmp/opportunity-os-schema-result.json \
+            --write-out "%{http_code}" || true)
+
+          if [ "$http_code" = "401" ] || [ "$http_code" = "403" ]; then
+            echo "::warning::Management API schema preflight unavailable (HTTP $http_code)."
+            echo "::warning::Skipping this advisory preflight; controlled migrations and runtime deployment remain authoritative."
+            exit 0
+          fi
+
+          if [ "$http_code" != "200" ]; then
+            echo "::error::Opportunity OS schema preflight failed with HTTP $http_code"
+            cat /tmp/opportunity-os-schema-result.json || true
+            exit 1
+          fi
+
+          python - <<'PY'
+          import json, sys
+          with open("/tmp/opportunity-os-schema-result.json", encoding="utf-8") as fh:
+              payload = json.load(fh)
+          rows = payload if isinstance(payload, list) else payload.get("result", payload.get("data", []))
+          if isinstance(rows, dict):
+              rows = [rows]
+          row = rows[0] if rows else {}
+          required = [
+              "avatar_mandates", "persistent_intents", "contact_packs",
+              "conversation_bus", "conversation_bus_rpc",
+              "negotiation_sync_rpc", "deal_sync_rpc",
+              "negotiation_sync_trigger", "deal_sync_trigger",
+              "opportunity_worker_cron",
+          ]
+          missing = [name for name in required if row.get(name) is not True]
+          if missing:
+              print("::error::Opportunity OS schema absent/incomplet: " + ", ".join(missing))
+              print("::error::Apply controlled migrations 20261004223000 and 20261004224000 before Edge deployment.")
+              sys.exit(1)
+          print("✅ Opportunity OS production schema is ready.")
+          PY
+
+      - name: Deploy existing WAOUH Chat functions
+        shell: bash
+        run: |
+          set -euo pipefail
+          functions=(
+            waouh-match-history
+            waouh-negotiation-router
+            waouh-deal-ops
+            waouh-buyer-interest
+            waouh-buy-handler
+            waouh-payment
+            waouh-deal-dispatch
+            waouh-notify-dispatch
+            waouh-webhook
+            waouh-channel-in
+            waouh-status-publish
+            waouh-sell-handler
+            waouh-negotiate-handler
+            waouh-presence-public-page
+            waouh-stock-ingest
+            waouh-nexus-followup
+            waouh-avatar-briefing
+            waouh-outbound-dispatch
+            waouh-notify-buyers
+            waouh-geocode
+            waouh-radar-apify
+            waouh-radar-site-scraper
+            waouh-radar-process
+            waouh-serpapi-scout
+            waouh-radar-campaign-tick
+            waouh-alerts-check
+            waouh-price-compare
+            waouh-radar-wa-webhook
+            waouh-stock-analyze
+            waouh-bi-query
+            waouh-agent-insights
+          )
+          for fn in "${functions[@]}"; do
+            echo "🚀 Deploying $fn"
+            supabase functions deploy "$fn"               --project-ref "$SUPABASE_PROJECT_REF"               --use-api               --no-verify-jwt
+          done
+          echo "✅ Existing WAOUH Chat function slots updated."
+
+      - name: Deploy WAOUH admin backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "🔐 Deploying waouh-admin-stats (JWT verified)..."
+          supabase functions deploy waouh-admin-stats \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --use-api
+          echo "✅ WAOUH admin backend deployed with JWT verification."
+
+      - name: Deploy admin E2E runner in dormant production slot
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The canonical waouh-e2e-test slug is reserved by Native Messaging
+          # while the project is at the Edge Function quota. Reuse the dormant
+          # setup-test-accounts slot for the admin-only E2E runner.
+          rm -rf supabase/functions/setup-test-accounts
+          cp -R supabase/functions/waouh-e2e-test supabase/functions/setup-test-accounts
+          supabase functions deploy setup-test-accounts \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --use-api
+          echo "✅ Admin E2E runner deployed in setup-test-accounts (verify_jwt=true)."
+
+      - name: Deploy Opportunity OS in existing production slots
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Production is at the Edge Function quota. Do not create new slugs.
+          # Agentic Core already runs under waouh-studio-e2e-v21465.
+          # Opportunity Worker reuses waouh-e2e-v3-relay, a documented disabled 410 stub.
+          aliases=(
+            "waouh-studio-e2e-v21465|waouh-agentic-core|true"
+            "waouh-e2e-v3-relay|waouh-opportunity-worker|false"
+          )
+          for mapping in "${aliases[@]}"; do
+            IFS='|' read -r alias source verify_jwt <<< "$mapping"
+            test -f "supabase/functions/$source/index.ts" || {
+              echo "::error::Source manquante pour $alias : $source"
+              exit 1
+            }
+            rm -rf "supabase/functions/$alias"
+            mkdir -p "supabase/functions/$alias"
+            cp "supabase/functions/$source/index.ts" "supabase/functions/$alias/index.ts"
+
+            deploy_args=(
+              functions deploy "$alias"
+              --project-ref "$SUPABASE_PROJECT_REF"
+              --use-api
+            )
+            if [ "$verify_jwt" = "false" ]; then
+              deploy_args+=(--no-verify-jwt)
+            fi
+            echo "🚀 $alias <= $source (verify_jwt=$verify_jwt)"
+            supabase "${deploy_args[@]}"
+          done
+          echo "✅ Opportunity OS deployed without creating Edge Function slots."
+
+      - name: Deploy WAOUH Chat v3 commerce action
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Parcours v3 (Lot 2) : déploie le point d'entrée canonique.
+          # Ce workflow ne modifie aucun feature flag ; l'état des flags reste
+          # celui contrôlé depuis l'administration / la base de production.
+          supabase functions deploy waouh-commerce-action \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --use-api \
+            --no-verify-jwt
+          echo "✅ waouh-commerce-action deployed; feature flags unchanged."
+
+      - name: Safety reminder
+        run: |
+          echo "Feature flags are NOT changed by this workflow."
+          echo "Historical backfill is NOT executed by this workflow."
+          echo "Database migration history is never auto-repaired in production."
+          echo "The CI-only minimal Edge config does not modify the repository config.toml."
+             | sort -u | tr '\n' ' ' | sed 's/[[:space:]]*$//' || true)
+
+          echo "deploy_all_core=$deploy_all_core" >> "$GITHUB_OUTPUT"
+          echo "core_functions=$core_functions" >> "$GITHUB_OUTPUT"
+          echo "admin=$admin" >> "$GITHUB_OUTPUT"
+          echo "e2e=$e2e" >> "$GITHUB_OUTPUT"
+          echo "opportunity=$opportunity" >> "$GITHUB_OUTPUT"
+          echo "commerce=$commerce" >> "$GITHUB_OUTPUT"
+          echo "Edge scope: all_core=$deploy_all_core core=[$core_functions] admin=$admin e2e=$e2e opportunity=$opportunity commerce=$commerce"
 
       - name: Link Bot.Bj production for database migrations
         if: steps.migration_gate.outputs.apply_migrations == 'true'
