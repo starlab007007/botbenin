@@ -35,6 +35,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify WAOUH release alignment
+        run: python3 scripts/verify-waouh-release.py
+        working-directory: .
+
       - name: Java 17
         uses: actions/setup-java@v4
         with:

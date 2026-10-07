@@ -1,8 +1,9 @@
+import { releaseHeaders } from "../_shared/waouh-release.ts";
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 import {
   getRequestUser,
   isServiceRoleRequest,
-  jsonResponse,
+  jsonResponse as baseJsonResponse,
   waouhCorsHeaders,
 } from "../_shared/waouh-auth.ts";
 import { chatCompletion, visionCompletion } from "../_shared/agent-ai.ts";
@@ -172,6 +173,39 @@ async function queryOne<T>(promise: PromiseLike<{ data: T | null; error: { messa
   if (error) throw new ApiError(500, code, error.message);
   if (!data) throw new ApiError(404, code);
   return data;
+}
+
+function jsonResponse(payload: unknown, status = 200) {
+  const response = baseJsonResponse(payload, status);
+  response.headers.set("X-Waouh-Release", releaseHeaders["X-Waouh-Release"]);
+  return response;
+}
+
+declare const EdgeRuntime: {
+  waitUntil(promise: Promise<unknown>): void;
+};
+
+function wakeOpportunityWorker(
+  supabaseUrl: string,
+  serviceKey: string,
+  mandateId: string,
+) {
+  const task = fetch(`${supabaseUrl}/functions/v1/waouh-opportunity-worker`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${serviceKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ limit: 5, mandate_id: mandateId }),
+  }).then(async (response) => {
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      console.warn("[Opportunity OS] immediate worker wake failed", response.status, detail.slice(0, 200));
+    }
+  }).catch((error) => {
+    console.warn("[Opportunity OS] immediate worker wake failed", error);
+  });
+  EdgeRuntime.waitUntil(task);
 }
 
 async function ownedArticle(sb: SupabaseClient, authUserId: string, articleId: string) {
@@ -2694,6 +2728,7 @@ Retourne uniquement JSON:
             origin_surface: optionalString(payload.origin_surface, "origin_surface", 80),
           },
         });
+        wakeOpportunityWorker(supabaseUrl, serviceKey, mandate.id);
         return jsonResponse({ ok: true, data: {
           mandate,
           intent,
@@ -2773,6 +2808,7 @@ Retourne uniquement JSON:
           last_run_at: new Date().toISOString(),
           next_run_at: new Date(Date.now() + 60 * 60_000).toISOString(),
         }).eq("id", mandate.id);
+        wakeOpportunityWorker(supabaseUrl, serviceKey, mandate.id);
         return jsonResponse({ ok: true, data: { mandate, results, actionable_count: actionable.length }});
       }
 

@@ -1,3 +1,4 @@
+import { releaseHeaders } from "../waouh-release.ts";
 const defaultOrigins = [
   "https://bot.bj",
   "https://www.bot.bj",
@@ -12,6 +13,8 @@ export function telCorsHeaders(req?: Request) {
   const origin = req?.headers.get("origin") || "";
   const selected = allowed.has(origin) ? origin : "https://bot.bj";
   return {
+    ...releaseHeaders,
+    "Access-Control-Expose-Headers": "X-Waouh-Release",
     "Access-Control-Allow-Origin": selected,
     "Access-Control-Allow-Headers":
       "authorization, apikey, content-type, x-client-info, x-hub-signature, x-hub-timestamp, x-waouh-tel-signature, x-waouh-tel-token",

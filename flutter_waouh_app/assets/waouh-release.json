@@ -1,0 +1,19 @@
+{
+  "schema": "waouh.release.v1",
+  "version": "18.28.0",
+  "build": 1791406341,
+  "release_id": "18.28.0+1791406341",
+  "branch": "prod",
+  "project_ref": "mvynepqulhflxtyymtzs",
+  "prepared_at": "2026-10-07T20:52:21.479384+00:00",
+  "base_commit": "ade6c8c22b460a590837d0e76719d7e326ec7fd6",
+  "runtime_aliases": {
+    "waouh-studio-e2e-v21465": "waouh-agentic-core",
+    "waouh-e2e-test": "waouh-tel-dispatch",
+    "waouh-chat-health": "waouh-tel-open-messages",
+    "waouh-studio-pair-code-v2145": "waouh-tel-ingress",
+    "waouh-studio-agent-webhook-v2146": "waouh-tel-receipts",
+    "waouh-bots-backend-health-v1": "waouh-native-messaging-settings",
+    "chat-webhook": "waouh-native-simulator"
+  }
+}
