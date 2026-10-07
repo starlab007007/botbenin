@@ -29,6 +29,7 @@ import { getWaouhSessionId } from "@/app-mobile/hooks/useWaouhIdentity";
 import { WaouhNexusContactSheet } from "@/components/waouh/WaouhNexusContactSheet";
 import {
   globalNexusDiscovery,
+  getSellerOpportunities,
   prepareNexusContact,
   sendNexusDiscoveryContact,
   createNexusMandate,
@@ -39,6 +40,7 @@ import {
   type NexusDiscoveryResult,
   type NexusAvatarMandate,
   type NexusOpportunityJourney,
+  type NexusSellerGroup,
 } from "@/lib/waouh/nexus";
 
 type Mode = "acheter" | "vendre" | "demander";
@@ -183,6 +185,9 @@ export default function WaouhAvatarCommercePage() {
   const [maxFollowups, setMaxFollowups] = useState(1);
   const [allowSmsRcs, setAllowSmsRcs] = useState(false);
   const [mandateBusy, setMandateBusy] = useState(false);
+  const [sellerArticles, setSellerArticles] = useState<NexusSellerGroup["article"][]>([]);
+  const [sellerArticlesBusy, setSellerArticlesBusy] = useState(false);
+  const [selectedArticleId, setSelectedArticleId] = useState("");
   const [activeMandate, setActiveMandate] = useState<NexusAvatarMandate | null>(null);
   const [journeys, setJourneys] = useState<NexusOpportunityJourney[]>([]);
   const [journeysBusy, setJourneysBusy] = useState(false);
@@ -204,6 +209,38 @@ export default function WaouhAvatarCommercePage() {
       .catch(() => {});
     return () => { alive = false; };
   }, []);
+
+  useEffect(() => {
+    if (mode !== "vendre") {
+      setSellerArticles([]);
+      setSelectedArticleId("");
+      return;
+    }
+    let alive = true;
+    setSellerArticlesBusy(true);
+    void getSellerOpportunities()
+      .then((data) => {
+        if (!alive) return;
+        const articles = (data.articles || []).map((group) => group.article);
+        setSellerArticles(articles);
+        setSelectedArticleId((current) =>
+          current && articles.some((article) => article.id === current)
+            ? current
+            : (articles[0]?.id || "")
+        );
+        if (!goal.trim() && articles[0]?.title) {
+          setGoal(`Je vends ${articles[0].title}. Trouve des acheteurs sérieux.`);
+          if (!budget && articles[0].price != null) setBudget(String(Math.round(articles[0].price)));
+        }
+      })
+      .catch((error) => {
+        console.error("[Avatar Commerce] seller articles", error);
+      })
+      .finally(() => {
+        if (alive) setSellerArticlesBusy(false);
+      });
+    return () => { alive = false; };
+  }, [mode]);
 
   useEffect(() => {
     let alive = true;
@@ -265,11 +302,20 @@ export default function WaouhAvatarCommercePage() {
   const createMandate = async () => {
     const query = goal.trim();
     if (!query || mandateBusy) return;
+    if (mode === "vendre" && !selectedArticleId) {
+      toast({
+        title: "Choisissez l’annonce à vendre",
+        description: "Bot doit connaître l’article canonique avant de contacter des acheteurs et ouvrir un Deal Room.",
+        variant: "destructive",
+      });
+      return;
+    }
     setMandateBusy(true);
     try {
       const response = await createNexusMandate({
         mode: mode === "vendre" ? "sell" : mode === "demander" ? "ask" : "buy",
         goal: query,
+        ...(mode === "vendre" && selectedArticleId ? { article_id: selectedArticleId } : {}),
         autonomy_mode: autonomyMode,
         city: city.trim() || undefined,
         budget_max: Number(budget) || undefined,
@@ -509,6 +555,47 @@ export default function WaouhAvatarCommercePage() {
         </section>
 
         <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+          {mode === "vendre" && (
+            <div className="mb-4 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3">
+              <div className="text-[10px] font-black uppercase tracking-wide text-emerald-700">
+                Article suivi par Bot
+              </div>
+              {sellerArticlesBusy ? (
+                <div className="mt-2 flex items-center gap-2 text-xs font-semibold text-slate-500">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Chargement de vos annonces…
+                </div>
+              ) : sellerArticles.length > 0 ? (
+                <>
+                  <select
+                    value={selectedArticleId}
+                    onChange={(event) => {
+                      const id = event.target.value;
+                      setSelectedArticleId(id);
+                      const article = sellerArticles.find((item) => item.id === id);
+                      if (article) {
+                        setGoal(`Je vends ${article.title}. Trouve des acheteurs sérieux.`);
+                        if (article.price != null) setBudget(String(Math.round(article.price)));
+                      }
+                    }}
+                    className="mt-2 h-11 w-full rounded-xl border border-emerald-200 bg-white px-3 text-sm font-bold text-slate-900"
+                  >
+                    {sellerArticles.map((article) => (
+                      <option key={article.id} value={article.id}>
+                        {article.title}{article.price != null ? ` · ${Math.round(article.price).toLocaleString("fr-FR")} FCFA` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-2 text-[10px] font-semibold leading-relaxed text-slate-500">
+                    Cet article restera le même du premier contact jusqu’au Deal Room, à la livraison et au paiement.
+                  </p>
+                </>
+              ) : (
+                <div className="mt-2 rounded-xl bg-white p-3 text-xs font-semibold text-slate-600">
+                  Publiez d’abord une annonce active : Bot ne crée pas de produit ni de prix à votre place.
+                </div>
+              )}
+            </div>
+          )}
           <Textarea
             value={goal}
             onChange={(e) => setGoal(e.target.value)}
@@ -673,7 +760,7 @@ export default function WaouhAvatarCommercePage() {
               </label>
               <Button
                 className="h-12 w-full rounded-2xl bg-violet-600 hover:bg-violet-700"
-                disabled={mandateBusy || !goal.trim()}
+                disabled={mandateBusy || !goal.trim() || (mode === "vendre" && !selectedArticleId)}
                 onClick={() => void createMandate()}
               >
                 {mandateBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}
