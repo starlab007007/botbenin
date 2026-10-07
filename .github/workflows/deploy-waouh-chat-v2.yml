@@ -125,12 +125,44 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Detect Supabase deployment scope
+        id: deploy_scope
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          NEEDS_SUPABASE=false
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            NEEDS_SUPABASE=true
+          elif [ "$EVENT_NAME" = "push" ]; then
+            BEFORE="${EVENT_BEFORE:-}"
+            if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              NEEDS_SUPABASE=true
+            elif git diff --name-only "$BEFORE" "$GITHUB_SHA" --               supabase/config.toml               supabase/functions               supabase/migrations/20260927120000_waouh_chat_messages_thread_base.sql               supabase/migrations/20260927120500_waouh_chat_messages_thread_backfill.sql               supabase/migrations/20260927121000_waouh_chat_reconcile.sql               supabase/migrations/20260928092242_waouh_chat_v3_flags.sql               supabase/migrations/20260928092245_waouh_commerce_actions.sql               supabase/migrations/20260929140000_waouh_presence_pin_attempts.sql               supabase/migrations/20260929150000_waouh_nexus_followup_cron.sql               supabase/migrations/20260929160000_waouh_avatar_prefs.sql               supabase/migrations/20261004223000_waouh_opportunity_os.sql               supabase/migrations/20261004224000_waouh_opportunity_worker_cron.sql               | grep -q .; then
+              NEEDS_SUPABASE=true
+            fi
+          fi
+
+          echo "needs_supabase=$NEEDS_SUPABASE" >> "$GITHUB_OUTPUT"
+          echo "Supabase deployment required: $NEEDS_SUPABASE"
+
+      - name: No Supabase deployment required
+        if: steps.deploy_scope.outputs.needs_supabase != 'true'
+        run: |
+          echo "✅ Workflow-only change: no Supabase runtime or migration changed."
+          echo "✅ Skipping PAT validation and deployment safely."
+
       - name: Setup Supabase CLI
+        if: steps.deploy_scope.outputs.needs_supabase == 'true'
         uses: supabase/setup-cli@v1
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 
       - name: Resolve and validate production credentials
+        if: steps.deploy_scope.outputs.needs_supabase == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -148,6 +180,7 @@ jobs:
           test -n "${SUPABASE_PROJECT_REF:-}" || { echo "::error::SUPABASE_PROJECT_REF absent"; exit 1; }
 
       - name: Validate Supabase Management API token
+        if: steps.deploy_scope.outputs.needs_supabase == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -225,6 +258,7 @@ jobs:
           supabase db push --linked --password "$SUPABASE_DB_PASSWORD" --yes
 
       - name: Prepare minimal Edge deployment config
+        if: steps.deploy_scope.outputs.needs_supabase == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -243,6 +277,7 @@ jobs:
           echo "✅ Minimal Supabase Edge config prepared for CI deployment."
 
       - name: Verify Opportunity OS schema readiness
+        if: steps.deploy_scope.outputs.needs_supabase == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -324,6 +359,7 @@ jobs:
           PY
 
       - name: Deploy existing WAOUH Chat functions
+        if: steps.deploy_scope.outputs.needs_supabase == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -367,6 +403,7 @@ jobs:
           echo "✅ Existing WAOUH Chat function slots updated."
 
       - name: Deploy WAOUH admin backend
+        if: steps.deploy_scope.outputs.needs_supabase == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -377,6 +414,7 @@ jobs:
           echo "✅ WAOUH admin backend deployed with JWT verification."
 
       - name: Deploy admin E2E runner in dormant production slot
+        if: steps.deploy_scope.outputs.needs_supabase == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -391,6 +429,7 @@ jobs:
           echo "✅ Admin E2E runner deployed in setup-test-accounts (verify_jwt=true)."
 
       - name: Deploy Opportunity OS in existing production slots
+        if: steps.deploy_scope.outputs.needs_supabase == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -425,6 +464,7 @@ jobs:
           echo "✅ Opportunity OS deployed without creating Edge Function slots."
 
       - name: Deploy WAOUH Chat v3 commerce action
+        if: steps.deploy_scope.outputs.needs_supabase == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -438,6 +478,7 @@ jobs:
           echo "✅ waouh-commerce-action deployed; feature flags unchanged."
 
       - name: Safety reminder
+        if: steps.deploy_scope.outputs.needs_supabase == 'true'
         run: |
           echo "Feature flags are NOT changed by this workflow."
           echo "Historical backfill is NOT executed by this workflow."
