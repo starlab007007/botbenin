@@ -13,6 +13,7 @@ import 'live_thread_flow.dart';
 import 'live_theme.dart';
 import 'live_widgets.dart';
 import 'live_hot_labels.dart';
+import 'user_message.dart';
 
 enum LiveAvatarCommerceMode { buy, sell, ask }
 
@@ -45,6 +46,9 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   int _maxFollowups = 1;
   bool _allowSmsRcs = false;
   bool _mandateBusy = false;
+  List<Map<String, dynamic>> _sellerArticles = const <Map<String, dynamic>>[];
+  bool _sellerArticlesBusy = false;
+  String? _selectedSellerArticleId;
 
   @override
   void initState() {
@@ -53,6 +57,9 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       await _loadJourneys();
       await _loadMandate();
       await _loadConversationBus();
+      if (widget.mode == LiveAvatarCommerceMode.sell) {
+        await _loadSellerArticles();
+      }
     });
   }
 
@@ -111,9 +118,51 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
     } catch (_) {}
   }
 
+  Future<void> _loadSellerArticles() async {
+    if (legacy.supabase.auth.currentUser == null || _sellerArticlesBusy) return;
+    if (mounted) setState(() => _sellerArticlesBusy = true);
+    try {
+      final articles = await _nexus.sellerArticles();
+      if (!mounted) return;
+      setState(() {
+        _sellerArticles = articles;
+        final current = (_selectedSellerArticleId ?? '').trim();
+        _selectedSellerArticleId =
+            current.isNotEmpty && articles.any((row) => '${row['id']}' == current)
+                ? current
+                : (articles.isEmpty ? null : '${articles.first['id']}');
+      });
+      if (articles.isNotEmpty && _goal.text.trim().isEmpty) {
+        final article = articles.first;
+        final title = '${article['title'] ?? 'mon article'}'.trim();
+        _goal.text = 'Je vends $title. Trouve des acheteurs sérieux.';
+        final price = double.tryParse('${article['price'] ?? ''}');
+        if (price != null && price > 0 && _budget.text.trim().isEmpty) {
+          _budget.text = price.round().toString();
+        }
+      }
+    } catch (_) {
+      // La recherche libre reste disponible, mais le mandat vendeur ne sera
+      // pas activable sans article canonique.
+    } finally {
+      if (mounted) setState(() => _sellerArticlesBusy = false);
+    }
+  }
+
   Future<void> _createMandate() async {
     final query = _goal.text.trim();
     if (query.isEmpty || _mandateBusy) return;
+    if (widget.mode == LiveAvatarCommerceMode.sell &&
+        (_selectedSellerArticleId ?? '').trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Choisissez une annonce active avant de confier la vente à Bot.',
+          ),
+        ),
+      );
+      return;
+    }
     setState(() => _mandateBusy = true);
     try {
       final budget = double.tryParse(_budget.text.replaceAll(RegExp(r'[^0-9.]'), ''));
@@ -125,6 +174,9 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       final data = await _nexus.createMandate(
         mode: mode,
         goal: query,
+        articleId: widget.mode == LiveAvatarCommerceMode.sell
+            ? _selectedSellerArticleId
+            : null,
         autonomyMode: _autonomyMode,
         city: _city.text.trim().isEmpty ? null : _city.text.trim(),
         budgetMax: budget,
@@ -157,7 +209,9 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Mandat non créé : $e')),
+          SnackBar(
+            content: Text(waouhUserMessage(e, action: 'save')),
+          ),
         );
       }
     } finally {
@@ -407,7 +461,8 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Avatar garde votre démarche active. ' + e.toString(),
+            'Avatar garde votre démarche active. ' +
+                waouhUserMessage(e, action: 'send'),
           ),
         ),
       );
@@ -1124,7 +1179,12 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
             onChanged: (value) => setState(() => _allowSmsRcs = value),
           ),
           FilledButton.icon(
-            onPressed: _mandateBusy || _goal.text.trim().isEmpty ? null : _createMandate,
+            onPressed: _mandateBusy ||
+                    _goal.text.trim().isEmpty ||
+                    (widget.mode == LiveAvatarCommerceMode.sell &&
+                        (_selectedSellerArticleId ?? '').trim().isEmpty)
+                ? null
+                : _createMandate,
             icon: _mandateBusy
               ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
               : const Icon(Icons.smart_toy_outlined),
@@ -1190,6 +1250,34 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
               ),
               const SizedBox(height: 12),
             ],
+            if (widget.mode == LiveAvatarCommerceMode.sell) ...[
+              _SellerArticleSurface(
+                articles: _sellerArticles,
+                loading: _sellerArticlesBusy,
+                selectedId: _selectedSellerArticleId,
+                onChanged: (id) {
+                  setState(() => _selectedSellerArticleId = id);
+                  Map<String, dynamic>? article;
+                  for (final row in _sellerArticles) {
+                    if ('${row['id']}' == id) {
+                      article = row;
+                      break;
+                    }
+                  }
+                  if (article != null) {
+                    final title = '${article['title'] ?? 'mon article'}'.trim();
+                    _goal.text =
+                        'Je vends $title. Trouve des acheteurs sérieux.';
+                    final price = double.tryParse('${article['price'] ?? ''}');
+                    if (price != null && price > 0) {
+                      _budget.text = price.round().toString();
+                    }
+                  }
+                },
+                onRefresh: _loadSellerArticles,
+              ),
+              const SizedBox(height: 12),
+            ],
             _GoalSurface(
               controller: _goal,
               city: _city,
@@ -1239,6 +1327,104 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       ),
     );
   }
+}
+
+class _SellerArticleSurface extends StatelessWidget {
+  const _SellerArticleSurface({
+    required this.articles,
+    required this.loading,
+    required this.selectedId,
+    required this.onChanged,
+    required this.onRefresh,
+  });
+
+  final List<Map<String, dynamic>> articles;
+  final bool loading;
+  final String? selectedId;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(13),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0FBF6),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFFCDEEDD)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              const Expanded(
+                child: Text(
+                  'Article suivi par Bot',
+                  style: TextStyle(
+                    color: Color(0xFF0C6B51),
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Actualiser',
+                onPressed: loading ? null : onRefresh,
+                icon: loading
+                    ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh_rounded),
+              ),
+            ]),
+            if (articles.isEmpty && !loading)
+              const Text(
+                'Publiez d’abord une annonce active. Bot ne crée pas de produit ni de prix à votre place.',
+                style: TextStyle(
+                  color: WaouhPalette.muted,
+                  fontSize: 10.5,
+                  height: 1.35,
+                ),
+              )
+            else if (articles.isNotEmpty)
+              DropdownButtonFormField<String>(
+                value: articles.any((row) => '${row['id']}' == selectedId)
+                    ? selectedId
+                    : '${articles.first['id']}',
+                decoration: const InputDecoration(
+                  labelText: 'Annonce à vendre',
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+                items: articles.map((article) {
+                  final title = '${article['title'] ?? 'Annonce'}';
+                  final price = double.tryParse('${article['price'] ?? ''}');
+                  return DropdownMenuItem(
+                    value: '${article['id']}',
+                    child: Text(
+                      price == null
+                          ? title
+                          : '$title · ${price.round()} FCFA',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  );
+                }).toList(growable: false),
+                onChanged: (value) {
+                  if (value != null) onChanged(value);
+                },
+              ),
+            const SizedBox(height: 7),
+            const Text(
+              'La même annonce accompagne le contact, la négociation, le Deal Room, la livraison et le paiement.',
+              style: TextStyle(
+                color: WaouhPalette.muted,
+                fontSize: 9.5,
+                height: 1.3,
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class _MandateMetric extends StatelessWidget {
