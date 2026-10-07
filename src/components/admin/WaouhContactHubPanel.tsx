@@ -178,9 +178,12 @@ export default function WaouhContactHubPanel() {
       if (error) throw error;
       toast({
         title: data?.warning ? "Synchronisation WAHA terminée avec avertissement" : "Synchronisation WAHA terminée",
-        description: data?.warning || `${data?.mapped ?? 0} contacts mappés · ${data?.backfilled ?? 0} lignes enrichies`,
+        description: data?.warning ||
+          `${data?.mapped ?? 0} contacts mappés · ${data?.centralized ?? 0} centralisés · ${data?.backfilled ?? 0} lignes enrichies`,
       });
-      await load(page.offset);
+      setMode("registry");
+      setPage((p) => ({ ...p, offset: 0 }));
+      await load(0, "registry");
     } catch (error: any) {
       toast({ title: "Échec synchronisation WAHA", description: error?.message || String(error), variant: "destructive" });
     } finally {
@@ -229,7 +232,9 @@ export default function WaouhContactHubPanel() {
         description:
           `${written} nouveau(x) · ${updated} enrichi(s) · ${attempted} candidat(s) · ${skippedNoEntity} sans entité · ${skippedRevoked} bloqué(s) · ${skippedInvalid} invalide(s)`,
       });
-      await load(0);
+      setMode("registry");
+      setPage((p) => ({ ...p, offset: 0 }));
+      await load(0, "registry");
     } catch (error: any) {
       toast({
         title: "Centralisation des contacts échouée",
