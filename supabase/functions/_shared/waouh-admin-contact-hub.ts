@@ -312,6 +312,18 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
     const contacts = new Map<string, ContactCandidate>();
     const evidence = row.evidence || {};
     const rowLevel = String(row.contactability_level || "C0").toUpperCase();
+    const sourceKey = String(row.source_key || "");
+    const sourceFamily = String(row.source_family || "").toLowerCase();
+    const sourceIsPartner = sourceKey === "partner" || sourceFamily === "partner";
+    const sourceIsPublicBusiness =
+      sourceIsPartner ||
+      ["maps", "directory", "b2b"].includes(sourceFamily) ||
+      ["google_places", "benin_directory", "facebook_business", "instagram_business", "b2b_rfq"].includes(sourceKey);
+    const sourceConsent = sourceIsPartner
+      ? "partner_contract"
+      : sourceIsPublicBusiness
+        ? "public_business"
+        : null;
 
     const externalId = prefixedUuid(row.fabric_id, "external:");
     const external = externalId ? externalMap.get(externalId) : null;
@@ -350,7 +362,7 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
       if (catalog.vendeur_phone) addCandidate(contacts, {
         channel: "phone", value: catalog.vendeur_phone, source: row.source_key,
         origin_kind: "catalog", origin_id: catalog.id, contactability_level: rowLevel,
-        verification_status: "observed", label: catalog.vendeur_nom,
+        verification_status: "observed", consent_state: "initiated", label: catalog.vendeur_nom,
       });
     }
 
@@ -404,7 +416,8 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
     if (radar?.contact_phone) addCandidate(contacts, {
       channel: "phone", value: radar.contact_phone, source: row.source_key,
       origin_kind: "radar_signal", origin_id: radar.id, contactability_level: rowLevel,
-      verification_status: "observed", label: radar.contact_handle,
+      verification_status: "observed", consent_state: sourceConsent,
+      public_business: sourceIsPublicBusiness, label: radar.contact_handle,
     });
     if (radar?.contact_handle) addCandidate(contacts, {
       channel: "social", value: radar.contact_handle, source: row.source_key,
@@ -435,6 +448,8 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
         origin_id: row.source_record_id || null,
         contactability_level: rowLevel,
         verification_status: "observed",
+        consent_state: sourceConsent,
+        public_business: sourceIsPublicBusiness,
       });
     }
 
@@ -445,6 +460,7 @@ async function enrichFabricRows(service: any, rows: AnyRow[]) {
       channel: "phone", value: e164, source: row.source_key,
       origin_kind: "raw_text", origin_id: row.source_record_id || null,
       contactability_level: rowLevel, verification_status: "unknown",
+      consent_state: sourceConsent, public_business: sourceIsPublicBusiness,
     });
 
     const list = [...contacts.values()].sort((a, b) => {
@@ -485,6 +501,256 @@ function safeVerificationStatus(value: unknown, reachable: boolean | null) {
     : "observed";
 }
 
+function clampTrustScore(value: unknown) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 50;
+  return Math.max(0, Math.min(100, n));
+}
+
+async function ensureRegistryEntity(
+  service: any,
+  row: AnyRow,
+  contact: ContactCandidate,
+  e164: string,
+  valueHash: string,
+): Promise<string> {
+  const direct = asUuid(contact.entity_id) || asUuid(row.resolved_entity_id);
+  if (direct) return direct;
+
+  const { data: existingContact, error: existingContactError } = await service
+    .from("waouh_entity_contacts")
+    .select("entity_id")
+    .eq("value_hash", valueHash)
+    .limit(1)
+    .maybeSingle();
+  if (existingContactError) throw existingContactError;
+  if (existingContact?.entity_id) return String(existingContact.entity_id);
+
+  const canonicalKey = `phone:${valueHash}`;
+  const { data: existingEntity, error: existingEntityError } = await service
+    .from("waouh_commerce_entities")
+    .select("id,source_keys,primary_name,city,metadata")
+    .eq("canonical_key", canonicalKey)
+    .order("last_seen_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (existingEntityError) throw existingEntityError;
+
+  const sourceKey = String(contact.source || row.source_key || "signal_fabric");
+  const sourceFamily = String(row.source_family || "").toLowerCase();
+  const partnerLike = contact.consent_state === "partner_contract" || sourceFamily === "partner";
+  const businessLike =
+    contact.public_business === true ||
+    partnerLike ||
+    ["maps", "directory", "b2b"].includes(sourceFamily) ||
+    ["google_places", "benin_directory", "facebook_business", "instagram_business", "b2b_rfq"].includes(sourceKey);
+  const primaryName = contact.label || row.actor_name || row.subject || null;
+  const now = new Date().toISOString();
+
+  if (existingEntity?.id) {
+    const sourceKeys = [...new Set([
+      ...(Array.isArray(existingEntity.source_keys) ? existingEntity.source_keys : []),
+      sourceKey,
+    ])];
+    const { error: updateError } = await service
+      .from("waouh_commerce_entities")
+      .update({
+        source_keys: sourceKeys,
+        last_seen_at: now,
+        primary_name: existingEntity.primary_name || primaryName,
+        city: existingEntity.city || row.city || null,
+        metadata: {
+          ...(existingEntity.metadata || {}),
+          contact_registry_last_fabric_id: row.fabric_id || null,
+          contact_registry_last_seen_at: now,
+        },
+        updated_at: now,
+      })
+      .eq("id", existingEntity.id);
+    if (updateError) throw updateError;
+    return String(existingEntity.id);
+  }
+
+  const { data: created, error: createError } = await service
+    .from("waouh_commerce_entities")
+    .insert({
+      entity_type: businessLike ? "business" : "person",
+      primary_name: primaryName,
+      canonical_key: canonicalKey,
+      city: row.city || null,
+      country_code: "BJ",
+      verification_state: partnerLike
+        ? "partner_verified"
+        : businessLike
+          ? "source_verified"
+          : "unverified",
+      trust_score: clampTrustScore(row.trust_score),
+      source_keys: [sourceKey],
+      metadata: {
+        created_by: "admin_contact_hub",
+        contact_registry_phone_hash: valueHash,
+        contact_registry_origin_kind: contact.origin_kind,
+        contact_registry_origin_id: contact.origin_id,
+        contact_registry_fabric_id: row.fabric_id || null,
+      },
+      first_seen_at: now,
+      last_seen_at: now,
+      updated_at: now,
+    })
+    .select("id")
+    .single();
+  if (createError) throw createError;
+  return String(created.id);
+}
+
+async function loadRegistryRows(
+  service: any,
+  body: Record<string, any>,
+) {
+  const limit = Math.max(1, Math.min(Number(body?.limit || 100), 300));
+  const offset = Math.max(0, Number(body?.offset || 0));
+  const source = body?.source ? String(body.source) : null;
+  const whatsappOnly = body?.whatsapp_only === true;
+  const q = String(body?.q || "").trim().toLowerCase();
+
+  let query = service
+    .from("waouh_entity_contacts")
+    .select("id,entity_id,channel,value_encrypted,public_value,value_last4,source_key,is_public_business,consent_state,contactability_level,verified_at,verification_status,is_whatsapp_reachable,last_success_at,last_failure_at,sent_count,reply_count,failure_count,metrics,updated_at")
+    .order("updated_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+  if (source) query = query.eq("source_key", source);
+  if (whatsappOnly) query = query.in("channel", ["phone", "whatsapp"]);
+
+  const { data: contacts, error } = await query;
+  if (error) throw error;
+
+  const entityIds = uniq((contacts ?? []).map((row: AnyRow) => asUuid(row.entity_id)));
+  const sourceKeys = uniq((contacts ?? []).map((row: AnyRow) => String(row.source_key || "") || null));
+  const [entitiesRes, sourcesRes] = await Promise.all([
+    entityIds.length
+      ? service.from("waouh_commerce_entities")
+        .select("id,entity_type,primary_name,city,verification_state,trust_score,source_keys")
+        .in("id", entityIds)
+      : Promise.resolve({ data: [], error: null }),
+    sourceKeys.length
+      ? service.from("waouh_discovery_sources")
+        .select("source_key,label,family,operational_state")
+        .in("source_key", sourceKeys)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (entitiesRes.error) throw entitiesRes.error;
+  if (sourcesRes.error) throw sourcesRes.error;
+
+  const entityMap = indexBy(entitiesRes.data, "id");
+  const sourceMap = indexBy(sourcesRes.data, "source_key");
+  const rows: AnyRow[] = [];
+
+  for (const row of contacts ?? []) {
+    const clear = row.public_value || await safeDecrypt(row.value_encrypted);
+    if (!clear) continue;
+    const entity = entityMap.get(String(row.entity_id)) || {};
+    const sourceInfo = sourceMap.get(String(row.source_key)) || {};
+    const bucket = new Map<string, ContactCandidate>();
+    addCandidate(bucket, {
+      channel: String(row.channel || "phone"),
+      value: String(clear),
+      source: row.source_key || "contact_registry",
+      origin_kind: "entity_contact",
+      origin_id: row.id,
+      contact_id: row.id,
+      entity_id: row.entity_id,
+      consent_state: row.consent_state,
+      contactability_level: row.contactability_level || "C0",
+      verification_status: row.verification_status,
+      whatsapp_reachable: row.is_whatsapp_reachable,
+      public_business: row.is_public_business,
+      last_verified_at: row.verified_at,
+      label: entity.primary_name || null,
+    });
+    const contact = [...bucket.values()][0];
+    if (!contact) continue;
+
+    const haystack = [
+      entity.primary_name,
+      entity.city,
+      row.source_key,
+      sourceInfo.label,
+      clear,
+      contact.normalized,
+      row.value_last4,
+    ].map((v) => String(v || "").toLowerCase()).join(" ");
+    if (q && !haystack.includes(q)) continue;
+
+    rows.push({
+      fabric_id: `registry:${row.id}`,
+      source_record_id: row.id,
+      source_key: row.source_key || "contact_registry",
+      source_label: sourceInfo.label || row.source_key || "Répertoire central",
+      source_family: sourceInfo.family || "directory",
+      operational_state: sourceInfo.operational_state || "live",
+      intent: "CONTACT",
+      actor_type: entity.entity_type || "unknown",
+      subject: entity.primary_name || contact.display || "Contact centralisé",
+      city: entity.city || null,
+      contactability_level: row.contactability_level || "C0",
+      source_url: null,
+      contacts: [contact],
+      primary_whatsapp: contact.whatsapp_candidate && contact.send_allowed ? contact.normalized : null,
+      contact_count: 1,
+      whatsapp_count: contact.whatsapp_candidate ? 1 : 0,
+      wa_reachable_count: contact.whatsapp_reachable === true ? 1 : 0,
+      trust_score: entity.trust_score ?? null,
+      registry_only: true,
+    });
+  }
+
+  return {
+    rows,
+    page: {
+      offset,
+      limit,
+      source_rows: (contacts ?? []).length,
+      has_more: (contacts ?? []).length === limit,
+    },
+    stats: {
+      rows: rows.length,
+      contacts: rows.length,
+      whatsapp: rows.filter((r: AnyRow) => r.whatsapp_count > 0).length,
+      reachable: rows.filter((r: AnyRow) => r.wa_reachable_count > 0).length,
+      sendable: rows.filter((r: AnyRow) => r.contacts?.[0]?.send_allowed).length,
+    },
+  };
+}
+
+async function getRegistryContact(service: any, contactId: string) {
+  const { data: row, error } = await service
+    .from("waouh_entity_contacts")
+    .select("id,entity_id,channel,value_encrypted,public_value,source_key,is_public_business,consent_state,contactability_level,verified_at,verification_status,is_whatsapp_reachable")
+    .eq("id", contactId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!row) return null;
+  const clear = row.public_value || await safeDecrypt(row.value_encrypted);
+  if (!clear) return null;
+  const bucket = new Map<string, ContactCandidate>();
+  addCandidate(bucket, {
+    channel: String(row.channel || "phone"),
+    value: String(clear),
+    source: row.source_key || "contact_registry",
+    origin_kind: "entity_contact",
+    origin_id: row.id,
+    contact_id: row.id,
+    entity_id: row.entity_id,
+    consent_state: row.consent_state,
+    contactability_level: row.contactability_level || "C0",
+    verification_status: row.verification_status,
+    whatsapp_reachable: row.is_whatsapp_reachable,
+    public_business: row.is_public_business,
+    last_verified_at: row.verified_at,
+  });
+  return [...bucket.values()][0] || null;
+}
+
 async function materializeEntityContacts(service: any, rows: AnyRow[], adminUserId: string) {
   const now = new Date().toISOString();
   const candidates = new Map<string, AnyRow>();
@@ -495,14 +761,26 @@ async function materializeEntityContacts(service: any, rows: AnyRow[], adminUser
   for (const row of rows) {
     const rowEntityId = asUuid(row.resolved_entity_id);
     for (const contact of (row.contacts ?? []) as ContactCandidate[]) {
-      const entityId = asUuid(contact.entity_id) || rowEntityId;
+      let entityId = asUuid(contact.entity_id) || rowEntityId;
       const e164 = contact.normalized ? normalizeE164(contact.normalized, "+229") : null;
-      if (!entityId) { skippedNoEntity++; continue; }
       if (!e164) { skippedInvalid++; continue; }
       if (contact.opted_out || consentRevoked(contact.consent_state)) { skippedRevoked++; continue; }
 
       const channel = contact.channel === "whatsapp" ? "whatsapp" : "phone";
       const valueHash = await hashPhone(e164);
+      if (!entityId) {
+        try {
+          entityId = await ensureRegistryEntity(service, row, contact, e164, valueHash);
+        } catch (entityError) {
+          console.warn("[waouh-admin-contact-hub] entity materialization skipped", {
+            fabric_id: row.fabric_id,
+            source_key: row.source_key,
+            error: entityError instanceof Error ? entityError.message : String(entityError),
+          });
+          skippedNoEntity++;
+          continue;
+        }
+      }
       const key = `${entityId}:${channel}:${valueHash}`;
       if (candidates.has(key)) continue;
 
@@ -814,6 +1092,11 @@ export async function handleAdminContactHub(
       });
     }
 
+    if (action === "contact_hub_registry") {
+      const registry = await loadRegistryRows(service, body);
+      return json({ ok: true, ...registry });
+    }
+
     if (action === "contact_hub_materialize") {
       const limit = Math.max(1, Math.min(Number(body?.limit || 100), 150));
       const offset = Math.max(0, Number(body?.offset || 0));
@@ -847,8 +1130,15 @@ export async function handleAdminContactHub(
     if (action === "contact_hub_verify") {
       const fabricId = String(body?.fabric_id || "");
       const requested = String(body?.phone || "");
-      if (!fabricId || !requested) return json({ ok: false, error: "fabric_id_and_phone_required" }, 422);
-      const { row, contact } = await getResolvedContact(service, fabricId, requested);
+      const contactId = asUuid(body?.contact_id);
+      if ((!fabricId && !contactId) || !requested) {
+        return json({ ok: false, error: "contact_reference_and_phone_required" }, 422);
+      }
+      const registryContact = contactId ? await getRegistryContact(service, contactId) : null;
+      const resolved = registryContact
+        ? { row: { fabric_id: `registry:${contactId}`, source_key: registryContact.source }, contact: registryContact }
+        : await getResolvedContact(service, fabricId, requested);
+      const { row, contact } = resolved;
       if (!row || !contact || !contact.normalized) return json({ ok: false, error: "contact_not_found" }, 404);
       if (consentRevoked(contact.consent_state) || contact.opted_out) {
         return json({ ok: false, error: "contact_opted_out" }, 403);
@@ -861,11 +1151,18 @@ export async function handleAdminContactHub(
     if (action === "contact_hub_send") {
       const fabricId = String(body?.fabric_id || "");
       const requested = String(body?.phone || "");
+      const contactId = asUuid(body?.contact_id);
       const message = String(body?.message || "").trim();
-      if (!fabricId || !requested || !message) return json({ ok: false, error: "fabric_id_phone_message_required" }, 422);
+      if ((!fabricId && !contactId) || !requested || !message) {
+        return json({ ok: false, error: "contact_reference_phone_message_required" }, 422);
+      }
       if (message.length > 3000) return json({ ok: false, error: "message_too_long" }, 422);
 
-      const { row, contact } = await getResolvedContact(service, fabricId, requested);
+      const registryContact = contactId ? await getRegistryContact(service, contactId) : null;
+      const resolved = registryContact
+        ? { row: { fabric_id: `registry:${contactId}`, source_key: registryContact.source }, contact: registryContact }
+        : await getResolvedContact(service, fabricId, requested);
+      const { row, contact } = resolved;
       if (!row || !contact || !contact.normalized) return json({ ok: false, error: "contact_not_found" }, 404);
       if (!contact.send_allowed) {
         return json({
@@ -893,12 +1190,13 @@ export async function handleAdminContactHub(
       await updateVerifiedSource(service, contact, contact.normalized, check.chat_id);
 
       const bucket = Math.floor(Date.now() / 60_000);
-      const dedupe = `admin-contact-hub:${user.id}:${fabricId}:${contact.normalized}:${bucket}:${await sha256Hex(message)}`;
+      const contactReference = contactId || fabricId;
+      const dedupe = `admin-contact-hub:${user.id}:${contactReference}:${contact.normalized}:${bucket}:${await sha256Hex(message)}`;
       const payload = {
         text: message,
-        fabric_id: fabricId,
+        fabric_id: fabricId || null,
+        contact_id: contact.contact_id || contactId || null,
         source_key: row.source_key,
-        contact_id: contact.contact_id,
         admin_user_id: user.id,
         admin_contact_hub: true,
         waha_verified: true,

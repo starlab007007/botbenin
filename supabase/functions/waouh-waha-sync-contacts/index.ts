@@ -1,4 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { encryptPhone, hashPhone } from '../_shared/waouh-tel/crypto.ts';
+import { phoneLast4 } from '../_shared/waouh-tel/phone.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,6 +18,168 @@ interface WahaContact {
   lid?: string;
 }
 
+
+async function materializeWahaDirectoryContacts(
+  supabase: any,
+  rows: any[],
+  session: string,
+) {
+  const now = new Date().toISOString();
+  const unique = new Map<string, { e164: string; hash: string; name: string | null }>();
+
+  for (const row of rows) {
+    const e164 = normalizeWahaPhone(row.phone_e164 || row.phone);
+    if (!e164) continue;
+    const hash = await hashPhone(e164);
+    if (!unique.has(hash)) {
+      unique.set(hash, {
+        e164,
+        hash,
+        name: row.display_name || row.pushname || null,
+      });
+    }
+  }
+
+  const candidates = [...unique.values()];
+  if (!candidates.length) {
+    return { candidates: 0, entities_created: 0, contacts_created: 0, contacts_verified: 0 };
+  }
+
+  const hashes = candidates.map((row) => row.hash);
+  const existingContacts: any[] = [];
+  for (let i = 0; i < hashes.length; i += 100) {
+    const { data, error } = await supabase
+      .from('waouh_entity_contacts')
+      .select('id,entity_id,channel,value_hash,source_key,consent_state,contactability_level,metrics')
+      .in('value_hash', hashes.slice(i, i + 100));
+    if (error) throw error;
+    existingContacts.push(...(data || []));
+  }
+
+  const entityByHash = new Map<string, string>();
+  const whatsappExisting = new Set<string>();
+  for (const contact of existingContacts) {
+    if (contact?.value_hash && contact?.entity_id && !entityByHash.has(String(contact.value_hash))) {
+      entityByHash.set(String(contact.value_hash), String(contact.entity_id));
+    }
+    if (contact?.channel === 'whatsapp' && contact?.entity_id && contact?.value_hash) {
+      whatsappExisting.add(String(contact.entity_id) + ':' + String(contact.value_hash));
+    }
+  }
+
+  const missingKeys = candidates
+    .filter((row) => !entityByHash.has(row.hash))
+    .map((row) => 'phone:' + row.hash);
+  const existingEntities: any[] = [];
+  for (let i = 0; i < missingKeys.length; i += 100) {
+    const { data, error } = await supabase
+      .from('waouh_commerce_entities')
+      .select('id,canonical_key')
+      .in('canonical_key', missingKeys.slice(i, i + 100));
+    if (error) throw error;
+    existingEntities.push(...(data || []));
+  }
+  for (const entity of existingEntities) {
+    const key = String(entity.canonical_key || '');
+    if (key.startsWith('phone:')) entityByHash.set(key.slice(6), String(entity.id));
+  }
+
+  let entitiesCreated = 0;
+  const missingEntities = candidates
+    .filter((row) => !entityByHash.has(row.hash))
+    .map((row) => ({
+      entity_type: 'person',
+      primary_name: row.name,
+      canonical_key: 'phone:' + row.hash,
+      country_code: 'BJ',
+      verification_state: 'source_verified',
+      trust_score: 50,
+      source_keys: ['waha_directory'],
+      metadata: {
+        created_by: 'waouh-waha-sync-contacts',
+        waha_directory: true,
+        first_session: session,
+      },
+      first_seen_at: now,
+      last_seen_at: now,
+      updated_at: now,
+    }));
+
+  for (let i = 0; i < missingEntities.length; i += 100) {
+    const batch = missingEntities.slice(i, i + 100);
+    const { data, error } = await supabase
+      .from('waouh_commerce_entities')
+      .insert(batch)
+      .select('id,canonical_key');
+    if (error) throw error;
+    for (const entity of data || []) {
+      const key = String(entity.canonical_key || '');
+      if (key.startsWith('phone:')) entityByHash.set(key.slice(6), String(entity.id));
+    }
+    entitiesCreated += (data || []).length;
+  }
+
+  let contactsVerified = 0;
+  for (let i = 0; i < hashes.length; i += 100) {
+    const { data, error } = await supabase
+      .from('waouh_entity_contacts')
+      .update({
+        is_whatsapp_reachable: true,
+        verification_status: 'reachable',
+        verified_at: now,
+        updated_at: now,
+      })
+      .in('value_hash', hashes.slice(i, i + 100))
+      .select('id');
+    if (error) throw error;
+    contactsVerified += (data || []).length;
+  }
+
+  const inserts: any[] = [];
+  for (const row of candidates) {
+    const entityId = entityByHash.get(row.hash);
+    if (!entityId || whatsappExisting.has(entityId + ':' + row.hash)) continue;
+    inserts.push({
+      entity_id: entityId,
+      channel: 'whatsapp',
+      value_encrypted: await encryptPhone(row.e164),
+      value_hash: row.hash,
+      value_last4: phoneLast4(row.e164),
+      public_value: null,
+      source_key: 'waha_directory',
+      is_public_business: false,
+      consent_state: 'unknown',
+      contactability_level: 'C0',
+      verified_at: now,
+      verification_status: 'reachable',
+      is_whatsapp_reachable: true,
+      metrics: {
+        materialized_from: 'waouh-waha-sync-contacts',
+        waha_session: session,
+        waha_directory: true,
+        last_waha_sync_at: now,
+      },
+      updated_at: now,
+    });
+  }
+
+  let contactsCreated = 0;
+  for (let i = 0; i < inserts.length; i += 100) {
+    const { data, error } = await supabase
+      .from('waouh_entity_contacts')
+      .insert(inserts.slice(i, i + 100))
+      .select('id');
+    if (error) throw error;
+    contactsCreated += (data || []).length;
+  }
+
+  return {
+    candidates: candidates.length,
+    entities_created: entitiesCreated,
+    contacts_created: contactsCreated,
+    contacts_verified: contactsVerified,
+  };
+}
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
@@ -129,11 +293,11 @@ Deno.serve(async (req) => {
       return json({
         ok: true,
         warning: 'Aucune session WAHA active (WORKING). Connectez au moins une session via QR-code.',
-        sessions: [], fetched: 0, mapped: 0, backfilled: 0, perSession: [],
+        sessions: [], fetched: 0, mapped: 0, backfilled: 0, centralized: 0, perSession: [],
       });
     }
 
-    let totalFetched = 0, totalMapped = 0, totalBackfilled = 0;
+    let totalFetched = 0, totalMapped = 0, totalBackfilled = 0, totalCentralized = 0;
     const perSession: any[] = [];
 
     for (const session of sessionsToUse) {
@@ -220,6 +384,12 @@ Deno.serve(async (req) => {
         }
         totalMapped += sessionResult.mapped;
 
+        if (finalRows.length) {
+          const centralized = await materializeWahaDirectoryContacts(supabase, finalRows, session);
+          sessionResult.centralized = centralized;
+          totalCentralized += Number(centralized.contacts_created || 0) + Number(centralized.contacts_verified || 0);
+        }
+
         if (backfill && finalRows.length) {
           let backfilledForSession = 0;
           for (const r of finalRows) {
@@ -263,6 +433,7 @@ Deno.serve(async (req) => {
       fetched: totalFetched,
       mapped: totalMapped,
       backfilled: totalBackfilled,
+      centralized: totalCentralized,
       nextCursor,
       perSession,
     });
@@ -283,10 +454,21 @@ function json(body: unknown, status = 200) {
 }
 
 function normalizeWahaPhone(value?: string | null) {
-  const digits = (value || '').replace(/\D/g, '');
+  const raw = String(value || '').trim();
+  const digits = raw.replace(/\D/g, '');
   if (!digits) return null;
-  if (digits.startsWith('229') && digits.length === 11) return `+22901${digits.slice(3)}`;
-  return digits.startsWith('229') ? `+${digits}` : `+${digits}`;
+
+  // Bénin: conserve le plan national actuel à 10 chiffres (01xxxxxxxx)
+  // et convertit les anciens formats 8 chiffres / +229xxxxxxxx.
+  if (/^22901\d{8}$/.test(digits)) return `+${digits}`;
+  if (/^229\d{8}$/.test(digits)) return `+22901${digits.slice(3)}`;
+  if (/^01\d{8}$/.test(digits)) return `+229${digits}`;
+  if (/^\d{8}$/.test(digits)) return `+22901${digits}`;
+
+  // WAHA renvoie généralement les numéros internationaux avec l'indicatif
+  // mais sans '+'. Ne jamais leur préfixer +229.
+  if (/^[1-9]\d{7,14}$/.test(digits)) return `+${digits}`;
+  return null;
 }
 
 function isBjPhoneDigits(digits: string) {

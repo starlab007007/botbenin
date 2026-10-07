@@ -105,6 +105,7 @@ function reachableMeta(contact: HubContact) {
 
 export default function WaouhContactHubPanel() {
   const { toast } = useToast();
+  const [mode, setMode] = useState<"registry" | "signals">("registry");
   const [rows, setRows] = useState<HubRow[]>([]);
   const [stats, setStats] = useState<HubStats>(EMPTY_STATS);
   const [page, setPage] = useState<HubPage>({ offset: 0, limit: 100, source_rows: 0, has_more: false });
@@ -124,12 +125,15 @@ export default function WaouhContactHubPanel() {
     [rows],
   );
 
-  const load = async (requestedOffset: number = page.offset) => {
+  const load = async (
+    requestedOffset: number = page.offset,
+    requestedMode: "registry" | "signals" = mode,
+  ) => {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("waouh-admin-stats", {
         body: {
-          action: "contact_hub_search",
+          action: requestedMode === "registry" ? "contact_hub_registry" : "contact_hub_search",
           q: q.trim() || null,
           source: source || null,
           contacts_only: true,
@@ -160,7 +164,7 @@ export default function WaouhContactHubPanel() {
   };
 
   useEffect(() => {
-    void load(0);
+    void load(0, "registry");
     // Initialisation uniquement.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -174,9 +178,12 @@ export default function WaouhContactHubPanel() {
       if (error) throw error;
       toast({
         title: data?.warning ? "Synchronisation WAHA terminée avec avertissement" : "Synchronisation WAHA terminée",
-        description: data?.warning || `${data?.mapped ?? 0} contacts mappés · ${data?.backfilled ?? 0} lignes enrichies`,
+        description: data?.warning ||
+          `${data?.mapped ?? 0} contacts mappés · ${data?.centralized ?? 0} centralisés · ${data?.backfilled ?? 0} lignes enrichies`,
       });
-      await load(page.offset);
+      setMode("registry");
+      setPage((p) => ({ ...p, offset: 0 }));
+      await load(0, "registry");
     } catch (error: any) {
       toast({ title: "Échec synchronisation WAHA", description: error?.message || String(error), variant: "destructive" });
     } finally {
@@ -225,7 +232,9 @@ export default function WaouhContactHubPanel() {
         description:
           `${written} nouveau(x) · ${updated} enrichi(s) · ${attempted} candidat(s) · ${skippedNoEntity} sans entité · ${skippedRevoked} bloqué(s) · ${skippedInvalid} invalide(s)`,
       });
-      await load(0);
+      setMode("registry");
+      setPage((p) => ({ ...p, offset: 0 }));
+      await load(0, "registry");
     } catch (error: any) {
       toast({
         title: "Centralisation des contacts échouée",
@@ -243,7 +252,12 @@ export default function WaouhContactHubPanel() {
     setVerifying(key);
     try {
       const { data, error } = await supabase.functions.invoke("waouh-admin-stats", {
-        body: { action: "contact_hub_verify", fabric_id: row.fabric_id, phone },
+        body: {
+          action: "contact_hub_verify",
+          fabric_id: row.fabric_id,
+          contact_id: contact.contact_id || null,
+          phone,
+        },
       });
       if (error) throw error;
       if (!data?.ok) throw new Error(data?.error || "Vérification WAHA impossible");
@@ -276,6 +290,7 @@ export default function WaouhContactHubPanel() {
         body: {
           action: "contact_hub_send",
           fabric_id: row.fabric_id,
+          contact_id: contact.contact_id || null,
           phone: contact.normalized || contact.value,
           message: message.trim(),
         },
@@ -317,11 +332,31 @@ export default function WaouhContactHubPanel() {
                 Contact Hub · WhatsApp / WAHA
               </CardTitle>
               <CardDescription className="mt-1">
-                Coordonnées complètes réservées aux administrateurs. Normalisation E.164, vérification WhatsApp via WAHA,
-                puis envoi par la file WAOUH avec retries, traçabilité et contrôle d’opt-out.
+                Répertoire central multi-sources réservé aux administrateurs : numéros complets, normalisation E.164,
+                statut WhatsApp/WAHA, niveau C, provenance, opt-out et envoi par la file WAOUH traçable.
               </CardDescription>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Button
+                variant={mode === "registry" ? "default" : "outline"}
+                onClick={() => {
+                  setMode("registry");
+                  setPage((p) => ({ ...p, offset: 0 }));
+                  void load(0, "registry");
+                }}
+              >
+                Répertoire central
+              </Button>
+              <Button
+                variant={mode === "signals" ? "default" : "outline"}
+                onClick={() => {
+                  setMode("signals");
+                  setPage((p) => ({ ...p, offset: 0 }));
+                  void load(0, "signals");
+                }}
+              >
+                Signaux NEXUS
+              </Button>
               <Button variant="outline" onClick={materializeAll} disabled={materializing}>
                 {materializing
                   ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -477,7 +512,9 @@ export default function WaouhContactHubPanel() {
                 {!loading && rows.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
-                      Aucun contact exploitable avec ces filtres.
+                      {mode === "registry"
+                        ? "Aucun contact centralisé avec ces filtres."
+                        : "Aucun contact exploitable dans les signaux avec ces filtres."}
                     </TableCell>
                   </TableRow>
                 )}
@@ -495,7 +532,7 @@ export default function WaouhContactHubPanel() {
 
           <div className="flex items-center justify-between gap-3">
             <div className="text-xs text-muted-foreground">
-              Lot {Math.floor(page.offset / page.limit) + 1} · {page.source_rows} signal(s) analysé(s) sur ce lot · {stats.contacts} contact(s) résolu(s)
+              Lot {Math.floor(page.offset / page.limit) + 1} · {page.source_rows} {mode === "registry" ? "contact(s) chargé(s)" : "signal(s) analysé(s)"} · {stats.contacts} contact(s)
             </div>
             <div className="flex gap-2">
               <Button
