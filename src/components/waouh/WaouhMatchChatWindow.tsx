@@ -1,3 +1,4 @@
+import { WaouhMessageText } from "./WaouhMessageText";
 import { userFacingErrorText } from "@/lib/userFacingError";
 import { WaouhAvatarProgress, WaouhAvatarSynthesis } from "./WaouhAvatarProgress";
 import { assertChatResponse, normalizeChatReply, mergeChatRows, reconcileChatResponse } from "@/lib/chatReply";
@@ -8,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Send, ShoppingBag, Target, CheckCircle2, Lock, Loader2, Sparkles, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ChatImage } from "@/app-mobile/components/ChatImage";
-import { WaouhProductResults } from "@/components/waouh/WaouhProductCard";
+import { WaouhProductResults, compactResultsText } from "@/components/waouh/WaouhProductCard";
 import { WaouhAgentBlocks } from "@/components/waouh/WaouhAgentBlocks";
 import { invokeWaouhAgentic } from "@/lib/waouh/agenticClient";
 import type { AgenticAction } from "@/lib/waouh/agenticContracts";
@@ -1006,7 +1007,7 @@ export function WaouhMatchChatWindow({
 
         {seedText && (
           <div className="mr-auto max-w-[88%] rounded-2xl rounded-bl-sm border bg-card px-3 py-2 text-sm shadow-sm">
-            <div className="whitespace-pre-wrap break-words leading-relaxed">{seedText}</div>
+            <WaouhMessageText text={seedText} />
           </div>
         )}
 
@@ -1071,7 +1072,7 @@ export function WaouhMatchChatWindow({
                 />
               ))
             )}
-            {rich.text && <div className="whitespace-pre-wrap">{rich.text}</div>}
+            {rich.text && <WaouhMessageText text={m.direction === "in" ? rich.text : rich.results.length ? compactResultsText(rich.text) : rich.text} isUser={m.direction === "in"} hasResults={rich.results.length > 0} />}
             {m.direction === "out" && m.id === latestAvatarProgressId && <WaouhAvatarProgress progress={m.meta.avatar_progress} />}
             {m.direction === "out" && m.meta?.avatar_synthesis && <WaouhAvatarSynthesis synthesis={m.meta.avatar_synthesis} />}
             {rich.blocks.length > 0 && <WaouhAgentBlocks blocks={rich.blocks} onAction={authUserId ? handleAgentAction : undefined} busy={!!agentAction} />}

@@ -1,8 +1,8 @@
 import { assertChatResponse, normalizeChatReply, mergeChatRows, reconcileChatResponse } from "@/lib/chatReply";
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
+import { WaouhMessageText } from "./WaouhMessageText";
 import { useNavigate } from "react-router-dom";
-import remarkGfm from "remark-gfm";
+
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -911,27 +911,11 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
                   </div>
                 )}
                 {rich.text && rich.text !== "(image)" && (
-                  <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                      hr: () => <div className="waouh-sep" />,
-                      h1: ({ children }) => <h1>{children}</h1>,
-                      h2: ({ children }) => <h2>{children}</h2>,
-                      h3: ({ children }) => <h3>{children}</h3>,
-                      strong: ({ children }) => <strong>{children}</strong>,
-                      em: ({ children }) => <em>{children}</em>,
-                      ul: ({ children }) => <ul className="list-none pl-0 my-1 space-y-1">{children}</ul>,
-                      li: ({ children }) => <li className="flex gap-2"><span className="text-emerald-500 mt-[2px]">•</span><span className="flex-1">{children}</span></li>,
-                      p: ({ children }) => {
-                        const s = typeof children === "string" ? children : Array.isArray(children) ? children.join("") : "";
-                        const isInfo = /^(📞|🟢|🏙️|📏|📇|👤|💰|📦|📊|🧠|🔔|✨|📍|🛒|🏷️|💵)/.test(s.trim());
-                        return <p data-info={isInfo ? "1" : undefined}>{children}</p>;
-                      },
-                      a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer" className="text-emerald-600 dark:text-emerald-400 underline underline-offset-2">{children}</a>,
-                    }}
-                  >
-                    {rich.results.length ? compactResultsText(stripLegacy(rich.text)) : stripLegacy(rich.text)}
-                  </ReactMarkdown>
+                  <WaouhMessageText
+                    text={m.direction === "in" ? rich.text : rich.results.length ? compactResultsText(stripLegacy(rich.text)) : stripLegacy(rich.text)}
+                    isUser={m.direction === "in"}
+                    hasResults={rich.results.length > 0}
+                  />
                 )}
 
                 {rich.results.length > 0 && (

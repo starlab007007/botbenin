@@ -1,3 +1,4 @@
+import { chatMessagePreview } from "@/lib/waouh/messagePresentation";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ChatRightPane, ChatRightPaneEmpty } from "../components/ChatRightPane";
@@ -324,13 +325,13 @@ export default function ChatListScreen() {
               </div>
             </div>
           ) : (
-            <button onClick={() => navigate("/app/profile")} className="flex items-center gap-2 active:opacity-70">
+            <button onClick={() => navigate("/app/profile")} className="flex min-w-0 flex-1 items-center gap-2 active:opacity-70">
               <Avatar className="h-9 w-9">
                 <AvatarImage src={profile?.avatar_url ?? undefined} />
                 <AvatarFallback className="bg-gradient-to-br from-teal-500 to-cyan-600 text-white text-sm">{initials}</AvatarFallback>
               </Avatar>
-              <div className="text-left">
-                <div className="text-sm font-black leading-tight">Bonjour, {profile?.full_name ?? "WaouhApp"}</div>
+              <div className="min-w-0 text-left">
+                <div className="truncate text-sm font-semibold leading-tight">Bonjour, {profile?.full_name ?? "WaouhApp"}</div>
                 <div className="text-[11px] text-slate-500 leading-tight truncate max-w-[210px]">WAOUH actif</div>
               </div>
             </button>
@@ -404,10 +405,10 @@ export default function ChatListScreen() {
         {/* UI V3 — Bot est le cœur de WAOUH : il accueille, explique ce qu'il fait et mène les échanges. */}
         <section
           data-waouh-ui="bot-avatar-v3"
-          className="relative mx-auto mb-4 w-full max-w-[760px] overflow-hidden rounded-[30px] border border-cyan-100/80 bg-[radial-gradient(circle_at_18%_22%,rgba(34,211,238,.24),transparent_40%),radial-gradient(circle_at_95%_0%,rgba(139,92,246,.14),transparent_34%),linear-gradient(140deg,#e9fbfb_0%,#ffffff_48%,#f3f1ff_100%)] p-[clamp(14px,4vw,26px)] shadow-[0_28px_70px_-42px_rgba(14,116,144,.6)]"
+          className="compact-chat-welcome relative mx-auto mb-3 w-full max-w-[760px] overflow-hidden rounded-[30px] border border-cyan-100/80 bg-[radial-gradient(circle_at_18%_22%,rgba(34,211,238,.24),transparent_40%),radial-gradient(circle_at_95%_0%,rgba(139,92,246,.14),transparent_34%),linear-gradient(140deg,#e9fbfb_0%,#ffffff_48%,#f3f1ff_100%)] p-3 sm:p-5 shadow-[0_28px_70px_-42px_rgba(14,116,144,.6)]"
         >
           <Sparkles className="pointer-events-none absolute right-5 top-5 h-6 w-6 text-cyan-400/80 motion-safe:animate-pulse" aria-hidden />
-          <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-[clamp(12px,3.5vw,24px)]">
+          <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
             <button
               type="button"
               onClick={() => navigate("/app/avatar")}
@@ -415,27 +416,28 @@ export default function ChatListScreen() {
               aria-label="Ouvrir Bot, mon Avatar IA"
             >
               <span className="botc-glide inline-flex" data-leaving={botLeaving}>
-                <BotLiveAvatar size="clamp(104px, 30vw, 176px)" expression={botExpression} />
+                <BotLiveAvatar size="clamp(56px, 15vw, 88px)" expression={botExpression} />
               </span>
             </button>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-[clamp(30px,8.5vw,46px)] font-black leading-none tracking-[-.05em] text-slate-950">Bot</h2>
+                <h2 className="text-[clamp(22px,5vw,30px)] font-black leading-none tracking-[-.05em] text-slate-950">Bot</h2>
                 <span className="inline-flex items-center gap-1 rounded-full border border-emerald-100 bg-white/85 px-2.5 py-1 text-[clamp(11.5px,2.9vw,12.5px)] font-bold text-emerald-700 shadow-sm">
                   <span className="h-2 w-2 rounded-full bg-emerald-500" /> En ligne
                 </span>
               </div>
               <p className="mt-1 text-[clamp(12px,3.2vw,14px)] font-bold text-slate-500">Votre Avatar IA</p>
               <BotGreeting
+                compact
                 firstName={isGuest ? null : profile?.full_name}
                 thirdLine={botActivityLine(matchChats.matches?.length ?? 0, "Deal Room")}
                 onExpressionChange={setBotExpression}
                 choices={[
                   { label: "Acheter", onSelect: () => glideThen(() => askBot("Je veux acheter ")) },
                   { label: "Vendre", onSelect: () => glideThen(() => askBot("Je veux vendre ")) },
-                  { label: "Trouver une opportunité", onSelect: () => glideThen(() => navigate("/app/nexus")) },
+                  { label: "Explorer", onSelect: () => glideThen(() => navigate("/app/nexus")) },
                 ]}
-                className="mt-[clamp(8px,2.4vw,14px)]"
+                className="mt-2"
               />
             </div>
           </div>
@@ -466,7 +468,7 @@ export default function ChatListScreen() {
                 type="button"
                 onClick={onClick}
                 className={
-                  "flex min-h-[clamp(60px,16vw,64px)] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1.5 text-center shadow-sm transition active:scale-[.97] min-[480px]:flex-row min-[480px]:gap-2 min-[480px]:text-left " +
+                  "flex min-h-11 min-w-0 flex-row items-center justify-center gap-1 rounded-2xl px-1.5 text-center shadow-sm transition active:scale-[.97] min-[480px]:flex-row min-[480px]:gap-2 min-[480px]:text-left " +
                   (primary
                     ? "bg-gradient-to-r from-teal-500 to-cyan-600 text-white"
                     : "border border-slate-200/80 bg-white/90 text-slate-800 hover:bg-white")
@@ -475,7 +477,7 @@ export default function ChatListScreen() {
                 <Icon className={"h-[clamp(18px,4.8vw,22px)] w-[clamp(18px,4.8vw,22px)] shrink-0 " + (primary ? "text-white" : "text-blue-600")} />
                 <span className="min-w-0 leading-tight">
                   <span className="block truncate text-[clamp(12px,3.2vw,14px)] font-black">{label}</span>
-                  <span className={"block truncate text-[clamp(11.5px,2.9vw,12.5px)] font-semibold " + (primary ? "text-white/80" : "text-slate-400")}>{sub}</span>
+                  <span className={"hidden sm:block truncate text-[clamp(11.5px,2.9vw,12.5px)] font-semibold " + (primary ? "text-white/80" : "text-slate-400")}>{sub}</span>
                 </span>
               </button>
             ))}
@@ -485,7 +487,7 @@ export default function ChatListScreen() {
         </section>
 
         {/* WAOUH One — le moteur commerce, en accès direct sous Bot. */}
-        <section className="mx-auto mb-4 w-full max-w-[760px] rounded-[26px] border border-emerald-100 bg-gradient-to-br from-emerald-50/80 via-white to-cyan-50/80 p-[clamp(12px,3.5vw,18px)] shadow-sm">
+        <section className="mx-auto mb-4 w-full max-w-[760px] rounded-[26px] border border-emerald-100 bg-gradient-to-br from-emerald-50/80 via-white to-cyan-50/80 p-3 sm:p-4 shadow-sm">
           <button type="button" onClick={openWaouh} className="flex w-full items-center gap-3 text-left">
             <span className="grid h-[clamp(40px,11vw,48px)] w-[clamp(40px,11vw,48px)] shrink-0 place-items-center rounded-2xl bg-slate-950 text-white shadow-md">
               <ShoppingBag className="h-[55%] w-[55%]" />
@@ -561,17 +563,17 @@ export default function ChatListScreen() {
                 key={c.id}
                 onClick={() => openConv(c.id)}
                 className={
-                  "flex items-center gap-3 px-4 py-3 active:bg-muted cursor-pointer backdrop-blur-sm " +
+                  "flex min-w-0 items-center gap-2.5 px-3 py-3 active:bg-muted cursor-pointer backdrop-blur-sm " +
                   (isActive ? "bg-[hsl(165_91%_25%)]/10" : "bg-background/70")
                 }
               >
-                <Avatar className="h-12 w-12">
+                <Avatar className="h-10 w-10 shrink-0">
                   <AvatarFallback className="bg-[hsl(165_91%_25%)] text-white">{convInitials(c._label)}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-baseline gap-2">
-                    <span className={"truncate flex items-center gap-1.5 " + (n > 0 ? "font-bold" : "font-semibold")}>
-                      {c._label}
+                    <span className={"min-w-0 flex items-center gap-1.5 text-sm " + (n > 0 ? "font-bold" : "font-semibold")}>
+                      <span className="truncate">{c._label}</span>
                       <Badge className={`${c._badge.tint} border-0 text-[9px] py-0 px-1.5 h-4`}>{c._badge.label}</Badge>
                     </span>
                     <span className={"text-xs shrink-0 ml-2 " + (n > 0 ? "text-[hsl(165_91%_30%)] font-semibold" : "text-muted-foreground")}>
@@ -579,8 +581,8 @@ export default function ChatListScreen() {
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <p className={"text-sm truncate flex-1 " + (n > 0 ? "text-foreground" : "text-muted-foreground")}>
-                      {c.last_message ?? `Canal: ${c.channel ?? "—"}`}
+                    <p className={"line-clamp-2 min-w-0 flex-1 text-xs leading-relaxed " + (n > 0 ? "text-foreground" : "text-muted-foreground")}>
+                      {chatMessagePreview(c.last_message)}
                     </p>
                     {n > 0 && (
                       <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-[hsl(165_91%_35%)] text-white text-[11px] font-bold shrink-0">
