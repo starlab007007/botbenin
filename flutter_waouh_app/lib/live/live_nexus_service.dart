@@ -935,10 +935,12 @@ class LiveNexusService {
 
   Future<List<NexusOpportunityJourney>> listOpportunities({
     bool includeCompleted = false,
+    String? mandateId,
     int limit = 20,
   }) async {
     final data = await _invoke('nexus.opportunity.list', {
       'include_completed': includeCompleted,
+      if (mandateId != null) 'mandate_id': mandateId,
       'limit': limit,
     });
     return _list(data['journeys'])
@@ -1010,6 +1012,13 @@ class LiveNexusService {
     int maxContacts = 3,
     int maxFollowups = 1,
     bool allowSmsRcs = false,
+    String completionGoal = 'agreement',
+    bool allowWhatsapp = false,
+    bool allowPublicBusiness = false,
+    bool allowBlindMessage = true,
+    int quantity = 1,
+    String deliveryTerms = '',
+    String acceptanceTerms = '',
     int durationHours = 72,
     int scanIntervalMinutes = 60,
   }) =>
@@ -1025,6 +1034,13 @@ class LiveNexusService {
         'max_followups': maxFollowups,
         'allow_sms_rcs': allowSmsRcs,
         'duration_hours': durationHours,
+        'completion_goal': completionGoal,
+        'allow_whatsapp': allowWhatsapp,
+        'allow_public_business': allowPublicBusiness,
+        'allow_blind_message': allowBlindMessage,
+        'quantity': quantity,
+        'delivery_terms': deliveryTerms,
+        'acceptance_terms': acceptanceTerms,
         'scan_interval_minutes': scanIntervalMinutes,
         'origin_surface': 'flutter_avatar',
       });

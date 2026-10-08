@@ -13,9 +13,9 @@ Deno.test('Deux missions vers un numéro exigent une référence ; un message no
   equal(selectReplyJourney(rows, 'oui WA-BBBBBBBB')?.payload?.journey_id, 'bbbbbbbb-2222');
   equal(selectReplyJourney([{ status: 'failed', payload: { journey_id: 'aaaaaaaa-1111' } }], 'oui'), null);
 });
-Deno.test('Une relance de mandat 24h intervient avant son expiration', () => {
-  const hours = followupDelayHours(24, 1); equal(hours, 8);
-  equal(boundedFollowUpDecision({ autonomyMode: 'autonomous', stage: 'waiting_reply', lastActivityAt: new Date(Date.now()-9*3600000).toISOString(), maxFollowups: 1, followupsSent: 0, delayHours: hours }).due, true);
+Deno.test('Un mandat court ne raccourcit pas le délai minimal de relance', () => {
+  const hours = followupDelayHours(24, 1); equal(hours, 24);
+  equal(boundedFollowUpDecision({ autonomyMode: 'autonomous', stage: 'waiting_reply', lastActivityAt: new Date(Date.now()-9*3600000).toISOString(), maxFollowups: 1, followupsSent: 0, delayHours: hours }).due, false);
 });
 const mandate = { mode: 'buy', status: 'active', autonomy_mode: 'autonomous', expires_at: new Date(Date.now()+86400000).toISOString(), budget_max: 25000, metadata: { max_negotiation_rounds: 2 } };
 Deno.test('Contre-offre limitée ; accord soumis au propriétaire ; aucune auto-acceptation de sa propre offre', () => {

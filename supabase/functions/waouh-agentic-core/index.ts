@@ -1,3 +1,5 @@
+import { diversifyAvatarResults } from "../_shared/waouh-avatar-discovery.ts";
+import { reconcileAvatarApprovals } from "../_shared/waouh-avatar-orchestrator.ts";
 import { followupDelayHours } from "../_shared/waouh-avatar-lifecycle.ts";
 import { releaseHeaders } from "../_shared/waouh-release.ts";
 import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
@@ -1288,9 +1290,13 @@ async function globalDiscoverySearch(
   },
 ) {
   const desired = input.mode === "find_sellers" ? ["SELL","ANNOUNCE"] : ["BUY","RFQ"];
-  const { data, error } = await sb.from("waouh_signal_fabric")
-    .select("*").in("intent", desired).order("observed_at", { ascending: false }).limit(3500);
-  if (error) throw new ApiError(500, "nexus_global_discovery_failed", error.message);
+  const terms = normalizeFabricText(input.query).split(/\s+/).filter(t => /^[a-z0-9]{3,30}$/.test(t)).slice(0, 4);
+  const recent = sb.from("waouh_signal_fabric").select("*").in("intent", desired).order("observed_at", { ascending: false }).limit(1000);
+  const targeted = terms.length ? sb.from("waouh_signal_fabric").select("*").in("intent", desired)
+    .or(terms.map(t => `subject.ilike.%${t}%`).join(",")).order("observed_at", { ascending: false }).limit(1000) : recent;
+  const [recentRows, targetRows] = await Promise.all([recent, targeted]);
+  if (recentRows.error || targetRows.error) throw new ApiError(500, "nexus_global_discovery_failed", (recentRows.error || targetRows.error)!.message);
+  const data = [...new Map([...(targetRows.data || []), ...(recentRows.data || [])].map(row => [row.fabric_id, row])).values()];
   const preRanked = (data ?? []).map((signal: FabricSignal) => ({
     ...signal,
     scores: scoreFabricSignal({
@@ -1305,12 +1311,12 @@ async function globalDiscoverySearch(
     .sort((a: any, b: any) => b.scores.total_score - a.scores.total_score)
     .slice(0, Math.max(input.limit * 2, input.limit));
   const enriched = await Promise.all(preRanked.map((row: any) => enrichDiscoveryWithOpportunityOS(sb, row)));
-  return enriched
+  return diversifyAvatarResults(enriched
     .sort((a: any, b: any) =>
       (b.scores.total_score * 0.72 + Number(b.actionability_score ?? 0) * 0.28) -
       (a.scores.total_score * 0.72 + Number(a.actionability_score ?? 0) * 0.28)
     )
-    .slice(0, input.limit);
+    , input.limit).map(row => ({ ...row, coverage: { inspected: data.length, targeted: (targetRows.data || []).length, recent: (recentRows.data || []).length, exhaustive: false } }));
 }
 
 
@@ -1354,20 +1360,18 @@ async function ensureOpportunityJourney(
 ) {
   const stage = input.stage ?? "discovered";
   const level = input.level ?? "C0";
-  const { data: existing, error: lookupError } = await sb
+  let journeyLookup = sb
     .from("waouh_opportunity_journeys")
     .select("*")
     .eq("owner_id", ownerId)
-    .eq("fabric_id", input.fabricId)
-    .not("stage", "in", '("completed","cancelled")')
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .eq("fabric_id", input.fabricId).eq("mode", input.mode ?? "buy");
+  journeyLookup = input.mandateId ? journeyLookup.eq("mandate_id", input.mandateId) : journeyLookup.is("mandate_id", null);
+  const { data: existing, error: lookupError } = await journeyLookup.order("updated_at", { ascending: false }).limit(1).maybeSingle();
   if (lookupError) throw new ApiError(500, "opportunity_journey_lookup_failed", lookupError.message);
   if (existing) {
     if (input.contactPack || input.mandateId) {
       const patch: Record<string, unknown> = {};
-      if (input.mandateId) patch.mandate_id = input.mandateId;
+
       if (input.contactPack) {
         patch.contact_pack = input.contactPack;
         patch.readiness_level = input.contactPack.readiness_level ?? "R0";
@@ -1866,31 +1870,11 @@ Deno.serve(async (req: Request) => {
             if (journey) {
               if (decision === "approved") {
                 const { data: refreshed } = await sb.from("waouh_opportunity_journeys").update({
-                  stage: "negotiating",
-                  contactability_level: "C5",
-                  readiness_level: "R5",
-                  readiness_score: 100,
-                  actionability_score: 100,
-                  next_best_action: "NEGOTIATE",
-                  last_action: "internal_counterparty_approved",
-                  next_action: "NEGOTIATE",
-                  last_message: "La contrepartie a accepté la mise en relation. Avatar peut poursuivre vers la négociation.",
-                  last_activity_at: now,
-                  updated_at: now,
+                  stage: "contact_ready", last_action: "deal_room_opening", next_best_action: "OPEN_DEAL_ROOM",
+                  next_action: "Ouverture automatique de la Deal Room",
+                  last_message: "Mise en relation acceptée. Ouverture de la Deal Room en cours.", updated_at: now,
                 }).eq("id", journeyId).select("*").single();
                 if (refreshed) journey = refreshed;
-                if (fabricId) {
-                  await sb.from("waouh_contact_packs").update({
-                    contactability_level: "C5",
-                    readiness_level: "R5",
-                    readiness_score: 100,
-                    actionability_score: 100,
-                    next_best_action: "NEGOTIATE",
-                    best_channel: "waouh",
-                    last_verified_at: now,
-                    updated_at: now,
-                  }).eq("fabric_id", fabricId);
-                }
               } else {
                 const { data: refreshed } = await sb.from("waouh_opportunity_journeys").update({
                   stage: "cancelled",
@@ -1906,57 +1890,10 @@ Deno.serve(async (req: Request) => {
             }
           }
 
-          if (
-            decision === "approved" &&
-            journey?.mode === "sell" &&
-            journey?.article_id &&
-            !journey?.thread_id
-          ) {
-            try {
-              const { data: buyerIdentity } = await sb.from("waouh_users")
-                .select("id,auth_user_id")
-                .eq("auth_user_id", ownerId)
-                .order("created_at", { ascending: true })
-                .limit(1)
-                .maybeSingle();
-              if (buyerIdentity?.id) {
-                const response = await fetch(`${supabaseUrl}/functions/v1/waouh-buyer-interest`, {
-                  method: "POST",
-                  headers: {
-                    Authorization: `Bearer ${serviceKey}`,
-                    "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify({
-                    article_id: journey.article_id,
-                    buyer_user_id: buyerIdentity.id,
-                    source: "avatar_internal_approval",
-                  }),
-                });
-                const body = await response.json().catch(() => ({}));
-                if (response.ok && !body?.error && body?.thread_id) {
-                  const { data: linkedJourney } = await sb.from("waouh_opportunity_journeys").update({
-                    article_id: body.article_id || journey.article_id,
-                    thread_id: body.thread_id,
-                    negotiation_id: body.negotiation_id || null,
-                    stage: body.negotiation_id ? "negotiating" : "waiting_reply",
-                    contact_channel: "waouh",
-                    next_best_action: body.negotiation_id ? "NEGOTIATE" : "WAIT_REPLY",
-                    last_action: "internal_deal_room_materialized",
-                    next_action: body.negotiation_id ? "NEGOTIATE" : "WAIT_REPLY",
-                    last_message: body.negotiation_id
-                      ? "La contrepartie a accepté. Avatar a ouvert le Deal Room et la négociation canonique."
-                      : "La contrepartie a accepté. Avatar a ouvert le fil canonique.",
-                    last_activity_at: now,
-                    updated_at: now,
-                  }).eq("id", journey.id).select("*").single();
-                  if (linkedJourney) journey = linkedJourney;
-                } else {
-                  console.warn("[Opportunity OS] internal Deal Room materialization failed", response.status, body?.error || body?.code || "unknown");
-                }
-              }
-            } catch (dealRoomError) {
-              console.warn("[Opportunity OS] internal Deal Room materialization failed", dealRoomError);
-            }
+          if (decision === "approved" && journey) {
+            await reconcileAvatarApprovals(sb, 1, approvalId);
+            const { data: refreshed } = await sb.from("waouh_opportunity_journeys").select("*").eq("id", journey.id).single();
+            if (refreshed) journey = refreshed;
           }
 
           if (originAuthId) {
@@ -2005,13 +1942,13 @@ Deno.serve(async (req: Request) => {
                 dedupe_key: `opportunity-approval:${approvalId}:${decision}`,
                 payload: {
                   text: decision === "approved"
-                    ? `💬 La contrepartie accepte de poursuivre pour « ${subject} ». Votre Avatar peut maintenant négocier.`
+                    ? `💬 La contrepartie accepte de poursuivre pour « ${subject} ». Consultez la prochaine étape dans votre mission.`
                     : `La contrepartie ne souhaite pas poursuivre pour « ${subject} ».`,
                   approval_id: approvalId,
                   fabric_id: fabricId,
                   journey_id: journeyId,
                   mandate_id: mandateId,
-                  workflow_state: decision === "approved" ? "negotiating" : "cancelled",
+                  workflow_state: journey?.stage ?? "contact_ready",
                   contactability_level: decision === "approved" ? "C5" : journey?.contactability_level ?? "C4",
                   readiness_level: decision === "approved" ? "R5" : journey?.readiness_level ?? "R4",
                   next_best_action: decision === "approved" ? "NEGOTIATE" : "DROP_LOW_QUALITY",
@@ -2736,9 +2673,10 @@ Retourne uniquement JSON:
               followup_hours: followupDelayHours(durationHours, maxFollowups),
               max_negotiation_rounds: integer(payload.max_negotiation_rounds, "max_negotiation_rounds", 3, 0, 5),
               price_floor: positiveNumber(payload.price_floor, "price_floor", true),
-              completion_goal: pickEnum(payload.completion_goal, "completion_goal", ["transaction", "agreement", "recommendations"] as const, mode === "ask" ? "recommendations" : "transaction"),
+              completion_goal: pickEnum(payload.completion_goal, "completion_goal", ["transaction", "agreement", "recommendations"] as const, mode === "ask" ? "agreement" : "transaction"),
               request_key: requestKey,
               article_id: mandateArticleId,
+              terms: { quantity: integer(payload.quantity, "quantity", 1, 1, 100000), delivery: optionalString(payload.delivery_terms, "delivery_terms", 1000), acceptance: optionalString(payload.acceptance_terms, "acceptance_terms", 1000) },
             },
           }).select("*").single(),
           "nexus_mandate_create_failed",
@@ -2810,7 +2748,7 @@ Retourne uniquement JSON:
           query: goal,
           mode: discoveryMode,
           city,
-          budgetMax: mode === "buy" ? budgetMax : null,
+          budgetMax: mode !== "sell" ? budgetMax : null,
           limit: Math.min(20, Math.max(maxContacts * 3, 8)),
         });
         const actionable = results.filter((row: any) =>
@@ -2887,12 +2825,19 @@ Retourne uniquement JSON:
         ]);
         if (mandates.error) throw new ApiError(500, "nexus_mandate_list_failed", mandates.error.message);
         if (intents.error) throw new ApiError(500, "nexus_intent_list_failed", intents.error.message);
-        return jsonResponse({ ok: true, data: { mandates: mandates.data ?? [], intents: intents.data ?? [] }});
+        const { data: metrics, error: metricsError } = await sb.rpc("waouh_avatar_mission_metrics", { p_owner_id: ownerId });
+        if (metricsError) throw new ApiError(500, "mission_metrics_failed", metricsError.message);
+        return jsonResponse({ ok: true, data: { mandates: (mandates.data ?? []).map((m: any) => ({ ...m, metrics: (metrics ?? []).find((x: any) => x.mandate_id === m.id) ?? {} })), intents: intents.data ?? [] }});
       }
 
       case "nexus.mandate.update": {
         const mandateId = uuid(payload.mandate_id, "mandate_id");
+        const current = await queryOne<any>(sb.from("waouh_avatar_mandates").select("*").eq("id", mandateId).eq("owner_id", ownerId).maybeSingle(), "mandate_not_found");
+        if (payload.status === "active" && (current.metadata?.agreement_reached_at || ["completed", "cancelled"].includes(current.status))) throw new ApiError(409, "mission_already_finished");
+        if (payload.status === "active" && Date.parse(current.expires_at) <= Date.now() && !payload.duration_hours) throw new ApiError(409, "mission_expired_extend_first");
         const patch: Record<string, unknown> = {};
+        if (payload.duration_hours !== undefined) patch.expires_at = new Date(Date.now() + integer(payload.duration_hours, "duration_hours", 72, 1, 720) * 3600000).toISOString();
+        if (payload.completion_goal !== undefined) patch.metadata = { ...current.metadata, completion_goal: pickEnum(payload.completion_goal, "completion_goal", ["transaction", "agreement", "recommendations"] as const) };
         if (payload.status !== undefined) patch.status = pickEnum(payload.status, "status", ["active","paused","completed","cancelled"] as const);
         if (payload.autonomy_mode !== undefined) patch.autonomy_mode = pickEnum(payload.autonomy_mode, "autonomy_mode", ["assisted","semi_autonomous","autonomous"] as const);
         if (payload.max_contacts !== undefined) patch.max_contacts = integer(payload.max_contacts, "max_contacts", 3, 1, 20);
@@ -2926,7 +2871,7 @@ Retourne uniquement JSON:
           query: mandate.normalized_query || mandate.goal,
           mode: discoveryMode,
           city: mandate.city,
-          budgetMax: mandate.mode === "buy" ? mandate.budget_max : null,
+          budgetMax: mandate.mode !== "sell" ? mandate.budget_max : null,
           limit: Math.min(30, Math.max(Number(mandate.max_contacts ?? 3) * 4, 10)),
         });
         const actionable = results.filter((row: any) =>
@@ -3037,6 +2982,7 @@ Retourne uniquement JSON:
           .eq("owner_id", ownerId)
           .order("updated_at", { ascending: false })
           .limit(limit);
+        if (payload.mandate_id) q = q.eq("mandate_id", uuid(payload.mandate_id, "mandate_id"));
         if (!includeCompleted) q = q.not("stage", "in", "(completed,cancelled)");
         const { data, error } = await q;
         if (error) throw new ApiError(500, "opportunity_journey_list_failed", error.message);
@@ -3667,7 +3613,16 @@ Retourne uniquement JSON:
             effectiveState = googlePlacesReady ? "live" : "requires_config";
             reason = googlePlacesReady ? null : "google_places_key_missing";
           }
+          const provider: any = providerMap.get(String(row.provider || row.source_key));
+          const testedAt = provider?.last_test_at || null;
+          const age = testedAt ? Date.now() - Date.parse(testedAt) : Infinity;
+          const testStatus = String(provider?.last_test_status || '').toLowerCase();
+          const health = effectiveState === 'disabled' || effectiveState === 'planned' || !configured ? 'unavailable'
+            : age > 24 * 3600000 ? 'unverified'
+            : ['ok','success','healthy'].includes(testStatus) ? 'healthy' : 'degraded';
           return {
+            health, last_verified_at: testedAt,
+            health_reason: health === 'unverified' ? 'Aucun contrôle fournisseur récent' : health === 'healthy' ? 'Dernier contrôle réussi' : reason || 'Configuration ou dernier contrôle à vérifier',
             source_key: row.source_key,
             label: row.label,
             family: row.family,

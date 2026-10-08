@@ -308,7 +308,8 @@ export function WaouhNexusInnovationPanel() {
             </Button>
             {sources && (
               <div className="rounded-xl border p-3 text-xs">
-                <div className="font-semibold">Sources actives dans le cerveau marché</div>
+                <div className="font-semibold">Sources et état des contrôles</div>
+                <div className="mt-2 flex flex-wrap gap-1">{sources.registry?.map(source => <Badge key={source.source_key} variant="outline" title={source.health_reason}>{source.label} · {source.health === 'healthy' ? 'Contrôlé' : source.health === 'degraded' ? 'À vérifier' : source.health === 'unavailable' ? 'Indisponible' : 'Non vérifié'}</Badge>)}</div>
                 <div className="mt-2 flex flex-wrap gap-1">
                   {Object.entries(sources.offers).map(([source, count]) => <Badge key={source} variant="secondary">{source}: {count}</Badge>)}
                   {Object.entries(sources.demands).map(([source, count]) => <Badge key={`d-${source}`} variant="outline">demande {source}: {count}</Badge>)}

@@ -1,3 +1,4 @@
+import { claimAvatarContact } from "../_shared/waouh-avatar-contact.ts";
 import { maintainAvatarQueues } from "../_shared/waouh-avatar-maintenance.ts";
 import { followupDelayHours, withinMandateBudget, journeyReplyToken } from "../_shared/waouh-avatar-lifecycle.ts";
 import { advanceAvatarLifecycle, finishLegacySearch, requestAvatarApproval, avatarNotice } from "../_shared/waouh-avatar-orchestrator.ts";
@@ -113,7 +114,7 @@ async function resolvePack(sb: SupabaseClient, signal: any) {
   let entityId: string | null = null;
   let externalSignal: any = null;
   let contacts: any[] = [];
-  const nativeTargets: Array<{ channel: "sms" | "rcs"; tel_user_id: string; last4?: string | null; contact_id?: string | null }> = [];
+  const nativeTargets: Array<{ channel: "sms" | "rcs"; tel_user_id: string; last4?: string | null; contact_id?: string | null; phone_hash?: string }> = [];
   let effectiveContactability = String(signal.contactability_level ?? "C0");
   if (internal) {
     channels.push({
@@ -211,6 +212,7 @@ async function resolvePack(sb: SupabaseClient, signal: any) {
               nativeTargets.push({
                 channel: channel as "sms" | "rcs",
                 tel_user_id: String(telUser.id),
+                phone_hash: String(telUser.phone_hash),
                 last4: telUser.phone_last4 ?? null,
                 contact_id: contactByHash.get(String(telUser.phone_hash))?.id ?? null,
               });
@@ -414,11 +416,10 @@ async function ensureJourney(sb: SupabaseClient, ownerId: string, mandate: any, 
     : null;
   const { data: existing } = await sb.from("waouh_opportunity_journeys")
     .select("*").eq("owner_id", ownerId).eq("fabric_id", signal.fabric_id)
-    .not("stage", "in", '("completed","cancelled")')
+    .eq("mandate_id", mandate.id).eq("mode", mandate.mode)
     .order("updated_at", { ascending: false }).limit(1).maybeSingle();
   if (existing) {
     await sb.from("waouh_opportunity_journeys").update({
-      mandate_id: mandate.id,
       article_id: existing.article_id ?? mandateArticleId,
       readiness_level: pack.readiness_level,
       readiness_score: pack.readiness_score,
@@ -509,6 +510,8 @@ async function openCanonicalInternalDeal(
     };
   }
 
+  const recipient = await resolveInternalRecipient(sb, signal);
+  if (recipient?.auth_user_id && !await claimAvatarContact(sb, mandate, journey, `auth:${recipient.auth_user_id}`)) return { contacted: false, reason: "person_contact_cooldown" };
   const response = await fetch(`${SUPABASE_URL}/functions/v1/waouh-buyer-interest`, {
     method: "POST",
     headers: {
@@ -619,6 +622,7 @@ async function contactInternal(
     });
   }
 
+  if (mandate.allow_blind_message === false) return { contacted: false, reason: "mediation_not_allowed" };
   const recipient = await resolveInternalRecipient(sb, signal);
   if (!recipient?.auth_user_id || recipient.auth_user_id === mandate.owner_id) {
     return { contacted: false, reason: "internal_recipient_missing" };
@@ -628,6 +632,7 @@ async function contactInternal(
     .select("id").eq("external_ref", ref).maybeSingle();
   if (already) return { contacted: false, reason: "already_contacted" };
 
+  if (!await claimAvatarContact(sb, mandate, journey, `auth:${recipient.auth_user_id}`)) return { contacted: false, reason: "person_contact_cooldown" };
   const message = mandate.mode === "sell"
     ? `WAOUH accompagne un vendeur dont l’offre correspond à votre besoin « ${signal.subject || mandate.goal} ». Acceptez-vous que WAOUH poursuive cette mise en relation ?`
     : `WAOUH accompagne un acheteur intéressé par « ${signal.subject || mandate.goal} ». Acceptez-vous que WAOUH poursuive cette mise en relation ?`;
@@ -734,6 +739,7 @@ async function queueNativeOpportunityMessage(
   const target = (resolved.nativeTargets ?? []).find((row: any) => row.channel === channel);
   if (!target?.tel_user_id) return { contacted: false, reason: "native_target_missing" };
 
+  if (!options.followupIndex && !await claimAvatarContact(sb, mandate, journey, `phone:${target.phone_hash}`)) return { contacted: false, reason: "person_contact_cooldown" };
   const suffix = options.followupIndex
     ? `followup:${options.followupIndex}`
     : "initial";
@@ -746,6 +752,7 @@ async function queueNativeOpportunityMessage(
     dedupeKey: dedupe,
     payload: {
       schema: "waouh.tel.outbound.v1",
+      journey_id: journey.id, mandate_id: mandate.id,
       text: message,
     },
   });
@@ -844,7 +851,7 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
 
   const level = String(externalSignal.contactability_level || "C0");
   const target = contacts.find((row: any) => {
-    if (row.consent_state === "revoked" || row.is_whatsapp_reachable === false || !row.value_encrypted || !["whatsapp","phone"].includes(String(row.channel))) return false;
+    if (row.consent_state === "revoked" || row.is_whatsapp_reachable !== true || !row.value_encrypted || !["whatsapp","phone"].includes(String(row.channel))) return false;
     if (level === "C1") {
       return mandate.allow_public_business !== false &&
         (row.is_public_business === true || row.consent_state === "public_business");
@@ -861,6 +868,7 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
   const { data: already } = await sb.from("waouh_conversation_bus_events").select("id").eq("external_ref", ref).maybeSingle();
   if (already) return { contacted: false, reason: "already_contacted" };
 
+  if (!await claimAvatarContact(sb, mandate, journey, `phone:${await hashPhone(e164)}`)) return { contacted: false, reason: "person_contact_cooldown" };
   const dedupe = `opportunity-os:${mandate.id}:${signal.fabric_id}:${await sha256Hex(message)}`;
   const { error } = await sb.rpc("waouh_enqueue_outbound_v2", {
     p_to_phone: e164.replace(/\D/g, ""),
@@ -959,7 +967,7 @@ async function runExternalFollowUp(
 
   const level = String(resolved.externalSignal?.contactability_level || "C0");
   const target = resolved.contacts.find((row: any) => {
-    if (row.consent_state === "revoked" || row.is_whatsapp_reachable === false || !row.value_encrypted || !["whatsapp","phone"].includes(String(row.channel))) return false;
+    if (row.consent_state === "revoked" || row.is_whatsapp_reachable !== true || !row.value_encrypted || !["whatsapp","phone"].includes(String(row.channel))) return false;
     if (level === "C1") {
       return mandate.allow_public_business !== false &&
         (row.is_public_business === true || row.consent_state === "public_business");
@@ -1236,7 +1244,7 @@ Deno.serve(async (req) => {
     result.scanned_intents++;
     try {
       const mandate = intent.waouh_avatar_mandates;
-      if (!mandate || mandate.status !== "active") {
+      if (!mandate || mandate.status !== "active" || mandate.metadata?.agreement_reached_at) {
         result.skipped++;
         continue;
       }
@@ -1352,6 +1360,7 @@ Deno.serve(async (req) => {
         last_scan_at: new Date().toISOString(),
         next_scan_at: nextAt,
         last_result_count: ranked.length,
+        metadata: { ...(intent.metadata || {}), coverage: { candidate_count: ranked.length, fallback_used: !nexusDiscovery.ok, corpus_limit: nexusDiscovery.ok ? 3500 : 1500, measured_at: new Date().toISOString() } },
         last_actionable_count: actionableThisRun,
       }).eq("id", intent.id);
       await sb.from("waouh_avatar_mandates").update({

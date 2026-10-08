@@ -46,15 +46,17 @@ async function callNegotiation(sb: any, mandate: any, journey: any, text: string
   return result;
 }
 
-export async function reconcileAvatarApprovals(sb: any, limit = 20) {
-  const { data: approvals, error } = await sb.from('waouh_agent_approvals').select('*')
-    .in('status', ['approved', 'rejected']).in('context->>operation', ['avatar.lifecycle', 'nexus.internal_blind_message', 'nexus.blind_message']).is('context->lifecycle_processed_at', null).order('decided_at').limit(200);
+export async function reconcileAvatarApprovals(sb: any, limit = 20, approvalId?: string) {
+  let approvalQuery = sb.from('waouh_agent_approvals').select('*')
+    .in('status', ['approved', 'rejected']).in('context->>operation', ['avatar.lifecycle', 'nexus.internal_blind_message', 'nexus.blind_message', 'opportunity_os.internal_mediated_contact']).is('context->lifecycle_processed_at', null).order('decided_at').limit(200);
+  if (approvalId) approvalQuery = approvalQuery.eq('id', approvalId);
+  const { data: approvals, error } = await approvalQuery;
   if (error) throw error;
   let processed = 0;
   for (const approval of approvals ?? []) {
     const c = approval.context ?? {};
-    if (c.lifecycle_processed_at || processed >= limit) continue;
-    if (!['avatar.lifecycle', 'nexus.internal_blind_message', 'nexus.blind_message'].includes(c.operation)) continue;
+    if (c.lifecycle_processed_at || processed >= limit || (c.lifecycle_retry_at && Date.parse(c.lifecycle_retry_at) > Date.now())) continue;
+    if (!['avatar.lifecycle', 'nexus.internal_blind_message', 'nexus.blind_message', 'opportunity_os.internal_mediated_contact'].includes(c.operation)) continue;
     try {
       let query = sb.from('waouh_opportunity_journeys').select('*');
       query = c.journey_id ? query.eq('id', c.journey_id) : query.eq('owner_id', c.from_auth_user).eq('fabric_id', c.fabric_id ?? `external:${c.signal_id}`);
@@ -69,6 +71,10 @@ export async function reconcileAvatarApprovals(sb: any, limit = 20) {
         journey = created.data;
       }
       if (!journey) throw new Error('approval_journey_missing');
+      if (['completed', 'cancelled'].includes(journey.stage)) {
+        await sb.from('waouh_agent_approvals').update({ context: { ...c, lifecycle_processed_at: new Date().toISOString(), lifecycle_outcome: 'journey_closed' } }).eq('id', approval.id);
+        continue;
+      }
       let outcome = 'rejected';
       if (approval.status === 'rejected') {
         if (approval.action_type === 'send_message') await sb.from('waouh_opportunity_journeys').update({ stage: 'cancelled', last_action: 'contact_declined', last_message: 'Mise en relation refusée.', completed_at: new Date().toISOString() }).eq('id', journey.id);
@@ -106,8 +112,8 @@ export async function reconcileAvatarApprovals(sb: any, limit = 20) {
             rejectUnavailable: true, notifySeller: 'on_create', openNegotiation: false });
           if (!result.ok || !result.threadId) throw new Error(result.code ?? 'deal_room_failed');
           await sb.from('waouh_opportunity_journeys').update({ article_id: articleId, thread_id: result.threadId,
-            negotiation_id: result.negotiationId, stage: 'negotiating', last_action: 'approved_contact_connected',
-            next_best_action: 'NEGOTIATE', last_message: 'Mise en relation acceptée. Définissez les conditions dans la Deal Room.',
+            negotiation_id: result.negotiationId, stage: 'negotiating', last_action: result.negotiationId ? 'approved_contact_connected' : 'terms_required',
+            next_action: result.negotiationId ? 'NEGOTIATE' : 'Définir une offre dans la Deal Room', next_best_action: result.negotiationId ? 'NEGOTIATE' : 'REQUEST_APPROVAL', last_message: 'Mise en relation acceptée. Définissez les conditions dans la Deal Room.',
           }).eq('id', journey.id);
           await avatarNotice(sb, journey.owner_id, `legacy-approved:${approval.id}`, 'Votre mise en relation acceptée est disponible dans la Deal Room.', { ...journey, thread_id: result.threadId });
           outcome = 'thread_opened';
@@ -123,7 +129,14 @@ export async function reconcileAvatarApprovals(sb: any, limit = 20) {
       await sb.from('waouh_agent_outbox').update({ status: 'delivered', delivered_at: new Date().toISOString(), last_error: null }).eq('aggregate_id', approval.id).eq('status', 'pending');
       processed++;
     } catch (e) {
-      await sb.from('waouh_agent_approvals').update({ context: { ...c, lifecycle_error: String(e).slice(0, 200) } }).eq('id', approval.id);
+      const attempts = Number(c.lifecycle_attempts ?? 0) + 1;
+      await sb.from('waouh_agent_approvals').update({ context: { ...c, lifecycle_attempts: attempts,
+        lifecycle_retry_at: new Date(Date.now() + Math.min(60, 2 ** Math.min(attempts, 6)) * 60000).toISOString(),
+        lifecycle_error: String(e).slice(0, 200) } }).eq('id', approval.id);
+      if (c.journey_id && c.operation !== 'avatar.lifecycle') await sb.from('waouh_opportunity_journeys').update({
+        last_action: 'deal_room_retry', next_action: 'Reprise automatique de l’ouverture',
+        last_message: 'Mise en relation acceptée. Ouverture temporairement indisponible, nouvelle tentative programmée.',
+      }).eq('id', c.journey_id).not('stage', 'in', '(completed,cancelled)');
     }
   }
   return processed;
@@ -182,9 +195,16 @@ export async function advanceAvatarLifecycle(sb: any, limit = 20) {
           advanced++;
         } else if (plan.kind === 'approval') {
           await requestAvatarApproval(sb, m, j, plan.action!, key,
-            plan.action === 'accept_offer' ? `Confirmer l’accord à ${plan.amount} FCFA ?` : 'Votre décision est nécessaire pour les conditions de cette offre.',
-            { negotiation_id: neg.id, negotiation_revision: neg.updated_at, amount: plan.amount, reason: plan.reason });
+            plan.action === 'accept_offer' ? `Confirmer l’accord à ${plan.amount} FCFA ? Quantité : ${m.metadata?.terms?.quantity ?? 1}. ${m.metadata?.terms?.delivery ? 'Livraison : ' + String(m.metadata.terms.delivery).slice(0, 200) + '. ' : ''}${m.metadata?.terms?.acceptance ? 'Conditions à vérifier : ' + String(m.metadata.terms.acceptance).slice(0, 200) : ''}` : 'Votre décision est nécessaire pour les conditions de cette offre.',
+            { negotiation_id: neg.id, negotiation_revision: neg.updated_at, amount: plan.amount, reason: plan.reason, terms: m.metadata?.terms ?? {} });
         }
+      }
+      if (j.stage === 'negotiating' && j.thread_id && !j.negotiation_id) {
+        await sb.from('waouh_opportunity_journeys').update({ last_action: 'terms_required',
+          next_action: 'Proposer un prix ou demander un devis dans la Deal Room', next_best_action: 'REQUEST_APPROVAL',
+          last_message: 'Contact établi. Une première offre ou un devis est nécessaire avant de négocier.',
+        }).eq('id', j.id);
+        await avatarNotice(sb, m.owner_id, `avatar-terms:${j.id}`, 'Votre contact est prêt : proposez un prix ou précisez le devis dans la Deal Room.', j);
       }
       if (j.deal_id) {
         const { data: deal } = await sb.from('waouh_deals').select('*').eq('id', j.deal_id).maybeSingle();
@@ -263,6 +283,6 @@ export async function openAvatarReplyRoom(sb: any, journey: any, phone: string, 
     notifySeller: 'never', openNegotiation: false, rejectUnavailable: true });
   if (!result.ok || !result.threadId) throw new Error(result.code ?? 'deal_room_failed');
   await sb.from('waouh_opportunity_journeys').update({ article_id: articleId, thread_id: result.threadId,
-    negotiation_id: result.negotiationId, stage: 'negotiating', last_action: 'counterparty_connected' }).eq('id', journey.id);
+    negotiation_id: result.negotiationId, stage: 'negotiating', last_action: result.negotiationId ? 'counterparty_connected' : 'terms_required', next_action: result.negotiationId ? 'NEGOTIATE' : 'Proposer un prix ou demander un devis dans la Deal Room' }).eq('id', journey.id);
   return { threadId: result.threadId, negotiationId: result.negotiationId, articleId };
 }

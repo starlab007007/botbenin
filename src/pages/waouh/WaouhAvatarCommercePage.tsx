@@ -138,6 +138,10 @@ const canonicalDealCandidate = (item: NexusDiscoveryResult) => {
 
 const journeyBusinessPhase = (journey: NexusOpportunityJourney) => {
   switch (String(journey.last_action || "")) {
+    case "terms_required": return "Offre ou devis à préciser";
+    case "deal_room_retry": return "Ouverture à reprendre";
+    case "deal_room_opening": return "Ouverture de la Deal Room";
+    case "person_contact_cooldown": return "Contact déjà sollicité";
     case "payment_completed": return "Terminé";
     case "delivery_completed": return "Paiement";
     case "courier_picked_up": return "Livraison";
@@ -189,6 +193,16 @@ export default function WaouhAvatarCommercePage() {
   const [maxContacts, setMaxContacts] = useState(3);
   const [maxFollowups, setMaxFollowups] = useState(1);
   const [allowSmsRcs, setAllowSmsRcs] = useState(false);
+  const [allowWhatsapp, setAllowWhatsapp] = useState(false);
+  const [allowBusiness, setAllowBusiness] = useState(false);
+  const [allowMediation, setAllowMediation] = useState(true);
+  const [completionGoal, setCompletionGoal] = useState<"transaction" | "agreement" | "recommendations">("agreement");
+  const [durationHours, setDurationHours] = useState(72);
+  const [quantity, setQuantity] = useState(1);
+  const [deliveryTerms, setDeliveryTerms] = useState("");
+  const [acceptanceTerms, setAcceptanceTerms] = useState("");
+  const [mandates, setMandates] = useState<NexusAvatarMandate[]>([]);
+  const [newMission, setNewMission] = useState(false);
   const [mandateBusy, setMandateBusy] = useState(false);
   const [activeMandate, setActiveMandate] = useState<NexusAvatarMandate | null>(null);
   const [journeys, setJourneys] = useState<NexusOpportunityJourney[]>([]);
@@ -200,6 +214,7 @@ export default function WaouhAvatarCommercePage() {
       .then((data) => {
         if (!alive) return;
         const current = (data.mandates || []).find((m) => (m.status === "active" || m.status === "paused") && m.mode === (mode === "vendre" ? "sell" : mode === "demander" ? "ask" : "buy")) || null;
+        setMandates(data.mandates || []);
         setActiveMandate(current);
         if (current) {
           setAutonomyMode(current.autonomy_mode);
@@ -214,26 +229,34 @@ export default function WaouhAvatarCommercePage() {
 
   useEffect(() => {
     let alive = true;
+    let loading = false;
+    const refresh = async () => {
+      if (loading || document.visibilityState === "hidden") return;
+      loading = true;
+      try {
+        const [data, missions] = await Promise.all([
+          listNexusOpportunityJourneys({ limit: 50, include_completed: true, mandate_id: activeMandate?.id }), listNexusMandates(),
+        ]);
+        if (!alive) return;
+        setJourneys(data.journeys || []);
+        setMandates(missions.mandates || []);
+        if (activeMandate?.id) setActiveMandate(missions.mandates.find(m => m.id === activeMandate.id) || null);
+      } catch { /* Existing results remain visible; manual refresh is available. */ }
+      finally { loading = false; if (alive) setJourneysBusy(false); }
+    };
     setJourneysBusy(true);
-    void listNexusOpportunityJourneys({ limit: 12 })
-      .then((data) => {
-        if (alive) setJourneys(data.journeys || []);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (alive) setJourneysBusy(false);
-      });
-    return () => { alive = false; };
-  }, []);
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 15000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => { alive = false; window.clearInterval(timer); document.removeEventListener("visibilitychange", refresh); };
+  }, [activeMandate?.id]);
 
   const refreshJourneys = async () => {
     setJourneysBusy(true);
     try {
-      const data = await listNexusOpportunityJourneys({ limit: 12 });
+      const data = await listNexusOpportunityJourneys({ limit: 50, include_completed: true, mandate_id: activeMandate?.id });
       setJourneys(data.journeys || []);
-    } finally {
-      setJourneysBusy(false);
-    }
+    } finally { setJourneysBusy(false); }
   };
 
   const sources = useMemo(
@@ -284,17 +307,20 @@ export default function WaouhAvatarCommercePage() {
         budget_max: Number(budget) || undefined,
         max_contacts: maxContacts,
         max_followups: autonomyMode === "assisted" ? 0 : maxFollowups,
-        duration_hours: 72,
+        duration_hours: durationHours,
+        completion_goal: completionGoal,
+        quantity, delivery_terms: deliveryTerms, acceptance_terms: acceptanceTerms,
         scan_interval_minutes: 60,
         min_match_score: 70,
         min_actionability_score: 65,
         allow_waouh: true,
-        allow_whatsapp: true,
-        allow_public_business: true,
-        allow_blind_message: true,
+        allow_whatsapp: allowWhatsapp,
+        allow_public_business: allowBusiness,
+        allow_blind_message: allowMediation,
         allow_sms_rcs: allowSmsRcs,
         origin_surface: "web_avatar_commerce",
       });
+      setNewMission(false);
       setActiveMandate(response.mandate);
       if (response.results?.length) {
         setResults(response.results);
@@ -308,7 +334,7 @@ export default function WaouhAvatarCommercePage() {
         title: "Mandat confié à Bot",
         description: autonomyMode === "assisted"
           ? "Bot surveille et prépare ; vous validez chaque contact."
-          : `Bot surveille pendant 72 h et peut agir dans les limites fixées · ${response.actionable_count} opportunité(s) déjà actionnable(s).`,
+          : `Bot surveille pendant ${durationHours} h et peut agir dans les limites fixées · ${response.actionable_count} opportunité(s) déjà actionnable(s).`,
       });
     } catch (error: any) {
       toast({ title: "Mandat non créé", description: userFacingErrorText(error, "save"), variant: "destructive" });
@@ -569,11 +595,18 @@ export default function WaouhAvatarCommercePage() {
             </div>
           </div>
 
-          {activeMandate ? (
+          <div className="mt-3 flex gap-2">
+            <select aria-label="Mission suivie" className="min-w-0 flex-1 rounded-xl border p-2 text-xs" value={newMission ? "" : activeMandate?.id || ""} onChange={e => { setActiveMandate(mandates.find(m => m.id === e.target.value) || null); setNewMission(!e.target.value); }}>
+              <option value="">Nouvelle mission</option>
+              {mandates.filter(m => m.mode === (mode === "vendre" ? "sell" : mode === "demander" ? "ask" : "buy")).map(m => <option key={m.id} value={m.id}>{m.goal.slice(0, 55)} · {m.status}</option>)}
+            </select>
+            <Button size="sm" variant="outline" onClick={() => { setNewMission(true); setActiveMandate(null); }}>Nouvelle</Button>
+          </div>
+          {activeMandate && !newMission ? (
             <div className="mt-4 space-y-3">
               <div className="grid grid-cols-3 gap-2">
                 <div className="rounded-2xl bg-white p-3 text-center">
-                  <div className="text-[9px] font-bold uppercase text-slate-400">Contactés</div>
+                  <div className="text-[9px] font-bold uppercase text-slate-400">Sollicitations</div>
                   <div className="mt-1 text-xl font-black text-violet-700">{activeMandate.contacted_count}</div>
                 </div>
                 <div className="rounded-2xl bg-white p-3 text-center">
@@ -587,10 +620,11 @@ export default function WaouhAvatarCommercePage() {
                   </div>
                 </div>
               </div>
+              {activeMandate.metrics && <div className="flex flex-wrap gap-2 text-[11px] text-slate-600">{[['queued','En file'],['sent','Envoyés'],['delivered','Livrés'],['agreed','Accords'],['completed','Terminés']].map(([key,label]) => <span key={key}>{label} : {activeMandate.metrics?.[key] || 0}</span>)}</div>}
               <div className="rounded-2xl border border-violet-100 bg-white p-3">
                 <div className="text-xs font-black text-slate-900">{activeMandate.goal}</div>
                 <div className="mt-1 text-[10px] text-slate-500">
-                  Jusqu’à {activeMandate.max_contacts} contacts · expire {new Date(activeMandate.expires_at).toLocaleString("fr-FR")}
+                  Objectif : {activeMandate.metadata?.completion_goal === "recommendations" ? "Recommandations" : activeMandate.metadata?.completion_goal === "transaction" ? "Exécution complète" : "Accord confirmé"} · Jusqu’à {activeMandate.max_contacts} contacts · expire {new Date(activeMandate.expires_at).toLocaleString("fr-FR")}
                 </div>
               </div>
               <label className="flex items-center justify-between gap-3 rounded-2xl border border-violet-100 bg-white p-3">
@@ -617,7 +651,7 @@ export default function WaouhAvatarCommercePage() {
                 />
               </label>
               <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" disabled={mandateBusy} onClick={() => void toggleMandate()} className="rounded-xl">
+                <Button variant="outline" disabled={mandateBusy || !["active", "paused"].includes(activeMandate.status) || !!activeMandate.metadata?.agreement_reached_at} onClick={() => void toggleMandate()} className="rounded-xl">
                   {activeMandate.status === "active" ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
                   {activeMandate.status === "active" ? "Mettre en pause" : "Reprendre"}
                 </Button>
@@ -638,6 +672,23 @@ export default function WaouhAvatarCommercePage() {
                 <Input type="number" min="1" value={priceFloor} onChange={e => setPriceFloor(e.target.value)} placeholder="Prix minimum autorisé (FCFA)" aria-label="Prix minimum autorisé" />
                 {!ownedArticles.length && <p className="text-sm">Publiez votre article avant de lancer une mission de vente.</p>}
               </div>}
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs">Résultat attendu<select aria-label="Résultat attendu" className="mt-1 w-full rounded-xl border p-2" value={completionGoal} onChange={e => setCompletionGoal(e.target.value as typeof completionGoal)}>
+                  <option value="recommendations">Recommandations</option><option value="agreement">Accord confirmé</option><option value="transaction">Exécution complète</option>
+                </select></label>
+                <label className="text-xs">Durée<select aria-label="Durée du mandat" className="mt-1 w-full rounded-xl border p-2" value={durationHours} onChange={e => setDurationHours(Number(e.target.value))}>{[24,72,168,720].map(h => <option key={h} value={h}>{h / 24} jour(s)</option>)}</select></label>
+              </div>
+              <details className="rounded-xl border bg-white p-3 text-xs"><summary className="cursor-pointer font-semibold">Canaux et conditions</summary>
+                <div className="mt-2 space-y-2">
+                  <p>WAOUH interne activé. Un canal autorisé reste soumis à sa disponibilité et au consentement.</p>
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={allowWhatsapp} onChange={e => setAllowWhatsapp(e.target.checked)} /> WhatsApp vérifié</label>
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={allowBusiness} onChange={e => setAllowBusiness(e.target.checked)} /> Contacts professionnels publics</label>
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={allowMediation} onChange={e => setAllowMediation(e.target.checked)} /> Demandes de mise en relation</label>
+                  <Input type="number" min={1} max={100000} value={quantity} onChange={e => setQuantity(Math.max(1, Number(e.target.value) || 1))} aria-label="Quantité" placeholder="Quantité" />
+                  <Input value={deliveryTerms} maxLength={1000} onChange={e => setDeliveryTerms(e.target.value)} aria-label="Livraison et délai" placeholder="Lieu, délai, frais de livraison…" />
+                  <Input value={acceptanceTerms} maxLength={1000} onChange={e => setAcceptanceTerms(e.target.value)} aria-label="Critères d’acceptation" placeholder="Qualité, livrables, garanties…" />
+                </div>
+              </details>
               <div>
                 <div className="mb-2 text-[10px] font-black uppercase tracking-wide text-slate-500">Mode d’autonomie</div>
                 <div className="grid grid-cols-3 gap-2">
@@ -711,7 +762,7 @@ export default function WaouhAvatarCommercePage() {
                 onClick={() => void createMandate()}
               >
                 {mandateBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}
-                Confier cette mission à Bot pendant 72 h
+                Confier la mission · {durationHours} h
               </Button>
               <p className="text-center text-[10px] font-semibold text-slate-500">
                 Les contre-offres respectent votre limite. Vous confirmez l’accord final ; le paiement reste une action distincte.
@@ -734,7 +785,7 @@ export default function WaouhAvatarCommercePage() {
             </div>
             {journeys.length > 0 && (
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {journeys.slice(0, 6).map((journey) => (
+                {journeys.slice(0, 20).map((journey) => (
                   <button
                     key={journey.id}
                     type="button"

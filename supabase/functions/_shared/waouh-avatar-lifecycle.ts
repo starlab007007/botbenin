@@ -27,7 +27,7 @@ export function selectReplyJourney<T extends { payload?: Record<string, any>; st
 export const journeyReplyToken = (id: string) => `WA-${id.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 
 export function followupDelayHours(durationHours: number, maxFollowups: number) {
-  return Math.max(1, Math.min(24, durationHours / (Math.max(0, maxFollowups) + 2)));
+  return Math.max(24, durationHours / (Math.max(0, maxFollowups) + 2));
 }
 
 export function withinMandateBudget(mandate: any, signal: any) {

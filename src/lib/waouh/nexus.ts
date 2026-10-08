@@ -310,6 +310,8 @@ export type NexusContactPack = {
 };
 
 export type NexusAvatarMandate = {
+  metrics?: Record<string, number>;
+  metadata?: { completion_goal?: string; agreement_reached_at?: string; terms?: Record<string, unknown>; [key: string]: unknown };
   id: string;
   owner_id: string;
   mode: "buy" | "sell" | "ask";
@@ -425,6 +427,7 @@ export type NexusDiscoveryResult = {
 };
 
 export type NexusDiscoverySource = {
+  health?: string; health_reason?: string; last_verified_at?: string | null;
   source_key: string;
   label: string;
   family: string;
@@ -601,7 +604,7 @@ export async function getNexusOpportunityStatus(input: { journey_id?: string; fa
   return invokeWaouhAgentic<{ journey: NexusOpportunityJourney }>("nexus.opportunity.status", input);
 }
 
-export async function listNexusOpportunityJourneys(input: { include_completed?: boolean; limit?: number } = {}) {
+export async function listNexusOpportunityJourneys(input: { include_completed?: boolean; limit?: number; mandate_id?: string } = {}) {
   return invokeWaouhAgentic<{
     journeys: NexusOpportunityJourney[];
     items: NexusOpportunityJourney[];
@@ -680,6 +683,7 @@ export async function createNexusMandate(payload: {
   article_id?: string;
   price_floor?: number;
   completion_goal?: "transaction" | "agreement" | "recommendations";
+  quantity?: number; delivery_terms?: string; acceptance_terms?: string;
   mode: "buy" | "sell" | "ask";
   goal: string;
   autonomy_mode?: "assisted" | "semi_autonomous" | "autonomous";
