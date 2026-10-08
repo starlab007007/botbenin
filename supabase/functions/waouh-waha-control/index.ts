@@ -44,7 +44,19 @@ Deno.serve(async (req) => {
       ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}),
     };
 
-    const { action, session = "WaouhApp", webhook, config, phone } = await req.json();
+    const { action, session = "WaouhApp", webhook, config, phone, recovery_key } = await req.json();
+
+    if (action === "central-recover") {
+      if (guard.actor !== "service") return json({error:"service_role_required"},403);
+      const current = await fetchWaha(base, `/api/sessions/${CENTRAL_WAHA_SESSION}`, {}, headers);
+      if (!current.ok) return json({error:"central_session_unavailable"},503);
+      if (!centralSessionSummary(await readWaha(current)).identity_matches) return json({error:"central_identity_mismatch"},409);
+      if (typeof recovery_key !== "string" || !/^[a-zA-Z0-9_-]{8,80}$/.test(recovery_key)) return json({error:"recovery_key_required"},422);
+      const {error: lockError} = await service.from("waouh_processed_events").insert({event_id:`central-recovery:${recovery_key}`,source:"waha-maintenance"});
+      if (lockError) return json({restarted:false,already_attempted:lockError.code === "23505"},lockError.code === "23505"?200:503);
+      const restarted = await fetchWaha(base, `/api/sessions/${CENTRAL_WAHA_SESSION}/restart`, {method:"POST"}, headers);
+      return json({restarted:restarted.ok,provider_status:restarted.status},restarted.ok?200:502);
+    }
 
     if (action === "central-webhook-probe") {
       if (guard.actor !== "service") return json({error:"service_role_required"},403);
@@ -58,7 +70,9 @@ Deno.serve(async (req) => {
       const result = await fetch(hook.url, {method:"POST",headers:probeHeaders,
         body:JSON.stringify({event:"session.status",session:CENTRAL_WAHA_SESSION,payload:{status:data.status}}),
         signal:AbortSignal.timeout(15000)}).catch(()=>null);
-      return json({provider_engine:data.engine || data.config?.engine || "UNKNOWN",webhook_http_status:result?.status || 0});
+      const versionResponse = await fetchWaha(base, "/api/version", {}, headers);
+      const version = versionResponse.ok ? await readWaha(versionResponse) : {};
+      return json({provider_version:version.version || "UNKNOWN", provider_tier:version.tier || "UNKNOWN", provider_engine:data.engine || data.config?.engine || "UNKNOWN",webhook_http_status:result?.status || 0});
     }
 
     if (action === "central-chat-history") {

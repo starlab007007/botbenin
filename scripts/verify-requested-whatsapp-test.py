@@ -71,6 +71,16 @@ def message_id(message):
     value = message.get('id')
     return value if isinstance(value,str) else (value or {}).get('_serialized')
 
+if os.environ.get('WAOUH_RECOVER_CENTRAL') == '1':
+    status, result = request(base+'waouh-waha-control', {'action':'central-recover','recovery_key':'webjs-20261008-test'}, headers)
+    print('::notice title=Central WEBJS recovery::' + json.dumps(result))
+    assert status == 200, 'Central WEBJS recovery failed HTTP ' + str(status)
+    if result.get('restarted'):
+        for attempt in range(12):
+            time.sleep(5)
+            status, health = request(base+'waouh-waha-control', {'action':'central-status'},headers)
+            if status == 200 and health.get('status') == 'WORKING': break
+
 messages = history()
 received = [message for message in messages if message.get('fromMe') is False and timestamp(message)>=since and args.keyword.casefold() in str(message.get('body') or message.get('caption') or '').casefold()]
 assert received, 'Requested test message not found in actual central WhatsApp history'
