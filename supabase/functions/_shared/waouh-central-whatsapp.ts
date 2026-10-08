@@ -66,12 +66,14 @@ export function centralSessionSummary(data: any) {
   };
 }
 // WEBJS can report WORKING after its injected WhatsApp client has failed.
-// Reading a bounded chat list detects this condition without sending a message.
+// Reading the central account contact detects this condition without sending a message.
 export async function centralProviderOperational(base: string, apiKey: string, data: any) {
   const engine = String(data?.engine?.engine || data?.engine || "").toUpperCase();
   if (engine !== "WEBJS") return true;
   try {
-    const response = await fetch(`${base.replace(/\/$/, "")}/api/${CENTRAL_WAHA_SESSION}/chats?limit=1`, {
+    if (!data?.me?.id) return false;
+    const query = new URLSearchParams({session:CENTRAL_WAHA_SESSION,contactId:data.me.id});
+    const response = await fetch(`${base.replace(/\/$/, "")}/api/contacts?${query}`, {
       headers: {"X-Api-Key":apiKey}, signal:AbortSignal.timeout(5000),
     });
     await response.body?.cancel();

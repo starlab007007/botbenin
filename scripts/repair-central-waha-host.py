@@ -7,9 +7,10 @@ import re
 import subprocess
 import time
 import urllib.request
+import urllib.parse
 import urllib.error
 
-TARGET = 'devlikeapro/waha-plus:2026.9.2'
+TARGET = 'devlikeapro/waha-plus:latest'
 PHONES = {'22965653468', '2290165653468'}
 
 def command(args, **kwargs):
@@ -53,7 +54,7 @@ assert len(candidates)==1, 'Exactly one verified central WAHA container is requi
 cid,item,session=candidates[0]
 status,version=call(item,'/api/version')
 assert status==200, 'Cannot inspect central WAHA version'
-status,health=call(item,'/api/WaouhApp/chats?limit=1')
+status,health=call(item,'/api/contacts?session=WaouhApp&contactId='+urllib.parse.quote(session['me']['id']))
 if status==200:
     print('::notice title=Central WAHA server::Already operational; no container changed.')
     raise SystemExit(0)
@@ -83,6 +84,14 @@ except subprocess.CalledProcessError as error:
 new_image=json.loads(output(['docker','image','inspect',TARGET]))[0]
 digest=next((d for d in new_image.get('RepoDigests',[]) if d.startswith('devlikeapro/waha-plus@sha256:')),None)
 assert digest, 'Cannot pin the provider image digest'
+assert new_image['Id'] != item['Image'], 'The registry latest image is still the installed defective build; a newer WAHA Plus image is required'
+version_source=output(['docker','run','--rm','--entrypoint','cat',digest,'/app/dist/version.js'])
+match=re.search(r"version:\s*['\"]([0-9]+\.[0-9]+\.[0-9]+)['\"]",version_source)
+assert match, 'Cannot inspect the candidate provider version before changing the container'
+candidate_version=match[1]
+assert tuple(map(int,candidate_version.split('.'))) >= tuple(map(int,version['version'].split('.'))), 'Candidate provider version would downgrade the central instance'
+print('::notice title=Central WAHA candidate::Registry image pinned by digest; candidate provider version=' + candidate_version)
+
 stamp=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
 backup=Path.home()/'.local/share/waouh-waha-recovery'/stamp
 backup.mkdir(parents=True,mode=0o700);os.chmod(backup,0o700)
@@ -112,13 +121,13 @@ try:
             call(live,'/api/sessions/WaouhApp/start',{})
             continue
         if current.get('status')!='WORKING' or not central(current): continue
-        api_status,_=call(live,'/api/WaouhApp/chats?limit=1')
+        api_status,_=call(live,'/api/contacts?session=WaouhApp&contactId='+urllib.parse.quote(current['me']['id']))
         if api_status!=200: continue
         v_status,current_version=call(live,'/api/version')
-        if v_status==200 and current_version.get('version')=='2026.9.2':
+        if v_status==200 and current_version.get('version')==candidate_version:
             ready=True;break
     assert ready, 'Updated central WAHA engine did not pass the real conversation health check'
-    print('::notice title=Central WAHA server repaired::Verified +229 65653468; provider 2026.9.2; real conversation API operational. Sessions and media retained; other WAHA installation unchanged.')
+    print('::notice title=Central WAHA server repaired::Verified +229 65653468; provider ' + candidate_version + '; WhatsApp client API operational. Sessions and media retained; other WAHA installation unchanged.')
 except BaseException:
     # Restore the exact compose definition and old image; the private auth backup remains available.
     if changed:

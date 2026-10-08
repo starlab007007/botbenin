@@ -85,6 +85,7 @@ jobs:
           raise SystemExit(1 if failed else 0)
           PY
   verify_avatar:
+    if: always()
     needs: repair_host
     runs-on: ubuntu-latest
     environment: production

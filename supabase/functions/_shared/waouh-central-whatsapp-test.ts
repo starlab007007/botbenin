@@ -205,8 +205,8 @@ Deno.test("A WORKING WEBJS session with a broken injected client is unavailable 
   const original = globalThis.fetch;
   try {
     globalThis.fetch = async () => new Response('{"error":"Cannot read properties of undefined (reading getChat)"}', {status:500});
-    assertEquals(await centralProviderOperational("https://provider.test","test",{status:"WORKING",engine:{engine:"WEBJS"}}),false);
+    assertEquals(await centralProviderOperational("https://provider.test","test",{status:"WORKING",engine:{engine:"WEBJS"},me:{id:"2290165653468@c.us"}}),false);
     globalThis.fetch = async () => new Response('[]', {status:200});
-    assertEquals(await centralProviderOperational("https://provider.test","test",{status:"WORKING",engine:{engine:"WEBJS"}}),true);
+    assertEquals(await centralProviderOperational("https://provider.test","test",{status:"WORKING",engine:{engine:"WEBJS"},me:{id:"2290165653468@c.us"}}),true);
   } finally { globalThis.fetch = original; }
 });
