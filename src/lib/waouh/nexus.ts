@@ -452,6 +452,7 @@ export async function globalNexusDiscovery(input: {
   budget_max?: number;
   limit?: number;
   refresh_external?: boolean;
+  all_sources?: boolean;
   smart?: boolean;
 }) {
   return invokeWaouhAgentic<{
@@ -471,7 +472,7 @@ export async function globalNexusDiscovery(input: {
     }>;
     intelligence?: NexusSmartDiscoveryPlan;
     explanation?: string;
-  }>("nexus.global_discovery", { mode: "auto", smart: true, ...input });
+  }>("nexus.global_discovery", { mode: "auto", smart: true, all_sources: true, ...input });
 }
 
 export async function ingestSharedCommerceSignal(input: {
@@ -605,7 +606,7 @@ export async function getNexusOpportunityStatus(input: { journey_id?: string; fa
   return invokeWaouhAgentic<{ journey: NexusOpportunityJourney }>("nexus.opportunity.status", input);
 }
 
-export async function listNexusOpportunityJourneys(input: { include_completed?: boolean; limit?: number; mandate_id?: string } = {}) {
+export async function listNexusOpportunityJourneys(input: { include_completed?: boolean; limit?: number; mandate_id?: string; thread_id?: string } = {}) {
   return invokeWaouhAgentic<{
     journeys: NexusOpportunityJourney[];
     items: NexusOpportunityJourney[];
@@ -655,6 +656,7 @@ export async function sendNexusDiscoveryContact(input: {
   message: string;
   confirmed: true;
   mandate_id?: string;
+  journey_id?: string;
 }) {
   return invokeWaouhAgentic<{
     queued: boolean;
@@ -743,7 +745,7 @@ export async function runNexusMandate(mandateId: string) {
   }>("nexus.mandate.run", { mandate_id: mandateId });
 }
 
-export async function listNexusConversationBus(input: { fabric_id?: string; thread_id?: string; limit?: number } = {}) {
+export async function listNexusConversationBus(input: { fabric_id?: string; thread_id?: string; journey_id?: string; limit?: number } = {}) {
   return invokeWaouhAgentic<{ events: NexusConversationBusEvent[] }>(
     "nexus.conversation_bus.list",
     input,

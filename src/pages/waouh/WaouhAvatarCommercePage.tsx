@@ -1,6 +1,9 @@
+import { progressiveNexusDiscovery } from "@/lib/waouh/progressiveDiscovery";
+import { WaouhDiscoveryCoverage, type DiscoveryRefresh } from "@/components/waouh/WaouhDiscoveryCoverage";
 import "@/components/waouh/waouh-message-text.css";
+import { WaouhJourneyProgress } from "@/components/waouh/WaouhJourneyProgress";
 import { userFacingErrorText } from "@/lib/userFacingError";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -29,7 +32,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { getWaouhSessionId } from "@/app-mobile/hooks/useWaouhIdentity";
 import { WaouhNexusContactSheet } from "@/components/waouh/WaouhNexusContactSheet";
 import {
-  globalNexusDiscovery,
   getNexusSources,
   type NexusSourceStatus,
   listNexusOwnedArticles,
@@ -187,6 +189,8 @@ export default function WaouhAvatarCommercePage() {
   const [budget, setBudget] = useState("");
   const [busy, setBusy] = useState(false);
   const [workingId, setWorkingId] = useState<string | null>(null);
+  const [searchCompleted, setSearchCompleted] = useState(false);
+  const [refreshCoverage, setRefreshCoverage] = useState<DiscoveryRefresh>({});
   const [results, setResults] = useState<NexusDiscoveryResult[]>([]);
   const [channelHealth, setChannelHealth] = useState<NexusSourceStatus["channels"]>({});
   useEffect(() => { void getNexusSources().then(data => setChannelHealth(data.channels || {})).catch(() => {}); }, []);
@@ -269,12 +273,20 @@ export default function WaouhAvatarCommercePage() {
     [sourceMix]
   );
 
+  const searchVersion = useRef(0);
+  useEffect(() => {
+    searchVersion.current += 1;
+    setResults([]); setSourceMix({}); setRefreshCoverage({}); setRationale(""); setSearchCompleted(false); setBusy(false);
+    return () => { searchVersion.current += 1; };
+  }, [mode]);
+
   const search = async () => {
     const query = goal.trim();
-    if (!query) return;
+    if (!query || busy) return;
+    const version = ++searchVersion.current;
     setBusy(true);
     try {
-      const response = await globalNexusDiscovery({
+      const response = await progressiveNexusDiscovery({
         query,
         mode: mode === "vendre" ? "find_buyers" : mode === "demander" ? "auto" : "find_sellers",
         city: city.trim() || undefined,
@@ -282,18 +294,28 @@ export default function WaouhAvatarCommercePage() {
         limit: 18,
         refresh_external: true,
         smart: true,
+      }, indexed => {
+        if (version !== searchVersion.current) return;
+        setResults(indexed.results || []);
+        setSourceMix(indexed.source_mix || {});
+        setRefreshCoverage({});
+        setSearchCompleted(true);
       });
+      if (version !== searchVersion.current) return;
       setResults(response.results || []);
+      setRefreshCoverage(response.refresh || {});
+      setSearchCompleted(true);
       setSourceMix(response.source_mix || {});
       setRationale(response.intelligence?.rationale || response.explanation || "");
     } catch (error: any) {
+      if (version !== searchVersion.current) return;
       toast({
         title: "Recherche indisponible",
         description: userFacingErrorText(error, "load"),
         variant: "destructive",
       });
     } finally {
-      setBusy(false);
+      if (version === searchVersion.current) setBusy(false);
     }
   };
 
@@ -801,39 +823,25 @@ export default function WaouhAvatarCommercePage() {
               </Button>
             </div>
             {journeys.length > 0 && (
-              <div className="mt-2 grid grid-cols-2 gap-2">
+              <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {journeys.slice(0, 20).map((journey) => (
-                  <button
-                    key={journey.id}
-                    type="button"
-                    onClick={() => openJourney(journey)}
-                    className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 text-left transition hover:border-blue-200 hover:bg-blue-50/60"
-                  >
-                    <div className="flex items-start gap-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-xs font-black text-slate-950">{journey.subject || "Démarche WAOUH"}</div>
-                        <div className="mt-1 text-[10px] font-black text-blue-700">{journeyBusinessPhase(journey)} · {journey.contactability_level}</div>
-                      </div>
-                      <div className="text-[10px] font-black text-slate-500">{Math.max(0, Math.min(100, Number(journey.progress || 0)))}%</div>
+                  <article key={journey.id} className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+                    <h3 className="mb-2 truncate text-sm font-bold">{journey.subject || "Démarche WAOUH"}</h3>
+                    <WaouhJourneyProgress journey={journey} />
+                    <div className="mt-2">
+                      {journey.thread_id || journey.last_action === "article_selection_required" ?
+                        <Button variant="outline" className="min-h-11 w-full" onClick={() => openJourney(journey)}>{journey.thread_id ? "Ouvrir la discussion" : "Choisir mon article"}</Button> :
+                        journey.stage !== "completed" && journey.stage !== "cancelled" && <WaouhNexusContactSheet fabricId={journey.fabric_id} title={journey.subject || "Opportunité"} sourceUrl={journey.source_url} mode={journey.mode} journeyId={journey.id} />}
                     </div>
-                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
-                      <div
-                        className="h-full rounded-full bg-blue-600"
-                        style={{ width: `${Math.max(0, Math.min(100, Number(journey.progress || 0)))}%` }}
-                      />
-                    </div>
-                    <div className="mt-2 line-clamp-2 text-[10px] font-semibold leading-relaxed text-slate-500">
-                      {journey.last_message || journey.next_action || "Avatar poursuit cette démarche."}
-                    </div>
-                    {journey.thread_id && (
-                      <div className="mt-2 text-[10px] font-black text-emerald-700">Ouvrir le Deal Room →</div>
-                    )}
-                  </button>
+                  </article>
                 ))}
               </div>
             )}
           </section>
         )}
+
+        {busy && searchCompleted && <p role="status" className="text-xs text-blue-700">Offres indexées affichées · exploration des autres sources en cours…</p>}
+        {searchCompleted && <WaouhDiscoveryCoverage refresh={refreshCoverage} count={results.length} />}
 
         {(rationale || sources.length > 0) && (
           <section className="rounded-[22px] border border-blue-100 bg-blue-50/60 p-4">
