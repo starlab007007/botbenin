@@ -312,7 +312,8 @@ jobs:
               select 1 from cron.job
               where jobname='waouh-opportunity-worker-10m'
                 and active
-                and command like '%/waouh-e2e-v3-relay%'
+                and (command like '%/waouh-opportunity-worker%'
+                or command like '%/waouh-e2e-v3-relay%')
             ) as opportunity_worker_cron
           """
           print(json.dumps({"query": query}))
@@ -333,7 +334,7 @@ jobs:
             exit 0
           fi
 
-          if [ "$http_code" != "200" ]; then
+          if [ "$http_code" != "200" ] && [ "$http_code" != "201" ]; then
             echo "::error::Opportunity OS schema preflight failed with HTTP $http_code"
             cat /tmp/opportunity-os-schema-result.json || true
             exit 1
