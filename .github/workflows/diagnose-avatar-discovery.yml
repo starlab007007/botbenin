@@ -4,6 +4,9 @@ on:
   push:
     branches: [prod]
     paths: ['.github/workflows/diagnose-avatar-discovery.yml']
+concurrency:
+  group: supabase-production-${{ github.ref }}
+  cancel-in-progress: false
 permissions:
   contents: read
 jobs:
