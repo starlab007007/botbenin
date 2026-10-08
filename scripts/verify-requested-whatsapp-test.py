@@ -7,6 +7,7 @@ import argparse
 import datetime
 import json
 import os
+import re
 import time
 import sys
 
@@ -101,6 +102,8 @@ variants = [digits]
 if digits.startswith('22901') and len(digits)==13: variants.append('229'+digits[5:])
 elif digits.startswith('229') and len(digits)==11: variants.append('22901'+digits[3:])
 variants += ['+'+value for value in list(variants)]
+# A provider-verified privacy identifier belongs to this exact requested chat.
+if re.fullmatch(r'[0-9]+@lid', str(incoming.get('from',''))): variants.append(incoming['from'])
 numbers = ','.join("'"+value+"'" for value in variants)
 status, rows = request(management+'/database/query',{'query':"select text from public.waouh_messages where channel='whatsapp' and direction='out' and phone_number in ("+numbers+") and created_at>='"+args.since+"' order by created_at desc limit 20"},{'Authorization':'Bearer '+os.environ['SUPABASE_ACCESS_TOKEN'],'Content-Type':'application/json'})
 assert status==200, 'Cannot correlate Avatar reply records'

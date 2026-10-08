@@ -843,10 +843,10 @@ Deno.serve(async (req) => {
       if (phone && /@lid$/i.test(phone)) {
         try {
           const lidDigits = await lidToPhoneInline(sb, phone, { session: wahaSession });
-          // ✅ Garde-fou strict : seul un résultat plausible (8 à 12 chiffres, et pas un LID camouflé)
+          // ✅ Garde-fou strict : seul un résultat plausible (8 à 13 chiffres, et pas un LID camouflé)
           // peut écraser le phone. Sinon on garde `<lid>@lid` pour redéclencher la résolution plus tard.
           let resolved: string | null = null;
-          if (lidDigits && lidDigits.length >= 8 && lidDigits.length <= 12) {
+          if (lidDigits && lidDigits.length >= 8 && lidDigits.length <= 13) {
             if (lidDigits.startsWith("229") && (lidDigits.length === 11 || lidDigits.length === 13)) {
               resolved = lidDigits;
             } else if (lidDigits.length === 8) {
