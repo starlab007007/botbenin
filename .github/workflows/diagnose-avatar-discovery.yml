@@ -22,6 +22,8 @@ jobs:
         run: |
           python3 - <<'PY'
           import os, subprocess
+          from pathlib import Path
+          Path('supabase/config.toml').write_text('project_id = "' + os.environ['SUPABASE_PROJECT_REF'] + '"\n[api]\nenabled = true\nport = 54321\n[edge_runtime]\nenabled = true\npolicy = "per_worker"\n')
           result = subprocess.run(['supabase','functions','deploy','waouh-waha-control','--project-ref',os.environ['SUPABASE_PROJECT_REF'],'--use-api','--no-verify-jwt'],capture_output=True,text=True)
           if result.returncode:
               error = (result.stdout + result.stderr)[-2400:].replace(os.environ['SUPABASE_ACCESS_TOKEN'],'[redacted]').replace('%','%25').replace('\r','%0D').replace('\n','%0A')
