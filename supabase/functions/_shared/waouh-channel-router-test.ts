@@ -1,6 +1,14 @@
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { routeOpportunityChannel } from "./waouh-channel-router.ts";
 
+Deno.test("Email requires an active provider and explicit owner approval", () => {
+  const input = { channels: [{ channel: "email", verified: true, consent_state: "opt_in" }], contactability: "C3", allowEmail: true };
+  assertEquals(routeOpportunityChannel(input).can_dispatch, false);
+  assertEquals(routeOpportunityChannel({ ...input, emailConfigured: true }).can_dispatch, false);
+  assertEquals(routeOpportunityChannel({ ...input, emailConfigured: true, approvalGranted: true }).can_dispatch, true);
+  assertEquals(routeOpportunityChannel({ ...input, channels: [{ channel: "email", consent_state: "revoked" }], emailConfigured: true, approvalGranted: true }).can_dispatch, false);
+});
+
 Deno.test("Channel Router: internal WAOUH is canonical", () => {
   const route = routeOpportunityChannel({
     internal: true,

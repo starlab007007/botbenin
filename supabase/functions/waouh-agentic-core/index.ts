@@ -1,3 +1,4 @@
+import { handleExternalExchange, ExchangeError, createExchangeInvite, isExternalExchangeAction } from '../_shared/waouh-external-exchange.ts';
 import { isPublicNexusRead, PUBLIC_NEXUS_SOURCES, publicNexusResult } from "../_shared/waouh-public-discovery.ts";
 import { settleDiscoverySource } from "../_shared/waouh-discovery-refresh.ts";
 import { diversifyAvatarResults } from "../_shared/waouh-avatar-discovery.ts";
@@ -1494,13 +1495,17 @@ Deno.serve(async (req: Request) => {
     const requestBody = asObject(await req.json(), "body");
     const action = asString(requestBody.action, "action", 3, 80);
     const payload = asObject(requestBody.payload ?? {}, "payload");
-    ensureNoFinancialAction(action, payload);
+    const exchangeAction = isExternalExchangeAction(action);
+    // Exchange milestones record participant declarations; they never execute payments.
+    // Their handler validates and whitelists all fields. Other financial directives remain denied.
+    if (!exchangeAction) ensureNoFinancialAction(action, payload);
 
     const authUser = await getRequestUser(req);
     const serviceCall = isServiceRoleRequest(req);
     const serviceOwnerId = serviceCall ? req.headers.get("x-waouh-owner-id")?.trim() ?? "" : "";
+    const guestAction = exchangeAction && action.startsWith("nexus.guest.");
     const publicRead = !authUser && !serviceOwnerId && isPublicNexusRead(action);
-    if (!authUser && !publicRead && !(serviceCall && serviceOwnerId && serviceMayActForOwner(action))) {
+    if (!authUser && !publicRead && !guestAction && !(serviceCall && serviceOwnerId && serviceMayActForOwner(action))) {
       throw new ApiError(401, "authentication_required");
     }
 
@@ -1508,7 +1513,9 @@ Deno.serve(async (req: Request) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !serviceKey) throw new ApiError(500, "server_not_configured");
     const sb = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
-    const ownerId = authUser?.id ?? (publicRead ? "" : uuid(serviceOwnerId, "x_waouh_owner_id"));
+    const ownerId = authUser?.id ?? (publicRead || guestAction ? "" : uuid(serviceOwnerId, "x_waouh_owner_id"));
+
+    if (exchangeAction) return jsonResponse({ ok:true, data:await handleExternalExchange(sb, action, payload, ownerId) });
 
     switch (action) {
       case "mission.create": {
@@ -3318,7 +3325,7 @@ Retourne uniquement JSON:
       case "nexus.contact.send": {
         const fabricId = asString(payload.fabric_id, "fabric_id", 5, 200);
         if (payload.confirmed !== true) throw new ApiError(422, "explicit_confirmation_required");
-        const message = asString(payload.message, "message", 5, 1000);
+        let message = asString(payload.message, "message", 5, 1000);
         const requestedJourney = payload.journey_id == null ? null : await queryOne<any>(
           sb.from("waouh_opportunity_journeys").select("*")
             .eq("id", uuid(payload.journey_id, "journey_id")).eq("owner_id", ownerId).eq("fabric_id", fabricId).maybeSingle(),
@@ -3518,11 +3525,17 @@ Retourne uniquement JSON:
             contact.consent_state === "public_business")
         );
         if (!target) throw new ApiError(404, "contact_not_found");
+        const originalContactMessage = message;
+        const contactJourney = requestedJourney ?? (await findContactJourney()).data;
+        if (contactJourney) {
+          const invitation = await createExchangeInvite(sb,contactJourney);
+          message += `\nRéférence WA-${contactJourney.id.replace(/-/g, "").slice(0,8).toUpperCase()}. Répondez ici ou via ${invitation.url}. Pour arrêter : STOP.`;
+        }
         const clear = await decryptPhone(target.value_encrypted);
         const e164 = normalizeE164(clear);
         if (!e164) throw new ApiError(422, "invalid_contact_phone");
         const toPhone = e164.replace(/\D/g, "");
-        const dedupeKey = `nexus-discovery:${ownerId}:${signalId}:${await sha256Hex(message)}`;
+        const dedupeKey = `nexus-discovery:${ownerId}:${signalId}:${await sha256Hex(originalContactMessage)}`;
         const { error: queueError } = await sb.rpc("waouh_enqueue_outbound_v2", {
           p_to_phone: toPhone,
           p_to_user_id: null,
@@ -4222,6 +4235,7 @@ Retourne uniquement JSON:
         throw new ApiError(404, "unknown_action");
     }
   } catch (error) {
+    if (error instanceof ExchangeError) return errorResponse(error.status, error.message, error.message);
     if (error instanceof ApiError) {
       if (error.status >= 500) console.error(`[waouh-agentic-core] ${error.code}`, error.message);
       return errorResponse(error.status, error.code, error.status >= 500 ? error.code : error.message);

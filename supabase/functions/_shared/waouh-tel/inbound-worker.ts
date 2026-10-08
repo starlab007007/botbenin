@@ -1,3 +1,4 @@
+import { appendExternalReply } from '../waouh-external-exchange.ts';
 import { classifyAvatarReply, selectReplyJourney } from "../waouh-avatar-lifecycle.ts";
 import { avatarNotice, revokeAvatarContacts, openAvatarReplyRoom } from "../waouh-avatar-orchestrator.ts";
 import type { SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
@@ -87,7 +88,11 @@ async function captureOpportunityReply(
       .select("*").eq("id", contactEvent.journey_id).maybeSingle();
     if (!journey || ["completed","cancelled"].includes(String(journey.stage || ""))) return false;
 
-    if (["negotiating", "agreed", "executing"].includes(journey.stage)) return false;
+    await appendExternalReply(admin,journey,String(event.text || ""),event.channel,inbound.id);
+    if (["negotiating", "agreed", "executing"].includes(journey.stage)) {
+      await avatarNotice(admin,journey.owner_id,`native-external-reply:${inbound.id}`,`Réponse ${event.channel.toUpperCase()} : ${String(event.text || "").slice(0,180)}`,journey);
+      return true;
+    }
     const disposition = classifyAvatarReply(event.text);
     if (disposition !== "positive") {
       const terminal = disposition === "negative" || disposition === "stop";

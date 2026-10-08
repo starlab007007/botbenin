@@ -88,6 +88,14 @@ export async function reconcileAvatarApprovals(sb: any, limit = 20, approvalId?:
           }).eq('id', journey.id);
           await sb.from('waouh_persistent_intents').update({ next_scan_at: new Date().toISOString() }).eq('mandate_id', mandate.id).eq('status', 'active');
           outcome = 'contact_authorized';
+        } else if (approval.action_type === 'accept_offer' && c.external_agreement_id) {
+          const {data:external}=await sb.from('waouh_external_agreements').select('*').eq('id',c.external_agreement_id).eq('journey_id',journey.id).is('superseded_at',null).maybeSingle();
+          if(!external)throw new Error('offer_changed_reapproval_required');
+          const plan=planAvatarNegotiation(mandate,{state:'proposed',last_actor:mandate.mode==='sell'?'buyer':'seller',last_offer_price:external.terms.amount},0);
+          if(plan.kind!=='approval' || plan.action!=='accept_offer')throw new Error('offer_outside_mandate');
+          const {handleExternalExchange}=await import('./waouh-external-exchange.ts');
+          await handleExternalExchange(sb,'nexus.external.accept',{journey_id:journey.id,agreement_id:external.id,request_id:approval.id},mandate.owner_id);
+          outcome='external_agreement_recorded';
         } else if (approval.action_type === 'accept_offer') {
           if (mandate.metadata?.agreement_reached_at) throw new Error('mission_already_agreed');
           const { data: neg } = await sb.from('waouh_negotiations').select('*').eq('id', journey.negotiation_id).maybeSingle();
@@ -184,6 +192,8 @@ export async function advanceAvatarLifecycle(sb: any, limit = 20) {
     const m = j.waouh_avatar_mandates;
     if (!m || m.status !== 'active') continue;
     try {
+      if (j.metadata?.external_agreement_id) continue; // The external participants confirm their exact terms and execution milestones.
+      if (j.stage === 'negotiating' && await (await import('./waouh-external-exchange.ts')).advanceExternalNegotiation(sb,j,m)) continue;
       if (j.stage === 'negotiating' && j.negotiation_id) {
         const { data: neg } = await sb.from('waouh_negotiations').select('*').eq('id', j.negotiation_id).maybeSingle();
         if (!neg) continue;

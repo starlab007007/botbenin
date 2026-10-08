@@ -1,5 +1,4 @@
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { acceptExternalReceipt } from '../_shared/waouh-external-receipt.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8';
 
 const corsHeaders = {
@@ -8,6 +7,7 @@ const corsHeaders = {
 };
 
 interface WAHAWebhookMessage {
+  [key: string]: any;
   event: string;
   session: string;
   me?: {
@@ -15,6 +15,7 @@ interface WAHAWebhookMessage {
     pushName: string;
   };
   payload?: {
+    [key: string]: any;
     id: string;
     timestamp: number;
     from: string;
@@ -40,7 +41,7 @@ const normalizeBeninPhone = (value?: string) => {
   return last8.length === 8 ? `229${last8}` : null;
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -143,6 +144,7 @@ serve(async (req) => {
     // ===== ACK events: update wa_send_jobs delivery / read status =====
     // WAHA ack codes: -1=ERROR, 0=PENDING, 1=SERVER(sent), 2=DEVICE(delivered), 3=READ, 4=PLAYED
     if (webhookData.event === 'message.ack' || String(webhookData.event || '').includes('ack')) {
+      await acceptExternalReceipt(supabase,req,sessionName,webhookData.payload || {});
       const p: any = webhookData.payload || {};
       const msgId: string | null =
         (typeof p.id === 'string' ? p.id : null) ??

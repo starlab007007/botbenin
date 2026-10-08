@@ -271,10 +271,13 @@ jobs:
           python - <<'PY_MIGRATION' > /tmp/standalone-journey-migration.json
           import json
           from pathlib import Path
-          sql = Path('supabase/migrations/20261008201900_waouh_standalone_journey_threads.sql').read_text()
-          escaped = sql.replace("'", "''")
-          record = "insert into supabase_migrations.schema_migrations(version,name,statements) values ('20261008201900','waouh_standalone_journey_threads',array['" + escaped + "']) on conflict(version) do nothing;"
-          print(json.dumps({'query': 'begin;\n' + sql + '\n' + record + '\ncommit;'}))
+          statements = []
+          for version, name in [('20261008201900','waouh_standalone_journey_threads'),('20261008213000','waouh_external_exchange')]:
+              sql = Path(f'supabase/migrations/{version}_{name}.sql').read_text()
+              escaped = sql.replace("'", "''")
+              record = f"insert into supabase_migrations.schema_migrations(version,name,statements) values ('{version}','{name}',array['{escaped}']) on conflict(version) do nothing;"
+              statements.extend([sql,record])
+          print(json.dumps({'query': 'begin;\n' + '\n'.join(statements) + '\ncommit;'}))
           PY_MIGRATION
           curl --fail-with-body --silent --show-error \
             "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query" \
@@ -400,6 +403,7 @@ jobs:
             waouh-deal-dispatch
             waouh-notify-dispatch
             waouh-webhook
+            waha-webhook
             waouh-channel-in
             waouh-status-publish
             waouh-sell-handler
@@ -540,8 +544,16 @@ jobs:
           for action in ["mission.list", "nexus.contact.send"]:
               status, _ = invoke(action, {})
               assert status == 401, f"Private action {action} is not protected (HTTP {status})"
+          status, _ = invoke("nexus.guest.read", {"token": "0" * 64})
+          assert status == 404, f"Invalid guest capability must be denied (HTTP {status})"
+          status, _ = invoke("nexus.external.read", {})
+          assert status == 401, f"External owner exchange must require authentication (HTTP {status})"
           print("NEXUS production checks passed: anonymous discovery and sources; private missions and contacts denied.")
           PYVERIFY
+
+      - name: Verify the complete guest exchange in production
+        if: steps.deploy_scope.outputs.needs_supabase == 'true'
+        run: python3 scripts/verify-external-exchange-production.py
 
       - name: Safety reminder
         if: steps.deploy_scope.outputs.needs_supabase == 'true'

@@ -24,6 +24,7 @@ export function routeOpportunityChannel(input: {
   allowWhatsapp?: boolean;
   allowPublicBusiness?: boolean;
   allowEmail?: boolean;
+  emailConfigured?: boolean;
   allowSmsRcs?: boolean;
   approvalGranted?: boolean;
 }) : OpportunityChannelRoute {
@@ -132,9 +133,9 @@ export function routeOpportunityChannel(input: {
   if (channel === "email") {
     return {
       primary_channel: channel,
-      mode: "approval",
-      can_dispatch: false,
-      reason: "email_provider_not_bound",
+      mode: input.emailConfigured && input.approvalGranted ? "automated" : "approval",
+      can_dispatch: input.emailConfigured === true && input.approvalGranted === true,
+      reason: !input.emailConfigured ? "email_provider_not_bound" : input.approvalGranted ? "authorized_email" : "email_approval_required",
       fallback_channels: fallback,
       candidates: ranked,
     };

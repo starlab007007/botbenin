@@ -1,3 +1,4 @@
+import { WaouhExternalExchangeDisclosure } from '@/components/waouh/WaouhExternalExchange';
 import { openCommerceDiscussion } from "@/lib/waouh/discussionNavigation";
 import { WaouhOfferComparison } from "@/components/waouh/WaouhOfferComparison";
 import { progressiveNexusDiscovery } from "@/lib/waouh/progressiveDiscovery";
@@ -811,6 +812,7 @@ export default function WaouhAvatarCommercePage() {
                   <article key={journey.id} className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
                     <h3 className="mb-2 truncate text-sm font-bold">{journey.subject || "Démarche WAOUH"}</h3>
                     <WaouhJourneyProgress journey={journey} />
+                    {journey.fabric_id.startsWith("external:") && <WaouhExternalExchangeDisclosure journeyId={journey.id} />}
                     <div className="mt-2">
                       {journey.thread_id || journey.last_action === "article_selection_required" ?
                         <Button variant="outline" className="min-h-11 w-full" onClick={() => openJourney(journey)}>{journey.thread_id ? "Ouvrir la discussion" : "Choisir mon article"}</Button> :

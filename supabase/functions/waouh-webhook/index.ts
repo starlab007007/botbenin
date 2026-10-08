@@ -1,7 +1,7 @@
+import { isServiceRoleRequest } from '../_shared/waouh-auth.ts';
+import { appendExternalReply } from '../_shared/waouh-external-exchange.ts';
 import { classifyAvatarReply, selectReplyJourney } from "../_shared/waouh-avatar-lifecycle.ts";
 import { avatarNotice, revokeAvatarContacts } from "../_shared/waouh-avatar-orchestrator.ts";
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import {
   normalizeBeninPhone,
@@ -367,7 +367,7 @@ async function findOpenNegotiationForArticle(
   return Array.isArray(data) && data.length === 1 ? data[0] : null;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   // Meta WhatsApp verification (sprint 2)
@@ -508,7 +508,7 @@ serve(async (req) => {
     // outreach upgrades the relationship to C5 and, for an external seller,
     // materializes a private WAOUH article + product_meet so the user never
     // leaves the platform to negotiate.
-    if (channel === "whatsapp" && phone && !phone.startsWith("web:")) {
+    if (channel === "whatsapp" && phone && !phone.startsWith("web:") && isServiceRoleRequest(req)) {
       try {
         const normalizedReplyPhone = String(phone).replace(/\D/g, "");
         const sinceNexus = new Date(Date.now() - 14 * 86400_000).toISOString();
@@ -558,11 +558,19 @@ serve(async (req) => {
             .select("*")
             .eq("owner_id", nexusOwnerAuthId)
             .eq("fabric_id", nexusFabricId)
+            .eq("id", nexusPayload!.journey_id)
             .not("stage", "in", '("completed","cancelled")')
             .order("updated_at", { ascending: false })
             .limit(1)
             .maybeSingle();
 
+          if (signal && journey) {
+            await appendExternalReply(sb,journey,String(text || ""),"whatsapp",String(inboundMessageRef || crypto.randomUUID()));
+            if (["negotiating","agreed","executing"].includes(journey.stage)) {
+              await avatarNotice(sb,journey.owner_id,`external-reply:${inboundMessageRef || crypto.randomUUID()}`,`Réponse WhatsApp : ${String(text || "").slice(0,180)}`,journey);
+              return new Response(JSON.stringify({ok:true,handled:"external_exchange_reply",reply:"Votre réponse a été transmise à votre interlocuteur WAOUH. Continuez ici ou dans le lien invité."}),{headers:{"Content-Type":"application/json"}});
+            }
+          }
           if (signal && journey && !["negotiating", "agreed", "executing"].includes(journey.stage)) {
             const disposition = classifyAvatarReply(text);
             if (disposition !== "positive" && journey.stage !== "negotiating") {

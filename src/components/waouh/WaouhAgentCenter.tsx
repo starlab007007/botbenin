@@ -1,3 +1,4 @@
+import { WaouhExternalExchangeDisclosure } from './WaouhExternalExchange';
 import { userFacingErrorText } from "@/lib/userFacingError";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -150,6 +151,7 @@ export function WaouhAgentCenter({ compact = false, standalone = false }: { comp
 
   const busEventTitle = (event: NexusConversationBusEvent) => {
     switch (event.event_type) {
+      case "nexus.external.message": return event.direction === "in" ? "Réponse externe reçue" : "Discussion externe";
       case "nexus.counterparty_reply": return "Réponse reçue";
       case "autonomy.external_contact_queued": return "Avatar a contacté une opportunité";
       case "autonomy.internal_contact_delivered": return "Contact WAOUH transmis";
@@ -278,6 +280,7 @@ export function WaouhAgentCenter({ compact = false, standalone = false }: { comp
                       {event.fabric_id && <span className="max-w-[220px] truncate">· {event.fabric_id}</span>}
                       {event.thread_id && <span>· Deal Room lié</span>}
                     </div>
+                    {event.journey_id && event.fabric_id?.startsWith("external:") && <WaouhExternalExchangeDisclosure journeyId={event.journey_id} />}
                   </div>
                 ))}
               </div>
@@ -368,6 +371,7 @@ export function WaouhAgentCenter({ compact = false, standalone = false }: { comp
                       {event.fabric_id && <span className="max-w-[220px] truncate">· {event.fabric_id}</span>}
                       {event.thread_id && <span>· Deal Room lié</span>}
                     </div>
+                    {event.journey_id && event.fabric_id?.startsWith("external:") && <WaouhExternalExchangeDisclosure journeyId={event.journey_id} />}
                   </div>
                 ))}
               </div>

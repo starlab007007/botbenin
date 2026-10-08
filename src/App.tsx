@@ -17,6 +17,7 @@ import { ProspectsLayout } from "./components/layouts/ProspectsLayout";
 import { LoadingSpinner, DeferredRouteFallback } from "./components/LoadingSpinner";
 import { GoogleAnalytics } from "./components/GoogleAnalytics";
 
+const WaouhGuestExchangePage = lazy(() => import('./pages/waouh/WaouhGuestExchangePage'));
 const Index = lazy(() => import("./pages/Index"));
 
 
@@ -239,6 +240,7 @@ const AppContent = () => {
     <Suspense fallback={<DeferredRouteFallback />}>
       <OfflineBanner />
       <Routes>
+        <Route path="/exchange" element={<WaouhGuestExchangePage />} />
                   {/* Routes avec layout principal */}
                   <Route element={<MainLayout />}>
                     {/* Modules web historiques — hors périmètre Flutter : réservés aux administrateurs */}

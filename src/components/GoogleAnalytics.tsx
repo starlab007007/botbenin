@@ -8,7 +8,7 @@ export const GoogleAnalytics = () => {
   const location = useLocation();
 
   useEffect(() => {
-    if (!isGaConfigured()) return;
+    if (!isGaConfigured() || location.pathname === "/exchange") return;
 
     // Charger le script GA4
     if (!window.gtag) {
@@ -22,17 +22,18 @@ export const GoogleAnalytics = () => {
         window.dataLayer.push(arguments);
       };
       window.gtag('js', new Date());
-      window.gtag('config', GA_MEASUREMENT_ID);
+      window.gtag('config', GA_MEASUREMENT_ID, { send_page_view: false, page_location: window.location.origin + location.pathname + location.search });
     }
-  }, []);
+  }, [location.pathname]);
 
   useEffect(() => {
-    if (!isGaConfigured()) return;
+    if (!isGaConfigured() || location.pathname === "/exchange") return;
 
     // Tracker les changements de page
     if (window.gtag) {
       window.gtag('config', GA_MEASUREMENT_ID, {
         page_path: location.pathname + location.search,
+        page_location: window.location.origin + location.pathname + location.search,
       });
     }
   }, [location]);

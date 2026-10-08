@@ -1,3 +1,4 @@
+import { createExchangeInvite, handleExternalExchange } from '../_shared/waouh-external-exchange.ts';
 import { claimAvatarContact } from "../_shared/waouh-avatar-contact.ts";
 import { maintainAvatarQueues } from "../_shared/waouh-avatar-maintenance.ts";
 import { followupDelayHours, withinMandateBudget, journeyReplyToken } from "../_shared/waouh-avatar-lifecycle.ts";
@@ -758,7 +759,7 @@ async function queueNativeOpportunityMessage(
     payload: {
       schema: "waouh.tel.outbound.v1",
       journey_id: journey.id, mandate_id: mandate.id,
-      text: message,
+      text: `${message} Référence ${journeyReplyToken(journey.id)}. Répondre : ${(await createExchangeInvite(sb,journey)).url}. STOP pour arrêter.`,
     },
   });
 
@@ -835,6 +836,7 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
     allowWhatsapp: mandate.allow_whatsapp !== false,
     allowPublicBusiness: mandate.allow_public_business !== false,
     allowEmail: mandate.allow_email === true,
+    emailConfigured: !!Deno.env.get("RESEND_API_KEY") && !!Deno.env.get("WAOUH_EMAIL_FROM"),
     allowSmsRcs: mandate.allow_sms_rcs === true,
     approvalGranted: journey.metadata?.contact_approved === true,
   });
@@ -845,6 +847,12 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
     ? `Bonjour, WAOUH accompagne un vendeur dont l’offre correspond à votre besoin « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre dans WAOUH ?`
     : `Bonjour, WAOUH accompagne un utilisateur intéressé par « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre dans WAOUH ?`;
 
+  if (route.primary_channel === "email") {
+    const target = contacts.find((c:any)=>c.channel === "email" && c.consent_state !== "revoked");
+    if (!target || !await claimAvatarContact(sb,mandate,journey,`email:${target.value_hash}`)) return {contacted:false,reason:"person_contact_cooldown"};
+    await handleExternalExchange(sb,"nexus.external.message",{journey_id:journey.id,request_id:crypto.randomUUID(),text:message,channel:"email",confirmed:true},mandate.owner_id);
+    return {contacted:true,channel:"email"};
+  }
   if (route.primary_channel === "sms" || route.primary_channel === "rcs") {
     return await queueNativeOpportunityMessage(
       sb, mandate, signal, journey, resolved, route.primary_channel, message,
@@ -880,7 +888,7 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
     p_to_user_id: null,
     p_template: "nexus_discovery_outreach",
     p_payload: {
-      text: `${message} Référence ${journeyReplyToken(journey.id)} (à reprendre dans votre réponse).`,
+      text: `${message} Référence ${journeyReplyToken(journey.id)}. Répondez ici ou via ${(await createExchangeInvite(sb,journey)).url}. Pour arrêter : STOP.`,
       actions: [],
       fabric_id: signal.fabric_id,
       signal_id: externalSignal.id,
@@ -949,6 +957,7 @@ async function runExternalFollowUp(
     allowWhatsapp: mandate.allow_whatsapp !== false,
     allowPublicBusiness: mandate.allow_public_business !== false,
     allowEmail: mandate.allow_email === true,
+    emailConfigured: !!Deno.env.get("RESEND_API_KEY") && !!Deno.env.get("WAOUH_EMAIL_FROM"),
     allowSmsRcs: mandate.allow_sms_rcs === true,
     approvalGranted: journey.metadata?.contact_approved === true,
   });
@@ -957,6 +966,11 @@ async function runExternalFollowUp(
   }
 
   const message = `Bonjour, WAOUH revient vers vous concernant « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre l’échange dans WAOUH ?`;
+  if (route.primary_channel === "email") {
+    await handleExternalExchange(sb,"nexus.external.message",{journey_id:journey.id,request_id:crypto.randomUUID(),text:message,channel:"email",confirmed:true},mandate.owner_id);
+    await sb.rpc("waouh_append_conversation_bus_event",{p_owner_id:mandate.owner_id,p_journey_id:journey.id,p_event_type:"autonomy.followup_queued",p_channel:"email",p_direction:"out",p_external_ref:`email-followup:${journey.id}:${followupIndex}`,p_payload:{followup_index:followupIndex}});
+    return {sent:true,channel:"email"};
+  }
   if (route.primary_channel === "sms" || route.primary_channel === "rcs") {
     const native = await queueNativeOpportunityMessage(
       sb, mandate, signal, journey, resolved, route.primary_channel, message,
@@ -994,7 +1008,7 @@ async function runExternalFollowUp(
     p_to_user_id: null,
     p_template: "nexus_discovery_outreach",
     p_payload: {
-      text: `${message} Référence ${journeyReplyToken(journey.id)} (à reprendre dans votre réponse).`,
+      text: `${message} Référence ${journeyReplyToken(journey.id)}. Répondez ici ou via ${(await createExchangeInvite(sb,journey)).url}. Pour arrêter : STOP.`,
       actions: [],
       fabric_id: signal.fabric_id,
       signal_id: resolved.externalSignal.id,
@@ -1126,6 +1140,7 @@ async function runBoundedFollowUps(sb: SupabaseClient, limit = 30) {
         skipped++;
         continue;
       }
+      if (journey.last_response_at && Date.parse(journey.last_response_at) >= Date.parse(journey.last_activity_at)) { skipped++; continue; }
       if (["whatsapp", "phone"].includes(journey.contact_channel)) {
         const { data: delivery } = await sb.from("waouh_outbound_queue").select("id,status,payload")
           .contains("payload", { journey_id: journey.id }).order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -1138,6 +1153,13 @@ async function runBoundedFollowUps(sb: SupabaseClient, limit = 30) {
             await queueNativeOpportunityMessage(sb, mandate, signal, journey, resolved, alternate.channel,
               `Bonjour, WAOUH vous contacte au sujet de « ${signal.subject || mandate.goal} ». Souhaitez-vous poursuivre ?`);
             sent++;
+          } else if (mandate.allow_email && Deno.env.get("RESEND_API_KEY") && Deno.env.get("WAOUH_EMAIL_FROM") && resolved?.contacts?.some((c:any)=>c.channel === "email" && c.consent_state !== "revoked")) {
+            if (!journey.metadata?.contact_approved) {
+              await requestAvatarApproval(sb,mandate,journey,"send_message",`email-fallback:${journey.id}`,"WhatsApp a échoué. Autoriser un contact par e-mail avec un lien de réponse invité ?");
+            } else {
+              const fallback = await contactExternal(sb,mandate,signal,journey,resolved);
+              if (fallback.contacted) sent++; else skipped++;
+            }
           } else {
             await sb.from("waouh_opportunity_journeys").update({ stage: "cancelled", last_action: "delivery_failed_no_fallback",
               last_message: "Échec de livraison du message. Aucun autre canal autorisé et configuré n’est disponible.", completed_at: new Date().toISOString() }).eq("id", journey.id);
@@ -1356,6 +1378,10 @@ Deno.serve(async (req) => {
           result.contacted++;
         } else {
           result.skipped++;
+          if (contactResult.reason === "email_approval_required") {
+            await requestAvatarApproval(sb,mandate,journey,"send_message",`email-contact:${journey.id}`,"Autoriser cet e-mail de prise de contact avec un lien de réponse invité ?");
+            continue;
+          }
           await sb.from("waouh_opportunity_journeys").update({ last_action: contactResult.reason || "channel_unavailable", next_action: "Vérifier le canal ou choisir une autre piste", last_message: "Le contact n’a pas encore été envoyé. Une autre voie de contact est nécessaire." }).eq("id", journey.id);
         }
       }

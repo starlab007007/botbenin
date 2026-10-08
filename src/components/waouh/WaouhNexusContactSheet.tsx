@@ -1,3 +1,4 @@
+import { WaouhExternalExchangeDisclosure } from './WaouhExternalExchange';
 import { openCommerceDiscussion } from "@/lib/waouh/discussionNavigation";
 import { userFacingErrorText } from "@/lib/userFacingError";
 import { useEffect, useMemo, useState } from "react";
@@ -381,6 +382,8 @@ export function WaouhNexusContactSheet({
                 </Button>
               </div>
             )}
+
+            {journey && fabricId.startsWith("external:") && <WaouhExternalExchangeDisclosure journeyId={journey.id} />}
 
             {journey?.thread_id && <Button variant="outline" className="min-h-11 w-full" onClick={openChat}>{terminal ? "Voir la discussion et le résultat" : "Ouvrir la discussion"}</Button>}
 

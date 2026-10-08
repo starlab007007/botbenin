@@ -773,13 +773,13 @@ Deno.serve(async (req) => {
           const { data: contact, error } = await sb.from("waouh_entity_contacts").select("consent_state").eq("id", it.payload.contact_id).maybeSingle();
           if (error || !contact || contact.consent_state === "revoked") blocked = "contact_permission_unavailable";
         }
-        if (it.payload?.mandate_id) {
+        if (it.payload?.mandate_id && !it.payload?.request_id) {
           const { data: mandate, error } = await sb.from("waouh_avatar_mandates").select("status,expires_at,metadata").eq("id", it.payload.mandate_id).maybeSingle();
           if (error || !mandate || mandate.status !== "active" || Date.parse(mandate.expires_at) <= Date.now() || mandate.metadata?.agreement_reached_at) blocked = "mandate_inactive";
         }
         if (it.payload?.journey_id) {
           const { data: journey, error } = await sb.from("waouh_opportunity_journeys").select("stage").eq("id", it.payload.journey_id).maybeSingle();
-          if (error || !journey || ["cancelled", "completed", "agreed", "executing"].includes(journey.stage)) blocked = "journey_inactive";
+          if (error || !journey || (it.payload?.request_id ? ["cancelled","completed"] : ["cancelled", "completed", "agreed", "executing"]).includes(journey.stage)) blocked = "journey_inactive";
         }
         if (blocked) {
           await sb.from("waouh_outbound_queue").update({ status: "failed", last_error: blocked, next_attempt_at: null }).eq("id", it.id).eq("status", "sending");
@@ -916,6 +916,7 @@ Deno.serve(async (req) => {
       let lastErr = "";
       let lastTransient = false;
       let delivered = false;
+      let providerMessageId: string | null = null;
       let usedChatId: string | null = null;
       try {
         for (const chatId of resolvedChatIds) {
@@ -927,7 +928,7 @@ Deno.serve(async (req) => {
           } else {
             r = await sendWahaText(wahaBase, deliverySession, chatId, text, wahaHeaders);
           }
-          if (r.ok) { delivered = true; usedChatId = chatId; break; }
+          if (r.ok) { const receipt = await r.json().catch(()=>null); providerMessageId = typeof receipt?.id === "string" ? receipt.id : receipt?.id?._serialized || null; delivered = true; usedChatId = chatId; break; }
           const body = await r.text();
           lastErr = `WAHA ${r.status} [${chatId}]: ${body.slice(0, 200)}`;
           lastTransient = r.status === 422 || r.status === 429 || r.status >= 500;
@@ -939,7 +940,7 @@ Deno.serve(async (req) => {
         }
         const sentAt = new Date().toISOString();
         await sb.from("waouh_outbound_queue").update({
-          status: "sent", sent_at: sentAt, last_error: usedChatId ? `delivered via ${usedChatId}` : null,
+          status: "sent", sent_at: sentAt, payload: { ...it.payload, provider_message_id: providerMessageId }, last_error: usedChatId ? `delivered via ${usedChatId}` : null,
         }).eq("id", it.id);
         const contactId = typeof it.payload?.contact_id === "string" ? it.payload.contact_id : null;
         if (contactId) {
