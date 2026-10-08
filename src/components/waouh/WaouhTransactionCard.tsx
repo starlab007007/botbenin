@@ -1,3 +1,6 @@
+import { openCommerceDiscussion } from "@/lib/waouh/discussionNavigation";
+import { useNavigate } from "react-router-dom";
+import { transactionPresentation } from "@/lib/waouh/transactionPresentation";
 import React, { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,6 +44,7 @@ const STEPS = [
 ];
 
 export const WaouhTransactionCard: React.FC<{ transactionId: string }> = ({ transactionId }) => {
+  const navigate = useNavigate();
   const [tx, setTx] = useState<Tx | null>(null);
   const [article, setArticle] = useState<{ title: string } | null>(null);
   const [viewerRole, setViewerRole] = useState<"buyer" | "seller" | "other">("other");
@@ -54,6 +58,7 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string }> = ({ tran
   useEffect(() => {
     let active = true;
     setNotFound(false);
+    setTx(null); setDeal(null); setArticle(null); setViewerRole("other"); setHasRated(false); setRating(null);
     (async () => {
       const { data } = await supabase.from("waouh_transactions").select("*").eq("id", transactionId).maybeSingle();
       if (!active) return;
@@ -64,7 +69,6 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string }> = ({ tran
         const { data: d } = await supabase.from("waouh_deals")
           .select("id,thread_id,status,payment_status,amount,delivered_at")
           .eq("thread_id", threadId)
-          .neq("status", "cancelled")
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -123,7 +127,6 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string }> = ({ tran
       const { data } = await supabase.from("waouh_deals")
         .select("id,thread_id,status,payment_status,amount,delivered_at")
         .eq("thread_id", tx.thread_id!)
-        .neq("status", "cancelled")
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -179,11 +182,12 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string }> = ({ tran
   // Hide card from third parties when transaction is private
   if (viewerRole === "other") return null;
 
-  const workflow = deal?.status ?? "awaiting_confirmation";
+  const state = transactionPresentation(deal, tx.status, viewerRole === "seller" ? "seller" : "buyer");
+  const workflow = state.status;
   const currentIdx =
-    workflow === "completed" || deal?.payment_status === "paid" ? 2 :
+    state.completed ? 2 :
     ["assigned", "picked_up", "delivered"].includes(workflow) ? 1 : 0;
-  const paymentReady = viewerRole === "buyer" && workflow === "delivered" && deal?.payment_status !== "paid";
+  const paymentReady = viewerRole === "buyer" && state.paymentReady;
 
   return (
     <Card className="my-2 max-w-sm overflow-hidden border-0 shadow-xl ring-1 ring-cyan-500/10">
@@ -198,7 +202,7 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string }> = ({ tran
             <div className="flex items-baseline gap-1.5 mt-0.5">
               <span className="text-2xl font-extrabold tracking-tight">{fmt(tx.amount)}</span>
               <span className="text-[10px] uppercase opacity-80 flex items-center gap-0.5">
-                <ShieldCheck className="w-3 h-3" /> Escrow
+                <ShieldCheck className="w-3 h-3" /> Suivi
               </span>
             </div>
           </div>
@@ -212,8 +216,8 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string }> = ({ tran
         {/* Steps */}
         <div className="space-y-2 mb-3">
           {STEPS.map((s, i) => {
-            const done = i < currentIdx || (i === 2 && currentIdx === 2);
-            const current = i === currentIdx;
+            const done = !state.cancelled && !!deal && (i < currentIdx || (i === 2 && state.completed));
+            const current = !state.cancelled && !!deal && i === currentIdx;
             const Icon = done ? CheckCircle2 : current ? s.icon : Circle;
             return (
               <div key={s.key} className="flex items-center gap-2 text-xs">
@@ -221,7 +225,7 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string }> = ({ tran
                   done ? "text-emerald-500" : current ? "text-cyan-500 animate-pulse" : "text-gray-300"
                 )} />
                 <span className={cn("flex-1 font-medium", done || current ? "text-gray-900" : "text-gray-400")}>{s.label}</span>
-                {current && <span className="text-[10px] text-gray-400">{workflow.replaceAll("_", " ")}</span>}
+                {current && <span className="text-[10px] text-gray-400">{state.label}</span>}
               </div>
             );
           })}
@@ -242,53 +246,27 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string }> = ({ tran
             </Button>
           </div>
         )}
-        {viewerRole === "buyer" && !paymentReady && workflow !== "completed" && (
+        {viewerRole === "buyer" && !paymentReady && !state.completed && (
           <div className="space-y-2">
             <div className="text-xs text-center text-slate-600 font-semibold bg-slate-50 rounded-md py-2 border border-slate-100">
-              {workflow === "picked_up"
-                ? "📦 Livraison en cours. Le paiement sera confirmé après remise."
-                : workflow === "assigned"
-                  ? "🛵 Livreur assigné. Suivez la livraison dans WAOUH."
-                  : "🤝 Accord enregistré. WAOUH conduit la préparation et la livraison."}
+              {state.next}
             </div>
-            {tx.article_id && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full border-emerald-300 hover:bg-emerald-50"
-                onClick={() => {
-                  window.dispatchEvent(
-                    new CustomEvent("waouh:open-match-chat", {
-                      detail: {
-                        article_id: tx.article_id,
-                        kind: "buyer",
-                        title: article?.title,
-                        source: "card",
-                      },
-                    })
-                  );
-                }}
-              >
-                <MessageCircle className="w-4 h-4 mr-1.5 text-emerald-600" />
-                Continuer dans le Deal Room
-              </Button>
-            )}
+
           </div>
         )}
-        {viewerRole === "seller" && workflow !== "completed" && (
+        {viewerRole === "seller" && !state.completed && (
           <div className="text-xs text-center text-slate-700 font-semibold bg-slate-50 rounded-md py-2 border border-slate-100">
-            {workflow === "delivered"
-              ? "📬 Livraison effectuée · confirmation du paiement acheteur en attente"
-              : workflow === "picked_up"
-                ? "📦 Colis pris en charge par le livreur WAOUH"
-                : workflow === "assigned"
-                  ? "🛵 Livreur assigné"
-                  : "🤝 Accord enregistré · suivez la préparation dans WAOUH"}
+            {state.label} · {state.next}
           </div>
         )}
 
+        {(tx.article_id || tx.thread_id || deal?.thread_id) && <Button size="sm" variant="outline" className="mt-3 min-h-11 w-full border-emerald-300 hover:bg-emerald-50" onClick={() => openCommerceDiscussion({
+          article_id: tx.article_id, thread_id: deal?.thread_id || tx.thread_id || null, deal_id: deal?.id || null,
+          kind: viewerRole === "seller" ? "seller" : "buyer", title: article?.title, source: "transaction_card",
+        }, navigate)}><MessageCircle className="mr-1.5 h-4 w-4 text-emerald-600" />{state.completed || state.cancelled ? "Voir le résultat et la discussion" : "Continuer la discussion"}</Button>}
+
         {/* COMPLETED - rating (buyer only) */}
-        {(workflow === "completed" || deal?.payment_status === "paid") && (
+        {state.completed && (
           <div className="space-y-2">
             <div className="text-xs text-center text-emerald-700 font-bold">🎉 Transaction terminée</div>
             {viewerRole === "buyer" && !hasRated && (
@@ -296,7 +274,7 @@ export const WaouhTransactionCard: React.FC<{ transactionId: string }> = ({ tran
                 <div className="text-xs text-gray-600">Notez le vendeur :</div>
                 <div className="flex gap-1">
                   {[1, 2, 3, 4, 5].map((s) => (
-                    <button key={s} onClick={() => submitRating(s)} className="hover:scale-125 transition" aria-label={`${s} étoile${s > 1 ? "s" : ""}`}>
+                    <button key={s} onClick={() => submitRating(s)} className="flex h-11 w-11 items-center justify-center transition hover:scale-110" aria-label={`${s} étoile${s > 1 ? "s" : ""}`}>
                       <Star className={cn("w-6 h-6", (rating ?? 0) >= s ? "fill-amber-400 text-amber-400" : "text-gray-300")} />
                     </button>
                   ))}

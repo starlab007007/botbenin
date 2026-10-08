@@ -63,6 +63,6 @@ describe("nexusDeal", () => {
 
   it("détail d'ouverture de la fenêtre de négociation", () => {
     const d = openMatchDetail(okResponse as any, { title: "A54", price: 150000, city: "Cotonou", photo: null });
-    expect(d).toMatchObject({ article_id: "art-1", kind: "buyer", title: "A54", source: "nexus_direct_deal" });
+    expect(d).toMatchObject({ article_id: "art-1", thread_id: "th-1", negotiation_id: "neg-1", deal_id: null, kind: "buyer", title: "A54", source: "nexus_direct_deal" });
   });
 });

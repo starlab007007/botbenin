@@ -15,6 +15,8 @@ function getSessionId() {
 }
 
 function parseCanonicalKey(key: string) {
+  const thread = key.match(/^thread_([0-9a-f-]{36})_(buyer|seller)$/i);
+  if (thread) return { key, thread_id: thread[1], article_id: null, kind: thread[2] as "buyer" | "seller", title: "Discussion WAOUH", source: "deep_link" };
   const match = key.match(/^art_(.+)_(buyer|seller)_(.+)$/);
   if (!match) return null;
   return {

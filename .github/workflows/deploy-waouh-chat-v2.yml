@@ -145,7 +145,7 @@ jobs:
             BEFORE="${EVENT_BEFORE:-}"
             if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
               NEEDS_SUPABASE=true
-            elif git diff --name-only "$BEFORE" "$GITHUB_SHA" --               .github/workflows/deploy-waouh-chat-v2.yml               supabase/config.toml               supabase/functions               supabase/migrations/20260927120000_waouh_chat_messages_thread_base.sql               supabase/migrations/20260927120500_waouh_chat_messages_thread_backfill.sql               supabase/migrations/20260927121000_waouh_chat_reconcile.sql               supabase/migrations/20260928092242_waouh_chat_v3_flags.sql               supabase/migrations/20260928092245_waouh_commerce_actions.sql               supabase/migrations/20260929140000_waouh_presence_pin_attempts.sql               supabase/migrations/20260929150000_waouh_nexus_followup_cron.sql               supabase/migrations/20260929160000_waouh_avatar_prefs.sql               supabase/migrations/20261004223000_waouh_opportunity_os.sql               supabase/migrations/20261004224000_waouh_opportunity_worker_cron.sql               | grep -q .; then
+            elif git diff --name-only "$BEFORE" "$GITHUB_SHA" --               .github/workflows/deploy-waouh-chat-v2.yml               supabase/config.toml               supabase/functions               supabase/migrations/20260927120000_waouh_chat_messages_thread_base.sql               supabase/migrations/20260927120500_waouh_chat_messages_thread_backfill.sql               supabase/migrations/20260927121000_waouh_chat_reconcile.sql               supabase/migrations/20260928092242_waouh_chat_v3_flags.sql               supabase/migrations/20260928092245_waouh_commerce_actions.sql               supabase/migrations/20260929140000_waouh_presence_pin_attempts.sql               supabase/migrations/20260929150000_waouh_nexus_followup_cron.sql               supabase/migrations/20260929160000_waouh_avatar_prefs.sql               supabase/migrations/20261004223000_waouh_opportunity_os.sql               supabase/migrations/20261004224000_waouh_opportunity_worker_cron.sql               supabase/migrations/20261008201900_waouh_standalone_journey_threads.sql               | grep -q .; then
               NEEDS_SUPABASE=true
             fi
           fi
@@ -260,6 +260,28 @@ jobs:
           # If migration history is out of sync, this step must fail rather
           # than repairing production history automatically.
           supabase db push --linked --password "$SUPABASE_DB_PASSWORD" --yes
+
+      - name: Apply controlled standalone journey thread migration
+        if: steps.deploy_scope.outputs.needs_supabase == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Apply this exact, reviewed migration before publishing dependent Edge code.
+          # Do not push unrelated migrations or repair historical migration records.
+          python - <<'PY_MIGRATION' > /tmp/standalone-journey-migration.json
+          import json
+          from pathlib import Path
+          sql = Path('supabase/migrations/20261008201900_waouh_standalone_journey_threads.sql').read_text()
+          escaped = sql.replace("'", "''")
+          record = "insert into supabase_migrations.schema_migrations(version,name,statements) values ('20261008201900','waouh_standalone_journey_threads',array['" + escaped + "']) on conflict(version) do nothing;"
+          print(json.dumps({'query': 'begin;\n' + sql + '\n' + record + '\ncommit;'}))
+          PY_MIGRATION
+          curl --fail-with-body --silent --show-error \
+            "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query" \
+            --request POST --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            --header "Content-Type: application/json" --data-binary @/tmp/standalone-journey-migration.json \
+            --output /tmp/standalone-journey-migration-result.json
+          echo "✅ Standalone journeys retain one unbound discovery and separate canonical discussions."
 
       - name: Prepare minimal Edge deployment config
         if: steps.deploy_scope.outputs.needs_supabase == 'true'

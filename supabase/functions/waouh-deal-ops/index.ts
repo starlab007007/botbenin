@@ -1,3 +1,4 @@
+import { confirmDeliveredDeal } from "../_shared/waouh-payment-confirmation.ts";
 // waouh-deal-ops
 // Single router for WAOUH deal operations.
 // Deal Graph lifecycle: seller confirmation + payment preference -> delivery -> payment -> settlement.
@@ -885,11 +886,12 @@ async function handlePaymentPreference(sb: any, body: any, actor: DealActor) {
   }
 
   const now = new Date().toISOString();
-  await sb.from("waouh_deals").update({
+  const { error: preferenceError } = await sb.from("waouh_deals").update({
     payment_method: method,
     payment_status: "pending_delivery",
     buyer_payment_selected_at: now,
   }).eq("id", deal_id);
+  if (preferenceError) return json({ error: "payment_preference_write_failed" }, 500);
 
   const tx = await findDealTransaction(sb, deal);
   if (tx?.id) {
@@ -1034,6 +1036,7 @@ async function handlePayment(sb: any, body: any, actor: DealActor) {
   if (!deal) return json({ error: "deal not found" }, 404);
   if (!actorIsBuyer(actor, deal)) return json({ error: "forbidden" }, 403);
   if (deal.payment_status === "paid") {
+    if (deal.status !== "completed") return json({ error: "payment_recorded_completion_pending", current_status: deal.status }, 409);
     return json({ success: true, ok: true, already_paid: true, workflow_state: "completed", deal_id });
   }
   if (!deal.delivered_at || deal.status !== "delivered") {
@@ -1049,7 +1052,7 @@ async function handlePayment(sb: any, body: any, actor: DealActor) {
   const rate = Number(deal.commission_rate ?? COMMISSION_RATE) || COMMISSION_RATE;
   const commission = Math.round(amount * rate);
 
-  await sb.from("waouh_deals").update({
+  const confirmation = await confirmDeliveredDeal(sb, deal_id, {
     payment_status: "paid",
     payment_method: method,
     paid_at: now,
@@ -1058,7 +1061,9 @@ async function handlePayment(sb: any, body: any, actor: DealActor) {
     commission_amount: commission,
     commission_status: "earned",
     settlement_completed_at: now,
-  }).eq("id", deal_id);
+  });
+  if (!confirmation.ok) return json({ error: confirmation.code }, confirmation.status);
+  if (confirmation.alreadyPaid) return json({ success: true, ok: true, already_paid: true, workflow_state: "completed", deal_id });
 
   await recordCommerceEvent(sb, {
     event_type: "deal_completed",

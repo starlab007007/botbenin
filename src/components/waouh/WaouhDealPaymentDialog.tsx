@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import { userFacingErrorText } from "@/lib/userFacingError";
+import React, { useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Banknote, Smartphone, Loader2 } from "lucide-react";
@@ -12,21 +13,26 @@ export const WaouhDealPaymentDialog: React.FC<{
   amount?: number;
   onPaid?: () => void;
 }> = ({ open, onOpenChange, dealId, amount, onPaid }) => {
+  const confirming = useRef(false);
   const [loading, setLoading] = useState<"cash" | "mobile_money" | null>(null);
 
   const confirm = async (method: "cash" | "mobile_money") => {
+    if (confirming.current) return;
+    confirming.current = true;
     setLoading(method);
     try {
-      const { error } = await supabase.functions.invoke("waouh-deal-ops", {
+      const { data, error } = await supabase.functions.invoke("waouh-deal-ops", {
         body: { action: "payment", deal_id: dealId, method },
       });
       if (error) throw error;
+      if (data?.ok !== true && data?.success !== true) throw new Error("La confirmation n’a pas été enregistrée. Actualisez le suivi.");
       toast.success("Paiement confirmé. Merci !");
       onPaid?.();
       onOpenChange(false);
-    } catch (e: any) {
-      toast.error(e?.message || "Erreur de confirmation");
+    } catch (error: unknown) {
+      toast.error(userFacingErrorText(error, "save"));
     } finally {
+      confirming.current = false;
       setLoading(null);
     }
   };

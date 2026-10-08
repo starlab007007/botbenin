@@ -177,6 +177,42 @@ export function commerceRequestFromButton(
   }
 }
 
+/** Confirm only a supported server proposal in the current discussion. */
+export function commerceRequestFromPending(
+  pending: unknown,
+  scope: Pick<CommerceActionBody, "thread_id" | "article_id" | "negotiation_id" | "deal_id"> = {},
+): Omit<CommerceActionBody, "idem"> | null {
+  if (!pending || typeof pending !== "object" || Array.isArray(pending)) return null;
+  const proposal = pending as Record<string, unknown>;
+  const action = String(proposal.action || "");
+  if (!["open_deal", "ask", "offer", "accept", "reject", "seller_confirm", "pay_mode", "confirm_payment", "cancel"].includes(action)) return null;
+  const id = (name: keyof typeof scope) => typeof proposal[name] === "string" && proposal[name] ? String(proposal[name]) : scope[name] || null;
+  const threadId = id("thread_id");
+  if (scope.thread_id && threadId !== scope.thread_id) return null;
+  const request: Omit<CommerceActionBody, "idem"> = {
+    action: action as CommerceActionName, confirmed: true,
+    thread_id: threadId, article_id: id("article_id"), negotiation_id: id("negotiation_id"), deal_id: id("deal_id"),
+  };
+  if (scope.article_id && request.article_id && request.article_id !== scope.article_id) return null;
+  if (["seller_confirm", "pay_mode", "confirm_payment", "cancel"].includes(action) && !request.deal_id) return null;
+  if (["accept", "reject"].includes(action) && !request.negotiation_id) return null;
+  if (action === "open_deal" && !request.article_id) return null;
+  if (action === "ask") {
+    if ((!request.article_id && !request.thread_id) || typeof proposal.text !== "string" || !proposal.text.trim()) return null;
+    request.text = proposal.text.trim();
+  }
+  if (action === "offer") {
+    const amount = Number(proposal.amount);
+    if (!Number.isFinite(amount) || amount <= 0 || !request.thread_id) return null;
+    request.amount = amount;
+  }
+  if (["pay_mode", "confirm_payment"].includes(action)) {
+    if (proposal.method !== "cash" && proposal.method !== "mobile_money") return null;
+    request.method = proposal.method;
+  }
+  return request;
+}
+
 let disabledUntil = 0;
 
 export function newIdem(): string {

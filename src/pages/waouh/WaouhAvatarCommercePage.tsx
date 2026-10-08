@@ -1,3 +1,4 @@
+import { openCommerceDiscussion } from "@/lib/waouh/discussionNavigation";
 import { WaouhOfferComparison } from "@/components/waouh/WaouhOfferComparison";
 import { progressiveNexusDiscovery } from "@/lib/waouh/progressiveDiscovery";
 import { WaouhDiscoveryCoverage, type DiscoveryRefresh } from "@/components/waouh/WaouhDiscoveryCoverage";
@@ -452,19 +453,8 @@ export default function WaouhAvatarCommercePage() {
             : `Je suis intéressé par « ${title} ».`,
           source: "avatar_commerce",
         };
-        try {
-          const raw = localStorage.getItem("waouh_pending_open");
-          const items = raw ? JSON.parse(raw) : [];
-          const list = Array.isArray(items) ? items : [];
-          list.push(detail);
-          localStorage.setItem("waouh_pending_open", JSON.stringify(list.slice(-10)));
-        } catch {}
-
         await refreshJourneys().catch(() => {});
-        navigate("/app/chat");
-        window.setTimeout(() => {
-          window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));
-        }, 60);
+        openCommerceDiscussion(detail, navigate);
         toast({
           title: "Deal Room ouvert",
           description: "Même article, même thread : votre Avatar suit maintenant la négociation jusqu’à la clôture.",
@@ -532,17 +522,7 @@ export default function WaouhAvatarCommercePage() {
       title: journey.subject || "Démarche WAOUH",
       source: "avatar_opportunity",
     };
-    try {
-      const raw = localStorage.getItem("waouh_pending_open");
-      const items = raw ? JSON.parse(raw) : [];
-      const list = Array.isArray(items) ? items : [];
-      list.push(detail);
-      localStorage.setItem("waouh_pending_open", JSON.stringify(list.slice(-10)));
-    } catch {}
-    navigate("/app/chat");
-    window.setTimeout(() => {
-      window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail }));
-    }, 60);
+    openCommerceDiscussion(detail, navigate);
   };
 
   return (

@@ -31,6 +31,7 @@ import { BotDealCopilot, dealExpression } from "./bot/BotDealCopilot";
 import { BotLiveAvatar } from "./bot/BotLiveAvatar";
 import {
   commerceRequestFromButton,
+  commerceRequestFromPending,
   formatFcfa,
   latestStage,
   sendCommerceAction,
@@ -1100,22 +1101,21 @@ export function WaouhMatchChatWindow({
                       type="button"
                       size="sm"
                       variant="secondary"
-                      className="h-7 rounded-xl text-xs"
+                      className="min-h-11 rounded-xl text-xs"
                       disabled={sending || !actionId}
                       onClick={async () => {
-                        // Confirmation persistée par waouh-commerce-action.
-                        // Ce lot ne prend en charge ici QUE les offres : aucun
-                        // changement du paiement / confirmation paiement.
-                        if (actionId === "confirm" && m.meta?.pending?.action === "offer") {
+                        if (actionId === "confirm" && m.meta?.pending) {
+                          const request = commerceRequestFromPending(m.meta.pending, {
+                            thread_id: m.meta?.thread_id ?? latestCommerceScope.thread_id ?? serverThreadId ?? null,
+                            article_id: match.article_id,
+                            negotiation_id: m.meta?.negotiation_id ?? latestCommerceScope.negotiation_id ?? null,
+                            deal_id: m.meta?.deal_id ?? latestCommerceScope.deal_id ?? null,
+                          });
+                          if (!request) { toast.error("Cette confirmation n’est plus exploitable. Actualisez la discussion."); return; }
                           setSending(true);
                           try {
-                            const pending = m.meta.pending as Record<string, unknown>;
                             const response = await sendCommerceAction({
-                              ...(pending as any),
-                              thread_id: (pending.thread_id as string | null | undefined) ?? m.meta?.thread_id ?? latestCommerceScope.thread_id ?? serverThreadId ?? null,
-                              negotiation_id: (pending.negotiation_id as string | null | undefined) ?? m.meta?.negotiation_id ?? latestCommerceScope.negotiation_id ?? null,
-                              article_id: (pending.article_id as string | null | undefined) ?? match.article_id,
-                              source: "web_deal_room",
+                              ...request, source: "web_deal_room",
                             }, sessionId);
                             if (!response) {
                               toast.error("Confirmation indisponible. Réessayez.");
@@ -1130,9 +1130,9 @@ export function WaouhMatchChatWindow({
                           }
                           return;
                         }
-                        if (actionId === "dismiss" && m.meta?.pending?.action === "offer") {
+                        if (actionId === "dismiss" && m.meta?.pending) {
                           const amount = Number(m.meta?.pending?.amount ?? 0);
-                          setInput(amount > 0 ? `Je propose ${formatFcfa(amount)}` : "Je propose ");
+                          setInput(m.meta.pending.action === "offer" ? (amount > 0 ? `Je propose ${formatFcfa(amount)}` : "Je propose ") : "");
                           setTimeout(() => textareaRef.current?.focus(), 0);
                           return;
                         }
@@ -1203,7 +1203,7 @@ export function WaouhMatchChatWindow({
           style={{ paddingBottom: "max(env(safe-area-inset-bottom), 12px)" }}
         >
           <Lock className="w-4 h-4 shrink-0" />
-          <span>Cette conversation est clôturée — la vente a été finalisée.</span>
+          <span>Cette discussion est clôturée. Consultez le suivi pour son résultat.</span>
         </div>
       ) : (
         <div

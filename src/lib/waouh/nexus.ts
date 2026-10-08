@@ -588,7 +588,7 @@ export async function startNexusOpportunity(
   }>("nexus.opportunity.start", { fabric_id: fabricId, mode, ...(mandateId ? { mandate_id: mandateId } : {}) });
 }
 
-export async function enrichNexusOpportunity(fabricId: string, mode: "buy" | "sell" | "ask" = "buy") {
+export async function enrichNexusOpportunity(fabricId: string, mode: "buy" | "sell" | "ask" = "buy", journeyId?: string) {
   return invokeWaouhAgentic<{
     journey: NexusOpportunityJourney;
     contact_policy: NexusDiscoveryResult["contact_policy"];
@@ -599,7 +599,7 @@ export async function enrichNexusOpportunity(fabricId: string, mode: "buy" | "se
     readiness_level?: NexusReadinessLevel;
     actionability_score?: number;
     next_best_action?: NexusNextBestAction;
-  }>("nexus.opportunity.enrich", { fabric_id: fabricId, mode });
+  }>("nexus.opportunity.enrich", { fabric_id: fabricId, mode, ...(journeyId ? { journey_id: journeyId } : {}) });
 }
 
 export async function getNexusOpportunityStatus(input: { journey_id?: string; fabric_id?: string }) {

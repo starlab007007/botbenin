@@ -6,6 +6,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: { functions: { invo
 import {
   __resetCommerceActionCache,
   commerceRequestFromButton,
+  commerceRequestFromPending,
   latestStage,
   sendCommerceAction,
   stageFromWorkflow,
@@ -35,6 +36,20 @@ describe("parcours v3 — client Web", () => {
     // Saisie libre dans le composeur : pas d'action directe.
     expect(commerceRequestFromButton(`contre-proposition:${NEG}`)).toBeNull();
     expect(commerceRequestFromButton("intéressé 1")).toBeNull();
+  });
+
+  it("confirme aussi les actions de paiement, disponibilité, acceptation et annulation proposées", () => {
+    for (const action of ["seller_confirm", "cancel", "pay_mode", "confirm_payment"] as const) {
+      expect(commerceRequestFromPending({ action, deal_id: DEAL, method: "cash" }, { thread_id: "thread" })).toMatchObject({ action, confirmed: true, deal_id: DEAL, thread_id: "thread" });
+    }
+    expect(commerceRequestFromPending({ action: "accept", negotiation_id: NEG })).toMatchObject({ action: "accept", negotiation_id: NEG, confirmed: true });
+  });
+  it("refuse une confirmation hors discussion, sans cible, ou avec un montant ou moyen invalide", () => {
+    expect(commerceRequestFromPending({ action: "offer", thread_id: "other", amount: 10 }, { thread_id: "current" })).toBeNull();
+    expect(commerceRequestFromPending({ action: "confirm_payment", method: "cash" })).toBeNull();
+    expect(commerceRequestFromPending({ action: "confirm_payment", deal_id: DEAL, method: "card" })).toBeNull();
+    expect(commerceRequestFromPending({ action: "offer", thread_id: "current", amount: -1 })).toBeNull();
+    expect(commerceRequestFromPending({ action: "assign", deal_id: DEAL })).toBeNull();
   });
 
   it("déduit l'étape du parcours (7 étapes)", () => {

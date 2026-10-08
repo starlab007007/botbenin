@@ -3,7 +3,7 @@ import { waouhRequestTimeout } from "@/lib/waouh/requestTimeout";
 import { WAOUH_RUNTIME_ENDPOINTS } from "@/lib/waouh/runtimeEndpoints";
 const { invoke, getSession, refreshSession } = vi.hoisted(() => ({ invoke: vi.fn(), getSession: vi.fn(), refreshSession: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { functions: { invoke }, auth: { getSession, refreshSession } } }));
-import { globalNexusDiscovery, sendNexusDiscoveryContact } from "@/lib/waouh/nexus";
+import { globalNexusDiscovery, sendNexusDiscoveryContact, enrichNexusOpportunity } from "@/lib/waouh/nexus";
 import { invokeWaouhAgentic } from "@/lib/waouh/agenticClient";
 import { toUserFacingError } from "@/lib/userFacingError";
 const url = `https://example.supabase.co/functions/v1/${WAOUH_RUNTIME_ENDPOINTS.agenticCore}`;
@@ -17,6 +17,11 @@ describe("Avatar discovery transport", () => {
     expect(endpoint).toBe(WAOUH_RUNTIME_ENDPOINTS.agenticCore);
     expect(options.body.payload.mode).toBe(mode);
     expect(waouhRequestTimeout(url, { method: "POST", body: JSON.stringify(options.body) })).toBe(120_000);
+  });
+  it("enriches the selected mission journey instead of starting a different one", async () => {
+    invoke.mockResolvedValue({ data: { ok: true, data: { journey: { id: "selected" } } }, error: null });
+    await enrichNexusOpportunity("external:signal", "sell", "selected");
+    expect(invoke.mock.calls[0][1].body).toMatchObject({ action: "nexus.opportunity.enrich", payload: { fabric_id: "external:signal", mode: "sell", journey_id: "selected" } });
   });
   it("keeps ordinary requests short and gives mandate discovery the same budget", () => {
     expect(waouhRequestTimeout(url, { method: "POST", body: '{"action":"nexus.mandate.create"}' })).toBe(120_000);

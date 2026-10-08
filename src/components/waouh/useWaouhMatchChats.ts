@@ -20,8 +20,10 @@ export type CachedMsg = {
 export function matchKey(
   articleId: string | null | undefined,
   role: "buyer" | "seller",
-  counterpartId?: string | null
+  counterpartId?: string | null,
+  threadId?: string | null
 ): string {
+  if (!counterpartId && threadId) return `thread_${threadId}_${role}`;
   if (role === "seller") {
     return `art_${articleId ?? "none"}_seller_${counterpartId ?? "any"}`;
   }
@@ -329,7 +331,19 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
   // Open handler — canonical key, merges with existing tab, drains pending buffer.
   const openMatchFromDetail = useCallback(
     async (detail: any) => {
-      const articleId: string | null = detail?.article_id ?? null;
+      let articleId: string | null = detail?.article_id ?? null;
+      if (detail?.thread_id) {
+        try {
+          const { data: thread } = await supabase.from("waouh_chat_threads")
+            .select("id,article_id,buyer_user_id,seller_user_id").eq("id", detail.thread_id).maybeSingle();
+          if (thread) {
+            if (articleId && thread.article_id && articleId !== thread.article_id) return;
+            articleId = thread.article_id || articleId;
+            detail = { ...detail, article_id: articleId, buyer_user_id: thread.buyer_user_id, seller_user_id: thread.seller_user_id,
+              counterpart_user_id: detail.kind === "buyer" ? thread.seller_user_id : thread.buyer_user_id };
+          }
+        } catch { /* Authenticated history can still resolve a supplied article + thread. */ }
+      }
       if (!articleId) return;
       const role: "buyer" | "seller" = detail.kind === "buyer" ? "buyer" : "seller";
       // v13: les DEUX côtés discriminent par contrepartie — une fenêtre
@@ -337,7 +351,7 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
       const counterpartForKey: string | null =
         detail.counterpart_user_id ??
         (role === "buyer" ? (detail.seller_user_id ?? null) : null);
-      const key = matchKey(articleId, role, counterpartForKey);
+      const key = matchKey(articleId, role, counterpartForKey, detail.thread_id);
 
       const notificationId: string | null = detail.notification_id ?? null;
 
@@ -425,7 +439,7 @@ export function useWaouhMatchChats(sessionId: string, authUserId?: string | null
         new CustomEvent("waouh:match-updated", { detail: { article_id: articleId } })
       );
 
-      if (role === "buyer" && articleId && shouldSendBuyerInterest(sessionId, articleId)) {
+      if (role === "buyer" && articleId && !detail.thread_id && shouldSendBuyerInterest(sessionId, articleId)) {
         supabase.functions
           .invoke("waouh-buyer-interest", {
             body: { article_id: articleId, source: detail.source || "match" },

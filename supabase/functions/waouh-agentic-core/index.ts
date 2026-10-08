@@ -2999,7 +2999,17 @@ Retourne uniquement JSON:
           sb.from("waouh_signal_fabric").select("*").eq("fabric_id", fabricId).maybeSingle(),
           "nexus_signal_not_found",
         );
-        const journey = await ensureOpportunityJourney(sb, ownerId, {
+        const requestedJourneyId = payload.journey_id ? uuid(payload.journey_id, "journey_id") : null;
+        let selectedJourney: any = null;
+        if (requestedJourneyId) {
+          const { data, error } = await sb.from("waouh_opportunity_journeys").select("*")
+            .eq("id", requestedJourneyId).eq("owner_id", ownerId).eq("fabric_id", fabricId).maybeSingle();
+          if (error) throw new ApiError(500, "opportunity_journey_status_failed", error.message);
+          if (!data) throw new ApiError(404, "opportunity_journey_not_found");
+          if (["completed", "cancelled"].includes(data.stage)) throw new ApiError(409, "opportunity_journey_closed");
+          selectedJourney = data;
+        }
+        const journey = selectedJourney || await ensureOpportunityJourney(sb, ownerId, {
           fabricId,
           mode: typeof payload.mode === "string" ? payload.mode : "buy",
           level: String(signal.contactability_level ?? "C0"),
@@ -3008,6 +3018,7 @@ Retourne uniquement JSON:
           subject: signal.subject ?? null,
           city: signal.city ?? null,
         });
+        if (["completed", "cancelled"].includes(journey.stage)) throw new ApiError(409, "opportunity_journey_closed");
 
         let nextLevel = String(signal.contactability_level ?? "C0");
         let externalSignalMeta: any = null;
@@ -3127,7 +3138,8 @@ Retourne uniquement JSON:
           source_label: signal.source_key ?? null,
           observed_at: signal.observed_at ?? null,
         };
-        const stage = ["C2","C3","C4","C5"].includes(nextLevel) ? "contact_ready" : "enriching";
+        const stage = ["contacting", "waiting_reply", "negotiating", "agreed", "executing"].includes(journey.stage)
+          ? journey.stage : ["C2","C3","C4","C5"].includes(nextLevel) ? "contact_ready" : "enriching";
         const contactPack = await buildOperationalContactPack(sb, {
           ...signal,
           contactability_level: nextLevel,

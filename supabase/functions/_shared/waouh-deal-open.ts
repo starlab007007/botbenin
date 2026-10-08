@@ -1,4 +1,4 @@
-import { trackCanonicalBuyerJourney } from "./waouh-canonical-journey.ts";
+import { trackCanonicalParticipantJourney } from "./waouh-canonical-journey.ts";
 // deno-lint-ignore-file no-explicit-any -- client Supabase non typé, comme le reste des edge functions.
 // WAOUH — Ouverture d'une discussion commerciale (Intérêt → Négociation).
 //
@@ -428,7 +428,7 @@ export async function openBuyerDeal(args: OpenBuyerDealArgs): Promise<OpenBuyerD
   }
 
   try {
-    await trackCanonicalBuyerJourney(sb, {
+    await trackCanonicalParticipantJourney(sb, {
       ownerId: buyerActor?.auth_user_id || null, articleId, threadId, negotiationId, source,
       title: article.title || "Article WAOUH", city: article.city,
       sourceKey: article.partner_id ? "partner" : article.origin === "whatsapp" ? "whatsapp" : "waouh_app",
@@ -437,6 +437,17 @@ export async function openBuyerDeal(args: OpenBuyerDealArgs): Promise<OpenBuyerD
     // Preserve the canonical discussion even if the optional tracking write fails.
     console.warn("[waouh-deal-open] journey_tracking_failed");
   }
+
+  try {
+    if (article.seller_id) {
+      const { data: seller } = await sb.from("waouh_users").select("auth_user_id").eq("id", article.seller_id).maybeSingle();
+      await trackCanonicalParticipantJourney(sb, {
+        ownerId: seller?.auth_user_id || null, articleId, threadId, negotiationId, source, mode: "sell",
+        title: article.title || "Article WAOUH", city: article.city,
+        sourceKey: article.partner_id ? "partner" : article.origin === "whatsapp" ? "whatsapp" : "waouh_app",
+      });
+    }
+  } catch { console.warn("[waouh-deal-open] seller_journey_tracking_failed"); }
 
   return {
     ok: true,

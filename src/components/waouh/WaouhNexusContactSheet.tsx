@@ -1,3 +1,4 @@
+import { openCommerceDiscussion } from "@/lib/waouh/discussionNavigation";
 import { userFacingErrorText } from "@/lib/userFacingError";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -64,7 +65,7 @@ export function WaouhNexusContactSheet({
       let contact = await prepareNexusContact(fabricId);
       if (!journeyId && (contact.contact_policy.level === "C0" ||
           (contact.contact_policy.level === "C1" && !contact.contact_policy.can_user_confirm_contact))) {
-        started = (await enrichNexusOpportunity(fabricId, mode)).journey;
+        started = (await enrichNexusOpportunity(fabricId, mode, started.id)).journey;
         contact = await prepareNexusContact(fabricId);
       }
       setJourney(started);
@@ -112,7 +113,7 @@ export function WaouhNexusContactSheet({
   const enrich = async () => {
     setEnriching(true);
     try {
-      const result = await enrichNexusOpportunity(fabricId, mode);
+      const result = await enrichNexusOpportunity(fabricId, mode, journey?.id || journeyId);
       setJourney(result.journey);
       setPrepared(await prepareNexusContact(fabricId));
     } catch (error) {
@@ -173,20 +174,15 @@ export function WaouhNexusContactSheet({
     if (!journey) return;
     const detail = journeyChatDetail(journey);
     if (!detail) return;
-    try {
-      const previous = JSON.parse(localStorage.getItem("waouh_pending_open") || "[]");
-      localStorage.setItem("waouh_pending_open", JSON.stringify([...(Array.isArray(previous) ? previous : []), detail].slice(-10)));
-    } catch { /* The live event can still open the discussion. */ }
     setOpen(false);
-    navigate("/app/chat");
-    window.setTimeout(() => window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail })), 60);
+    openCommerceDiscussion(detail, navigate);
   };
 
   const level = journey?.contactability_level ?? prepared?.contact_policy.level ?? contactabilityLevel ?? "C0";
   const terminal = journey?.stage === "completed" || journey?.stage === "cancelled";
-  const waiting = !terminal && (journey?.stage === "waiting_reply" || journey?.stage === "contacting" || level === "C4");
-  const negotiating = !terminal && (journey?.stage === "negotiating" || level === "C5");
-  const canSend = !terminal && !!prepared && (
+  const waiting = !terminal && (journey ? ["waiting_reply", "contacting"].includes(journey.stage) : level === "C4");
+  const negotiating = !terminal && (journey ? journey.stage === "negotiating" : level === "C5");
+  const canSend = !terminal && !["agreed", "executing"].includes(journey?.stage || "") && !!prepared && (
     prepared.contact_policy.can_blind_message ||
     prepared.contact_policy.can_auto_contact ||
     prepared.contact_policy.can_user_confirm_contact

@@ -50,6 +50,9 @@ function technicalFailure(): CommerceActionResponse {
 export function openMatchDetail(response: CommerceActionResponse, card: { title: string; price: number | null; city: string | null; photo: string | null }) {
   return {
     article_id: response.article_id,
+    thread_id: response.thread_id,
+    negotiation_id: response.negotiation_id,
+    deal_id: response.deal_id,
     counterpart_user_id: null,
     seller_user_id: null,
     kind: "buyer" as const,
