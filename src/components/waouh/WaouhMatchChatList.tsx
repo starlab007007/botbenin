@@ -1,3 +1,4 @@
+import { chatMessagePreview } from "@/lib/waouh/messagePresentation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -447,8 +448,8 @@ export function WaouhMatchChatList({
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex justify-between items-baseline gap-2">
-            <span className="font-semibold truncate text-sm flex items-center gap-1.5">
-              {it.title}
+            <span className="min-w-0 font-semibold text-sm flex items-center gap-1.5">
+              <span className="truncate">{it.title}</span>
               {opts.pinned && (
                 <Badge className="bg-amber-500 text-white border-0 text-[9px] py-0 px-1.5 h-4">Dernier</Badge>
               )}
@@ -470,8 +471,8 @@ export function WaouhMatchChatList({
               )}
             </div>
           </div>
-          <p className="text-xs text-muted-foreground truncate">
-            {previewLine}
+          <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+            {chatMessagePreview(previewLine)}
             {it.price ? ` · ${Number(it.price).toLocaleString("fr-FR")} FCFA` : ""}
             {it.city ? ` · ${it.city}` : ""}
           </p>

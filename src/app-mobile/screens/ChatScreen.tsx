@@ -1,3 +1,4 @@
+import { WaouhMessageText } from "@/components/waouh/WaouhMessageText";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -266,7 +267,7 @@ export default function ChatScreen({
                       ))}
                     </div>
                   )}
-                  {cleanText && <p className="whitespace-pre-wrap">{cleanText}</p>}
+                  {cleanText && <WaouhMessageText text={cleanText} isUser={m.direction === "out"} />}
                   {m.failed && (
                     <button
                       type="button"
