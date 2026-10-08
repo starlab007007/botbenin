@@ -1,5 +1,6 @@
 """Repair the verified central WAHA container; keep credentials and backups on its host."""
 import datetime
+import gzip
 import json
 import os
 from pathlib import Path
@@ -99,6 +100,7 @@ new_image=json.loads(output(['docker','image','inspect',TARGET]))[0]
 digest=next((d for d in new_image.get('RepoDigests',[]) if d.startswith('devlikeapro/waha-plus@sha256:')),None)
 assert digest, 'Cannot pin the provider image digest'
 assert new_image['Id'] != item['Image'], 'The registry latest image is still the installed defective build; a newer WAHA Plus image is required'
+print('::notice title=Central WAHA host disk after pull::free=%.1f GiB' % free_gib())
 version_source=output(['docker','run','--rm','--entrypoint','cat',digest,'/app/dist/version.js'])
 match=re.search(r"version:\s*['\"]([0-9]+\.[0-9]+\.[0-9]+)['\"]",version_source)
 assert match, 'Cannot inspect the candidate provider version before changing the container'
@@ -116,9 +118,14 @@ changed=False
 try:
     command(['docker','stop','--time','30',cid],stdout=subprocess.DEVNULL)
     archive=backup/'sessions.tar.gz'
-    with archive.open('wb') as target:
-        os.chmod(archive,0o600)
-        command(['docker','run','--rm','--volumes-from',cid+':ro','--entrypoint','tar',old_image,'-czf','-','-C','/app','.sessions'],stdout=target)
+    os.chmod(archive,0o600) if archive.exists() else None
+    # Stream the stopped container's session directory; unlike `docker run`, this creates no container layer.
+    with gzip.open(archive,'wb') as target:
+        copier=subprocess.Popen(['docker','cp',cid+':/app/.sessions','-'],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        shutil.copyfileobj(copier.stdout,target)
+        copier_error=copier.stderr.read();copier.wait()
+    os.chmod(archive,0o600)
+    assert copier.returncode==0, 'WhatsApp session backup failed: '+copier_error.decode(errors='replace')[-200:]
     assert archive.stat().st_size>0, 'WhatsApp session backup is empty'
     updated=re.sub(pattern,lambda m:m[1]+digest+m[2],original.decode())
     config_path.write_text(updated);changed=True
