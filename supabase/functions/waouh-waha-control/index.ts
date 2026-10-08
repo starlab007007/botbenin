@@ -68,12 +68,18 @@ Deno.serve(async (req) => {
       if (!candidates.length) return json({error:"invalid_phone"},422);
       const messages:any[] = [];
       let readable = false;
-      const probes: {status:number; shape?:string}[] = [];
+      const probes: {status:number; shape?:string; error?:string}[] = [];
       for (const candidate of candidates) {
         const response = await fetch(`${base}/api/${CENTRAL_WAHA_SESSION}/chats/${encodeURIComponent(candidate+"@c.us")}/messages?limit=50`, {
           headers, signal:AbortSignal.timeout(5000),
         }).catch(()=>null);
-        if (!response?.ok) { probes.push({status:response?.status || 0}); continue; }
+        if (!response?.ok) {
+          const failure = await response?.json().catch(()=>null);
+          let error = String(failure?.exception?.message || failure?.message || failure?.error || "").slice(0,400);
+          if (WAHA_API_KEY) error = error.split(WAHA_API_KEY).join("[redacted]");
+          error = error.replace(/https?:\/\/[^\s]+/g,"[url]").replace(/\d{6,}/g,"[number]");
+          probes.push({status:response?.status || 0,error}); continue;
+        }
         const data = await response.json().catch(()=>null);
         const rows = Array.isArray(data) ? data : data?.messages;
         probes.push({status:response.status,shape:Array.isArray(data)?"array":typeof data});

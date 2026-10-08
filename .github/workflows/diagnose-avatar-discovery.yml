@@ -75,7 +75,7 @@ jobs:
           request('/database/query', {'query': 'select 1 from public.waouh_signal_fabric limit 1'})
           print('::notice::Discovery view query succeeded')
           PY
-      - name: Verify only the explicitly requested real WhatsApp test
+      - name: Verify the explicitly requested real WhatsApp test and provider diagnostics
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF || secrets.SUPABASE_PROJECT_REF || 'mvynepqulhflxtyymtzs' }}
