@@ -3251,7 +3251,7 @@ Retourne uniquement JSON:
           if (error) throw new ApiError(500, "nexus_contacts_failed", error.message);
           for (const contact of data ?? []) {
             const contactPolicy = contactabilityPolicy(contact.contactability_level);
-            if (!contactPolicy.can_reveal) continue;
+            if (!contactPolicy.can_reveal || contact.consent_state === "revoked") continue;
             let value: string | null = contact.public_value ?? null;
             if (!value && contact.value_encrypted) {
               try { value = await decryptPhone(contact.value_encrypted); } catch { value = null; }

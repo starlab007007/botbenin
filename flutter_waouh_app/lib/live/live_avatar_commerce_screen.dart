@@ -1290,7 +1290,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
               hint: _hint,
               cta: _cta,
               loading: _loading,
-              showBudget: widget.mode != LiveAvatarCommerceMode.ask,
+              showBudget: true,
               onSearch: _search,
             ),
             const SizedBox(height: 12),
