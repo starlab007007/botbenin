@@ -1,0 +1,41 @@
+name: Diagnose Avatar discovery (read only)
+on:
+  workflow_dispatch:
+  push:
+    branches: [prod]
+    paths: ['.github/workflows/diagnose-avatar-discovery.yml']
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Inspect deployed search configuration and schema
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF || secrets.SUPABASE_PROJECT_REF || 'mvynepqulhflxtyymtzs' }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.error
+          ref = os.environ['SUPABASE_PROJECT_REF']
+          token = os.environ['SUPABASE_ACCESS_TOKEN']
+          def request(path, body=None):
+              req = urllib.request.Request('https://api.supabase.com/v1/projects/' + ref + path,
+                  data=json.dumps(body).encode() if body is not None else None,
+                  headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'})
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as r: return json.load(r)
+              except urllib.error.HTTPError as e:
+                  print('::error::Diagnostic API HTTP ' + str(e.code))
+                  raise SystemExit(1)
+          f = request('/functions/waouh-studio-e2e-v21465')
+          print('::notice::Agentic runtime verify_jwt=' + str(f.get('verify_jwt')))
+          with urllib.request.urlopen('https://' + ref + '.supabase.co/auth/v1/.well-known/jwks.json', timeout=20) as r:
+              jwks = json.load(r)
+          print('::notice::Auth signing algorithms=' + ','.join(sorted({str(k.get('alg', k.get('kty'))) for k in jwks.get('keys', [])})))
+          rows = request('/database/query', {'query': "select to_regclass('public.waouh_signal_fabric') is not null as fabric_exists, to_regclass('public.waouh_contact_packs') is not null as contact_packs_exist, to_regclass('public.waouh_external_signals') is not null as external_signals_exist"})
+          print('::notice::Discovery schema=' + json.dumps(rows))
+          request('/database/query', {'query': 'select 1 from public.waouh_signal_fabric limit 1'})
+          print('::notice::Discovery view query succeeded')
+          PY
