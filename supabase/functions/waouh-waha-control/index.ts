@@ -53,16 +53,18 @@ Deno.serve(async (req) => {
       if (!candidates.length) return json({error:"invalid_phone"},422);
       const messages:any[] = [];
       let readable = false;
+      const probes: {status:number; shape?:string}[] = [];
       for (const candidate of candidates) {
         const response = await fetch(`${base}/api/${CENTRAL_WAHA_SESSION}/chats/${encodeURIComponent(candidate+"@c.us")}/messages?limit=50`, {
           headers, signal:AbortSignal.timeout(5000),
         }).catch(()=>null);
-        if (!response?.ok) continue;
+        if (!response?.ok) { probes.push({status:response?.status || 0}); continue; }
         const data = await response.json().catch(()=>null);
         const rows = Array.isArray(data) ? data : data?.messages;
+        probes.push({status:response.status,shape:Array.isArray(data)?"array":typeof data});
         if (Array.isArray(rows)) { readable = true; messages.push(...rows); }
       }
-      return json({readable,messages},readable ? 200 : 503);
+      return json({readable,messages,probes},readable ? 200 : 503);
     }
 
     if (action === "central-status" || action === "central-connect") {

@@ -42,7 +42,10 @@ def request(url, data=None, headers=None):
             except json.JSONDecodeError: body = raw.decode(errors='replace')
             return response.status,body
     except urllib.error.HTTPError as error:
-        return error.code,None
+        raw = error.read()
+        try: body = json.loads(raw) if raw else None
+        except json.JSONDecodeError: body = None
+        return error.code,body
 
 status, keys = request(management+'/api-keys',headers={'Authorization':'Bearer '+os.environ['SUPABASE_ACCESS_TOKEN']})
 assert status == 200, 'Cannot obtain verification credentials'
@@ -53,7 +56,7 @@ since = datetime.datetime.fromisoformat(args.since.replace('Z','+00:00')).timest
 
 def history():
     status, data = request(base+'waouh-waha-control',{'action':'central-chat-history','phone':args.phone},headers)
-    assert status == 200 and data and data.get('readable'), f'Actual WAHA chat history unavailable HTTP {status}'
+    assert status == 200 and data and data.get('readable'), f'Actual WAHA chat history unavailable HTTP {status}; provider probes=' + json.dumps((data or {}).get('probes',[]))
     return data['messages']
 
 def timestamp(message):
