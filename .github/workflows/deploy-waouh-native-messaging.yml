@@ -133,10 +133,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  # Shared production lock with WAOUH Chat v2: avoids concurrent Supabase db push/deploy.
-  group: supabase-production-${{ github.ref }}
-  cancel-in-progress: false
 
 env:
   SUPABASE_CLI_VERSION: "2.117.0"
@@ -384,6 +380,10 @@ jobs:
 
   deploy:
     name: Deploy Native Messaging to production
+    # Read-only validation may run alongside Chat; serialize only production writes.
+    concurrency:
+      group: supabase-production-${{ github.ref }}
+      cancel-in-progress: false
     needs: validate
     if: >-
       github.event_name == 'push' ||

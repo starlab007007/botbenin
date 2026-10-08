@@ -58,7 +58,7 @@ def action(name, payload, token=anon):
 status, configured = request(f"https://api.supabase.com/v1/projects/{project}/secrets", headers=management_headers)
 if status == 200 and isinstance(configured,list):
     names = {item.get("name") for item in configured}
-    print("::notice title=External channel configuration::WhatsApp provider configured: " + str("WAHA_BASE_URL" in names).lower() + "; Email provider and sender configured: " + str({"RESEND_API_KEY","WAOUH_EMAIL_FROM"}.issubset(names)).lower() + "; WhatsApp receipt secret configured: " + str("WAHA_WEBHOOK_SECRET" in names).lower())
+    print("::notice title=External channel configuration::WhatsApp provider configured: " + str("WAHA_BASE_URL" in names).lower() + "; Email provider configured: " + str("RESEND_API_KEY" in names).lower() + "; Email sender configured: " + str("WAOUH_EMAIL_FROM" in names).lower() + "; WhatsApp receipt secret configured: " + str("WAHA_WEBHOOK_SECRET" in names).lower())
 
 owner = None
 journey = str(uuid.uuid4())
