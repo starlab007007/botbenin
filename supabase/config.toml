@@ -342,7 +342,8 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.waouh-agentic-core]
-verify_jwt = true
+# Public discovery is allowed; private actions validate the authenticated user in the handler.
+verify_jwt = false
 
 # Dormant production slot reused for the admin-only WAOUH E2E runner.
 [functions.setup-test-accounts]

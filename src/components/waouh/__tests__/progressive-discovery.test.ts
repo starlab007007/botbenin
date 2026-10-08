@@ -20,3 +20,13 @@ it("keeps the indexed callback result when live search fails without hiding the 
   await expect(progressiveNexusDiscovery({ query: "Samsung" }, onIndexed)).rejects.toThrow("session expired");
   expect(onIndexed).toHaveBeenCalledTimes(1);
 });
+
+it("anonymous indexed search makes one request without AI or external refresh", async () => {
+  const cached = { results: [{ fabric_id: "article:fan" }] };
+  discovery.mockResolvedValue(cached);
+  const onIndexed = vi.fn();
+  await expect(progressiveNexusDiscovery({ query: "ventilateur", refresh_external: false, smart: false }, onIndexed)).resolves.toEqual(cached);
+  expect(discovery).toHaveBeenCalledTimes(1);
+  expect(discovery).toHaveBeenCalledWith(expect.objectContaining({ refresh_external: false, smart: false }));
+  expect(onIndexed).toHaveBeenCalledWith(cached);
+});

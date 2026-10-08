@@ -149,8 +149,8 @@ export function WaouhGlobalDiscoveryPanel() {
         city: city.trim() || undefined,
         budget_max: mode !== "find_buyers" && budget ? Number(budget) : undefined,
         limit: 24,
-        refresh_external: true,
-        smart: true,
+        refresh_external: !!user,
+        smart: !!user,
       }, indexed => {
         if (version !== searchVersion.current) return;
         setResults(indexed.results);
@@ -415,6 +415,7 @@ export function WaouhGlobalDiscoveryPanel() {
               Mandat semi-autonome par défaut : Bot surveille, enrichit et contacte au maximum 3 opportunités autorisées. Aucun paiement ni changement de budget.
             </p>
 
+            {!user && <p className="text-xs text-muted-foreground">Consultez les offres indexées sans connexion. Connectez-vous pour actualiser les sources externes, contacter ou confier une mission.</p>}
             {intelligence && (
               <div className="rounded-xl border bg-background p-3 shadow-sm">
                 <div className="flex flex-wrap items-start justify-between gap-2">

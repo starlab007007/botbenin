@@ -1,3 +1,4 @@
+import { isPublicNexusRead, PUBLIC_NEXUS_SOURCES, publicNexusResult } from "../_shared/waouh-public-discovery.ts";
 import { settleDiscoverySource } from "../_shared/waouh-discovery-refresh.ts";
 import { diversifyAvatarResults } from "../_shared/waouh-avatar-discovery.ts";
 import { reconcileAvatarApprovals } from "../_shared/waouh-avatar-orchestrator.ts";
@@ -1289,17 +1290,19 @@ async function globalDiscoverySearch(
     city?: string | null;
     budgetMax?: number | null;
     limit: number;
+    publicRead?: boolean;
   },
 ) {
   const desired = input.mode === "find_sellers" ? ["SELL","ANNOUNCE"] : ["BUY","RFQ"];
   const terms = normalizeFabricText(input.query).split(/\s+/).filter(t => /^[a-z0-9]{3,30}$/.test(t)).slice(0, 4);
-  const recent = sb.from("waouh_signal_fabric").select("*").in("intent", desired).order("observed_at", { ascending: false }).limit(1000);
-  const targeted = terms.length ? sb.from("waouh_signal_fabric").select("*").in("intent", desired)
+  let recent = sb.from("waouh_signal_fabric").select("*").in("intent", desired).order("observed_at", { ascending: false }).limit(1000);
+  let targeted = terms.length ? sb.from("waouh_signal_fabric").select("*").in("intent", desired)
     .or(terms.map(t => `subject.ilike.%${t}%`).join(",")).order("observed_at", { ascending: false }).limit(1000) : recent;
+  if (input.publicRead) { recent = recent.in("source_key", PUBLIC_NEXUS_SOURCES); targeted = targeted.in("source_key", PUBLIC_NEXUS_SOURCES); }
   const [recentRows, targetRows] = await Promise.all([recent, targeted]);
   if (recentRows.error || targetRows.error) throw new ApiError(500, "nexus_global_discovery_failed", (recentRows.error || targetRows.error)!.message);
   const data = [...new Map([...(targetRows.data || []), ...(recentRows.data || [])].map(row => [row.fabric_id, row])).values()];
-  const preRanked = (data ?? []).filter((signal: any) => input.mode !== "find_sellers" || !(Number(input.budgetMax) > 0) || !(Number(signal.price_min ?? signal.price_max) > Number(input.budgetMax))).map((signal: FabricSignal) => ({
+  const preRanked = (data ?? []).filter((signal: any) => !input.publicRead || (!String(signal.fabric_id).startsWith("buyer:") && signal.evidence?.source !== "chat")).filter((signal: any) => input.mode !== "find_sellers" || !(Number(input.budgetMax) > 0) || !(Number(signal.price_min ?? signal.price_max) > Number(input.budgetMax))).map((signal: FabricSignal) => ({
     ...signal,
     scores: scoreFabricSignal({
       query: input.query,
@@ -1312,6 +1315,7 @@ async function globalDiscoverySearch(
   })).filter((row: any) => row.scores.relevance_score >= 18 && row.scores.total_score >= 32)
     .sort((a: any, b: any) => b.scores.total_score - a.scores.total_score)
     .slice(0, Math.max(input.limit * 2, input.limit));
+  if (input.publicRead) return preRanked.slice(0, input.limit).map(publicNexusResult);
   const enriched = await Promise.all(preRanked.map((row: any) => enrichDiscoveryWithOpportunityOS(sb, row)));
   return diversifyAvatarResults(enriched
     .sort((a: any, b: any) =>
@@ -1495,7 +1499,8 @@ Deno.serve(async (req: Request) => {
     const authUser = await getRequestUser(req);
     const serviceCall = isServiceRoleRequest(req);
     const serviceOwnerId = serviceCall ? req.headers.get("x-waouh-owner-id")?.trim() ?? "" : "";
-    if (!authUser && !(serviceCall && serviceOwnerId && serviceMayActForOwner(action))) {
+    const publicRead = !authUser && !serviceOwnerId && isPublicNexusRead(action);
+    if (!authUser && !publicRead && !(serviceCall && serviceOwnerId && serviceMayActForOwner(action))) {
       throw new ApiError(401, "authentication_required");
     }
 
@@ -1503,7 +1508,7 @@ Deno.serve(async (req: Request) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !serviceKey) throw new ApiError(500, "server_not_configured");
     const sb = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
-    const ownerId = authUser?.id ?? uuid(serviceOwnerId, "x_waouh_owner_id");
+    const ownerId = authUser?.id ?? (publicRead ? "" : uuid(serviceOwnerId, "x_waouh_owner_id"));
 
     switch (action) {
       case "mission.create": {
@@ -2446,12 +2451,12 @@ Retourne uniquement JSON:
         const suppliedCity = optionalString(payload.city, "city", 120);
         const suppliedBudgetMax = positiveNumber(payload.budget_max, "budget_max", true);
         const limit = integer(payload.limit, "limit", 20, 1, 50);
-        const refreshExternal = bool(payload.refresh_external, true);
+        const refreshExternal = !publicRead && bool(payload.refresh_external, true);
         const allSources = bool(payload.all_sources, false);
-        const smart = bool(payload.smart, true);
+        const smart = !publicRead && bool(payload.smart, true);
 
         const forcedMode: DiscoveryMode | null = requestedMode === "auto" ? null : requestedMode;
-        const intelligence = (smart || requestedMode === "auto")
+        const intelligence = (!publicRead && (smart || requestedMode === "auto"))
           ? await planNexusGoal(queryText, {
               mode: forcedMode,
               city: suppliedCity,
@@ -2477,7 +2482,7 @@ Retourne uniquement JSON:
           ? (suppliedBudgetMax ?? intelligence.budget_max ?? null)
           : null;
 
-        const refresh: Record<string, unknown> = {};
+        const refresh: Record<string, unknown> = publicRead ? { google_places: { status: "not_requested", reason: "authentication_required_for_refresh" }, serpapi: { status: "not_requested", reason: "authentication_required_for_refresh" } } : {};
         if (refreshExternal) {
           const sourcePlan = new Set(intelligence.source_families ?? []);
           const useMaps = mode === "find_sellers" && (allSources || sourcePlan.size === 0 || sourcePlan.has("maps"));
@@ -2504,13 +2509,14 @@ Retourne uniquement JSON:
           city,
           budgetMax,
           limit,
+          publicRead,
         });
         const sourceMix = results.reduce((acc: Record<string, number>, row: any) => {
           const key = String(row.source_key ?? "unknown");
           acc[key] = (acc[key] ?? 0) + 1;
           return acc;
         }, {});
-        await audit(sb, ownerId, "nexus.global_discovery", "discovery", null, {
+        if (!publicRead) await audit(sb, ownerId, "nexus.global_discovery", "discovery", null, {
           requested_mode: requestedMode,
           resolved_mode: mode,
           query: queryText,
@@ -2522,6 +2528,7 @@ Retourne uniquement JSON:
           ai_confidence: intelligence.confidence,
         });
         return jsonResponse({ ok: true, data: {
+          public_read: publicRead,
           requested_mode: requestedMode,
           mode,
           query: queryText,
@@ -3656,6 +3663,12 @@ Retourne uniquement JSON:
             signal_count: (fabricRows.data ?? []).filter((signal: any) => signal.source_key === row.source_key).length,
           };
         });
+        if (publicRead) return jsonResponse({ ok: true, data: {
+          registry: sourceRegistry.map(row => ({ ...row, capabilities: {} })), providers: [],
+          offers: countBy(articleSources.data, "source_channel"), demands: countBy(buyerSources.data, "source_channel"),
+          radar: { sources: countBy(radar.data, "source_type"), intents: countBy(radar.data, "intent"), contacts_ready: 0 },
+          google_places: { configured: googlePlacesReady },
+        } });
         return jsonResponse({ ok: true, data: {
           providers: (providers.data ?? []).map((row: any) => ({
             provider: row.provider,

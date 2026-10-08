@@ -465,7 +465,7 @@ jobs:
           # Agentic Core already runs under waouh-studio-e2e-v21465.
           # Opportunity Worker reuses waouh-e2e-v3-relay, a documented disabled 410 stub.
           aliases=(
-            "waouh-studio-e2e-v21465|waouh-agentic-core|true"
+            "waouh-studio-e2e-v21465|waouh-agentic-core|false"
             "waouh-e2e-v3-relay|waouh-opportunity-worker|false"
           )
           for mapping in "${aliases[@]}"; do
@@ -504,6 +504,44 @@ jobs:
             --use-api \
             --no-verify-jwt
           echo "✅ waouh-commerce-action deployed; feature flags unchanged."
+
+      - name: Verify public NEXUS search and private action protection
+        if: steps.deploy_scope.outputs.needs_supabase == 'true'
+        shell: bash
+        run: |
+          python3 - <<'PYVERIFY'
+          import json, os, urllib.request, urllib.error
+          project = os.environ["SUPABASE_PROJECT_REF"]
+          request = urllib.request.Request(
+              f"https://api.supabase.com/v1/projects/{project}/api-keys",
+              headers={"Authorization": "Bearer " + os.environ["SUPABASE_ACCESS_TOKEN"]})
+          with urllib.request.urlopen(request, timeout=30) as response:
+              keys = json.load(response)
+          anon = next(row["api_key"] for row in keys if row.get("name") == "anon")
+          def invoke(action, payload):
+              request = urllib.request.Request(
+                  f"https://{project}.supabase.co/functions/v1/waouh-studio-e2e-v21465",
+                  data=json.dumps({"action": action, "payload": payload}).encode(),
+                  headers={"Content-Type": "application/json", "apikey": anon, "Authorization": "Bearer " + anon})
+              try:
+                  with urllib.request.urlopen(request, timeout=120) as response:
+                      return response.status, json.load(response)
+              except urllib.error.HTTPError as error:
+                  return error.code, None
+          status, body = invoke("nexus.global_discovery", {"query": "ventilateur", "mode": "find_sellers", "refresh_external": False, "smart": False, "limit": 3})
+          assert status == 200 and body.get("ok"), f"Public discovery failed (HTTP {status})"
+          assert body["data"]["public_read"] is True
+          for row in body["data"]["results"]:
+              assert not any(key in row for key in ["raw_text", "evidence", "contact_pack", "actor_id"])
+              assert row["contact_policy"]["can_reveal"] is False
+          status, body = invoke("nexus.sources", {})
+          assert status == 200 and body.get("ok"), f"Public source overview failed (HTTP {status})"
+          assert body["data"]["providers"] == []
+          for action in ["mission.list", "nexus.contact.send"]:
+              status, _ = invoke(action, {})
+              assert status == 401, f"Private action {action} is not protected (HTTP {status})"
+          print("NEXUS production checks passed: anonymous discovery and sources; private missions and contacts denied.")
+          PYVERIFY
 
       - name: Safety reminder
         if: steps.deploy_scope.outputs.needs_supabase == 'true'
