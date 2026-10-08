@@ -459,6 +459,11 @@ async function ensureJourney(sb: SupabaseClient, ownerId: string, mandate: any, 
   return data;
 }
 
+async function internalContactEndpoint(recipient: any) {
+  const phone = normalizeE164(String(recipient.phone_number || ""));
+  return phone ? `phone:${await hashPhone(phone)}` : `auth:${recipient.auth_user_id}`;
+}
+
 async function resolveInternalRecipient(sb: SupabaseClient, signal: any) {
   const evidence = signal.evidence && typeof signal.evidence === "object" ? signal.evidence : {};
   const waouhId = signal.fabric_id?.startsWith("buyer:")
@@ -511,7 +516,7 @@ async function openCanonicalInternalDeal(
   }
 
   const recipient = await resolveInternalRecipient(sb, signal);
-  if (recipient?.auth_user_id && !await claimAvatarContact(sb, mandate, journey, `auth:${recipient.auth_user_id}`)) return { contacted: false, reason: "person_contact_cooldown" };
+  if (recipient?.auth_user_id && !await claimAvatarContact(sb, mandate, journey, await internalContactEndpoint(recipient))) return { contacted: false, reason: "person_contact_cooldown" };
   const response = await fetch(`${SUPABASE_URL}/functions/v1/waouh-buyer-interest`, {
     method: "POST",
     headers: {
@@ -632,7 +637,7 @@ async function contactInternal(
     .select("id").eq("external_ref", ref).maybeSingle();
   if (already) return { contacted: false, reason: "already_contacted" };
 
-  if (!await claimAvatarContact(sb, mandate, journey, `auth:${recipient.auth_user_id}`)) return { contacted: false, reason: "person_contact_cooldown" };
+  if (!await claimAvatarContact(sb, mandate, journey, await internalContactEndpoint(recipient))) return { contacted: false, reason: "person_contact_cooldown" };
   const message = mandate.mode === "sell"
     ? `WAOUH accompagne un vendeur dont l’offre correspond à votre besoin « ${signal.subject || mandate.goal} ». Acceptez-vous que WAOUH poursuive cette mise en relation ?`
     : `WAOUH accompagne un acheteur intéressé par « ${signal.subject || mandate.goal} ». Acceptez-vous que WAOUH poursuive cette mise en relation ?`;

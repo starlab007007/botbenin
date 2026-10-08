@@ -1297,7 +1297,7 @@ async function globalDiscoverySearch(
   const [recentRows, targetRows] = await Promise.all([recent, targeted]);
   if (recentRows.error || targetRows.error) throw new ApiError(500, "nexus_global_discovery_failed", (recentRows.error || targetRows.error)!.message);
   const data = [...new Map([...(targetRows.data || []), ...(recentRows.data || [])].map(row => [row.fabric_id, row])).values()];
-  const preRanked = (data ?? []).map((signal: FabricSignal) => ({
+  const preRanked = (data ?? []).filter((signal: any) => input.mode !== "find_sellers" || !(Number(input.budgetMax) > 0) || !(Number(signal.price_min ?? signal.price_max) > Number(input.budgetMax))).map((signal: FabricSignal) => ({
     ...signal,
     scores: scoreFabricSignal({
       query: input.query,

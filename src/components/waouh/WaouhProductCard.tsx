@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import "./waouh-message-text.css";
 import { normalizeResultCards } from "@/lib/chatReply";
 import {
   ChevronLeft,
@@ -115,6 +116,7 @@ const metric = (result: WaouhResultCard, key: string): number | null => {
   const direct = (result as any)?.[key];
   const nested = result.scores && typeof result.scores === "object" ? (result.scores as any)[key] : null;
   const value = direct ?? nested;
+  if (value == null || value === "") return null;
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : null;
 };
@@ -143,7 +145,7 @@ const marketIntelligence = (result: WaouhResultCard) => {
   const level = contactLevel(result);
   const readiness = String(result.readiness_level || (result.contact_pack as any)?.readiness_level || "");
   const actionabilityRaw = result.actionability_score ?? (result.contact_pack as any)?.actionability_score;
-  const actionability = Number.isFinite(Number(actionabilityRaw)) ? Number(actionabilityRaw) : null;
+  const actionability = actionabilityRaw != null && Number.isFinite(Number(actionabilityRaw)) ? Number(actionabilityRaw) : null;
   const bestChannel = String(result.best_channel || (result.contact_pack as any)?.best_channel || "");
   const reasons = resultReasons(result);
   const source = String(result.source || (result.intelligence_provenance as any)?.source || "NEXUS");
@@ -412,7 +414,7 @@ export function WaouhProductCard({
       "not-prose overflow-hidden rounded-2xl border bg-card shadow-sm transition-shadow hover:shadow-md",
       topPick ? "border-emerald-300 ring-1 ring-emerald-200/70" : "border-border"
     )}>
-      <div className={cn("relative bg-muted", compact ? "h-[170px] sm:h-[190px] lg:h-[210px] 2xl:h-[230px]" : "h-[clamp(170px,30vh,300px)]")}>
+      <div className={cn("relative bg-muted", !photos.length ? "h-16" : compact ? "h-[170px] sm:h-[190px] lg:h-[210px] 2xl:h-[230px]" : "h-[clamp(170px,30vh,300px)]")}>
         {photos.length > 0 ? (
           <>
             <button
@@ -547,6 +549,8 @@ export function WaouhProductCard({
           </div>
         )}
 
+        <details className="waouh-message-details rounded-xl border border-slate-200 px-2.5">
+          <summary>Analyse de l’offre</summary>
         <div className="grid gap-1.5 sm:grid-cols-2">
           <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-2.5 py-2">
             <div className="mb-1 text-[9px] font-black uppercase tracking-wide text-slate-700">Détails</div>
@@ -569,6 +573,7 @@ export function WaouhProductCard({
             <div className="text-[10px] leading-snug text-amber-950">{intelligence.recommendation}</div>
           </div>
         </div>
+        </details>
 
         <div className="flex flex-wrap gap-1 text-[11px] text-muted-foreground">
           {(result.city || result.quartier) && (
@@ -595,20 +600,20 @@ export function WaouhProductCard({
           <div className="mt-1 space-y-1.5">
             <Button
               size="sm"
-              className="w-full h-9 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="w-full h-11 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white"
               onClick={handleWant}
             >
               {v3Entry.label}
             </Button>
             <div className="grid grid-cols-2 gap-1.5">
               {/* Bouton intelligent : le prix suggéré est dans le libellé et part en un geste dans la fenêtre de négociation. */}
-              <Button size="sm" variant="outline" className="h-8 min-w-0 px-2 text-[11px]" onClick={smartAmount ? sendSmartOffer : openOffer}>
+              <Button size="sm" variant="outline" className="h-11 min-w-0 px-2 text-[11px]" onClick={smartAmount ? sendSmartOffer : openOffer}>
                 <span className="truncate">{smartAmount ? `Proposer ${fmt(smartAmount)}` : "Proposer un prix"}</span>
               </Button>
               {externalDeal ? (
                 // Vendeur externe : la question passe par l'offre transmise, pas par un relais inexistant.
                 result.source_url ? (
-                  <Button size="sm" variant="outline" className="h-8 min-w-0 px-2 text-[11px]" asChild>
+                  <Button size="sm" variant="outline" className="h-11 min-w-0 px-2 text-[11px]" asChild>
                     <a href={result.source_url} target="_blank" rel="noreferrer">
                       <ExternalLink className="mr-1 h-3.5 w-3.5" />
                       Voir l'annonce
@@ -616,7 +621,7 @@ export function WaouhProductCard({
                   </Button>
                 ) : <span />
               ) : (
-                <Button size="sm" variant="outline" className="h-8 min-w-0 px-2 text-[11px]" onClick={() => { setAsking((a) => !a); setOffering(false); }}>
+                <Button size="sm" variant="outline" className="h-11 min-w-0 px-2 text-[11px]" onClick={() => { setAsking((a) => !a); setOffering(false); }}>
                   <MessageCircleQuestion className="h-3.5 w-3.5 mr-1 shrink-0" />
                   <span className="truncate">Poser une question</span>
                 </Button>
@@ -667,7 +672,7 @@ export function WaouhProductCard({
             {interestAction && !externalOpportunity && (
               <Button
                 size="sm"
-                className="w-full h-9 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="w-full h-11 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white"
                 onClick={handleInterest}
               >
                 {opportunity
@@ -684,14 +689,14 @@ export function WaouhProductCard({
                   contactabilityLevel={level}
                 />
               ) : result.source_url ? (
-                <Button size="sm" variant="outline" className="h-8 min-w-0 px-2 text-[11px]" asChild>
+                <Button size="sm" variant="outline" className="h-11 min-w-0 px-2 text-[11px]" asChild>
                   <a href={result.source_url} target="_blank" rel="noreferrer">
                     <ExternalLink className="mr-1 h-3.5 w-3.5" />
                     Source
                   </a>
                 </Button>
               ) : null}
-              <Button size="sm" variant="outline" className="h-8 min-w-0 px-2 text-[11px]" onClick={() => setAsking((a) => !a)}>
+              <Button size="sm" variant="outline" className="h-11 min-w-0 px-2 text-[11px]" onClick={() => setAsking((a) => !a)}>
                 <MessageCircleQuestion className="h-3.5 w-3.5 mr-1 shrink-0" />
                 <span className="truncate">{opportunity ? "Question à l’acheteur" : `Question au ${counterpartWord}`}</span>
               </Button>
@@ -779,7 +784,7 @@ export function WaouhProductResults({
               <Sparkles className="h-3 w-3" />
               {topOpportunity ? "Meilleure opportunité" : "Meilleur choix WAOUH"}
             </span>
-            <span className="text-[10px] text-muted-foreground">Signal Fabric · classement intelligent</span>
+            <span className="text-[10px] text-muted-foreground">Classement personnalisé</span>
           </div>
           <WaouhProductCard result={top} onAction={top.source === "catalogue" ? undefined : onAction} compact={compact} topPick />
         </div>
@@ -787,8 +792,8 @@ export function WaouhProductResults({
       {remaining.length > 0 && <div className="mb-2 flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">{remaining.length} autre{remaining.length > 1 ? "s" : ""} option{remaining.length > 1 ? "s" : ""} · Faites défiler</span>
         <div className="flex gap-1">
-          <Button type="button" size="icon" variant="outline" className="h-7 w-7" aria-label="Articles précédents" disabled={position === 0 || (position === 2 && (rail.current?.scrollLeft || 0) <= 1)} onClick={() => scroll(-1)}><ChevronLeft className="h-4 w-4" /></Button>
-          <Button type="button" size="icon" variant="outline" className="h-7 w-7" aria-label="Articles suivants" disabled={position === 2} onClick={() => scroll(1)}><ChevronRight className="h-4 w-4" /></Button>
+          <Button type="button" size="icon" variant="outline" className="h-11 w-11" aria-label="Articles précédents" disabled={position === 0 || (position === 2 && (rail.current?.scrollLeft || 0) <= 1)} onClick={() => scroll(-1)}><ChevronLeft className="h-4 w-4" /></Button>
+          <Button type="button" size="icon" variant="outline" className="h-11 w-11" aria-label="Articles suivants" disabled={position === 2} onClick={() => scroll(1)}><ChevronRight className="h-4 w-4" /></Button>
         </div>
       </div>}
       <div ref={rail} onScroll={updatePosition} className="flex min-w-0 gap-3 overflow-x-auto overscroll-x-contain snap-x snap-mandatory pb-2">

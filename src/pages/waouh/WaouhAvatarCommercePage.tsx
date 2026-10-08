@@ -1,3 +1,4 @@
+import "@/components/waouh/waouh-message-text.css";
 import { userFacingErrorText } from "@/lib/userFacingError";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -49,20 +50,20 @@ type Mode = "acheter" | "vendre" | "demander";
 
 const modeCopy: Record<Mode, { title: string; subtitle: string; cta: string; sellers: boolean }> = {
   acheter: {
-    title: "Acheter avec mon Avatar",
-    subtitle: "Votre Avatar recherche, compare et ouvre un Deal Room seulement quand une vraie négociation commence.",
+    title: "Acheter avec Bot",
+    subtitle: "Bot compare les offres et prépare votre négociation.",
     cta: "Chercher pour moi",
     sellers: true,
   },
   vendre: {
-    title: "Vendre avec mon Avatar",
-    subtitle: "Votre Avatar cherche des acheteurs pertinents et protège vos coordonnées jusqu’au bon moment.",
+    title: "Vendre avec Bot",
+    subtitle: "Bot trouve des acheteurs. Vos coordonnées restent protégées.",
     cta: "Trouver des acheteurs",
     sellers: false,
   },
   demander: {
-    title: "Demander à mon Avatar",
-    subtitle: "Service, prestation, emploi ou besoin libre : l’Avatar explore le marché et prépare la mise en relation.",
+    title: "Trouver avec Bot",
+    subtitle: "Un service, un emploi, un besoin : Bot cherche pour vous.",
     cta: "Explorer",
     sellers: true,
   },
@@ -532,7 +533,7 @@ export default function WaouhAvatarCommercePage() {
         </DialogContent>
       </Dialog>
 
-      <div className="mx-auto w-full max-w-5xl space-y-4 px-3 py-4 sm:px-5">
+      <div className="mx-auto w-full max-w-5xl space-y-3 px-3 py-3 sm:px-5">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" className="rounded-2xl" onClick={() => navigate("/app/avatar")}>
             <ArrowLeft className="h-5 w-5" />
@@ -542,59 +543,52 @@ export default function WaouhAvatarCommercePage() {
           </div>
           <div className="min-w-0">
             <h1 className="truncate text-lg font-black text-slate-950">{copy.title}</h1>
-            <p className="truncate text-[11px] font-semibold text-slate-500">Avatar · NEXUS · Signal Fabric · Contact Layer</p>
+            <p className="truncate text-[11px] font-semibold text-slate-500">Recherche · Comparaison · Contact protégé</p>
           </div>
         </div>
 
-        <section className="overflow-hidden rounded-[28px] border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-violet-50 p-4 shadow-[0_20px_60px_-40px_rgba(40,80,160,.45)] sm:p-5">
-          <div className="flex items-start gap-4">
-            <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full border-4 border-white bg-gradient-to-br from-blue-500 to-cyan-400 text-white shadow-xl shadow-blue-500/15">
-              <Bot className="h-7 w-7" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-xl font-black tracking-tight text-slate-950">{copy.title}</h2>
-              <p className="mt-1 max-w-2xl text-xs font-semibold leading-relaxed text-slate-500">{copy.subtitle}</p>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                <Badge variant="secondary" className="rounded-full bg-white">Contact protégé</Badge>
-                <Badge variant="secondary" className="rounded-full bg-white">Deal Graph</Badge>
-                <Badge variant="secondary" className="rounded-full bg-white">Paiement après livraison</Badge>
-              </div>
-            </div>
+        <section className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50/60 px-3 py-3">
+          <ShieldCheck className="h-5 w-5 shrink-0 text-blue-600" />
+          <div className="min-w-0">
+            <p className="text-xs leading-relaxed text-slate-600">{copy.subtitle}</p>
+            <p className="mt-1 text-[11px] font-medium text-blue-700">Contact protégé · Paiement après livraison</p>
           </div>
         </section>
 
-        <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+        <section className="rounded-[20px] border border-slate-200 bg-white p-4 shadow-sm">
           <Textarea
+            aria-label="Votre besoin"
+            rows={2}
             value={goal}
             onChange={(e) => setGoal(e.target.value)}
             placeholder={
               mode === "acheter"
-                ? "Ex. Je cherche un Samsung S25 fiable à Cotonou"
+                ? "Quel produit cherchez-vous ?"
                 : mode === "vendre"
-                  ? "Ex. Je vends 10 sacs de maïs, trouve des acheteurs sérieux"
-                  : "Ex. Trouve un plombier disponible demain à Akpakpa"
+                  ? "Que souhaitez-vous vendre ?"
+                  : "De quoi avez-vous besoin ?"
             }
-            className="min-h-24 rounded-2xl"
+            className="min-h-[64px] resize-y rounded-xl"
           />
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Ville (optionnel)" className="rounded-xl" />
-            <Input value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="Budget / prix FCFA" inputMode="numeric" className="rounded-xl" />
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <Input value={city} onChange={(e) => setCity(e.target.value)} aria-label="Ville (facultative)" placeholder="Ville" className="rounded-xl" />
+            <Input value={budget} onChange={(e) => setBudget(e.target.value)} aria-label="Budget ou prix en FCFA" placeholder="Budget FCFA" inputMode="numeric" className="rounded-xl" />
           </div>
-          <Button onClick={() => void search()} disabled={busy || !goal.trim()} className="mt-3 h-12 w-full rounded-2xl">
+          <Button onClick={() => void search()} disabled={busy || !goal.trim()} className="mt-2 h-11 w-full rounded-xl">
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
             {copy.cta}
           </Button>
         </section>
 
-        <section className="rounded-[24px] border border-violet-100 bg-gradient-to-br from-violet-50/80 via-white to-cyan-50/70 p-4 shadow-sm">
+        <section className="rounded-[20px] border border-violet-100 bg-gradient-to-br from-violet-50/80 via-white to-cyan-50/70 p-4 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-violet-600 text-white">
               <Zap className="h-5 w-5" />
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-black text-slate-950">Mandat Avatar · Opportunity OS</div>
+              <div className="text-sm font-black text-slate-950">Mission automatique</div>
               <p className="mt-1 text-[11px] font-semibold leading-relaxed text-slate-500">
-                Autorisez Bot une seule fois : il surveille NEXUS, prépare les contacts, agit dans vos limites et revient quand une vraie réponse arrive.
+                Bot cherche pendant 72 h, dans vos limites.
               </p>
             </div>
           </div>
@@ -673,7 +667,13 @@ export default function WaouhAvatarCommercePage() {
               </div>
             </div>
           ) : (
-            <div className="mt-4 space-y-3">
+            <div className="mt-3 space-y-3">
+              <details open={mode === "vendre"} className="avatar-mission-settings rounded-xl border border-violet-100 bg-white/70 px-3">
+                <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-2 text-xs font-semibold">
+                  <span>Réglages de la mission</span>
+                  <span className="text-violet-700">{autonomyMode === "assisted" ? "Assisté" : autonomyMode === "autonomous" ? "Autonome" : "Semi-auto"} · {maxContacts} contacts</span>
+                </summary>
+                <div className="space-y-3 pb-3">
               {mode === "vendre" && <div className="space-y-2">
                 <label className="text-sm font-semibold" htmlFor="avatar-sale-article">Article à vendre</label>
                 <select id="avatar-sale-article" value={selectedArticle} onChange={e => setSelectedArticle(e.target.value)} className="w-full rounded-xl border p-3">
@@ -717,7 +717,8 @@ export default function WaouhAvatarCommercePage() {
                         if (value === "assisted") setMaxFollowups(0);
                         else if (maxFollowups === 0) setMaxFollowups(value === "autonomous" ? 2 : 1);
                       }}
-                      className={`rounded-2xl border p-2.5 text-left transition ${autonomyMode === value ? "border-violet-500 bg-violet-50 ring-1 ring-violet-200" : "border-slate-200 bg-white"}`}
+                      aria-pressed={autonomyMode === value}
+                      className={`min-h-11 rounded-xl border p-2 text-left transition ${autonomyMode === value ? "border-violet-500 bg-violet-50 ring-1 ring-violet-200" : "border-slate-200 bg-white"}`}
                     >
                       <div className="text-[11px] font-black text-slate-900">{label}</div>
                       <div className="mt-0.5 text-[9px] font-semibold text-slate-400">{note}</div>
@@ -732,6 +733,7 @@ export default function WaouhAvatarCommercePage() {
                     <div className="text-[10px] text-slate-500">Plafond cumulé du mandat.</div>
                   </div>
                   <select
+                    aria-label="Contacts maximum"
                     value={maxContacts}
                     onChange={(e) => setMaxContacts(Number(e.target.value))}
                     className="h-10 rounded-xl border bg-white px-3 text-sm font-bold"
@@ -745,6 +747,7 @@ export default function WaouhAvatarCommercePage() {
                     <div className="text-[10px] text-slate-500">Au moins 24 h entre deux relances.</div>
                   </div>
                   <select
+                    aria-label="Relances maximum"
                     value={autonomyMode === "assisted" ? 0 : maxFollowups}
                     disabled={autonomyMode === "assisted"}
                     onChange={(e) => setMaxFollowups(Number(e.target.value))}
@@ -758,7 +761,7 @@ export default function WaouhAvatarCommercePage() {
                 <div>
                   <div className="text-xs font-black text-slate-900">Autoriser SMS/RCS consentis</div>
                   <div className="text-[10px] text-slate-500">
-                    Désactivé par défaut. Bot l’utilise seulement si la contrepartie a déjà accepté ce canal.
+                    Désactivé par défaut. Uniquement avec le consentement du destinataire.
                   </div>
                 </div>
                 <input
@@ -768,23 +771,25 @@ export default function WaouhAvatarCommercePage() {
                   className="h-5 w-5 accent-violet-600"
                 />
               </label>
+                </div>
+              </details>
               <Button
-                className="h-12 w-full rounded-2xl bg-violet-600 hover:bg-violet-700"
+                className="h-11 w-full rounded-xl bg-violet-600 hover:bg-violet-700"
                 disabled={mandateBusy || !goal.trim() || (mode === "vendre" && !selectedArticle)}
                 onClick={() => void createMandate()}
               >
                 {mandateBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bot className="mr-2 h-4 w-4" />}
-                Confier la mission · {durationHours} h
+                Activer la mission · {durationHours} h
               </Button>
               <p className="text-center text-[10px] font-semibold text-slate-500">
-                Les contre-offres respectent votre limite. Vous confirmez l’accord final ; le paiement reste une action distincte.
+                Vous validez l’accord final. Le paiement reste séparé.
               </p>
             </div>
           )}
         </section>
 
         {(journeysBusy || journeys.length > 0) && (
-          <section className="rounded-[24px] border border-blue-100 bg-white p-4 shadow-sm">
+          <section className="rounded-[20px] border border-blue-100 bg-white p-4 shadow-sm">
             <div className="flex items-center gap-2">
               <Handshake className="h-4 w-4 text-blue-600" />
               <div className="min-w-0 flex-1">
@@ -796,7 +801,7 @@ export default function WaouhAvatarCommercePage() {
               </Button>
             </div>
             {journeys.length > 0 && (
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <div className="mt-2 grid grid-cols-2 gap-2">
                 {journeys.slice(0, 20).map((journey) => (
                   <button
                     key={journey.id}
@@ -850,11 +855,10 @@ export default function WaouhAvatarCommercePage() {
 
         <div className="space-y-3">
           {results.map((item, index) => {
-            const reasons = item.scores?.reasons || [];
             const intelligence = avatarMarketIntelligence(item);
             const photos = evidencePhotos(item);
             return (
-              <article key={item.fabric_id} className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
+              <article key={item.fabric_id} className="overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-sm">
                 {photos.length > 0 && (
                   <div className="aspect-[16/9] w-full overflow-hidden bg-slate-100">
                     <img src={photos[0]} alt={item.subject || "Opportunité WAOUH"} className="h-full w-full object-cover" loading="lazy" />
@@ -864,7 +868,8 @@ export default function WaouhAvatarCommercePage() {
                 <div className="flex items-start gap-3">
                   <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-blue-50 font-black text-blue-600">#{index + 1}</div>
                   <div className="min-w-0 flex-1">
-                    <h3 className="text-sm font-black text-slate-950">{item.subject || item.raw_text || "Opportunité WAOUH"}</h3>
+                    <h3 className="line-clamp-2 text-sm font-semibold text-slate-950">{item.subject || item.raw_text || "Opportunité WAOUH"}</h3>
+                    {(item.price_min != null || item.price_max != null) && <p className="mt-1 text-base font-semibold text-emerald-700">{Math.round(item.price_min ?? item.price_max ?? 0).toLocaleString("fr-FR")} FCFA</p>}
                     <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] font-semibold text-slate-500">
                       <span>{sourceLabel(item.source_key)}</span>
                       {item.city && <span>· {item.city}</span>}
@@ -873,7 +878,7 @@ export default function WaouhAvatarCommercePage() {
                       {item.actionability_score != null && <span>· Action {Math.round(item.actionability_score)}%</span>}
                     </div>
                   </div>
-                  <div className="text-sm font-black text-blue-600">{Math.round(item.scores?.total_score || 0)}%</div>
+                  {item.scores?.total_score != null && <div className="shrink-0 text-xs font-semibold text-blue-600">{Math.round(item.scores.total_score)}%</div>}
                 </div>
 
                 {(item.next_best_action || item.contact_pack?.next_best_action) && (
@@ -890,7 +895,9 @@ export default function WaouhAvatarCommercePage() {
                   </div>
                 )}
 
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <details className="waouh-message-details mt-2 rounded-xl border border-slate-200 px-3">
+                  <summary>Détails et analyse</summary>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
                   {[
                     ["Détails", intelligence.details, "bg-slate-50 text-slate-800"],
                     ["Marché réel", intelligence.market, "bg-emerald-50/70 text-emerald-950"],
@@ -899,7 +906,7 @@ export default function WaouhAvatarCommercePage() {
                   ].map(([label, value, tone]) => (
                     <div key={label} className={`rounded-2xl p-3 ${tone}`}>
                       <div className="text-[9px] font-bold uppercase tracking-wide opacity-65">{label}</div>
-                      <div className="mt-1 text-xs font-bold leading-relaxed">{value}</div>
+                      <div className="mt-1 text-xs font-normal leading-relaxed">{value}</div>
                     </div>
                   ))}
                 </div>
@@ -908,6 +915,7 @@ export default function WaouhAvatarCommercePage() {
                   <ShieldCheck className="h-4 w-4 shrink-0 text-blue-600" />
                   La mise en relation reste médiée par WAOUH selon le niveau {item.contact_policy.level}. Les coordonnées privées ne sont pas révélées directement.
                 </div>
+                </details>
 
                 {canonicalDealCandidate(item) ? (
                   <Button
@@ -946,11 +954,11 @@ export default function WaouhAvatarCommercePage() {
         <Dialog open={!!offerItem} onOpenChange={(open) => !open && setOfferItem(null)}>
           <DialogContent className="max-w-md rounded-3xl">
             <DialogHeader>
-              <DialogTitle>Votre Avatar ouvre la négociation</DialogTitle>
+              <DialogTitle>Proposer un prix</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Proposez votre prix. WAOUH transmet l’offre, suit la réponse et vous guide jusqu’à l’accord puis l’exécution du deal.
+                Bot transmet votre offre et suit la réponse.
               </p>
               {offerItem && (
                 <div className="rounded-2xl border bg-slate-50 p-3">
@@ -963,6 +971,7 @@ export default function WaouhAvatarCommercePage() {
                 </div>
               )}
               <Input
+                aria-label="Votre proposition en FCFA"
                 value={offerAmount}
                 onChange={(event) => setOfferAmount(event.target.value.replace(/[^0-9]/g, ""))}
                 inputMode="numeric"
@@ -980,7 +989,7 @@ export default function WaouhAvatarCommercePage() {
                 }}
               >
                 <Handshake className="mr-2 h-4 w-4" />
-                Envoyer mon offre et ouvrir le Deal Room
+                Envoyer mon offre
               </Button>
               <p className="text-xs font-semibold text-emerald-700">
                 Votre Avatar reste actif jusqu’à la conclusion de l’accord.
@@ -990,7 +999,7 @@ export default function WaouhAvatarCommercePage() {
         </Dialog>
 
         {!busy && goal && results.length === 0 && (
-          <div className="rounded-[24px] border border-slate-200 bg-white p-6 text-center">
+          <div className="rounded-[20px] border border-slate-200 bg-white p-6 text-center">
             <MapPin className="mx-auto h-8 w-8 text-blue-500" />
             <div className="mt-2 text-sm font-black text-slate-950">Pas encore de correspondance assez fiable</div>
             <p className="mt-1 text-xs font-semibold text-slate-500">Élargissez la zone ou laissez une mission/veille active.</p>

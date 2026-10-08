@@ -1,3 +1,4 @@
+import { chatMessagePreview } from "@/lib/waouh/messagePresentation";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Inbox, MessageSquare, Phone, ChevronRight } from "lucide-react";
@@ -104,7 +105,7 @@ export function WaouhUnifiedInbox({ sessionId, authUserId, triggerClassName }: P
                         </Badge>
                       </div>
                       <p className={cn("text-xs truncate", unread ? "text-foreground" : "text-muted-foreground")}>
-                        {it.last_message || "—"}
+                        {chatMessagePreview(it.last_message)}
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">

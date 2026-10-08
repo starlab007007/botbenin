@@ -53,12 +53,14 @@ function alreadyPlayed() {
 export function BotGreeting({
   firstName,
   thirdLine,
+  compact = false,
   question = "On commence par quoi ?",
   choices,
   onExpressionChange,
   onTalkingChange,
   className,
 }: {
+  compact?: boolean;
   firstName?: string | null;
   thirdLine?: string | null;
   question?: string | null;
@@ -67,9 +69,10 @@ export function BotGreeting({
   onTalkingChange?: (talking: boolean) => void;
   className?: string;
 }) {
-  const lines = useMemo(() => botGreetingLines(firstName, thirdLine), [firstName, thirdLine]);
-  const steps = question ? lines.length + 1 : lines.length;
-  const instant = typeof window === "undefined" || prefersReducedMotion() || alreadyPlayed();
+  const lines = useMemo(() => compact ? [botGreetingLines(firstName)[0], ...(thirdLine ? [thirdLine] : [])] : botGreetingLines(firstName, thirdLine), [firstName, thirdLine, compact]);
+  const displayedQuestion = compact ? null : question;
+  const steps = displayedQuestion ? lines.length + 1 : lines.length;
+  const instant = compact || typeof window === "undefined" || prefersReducedMotion() || alreadyPlayed();
   const [shown, setShown] = useState(instant ? steps : 0);
   const [typing, setTyping] = useState(!instant);
 
@@ -111,21 +114,21 @@ export function BotGreeting({
   useEffect(() => { onTalkingChange?.(talking); }, [talking, onTalkingChange]);
 
   return (
-    <div className={cn("flex min-h-[clamp(96px,26vw,118px)] flex-col items-start gap-1.5", className)} aria-live="polite">
+    <div className={cn("flex flex-col items-start gap-1.5", !compact && "min-h-[clamp(96px,26vw,118px)]", className)} aria-live="polite">
       {lines.slice(0, Math.min(shown, lines.length)).map((line, index) => (
         <p
           key={line}
           className={cn(
-            "bot-msg-in max-w-full rounded-2xl rounded-tl-md border bg-white/90 px-3 py-1.5 text-[clamp(12.5px,3.3vw,15px)] font-semibold leading-snug shadow-sm",
+            compact ? "max-w-full text-xs font-medium leading-relaxed" : "bot-msg-in max-w-full rounded-2xl rounded-tl-md border bg-white/90 px-3 py-1.5 text-[clamp(12.5px,3.3vw,15px)] font-semibold leading-snug shadow-sm",
             index === 0 ? "border-teal-200 text-slate-900" : "border-slate-200/80 text-slate-700",
           )}
         >
           {line}
         </p>
       ))}
-      {question && shown > lines.length && (
+      {displayedQuestion && shown > lines.length && (
         <p className="bot-msg-in max-w-full rounded-2xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-[clamp(13px,3.4vw,15.5px)] font-bold leading-snug text-slate-900 shadow-sm">
-          {question}
+          {displayedQuestion}
         </p>
       )}
       {typing && shown < steps && (
@@ -140,7 +143,7 @@ export function BotGreeting({
               key={choice.label}
               type="button"
               onClick={choice.onSelect}
-              className="min-h-[40px] rounded-full border-[1.5px] border-teal-700 bg-white px-3.5 text-[clamp(12.5px,3.3vw,14px)] font-extrabold text-teal-800 shadow-sm transition hover:bg-teal-50 active:scale-[.97]"
+              className="min-h-[44px] rounded-full border-[1.5px] border-teal-700 bg-white px-3 text-xs font-semibold text-teal-800 shadow-sm transition hover:bg-teal-50 active:scale-[.97]"
             >
               {choice.label}
             </button>

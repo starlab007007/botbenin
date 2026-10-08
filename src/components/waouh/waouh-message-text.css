@@ -1,0 +1,30 @@
+.waouh-message-prose { min-width: 0; overflow-wrap: anywhere; font-size: 14px; line-height: 1.5; }
+.waouh-message-prose p { margin: 0 0 8px; white-space: pre-wrap; }
+.waouh-message-prose > :last-child { margin-bottom: 0; }
+.waouh-message-prose :is(h1,h2,h3,h4,h5,h6) { font-family: inherit; font-size: 14px; line-height: 1.4; font-weight: 650; margin: 12px 0 6px; }
+.waouh-message-prose :is(h1,h2,h3,h4,h5,h6):first-child { margin-top: 0; }
+.waouh-message-prose :is(ul,ol) { padding-left: 20px; margin: 6px 0; }
+.waouh-message-prose ul { list-style: disc; }
+.waouh-message-prose ol { list-style: decimal; }
+.waouh-message-prose li { display: list-item; margin: 4px 0; font-size: inherit; }
+.waouh-message-prose em { font-style: italic; font-size: inherit; text-transform: none; letter-spacing: normal; }
+.waouh-message-prose a { text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.waouh-message-prose blockquote { border-left: 3px solid hsl(var(--border)); padding-left: 10px; margin: 8px 0; }
+.waouh-message-prose pre { max-width: 100%; overflow-x: auto; padding: 10px; border-radius: 10px; background: hsl(var(--muted)); color: hsl(var(--foreground)); white-space: pre; }
+.waouh-message-prose hr { height: 1px; border: 0; background: hsl(var(--border)); margin: 10px 0; }
+.waouh-message-prose hr::before, .waouh-message-prose hr::after { display: none; }
+.waouh-message-table { overflow-x: auto; max-width: 100%; border: 1px solid hsl(var(--border)); border-radius: 10px; margin: 8px 0; }
+.waouh-message-table table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.waouh-message-table th, .waouh-message-table td { padding: 8px 10px; border-bottom: 1px solid hsl(var(--border)); text-align: left; min-width: 90px; }
+.waouh-message-table th { background: hsl(var(--muted)); font-weight: 600; }
+.waouh-message-table tr:last-child td { border: 0; }
+.waouh-message-details { margin-top: 6px; }
+.waouh-message-details > summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; font-size: 12px; font-weight: 600; color: inherit; list-style: none; }
+.waouh-message-details > summary::-webkit-details-marker { display: none; }
+.waouh-message-details > summary::after { content: '+'; margin-left: auto; }
+.waouh-message-details[open] > summary::after { content: '−'; }
+.waouh-message-details > summary:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; border-radius: 6px; }
+.waouh-legacy-offers { display: grid; gap: 8px; }
+.waouh-legacy-offers-heading { font-size: 12px; font-weight: 600; color: hsl(var(--muted-foreground)); }
+.waouh-legacy-offer { border: 1px solid hsl(var(--border)); border-radius: 12px; padding: 10px 12px; background: hsl(var(--card)); }
+.waouh-legacy-offer h4 { font: 600 14px/1.4 Inter, sans-serif; margin: 0 0 6px; }

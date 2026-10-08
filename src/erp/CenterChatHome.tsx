@@ -1,3 +1,4 @@
+import { chatMessagePreview } from "@/lib/waouh/messagePresentation";
 import { useEffect, useMemo, useState } from 'react';
 import { Archive, MessageSquare, Plus, Radar as RadarIcon, Search, Sparkles, Store, Handshake, ShoppingBag } from 'lucide-react';
 
@@ -350,7 +351,7 @@ export const CenterChatHome = ({
                         <span className="shrink-0 text-xs text-muted-foreground">{formatStamp(c.updated_at)}</span>
                       </div>
                       <div className="flex items-center justify-between gap-2">
-                        <p className="truncate text-sm text-muted-foreground">{c.last_message ?? '—'}</p>
+                        <p className="truncate text-sm text-muted-foreground">{chatMessagePreview(c.last_message)}</p>
                         {n > 0 && (
                           <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[11px] font-bold text-primary-foreground">
                             {n}
