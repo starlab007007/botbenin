@@ -431,7 +431,19 @@ jobs:
           )
           for fn in "${functions[@]}"; do
             echo "🚀 Deploying $fn"
-            supabase functions deploy "$fn"               --project-ref "$SUPABASE_PROJECT_REF"               --use-api               --no-verify-jwt
+            if ! supabase functions deploy "$fn" --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt > /tmp/waouh-function-deploy.log 2>&1; then
+              echo "::error title=Function deployment failed::$fn could not be published"
+              python3 - <<'PYDEPLOYERROR'
+          import os, pathlib, re
+          output = pathlib.Path('/tmp/waouh-function-deploy.log').read_text()[-2400:]
+          for name in ['SUPABASE_ACCESS_TOKEN','SUPABASE_DB_PASSWORD','GITHUB_TOKEN','GH_TOKEN']:
+              value = os.environ.get(name,'')
+              if value: output = output.replace(value,'[redacted]')
+          output = re.sub(r'([?&]token=)[^&\s]+',r'\1[redacted]',output)
+          print('::error title=Deployment diagnostic::' + output.replace('\n','%0A'))
+          PYDEPLOYERROR
+              exit 1
+            fi
           done
           echo "✅ Existing WAOUH Chat function slots updated."
 
@@ -559,6 +571,9 @@ jobs:
       - name: Verify the complete guest and WhatsApp exchange in production
         if: steps.deploy_scope.outputs.needs_supabase == 'true'
         run: python3 scripts/verify-external-exchange-production.py --whatsapp
+
+      - name: Verify the explicitly requested real WhatsApp test
+        run: python3 scripts/verify-requested-whatsapp-test.py --phone '+22991299191' --since '2026-10-08T22:10:00Z' --keyword ventilateur
 
       - name: Safety reminder
         if: steps.deploy_scope.outputs.needs_supabase == 'true'

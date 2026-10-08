@@ -1,4 +1,4 @@
-import { CENTRAL_WAHA_SESSION, isWahaInbound, isCentralWhatsAppPhone, whatsAppPhoneCandidates, wahaMessageId } from "../_shared/waouh-central-whatsapp.ts";
+import { CENTRAL_WAHA_SESSION, isWahaInbound, isCentralWhatsAppPhone, whatsAppPhoneCandidates, wahaMessageId, centralWhatsAppHealth } from "../_shared/waouh-central-whatsapp.ts";
 import { handleWhatsAppExchangeCommand } from "../_shared/waouh-whatsapp-exchange.ts";
 import { readWaouhEngineResponse } from "../_shared/waouh-response.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
@@ -321,6 +321,7 @@ async function resolveReplyChatIds(sb: any, rawFrom: string | null, phone: strin
 }
 
 async function sendWahaReply(base: string, session: string, chatIds: string[], text: string, actions: WaouhAction[] = [], imageUrl?: string | null) {
+  if (session === CENTRAL_WAHA_SESSION && !(await centralWhatsAppHealth()).working) return {ok:false,error:"central_whatsapp_unavailable"};
   let lastError = "";
   for (const chatId of chatIds) {
     const res = actions.length > 0

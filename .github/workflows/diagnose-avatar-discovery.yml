@@ -36,6 +36,11 @@ jobs:
                   print('::error::Diagnostic API HTTP ' + str(e.code))
                   raise SystemExit(1)
           f = request('/functions/waouh-studio-e2e-v21465')
+          for name in ['waouh-webhook','waha-webhook','waouh-channel-in','waouh-waha-control','waouh-outbound-dispatch']:
+              detail = request('/functions/' + name)
+              print('::notice title=Published ' + name + '::version=' + str(detail.get('version')) + '; updated_at=' + str(detail.get('updated_at')))
+          trace = request('/database/query', {'query': "select direction,count(*) as count,max(created_at) as latest_at from public.waouh_messages where channel='whatsapp' and phone_number in ('22991299191','+22991299191','2290191299191','+2290191299191') and created_at>='2026-10-08T22:10:00Z' group by direction"})
+          print('::notice title=Requested WhatsApp test trace::' + json.dumps(trace))
           print('::notice::Agentic runtime verify_jwt=' + str(f.get('verify_jwt')))
           with urllib.request.urlopen('https://' + ref + '.supabase.co/auth/v1/.well-known/jwks.json', timeout=20) as r:
               jwks = json.load(r)

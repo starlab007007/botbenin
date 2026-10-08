@@ -1,4 +1,4 @@
-import { CENTRAL_WAHA_SESSION, centralSessionSummary, centralWebhookConfig } from "../_shared/waouh-central-whatsapp.ts";
+import { CENTRAL_WAHA_SESSION, centralSessionSummary, centralWebhookConfig, whatsAppPhoneCandidates } from "../_shared/waouh-central-whatsapp.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
 
@@ -44,7 +44,26 @@ Deno.serve(async (req) => {
       ...(WAHA_API_KEY ? { "X-Api-Key": WAHA_API_KEY } : {}),
     };
 
-    const { action, session = "WaouhApp", webhook, config } = await req.json();
+    const { action, session = "WaouhApp", webhook, config, phone } = await req.json();
+
+    if (action === "central-chat-history") {
+      // Used only by trusted verification tooling; browser/admin callers cannot read raw chat history here.
+      if (guard.actor !== "service") return json({error:"service_role_required"},403);
+      const candidates = whatsAppPhoneCandidates(phone);
+      if (!candidates.length) return json({error:"invalid_phone"},422);
+      const messages:any[] = [];
+      let readable = false;
+      for (const candidate of candidates) {
+        const response = await fetch(`${base}/api/${CENTRAL_WAHA_SESSION}/chats/${encodeURIComponent(candidate+"@c.us")}/messages?limit=50`, {
+          headers, signal:AbortSignal.timeout(5000),
+        }).catch(()=>null);
+        if (!response?.ok) continue;
+        const data = await response.json().catch(()=>null);
+        const rows = Array.isArray(data) ? data : data?.messages;
+        if (Array.isArray(rows)) { readable = true; messages.push(...rows); }
+      }
+      return json({readable,messages},readable ? 200 : 503);
+    }
 
     if (action === "central-status" || action === "central-connect") {
       const path = `/api/sessions/${CENTRAL_WAHA_SESSION}`;

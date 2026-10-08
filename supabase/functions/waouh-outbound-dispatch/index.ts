@@ -782,8 +782,10 @@ Deno.serve(async (req) => {
           if (error || !mandate || mandate.status !== "active" || Date.parse(mandate.expires_at) <= Date.now() || mandate.metadata?.agreement_reached_at) blocked = "mandate_inactive";
         }
         if (it.payload?.journey_id) {
-          const { data: journey, error } = await sb.from("waouh_opportunity_journeys").select("stage").eq("id", it.payload.journey_id).maybeSingle();
-          if (error || !journey || (it.payload?.request_id ? ["cancelled","completed"] : ["cancelled", "completed", "agreed", "executing"]).includes(journey.stage)) blocked = "journey_inactive";
+          const { data: journey, error } = await sb.from("waouh_opportunity_journeys").select("stage,metadata").eq("id", it.payload.journey_id).maybeSingle();
+          const confirmedCompletion = journey?.stage === "completed" && it.payload?.completion_notice &&
+            it.payload.completion_notice === journey.metadata?.external_agreement_id;
+          if (error || !journey || (!confirmedCompletion && (it.payload?.request_id ? ["cancelled","completed"] : ["cancelled", "completed", "agreed", "executing"]).includes(journey.stage))) blocked = "journey_inactive";
         }
         if (blocked) {
           await sb.from("waouh_outbound_queue").update({ status: "failed", last_error: blocked, next_attempt_at: null }).eq("id", it.id).eq("status", "sending");

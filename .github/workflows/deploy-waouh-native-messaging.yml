@@ -592,3 +592,6 @@ jobs:
 
       - name: Verify guest and WhatsApp exchange after Native deployment
         run: python3 scripts/verify-external-exchange-production.py --whatsapp
+
+      - name: Verify the explicitly requested real WhatsApp test
+        run: python3 scripts/verify-requested-whatsapp-test.py --phone '+22991299191' --since '2026-10-08T22:10:00Z' --keyword ventilateur

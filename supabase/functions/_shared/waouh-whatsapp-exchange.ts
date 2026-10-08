@@ -178,7 +178,7 @@ export async function handleWhatsAppExchangeCommand(
   }
   let deliveryNote = "";
   if (
-    role === "owner" && !["read", "message", "stop"].includes(command.operation)
+    role === "owner" && "journey" in snapshot && snapshot.journey.stage !== "completed" && !["read", "message", "stop"].includes(command.operation)
   ) {
     // The explicit WhatsApp command shares this update with the external participant.
     const relayDigest = await sha256Hex(`relay:${journey.id}:${messageId}`);

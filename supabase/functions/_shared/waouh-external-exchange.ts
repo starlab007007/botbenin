@@ -713,6 +713,21 @@ export async function handleExternalExchange(
           ),
           guest,
         );
+  if (!mutation.data?.reused && "journey" in fresh && fresh.journey.stage === "completed" && journey.contact_channel === "whatsapp") {
+    const completionRoutes = await availableRoutes(sb, journey);
+    if (completionRoutes.routes.find((route:any)=>route.channel === "whatsapp")?.available && fresh.agreement) {
+      const recipient = normalizeE164(await decryptPhone(completionRoutes.phone.value_encrypted));
+      if (recipient) check(await sb.rpc("waouh_enqueue_outbound_v2", {
+        p_to_phone:recipient.replace(/\D/g,""),p_to_user_id:null,p_template:"nexus_discovery_outreach",
+        p_payload:{text:`Mission WA-${journey.id.replace(/-/g,"").slice(0,8).toUpperCase()} terminée. Réception confirmée par l’acheteur et paiement reçu confirmé par le vendeur. Ces confirmations sont déclaratives ; WAOUH n’a exécuté aucun paiement. Merci.`,
+          waha_session:CENTRAL_WAHA_SESSION,journey_id:journey.id,fabric_id:journey.fabric_id,
+          completion_notice:fresh.agreement.id,contact_id:completionRoutes.phone.id},
+        p_channel:"whatsapp",p_web_session_id:null,p_image_url:null,
+        p_dedupe_key:`external-completed:${journey.id}:${fresh.agreement.id}`,p_event_type:"external_exchange_completed",
+      }));
+    }
+    await avatarNotice(sb,journey.owner_id,`external-completed:${journey.id}`,"Mission terminée : réception et paiement reçu confirmés par les participants.",journey);
+  }
   return fresh;
 }
 
