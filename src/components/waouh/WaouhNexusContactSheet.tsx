@@ -21,7 +21,7 @@ import {
   type NexusOpportunityJourney,
 } from "@/lib/waouh/nexus";
 import { WaouhContactabilityBadge } from "./WaouhCommerceAgentBar";
-import { contactabilityActionLabel, findChannelLabel, interestMessage, SEND_OFFER_LABEL } from "@/lib/waouh/hotLabels";
+import { contactabilityActionLabel, findChannelLabel, interestMessage } from "@/lib/waouh/hotLabels";
 
 type Prepared = Awaited<ReturnType<typeof prepareNexusContact>>;
 
@@ -228,7 +228,7 @@ export function WaouhNexusContactSheet({
       }
     }}>
       <SheetTrigger asChild>
-        <Button size="sm" className="h-8 rounded-xl px-2.5 text-[11px]">
+        <Button size="sm" className="min-h-11 rounded-xl px-3 text-xs">
           <MessageCircle className="mr-1 h-3.5 w-3.5" />
           {label}
         </Button>
@@ -236,11 +236,11 @@ export function WaouhNexusContactSheet({
       <SheetContent side="bottom" className="mx-auto max-h-[90dvh] max-w-2xl overflow-y-auto rounded-t-3xl">
         <SheetHeader>
           <SheetTitle className="flex flex-wrap items-center gap-2">
-            Votre Avatar conduit la démarche
+            Préparer le contact
             <WaouhContactabilityBadge level={level} showCode />
           </SheetTitle>
           <SheetDescription>
-            Découverte → contact C0–C5 → réponse → négociation → accord. Aucun clic ne termine le parcours sans prochaine étape.
+            Vérifiez le canal et le message avant de confirmer.
           </SheetDescription>
         </SheetHeader>
 
@@ -263,7 +263,7 @@ export function WaouhNexusContactSheet({
             </div>
 
             {(readiness || actionability > 0 || nextBestAction) && (
-              <div className="grid grid-cols-3 gap-2">
+              <details><summary className="flex min-h-11 cursor-pointer items-center text-xs font-medium">Vérifications du contact</summary><div className="grid grid-cols-3 gap-2">
                 <div className="rounded-2xl border border-cyan-100 bg-cyan-50/70 p-3">
                   <div className="text-[9px] font-black uppercase text-cyan-700">Préparation</div>
                   <div className="mt-1 text-lg font-black text-cyan-950">{readiness || "R0"}</div>
@@ -283,7 +283,7 @@ export function WaouhNexusContactSheet({
                      nextBestAction === "ENRICH" ? "Enrichir" : nextBestAction || "Poursuivre"}
                   </div>
                 </div>
-              </div>
+              </div></details>
             )}
 
             <div className="rounded-2xl border bg-gradient-to-br from-emerald-50/70 to-cyan-50/60 p-4">
@@ -295,7 +295,7 @@ export function WaouhNexusContactSheet({
                     {prepared?.note ?? "WAOUH protège les coordonnées et conserve la continuité de la démarche."}
                   </p>
                   {(prepared?.source_url || sourceUrl) && (
-                    <p className="mt-1 text-[10px] text-muted-foreground">Source originale vérifiée par NEXUS.</p>
+                    <p className="mt-1 text-[10px] text-muted-foreground">Source originale disponible.</p>
                   )}
                 </div>
               </div>
@@ -303,7 +303,7 @@ export function WaouhNexusContactSheet({
 
             {busEvents.length > 0 && (
               <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                <div className="text-xs font-black text-slate-900">Activité multicanale</div>
+                <details><summary className="flex min-h-11 cursor-pointer items-center text-xs font-semibold">Historique des échanges</summary>
                 <p className="mt-1 text-[10px] text-muted-foreground">
                   WAOUH regroupe ici les événements du Chat, WhatsApp, NEXUS et du Deal Room.
                 </p>
@@ -326,7 +326,7 @@ export function WaouhNexusContactSheet({
                     </div>
                   ))}
                 </div>
-              </div>
+              </details></div>
             )}
 
             {masked.length > 0 && (
@@ -366,10 +366,10 @@ export function WaouhNexusContactSheet({
                     Votre confirmation autorise uniquement ce message vers ce contact professionnel public. WAOUH conserve la traçabilité.
                   </p>
                 )}
-                <Textarea value={message} onChange={(event) => setMessage(event.target.value)} rows={3} />
-                <Button size="sm" disabled={busy || !message.trim()} onClick={() => void send()}>
+                <Textarea aria-label="Message proposé au contact" value={message} onChange={(event) => setMessage(event.target.value)} rows={3} />
+                <Button size="sm" className="min-h-11 w-full" disabled={busy || !message.trim()} onClick={() => void send()}>
                   {busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Send className="mr-1 h-3.5 w-3.5" />}
-                  {level === "C1" ? "Bot contacte pour moi" : SEND_OFFER_LABEL}
+                  Confirmer l’envoi
                 </Button>
               </div>
             )}

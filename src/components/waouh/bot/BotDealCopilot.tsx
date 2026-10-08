@@ -8,10 +8,10 @@ const NEXT_STEP: Record<JourneyStepKey, { buyer: string; seller: string }> = {
   interest: { buyer: "Faire une offre au vendeur", seller: "Répondre à l'acheteur" },
   negotiation: { buyer: "Obtenir l'accord sur le prix", seller: "Accepter ou contre-proposer" },
   agreement: { buyer: "Choisir le paiement à la livraison", seller: "Confirmer que l'article est disponible" },
-  preparation: { buyer: "Bot attribue un livreur", seller: "Préparer l'article" },
-  courier: { buyer: "Livraison en cours", seller: "Remettre l'article au livreur" },
+  preparation: { buyer: "Confirmer les modalités de livraison", seller: "Préparer l'article" },
+  courier: { buyer: "Suivre la livraison", seller: "Remettre l'article au livreur" },
   delivery: { buyer: "Confirmer le paiement", seller: "Paiement en cours de confirmation" },
-  payment: { buyer: "Vente terminée", seller: "Vente terminée" },
+  payment: { buyer: "Vérifier la confirmation du paiement", seller: "Vérifier la confirmation du paiement" },
 };
 
 /** Expression de Bot selon l'étape réelle du parcours. */
@@ -69,7 +69,7 @@ export function BotDealCopilot({
         className,
       )}
     >
-      <BotLiveAvatar size={48} expression={expression} />
+      <BotLiveAvatar size={36} expression={expression} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
           <span className="text-[12px] font-black text-slate-950">{closed ? "Discussion finalisée" : HEADLINE[expression] ?? "Bot conduit cette discussion"}</span>
@@ -83,12 +83,12 @@ export function BotDealCopilot({
           {position ? (
             <span className="flex min-w-0 items-center gap-1">
               <TrendingUp className="h-3.5 w-3.5 shrink-0 text-blue-600" />
-              <span className="truncate">Position : <b className="text-slate-900">{fcfa(position)}</b></span>
+              <span className="truncate">{currentOffer != null ? "Proposition" : "Prix observé"} : <b className="text-slate-900">{fcfa(position)}</b></span>
             </span>
           ) : <span className="hidden sm:block" />}
           <span className="flex min-w-0 items-center gap-1">
             <Flag className="h-3.5 w-3.5 shrink-0 text-violet-600" />
-            <span className="truncate">Prochaine étape : <b className="text-slate-900">{next}</b></span>
+            <span className="break-words">À venir : <b className="text-slate-900">{next}</b></span>
           </span>
         </div>
       </div>

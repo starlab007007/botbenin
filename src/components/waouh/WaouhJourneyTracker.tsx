@@ -27,5 +27,5 @@ export function WaouhJourneyTracker({ threadId }: { threadId?: string | null }) 
     return () => { alive = false; window.clearInterval(timer); document.removeEventListener("visibilitychange", sync); };
   }, [threadId, userId]);
   if (!journey) return null;
-  return <details className="shrink-0 border-b bg-white px-3 text-xs"><summary className="flex min-h-11 cursor-pointer items-center gap-2"><span className="font-semibold">Suivi Avatar</span><span className="truncate text-blue-700">{journeyPresentation(journey).status} · Voir les étapes</span></summary><div className="max-h-[40dvh] overflow-auto pb-3"><WaouhJourneyProgress journey={journey} /></div></details>;
+  return <div className="shrink-0 border-b bg-white px-3 py-2 text-xs"><p className="truncate font-semibold text-blue-700">{journeyPresentation(journey).status}</p><p className="line-clamp-2 text-slate-600">À venir : {journeyPresentation(journey).next}</p><details><summary className="flex min-h-11 cursor-pointer items-center gap-2"><span className="font-semibold">Suivi Avatar</span><span className="truncate text-blue-700">{journeyPresentation(journey).status} · Voir les étapes</span></summary><div className="max-h-[40dvh] overflow-auto pb-3"><WaouhJourneyProgress journey={journey} /></div></details></div>;
 }

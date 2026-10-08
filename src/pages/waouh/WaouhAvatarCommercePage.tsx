@@ -1,3 +1,4 @@
+import { WaouhOfferComparison } from "@/components/waouh/WaouhOfferComparison";
 import { progressiveNexusDiscovery } from "@/lib/waouh/progressiveDiscovery";
 import { WaouhDiscoveryCoverage, type DiscoveryRefresh } from "@/components/waouh/WaouhDiscoveryCoverage";
 import "@/components/waouh/waouh-message-text.css";
@@ -594,10 +595,10 @@ export default function WaouhAvatarCommercePage() {
             }
             className="min-h-[64px] resize-y rounded-xl"
           />
-          <div className="mt-2 grid grid-cols-2 gap-2">
+          <details className="mt-2"><summary className="flex min-h-11 cursor-pointer items-center text-xs font-medium text-slate-600">Préciser · Ville et budget</summary><div className="grid grid-cols-2 gap-2">
             <Input value={city} onChange={(e) => setCity(e.target.value)} aria-label="Ville (facultative)" placeholder="Ville" className="rounded-xl" />
             <Input value={budget} onChange={(e) => setBudget(e.target.value)} aria-label="Budget ou prix en FCFA" placeholder="Budget FCFA" inputMode="numeric" className="rounded-xl" />
-          </div>
+          </div></details>
           <Button onClick={() => void search()} disabled={busy || !goal.trim()} className="mt-2 h-11 w-full rounded-xl">
             {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
             {copy.cta}
@@ -864,13 +865,14 @@ export default function WaouhAvatarCommercePage() {
         )}
 
         <div className="space-y-3">
+          <WaouhOfferComparison results={results} />
           {results.map((item, index) => {
             const intelligence = avatarMarketIntelligence(item);
             const photos = evidencePhotos(item);
             return (
               <article key={item.fabric_id} className="overflow-hidden rounded-[20px] border border-slate-200 bg-white shadow-sm">
                 {photos.length > 0 && (
-                  <div className="aspect-[16/9] w-full overflow-hidden bg-slate-100">
+                  <div className="h-32 w-full overflow-hidden bg-slate-100 sm:h-40">
                     <img src={photos[0]} alt={item.subject || "Opportunité WAOUH"} className="h-full w-full object-cover" loading="lazy" />
                   </div>
                 )}
@@ -942,7 +944,7 @@ export default function WaouhAvatarCommercePage() {
                     ) : (
                       <Handshake className="mr-2 h-4 w-4" />
                     )}
-                    Je suis intéressé
+                    Préparer mon offre
                   </Button>
                 ) : (
                   <div className="mt-3 [&_button]:h-11 [&_button]:w-full [&_button]:rounded-2xl">
@@ -1002,7 +1004,7 @@ export default function WaouhAvatarCommercePage() {
                 Envoyer mon offre
               </Button>
               <p className="text-xs font-semibold text-emerald-700">
-                Votre Avatar reste actif jusqu’à la conclusion de l’accord.
+                La réponse, l’accord et l’exécution seront suivis dans cette discussion.
               </p>
             </div>
           </DialogContent>

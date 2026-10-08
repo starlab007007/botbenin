@@ -1,3 +1,4 @@
+import { WaouhOfferComparison } from "./WaouhOfferComparison";
 import { WaouhJourneyProgress } from "./WaouhJourneyProgress";
 import { progressiveNexusDiscovery } from "@/lib/waouh/progressiveDiscovery";
 import { WaouhDiscoveryCoverage } from "./WaouhDiscoveryCoverage";
@@ -87,6 +88,8 @@ export function WaouhGlobalDiscoveryPanel() {
     return false;
   };
   const shareImageInput = useRef<HTMLInputElement>(null);
+  const searchVersion = useRef(0);
+  useEffect(() => () => { searchVersion.current += 1; }, []);
   const [mode, setMode] = useState<NexusDiscoveryMode>("auto");
   const [resolvedMode, setResolvedMode] = useState<NexusResolvedDiscoveryMode>("find_sellers");
   const [intelligence, setIntelligence] = useState<NexusSmartDiscoveryPlan | null>(null);
@@ -130,8 +133,13 @@ export function WaouhGlobalDiscoveryPanel() {
   useEffect(() => { void loadSources(); }, []);
 
   const searchEverywhere = async () => {
-    if (!query.trim()) return;
+    if (!query.trim() || busy) return;
+    const version = ++searchVersion.current;
     setBusy(true);
+    setResults([]);
+    setIntelligence(null);
+    setRefreshState({});
+    setSourceMix({});
     setContact(null);
     setContactJourney(null);
     try {
@@ -144,11 +152,13 @@ export function WaouhGlobalDiscoveryPanel() {
         refresh_external: true,
         smart: true,
       }, indexed => {
+        if (version !== searchVersion.current) return;
         setResults(indexed.results);
         setSourceMix(indexed.source_mix);
         setResolvedMode(indexed.mode);
         setRefreshState({});
       });
+      if (version !== searchVersion.current) return;
       setResults(response.results);
       setSourceMix(response.source_mix);
       setRefreshState(response.refresh ?? {});
@@ -170,9 +180,10 @@ export function WaouhGlobalDiscoveryPanel() {
       }
       void loadSources();
     } catch (error) {
+      if (version !== searchVersion.current) return;
       toast({ title: "Recherche impossible", description: errorText(error), variant: "destructive" });
     } finally {
-      setBusy(false);
+      if (version === searchVersion.current) setBusy(false);
     }
   };
 
@@ -344,10 +355,10 @@ export function WaouhGlobalDiscoveryPanel() {
             <div className="rounded-xl border border-cyan-200/80 bg-cyan-50/50 p-3 dark:border-cyan-900 dark:bg-cyan-950/20">
               <div className="mb-2 flex items-center gap-2 text-xs font-semibold">
                 <Sparkles className="h-4 w-4 text-cyan-600" />
-                Dites simplement votre objectif — l’IA choisit le meilleur parcours.
+                Quel produit cherchez-vous ?
               </div>
-              <div className="grid gap-2 sm:grid-cols-[200px_1fr_160px_140px]">
-                <Select value={mode} onValueChange={(value) => { setMode(value as NexusDiscoveryMode); setIntelligence(null); }}>
+              <div className="grid gap-2 sm:grid-cols-[200px_1fr]">
+                <Select disabled={busy} value={mode} onValueChange={(value) => { setMode(value as NexusDiscoveryMode); setIntelligence(null); }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="auto">Mode IA · WAOUH décide</SelectItem>
@@ -367,16 +378,14 @@ export function WaouhGlobalDiscoveryPanel() {
                         : "Ex. 10 tonnes soja, 50 sacs ciment…"
                   }
                 />
-                <Input value={city} onChange={(event) => setCity(event.target.value)} placeholder="Ville / zone" />
-                {mode !== "find_buyers" ? (
-                  <Input value={budget} onChange={(event) => setBudget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Budget max" />
-                ) : (
-                  <div className="hidden sm:block" />
-                )}
+                <details className="sm:col-span-2"><summary className="flex min-h-11 cursor-pointer items-center text-xs font-medium">Préciser · Ville et budget</summary><div className="grid grid-cols-2 gap-2">
+                  <Input aria-label="Ville ou zone" value={city} onChange={(event) => setCity(event.target.value)} placeholder="Ville / zone" />
+                  {mode !== "find_buyers" && <Input aria-label="Budget maximum en FCFA" value={budget} onChange={(event) => setBudget(event.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Budget FCFA" />}
+                </div></details>
               </div>
             </div>
             <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-            <Button className="w-full bg-cyan-600 text-white hover:bg-cyan-700" onClick={() => void searchEverywhere()} disabled={!query.trim() || busy}>
+            <Button className="min-h-11 w-full bg-cyan-600 text-white hover:bg-cyan-700" onClick={() => void searchEverywhere()} disabled={!query.trim() || busy}>
               {busy ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : mode === "auto" ? (
@@ -386,11 +395,7 @@ export function WaouhGlobalDiscoveryPanel() {
               ) : (
                 <Users className="mr-2 h-4 w-4" />
               )}
-              {mode === "auto"
-                ? "Comprendre et chercher partout"
-                : mode === "find_sellers"
-                  ? "Trouver les vendeurs partout"
-                  : "Trouver les acheteurs partout"}
+              Rechercher
             </Button>
             <Button
               variant="outline"
@@ -477,6 +482,7 @@ export function WaouhGlobalDiscoveryPanel() {
             )}
 
             <div className="grid gap-2 lg:grid-cols-2">
+              <WaouhOfferComparison results={results} />
               {results.map((result) => (
                 <div key={result.fabric_id} className="rounded-xl border bg-background p-3">
                   <div className="flex items-start justify-between gap-2">
@@ -503,7 +509,7 @@ export function WaouhGlobalDiscoveryPanel() {
                     </div>
                   )}
 
-                  <div className="mt-2 flex flex-wrap gap-1">
+                  <details className="mt-2"><summary className="flex min-h-11 cursor-pointer items-center text-xs font-medium">Vérification et analyse</summary><div className="flex flex-wrap gap-1">
                     <Badge variant="secondary">confiance {Math.round(result.scores.trust_score)}%</Badge>
                     <Badge variant="outline">{result.contact_policy.level} · {result.contact_policy.label}</Badge>
                     {(result.readiness_level || result.contact_pack?.readiness_level) && (
@@ -517,7 +523,7 @@ export function WaouhGlobalDiscoveryPanel() {
                       </Badge>
                     )}
                     {result.scores.reasons.slice(0, 2).map((reason) => <Badge key={reason} variant="outline">{reason}</Badge>)}
-                  </div>
+                  </div><p className="mt-2 text-xs text-muted-foreground">Disponibilité, état et livraison à confirmer avec la source.</p></details>
 
                   {(result.next_best_action || result.contact_pack?.next_best_action) && (
                     <div className="mt-2 rounded-lg bg-violet-50 px-2.5 py-2 text-[11px] font-semibold text-violet-900">
