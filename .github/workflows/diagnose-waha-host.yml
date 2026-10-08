@@ -10,8 +10,10 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - uses: appleboy/ssh-action@v0.1.10
+      - uses: appleboy/ssh-action@v1.2.2
+        id: host_inspection
         with:
+          capture_stdout: true
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -34,3 +36,16 @@ jobs:
                     'mount_destinations':[m.get('Destination') for m in item.get('Mounts',[])]})
             print('::notice title=WAHA host inspection::' + json.dumps(found))
             PY
+      - name: Publish only the safe WAHA container inventory
+        env:
+          HOST_INSPECTION: ${{ steps.host_inspection.outputs.stdout }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          for line in os.environ['HOST_INSPECTION'].splitlines():
+              marker = '::notice title=WAHA host inspection::'
+              if marker not in line: continue
+              try: result = json.loads(line.split(marker,1)[1])
+              except json.JSONDecodeError: continue
+              print(marker + json.dumps(result))
+          PY
