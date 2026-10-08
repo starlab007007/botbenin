@@ -3509,6 +3509,7 @@ Retourne uniquement JSON:
           p_to_user_id: null,
           p_template: "nexus_discovery_outreach",
           p_payload: {
+            ...contactContext,
             text: message,
             actions: [],
             signal_id: signalId,

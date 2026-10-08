@@ -244,7 +244,7 @@ export default function WaouhAvatarCommercePage() {
       loading = true;
       try {
         const [data, missions] = await Promise.all([
-          listNexusOpportunityJourneys({ limit: 50, include_completed: true, mandate_id: activeMandate?.id }), listNexusMandates(),
+          listNexusOpportunityJourneys({ limit: 50, include_completed: true }), listNexusMandates(),
         ]);
         if (!alive) return;
         setJourneys(data.journeys || []);
@@ -263,7 +263,7 @@ export default function WaouhAvatarCommercePage() {
   const refreshJourneys = async () => {
     setJourneysBusy(true);
     try {
-      const data = await listNexusOpportunityJourneys({ limit: 50, include_completed: true, mandate_id: activeMandate?.id });
+      const data = await listNexusOpportunityJourneys({ limit: 50, include_completed: true });
       setJourneys(data.journeys || []);
     } finally { setJourneysBusy(false); }
   };
@@ -485,11 +485,13 @@ export default function WaouhAvatarCommercePage() {
           ? `Bonjour, WAOUH accompagne un vendeur dont l’offre correspond à votre besoin « ${item.subject || goal} ». Souhaitez-vous poursuivre dans WAOUH ?`
           : `Bonjour, WAOUH accompagne un utilisateur intéressé par « ${item.subject || goal} ». Souhaitez-vous poursuivre dans WAOUH ?`;
 
-      await sendNexusDiscoveryContact({
+      const sent = await sendNexusDiscoveryContact({
         fabric_id: item.fabric_id,
+        mode: mode === "vendre" ? "sell" : mode === "demander" ? "ask" : "buy",
         message,
         confirmed: true,
       });
+      if (sent.journey) setJourneys(previous => [sent.journey!, ...previous.filter(j => j.id !== sent.journey!.id)]);
 
       toast({
         title: "Votre Avatar poursuit",

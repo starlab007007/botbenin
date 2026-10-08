@@ -1,3 +1,4 @@
+import { trackCanonicalBuyerJourney } from "./waouh-canonical-journey.ts";
 // deno-lint-ignore-file no-explicit-any -- client Supabase non typé, comme le reste des edge functions.
 // WAOUH — Ouverture d'une discussion commerciale (Intérêt → Négociation).
 //
@@ -424,6 +425,17 @@ export async function openBuyerDeal(args: OpenBuyerDealArgs): Promise<OpenBuyerD
     } catch (e) {
       console.warn("[waouh-deal-open] buyer echo failed", e);
     }
+  }
+
+  try {
+    await trackCanonicalBuyerJourney(sb, {
+      ownerId: buyerActor?.auth_user_id || null, articleId, threadId, negotiationId, source,
+      title: article.title || "Article WAOUH", city: article.city,
+      sourceKey: article.partner_id ? "partner" : article.origin === "whatsapp" ? "whatsapp" : "waouh_app",
+    });
+  } catch {
+    // Preserve the canonical discussion even if the optional tracking write fails.
+    console.warn("[waouh-deal-open] journey_tracking_failed");
   }
 
   return {

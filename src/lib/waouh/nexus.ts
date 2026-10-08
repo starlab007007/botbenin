@@ -657,7 +657,9 @@ export async function sendNexusDiscoveryContact(input: {
   confirmed: true;
   mandate_id?: string;
   journey_id?: string;
+  mode?: "buy" | "sell" | "ask";
 }) {
+  const journeyId = input.journey_id || (await startNexusOpportunity(input.fabric_id, input.mode || "buy")).journey.id;
   return invokeWaouhAgentic<{
     queued: boolean;
     blind?: boolean;
@@ -667,7 +669,7 @@ export async function sendNexusDiscoveryContact(input: {
     phone_last4?: string | null;
     journey?: NexusOpportunityJourney | null;
     next_action?: string | null;
-  }>("nexus.contact.send", input);
+  }>("nexus.contact.send", { ...input, journey_id: journeyId });
 }
 
 

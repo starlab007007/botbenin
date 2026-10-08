@@ -1,3 +1,4 @@
+import { WaouhJourneyProgress } from "./WaouhJourneyProgress";
 import { progressiveNexusDiscovery } from "@/lib/waouh/progressiveDiscovery";
 import { WaouhDiscoveryCoverage } from "./WaouhDiscoveryCoverage";
 import { userFacingErrorText } from "@/lib/userFacingError";
@@ -24,6 +25,7 @@ import {
   createNexusMandate,
   prepareNexusContact,
   sendNexusDiscoveryContact,
+  type NexusOpportunityJourney,
   type NexusDiscoveryMode,
   type NexusDiscoveryResult,
   type NexusDiscoverySource,
@@ -108,6 +110,7 @@ export function WaouhGlobalDiscoveryPanel() {
   const [shareImageName, setShareImageName] = useState("");
   const [sharedSignal, setSharedSignal] = useState<SharedSignalState | null>(null);
   const [contact, setContact] = useState<PreparedContactState | null>(null);
+  const [contactJourney, setContactJourney] = useState<NexusOpportunityJourney | null>(null);
   const [contactMessage, setContactMessage] = useState("");
   const [mandateBusy, setMandateBusy] = useState(false);
 
@@ -130,6 +133,7 @@ export function WaouhGlobalDiscoveryPanel() {
     if (!query.trim()) return;
     setBusy(true);
     setContact(null);
+    setContactJourney(null);
     try {
       const response = await progressiveNexusDiscovery({
         query: query.trim(),
@@ -261,6 +265,7 @@ export function WaouhGlobalDiscoveryPanel() {
     try {
       const prepared = await prepareNexusContact(result.fabric_id);
       setContact({ ...prepared, result });
+      setContactJourney(null);
       const product = result.subject ?? result.category ?? query;
       setContactMessage(`Bonjour, je vous contacte via WAOUH au sujet de « ${product} ». Est-ce toujours disponible / pertinent pour vous ?`);
       if (!prepared.contact_policy.can_reveal) {
@@ -292,9 +297,11 @@ export function WaouhGlobalDiscoveryPanel() {
     try {
       const sent = await sendNexusDiscoveryContact({
         fabric_id: contact.fabric_id,
+        mode: resolvedMode === "find_buyers" ? "sell" : "buy",
         message: contactMessage.trim(),
         confirmed: true,
       });
+      setContactJourney(sent.journey || null);
       toast({
         title: "Contact WAOUH mis en file",
         description: sent.blind
@@ -565,7 +572,8 @@ export function WaouhGlobalDiscoveryPanel() {
                     </Button>
                   ))}
                 </div>
-                {(contact.contact_policy.can_auto_contact ||
+                {contactJourney && <div className="mt-3 space-y-2"><WaouhJourneyProgress journey={contactJourney} /><WaouhNexusContactSheet fabricId={contactJourney.fabric_id} journeyId={contactJourney.id} title={contactJourney.subject || "Opportunité"} mode={contactJourney.mode} sourceUrl={contactJourney.source_url} /></div>}
+                {!contactJourney && (contact.contact_policy.can_auto_contact ||
                   contact.contact_policy.can_blind_message ||
                   contact.contact_policy.can_user_confirm_contact) && (
                   <div className="mt-3 space-y-2">

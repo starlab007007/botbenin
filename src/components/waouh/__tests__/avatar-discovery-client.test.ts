@@ -3,7 +3,7 @@ import { waouhRequestTimeout } from "@/lib/waouh/requestTimeout";
 import { WAOUH_RUNTIME_ENDPOINTS } from "@/lib/waouh/runtimeEndpoints";
 const { invoke, getSession, refreshSession } = vi.hoisted(() => ({ invoke: vi.fn(), getSession: vi.fn(), refreshSession: vi.fn() }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { functions: { invoke }, auth: { getSession, refreshSession } } }));
-import { globalNexusDiscovery } from "@/lib/waouh/nexus";
+import { globalNexusDiscovery, sendNexusDiscoveryContact } from "@/lib/waouh/nexus";
 import { invokeWaouhAgentic } from "@/lib/waouh/agenticClient";
 import { toUserFacingError } from "@/lib/userFacingError";
 const url = `https://example.supabase.co/functions/v1/${WAOUH_RUNTIME_ENDPOINTS.agenticCore}`;
@@ -56,6 +56,20 @@ describe("Avatar discovery transport", () => {
     invoke.mockResolvedValue({ data: null, error: { message: "unauthorized", context: new Response("{}", { status: 401 }) } });
     await expect(globalNexusDiscovery({ query: "Samsung" })).rejects.toMatchObject({ status: 401 });
     expect(invoke).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts a tracked seller journey before direct contact", async () => {
+    invoke.mockResolvedValueOnce({ data: { ok: true, data: { journey: { id: "journey-sell" } } }, error: null })
+      .mockResolvedValueOnce({ data: { ok: true, data: { queued: true } }, error: null });
+    await sendNexusDiscoveryContact({ fabric_id: "external:offer", message: "Proposition", confirmed: true, mode: "sell" });
+    expect(invoke.mock.calls[0][1].body).toMatchObject({ action: "nexus.opportunity.start", payload: { mode: "sell" } });
+    expect(invoke.mock.calls[1][1].body).toMatchObject({ action: "nexus.contact.send", payload: { journey_id: "journey-sell" } });
+  });
+  it("preserves a selected mission journey without creating a replacement", async () => {
+    invoke.mockResolvedValue({ data: { ok: true, data: { queued: true } }, error: null });
+    await sendNexusDiscoveryContact({ fabric_id: "external:offer", journey_id: "selected-journey", message: "Proposition", confirmed: true });
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(invoke.mock.calls[0][1].body.payload.journey_id).toBe("selected-journey");
   });
 
 });
