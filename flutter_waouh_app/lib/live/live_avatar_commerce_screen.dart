@@ -1283,7 +1283,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _mandates.any((m) => m['id'] == _mandate?['id']) ? _mandate?['id'] as String? : '',
+              value: _mandates.any((m) => m['id'] == _mandate?['id']) ? (_mandate?['id'] as String?) : '',
               isExpanded: true, decoration: const InputDecoration(labelText: 'Mission suivie'),
               items: [const DropdownMenuItem(value: '', child: Text('Nouvelle mission')), ..._mandates.map((m) => DropdownMenuItem(value: '${m['id']}', child: Text('${m['goal']} · ${m['status']}', overflow: TextOverflow.ellipsis)))],
               onChanged: (v) { setState(() { _newMission = v == null || v.isEmpty; _mandate = _newMission ? null : _mandates.firstWhere((m) => m['id'] == v); }); unawaited(_loadJourneys()); },

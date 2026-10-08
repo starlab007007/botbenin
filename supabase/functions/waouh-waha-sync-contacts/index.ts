@@ -300,7 +300,7 @@ Deno.serve(async (req) => {
       const sessionResult: any = { session, fetched: 0, mapped: 0, backfilled: 0, ok: false };
       try {
         const url = `${wahaBase}/api/contacts/all?session=${encodeURIComponent(session)}`;
-        const resp = await fetch(url, { headers });
+        const resp = await fetch(url, { headers, signal: AbortSignal.timeout(20000) });
         if (!resp.ok) {
           const text = await resp.text();
           sessionResult.error = `HTTP ${resp.status}: ${text.slice(0, 200)}`;
@@ -420,6 +420,7 @@ Deno.serve(async (req) => {
       contacts_mapped: totalMapped,
       rows_backfilled: totalBackfilled,
       status: perSession.every((s: any) => s.ok) ? 'success' : 'failed',
+      error: perSession.filter((s: any) => !s.ok).map((s: any) => String(s.error || 'contact_sync_failed').slice(0, 240)).join(' | ').slice(0, 1200) || null,
       finished_at: new Date().toISOString(),
     }).eq('id', runId);
 

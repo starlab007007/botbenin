@@ -129,8 +129,9 @@ export async function reconcileAvatarApprovals(sb: any, limit = 20, approvalId?:
       await sb.from('waouh_agent_outbox').update({ status: 'delivered', delivered_at: new Date().toISOString(), last_error: null }).eq('aggregate_id', approval.id).eq('status', 'pending');
       processed++;
     } catch (e) {
+      const terminal = /approval_mandate_inactive|mission_already_agreed|offer_changed_reapproval_required/.test(String(e));
       const attempts = Number(c.lifecycle_attempts ?? 0) + 1;
-      await sb.from('waouh_agent_approvals').update({ context: { ...c, lifecycle_attempts: attempts,
+      await sb.from('waouh_agent_approvals').update({ context: { ...c, ...(terminal ? { lifecycle_processed_at: new Date().toISOString(), lifecycle_outcome: 'superseded' } : {}), lifecycle_attempts: attempts,
         lifecycle_retry_at: new Date(Date.now() + Math.min(60, 2 ** Math.min(attempts, 6)) * 60000).toISOString(),
         lifecycle_error: String(e).slice(0, 200) } }).eq('id', approval.id);
       if (c.journey_id && c.operation !== 'avatar.lifecycle') await sb.from('waouh_opportunity_journeys').update({

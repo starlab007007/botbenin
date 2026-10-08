@@ -76,6 +76,9 @@ export type WaouhEngineReply = {
 };
 
 export type TelOutboundPayload = {
+  /** Internal correlation; providers render text, products and actions only. */
+  journey_id?: string;
+  mandate_id?: string;
   schema: "waouh.tel.outbound.v1";
   text: string;
   products?: WaouhProduct[];
