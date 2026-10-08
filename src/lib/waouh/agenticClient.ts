@@ -3,10 +3,34 @@ import { type AgenticAction, unwrapAgenticEnvelope } from "./agenticContracts";
 import { WAOUH_RUNTIME_ENDPOINTS } from "./runtimeEndpoints";
 
 export async function invokeWaouhAgentic<T>(action: AgenticAction, payload: Record<string, unknown> = {}): Promise<T> {
-  const { data, error } = await supabase.functions.invoke(WAOUH_RUNTIME_ENDPOINTS.agenticCore, {
+  const request = () => supabase.functions.invoke(WAOUH_RUNTIME_ENDPOINTS.agenticCore, {
     body: { action, payload },
   });
-  if (error) throw new Error(error.message || "Impossible de joindre le service agentique WAOUH.");
+  let { data, error } = await request();
+  if (error?.context instanceof Response && error.context.status === 401) {
+    // A 401 is rejected before any action executes. Refresh an existing session
+    // once; never retry timeouts, server errors or an anonymous request.
+    const { data: current } = await supabase.auth.getSession();
+    if (current.session) {
+      const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+      if (!refreshError && refreshed.session) ({ data, error } = await request());
+    }
+  }
+  if (error) {
+    // FunctionsHttpError carries the server response; retain its status/code instead
+    // of replacing every authentication/provider failure with a generic message.
+    let detail: { error?: string | { message?: string; code?: string }; message?: string; code?: string } | null = null;
+    const response = error.context instanceof Response ? error.context : null;
+    if (response) {
+      try { detail = await response.clone().json(); } catch { /* Non-JSON gateway response. */ }
+    }
+    const serverError = detail?.error;
+    const message = typeof serverError === "string" ? serverError : serverError?.message;
+    throw Object.assign(new Error(message || detail?.message || error.message || "Impossible de joindre le service agentique WAOUH."), {
+      status: response?.status,
+      code: (typeof serverError === "object" ? serverError?.code : undefined) || detail?.code,
+    });
+  }
   return unwrapAgenticEnvelope<T>(data);
 }
 

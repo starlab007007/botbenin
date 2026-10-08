@@ -38,20 +38,4 @@ jobs:
           print('::notice::Discovery schema=' + json.dumps(rows))
           request('/database/query', {'query': 'select 1 from public.waouh_signal_fabric limit 1'})
           print('::notice::Discovery view query succeeded')
-          import urllib.parse, re
-          fid = str(f.get('id', ''))
-          if not re.fullmatch(r'[a-zA-Z0-9-]+', fid): raise SystemExit('Unexpected function identifier')
-          queries = [
-              "select r.status_code, count(*) as requests from function_edge_logs cross join unnest(metadata) m cross join unnest(m.response) r where m.function_id = '" + fid + "' and timestamp > unix_micros(timestamp_sub(current_timestamp(), interval 2 hour)) group by r.status_code",
-              "select event_message from function_logs cross join unnest(metadata) m where m.function_id = '" + fid + "' and timestamp > unix_micros(timestamp_sub(current_timestamp(), interval 2 hour)) order by timestamp desc limit 100",
-          ]
-          for i, query in enumerate(queries):
-              try:
-                  data = request('/analytics/endpoints/logs.all?' + urllib.parse.urlencode({'sql': query}))
-                  if i == 0: print('::notice::Recent runtime statuses=' + json.dumps(data.get('result', [])))
-                  else:
-                      codes = sorted(set(re.findall(r'(?:nexus_[a-z_]+|authentication_required|Invalid JWT|invalid_[a-z_]+|server_not_configured)', json.dumps(data))))
-                      print('::notice::Recent runtime error codes=' + ','.join(codes))
-              except SystemExit:
-                  print('::notice::Runtime analytics unavailable')
           PY

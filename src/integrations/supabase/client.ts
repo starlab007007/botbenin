@@ -2,6 +2,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { inspectResponseForQuota } from '@/lib/quota-status';
+import { waouhRequestTimeout } from '@/lib/waouh/requestTimeout';
 
 const SUPABASE_URL = "https://mvynepqulhflxtyymtzs.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12eW5lcHF1bGhmbHh0eXltdHpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc1OTgxNTMsImV4cCI6MjA2MzE3NDE1M30.g1llr-Q6T3h06xFV7hCNRWZHG20wQHoBmp5zL0OAKh8";
@@ -65,7 +66,7 @@ const hardenedFetch: typeof fetch = async (originalInput, init) => {
   };
 
   try {
-    const res = await attempt(input, init, TIMEOUT_MS);
+    const res = await attempt(input, init, waouhRequestTimeout(url, init));
     void inspectResponseForQuota(res);
 
     return res;
