@@ -82,6 +82,7 @@ export async function reconcileAvatarApprovals(sb: any, limit = 20) {
           await sb.from('waouh_persistent_intents').update({ next_scan_at: new Date().toISOString() }).eq('mandate_id', mandate.id).eq('status', 'active');
           outcome = 'contact_authorized';
         } else if (approval.action_type === 'accept_offer') {
+          if (mandate.metadata?.agreement_reached_at) throw new Error('mission_already_agreed');
           const { data: neg } = await sb.from('waouh_negotiations').select('*').eq('id', journey.negotiation_id).maybeSingle();
           if (!neg || neg.updated_at !== c.negotiation_revision || Number(neg.last_offer_price) !== Number(c.amount)) throw new Error('offer_changed_reapproval_required');
           await callNegotiation(sb, mandate, journey, 'oui', approval.id);

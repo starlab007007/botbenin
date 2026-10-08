@@ -40,3 +40,28 @@ Deno.test('Joignabilité inconnue et consentement révoqué ne sont pas actionna
  equal(classifyAvatarReply("pas d'accord"), 'negative');
  equal(classifyAvatarReply('disponible ?'), 'ambiguous');
 });
+
+Deno.test('Les négations françaises ne donnent pas de consentement positif', () => {
+  equal(classifyAvatarReply('Je ne suis plus intéressé'), 'negative');
+  equal(classifyAvatarReply('Nous ne sommes plus intéressés'), 'negative');
+});
+Deno.test('Le budget borne aussi les demandes de services', () => {
+  equal(withinMandateBudget({mode:'ask',budget_max:25000},{price_min:50000}), false);
+  equal(withinMandateBudget({mode:'ask',budget_max:25000},{price_min:20000}), true);
+});
+Deno.test('Le destinataire peut répondre après la dernière relance', () => {
+  const input = {autonomyMode:'autonomous',stage:'waiting_reply',maxFollowups:1,followupsSent:1,delayHours:24};
+  equal(boundedFollowUpDecision({...input,lastActivityAt:new Date(Date.now()-2*3600000).toISOString()}).reason,'too_early');
+  equal(boundedFollowUpDecision({...input,lastActivityAt:new Date(Date.now()-25*3600000).toISOString()}).reason,'followup_limit_reached');
+});
+Deno.test('WhatsApp et téléphone exigent une joignabilité confirmée', () => {
+  for (const channel of ['whatsapp','phone']) {
+    equal(routeOpportunityChannel({channels:[{channel,verified:true,public_business:true,reachable:null}],contactability:'C1'}).can_dispatch,false);
+    equal(routeOpportunityChannel({channels:[{channel,verified:true,public_business:true,reachable:true}],contactability:'C1'}).can_dispatch,true);
+  }
+});
+Deno.test('Un accord arrête les contre-offres et les nouvelles acceptations automatiques', () => {
+  const agreed={...mandate,metadata:{agreement_reached_at:new Date().toISOString()}};
+  equal(planAvatarNegotiation(agreed,{state:'countered',last_actor:'seller',last_offer_price:30000},0).kind,'wait');
+  equal(planAvatarNegotiation(agreed,{state:'countered',last_actor:'seller',last_offer_price:20000},0).kind,'wait');
+});

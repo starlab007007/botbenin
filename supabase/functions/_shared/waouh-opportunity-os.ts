@@ -270,10 +270,10 @@ export function boundedFollowUpDecision(input: {
   const last = typeof input.lastActivityAt === "string" ? Date.parse(input.lastActivityAt) : NaN;
   if (autonomy === "assisted") return { due: false, reason: "assisted" as const, next_index: sent + 1 };
   if (stage !== "waiting_reply") return { due: false, reason: "not_waiting_reply" as const, next_index: sent + 1 };
-  if (sent >= maxFollowups) return { due: false, reason: "followup_limit_reached" as const, next_index: sent + 1 };
   if (!Number.isFinite(last) || now - last < Math.max(1, Number(input.delayHours ?? 24)) * 3600_000) {
     return { due: false, reason: "too_early" as const, next_index: sent + 1 };
   }
+  if (sent >= maxFollowups) return { due: false, reason: "followup_limit_reached" as const, next_index: sent + 1 };
   return { due: true, reason: "due" as const, next_index: sent + 1 };
 }
 

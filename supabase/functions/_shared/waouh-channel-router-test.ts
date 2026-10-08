@@ -29,13 +29,13 @@ Deno.test("Channel Router: C1 business WhatsApp becomes usable under mandate", (
   assertEquals(route.can_dispatch, true);
 });
 
-Deno.test("Channel Router: C1 business phone uses WhatsApp preflight", () => {
+Deno.test("Channel Router: C1 business phone routes after successful WhatsApp preflight", () => {
   const route = routeOpportunityChannel({
     contactability: "C1",
     channels: [{
       channel: "phone",
       verified: true,
-      reachable: null,
+      reachable: true,
       public_business: true,
       consent_state: "public_business",
     }],
