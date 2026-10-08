@@ -1,3 +1,4 @@
+import { CENTRAL_WAHA_SESSION, centralWhatsAppHealth } from "./waouh-central-whatsapp.ts";
 import { planAvatarNegotiation } from "./waouh-avatar-lifecycle.ts";
 // deno-lint-ignore-file no-explicit-any
 import { sha256Hex, decryptPhone, hashPhone } from "./waouh-tel/crypto.ts";
@@ -113,6 +114,18 @@ export async function appendExternalReply(
     },
   });
   if (error) throw new Error("external_reply_record_failed");
+  check(await sb.from("waouh_opportunity_journeys").update({ last_response_at: new Date().toISOString(),
+    last_activity_at: new Date().toISOString(), last_action: "external_reply_received",
+    next_action: "Examiner la réponse et préciser les conditions" }).eq("id",journey.id));
+  wakeExternalAvatar(journey);
+}
+export function wakeExternalAvatar(journey: any) {
+  if (!journey.mandate_id) return;
+  const task = fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/waouh-e2e-v3-relay`, {
+    method: "POST", headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ advance_only: true, journey_id: journey.id }), signal: AbortSignal.timeout(20000),
+  }).catch(() => undefined);
+  (globalThis as any).EdgeRuntime?.waitUntil(task);
 }
 async function journeyForOwner(sb: any, owner: string, id: unknown) {
   const journey = check(
@@ -195,20 +208,22 @@ async function availableRoutes(sb: any, journey: any) {
       label: "Lien invité · sans installation",
     },
   ];
+  const centralHealth = phone && Deno.env.get("WAHA_BASE_URL") ? await centralWhatsAppHealth() : null;
   routes.push({
     channel: "whatsapp",
     available:
       !!phone &&
       !!Deno.env.get("WAHA_BASE_URL") &&
+      centralHealth?.working === true &&
       phone.is_whatsapp_reachable !== false,
-    label: "WhatsApp",
+    label: "WhatsApp · WAOUH",
     reason: !phone
       ? "Aucun téléphone autorisé"
       : phone.is_whatsapp_reachable === false
         ? "WhatsApp indisponible pour ce contact"
         : !Deno.env.get("WAHA_BASE_URL")
           ? "Fournisseur non configuré"
-          : null,
+          : !centralHealth?.working ? "WhatsApp central à reconnecter ou momentanément indisponible" : null,
   });
   routes.push({
     channel: "email",
@@ -549,6 +564,7 @@ export async function handleExternalExchange(
             p_to_user_id: null,
             p_template: "nexus_discovery_outreach",
             p_payload: {
+              waha_session: CENTRAL_WAHA_SESSION,
               text: outgoing,
               journey_id: journey.id,
               mandate_id: journey.mandate_id,
@@ -682,6 +698,7 @@ export async function handleExternalExchange(
         .eq("external_ref", ref),
     );
   }
+  if (guest && !mutation.data?.reused && operation !== "read" && operation !== "stop") wakeExternalAvatar(journey);
   const fresh =
     guest && operation === "stop"
       ? { stopped: true }
@@ -712,7 +729,21 @@ export async function advanceExternalNegotiation(
     .is("superseded_at", null)
     .maybeSingle();
   if (error) throw new Error("external_agreement_lookup_failed");
-  if (!a) return false;
+  if (!a) {
+    if (journey.contact_channel !== "whatsapp" || !journey.last_response_at ||
+      mandate.autonomy_mode === "assisted" || mandate.status !== "active" ||
+      Date.parse(mandate.expires_at) <= Date.now() || journey.metadata?.quote_requested_for === journey.last_response_at ||
+      Number(journey.metadata?.quote_requests || 0) >= 3) return false;
+    const reference = "WA-" + journey.id.replace(/-/g, "").slice(0,8).toUpperCase();
+    const digest = await sha256Hex(`quote:${journey.id}:${journey.last_response_at}`);
+    const requestId = `${digest.slice(0,8)}-${digest.slice(8,12)}-4${digest.slice(13,16)}-8${digest.slice(17,20)}-${digest.slice(20,32)}`;
+    await handleExternalExchange(sb,"nexus.external.message",{journey_id:journey.id,request_id:requestId,
+      channel:"whatsapp",confirmed:true,text:`Merci pour votre réponse. Pour comparer votre offre, précisez le prix total, la quantité, la livraison et les conditions de paiement.\nExemple : PROPOSER ${reference} 25000 FCFA | 1 | Livraison à Cotonou | Paiement après réception\nLe montant de cet exemple n’est pas une offre ni un accord.`},mandate.owner_id);
+    check(await sb.from("waouh_opportunity_journeys").update({metadata:{...journey.metadata,
+      quote_requested_for:journey.last_response_at,quote_requests:Number(journey.metadata?.quote_requests || 0)+1},
+      next_action:"Attendre le prix et les conditions du contact"}).eq("id",journey.id));
+    return true;
+  }
   if (
     a.proposed_by !== "counterparty" ||
     a.owner_accepted_at ||
@@ -736,7 +767,8 @@ export async function advanceExternalNegotiation(
         journey_id: journey.id,
         request_id: a.id,
         text: `Je représente l’utilisateur WAOUH pour « ${journey.subject || mandate.goal} ». Je propose ${plan.amount} FCFA dans ses limites. Merci de proposer vos conditions dans cet échange ; l’accord final devra être confirmé par l’utilisateur.`,
-        channel: "guest",
+        channel: journey.contact_channel === "whatsapp" ? "whatsapp" : "guest",
+        confirmed: journey.contact_channel === "whatsapp",
       },
       mandate.owner_id,
     );

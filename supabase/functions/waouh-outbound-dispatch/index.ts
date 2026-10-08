@@ -1,3 +1,4 @@
+import { CENTRAL_WAHA_SESSION, isCentralWhatsAppPhone } from "../_shared/waouh-central-whatsapp.ts";
 // WAOUH Outbound Dispatch — envoie les messages WhatsApp en attente via WAHA
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -70,6 +71,9 @@ async function checkWahaProvider(
         return { ok: false, reason: `waha_session_${state.toLowerCase()}`, state };
       }
 
+      if (session === CENTRAL_WAHA_SESSION && (state !== "WORKING" || !isCentralWhatsAppPhone(current?.me?.id))) {
+        return { ok: false, reason: "central_whatsapp_identity_or_state_invalid", state };
+      }
       return { ok: true, state: state || undefined };
     } catch (error: any) {
       lastError = String(error?.message || error || "waha_health_unreachable");
@@ -401,13 +405,13 @@ function normalizeBeninPhone(value: string) {
   const digits = original.replace(/\D/g, "");
   if (!digits) return null;
   // 🚧 Garde-fou : refuse les numéros impossiblement longs (typiquement un LID camouflé).
-  if (digits.length > 13) return null;
+  if (digits.length > 15) return null;
   let candidate: string | null = null;
   if (digits.startsWith("00229")) candidate = digits.slice(2);
   else if (digits.startsWith("229")) candidate = digits;
   else if (digits.length === 8) candidate = `229${digits}`;
   else if (digits.length === 10 && digits.startsWith("01")) candidate = `229${digits}`;
-  else candidate = digits.length > 8 && digits.length <= 13 ? digits : null;
+  else candidate = digits.length > 8 && digits.length <= 15 ? digits : null;
   if (!candidate) return null;
   // Validation finale pour les numéros Bénin canoniques.
   if (candidate.startsWith("229") && !/^229(\d{8}|01\d{8})$/.test(candidate)) return null;
@@ -672,7 +676,7 @@ Deno.serve(async (req) => {
       const requestedWahaSession = typeof it.payload?.waha_session === "string"
         ? it.payload.waha_session.trim()
         : "";
-      const deliverySession = /^[A-Za-z0-9_.-]{1,96}$/.test(requestedWahaSession)
+      const deliverySession = it.template === "nexus_discovery_outreach" ? CENTRAL_WAHA_SESSION : /^[A-Za-z0-9_.-]{1,96}$/.test(requestedWahaSession)
         ? requestedWahaSession
         : WAHA_SESSION;
       const requiresWaha = it?.channel !== "web" && !!it?.to_phone;
@@ -869,9 +873,9 @@ Deno.serve(async (req) => {
         await sb.from("waouh_outbound_queue").update({ status: "failed", last_error: "invalid phone" }).eq("id", it.id);
         failed++; continue;
       }
-      if (phone === WAOUH_BUSINESS_PHONE) {
-        await sb.from("waouh_outbound_queue").update({ status: "sent", last_error: "skipped business self", sent_at: new Date().toISOString() }).eq("id", it.id);
-        skipped++; continue;
+      if (isCentralWhatsAppPhone(phone)) {
+        await sb.from("waouh_outbound_queue").update({ status: "failed", last_error: "central_sender_is_not_external_contact" }).eq("id", it.id);
+        failed++; skipped++; continue;
       }
       const candidates = phone.includes("@lid") ? [phone] : beninPhoneCandidates(phone);
       const wahaBase = WAHA_BASE_URL!.replace(/\/$/, "");

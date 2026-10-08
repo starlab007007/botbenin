@@ -1,6 +1,7 @@
 // deno-lint-ignore-file no-explicit-any
 import { openBuyerDeal } from './waouh-deal-open.ts';
-import { planAvatarNegotiation } from './waouh-avatar-lifecycle.ts';
+import { planAvatarNegotiation, journeyReplyToken } from './waouh-avatar-lifecycle.ts';
+import { CENTRAL_WAHA_SESSION } from './waouh-central-whatsapp.ts';
 
 export async function avatarNotice(sb: any, ownerId: string, key: string, text: string, context: any = {}) {
   const { data: user } = await sb.from('waouh_users').select('id,web_session_id')
@@ -14,6 +15,22 @@ export async function avatarNotice(sb: any, ownerId: string, key: string, text: 
       label: context.thread_id ? 'Continuer dans la Deal Room' : 'Voir ma mission', kind: 'navigate', route: context.thread_id ? '/app/chat/waouh' : '/app/missions' }] },
   });
   if (error && error.code !== '23505') throw error;
+  // A WhatsApp-started mandate explicitly chooses this channel for its progress.
+  if (context.mandate_id) {
+    const { data: mandate } = await sb.from('waouh_avatar_mandates').select('metadata').eq('id', context.mandate_id).eq('owner_id',ownerId).maybeSingle();
+    if (mandate?.metadata?.origin_surface === 'whatsapp_avatar') {
+      const { data: recipient } = await sb.from('waouh_users').select('id,phone_number').eq('auth_user_id',ownerId).not('phone_number','is',null).order('created_at').limit(1).maybeSingle();
+      if (recipient?.phone_number) {
+        const reference = context.journey_id || context.id;
+        const suffix = reference ? `\nSUIVI ${journeyReplyToken(reference)} · STOP ${journeyReplyToken(reference)}` : '\nEnvoyez « mes missions » pour le suivi.';
+        const { error: queued } = await sb.rpc('waouh_enqueue_outbound_v2', { p_to_phone: recipient.phone_number.replace(/\D/g,''),
+          p_to_user_id: recipient.id, p_template:'avatar_mission_progress',
+          p_payload:{text:text.slice(0,1000)+suffix,waha_session:CENTRAL_WAHA_SESSION,journey_id:reference},
+          p_channel:'whatsapp',p_web_session_id:null,p_image_url:null,p_dedupe_key:`avatar-wa:${key}`,p_event_type:'avatar_mission_progress' });
+        if (queued) throw queued;
+      }
+    }
+  }
 }
 
 export async function requestAvatarApproval(sb: any, mandate: any, journey: any, action: string, key: string, summary: string, extra: any = {}) {
@@ -183,10 +200,12 @@ export async function finishLegacySearch(sb: any, mandate: any, results: any[]) 
   }
 }
 
-export async function advanceAvatarLifecycle(sb: any, limit = 20) {
+export async function advanceAvatarLifecycle(sb: any, limit = 20, journeyId?: string) {
   const approvals = await reconcileAvatarApprovals(sb, limit);
-  const { data: journeys } = await sb.from('waouh_opportunity_journeys').select('*,waouh_avatar_mandates(*)')
-    .not('mandate_id', 'is', null).in('stage', ['negotiating', 'agreed', 'executing']).order('last_activity_at').limit(limit);
+  let query = sb.from('waouh_opportunity_journeys').select('*,waouh_avatar_mandates(*)')
+    .not('mandate_id', 'is', null).in('stage', ['negotiating', 'agreed', 'executing']);
+  if (journeyId) query = query.eq('id', journeyId);
+  const { data: journeys } = await query.order('last_activity_at').limit(limit);
   let advanced = 0;
   for (const j of journeys ?? []) {
     const m = j.waouh_avatar_mandates;

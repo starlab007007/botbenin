@@ -404,6 +404,7 @@ jobs:
             waouh-notify-dispatch
             waouh-webhook
             waha-webhook
+            waouh-waha-control
             waouh-channel-in
             waouh-status-publish
             waouh-sell-handler
@@ -551,9 +552,13 @@ jobs:
           print("NEXUS production checks passed: anonymous discovery and sources; private missions and contacts denied.")
           PYVERIFY
 
-      - name: Verify the complete guest exchange in production
+      - name: Connect and verify the authorized central WhatsApp session
         if: steps.deploy_scope.outputs.needs_supabase == 'true'
-        run: python3 scripts/verify-external-exchange-production.py
+        run: python3 scripts/verify-waouh-central-whatsapp.py --connect
+
+      - name: Verify the complete guest and WhatsApp exchange in production
+        if: steps.deploy_scope.outputs.needs_supabase == 'true'
+        run: python3 scripts/verify-external-exchange-production.py --whatsapp
 
       - name: Safety reminder
         if: steps.deploy_scope.outputs.needs_supabase == 'true'

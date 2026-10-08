@@ -1,4 +1,5 @@
-import { acceptExternalReceipt } from '../_shared/waouh-external-receipt.ts';
+import { acceptExternalReceipt, trustedWahaWebhook } from '../_shared/waouh-external-receipt.ts';
+import { CENTRAL_WAHA_SESSION, isWahaInbound } from '../_shared/waouh-central-whatsapp.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.8';
 
 const corsHeaders = {
@@ -35,10 +36,7 @@ const normalizeBeninPhone = (value?: string) => {
   if (!digits) return null;
   if (digits.startsWith('229')) return digits;
   if (digits.length === 8 || (digits.length === 10 && digits.startsWith('01'))) return `229${digits}`;
-  const last10 = digits.slice(-10);
-  if (last10.length === 10 && last10.startsWith('01')) return `229${last10}`;
-  const last8 = digits.slice(-8);
-  return last8.length === 8 ? `229${last8}` : null;
+  return /^[1-9]\d{8,14}$/.test(digits) ? digits : null;
 };
 
 Deno.serve(async (req) => {
@@ -51,29 +49,28 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const wahaBaseUrl = Deno.env.get('WAHA_BASE_URL');
     const wahaApiKey = Deno.env.get('WAHA_API_KEY');
-    const waouhSession = (Deno.env.get('WAHA_SESSION') || 'WaouhApp').toLowerCase();
+    const waouhSession = CENTRAL_WAHA_SESSION.toLowerCase();
     const waouhBusinessPhone = normalizeBeninPhone(Deno.env.get('WAOUH_BUSINESS_PHONE') || '65653468');
 
     // Use service role key for webhook processing
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const webhookData: WAHAWebhookMessage = await req.json();
-    console.log('WAHA Webhook received:', JSON.stringify(webhookData, null, 2));
+    console.log('WAHA event', { event: webhookData.event, session: webhookData.session });
 
     const sessionName = webhookData.session;
     const payloadTo = normalizeBeninPhone(webhookData.payload?.to || webhookData.me?.id || '');
     const isWaouhTarget =
-      String(sessionName || '').toLowerCase() === waouhSession ||
-      String(sessionName || '').toLowerCase().includes('waouh') ||
-      String(sessionName || '').toLowerCase().includes('woaouh') ||
-      (!!waouhBusinessPhone && payloadTo === waouhBusinessPhone);
+      String(sessionName || '').toLowerCase() === waouhSession;
+
+    if (isWaouhTarget && !await trustedWahaWebhook(supabase, req, sessionName)) {
+      return new Response('Unauthorized webhook', { status: 401, headers: corsHeaders });
+    }
 
     // WAOUH has its own commerce engine. If the WAHA session is the WAOUH number,
     // forward the incoming WhatsApp event directly to the WAOUH channel handler.
     if (
-      webhookData.event === 'message' &&
-      webhookData.payload &&
-      !webhookData.payload.fromMe &&
+      isWahaInbound(webhookData.event, webhookData.payload) &&
       isWaouhTarget
     ) {
       const waouhRes = await fetch(`${supabaseUrl}/functions/v1/waouh-channel-in`, {
@@ -116,7 +113,7 @@ Deno.serve(async (req) => {
         console.error('wa_inbound notif bridge failed:', e);
       }
 
-      return new Response('OK', { headers: corsHeaders });
+      return new Response(waouhRes.ok ? 'OK' : 'Relay failed', { status: waouhRes.ok ? 200 : 502, headers: corsHeaders });
     }
 
     // ===== WAOUH AI Agent bridge: if the session matches a user-created AI agent, forward =====

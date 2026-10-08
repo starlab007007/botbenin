@@ -9,13 +9,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-const CHANNEL_IN_URL = `https://${PROJECT_ID}.supabase.co/functions/v1/waouh-channel-in`;
+const CHANNEL_IN_URL = `https://${PROJECT_ID}.supabase.co/functions/v1/waha-webhook`;
 
 export const WaouhWhatsAppPanel: React.FC = () => {
   const [status, setStatus] = useState<string>("unknown");
   const [qr, setQr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [session, setSession] = useState("WaouhApp");
+  const session = "WaouhApp";
+  const [identityMatches, setIdentityMatches] = useState<boolean | null>(null);
+  const [webhookReady, setWebhookReady] = useState(false);
 
   const callWaha = async (action: string, payload?: any) => {
     setLoading(true);
@@ -38,14 +40,12 @@ export const WaouhWhatsAppPanel: React.FC = () => {
   };
 
   const refreshStatus = async () => {
-    const data = await callWaha("session-status");
-    if (data?.status) setStatus(data.status);
+    const data = await callWaha("central-status");
+    if (data?.status) { setStatus(data.status); setIdentityMatches(data.identity_matches); setWebhookReady(data.webhook_ready); }
   };
 
   const createSession = async () => {
-    const data = await callWaha("session-create", {
-      config: { webhooks: [{ url: CHANNEL_IN_URL, events: ["message"] }] },
-    });
+    const data = await callWaha("session-create");
     if (data) {
       toast.success(`Session « ${session} » créée et webhook lié.`);
       setTimeout(loadQr, 1500);
@@ -54,10 +54,8 @@ export const WaouhWhatsAppPanel: React.FC = () => {
   };
 
   const startSession = async () => {
-    await callWaha("session-create", {
-      config: { webhooks: [{ url: CHANNEL_IN_URL, events: ["message"] }] },
-    });
-    await callWaha("session-start");
+    const started = await callWaha("session-start");
+    if (!started) return;
     toast.success(`Session « ${session} » démarrée. Récupération du QR…`);
     setTimeout(loadQr, 1500);
     refreshStatus();
@@ -77,10 +75,8 @@ export const WaouhWhatsAppPanel: React.FC = () => {
   };
 
   const configureWebhook = async () => {
-    const data = await callWaha("set-webhook", {
-      webhook: { url: CHANNEL_IN_URL, events: ["message"] },
-    });
-    if (data) toast.success("Webhook configuré sur WAHA → WAOUH");
+    const data = await callWaha("central-connect");
+    if (data?.webhook_ready) { toast.success("WhatsApp central relié au chat et à l’Avatar"); refreshStatus(); }
   };
 
   useEffect(() => { refreshStatus(); }, []);
@@ -103,7 +99,9 @@ export const WaouhWhatsAppPanel: React.FC = () => {
         <div className="space-y-3">
           <div>
             <Label>Nom de la session</Label>
-            <Input value={session} onChange={(e) => setSession(e.target.value)} />
+            <Input value={session} readOnly />
+            <p className="mt-1 text-xs text-muted-foreground">+229 65653468 · Chat et Avatar</p>
+            {identityMatches === false && <p className="text-xs text-destructive">Le numéro connecté ne correspond pas au numéro central.</p>}
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={createSession} disabled={loading}>
@@ -129,7 +127,7 @@ export const WaouhWhatsAppPanel: React.FC = () => {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              Configure WAHA pour envoyer les événements <code>message</code> vers le moteur WAOUH.
+              {webhookReady ? "Messages, réponses et accusés reliés à l’Avatar." : "Liez les messages et les accusés au chat et à l’Avatar."}
             </p>
           </div>
         </div>

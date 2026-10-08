@@ -260,6 +260,8 @@ jobs:
               \( -path '*/waouh-tel-*/*' -o -path '*/waouh-native-messaging-settings/*' -o -path '*/waouh-native-simulator/*' \) \
               -print | sort
           )
+          entrypoints+=(supabase/functions/waha-webhook/index.ts)
+          entrypoints+=(supabase/functions/waouh-channel-in/index.ts)
           entrypoints+=(supabase/functions/waouh-webhook/index.ts)
           entrypoints+=(supabase/functions/waouh-agentic-core/index.ts)
           entrypoints+=(supabase/functions/waouh-opportunity-worker/index.ts)
@@ -297,7 +299,7 @@ jobs:
           deno test --no-config supabase/functions/_shared/waouh-opportunity-os-test.ts
           deno test --no-config supabase/functions/_shared/waouh-nexus-test.ts
           deno test --no-config supabase/functions/_shared/waouh-signal-fabric-test.ts
-          deno test --no-config --allow-env supabase/functions/_shared/waouh-external-exchange-test.ts
+          deno test --no-config --allow-env supabase/functions/_shared/waouh-external-exchange-test.ts supabase/functions/_shared/waouh-central-whatsapp-test.ts
 
       - name: Validate external exchange transactions
         shell: bash
@@ -564,6 +566,9 @@ jobs:
             waouh-opportunity-worker
             waouh-waha-sync-contacts
             waouh-waha-control
+            waha-webhook
+            waouh-channel-in
+            waouh-webhook
             waouh-negotiation-router
             waouh-deal-ops
             waouh-outbound-dispatch
@@ -582,5 +587,8 @@ jobs:
           done
 
           echo '✅ Runtime Native Messaging et passerelles WAHA sécurisées déployés.'
-      - name: Verify public guest exchange after Native deployment
-        run: python3 scripts/verify-external-exchange-production.py
+      - name: Connect and verify the authorized central WhatsApp session
+        run: python3 scripts/verify-waouh-central-whatsapp.py --connect
+
+      - name: Verify guest and WhatsApp exchange after Native deployment
+        run: python3 scripts/verify-external-exchange-production.py --whatsapp

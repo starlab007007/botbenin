@@ -15,7 +15,7 @@ export function selectReplyJourney<T extends { payload?: Record<string, any>; st
   const token = text.match(/\bWA-([a-f0-9]{8})\b/i)?.[1]?.toLowerCase();
   const unique = new Map<string, T>();
   for (const row of rows) {
-    if (row.status && !["sent", "delivered"].includes(row.status)) continue;
+    if (row.status && !["sent", "delivered", "read"].includes(row.status)) continue;
     const id = row.payload?.journey_id;
     if (typeof id === "string" && (!token || id.replace(/-/g, "").startsWith(token))) {
       if (!unique.has(id)) unique.set(id, row);

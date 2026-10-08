@@ -1,3 +1,4 @@
+import { CENTRAL_WAHA_SESSION } from "../_shared/waouh-central-whatsapp.ts";
 import { createExchangeInvite, handleExternalExchange } from '../_shared/waouh-external-exchange.ts';
 import { claimAvatarContact } from "../_shared/waouh-avatar-contact.ts";
 import { maintainAvatarQueues } from "../_shared/waouh-avatar-maintenance.ts";
@@ -888,6 +889,7 @@ async function contactExternal(sb: SupabaseClient, mandate: any, signal: any, jo
     p_to_user_id: null,
     p_template: "nexus_discovery_outreach",
     p_payload: {
+      waha_session: CENTRAL_WAHA_SESSION,
       text: `${message} Référence ${journeyReplyToken(journey.id)}. Répondez ici ou via ${(await createExchangeInvite(sb,journey)).url}. Pour arrêter : STOP.`,
       actions: [],
       fabric_id: signal.fabric_id,
@@ -1008,6 +1010,7 @@ async function runExternalFollowUp(
     p_to_user_id: null,
     p_template: "nexus_discovery_outreach",
     p_payload: {
+      waha_session: CENTRAL_WAHA_SESSION,
       text: `${message} Référence ${journeyReplyToken(journey.id)}. Répondez ici ou via ${(await createExchangeInvite(sb,journey)).url}. Pour arrêter : STOP.`,
       actions: [],
       fabric_id: signal.fabric_id,
@@ -1239,7 +1242,8 @@ Deno.serve(async (req) => {
   const { error: bridgeError } = await sb.rpc("waouh_avatar_bridge_missions", { p_limit: 20 });
   if (bridgeError) throw bridgeError;
   const maintenance = await maintainAvatarQueues(sb);
-  const lifecycle = await advanceAvatarLifecycle(sb, 15);
+  const lifecycle = await advanceAvatarLifecycle(sb, 15, body.advance_only === true ? body.journey_id : undefined);
+  if (body.advance_only === true) return json({ ok: true, lifecycle });
   const { data: expired } = await sb.from("waouh_avatar_mandates").update({ status: "expired" })
     .eq("status", "active").is("metadata->agreement_reached_at", null).lt("expires_at", now.toISOString()).select("id,owner_id,contacted_count,replied_count");
   for (const m of expired ?? []) {

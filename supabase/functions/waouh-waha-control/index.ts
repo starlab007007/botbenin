@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { CENTRAL_WAHA_SESSION, centralSessionSummary, centralWebhookConfig } from "../_shared/waouh-central-whatsapp.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
 
@@ -26,10 +26,10 @@ async function readWaha(res: Response) {
 }
 
 async function fetchWaha(base: string, path: string, init: RequestInit = {}, headers: Record<string, string> = {}) {
-  return fetch(`${base}${path}`, { ...init, headers: { ...headers, ...(init.headers || {}) } });
+  return fetch(`${base}${path}`, { ...init, signal: AbortSignal.timeout(20000), headers: { ...headers, ...(init.headers || {}) } });
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
@@ -46,7 +46,35 @@ serve(async (req) => {
 
     const { action, session = "WaouhApp", webhook, config } = await req.json();
 
-    const webhookConfig = config || (webhook?.url ? { webhooks: [{ url: webhook.url, events: webhook.events ?? ["message"] }] } : { webhooks: [] });
+    if (action === "central-status" || action === "central-connect") {
+      const path = `/api/sessions/${CENTRAL_WAHA_SESSION}`;
+      const current = await fetchWaha(base, path, {}, headers);
+      if (!current.ok) return json({ error: "central_session_unavailable" }, 503);
+      const data = await readWaha(current);
+      const summary = centralSessionSummary(data);
+      if (action === "central-status") return json(summary);
+      if (!summary.identity_matches || summary.status !== "WORKING") {
+        return json({ ...summary, error: "central_session_identity_or_connection_invalid" }, 409);
+      }
+      const secret = Deno.env.get("WAHA_WEBHOOK_SECRET") || "";
+      const nextConfig = centralWebhookConfig(data.config || {}, SUPABASE_URL, secret);
+      if (JSON.stringify(nextConfig) !== JSON.stringify(data.config)) {
+        const updated = await fetchWaha(base, path, { method: "PUT",
+          body: JSON.stringify({ name: CENTRAL_WAHA_SESSION, config: nextConfig }) }, headers);
+        if (!updated.ok) return json({ error: "central_webhook_update_failed", provider_status: updated.status }, 502);
+      }
+      const verified = await fetchWaha(base, path, {}, headers);
+      if (!verified.ok) return json({ error: "central_webhook_verification_failed" }, 502);
+      const verifiedSummary = centralSessionSummary(await readWaha(verified));
+      return json(verifiedSummary, verifiedSummary.webhook_ready ? 200 : 502);
+    }
+
+    let webhookConfig = config || (webhook?.url ? { webhooks: [{ url: webhook.url, events: webhook.events ?? ["message"] }] } : { webhooks: [] });
+    if (session === CENTRAL_WAHA_SESSION && ["session-create", "session-start"].includes(action)) {
+      const previous = await fetchWaha(base, `/api/sessions/${session}`, {}, headers);
+      const previousConfig = previous.ok ? (await readWaha(previous)).config || {} : {};
+      webhookConfig = centralWebhookConfig(previousConfig, SUPABASE_URL, Deno.env.get("WAHA_WEBHOOK_SECRET") || "");
+    }
 
     let res: Response;
     console.log(`[waha-control] action=${action} session=${session} base=${base}`);
@@ -61,7 +89,7 @@ serve(async (req) => {
           body: JSON.stringify({ name: session, start: true, config: webhookConfig }),
         }, headers);
         const createBodyText = await res.clone().text().catch(() => "");
-        console.log(`[waha-control] session-create status=${res.status} body=${createBodyText.slice(0, 500)}`);
+        console.log(`[waha-control] session-create status=${res.status}`);
         // Already exists → treat as success (update config + fetch state)
         if (res.status === 409 || res.status === 422 || (res.status === 400 && /exist/i.test(createBodyText))) {
           await fetchWaha(base, `/api/sessions/${session}`, {
@@ -77,7 +105,7 @@ serve(async (req) => {
             body: JSON.stringify({ name: session, start: true, config: webhookConfig }),
           }, headers);
           const altText = await alt.clone().text().catch(() => "");
-          console.log(`[waha-control] session-create PUT fallback status=${alt.status} body=${altText.slice(0, 300)}`);
+          console.log(`[waha-control] session-create PUT fallback status=${alt.status}`);
           if (alt.ok || alt.status === 409 || alt.status === 422) {
             res = await fetchWaha(base, `/api/sessions/${session}`, {}, headers);
           }
@@ -87,7 +115,7 @@ serve(async (req) => {
       case "session-start": {
         res = await fetchWaha(base, `/api/sessions/${session}/start`, { method: "POST" }, headers);
         const startText = await res.clone().text().catch(() => "");
-        console.log(`[waha-control] session-start status=${res.status} body=${startText.slice(0, 300)}`);
+        console.log(`[waha-control] session-start status=${res.status}`);
         if (res.status === 409 || res.status === 422 || res.status === 404) {
           // Try to create first
           await fetchWaha(base, `/api/sessions`, {
@@ -132,6 +160,7 @@ serve(async (req) => {
           return json({ error: "QR non disponible", details: last, sessionStatus: currentBody }, 404);
         }
       case "set-webhook":
+        if (session === CENTRAL_WAHA_SESSION) return json({ error: "use_central_connect" }, 422);
         res = await fetchWaha(base, `/api/sessions/${session}`, {
           method: "PUT",
           body: JSON.stringify({ config: { webhooks: [{ url: webhook.url, events: webhook.events ?? ["message"] }] } }),
@@ -142,6 +171,10 @@ serve(async (req) => {
     }
 
     const body = await readWaha(res);
+    // Never expose webhook authentication values to the browser or logs.
+    if (body?.config?.webhooks) body.config.webhooks = body.config.webhooks.map((hook: any) => ({
+      events: hook.events, url: String(hook.url || "").split("?")[0],
+    }));
     const status = res.status === 409 || res.status === 422 ? 200 : res.status;
     if (!res.ok && status >= 400) {
       console.log(`[waha-control] action=${action} returning status=${status} body=${JSON.stringify(body).slice(0, 400)}`);

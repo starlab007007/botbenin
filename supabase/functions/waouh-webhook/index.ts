@@ -1,5 +1,7 @@
+import { CENTRAL_WAHA_SESSION, whatsAppPhoneCandidates } from "../_shared/waouh-central-whatsapp.ts";
+import { handleWhatsAppExchangeCommand } from "../_shared/waouh-whatsapp-exchange.ts";
 import { isServiceRoleRequest } from '../_shared/waouh-auth.ts';
-import { appendExternalReply } from '../_shared/waouh-external-exchange.ts';
+import { appendExternalReply, createExchangeInvite, handleExternalExchange, wakeExternalAvatar } from '../_shared/waouh-external-exchange.ts';
 import { classifyAvatarReply, selectReplyJourney } from "../_shared/waouh-avatar-lifecycle.ts";
 import { avatarNotice, revokeAvatarContacts } from "../_shared/waouh-avatar-orchestrator.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
@@ -511,35 +513,49 @@ Deno.serve(async (req) => {
     if (channel === "whatsapp" && phone && !phone.startsWith("web:") && isServiceRoleRequest(req)) {
       try {
         const normalizedReplyPhone = String(phone).replace(/\D/g, "");
-        const sinceNexus = new Date(Date.now() - 14 * 86400_000).toISOString();
-        const { data: outreachRows } = await sb.from("waouh_outbound_queue")
-          .select("id,to_phone,payload,created_at,status")
+        const phoneCandidates = whatsAppPhoneCandidates(normalizedReplyPhone);
+        const outreachBase = () => sb.from("waouh_outbound_queue").select("id,to_phone,payload,created_at,status", {count:"exact"})
           .eq("template", "nexus_discovery_outreach")
-          .eq("to_phone", normalizedReplyPhone)
-          .gte("created_at", sinceNexus)
-          .order("created_at", { ascending: false })
-          .in("status", ["sent", "delivered"])
-          .limit(50);
+          .in("to_phone",phoneCandidates.length ? phoneCandidates : [normalizedReplyPhone])
+          .in("status", ["sent", "delivered", "read"]);
+        let outreachQuery = outreachBase();
+        const replyReference = String(text || "").match(/\bWA-([a-f0-9]{8})\b/i)?.[1]?.toLowerCase();
+        if (replyReference && classifyAvatarReply(text) !== "stop") outreachQuery = outreachQuery.like("payload->>journey_id",replyReference+"-%");
+        else if (body.quoted_message_id && classifyAvatarReply(text) !== "stop") outreachQuery = outreachQuery.eq("payload->>provider_message_id",String(body.quoted_message_id));
+        let outreachResult = await outreachQuery.order("created_at", {ascending:false}).limit(200);
+        if (!replyReference && body.quoted_message_id && !outreachResult.data?.length && !outreachResult.error) {
+          // Some WAHA engines quote a bare stanza ID instead of the serialized message ID.
+          // Fall back to contact scope and require a WA reference if several journeys remain.
+          outreachResult = await outreachBase().order("created_at", {ascending:false}).limit(200);
+        }
+        const { data: outreachRows, count: outreachCount, error: outreachError } = outreachResult;
+        if (outreachError) throw outreachError;
+        if (Number(outreachCount) > 200 && !replyReference && classifyAvatarReply(text) !== "stop") return new Response(JSON.stringify({ok:true,handled:"avatar_reply_needs_reference",reply:"Précisez la référence WA de votre échange pour éviter de mélanger vos missions."}),{headers:{"Content-Type":"application/json"}});
 
         const replyJourneyIds = [...new Set((outreachRows ?? []).map((r: any) => r.payload?.journey_id).filter(Boolean))];
         const { data: liveReplyJourneys } = replyJourneyIds.length ? await sb.from("waouh_opportunity_journeys")
-          .select("id,owner_id,stage").in("id", replyJourneyIds).not("stage", "in", '("completed","cancelled")') : { data: [] };
+          .select("id,owner_id,stage").in("id", replyJourneyIds).not("stage", "in", /^SUIVI\s+WA-/i.test(String(text || "").trim()) ? '("cancelled")' : '("completed","cancelled")') : { data: [] };
         const liveIds = new Set((liveReplyJourneys ?? []).map((r: any) => r.id));
-        const candidates = (outreachRows ?? []).filter((r: any) => liveIds.has(r.payload?.journey_id));
+        let candidates = (outreachRows ?? []).filter((r: any) => liveIds.has(r.payload?.journey_id) && (!r.payload?.waha_session || r.payload.waha_session === CENTRAL_WAHA_SESSION));
+        if (body.quoted_message_id) {
+          const quoted = candidates.filter((r: any) => r.payload?.provider_message_id === body.quoted_message_id);
+          if (quoted.length) candidates = quoted;
+        }
         if (classifyAvatarReply(text) === "stop" && (outreachRows ?? []).length) {
           await revokeAvatarContacts(sb, (outreachRows ?? []).map((r: any) => r.payload?.contact_id).filter(Boolean));
           for (const j of liveReplyJourneys ?? []) {
-            await sb.from("waouh_opportunity_journeys").update({ stage: "cancelled", last_action: "contact_opted_out", completed_at: new Date().toISOString() }).eq("id", j.id).in("stage", ["discovered", "enriching", "contact_ready", "contacting", "waiting_reply", "negotiating"]);
+            const invitation = await createExchangeInvite(sb, j);
+            await handleExternalExchange(sb,"nexus.guest.stop",{token:invitation.url.split("#")[1],request_id:crypto.randomUUID()});
             await avatarNotice(sb, j.owner_id, `avatar-optout:${j.id}`, "Ce contact a demandé l’arrêt des messages. Les relances sont arrêtées.", j);
           }
-          return new Response(JSON.stringify({ ok: true, handled: "avatar_optout" }), { headers: { "Content-Type": "application/json" } });
+          return new Response(JSON.stringify({ ok: true, handled: "avatar_optout", reply: "Les messages et relances liés à ces missions sont arrêtés." }), { headers: { "Content-Type": "application/json" } });
         }
         const nexusOutbound = selectReplyJourney(candidates, String(text || "")) as any;
         if (!nexusOutbound && candidates.length) {
           for (const j of liveReplyJourneys ?? []) await avatarNotice(sb, j.owner_id,
             `ambiguous-reply:${j.id}:${inboundMessageRef || new Date().toISOString().slice(0,10)}`,
             "Une réponse concerne plusieurs missions possibles. Précisez la référence WA de l’échange avant de poursuivre.", { journey_id: j.id });
-          return new Response(JSON.stringify({ ok: true, handled: "avatar_reply_needs_reference" }), { headers: { "Content-Type": "application/json" } });
+          return new Response(JSON.stringify({ ok: true, handled: "avatar_reply_needs_reference", reply: "Plusieurs échanges sont possibles. Précisez la référence WA-xxxxxxxx figurant dans le message auquel vous répondez." }), { headers: { "Content-Type": "application/json" } });
         }
 
         const nexusPayload = nexusOutbound?.payload && typeof nexusOutbound.payload === "object"
@@ -559,12 +575,18 @@ Deno.serve(async (req) => {
             .eq("owner_id", nexusOwnerAuthId)
             .eq("fabric_id", nexusFabricId)
             .eq("id", nexusPayload!.journey_id)
-            .not("stage", "in", '("completed","cancelled")')
+            .not("stage", "in", /^SUIVI\s+WA-/i.test(String(text || "").trim()) ? '("cancelled")' : '("completed","cancelled")')
             .order("updated_at", { ascending: false })
             .limit(1)
             .maybeSingle();
 
           if (signal && journey) {
+            try {
+              const commandReply = await handleWhatsAppExchangeCommand(sb, journey, "counterparty", String(text || ""), String(inboundMessageRef || crypto.randomUUID()));
+              if (commandReply) return new Response(JSON.stringify({ ok: true, handled: "external_exchange_command", reply: commandReply }), { headers: { "Content-Type": "application/json" } });
+            } catch (error) {
+              return new Response(JSON.stringify({ ok: true, handled: "external_exchange_command_help", reply: String((error as Error).message).slice(0,600) }), { headers: { "Content-Type": "application/json" } });
+            }
             await appendExternalReply(sb,journey,String(text || ""),"whatsapp",String(inboundMessageRef || crypto.randomUUID()));
             if (["negotiating","agreed","executing"].includes(journey.stage)) {
               await avatarNotice(sb,journey.owner_id,`external-reply:${inboundMessageRef || crypto.randomUUID()}`,`Réponse WhatsApp : ${String(text || "").slice(0,180)}`,journey);
@@ -576,7 +598,7 @@ Deno.serve(async (req) => {
             if (disposition !== "positive" && journey.stage !== "negotiating") {
               const terminal = disposition === "negative" || disposition === "stop";
               await sb.from("waouh_opportunity_journeys").update({
-                stage: terminal ? "cancelled" : "waiting_reply", last_response_at: new Date().toISOString(),
+                stage: terminal ? "cancelled" : "negotiating", last_response_at: new Date().toISOString(),
                 last_action: terminal ? "counterparty_declined" : "reply_needs_clarification",
                 last_message: terminal ? "La contrepartie ne souhaite pas poursuivre cette piste." : "Réponse reçue. Une précision est nécessaire avant de négocier.",
                 metadata: { ...journey.metadata, reply_disposition: disposition, reply_preview: String(text || "").slice(0,180) },
@@ -586,7 +608,8 @@ Deno.serve(async (req) => {
                 .update({ verification_status: "revoked", contactability_level: "C0", consent_state: "revoked" }).eq("id", nexusContactId);
               await avatarNotice(sb, journey.owner_id, `avatar-reply:${journey.id}:${inboundMessageRef || disposition}`,
                 terminal ? "Cette piste a refusé. Avatar poursuit les autres opportunités autorisées." : "Réponse reçue : précisez les conditions dans votre parcours Avatar.", journey);
-              return new Response(JSON.stringify({ ok: true, handled: "avatar_reply", disposition }), { headers: { "Content-Type": "application/json" } });
+              if (!terminal) wakeExternalAvatar(journey);
+              return new Response(JSON.stringify({ ok: true, handled: "avatar_reply", disposition, reply: terminal ? "Votre refus a été enregistré. Cette piste est arrêtée." : "Votre réponse est transmise. Précisez le prix total, la quantité, la livraison et le paiement avec PROPOSER et la référence WA de cet échange." }), { headers: { "Content-Type": "application/json" } });
             }
             const replyAt = new Date().toISOString();
             if (nexusContactId) {
@@ -941,12 +964,16 @@ Deno.serve(async (req) => {
               thread_id: journeyThreadId,
               negotiation_id: journeyNegotiationId,
             });
+            wakeExternalAvatar(journey);
+            if (body.external_exchange_only) return new Response(JSON.stringify({ok:true,handled:"external_contact_established",reply:"Contact établi. Précisez vos conditions avec PROPOSER et la référence WA de cet échange ; aucun accord n’est encore confirmé."}),{headers:{"Content-Type":"application/json"}});
           }
         }
       } catch (e) {
         console.warn("[nexus-opportunity-reply] failed", e);
+        if (body.external_exchange_only) return new Response(JSON.stringify({ok:false,error:"external_reply_failed"}),{status:502});
       }
     }
+    if (body.external_exchange_only) return new Response(JSON.stringify({ok:true,handled:false}),{headers:{"Content-Type":"application/json"}});
 
     if (
       channel === "whatsapp" &&

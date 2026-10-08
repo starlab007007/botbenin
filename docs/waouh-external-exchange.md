@@ -71,3 +71,28 @@ Après publication, `scripts/verify-external-exchange-production.py` exerce le
 serveur avec un compte temporaire : lien, réponse, proposition, accord, réception,
 déclarations de paiement et révocation. Aucun transport externe ni paiement réel
 n'est appelé. Le compte et les données de test sont supprimés dans `finally`.
+
+
+## WhatsApp central et Avatar
+
+La session WAHA centrale est `WaouhApp`, numéro `+229 65653468` (également reconnu sous la forme béninoise `+229 01 65 65 34 68`). Les envois externes NEXUS/Avatar restent sur cette session, y compris les réponses manuelles et les contre-offres. Le dispatcher vérifie l'identité connectée avant l'envoi ; une session indisponible laisse les messages en attente.
+
+Le panneau WhatsApp appelle `central-connect` : il vérifie le numéro réel, conserve les autres réglages WAHA et remplace l'ancien webhook direct `waouh-channel-in` par `waha-webhook`. Le secret `WAHA_WEBHOOK_SECRET` est envoyé dans un en-tête WAHA dédié, jamais affiché. Les événements `message`, `message.any`, `message.ack`, `session.status` sont abonnés. Le webhook authentifie les entrées centrales puis relaie les messages avec l'identité serveur. Les doublons et les messages envoyés par le numéro central sont ignorés ; les groupes ne sont pas traités comme des interlocuteurs individuels.
+
+Les réponses externes sont routées avant le chat général. La session, le numéro du contact, le message cité ou la référence `WA-xxxxxxxx` déterminent la mission. En cas d'ambiguïté, aucune négociation n'est choisie arbitrairement. Les réponses réveillent le worker ; les demandes de devis sont bornées, les contre-offres respectent le mandat et l'accord final reste explicite.
+
+Depuis un WhatsApp déjà associé au compte WAOUH, `mes missions` affiche les étapes et les prochaines actions. Une demande naturelle peut créer un mandat avec les limites explicites existantes ; sans association au compte, la recherche reste disponible mais le mandat exige de relier le compte. Les missions créées sur WhatsApp reçoivent aussi leur progression sur ce canal.
+
+Commandes des deux participants (la référence et la version sont celles du suivi) :
+
+- `SUIVI WA-xxxxxxxx`
+- `PROPOSER WA-xxxxxxxx 25000 FCFA | 1 | Livraison à Cotonou | Paiement après réception`
+- `ACCEPTER WA-xxxxxxxx VERSION-yyyyyyyy`
+- Vendeur : `EXPEDIE WA-xxxxxxxx VERSION-yyyyyyyy`, puis `PAIEMENT RECU WA-xxxxxxxx VERSION-yyyyyyyy`.
+- Acheteur : `RECU WA-xxxxxxxx VERSION-yyyyyyyy`, puis `PAYE WA-xxxxxxxx VERSION-yyyyyyyy`.
+- Propriétaire : `MESSAGE WA-xxxxxxxx Votre message`, ou `STOP WA-xxxxxxxx`.
+- Contact externe : `STOP` arrête les sollicitations de cet expéditeur et révoque les invitations associées.
+
+Un « oui » ou un prix seul ne confirme pas un accord. La version doit correspondre à l'offre actuelle ; les rôles sont contrôlés dans la même transaction SQL que sur le Web. Les confirmations de paiement sont des déclarations, jamais des transferts. Une mise à jour explicitement faite par le propriétaire sur WhatsApp est également mise en file pour le contact, avec échec de transmission distinct de l'enregistrement de l'accord.
+
+`scripts/verify-waouh-central-whatsapp.py --connect` configure et vérifie le central après publication, sans envoyer de messages. `scripts/verify-external-exchange-production.py --whatsapp` vérifie les commandes sur un compte temporaire avec un numéro de fixture volontairement invalide et une ligne déjà lue, donc aucun transport externe n'est invoqué. La réception/envoi réel avec un interlocuteur exige un numéro de test externe autorisé ; le numéro central n'est pas utilisé comme son propre interlocuteur.

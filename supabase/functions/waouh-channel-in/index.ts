@@ -1,6 +1,6 @@
+import { CENTRAL_WAHA_SESSION, isWahaInbound, isCentralWhatsAppPhone, whatsAppPhoneCandidates, wahaMessageId } from "../_shared/waouh-central-whatsapp.ts";
+import { handleWhatsAppExchangeCommand } from "../_shared/waouh-whatsapp-exchange.ts";
 import { readWaouhEngineResponse } from "../_shared/waouh-response.ts";
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { lidToPhoneInline } from "../_shared/waouh-format.ts";
 import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
@@ -51,7 +51,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const WAHA_BASE_URL = Deno.env.get("WAHA_BASE_URL");
 const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY");
-const WAHA_SESSION = Deno.env.get("WAHA_SESSION") || "WaouhApp";
+const WAHA_SESSION = CENTRAL_WAHA_SESSION;
 
 const normalizeBeninPhone = (value: string) => {
   const original = String(value || "");
@@ -726,7 +726,7 @@ async function enrichChatWithSignalFabric(
   }
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   if (req.method === "GET") {
@@ -736,6 +736,7 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  let processedWahaEventId: string | null = null;
   try {
     // Browser/mobile clients must enter through waouh-channel-in-secure.
     // WAHA and test orchestration are relayed by trusted Edge Functions.
@@ -807,19 +808,19 @@ serve(async (req) => {
     if (raw.event && raw.payload) {
       const normalizedFrom = normalizeBeninPhone(raw.payload.from || raw.payload.author || "");
       toPhone = normalizeBeninPhone(raw.payload.to || raw.payload._data?.to || "") || WAOUH_BUSINESS_PHONE;
-      if (normalizedFrom === WAOUH_BUSINESS_PHONE) {
+      if (isCentralWhatsAppPhone(normalizedFrom)) {
         log("skip self/business echo", { from: raw.payload.from });
         return new Response(JSON.stringify({ ok: true, skipped: true, reason: "business-self" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (raw.event !== "message" || raw.payload.fromMe || !normalizedFrom) {
+      if (!isWahaInbound(raw.event, raw.payload) || raw.session !== CENTRAL_WAHA_SESSION || !normalizedFrom) {
         return new Response(JSON.stringify({ ok: true, skipped: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       // 🛡️ Idempotence : WAHA peut émettre "message" et "message.any" pour le même message → on dédupe par event id.
-      const wahaEventId = raw.payload.id || raw.id || `${normalizedFrom}:${raw.payload.timestamp || ""}:${(raw.payload.body || "").slice(0, 40)}`;
+      const wahaEventId = wahaMessageId(raw.payload) || raw.id || `${normalizedFrom}:${raw.payload.timestamp || ""}:${(raw.payload.body || "").slice(0, 40)}`;
       if (wahaEventId) {
         const { error: dupErr } = await sb.from("waouh_processed_events").insert({ event_id: String(wahaEventId), source: "waha" });
         if (dupErr && (dupErr.code === "23505" || /duplicate/i.test(dupErr.message))) {
@@ -829,6 +830,7 @@ serve(async (req) => {
           });
         }
       }
+      processedWahaEventId = String(wahaEventId);
       channel = "whatsapp";
       phone = normalizedFrom;
       fromChatId = raw.payload.from || `${normalizedFrom}@c.us`;
@@ -926,7 +928,12 @@ serve(async (req) => {
         await sb.from("waouh_users").update({ city }).eq("id", user.id);
       }
     } else {
-      const { data: existing } = await sb.from("waouh_users").select("*").eq("phone_number", phone).maybeSingle();
+      const candidates = whatsAppPhoneCandidates(phone);
+      const variants = candidates.length ? [...candidates,...candidates.map((candidate)=>"+"+candidate)] : [phone];
+      const { data: matches } = await sb.from("waouh_users").select("*").in("phone_number",variants).limit(10);
+      const authOwners = new Set((matches || []).map((row:any)=>row.auth_user_id).filter(Boolean));
+      if (authOwners.size > 1) throw new Error("whatsapp_account_association_ambiguous");
+      const existing = (matches || []).find((row:any)=>row.auth_user_id) || matches?.[0];
       user = existing;
       if (!user) {
         const { data: created } = await sb.from("waouh_users").insert({
@@ -973,6 +980,45 @@ serve(async (req) => {
       meta: { ...clientMeta, to_phone: toPhone || WAOUH_BUSINESS_PHONE, session: wahaSession },
     }).select("id").maybeSingle();
     const inboundMessageId: string | null = inboundRow?.id ?? null;
+
+    // Central WhatsApp uses the same scoped external exchange before generic chat routing.
+    if (channel === "whatsapp" && raw.event && wahaSession === CENTRAL_WAHA_SESSION) {
+      const respond = async (reply: string) => {
+        const sent = await sendWahaReply(WAHA_BASE_URL || "", wahaSession, [fromChatId || `${phone}@c.us`], reply);
+        if (!sent.ok) throw new Error("whatsapp_exchange_reply_send_failed");
+        await sb.from("waouh_messages").insert({ conversation_id: convId, user_id: user.id,
+          channel: "whatsapp", direction: "out", text: reply, phone_number: phone,
+          meta: { session: wahaSession, external_exchange: true } });
+        return new Response(JSON.stringify({ ok: true, handled: "whatsapp_avatar_exchange", reply, user_id: user.id, conversation_id: convId }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      };
+      const reference = text.match(/\bWA-([a-f0-9]{8})\b/i)?.[1]?.toLowerCase();
+      if (user.auth_user_id && (/^(mes missions|mes recherches|suivi|avatar)$/i.test(text.trim()) || reference)) {
+        const { data: journeys, error } = await sb.from("waouh_opportunity_journeys").select("*")
+          .eq("owner_id", user.auth_user_id).like("fabric_id", "external:%")
+          .order("updated_at", { ascending: false }).limit(50);
+        if (error) throw error;
+        const owned = (journeys || []).filter((j: any) => reference ? j.id.replace(/-/g, "").startsWith(reference) : !["completed", "cancelled"].includes(j.stage));
+        if (reference && owned.length === 1) {
+          try {
+            const result = await handleWhatsAppExchangeCommand(sb, owned[0], "owner", text, String(wahaMessageId(raw.payload) || inboundMessageId));
+            if (result) return await respond(result);
+          } catch (error) { return await respond(String((error as Error).message).slice(0,600)); }
+        }
+        if (!reference) return await respond(owned.length ? owned.slice(0,5).map((j: any) =>
+          `*WA-${j.id.replace(/-/g, "").slice(0,8).toUpperCase()} · ${j.subject || "Mission"}*\n${j.stage} · ${j.next_action || "Consulter le suivi"}`).join("\n\n") + "\n\nPour les conditions : SUIVI WA-xxxxxxxx" : "Aucune mission active. Dites-moi le produit, la ville et votre budget ; je rechercherai les offres.");
+      }
+      const external = await fetch(`${SUPABASE_URL}/functions/v1/waouh-webhook`, {
+        method: "POST", headers: { Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ phone_number: phone, text, channel, user_id: user.id,
+          message_id: wahaMessageId(raw.payload) || inboundMessageId, waha_session: wahaSession,
+          quoted_message_id: wahaMessageId(raw.payload?.replyTo) || raw.payload?._data?.quotedStanzaID,
+          external_exchange_only: true }), signal: AbortSignal.timeout(25000),
+      });
+      const result = await external.json().catch(() => null);
+      if (!external.ok) throw new Error("external_whatsapp_relay_failed");
+      if (result?.handled) return await respond(result.reply || "Votre demande a été enregistrée. Envoyez SUIVI avec la référence de votre mission.");
+    }
 
     // === Real "interested buyer" signal ===
     // If the inbound message is tagged with an article (match chat window),
@@ -2201,6 +2247,9 @@ serve(async (req) => {
         // bonne négociation (au lieu de « la plus récente, tous produits »).
         article_hint: metaArticleId,
         thread_hint: metaThreadId,
+        message_id: wahaMessageId(raw.payload) || inboundMessageId,
+        waha_session: wahaSession,
+        quoted_message_id: wahaMessageId(raw.payload?.replyTo) || raw.payload?._data?.quotedStanzaID,
       }),
     });
     const core = await readWaouhEngineResponse(coreRes);
@@ -2277,7 +2326,7 @@ serve(async (req) => {
                 allow_blind_message: true,
                 allow_email: false,
                 allow_sms_rcs: false,
-                origin_surface: "chat_natural_language",
+                origin_surface: channel === "whatsapp" ? "whatsapp_avatar" : "chat_natural_language",
                 request_key: requestKey,
               },
             }),
@@ -2374,6 +2423,10 @@ serve(async (req) => {
 
   } catch (e: any) {
     console.error("[waouh-channel-in] error", e);
+    if (processedWahaEventId) {
+      const retryClient = createClient(SUPABASE_URL, SERVICE);
+      await retryClient.from("waouh_processed_events").delete().eq("event_id",processedWahaEventId).eq("source","waha");
+    }
     return new Response(JSON.stringify({ error: e.message }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

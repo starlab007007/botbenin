@@ -1,3 +1,4 @@
+import { CENTRAL_WAHA_SESSION } from "../_shared/waouh-central-whatsapp.ts";
 import { handleExternalExchange, ExchangeError, createExchangeInvite, isExternalExchangeAction } from '../_shared/waouh-external-exchange.ts';
 import { isPublicNexusRead, PUBLIC_NEXUS_SOURCES, publicNexusResult } from "../_shared/waouh-public-discovery.ts";
 import { settleDiscoverySource } from "../_shared/waouh-discovery-refresh.ts";
@@ -3541,6 +3542,7 @@ Retourne uniquement JSON:
           p_to_user_id: null,
           p_template: "nexus_discovery_outreach",
           p_payload: {
+            waha_session: CENTRAL_WAHA_SESSION,
             ...contactContext,
             text: message,
             actions: [],
