@@ -73,7 +73,13 @@ compose=['docker','compose','-f',str(config_path)]
 configuration=json.loads(output(compose+['config','--format','json']))
 assert configuration.get('services',{}).get(service,{}).get('image')==item['Config']['Image'], 'Compose service identity mismatch'
 # Pull through the authenticated registry transport and resolve its digest before any interruption.
-command(['docker','pull',TARGET],stdout=subprocess.DEVNULL)
+try:
+    command(['docker','pull',TARGET],stdout=subprocess.DEVNULL)
+except subprocess.CalledProcessError as error:
+    stderr=(error.stderr or b'').decode(errors='replace').lower()
+    if 'denied' not in stderr and 'unauthorized' not in stderr: raise
+    # Reuse existing root Docker registry authentication if the SSH account has sudo.
+    command(['sudo','-n','docker','pull',TARGET],stdout=subprocess.DEVNULL)
 new_image=json.loads(output(['docker','image','inspect',TARGET]))[0]
 digest=next((d for d in new_image.get('RepoDigests',[]) if d.startswith('devlikeapro/waha-plus@sha256:')),None)
 assert digest, 'Cannot pin the provider image digest'

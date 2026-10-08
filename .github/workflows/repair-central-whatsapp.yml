@@ -57,8 +57,19 @@ jobs:
           envs: WAHA_REPAIR_SCRIPT_B64
           script: |
             python3 - <<'PY'
-            import base64,os
-            exec(compile(base64.b64decode(os.environ['WAHA_REPAIR_SCRIPT_B64']),'repair-central-waha-host.py','exec'))
+            import base64,os,subprocess
+            try:
+                exec(compile(base64.b64decode(os.environ['WAHA_REPAIR_SCRIPT_B64']),'repair-central-waha-host.py','exec'))
+            except SystemExit as error:
+                if error.code: print('::error title=Central WAHA repair::Script exited before verification.')
+            except BaseException as error:
+                reason = str(error) if isinstance(error,AssertionError) else type(error).__name__
+                if isinstance(error,subprocess.CalledProcessError):
+                    stderr = (error.stderr or b'').decode(errors='replace') if isinstance(error.stderr,bytes) else (error.stderr or '')
+                    categories = ['unauthorized','pull access denied','denied','manifest unknown','no matching manifest','no space left','permission denied','port is already allocated','Cannot connect to the Docker daemon']
+                    reason += ': ' + ', '.join(value for value in categories if value.lower() in stderr.lower())
+                    reason += '; command=' + ' '.join(error.cmd[:3]) + '; exit=' + str(error.returncode)
+                print('::error title=Central WAHA repair::' + reason)
             PY
       - name: Publish only the safe provider repair result
         if: always()
@@ -67,8 +78,11 @@ jobs:
         run: |
           python3 - <<'PY'
           import os
+          failed=False
           for line in os.environ['REPAIR_OUTPUT'].splitlines():
               if line.startswith('::notice ') or line.startswith('::error '): print(line)
+              if line.startswith('::error '): failed=True
+          raise SystemExit(1 if failed else 0)
           PY
   verify_avatar:
     needs: repair_host
