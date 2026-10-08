@@ -1,5 +1,5 @@
 name: Deploy WAOUH Chat v2
-# Deployment sync: Contact Hub WAHA 2026-10-06
+# Deployment sync: Avatar 18.30 2026-10-08; queued after Native production deployment.
 
 on:
   push:
