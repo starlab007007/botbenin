@@ -1,0 +1,36 @@
+name: Inspect WAHA host without changing containers
+on:
+  workflow_dispatch:
+  push:
+    branches: [prod]
+    paths: ['.github/workflows/diagnose-waha-host.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          command_timeout: 2m
+          script: |
+            python3 - <<'PY'
+            import json, subprocess
+            ids = subprocess.check_output(['docker','ps','-aq'],text=True).split()
+            found = []
+            for cid in ids:
+                item = json.loads(subprocess.check_output(['docker','inspect',cid],text=True))[0]
+                image = item.get('Config',{}).get('Image','')
+                if 'waha' not in image.lower(): continue
+                labels = item['Config'].get('Labels') or {}
+                found.append({'name':item['Name'].lstrip('/'),'image':image,'running':item['State']['Running'],
+                    'compose_service':labels.get('com.docker.compose.service'),
+                    'compose_directory':labels.get('com.docker.compose.project.working_dir'),
+                    'compose_files':labels.get('com.docker.compose.project.config_files'),
+                    'mount_destinations':[m.get('Destination') for m in item.get('Mounts',[])]})
+            print('::notice title=WAHA host inspection::' + json.dumps(found))
+            PY

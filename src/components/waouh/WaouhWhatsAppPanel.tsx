@@ -17,6 +17,7 @@ export const WaouhWhatsAppPanel: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const session = "WaouhApp";
   const [identityMatches, setIdentityMatches] = useState<boolean | null>(null);
+  const [providerOperational, setProviderOperational] = useState<boolean | null>(null);
   const [webhookReady, setWebhookReady] = useState(false);
 
   const callWaha = async (action: string, payload?: any) => {
@@ -41,7 +42,7 @@ export const WaouhWhatsAppPanel: React.FC = () => {
 
   const refreshStatus = async () => {
     const data = await callWaha("central-status");
-    if (data?.status) { setStatus(data.status); setIdentityMatches(data.identity_matches); setWebhookReady(data.webhook_ready); }
+    if (data?.status) { setStatus(data.status); setIdentityMatches(data.identity_matches); setWebhookReady(data.webhook_ready); setProviderOperational(data.provider_operational ?? null); }
   };
 
   const createSession = async () => {
@@ -81,14 +82,14 @@ export const WaouhWhatsAppPanel: React.FC = () => {
 
   useEffect(() => { refreshStatus(); }, []);
 
-  const statusColor = status === "WORKING" ? "bg-green-500" : status === "SCAN_QR_CODE" ? "bg-yellow-500" : "bg-gray-400";
+  const statusColor = status === "WORKING" && providerOperational === true && identityMatches === true ? "bg-green-500" : status === "SCAN_QR_CODE" ? "bg-yellow-500" : "bg-gray-400";
 
   return (
     <Card className="p-4 bg-card border-[hsl(var(--waouh-border))]">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <h3 className="font-semibold">WhatsApp via WAHA</h3>
-          <Badge className={statusColor + " text-white"}>{status}</Badge>
+          <Badge className={statusColor + " text-white"}>{status === "WORKING" && providerOperational === false ? "À réparer" : status}</Badge>
         </div>
         <Button variant="outline" size="sm" onClick={refreshStatus} disabled={loading}>
           <RefreshCw className={"w-4 h-4 mr-1 " + (loading ? "animate-spin" : "")} /> Rafraîchir
@@ -101,6 +102,7 @@ export const WaouhWhatsAppPanel: React.FC = () => {
             <Label>Nom de la session</Label>
             <Input value={session} readOnly />
             <p className="mt-1 text-xs text-muted-foreground">+229 65653468 · Chat et Avatar</p>
+            {providerOperational === false && <p className="text-xs text-destructive">WhatsApp est connecté, mais son moteur ne répond pas. Réparez WAHA avant de relancer une mission.</p>}
             {identityMatches === false && <p className="text-xs text-destructive">Le numéro connecté ne correspond pas au numéro central.</p>}
           </div>
           <div className="flex flex-wrap gap-2">

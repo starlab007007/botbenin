@@ -1,4 +1,4 @@
-import { CENTRAL_WAHA_SESSION, centralSessionSummary, centralWebhookConfig, whatsAppPhoneCandidates } from "../_shared/waouh-central-whatsapp.ts";
+import { CENTRAL_WAHA_SESSION, centralSessionSummary, centralProviderOperational, centralWebhookConfig, whatsAppPhoneCandidates } from "../_shared/waouh-central-whatsapp.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { requireRuntimeOrAdmin } from "../_shared/waouh-runtime-auth.ts";
 
@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
       if (!current.ok) return json({ error: "central_session_unavailable" }, 503);
       const data = await readWaha(current);
       const summary = centralSessionSummary(data);
-      if (action === "central-status") return json(summary);
+      if (action === "central-status") return json({...summary, provider_operational: summary.status === "WORKING" && await centralProviderOperational(base, WAHA_API_KEY || "", data)});
       if (!summary.identity_matches || summary.status !== "WORKING") {
         return json({ ...summary, error: "central_session_identity_or_connection_invalid" }, 409);
       }

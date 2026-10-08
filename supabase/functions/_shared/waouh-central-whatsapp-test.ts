@@ -4,6 +4,7 @@ import {
 } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   centralSessionSummary,
+  centralProviderOperational,
   centralWebhookConfig,
   isCentralWhatsAppPhone,
   isWahaInbound,
@@ -198,4 +199,14 @@ Deno.test("Phone association preserves international numbers and both Benin form
   assertEquals(whatsAppPhoneCandidates("22965653468@c.us"), ["22965653468", "2290165653468"]);
   assertEquals(whatsAppPhoneCandidates("+33612345678"), ["33612345678"]);
   assertEquals(whatsAppPhoneCandidates("123456789012345678@lid"), []);
+});
+
+Deno.test("A WORKING WEBJS session with a broken injected client is unavailable for Avatar outreach", async () => {
+  const original = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => new Response('{"error":"Cannot read properties of undefined (reading getChat)"}', {status:500});
+    assertEquals(await centralProviderOperational("https://provider.test","test",{status:"WORKING",engine:{engine:"WEBJS"}}),false);
+    globalThis.fetch = async () => new Response('[]', {status:200});
+    assertEquals(await centralProviderOperational("https://provider.test","test",{status:"WORKING",engine:{engine:"WEBJS"}}),true);
+  } finally { globalThis.fetch = original; }
 });
