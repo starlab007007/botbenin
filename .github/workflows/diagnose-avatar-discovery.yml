@@ -38,7 +38,6 @@ jobs:
           print('::notice::Discovery schema=' + json.dumps(rows))
           request('/database/query', {'query': 'select 1 from public.waouh_signal_fabric limit 1'})
           print('::notice::Discovery view query succeeded')
-          PY
           import urllib.parse, re
           fid = str(f.get('id', ''))
           if not re.fullmatch(r'[a-zA-Z0-9-]+', fid): raise SystemExit('Unexpected function identifier')
@@ -55,4 +54,4 @@ jobs:
                       print('::notice::Recent runtime error codes=' + ','.join(codes))
               except SystemExit:
                   print('::notice::Runtime analytics unavailable')
-          
+          PY
