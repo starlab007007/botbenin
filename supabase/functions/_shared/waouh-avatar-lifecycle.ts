@@ -3,6 +3,7 @@ export type ReplyDisposition = "positive" | "negative" | "stop" | "ambiguous";
 export function classifyAvatarReply(value: unknown): ReplyDisposition {
   const text = String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
   if (/\b(stop|desabonn|ne me contacte|ne m.ecrivez|retirez mon|supprimez mon)/.test(text)) return "stop";
+  if (/\b(ne (?:suis|sommes) plus interesse(?:e?s)?|plus interesse(?:e?s)?|pas interesse(?:e?s)?)\b/.test(text)) return "negative";
   if (/\b(non|pas d.accord|pas interesse|ne suis pas interesse|indisponible|plus disponible|deja vendu|refuse|pas disponible)\b/.test(text)) return "negative";
   if (text.includes("?")) return "ambiguous";
   if (/\b(oui|d.accord|interesse|disponible|je confirme|accept|volontiers|ok)\b/.test(text)) return "positive";
@@ -31,13 +32,14 @@ export function followupDelayHours(durationHours: number, maxFollowups: number) 
 
 export function withinMandateBudget(mandate: any, signal: any) {
   const price = Number(signal.price_min ?? signal.price_max ?? 0);
-  if (mandate.mode === "buy" && Number(mandate.budget_max) > 0 && price > Number(mandate.budget_max)) return false;
+  if (["buy", "ask"].includes(mandate.mode) && Number(mandate.budget_max) > 0 && price > Number(mandate.budget_max)) return false;
   // Unknown price requires a quote; it is never authority to accept one.
   return true;
 }
 
 export function planAvatarNegotiation(mandate: any, negotiation: any, rounds: number) {
   const role = mandate.mode === "sell" ? "seller" : "buyer";
+  if (mandate.metadata?.agreement_reached_at) return { kind: "wait", reason: "mission_already_agreed" };
   if (mandate.status !== "active" || Date.parse(mandate.expires_at) <= Date.now()) return { kind: "wait", reason: "mandate_inactive" };
   if (!["proposed", "countered"].includes(negotiation.state) || negotiation.last_actor === role) return { kind: "wait", reason: "counterparty_turn" };
   const amount = Number(negotiation.last_offer_price);
