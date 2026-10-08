@@ -46,6 +46,21 @@ Deno.serve(async (req) => {
 
     const { action, session = "WaouhApp", webhook, config, phone } = await req.json();
 
+    if (action === "central-webhook-probe") {
+      if (guard.actor !== "service") return json({error:"service_role_required"},403);
+      const current = await fetchWaha(base, `/api/sessions/${CENTRAL_WAHA_SESSION}`, {}, headers);
+      if (!current.ok) return json({error:"central_session_unavailable"},503);
+      const data = await readWaha(current);
+      const hook = data.config?.webhooks?.find((h:any)=>h.url === `${SUPABASE_URL}/functions/v1/waha-webhook`);
+      if (!hook) return json({error:"canonical_webhook_missing"},409);
+      const probeHeaders:Record<string,string> = {"Content-Type":"application/json"};
+      for (const header of hook.customHeaders || []) probeHeaders[header.name] = header.value;
+      const result = await fetch(hook.url, {method:"POST",headers:probeHeaders,
+        body:JSON.stringify({event:"session.status",session:CENTRAL_WAHA_SESSION,payload:{status:data.status}}),
+        signal:AbortSignal.timeout(15000)}).catch(()=>null);
+      return json({provider_engine:data.engine || data.config?.engine || "UNKNOWN",webhook_http_status:result?.status || 0});
+    }
+
     if (action === "central-chat-history") {
       // Used only by trusted verification tooling; browser/admin callers cannot read raw chat history here.
       if (guard.actor !== "service") return json({error:"service_role_required"},403);
