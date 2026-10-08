@@ -21,15 +21,31 @@ jobs:
           command_timeout: 2m
           script: |
             python3 - <<'PY'
-            import json, subprocess
+            import json, subprocess, urllib.request, urllib.error
             ids = subprocess.check_output(['docker','ps','-aq'],text=True).split()
             found = []
             for cid in ids:
                 item = json.loads(subprocess.check_output(['docker','inspect',cid],text=True))[0]
                 image = item.get('Config',{}).get('Image','')
-                if 'waha' not in image.lower(): continue
+                if 'devlikeapro/waha' not in image.lower(): continue
                 labels = item['Config'].get('Labels') or {}
-                found.append({'name':item['Name'].lstrip('/'),'image':image,'running':item['State']['Running'],
+                env = dict(value.split('=',1) for value in item['Config'].get('Env',[]) if '=' in value)
+                addresses = [net.get('IPAddress') for net in item.get('NetworkSettings',{}).get('Networks',{}).values() if net.get('IPAddress')]
+                central = {'identity_matches':False,'api_status':0}
+                version = 'UNKNOWN'
+                for address in addresses:
+                    api = 'http://' + address + ':' + env.get('WHATSAPP_API_PORT','3000')
+                    headers = {'X-Api-Key':env.get('WAHA_API_KEY','')}
+                    try:
+                        with urllib.request.urlopen(urllib.request.Request(api+'/api/sessions/WaouhApp',headers=headers),timeout=8) as r:
+                            session = json.load(r)
+                        central = {'identity_matches':str((session.get('me') or {}).get('id','')).split('@')[0] in ('22965653468','2290165653468'),'status':session.get('status'),'api_status':200}
+                        with urllib.request.urlopen(urllib.request.Request(api+'/api/version',headers=headers),timeout=8) as r:
+                            version = json.load(r).get('version','UNKNOWN')
+                        break
+                    except urllib.error.HTTPError as error: central['api_status']=error.code
+                    except Exception: central['api_status']=0
+                found.append({'name':item['Name'].lstrip('/'),'image':image,'running':item['State']['Running'],'central':central,'version':version,
                     'compose_service':labels.get('com.docker.compose.service'),
                     'compose_directory':labels.get('com.docker.compose.project.working_dir'),
                     'compose_files':labels.get('com.docker.compose.project.config_files'),
