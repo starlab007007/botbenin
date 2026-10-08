@@ -1,3 +1,5 @@
+import { progressiveNexusDiscovery } from "@/lib/waouh/progressiveDiscovery";
+import { WaouhDiscoveryCoverage } from "./WaouhDiscoveryCoverage";
 import { userFacingErrorText } from "@/lib/userFacingError";
 import { useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -18,7 +20,6 @@ import { buildWaouhAuthRedirect } from "@/lib/waouhAccessPolicy";
 import { supabase } from "@/integrations/supabase/client";
 import {
   getNexusSources,
-  globalNexusDiscovery,
   ingestSharedCommerceSignal,
   createNexusMandate,
   prepareNexusContact,
@@ -130,7 +131,7 @@ export function WaouhGlobalDiscoveryPanel() {
     setBusy(true);
     setContact(null);
     try {
-      const response = await globalNexusDiscovery({
+      const response = await progressiveNexusDiscovery({
         query: query.trim(),
         mode,
         city: city.trim() || undefined,
@@ -138,6 +139,11 @@ export function WaouhGlobalDiscoveryPanel() {
         limit: 24,
         refresh_external: true,
         smart: true,
+      }, indexed => {
+        setResults(indexed.results);
+        setSourceMix(indexed.source_mix);
+        setResolvedMode(indexed.mode);
+        setRefreshState({});
       });
       setResults(response.results);
       setSourceMix(response.source_mix);
@@ -155,7 +161,7 @@ export function WaouhGlobalDiscoveryPanel() {
           title: response.mode === "find_sellers"
             ? "Aucun vendeur suffisamment proche pour l’instant"
             : "Aucun acheteur suffisamment proche pour l’instant",
-          description: "WAOUH a compris l’objectif et conserve la recherche côté NEXUS. Les sources indisponibles restent signalées sans bloquer le parcours.",
+          description: "Vous pouvez confier cette recherche à l’Avatar pour poursuivre la veille. Les sources indisponibles restent signalées sans bloquer le parcours.",
         });
       }
       void loadSources();
@@ -439,20 +445,13 @@ export function WaouhGlobalDiscoveryPanel() {
               </div>
             )}
 
-            {(Object.keys(sourceMix).length > 0 || Object.keys(refreshState).length > 0) && (
+            {Object.keys(refreshState).length > 0 && <WaouhDiscoveryCoverage refresh={refreshState} count={results.length} />}
+            {Object.keys(sourceMix).length > 0 && (
               <div className="flex flex-wrap gap-1">
                 {Object.entries(sourceMix).map(([source, count]) => (
                   <Badge key={source} variant="secondary">{sourceLabel(source)} · {count}</Badge>
                 ))}
-                {Object.entries(refreshState).map(([source, state]) => {
-                  const skipped = state.reason === "not_selected_by_ai_plan";
-                  return (
-                    <Badge key={`refresh-${source}`} variant="outline" className="gap-1">
-                      {skipped ? <Radar className="h-3 w-3" /> : state.configured ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-                      {sourceLabel(source)} {skipped ? "non nécessaire" : state.configured ? `+${state.inserted ?? 0}` : "non configuré"}
-                    </Badge>
-                  );
-                })}
+
               </div>
             )}
 

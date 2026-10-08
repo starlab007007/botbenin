@@ -1,3 +1,4 @@
+import { WaouhJourneyTracker } from "./WaouhJourneyTracker";
 import { WaouhMessageText } from "./WaouhMessageText";
 import { userFacingErrorText } from "@/lib/userFacingError";
 import { WaouhAvatarProgress, WaouhAvatarSynthesis } from "./WaouhAvatarProgress";
@@ -857,6 +858,7 @@ export function WaouhMatchChatWindow({
 
   return (
     <div data-waouh-ui="bot-copilot-v2" className="relative flex h-full w-full flex-col bg-background">
+      <WaouhJourneyTracker threadId={match.thread_id || serverThreadId} />
       {/* Deal Room — 1 article × 1 interlocuteur : un seul en-tête fin (fiche + progression). */}
       <div className="shrink-0 border-b border-emerald-100/70 bg-white/95 px-3 pb-1.5 pt-2 backdrop-blur">
         <div className="flex items-center gap-2.5">

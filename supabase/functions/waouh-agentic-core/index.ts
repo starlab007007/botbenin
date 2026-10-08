@@ -1,3 +1,4 @@
+import { settleDiscoverySource } from "../_shared/waouh-discovery-refresh.ts";
 import { diversifyAvatarResults } from "../_shared/waouh-avatar-discovery.ts";
 import { reconcileAvatarApprovals } from "../_shared/waouh-avatar-orchestrator.ts";
 import { followupDelayHours } from "../_shared/waouh-avatar-lifecycle.ts";
@@ -964,6 +965,7 @@ async function refreshGooglePlaces(
   if (!apiKey) return { configured: false, inserted: 0, results: [] as any[], reason: "google_places_key_missing" };
   const textQuery = [query, city, "Bénin"].filter(Boolean).join(" ");
   const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
+    signal: AbortSignal.timeout(8000),
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -1098,7 +1100,7 @@ async function refreshSerpApi(
     url.searchParams.set("tbs", "qdr:m");
     url.searchParams.set("api_key", key.key);
 
-    const response = await fetch(url.toString());
+    const response = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) });
     calls += 1;
     await incrementRadarUsage(sb as any, key.configId, 1);
     if (!response.ok) {
@@ -2445,6 +2447,7 @@ Retourne uniquement JSON:
         const suppliedBudgetMax = positiveNumber(payload.budget_max, "budget_max", true);
         const limit = integer(payload.limit, "limit", 20, 1, 50);
         const refreshExternal = bool(payload.refresh_external, true);
+        const allSources = bool(payload.all_sources, false);
         const smart = bool(payload.smart, true);
 
         const forcedMode: DiscoveryMode | null = requestedMode === "auto" ? null : requestedMode;
@@ -2477,32 +2480,21 @@ Retourne uniquement JSON:
         const refresh: Record<string, unknown> = {};
         if (refreshExternal) {
           const sourcePlan = new Set(intelligence.source_families ?? []);
-          const useMaps = mode === "find_sellers" && (sourcePlan.size === 0 || sourcePlan.has("maps"));
-          const usePublicWeb = sourcePlan.size === 0 || [
+          const useMaps = mode === "find_sellers" && (allSources || sourcePlan.size === 0 || sourcePlan.has("maps"));
+          const usePublicWeb = allSources || sourcePlan.size === 0 || [
             "web_public", "social_public", "directories", "b2b_rfq",
           ].some((family) => sourcePlan.has(family));
 
           if (useMaps) {
-            const places = await refreshGooglePlaces(sb, ownerId, semanticQuery, city, Math.min(limit, 10));
-            refresh.google_places = {
-              configured: places.configured,
-              inserted: places.inserted,
-              reason: places.reason ?? null,
-            };
+            refresh.google_places = await settleDiscoverySource(() => refreshGooglePlaces(sb, ownerId, semanticQuery, city, Math.min(limit, 10)));
           } else {
-            refresh.google_places = { configured: true, inserted: 0, reason: "not_selected_by_ai_plan" };
+            refresh.google_places = { configured: true, inserted: 0, status: "not_requested", reason: "not_selected_by_ai_plan" };
           }
 
           if (usePublicWeb) {
-            const serp = await refreshSerpApi(sb, ownerId, mode, semanticQuery, city, Math.min(limit, 12));
-            refresh.serpapi = {
-              configured: serp.configured,
-              inserted: serp.inserted,
-              reason: serp.reason ?? null,
-              surfaces: serp.surfaces ?? {},
-            };
+            refresh.serpapi = await settleDiscoverySource(() => refreshSerpApi(sb, ownerId, mode, semanticQuery, city, Math.min(limit, 12)));
           } else {
-            refresh.serpapi = { configured: true, inserted: 0, reason: "not_selected_by_ai_plan", surfaces: {} };
+            refresh.serpapi = { configured: true, inserted: 0, status: "not_requested", reason: "not_selected_by_ai_plan", surfaces: {} };
           }
         }
 
@@ -2912,6 +2904,7 @@ Retourne uniquement JSON:
           .order("created_at", { ascending: false }).limit(limit);
         if (typeof payload.fabric_id === "string" && payload.fabric_id.trim()) q = q.eq("fabric_id", payload.fabric_id.trim());
         if (typeof payload.thread_id === "string" && payload.thread_id.trim()) q = q.eq("thread_id", payload.thread_id.trim());
+        if (payload.journey_id != null) q = q.eq("journey_id", uuid(payload.journey_id, "journey_id"));
         const { data, error } = await q;
         if (error) throw new ApiError(500, "nexus_conversation_bus_failed", error.message);
         return jsonResponse({ ok: true, data: { events: data ?? [] }});
@@ -2983,6 +2976,7 @@ Retourne uniquement JSON:
           .order("updated_at", { ascending: false })
           .limit(limit);
         if (payload.mandate_id) q = q.eq("mandate_id", uuid(payload.mandate_id, "mandate_id"));
+        if (payload.thread_id) q = q.eq("thread_id", uuid(payload.thread_id, "thread_id"));
         if (!includeCompleted) q = q.not("stage", "in", "(completed,cancelled)");
         const { data, error } = await q;
         if (error) throw new ApiError(500, "opportunity_journey_list_failed", error.message);
@@ -3306,6 +3300,20 @@ Retourne uniquement JSON:
         const fabricId = asString(payload.fabric_id, "fabric_id", 5, 200);
         if (payload.confirmed !== true) throw new ApiError(422, "explicit_confirmation_required");
         const message = asString(payload.message, "message", 5, 1000);
+        const requestedJourney = payload.journey_id == null ? null : await queryOne<any>(
+          sb.from("waouh_opportunity_journeys").select("*")
+            .eq("id", uuid(payload.journey_id, "journey_id")).eq("owner_id", ownerId).eq("fabric_id", fabricId).maybeSingle(),
+          "nexus_journey_not_found",
+        );
+        if (requestedJourney && ["completed", "cancelled"].includes(requestedJourney.stage)) throw new ApiError(409, "journey_closed");
+        const contactContext = requestedJourney ? { journey_id: requestedJourney.id, mandate_id: requestedJourney.mandate_id, article_id: requestedJourney.article_id } : {};
+        const findContactJourney = () => {
+          let q = sb.from("waouh_opportunity_journeys").select("*").eq("owner_id", ownerId).eq("fabric_id", fabricId)
+            .not("stage", "in", '("completed","cancelled")');
+          if (requestedJourney) q = q.eq("id", requestedJourney.id);
+          return q.order("updated_at", { ascending: false }).limit(1).maybeSingle();
+        };
+
 
         if (!fabricId.startsWith("external:")) {
           const signal = await queryOne<any>(
@@ -3347,6 +3355,7 @@ Retourne uniquement JSON:
                 ? "Un vendeur WAOUH souhaite répondre à votre demande."
                 : "Un acheteur WAOUH souhaite répondre à votre offre.",
               context: {
+                ...contactContext,
                 operation: "nexus.internal_blind_message",
                 fabric_id: fabricId,
                 source_record_id: signal.source_record_id,
@@ -3386,10 +3395,7 @@ Retourne uniquement JSON:
             source_record_id: signal.source_record_id,
           });
 
-          const { data: internalJourney } = await sb.from("waouh_opportunity_journeys")
-            .select("*").eq("owner_id", ownerId).eq("fabric_id", fabricId)
-            .not("stage", "in", '("completed","cancelled")')
-            .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+          const { data: internalJourney } = await findContactJourney();
           const journey = internalJourney
             ? await updateOpportunityJourney(sb, internalJourney.id, {
                 stage: "waiting_reply", level: "C4", action: "mediated_contact_sent",
@@ -3423,6 +3429,8 @@ Retourne uniquement JSON:
               action_type: "send_message",
               action_summary: "Un utilisateur WAOUH souhaite répondre à votre demande commerciale.",
               context: {
+                ...contactContext,
+                fabric_id: fabricId,
                 operation: "nexus.blind_message",
                 signal_id: signalId,
                 from_auth_user: ownerId,
@@ -3451,10 +3459,7 @@ Retourne uniquement JSON:
           await audit(sb, signal.submitted_by, "nexus.blind_message.received", "approval", approval.id, {
             signal_id: signalId,
           });
-          const { data: blindJourney } = await sb.from("waouh_opportunity_journeys")
-            .select("*").eq("owner_id", ownerId).eq("fabric_id", fabricId)
-            .not("stage", "in", '("completed","cancelled")')
-            .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+          const { data: blindJourney } = await findContactJourney();
           const journey = blindJourney
             ? await updateOpportunityJourney(sb, blindJourney.id, {
                 stage: "waiting_reply", level: "C4", action: "mediated_contact_sent",
@@ -3526,9 +3531,9 @@ Retourne uniquement JSON:
           p_channel: "whatsapp",
           p_direction: "out",
           p_fabric_id: fabricId,
-          p_journey_id: null,
-          p_mandate_id: typeof payload.mandate_id === "string" ? payload.mandate_id : null,
-          p_article_id: null,
+          p_journey_id: requestedJourney?.id ?? null,
+          p_mandate_id: requestedJourney?.mandate_id ?? (typeof payload.mandate_id === "string" ? payload.mandate_id : null),
+          p_article_id: requestedJourney?.article_id ?? null,
           p_thread_id: null,
           p_negotiation_id: null,
           p_deal_id: null,
@@ -3550,14 +3555,11 @@ Retourne uniquement JSON:
           contactability: signal.contactability_level,
           phone_last4: target.value_last4,
         });
-        const { data: activeJourney } = await sb.from("waouh_opportunity_journeys")
-          .select("*").eq("owner_id", ownerId).eq("fabric_id", fabricId)
-          .not("stage", "in", '("completed","cancelled")')
-          .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+        const { data: activeJourney } = await findContactJourney();
         const journey = activeJourney
           ? await updateOpportunityJourney(sb, activeJourney.id, {
               stage: "waiting_reply", level: "C4", action: "whatsapp_contact_queued",
-              message: "Message envoyé par votre Avatar. WAOUH suit maintenant la réponse.",
+              message: "Message mis en file d’envoi. WAOUH vérifiera son acheminement puis suivra la réponse.",
               event: { channel: "whatsapp", phone_last4: target.value_last4 },
               channel: "whatsapp",
               maskedContact: { country_code: "+229", last4: target.value_last4 },

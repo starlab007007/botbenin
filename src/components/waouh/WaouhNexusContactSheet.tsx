@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Loader2, MessageCircle, RefreshCw, Search, Send, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
+import { WaouhJourneyProgress } from "./WaouhJourneyProgress";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,25 +26,16 @@ type Prepared = Awaited<ReturnType<typeof prepareNexusContact>>;
 
 const errorText = (error: unknown) => userFacingErrorText(error, "send");
 
-const stageLabels = [
-  ["Trouvé", 10],
-  ["Vérifié", 25],
-  ["Contact", 40],
-  ["Réponse", 55],
-  ["Négociation", 70],
-  ["Accord", 80],
-  ["Exécution", 90],
-  ["Terminé", 100],
-] as const;
-
 export function WaouhNexusContactSheet({
   fabricId,
   title,
   sourceUrl,
   contactabilityLevel,
   mode = "buy",
+  journeyId,
 }: {
   fabricId: string;
+  journeyId?: string;
   title: string;
   sourceUrl?: string | null;
   contactabilityLevel?: string | null;
@@ -63,11 +54,14 @@ export function WaouhNexusContactSheet({
   const load = async () => {
     if (!user) return;
     setBusy(true);
+    setPrepared(null);
+    setJourney(null);
+    setBusEvents([]);
     try {
-      let started = (await startNexusOpportunity(fabricId, mode)).journey;
+      let started = journeyId ? (await getNexusOpportunityStatus({ journey_id: journeyId })).journey : (await startNexusOpportunity(fabricId, mode)).journey;
       let contact = await prepareNexusContact(fabricId);
-      if (contact.contact_policy.level === "C0" ||
-          (contact.contact_policy.level === "C1" && !contact.contact_policy.can_user_confirm_contact)) {
+      if (!journeyId && (contact.contact_policy.level === "C0" ||
+          (contact.contact_policy.level === "C1" && !contact.contact_policy.can_user_confirm_contact))) {
         started = (await enrichNexusOpportunity(fabricId, mode)).journey;
         contact = await prepareNexusContact(fabricId);
       }
@@ -75,13 +69,13 @@ export function WaouhNexusContactSheet({
       setPrepared(contact);
       setMessage(interestMessage(title));
       try {
-        const bus = await listNexusConversationBus({ fabric_id: fabricId, limit: 12 });
+        const bus = await listNexusConversationBus({ fabric_id: fabricId, journey_id: started.id, limit: 12 });
         setBusEvents(bus.events || []);
       } catch {
         setBusEvents([]);
       }
     } catch (error) {
-      toast({ title: "Avatar poursuit la démarche", description: errorText(error) });
+      toast({ title: "Suivi non chargé", description: errorText(error), variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -91,7 +85,27 @@ export function WaouhNexusContactSheet({
     if (!open || !user) return;
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, fabricId, user?.id]);
+  }, [open, fabricId, journeyId, user?.id]);
+
+  useEffect(() => {
+    if (!open || !journey?.id || !user) return;
+    let alive = true;
+    let running = false;
+    const sync = async () => {
+      if (running || document.visibilityState === "hidden") return;
+      running = true;
+      try {
+        const result = await getNexusOpportunityStatus({ journey_id: journey.id });
+        if (alive) setJourney(result.journey);
+        const bus = await listNexusConversationBus({ fabric_id: fabricId, journey_id: journey?.id || journeyId, limit: 12 });
+        if (alive) setBusEvents(bus.events || []);
+      } catch { /* Retain the last confirmed state; manual refresh remains available. */ }
+      finally { running = false; }
+    };
+    const timer = window.setInterval(() => void sync(), 15000);
+    document.addEventListener("visibilitychange", sync);
+    return () => { alive = false; window.clearInterval(timer); document.removeEventListener("visibilitychange", sync); };
+  }, [open, journey?.id, user?.id, fabricId]);
 
   const enrich = async () => {
     setEnriching(true);
@@ -100,7 +114,7 @@ export function WaouhNexusContactSheet({
       setJourney(result.journey);
       setPrepared(await prepareNexusContact(fabricId));
     } catch (error) {
-      toast({ title: "Recherche de contact active", description: errorText(error) });
+      toast({ title: "Contact non vérifié", description: errorText(error), variant: "destructive" });
     } finally {
       setEnriching(false);
     }
@@ -113,9 +127,11 @@ export function WaouhNexusContactSheet({
       const result = await getNexusOpportunityStatus({ journey_id: journey.id });
       setJourney(result.journey);
       try {
-        const bus = await listNexusConversationBus({ fabric_id: fabricId, limit: 12 });
+        const bus = await listNexusConversationBus({ fabric_id: fabricId, journey_id: journey?.id || journeyId, limit: 12 });
         setBusEvents(bus.events || []);
       } catch {}
+    } catch (error) {
+      toast({ title: "Actualisation impossible", description: errorText(error), variant: "destructive" });
     } finally {
       setBusy(false);
     }
@@ -129,11 +145,12 @@ export function WaouhNexusContactSheet({
         fabric_id: prepared.fabric_id,
         message: message.trim(),
         confirmed: true,
+        journey_id: journey?.id,
       });
       if (result.journey) setJourney(result.journey as NexusOpportunityJourney);
       else if (journey) setJourney((await getNexusOpportunityStatus({ journey_id: journey.id })).journey);
       try {
-        const bus = await listNexusConversationBus({ fabric_id: fabricId, limit: 12 });
+        const bus = await listNexusConversationBus({ fabric_id: fabricId, journey_id: journey?.id || journeyId, limit: 12 });
         setBusEvents(bus.events || []);
       } catch {}
       toast({
@@ -142,7 +159,7 @@ export function WaouhNexusContactSheet({
       });
     } catch (error) {
       toast({
-        title: "La démarche reste active",
+        title: "Message non envoyé",
         description: errorText(error),
       });
     } finally {
@@ -151,7 +168,6 @@ export function WaouhNexusContactSheet({
   };
 
   const level = journey?.contactability_level ?? prepared?.contact_policy.level ?? contactabilityLevel ?? "C0";
-  const progress = Math.max(0, Math.min(100, journey?.progress ?? 10));
   const waiting = journey?.stage === "waiting_reply" || journey?.stage === "contacting" || level === "C4";
   const negotiating = journey?.stage === "negotiating" || level === "C5";
   const canSend = !!prepared && (
@@ -227,21 +243,7 @@ export function WaouhNexusContactSheet({
         ) : (
           <div className="mt-5 space-y-4">
             <div className="rounded-2xl border bg-slate-50 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="font-semibold">{journey?.last_message ?? "Opportunité prise en charge par Avatar"}</div>
-                <div className="font-bold text-blue-600">{progress}%</div>
-              </div>
-              <Progress value={progress} className="mt-2 h-2" />
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {stageLabels.map(([stage, threshold]) => (
-                  <span key={stage} className={`rounded-full px-2 py-1 text-[10px] font-semibold ${progress >= threshold ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-500"}`}>
-                    {stage}
-                  </span>
-                ))}
-              </div>
-              <div className="mt-3 text-xs text-muted-foreground">
-                Prochaine étape : <strong className="text-slate-800">{journey?.next_action ?? "Avatar analyse la prochaine action"}</strong>
-              </div>
+              {journey ? <WaouhJourneyProgress journey={journey} /> : <p>Chargement du suivi de cette opportunité.</p>}
             </div>
 
             {(readiness || actionability > 0 || nextBestAction) && (
@@ -298,7 +300,7 @@ export function WaouhNexusContactSheet({
                       }`} />
                       <div className="min-w-0 flex-1">
                         <div className="font-bold text-slate-800">
-                          {event.event_type.replaceAll(".", " ")}
+                          {event.event_type.replace(/\./g, " ")}
                           <span className="ml-1 font-medium text-slate-400">· {event.channel}</span>
                         </div>
                         <div className="text-slate-400">
