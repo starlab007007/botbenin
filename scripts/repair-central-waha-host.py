@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import time
 import urllib.request
@@ -73,6 +74,19 @@ assert any(m.get('Destination')=='/app/.sessions' for m in item.get('Mounts',[])
 compose=['docker','compose','-f',str(config_path)]
 configuration=json.loads(output(compose+['config','--format','json']))
 assert configuration.get('services',{}).get(service,{}).get('image')==item['Config']['Image'], 'Compose service identity mismatch'
+def free_gib():
+    root=output(['docker','info','--format','{{.DockerRootDir}}']).strip() or '/'
+    try: return shutil.disk_usage(root).free/2**30
+    except OSError: return shutil.disk_usage('/').free/2**30
+# Reclaim only unreferenced Docker data (dangling images, build cache); never volumes, sessions or running containers.
+free_before=free_gib()
+if free_before<3:
+    for prune in (['docker','image','prune','-f'],['docker','builder','prune','-f','--filter','until=24h']):
+        try: command(prune,stdout=subprocess.DEVNULL)
+        except subprocess.CalledProcessError: pass
+free_after=free_gib()
+print('::notice title=Central WAHA host disk::free before=%.1f GiB; after safe cleanup=%.1f GiB' % (free_before,free_after))
+assert free_after>=3, 'Host disk space is insufficient for the provider image; free at least 3 GiB on the VPS, then rerun'
 # Pull through the authenticated registry transport and resolve its digest before any interruption.
 try:
     command(['docker','pull',TARGET],stdout=subprocess.DEVNULL)
