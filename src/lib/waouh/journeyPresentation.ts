@@ -1,5 +1,6 @@
 import type { NexusOpportunityJourney } from "./nexus";
 const steps = ["Recherche", "Vérification", "Contact", "Réponse", "Négociation", "Accord", "Exécution", "Conclusion"];
+const stageLabels: Record<NexusOpportunityJourney["stage"], string> = { discovered: "Offre trouvée", enriching: "Vérification en cours", contact_ready: "Contact prêt", contacting: "Contact engagé", waiting_reply: "Réponse attendue", negotiating: "Négociation en cours", agreed: "Accord obtenu", executing: "Exécution en cours", completed: "Terminée", cancelled: "Annulée" };
 const stages: Record<NexusOpportunityJourney["stage"], number> = {
   discovered: 0, enriching: 1, contact_ready: 2, contacting: 2, waiting_reply: 3,
   negotiating: 4, agreed: 5, executing: 6, completed: 7, cancelled: 0,
@@ -14,18 +15,19 @@ export function journeyPresentation(journey: NexusOpportunityJourney) {
     journey.last_action === "terms_required" ? "Préciser le prix, la quantité et les conditions." :
     journey.last_action === "deal_room_retry" ? "Reprendre l’ouverture de la discussion." :
     completed ? "Consulter le résultat et l’historique." : cancelled ? "Créer une nouvelle recherche si nécessaire." :
-    journey.stage === "negotiating" || journey.stage === "agreed" ? "Valider le prix et les conditions avant tout engagement." :
+    journey.stage === "agreed" ? "Vérifier les modalités de réalisation et les confirmations restantes." :
+    journey.stage === "negotiating" ? "Valider le prix et les conditions avant tout engagement." :
     journey.stage === "executing" ? "Confirmer la réception ou la réalisation." : waiting ? "Vous serez informé dès qu’une réponse arrive." :
     "Choisir une offre et confirmer la prise de contact.";
   return {
     steps: steps.map((label, i) => ({ label, state: cancelled ? "pending" : i < index && !completed ? "past" : i === index ? "current" : "pending" })),
-    status: journey.last_action === "whatsapp_contact_queued" ? "Envoi en cours" : cancelled ? "Annulée" : completed ? "Terminée" : blocked ? "Action requise" : waiting ? "Réponse attendue" : "En cours",
+    status: cancelled ? "Annulée" : completed ? "Terminée" : blocked ? "Action requise" : journey.last_action === "whatsapp_contact_queued" ? "Envoi en cours" : stageLabels[journey.stage] || "En cours",
     assistant: "Compare les offres et explique les prix, les sources et les conditions.",
     avatar: completed || cancelled ? "Le suivi de cette démarche est terminé." : waiting ? "Suit le contact et les relances autorisées ; aucun accord n’est encore acquis." :
       journey.stage === "negotiating" ? "Accompagne la négociation dans la même discussion." :
       journey.stage === "executing" ? "Suit les étapes de réalisation jusqu’à leur confirmation." : "Vérifie les informations et prépare la prochaine action autorisée.",
     user,
-    next: journey.last_action === "whatsapp_contact_queued" ? "Vérifier l’acheminement du message, puis suivre la réponse." : completed || cancelled ? "Aucune action automatique restante." : journey.next_action || user,
+    next: completed || cancelled ? "Aucune action automatique restante." : journey.last_action === "whatsapp_contact_queued" ? "Vérifier l’acheminement du message, puis suivre la réponse." : journey.next_action || user,
   };
 }
 

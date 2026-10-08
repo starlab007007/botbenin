@@ -27,6 +27,13 @@ describe("Product journey visibility", () => {
     expect(v.next).toContain("acheminement");
     expect(v.steps.find(s => s.label === "Accord")?.state).toBe("pending");
   });
+  it("keeps terminal states authoritative over an old queued-message event", () => {
+    for (const stage of ["completed", "cancelled"] as const) {
+      const view = journeyPresentation({ ...journey, stage, last_action: "whatsapp_contact_queued" });
+      expect(view.status).toBe(stage === "completed" ? "Terminée" : "Annulée");
+      expect(view.next).toBe("Aucune action automatique restante.");
+    }
+  });
   it("keeps cancelled journeys inactive", () => {
     const v = journeyPresentation({ ...journey, stage: "cancelled" });
     expect(v.status).toBe("Annulée");

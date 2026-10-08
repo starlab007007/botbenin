@@ -1,10 +1,11 @@
+import { sourceDisplayName } from "@/lib/waouh/sourcePresentation";
 import type { NexusOpportunityJourney } from "@/lib/waouh/nexus";
 import { journeyPresentation } from "@/lib/waouh/journeyPresentation";
 export function WaouhJourneyProgress({ journey }: { journey: NexusOpportunityJourney }) {
   const view = journeyPresentation(journey);
   const sourceUrl = /^https?:\/\//i.test(journey.source_url || "") ? journey.source_url : null;
   return <div className="space-y-3 text-xs">
-    <div className="flex items-center justify-between gap-2"><span className="font-semibold">{view.status}</span><span className="truncate text-slate-500">{journey.source_key || "Source à vérifier"}</span></div>
+    <div className="flex items-center justify-between gap-2"><span className="font-semibold">{view.status}</span><span className="truncate text-slate-500">{sourceDisplayName(journey.source_key)}</span></div>
 
     {journey.last_message && <p className="line-clamp-2 leading-relaxed text-slate-600"><strong>Dernière action : </strong>{journey.last_message}</p>}
     <p className="rounded-xl bg-blue-50 p-2 leading-relaxed"><strong>À venir : </strong>{view.next}</p>
