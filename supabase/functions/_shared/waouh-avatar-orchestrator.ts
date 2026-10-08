@@ -60,6 +60,7 @@ export async function reconcileAvatarApprovals(sb: any, limit = 20, approvalId?:
     try {
       let query = sb.from('waouh_opportunity_journeys').select('*');
       query = c.journey_id ? query.eq('id', c.journey_id) : query.eq('owner_id', c.from_auth_user).eq('fabric_id', c.fabric_id ?? `external:${c.signal_id}`);
+      if (!c.journey_id) query = c.mandate_id ? query.eq('mandate_id', c.mandate_id) : query.is('mandate_id', null);
       let { data: journey } = await query.order('updated_at', { ascending: false }).limit(1).maybeSingle();
       if (!journey && c.operation === 'nexus.internal_blind_message' && c.from_auth_user && c.fabric_id) {
         const created = await sb.from('waouh_opportunity_journeys').insert({ owner_id: c.from_auth_user,

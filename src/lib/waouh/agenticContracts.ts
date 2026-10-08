@@ -316,6 +316,7 @@ export function normalizeAgenticBlocks(value: unknown): WaouhMessageBlock[] {
 }
 
 export type AgenticAction =
+  | "nexus.source.sync" | "nexus.opportunity.start" | "nexus.opportunity.enrich" | "nexus.opportunity.status" | "nexus.opportunity.list" | "nexus.owned_articles" | "nexus.opportunity.bind_article"
   | "mission.create" | "mission.list" | "mission.get" | "mission.pause" | "mission.resume" | "mission.cancel" | "mission.run"
   | "watch.create" | "watch.list" | "watch.update" | "watch.delete" | "watch.observe" | "watch.events" | "watch.event.read"
   | "activity.list" | "approval.request" | "approval.list" | "approval.decide"

@@ -2860,7 +2860,7 @@ Retourne uniquement JSON:
           sb.from("waouh_avatar_mandates").select("*").eq("id", mandateId).eq("owner_id", ownerId).maybeSingle(),
           "nexus_mandate_not_found",
         );
-        if (mandate.status !== "active") throw new ApiError(409, "mandate_not_active");
+        if (mandate.status !== "active" || mandate.metadata?.agreement_reached_at) throw new ApiError(409, "mandate_not_searching");
         const discoveryMode: DiscoveryMode = mandate.mode === "sell" ? "find_buyers" : "find_sellers";
         const mandateArticleId = mandate.mode === "sell" &&
           mandate.metadata && typeof mandate.metadata === "object" &&
@@ -3574,7 +3574,7 @@ Retourne uniquement JSON:
       }
 
       case "nexus.sources": {
-        const [providers, articleSources, buyerSources, radar, registry, fabricRows] = await Promise.all([
+        const [providers, articleSources, buyerSources, radar, registry, fabricRows, telSettings, wahaSync] = await Promise.all([
           sb.from("waouh_radar_api_configs")
             .select("provider,active,daily_quota,usage_today,last_test_at,last_test_status")
             .order("provider"),
@@ -3583,6 +3583,8 @@ Retourne uniquement JSON:
           sb.from("waouh_radar_signals").select("source_type,intent,contact_phone,status").limit(3000),
           sb.from("waouh_discovery_sources").select("*").order("family").order("label"),
           sb.from("waouh_signal_fabric").select("source_key,intent,contactability_level").limit(5000),
+          sb.from("waouh_tel_settings").select("enabled,provider,sms_enabled,rcs_enabled").eq("key", "default").maybeSingle(),
+          sb.from("waouh_lid_sync_runs").select("status,finished_at").order("started_at", { ascending: false }).limit(1).maybeSingle(),
         ]);
         for (const result of [providers, articleSources, buyerSources, radar, registry, fabricRows]) {
           if ((result as any).error) throw new ApiError(500, "nexus_sources_failed", (result as any).error.message);
@@ -3649,6 +3651,13 @@ Retourne uniquement JSON:
             last_test_status: row.last_test_status,
             configured: row.provider === "serpapi" ? serpReady.ok : row.provider === "apify" ? apifyReady.ok : row.active,
           })),
+          channels: {
+            waouh: { status: 'available', label: 'WAOUH interne' },
+            whatsapp_directory: { status: wahaSync.data?.status === 'success' ? 'last_sync_ok' : 'degraded', label: 'Annuaire WhatsApp', checked_at: wahaSync.data?.finished_at ?? null },
+            sms: { status: telSettings.data?.enabled && telSettings.data?.sms_enabled && telSettings.data?.provider !== 'not_configured' ? 'configured' : 'disabled', label: 'SMS' },
+            rcs: { status: telSettings.data?.enabled && telSettings.data?.rcs_enabled && telSettings.data?.provider !== 'not_configured' ? 'configured' : 'disabled', label: 'RCS' },
+            email: { status: 'unavailable', label: 'Email automatique' },
+          },
           registry: sourceRegistry,
           fabric: {
             total: (fabricRows.data ?? []).length,

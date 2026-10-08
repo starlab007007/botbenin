@@ -59,6 +59,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   String _acceptanceTerms = '';
   List<Map<String, dynamic>> _mandates = [];
   Timer? _refreshTimer;
+  Map<String, dynamic> _channelHealth = {};
   bool _mandateBusy = false;
 
   @override
@@ -74,6 +75,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       await _loadJourneys();
       await _loadMandate();
       await _loadConversationBus();
+      try { final health = await _nexus.sourceHealth(); if (mounted) setState(() => _channelHealth = Map<String, dynamic>.from(health['channels'] as Map? ?? {})); } catch (_) {}
     });
   }
 
@@ -1104,6 +1106,15 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
                 }
               },
             ),
+            ExpansionTile(title: const Text('Autorisations et échéance'), tilePadding: EdgeInsets.zero, children: [
+              for (final entry in {'allow_whatsapp': 'WhatsApp vérifié', 'allow_public_business': 'Contacts professionnels publics', 'allow_blind_message': 'Mise en relation médiée'}.entries)
+                SwitchListTile.adaptive(title: Text(entry.value), value: current[entry.key] == true, onChanged: _mandateBusy || !['active','paused'].contains(status) ? null : (v) async {
+                  setState(() => _mandateBusy = true);
+                  try { final data = await _nexus.updateMandate('${current['id']}', allowWhatsapp: entry.key == 'allow_whatsapp' ? v : null, allowPublicBusiness: entry.key == 'allow_public_business' ? v : null, allowBlindMessage: entry.key == 'allow_blind_message' ? v : null); if (mounted && data['mandate'] is Map) setState(() => _mandate = Map<String, dynamic>.from(data['mandate'] as Map)); } finally { if (mounted) setState(() => _mandateBusy = false); }
+                }),
+              TextButton(onPressed: _mandateBusy || ['completed','cancelled'].contains(status) || current['metadata']?['agreement_reached_at'] != null ? null : () async { final data = await _nexus.updateMandate('${current['id']}', durationHours: 72, status: 'active'); if (mounted && data['mandate'] is Map) setState(() => _mandate = Map<String, dynamic>.from(data['mandate'] as Map)); }, child: const Text('Prolonger de 3 jours dès maintenant')),
+              TextButton(onPressed: _mandateBusy || !['active','paused'].contains(status) ? null : () async { final data = await _nexus.updateMandate('${current['id']}', status: 'cancelled'); if (mounted && data['mandate'] is Map) setState(() => _mandate = Map<String, dynamic>.from(data['mandate'] as Map)); }, child: const Text('Arrêter la mission')),
+            ]),
             OutlinedButton.icon(
               onPressed: _mandateBusy || !['active', 'paused'].contains(status) || (current['metadata'] is Map && current['metadata']['agreement_reached_at'] != null) ? null : _toggleMandate,
               icon: Icon(status == 'active' ? Icons.pause_rounded : Icons.play_arrow_rounded),
@@ -1144,6 +1155,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
             onChanged: (v) { if (v != null) setState(() => _durationHours = v); }),
           ExpansionTile(title: const Text('Canaux et conditions'), tilePadding: EdgeInsets.zero, children: [
             const Text('WAOUH interne activé. Les canaux autorisés restent soumis à leur disponibilité et au consentement.'),
+            ..._channelHealth.values.whereType<Map>().map((h) => Text('${h['label']} : ${h['status'] == 'available' ? 'disponible' : h['status'] == 'configured' ? 'configuré, livraison à vérifier' : h['status'] == 'last_sync_ok' ? 'dernière synchro réussie' : h['status'] == 'degraded' ? 'synchro en échec' : 'indisponible'}', style: const TextStyle(fontSize: 11))),
             SwitchListTile.adaptive(title: const Text('WhatsApp vérifié'), value: _allowWhatsapp, onChanged: (v) => setState(() => _allowWhatsapp = v)),
             SwitchListTile.adaptive(title: const Text('Contacts professionnels publics'), value: _allowBusiness, onChanged: (v) => setState(() => _allowBusiness = v)),
             SwitchListTile.adaptive(title: const Text('Demandes de mise en relation'), value: _allowMediation, onChanged: (v) => setState(() => _allowMediation = v)),

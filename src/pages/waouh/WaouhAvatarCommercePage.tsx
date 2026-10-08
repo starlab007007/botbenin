@@ -29,6 +29,8 @@ import { getWaouhSessionId } from "@/app-mobile/hooks/useWaouhIdentity";
 import { WaouhNexusContactSheet } from "@/components/waouh/WaouhNexusContactSheet";
 import {
   globalNexusDiscovery,
+  getNexusSources,
+  type NexusSourceStatus,
   listNexusOwnedArticles,
   bindNexusJourneyArticle,
   prepareNexusContact,
@@ -164,7 +166,7 @@ const journeyBusinessPhase = (journey: NexusOpportunityJourney) => {
     executing: "Exécution",
     completed: "Terminé",
     cancelled: "Annulé",
-  } as Record<string, string>)[journey.stage] || journey.stage.replaceAll("_", " ");
+  } as Record<string, string>)[journey.stage] || journey.stage.replace(/_/g, " ");
 };
 
 export default function WaouhAvatarCommercePage() {
@@ -185,6 +187,8 @@ export default function WaouhAvatarCommercePage() {
   const [busy, setBusy] = useState(false);
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [results, setResults] = useState<NexusDiscoveryResult[]>([]);
+  const [channelHealth, setChannelHealth] = useState<NexusSourceStatus["channels"]>({});
+  useEffect(() => { void getNexusSources().then(data => setChannelHealth(data.channels || {})).catch(() => {}); }, []);
   const [sourceMix, setSourceMix] = useState<Record<string, number>>({});
   const [rationale, setRationale] = useState("");
   const [offerItem, setOfferItem] = useState<NexusDiscoveryResult | null>(null);
@@ -627,6 +631,13 @@ export default function WaouhAvatarCommercePage() {
                   Objectif : {activeMandate.metadata?.completion_goal === "recommendations" ? "Recommandations" : activeMandate.metadata?.completion_goal === "transaction" ? "Exécution complète" : "Accord confirmé"} · Jusqu’à {activeMandate.max_contacts} contacts · expire {new Date(activeMandate.expires_at).toLocaleString("fr-FR")}
                 </div>
               </div>
+              <details className="rounded-xl border bg-white p-3 text-xs"><summary>Autorisations et échéance</summary>
+                <div className="mt-2 space-y-2">
+                {([['allow_whatsapp','WhatsApp vérifié'],['allow_public_business','Contacts professionnels publics'],['allow_blind_message','Mise en relation médiée']] as const).map(([key,label]) => <label key={key} className="flex items-center justify-between gap-2">{label}<input type="checkbox" checked={activeMandate[key]} disabled={mandateBusy || !['active','paused'].includes(activeMandate.status)} onChange={async e => { const value = e.target.checked; setMandateBusy(true); try { const response = await updateNexusMandate(activeMandate.id, { [key]: value }); setActiveMandate(response.mandate); } catch(error) { toast({title:'Modification impossible', description:userFacingErrorText(error,'save'), variant:'destructive'}); } finally { setMandateBusy(false); } }} /></label>)}
+                <Button size="sm" variant="outline" disabled={mandateBusy || !!activeMandate.metadata?.agreement_reached_at || ['completed','cancelled'].includes(activeMandate.status)} onClick={async () => { setMandateBusy(true); try { const response = await updateNexusMandate(activeMandate.id, { duration_hours: 72, status: 'active' }); setActiveMandate(response.mandate); } finally { setMandateBusy(false); } }}>Prolonger de 3 jours à partir de maintenant</Button>
+                <Button size="sm" variant="outline" disabled={mandateBusy || !['active','paused'].includes(activeMandate.status)} onClick={async () => { setMandateBusy(true); try { const response = await updateNexusMandate(activeMandate.id, { status: 'cancelled' }); setActiveMandate(response.mandate); } finally { setMandateBusy(false); } }}>Arrêter la mission</Button>
+                </div>
+              </details>
               <label className="flex items-center justify-between gap-3 rounded-2xl border border-violet-100 bg-white p-3">
                 <div>
                   <div className="text-xs font-black text-slate-900">SMS/RCS consentis</div>
@@ -655,7 +666,7 @@ export default function WaouhAvatarCommercePage() {
                   {activeMandate.status === "active" ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}
                   {activeMandate.status === "active" ? "Mettre en pause" : "Reprendre"}
                 </Button>
-                <Button disabled={mandateBusy || activeMandate.status !== "active"} onClick={() => void runMandateNow()} className="rounded-xl">
+                <Button disabled={mandateBusy || activeMandate.status !== "active" || !!activeMandate.metadata?.agreement_reached_at} onClick={() => void runMandateNow()} className="rounded-xl">
                   {mandateBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Radar className="mr-2 h-4 w-4" />}
                   Chercher maintenant
                 </Button>
@@ -681,6 +692,7 @@ export default function WaouhAvatarCommercePage() {
               <details className="rounded-xl border bg-white p-3 text-xs"><summary className="cursor-pointer font-semibold">Canaux et conditions</summary>
                 <div className="mt-2 space-y-2">
                   <p>WAOUH interne activé. Un canal autorisé reste soumis à sa disponibilité et au consentement.</p>
+                  <div className="flex flex-wrap gap-2">{Object.entries(channelHealth || {}).map(([key, health]) => <span key={key}>{health.label} : {health.status === 'available' ? 'disponible' : health.status === 'configured' ? 'configuré, livraison à vérifier' : health.status === 'last_sync_ok' ? 'dernière synchro réussie' : health.status === 'degraded' ? 'synchro en échec' : 'indisponible'}</span>)}</div>
                   <label className="flex items-center gap-2"><input type="checkbox" checked={allowWhatsapp} onChange={e => setAllowWhatsapp(e.target.checked)} /> WhatsApp vérifié</label>
                   <label className="flex items-center gap-2"><input type="checkbox" checked={allowBusiness} onChange={e => setAllowBusiness(e.target.checked)} /> Contacts professionnels publics</label>
                   <label className="flex items-center gap-2"><input type="checkbox" checked={allowMediation} onChange={e => setAllowMediation(e.target.checked)} /> Demandes de mise en relation</label>

@@ -881,6 +881,8 @@ class LiveNexusService {
     return NexusDiscoveryResponse.fromJson(data);
   }
 
+  Future<Map<String, dynamic>> sourceHealth() => _invoke('nexus.sources');
+
   Future<List<NexusSourceInfo>> sources() async {
     final data = await _invoke('nexus.sources');
     return _list(data['registry'])
@@ -1053,12 +1055,20 @@ class LiveNexusService {
     String? status,
     String? autonomyMode,
     bool? allowSmsRcs,
+    bool? allowWhatsapp,
+    bool? allowPublicBusiness,
+    bool? allowBlindMessage,
+    int? durationHours,
   }) =>
       _invoke('nexus.mandate.update', {
         'mandate_id': mandateId,
         if (status != null) 'status': status,
         if (autonomyMode != null) 'autonomy_mode': autonomyMode,
         if (allowSmsRcs != null) 'allow_sms_rcs': allowSmsRcs,
+        if (allowWhatsapp != null) 'allow_whatsapp': allowWhatsapp,
+        if (allowPublicBusiness != null) 'allow_public_business': allowPublicBusiness,
+        if (allowBlindMessage != null) 'allow_blind_message': allowBlindMessage,
+        if (durationHours != null) 'duration_hours': durationHours,
       });
 
   Future<Map<String, dynamic>> runMandate(String mandateId) =>

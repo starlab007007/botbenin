@@ -175,6 +175,7 @@ export function nexusBadgeLabel(value: string) {
 
 
 export type NexusSourceStatus = {
+  channels?: Record<string, { status: string; label: string; checked_at?: string | null }>;
   providers: Array<{ provider: string; source_key?: string | null; label?: string | null; auth_mode?: string | null; active: boolean; configured?: boolean; reason?: string | null; daily_quota?: number | null; usage_today?: number | null; last_test_at?: string | null; last_test_status?: string | null; last_sync_at?: string | null; last_sync_status?: string | null }>;
   registry?: NexusDiscoverySource[];
   fabric?: { total: number; by_source: Record<string, number>; by_intent: Record<string, number>; by_contactability: Record<string, number> };
@@ -726,7 +727,7 @@ export async function updateNexusMandate(
     "min_match_score" | "min_actionability_score" | "allow_waouh" |
     "allow_whatsapp" | "allow_public_business" | "allow_blind_message" |
     "allow_email" | "allow_sms_rcs"
-  >>,
+  >> & { duration_hours?: number; completion_goal?: "transaction" | "agreement" | "recommendations" },
 ) {
   return invokeWaouhAgentic<{ mandate: NexusAvatarMandate }>(
     "nexus.mandate.update",
