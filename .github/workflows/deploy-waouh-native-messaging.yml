@@ -521,7 +521,7 @@ jobs:
             "waouh-bots-backend-health-v1|waouh-native-messaging-settings|true"
             "waouh-chat-health|waouh-tel-open-messages|false"
             "chat-webhook|waouh-native-simulator|false"
-            "waouh-studio-e2e-v21465|waouh-agentic-core|true"
+            "waouh-studio-e2e-v21465|waouh-agentic-core|false"
           )
 
           for mapping in "${aliases[@]}"; do
@@ -582,3 +582,5 @@ jobs:
           done
 
           echo '✅ Runtime Native Messaging et passerelles WAHA sécurisées déployés.'
+      - name: Verify public guest exchange after Native deployment
+        run: python3 scripts/verify-external-exchange-production.py
