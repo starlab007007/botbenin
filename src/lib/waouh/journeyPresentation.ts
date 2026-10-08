@@ -28,3 +28,17 @@ export function journeyPresentation(journey: NexusOpportunityJourney) {
     next: journey.last_action === "whatsapp_contact_queued" ? "Vérifier l’acheminement du message, puis suivre la réponse." : completed || cancelled ? "Aucune action automatique restante." : journey.next_action || user,
   };
 }
+
+export function journeyChatDetail(journey: NexusOpportunityJourney) {
+  const threadId = journey.thread_id?.trim();
+  if (!threadId) return null;
+  return {
+    article_id: journey.article_id || null,
+    thread_id: threadId,
+    negotiation_id: journey.negotiation_id || null,
+    deal_id: journey.deal_id || null,
+    kind: journey.mode === "sell" ? "seller" : "buyer",
+    title: journey.subject || "Démarche WAOUH",
+    source: "avatar_opportunity",
+  };
+}

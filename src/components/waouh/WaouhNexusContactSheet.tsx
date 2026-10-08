@@ -1,6 +1,7 @@
 import { userFacingErrorText } from "@/lib/userFacingError";
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { journeyChatDetail } from "@/lib/waouh/journeyPresentation";
 import { Loader2, MessageCircle, RefreshCw, Search, Send, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { WaouhJourneyProgress } from "./WaouhJourneyProgress";
@@ -42,6 +43,7 @@ export function WaouhNexusContactSheet({
   mode?: "buy" | "sell" | "ask";
 }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -167,10 +169,24 @@ export function WaouhNexusContactSheet({
     }
   };
 
+  const openChat = () => {
+    if (!journey) return;
+    const detail = journeyChatDetail(journey);
+    if (!detail) return;
+    try {
+      const previous = JSON.parse(localStorage.getItem("waouh_pending_open") || "[]");
+      localStorage.setItem("waouh_pending_open", JSON.stringify([...(Array.isArray(previous) ? previous : []), detail].slice(-10)));
+    } catch { /* The live event can still open the discussion. */ }
+    setOpen(false);
+    navigate("/app/chat");
+    window.setTimeout(() => window.dispatchEvent(new CustomEvent("waouh:open-match-chat", { detail })), 60);
+  };
+
   const level = journey?.contactability_level ?? prepared?.contact_policy.level ?? contactabilityLevel ?? "C0";
-  const waiting = journey?.stage === "waiting_reply" || journey?.stage === "contacting" || level === "C4";
-  const negotiating = journey?.stage === "negotiating" || level === "C5";
-  const canSend = !!prepared && (
+  const terminal = journey?.stage === "completed" || journey?.stage === "cancelled";
+  const waiting = !terminal && (journey?.stage === "waiting_reply" || journey?.stage === "contacting" || level === "C4");
+  const negotiating = !terminal && (journey?.stage === "negotiating" || level === "C5");
+  const canSend = !terminal && !!prepared && (
     prepared.contact_policy.can_blind_message ||
     prepared.contact_policy.can_auto_contact ||
     prepared.contact_policy.can_user_confirm_contact
@@ -325,12 +341,12 @@ export function WaouhNexusContactSheet({
               </div>
             )}
 
-            {(level === "C0" || (level === "C1" && !canSend)) && (
+            {!terminal && (level === "C0" || (level === "C1" && !canSend)) && (
               <div className="rounded-2xl border border-blue-200 bg-blue-50/50 p-3">
-                <div className="text-sm font-semibold">Avatar enrichit le signal</div>
+                <div className="text-sm font-semibold">Contact à vérifier</div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {level === "C0"
-                    ? "C0 n’est plus une erreur. WAOUH cherche un canal public ou autorisé et garde cette démarche active."
+                    ? "Recherchez un canal public ou autorisé pour poursuivre cette opportunité."
                     : "Avatar complète les canaux disponibles pour sécuriser la prise de contact."}
                 </p>
                 <Button className="mt-3" size="sm" disabled={enriching} onClick={() => void enrich()}>
@@ -360,7 +376,7 @@ export function WaouhNexusContactSheet({
 
             {waiting && (
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3">
-                <div className="font-semibold text-emerald-900">Message envoyé · réponse en attente</div>
+                <div className="font-semibold text-emerald-900">Suivi du contact et de la réponse</div>
                 <p className="mt-1 text-xs text-emerald-800">
                   Avatar suit la réponse et vous guidera automatiquement vers la négociation.
                 </p>
@@ -370,11 +386,13 @@ export function WaouhNexusContactSheet({
               </div>
             )}
 
+            {journey?.thread_id && <Button variant="outline" className="min-h-11 w-full" onClick={openChat}>{terminal ? "Voir la discussion et le résultat" : "Ouvrir la discussion"}</Button>}
+
             {negotiating && (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3">
                 <div className="font-semibold">La contrepartie est prête à négocier</div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  WAOUH doit maintenant ouvrir le Deal Room et conserver les propositions, contre-offres et l’accord.
+                  Retrouvez les propositions, contre-offres et conditions dans la même discussion.
                 </p>
               </div>
             )}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { journeyPresentation } from "@/lib/waouh/journeyPresentation";
+import { journeyPresentation, journeyChatDetail } from "@/lib/waouh/journeyPresentation";
 import { WaouhJourneyProgress } from "../WaouhJourneyProgress";
 import { WaouhDiscoveryCoverage } from "../WaouhDiscoveryCoverage";
 import type { NexusOpportunityJourney } from "@/lib/waouh/nexus";
@@ -45,4 +45,9 @@ describe("Product journey visibility", () => {
     expect(await settleDiscoverySource(async () => { throw new Error("provider down"); })).toMatchObject({ status: "unavailable", reason: "refresh_failed" });
     expect(await settleDiscoverySource(async () => ({ configured: true, inserted: 4 }))).toMatchObject({ status: "updated", inserted: 4 });
   });
+  it("opens the exact discussion with its negotiation and deal identifiers", () => {
+    expect(journeyChatDetail(journey)).toBeNull();
+    expect(journeyChatDetail({ ...journey, thread_id: "thread-1", negotiation_id: "neg-1", deal_id: "deal-1", article_id: "article-1" })).toMatchObject({ thread_id: "thread-1", negotiation_id: "neg-1", deal_id: "deal-1", article_id: "article-1" });
+  });
+
 });
