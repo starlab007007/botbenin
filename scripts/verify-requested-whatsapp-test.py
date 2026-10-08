@@ -8,6 +8,16 @@ import datetime
 import json
 import os
 import time
+import sys
+
+def report_failure(kind, error, traceback):
+    if isinstance(error, AssertionError):
+        print("::error title=Requested WhatsApp exchange::" + str(error), flush=True)
+    else:
+        print("::error title=Requested WhatsApp exchange::Verification failed: " + kind.__name__, flush=True)
+    sys.__excepthook__(kind, error, traceback)
+
+sys.excepthook = report_failure
 import urllib.request
 import urllib.error
 
@@ -61,7 +71,7 @@ def message_id(message):
 messages = history()
 received = [message for message in messages if message.get('fromMe') is False and timestamp(message)>=since and args.keyword.casefold() in str(message.get('body') or message.get('caption') or '').casefold()]
 assert received, 'Requested test message not found in actual central WhatsApp history'
-incoming = sorted(received,key=timestamp)[0]
+incoming = sorted(received,key=timestamp)[-1]
 reference = message_id(incoming)
 assert reference, 'Provider test event has no stable message identifier'
 status, processed = request(management+'/database/query',{'query':"select exists(select 1 from public.waouh_processed_events where event_id='"+reference.replace("'","''")+"' and source='waha') as processed"},{'Authorization':'Bearer '+os.environ['SUPABASE_ACCESS_TOKEN'],'Content-Type':'application/json'})
