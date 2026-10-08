@@ -97,6 +97,15 @@ Deno.serve(async (req) => {
         if (!validPayload(row.payload)) {
           throw new Error("invalid_outbox_payload");
         }
+        if (row.payload.mandate_id) {
+          const { data: mandate, error } = await admin.from('waouh_avatar_mandates').select('status,expires_at,allow_sms_rcs,metadata').eq('id', row.payload.mandate_id).maybeSingle();
+          if (error) throw new Error('mandate_lookup_failed');
+          if (!mandate || mandate.status !== 'active' || !mandate.allow_sms_rcs || Date.parse(mandate.expires_at) <= Date.now() || mandate.metadata?.agreement_reached_at) {
+            await admin.from('waouh_tel_outbox').update({ status: 'cancelled', last_error: 'mandate_inactive', locked_at: null, locked_by: null }).eq('id', row.id).eq('locked_by', workerToken);
+            results.push({ id: row.id, status: 'cancelled', reason: 'mandate_inactive' });
+            continue;
+          }
+        }
         const [
           { data: user, error: userError },
           { data: consents, error: consentError },

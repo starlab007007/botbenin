@@ -167,7 +167,9 @@ export function WaouhNexusContactSheet({
   const masked = useMemo(() => {
     const values: string[] = [];
     for (const contact of prepared?.contacts ?? []) {
-      if (contact.value_last4) {
+      if (prepared?.contact_policy?.can_reveal && contact.value) {
+        values.push(`${contact.channel} · ${contact.value}`);
+      } else if (contact.value_last4) {
         values.push(`${contact.channel === "whatsapp" ? "WhatsApp" : contact.channel} · •••• ${contact.value_last4}`);
       }
     }

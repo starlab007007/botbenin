@@ -175,6 +175,7 @@ export function nexusBadgeLabel(value: string) {
 
 
 export type NexusSourceStatus = {
+  channels?: Record<string, { status: string; label: string; checked_at?: string | null }>;
   providers: Array<{ provider: string; source_key?: string | null; label?: string | null; auth_mode?: string | null; active: boolean; configured?: boolean; reason?: string | null; daily_quota?: number | null; usage_today?: number | null; last_test_at?: string | null; last_test_status?: string | null; last_sync_at?: string | null; last_sync_status?: string | null }>;
   registry?: NexusDiscoverySource[];
   fabric?: { total: number; by_source: Record<string, number>; by_intent: Record<string, number>; by_contactability: Record<string, number> };
@@ -310,6 +311,8 @@ export type NexusContactPack = {
 };
 
 export type NexusAvatarMandate = {
+  metrics?: Record<string, number>;
+  metadata?: { completion_goal?: string; agreement_reached_at?: string; terms?: Record<string, unknown>; [key: string]: unknown };
   id: string;
   owner_id: string;
   mode: "buy" | "sell" | "ask";
@@ -425,6 +428,7 @@ export type NexusDiscoveryResult = {
 };
 
 export type NexusDiscoverySource = {
+  health?: string; health_reason?: string; last_verified_at?: string | null;
   source_key: string;
   label: string;
   family: string;
@@ -601,7 +605,7 @@ export async function getNexusOpportunityStatus(input: { journey_id?: string; fa
   return invokeWaouhAgentic<{ journey: NexusOpportunityJourney }>("nexus.opportunity.status", input);
 }
 
-export async function listNexusOpportunityJourneys(input: { include_completed?: boolean; limit?: number } = {}) {
+export async function listNexusOpportunityJourneys(input: { include_completed?: boolean; limit?: number; mandate_id?: string } = {}) {
   return invokeWaouhAgentic<{
     journeys: NexusOpportunityJourney[];
     items: NexusOpportunityJourney[];
@@ -680,6 +684,7 @@ export async function createNexusMandate(payload: {
   article_id?: string;
   price_floor?: number;
   completion_goal?: "transaction" | "agreement" | "recommendations";
+  quantity?: number; delivery_terms?: string; acceptance_terms?: string;
   mode: "buy" | "sell" | "ask";
   goal: string;
   autonomy_mode?: "assisted" | "semi_autonomous" | "autonomous";
@@ -722,7 +727,7 @@ export async function updateNexusMandate(
     "min_match_score" | "min_actionability_score" | "allow_waouh" |
     "allow_whatsapp" | "allow_public_business" | "allow_blind_message" |
     "allow_email" | "allow_sms_rcs"
-  >>,
+  >> & { duration_hours?: number; completion_goal?: "transaction" | "agreement" | "recommendations" },
 ) {
   return invokeWaouhAgentic<{ mandate: NexusAvatarMandate }>(
     "nexus.mandate.update",

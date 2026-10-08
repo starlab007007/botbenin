@@ -297,7 +297,7 @@ jobs:
 
       - name: Test WAOUH NEXUS ranking contracts
         run: |
-          deno test --no-config supabase/functions/_shared/waouh-avatar-lifecycle-test.ts
+          deno test --no-config supabase/functions/_shared/waouh-avatar-lifecycle-test.ts supabase/functions/_shared/waouh-avatar-e2e-test.ts
           deno test --no-config supabase/functions/_shared/waouh-opportunity-os-test.ts
           deno test --no-config supabase/functions/_shared/waouh-nexus-test.ts
           deno test --no-config supabase/functions/_shared/waouh-signal-fabric-test.ts

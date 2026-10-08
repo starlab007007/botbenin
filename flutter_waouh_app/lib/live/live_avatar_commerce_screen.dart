@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -47,15 +48,34 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   int _maxContacts = 3;
   int _maxFollowups = 1;
   bool _allowSmsRcs = false;
+  bool _allowWhatsapp = false;
+  bool _allowBusiness = false;
+  bool _allowMediation = true;
+  bool _newMission = false;
+  String _completionGoal = 'agreement';
+  int _durationHours = 72;
+  int _quantity = 1;
+  String _deliveryTerms = '';
+  String _acceptanceTerms = '';
+  List<Map<String, dynamic>> _mandates = [];
+  Timer? _refreshTimer;
+  Map<String, dynamic> _channelHealth = {};
   bool _mandateBusy = false;
 
   @override
   void initState() {
     super.initState();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) async {
+      if (!mounted || _mandateBusy) return;
+      await _loadMandate();
+      if (!mounted) return;
+      await _loadJourneys();
+    });
     Future<void>.microtask(() async {
       await _loadJourneys();
       await _loadMandate();
       await _loadConversationBus();
+      try { final health = await _nexus.sourceHealth(); if (mounted) setState(() => _channelHealth = Map<String, dynamic>.from(health['channels'] as Map? ?? {})); } catch (_) {}
     });
   }
 
@@ -63,7 +83,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
     if (legacy.supabase.auth.currentUser == null || _loadingJourneys) return;
     if (mounted) setState(() => _loadingJourneys = true);
     try {
-      final rows = await _nexus.listOpportunities(limit: 12);
+      final rows = await _nexus.listOpportunities(limit: 50, includeCompleted: true, mandateId: _mandate?['id'] as String?);
       if (mounted) setState(() => _journeys = rows);
     } catch (_) {
       // Search and deal remain usable even if the summary cannot refresh.
@@ -95,13 +115,15 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       final data = await _nexus.listMandates();
       final rows = data['mandates'];
       if (rows is! List || !mounted) return;
+      _mandates = rows.whereType<Map>().map((r) => Map<String, dynamic>.from(r)).where((r) => r['mode'] == widget.mode.name).toList();
       Map<String, dynamic>? current;
+      final selectedId = _mandate?['id'];
       for (final raw in rows) {
         if (raw is! Map) continue;
         final row = Map<String, dynamic>.from(raw);
         final status = '${row['status'] ?? ''}';
         final targetMode = widget.mode == LiveAvatarCommerceMode.sell ? 'sell' : widget.mode == LiveAvatarCommerceMode.ask ? 'ask' : 'buy';
-        if ((status == 'active' || status == 'paused') && row['mode'] == targetMode) {
+        if (!_newMission && row['mode'] == targetMode && (selectedId != null ? row['id'] == selectedId : (status == 'active' || status == 'paused'))) {
           current = row;
           break;
         }
@@ -141,12 +163,15 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
         maxContacts: _maxContacts,
         maxFollowups: _autonomyMode == 'assisted' ? 0 : _maxFollowups,
         allowSmsRcs: _allowSmsRcs,
-        durationHours: 72,
+        durationHours: _durationHours,
+        completionGoal: _completionGoal,
+        allowWhatsapp: _allowWhatsapp, allowPublicBusiness: _allowBusiness, allowBlindMessage: _allowMediation,
+        quantity: _quantity, deliveryTerms: _deliveryTerms, acceptanceTerms: _acceptanceTerms,
         scanIntervalMinutes: 60,
       );
       final raw = data['mandate'];
       if (raw is Map && mounted) {
-        setState(() => _mandate = Map<String, dynamic>.from(raw));
+        setState(() { _newMission = false; _mandate = Map<String, dynamic>.from(raw); });
       }
       final rawResults = data['results'];
       if (rawResults is List && mounted) {
@@ -161,7 +186,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
       await _loadConversationBus();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Mandat confié à Bot pendant 72 h.')),
+          SnackBar(content: Text('Mandat confié à Bot pendant $_durationHours h.')),
         );
       }
     } catch (e) {
@@ -216,6 +241,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _goal.dispose();
     _city.dispose();
     _budget.dispose();
@@ -684,6 +710,10 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   String _journeyBusinessPhase(NexusOpportunityJourney journey) {
     final action = (journey.lastAction ?? '').trim();
     return switch (action) {
+      'terms_required' => 'Offre ou devis à préciser',
+      'deal_room_retry' => 'Ouverture à reprendre',
+      'deal_room_opening' => 'Ouverture de la Deal Room',
+      'person_contact_cooldown' => 'Contact déjà sollicité',
       'payment_completed' => 'Terminé',
       'delivery_completed' => 'Paiement',
       'courier_picked_up' => 'Livraison',
@@ -1039,13 +1069,15 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
             ]),
             const SizedBox(height: 8),
             Row(children: [
-              Expanded(child: _MandateMetric(label: 'Contactés', value: contacted)),
+              Expanded(child: _MandateMetric(label: 'Sollicitations', value: contacted)),
               const SizedBox(width: 7),
               Expanded(child: _MandateMetric(label: 'Réponses', value: replied)),
               const SizedBox(width: 7),
               Expanded(child: _MandateMetric(label: 'Mode', value: modeLabel)),
             ]),
             const SizedBox(height: 9),
+            Text('En file : ${current['metrics']?['queued'] ?? 0} · Livrés : ${current['metrics']?['delivered'] ?? 0} · Accords : ${current['metrics']?['agreed'] ?? 0}', style: const TextStyle(fontSize: 11)),
+            Text('Objectif : ${current['metadata']?['completion_goal'] == 'recommendations' ? 'Recommandations' : current['metadata']?['completion_goal'] == 'transaction' ? 'Exécution complète' : 'Accord confirmé'}', style: const TextStyle(fontSize: 11)),
             Text('${current['goal'] ?? ''}', maxLines: 2, overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 11, color: WaouhPalette.muted, fontWeight: FontWeight.w700)),
             const SizedBox(height: 9),
@@ -1074,8 +1106,17 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
                 }
               },
             ),
+            ExpansionTile(title: const Text('Autorisations et échéance'), tilePadding: EdgeInsets.zero, children: [
+              for (final entry in {'allow_whatsapp': 'WhatsApp vérifié', 'allow_public_business': 'Contacts professionnels publics', 'allow_blind_message': 'Mise en relation médiée'}.entries)
+                SwitchListTile.adaptive(title: Text(entry.value), value: current[entry.key] == true, onChanged: _mandateBusy || !['active','paused'].contains(status) ? null : (v) async {
+                  setState(() => _mandateBusy = true);
+                  try { final data = await _nexus.updateMandate('${current['id']}', allowWhatsapp: entry.key == 'allow_whatsapp' ? v : null, allowPublicBusiness: entry.key == 'allow_public_business' ? v : null, allowBlindMessage: entry.key == 'allow_blind_message' ? v : null); if (mounted && data['mandate'] is Map) setState(() => _mandate = Map<String, dynamic>.from(data['mandate'] as Map)); } finally { if (mounted) setState(() => _mandateBusy = false); }
+                }),
+              TextButton(onPressed: _mandateBusy || ['completed','cancelled'].contains(status) || current['metadata']?['agreement_reached_at'] != null ? null : () async { final data = await _nexus.updateMandate('${current['id']}', durationHours: 72, status: 'active'); if (mounted && data['mandate'] is Map) setState(() => _mandate = Map<String, dynamic>.from(data['mandate'] as Map)); }, child: const Text('Prolonger de 3 jours dès maintenant')),
+              TextButton(onPressed: _mandateBusy || !['active','paused'].contains(status) ? null : () async { final data = await _nexus.updateMandate('${current['id']}', status: 'cancelled'); if (mounted && data['mandate'] is Map) setState(() => _mandate = Map<String, dynamic>.from(data['mandate'] as Map)); }, child: const Text('Arrêter la mission')),
+            ]),
             OutlinedButton.icon(
-              onPressed: _mandateBusy ? null : _toggleMandate,
+              onPressed: _mandateBusy || !['active', 'paused'].contains(status) || (current['metadata'] is Map && current['metadata']['agreement_reached_at'] != null) ? null : _toggleMandate,
               icon: Icon(status == 'active' ? Icons.pause_rounded : Icons.play_arrow_rounded),
               label: Text(status == 'active' ? 'Mettre en pause' : 'Reprendre'),
               style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(44)),
@@ -1104,9 +1145,28 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
             TextFormField(keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Prix minimum autorisé (FCFA)'), onChanged: (value) => _priceFloor = value),
             const SizedBox(height: 12),
           ],
+          DropdownButtonFormField<String>(
+            value: _completionGoal, decoration: const InputDecoration(labelText: 'Résultat attendu'),
+            items: const [DropdownMenuItem(value: 'recommendations', child: Text('Recommandations')), DropdownMenuItem(value: 'agreement', child: Text('Accord confirmé')), DropdownMenuItem(value: 'transaction', child: Text('Exécution complète'))],
+            onChanged: (v) { if (v != null) setState(() => _completionGoal = v); },
+          ),
+          DropdownButtonFormField<int>(value: _durationHours, decoration: const InputDecoration(labelText: 'Durée'),
+            items: [24,72,168,720].map((h) => DropdownMenuItem(value: h, child: Text('${h ~/ 24} jour(s)'))).toList(),
+            onChanged: (v) { if (v != null) setState(() => _durationHours = v); }),
+          ExpansionTile(title: const Text('Canaux et conditions'), tilePadding: EdgeInsets.zero, children: [
+            const Text('WAOUH interne activé. Les canaux autorisés restent soumis à leur disponibilité et au consentement.'),
+            ..._channelHealth.values.whereType<Map>().map((h) => Text('${h['label']} : ${h['status'] == 'available' ? 'disponible' : h['status'] == 'configured' ? 'configuré, livraison à vérifier' : h['status'] == 'last_sync_ok' ? 'dernière synchro réussie' : h['status'] == 'degraded' ? 'synchro en échec' : 'indisponible'}', style: const TextStyle(fontSize: 11))),
+            SwitchListTile.adaptive(title: const Text('WhatsApp vérifié'), value: _allowWhatsapp, onChanged: (v) => setState(() => _allowWhatsapp = v)),
+            SwitchListTile.adaptive(title: const Text('Contacts professionnels publics'), value: _allowBusiness, onChanged: (v) => setState(() => _allowBusiness = v)),
+            SwitchListTile.adaptive(title: const Text('Demandes de mise en relation'), value: _allowMediation, onChanged: (v) => setState(() => _allowMediation = v)),
+            TextFormField(initialValue: '1', keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Quantité'), onChanged: (v) => _quantity = (int.tryParse(v) ?? 1).clamp(1, 100000)),
+            TextFormField(maxLength: 1000, decoration: const InputDecoration(labelText: 'Lieu, délai, frais de livraison'), onChanged: (v) => _deliveryTerms = v),
+            TextFormField(maxLength: 1000, decoration: const InputDecoration(labelText: 'Qualité, livrables, garanties'), onChanged: (v) => _acceptanceTerms = v),
+          ]),
+          const SizedBox(height: 12),
           const Text('Confier cette mission à Bot', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF382567))),
           const SizedBox(height: 4),
-          const Text('Bot surveille NEXUS pendant 72 h et agit uniquement dans les limites que vous fixez.',
+          const Text('Bot recherche dans NEXUS et agit selon vos choix.',
             style: TextStyle(fontSize: 10.5, color: WaouhPalette.muted)),
           const SizedBox(height: 9),
           SegmentedButton<String>(
@@ -1161,7 +1221,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
             icon: _mandateBusy
               ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
               : const Icon(Icons.smart_toy_outlined),
-            label: const Text('Confier à Bot pendant 72 h'),
+            label: Text('Confier la mission · $_durationHours h'),
             style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48), backgroundColor: const Color(0xFF6D3FD1)),
           ),
           const SizedBox(height: 5),
@@ -1230,10 +1290,17 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
               hint: _hint,
               cta: _cta,
               loading: _loading,
-              showBudget: widget.mode != LiveAvatarCommerceMode.ask,
+              showBudget: true,
               onSearch: _search,
             ),
             const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: _mandates.any((m) => m['id'] == _mandate?['id']) ? (_mandate?['id'] as String?) : '',
+              isExpanded: true, decoration: const InputDecoration(labelText: 'Mission suivie'),
+              items: [const DropdownMenuItem(value: '', child: Text('Nouvelle mission')), ..._mandates.map((m) => DropdownMenuItem(value: '${m['id']}', child: Text('${m['goal']} · ${m['status']}', overflow: TextOverflow.ellipsis)))],
+              onChanged: (v) { setState(() { _newMission = v == null || v.isEmpty; _mandate = _newMission ? null : _mandates.firstWhere((m) => m['id'] == v); }); unawaited(_loadJourneys()); },
+            ),
+            const SizedBox(height: 10),
             _mandateSurface(),
             if (_error != null) ...[
               const SizedBox(height: 10),

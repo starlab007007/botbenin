@@ -881,6 +881,8 @@ class LiveNexusService {
     return NexusDiscoveryResponse.fromJson(data);
   }
 
+  Future<Map<String, dynamic>> sourceHealth() => _invoke('nexus.sources');
+
   Future<List<NexusSourceInfo>> sources() async {
     final data = await _invoke('nexus.sources');
     return _list(data['registry'])
@@ -935,10 +937,12 @@ class LiveNexusService {
 
   Future<List<NexusOpportunityJourney>> listOpportunities({
     bool includeCompleted = false,
+    String? mandateId,
     int limit = 20,
   }) async {
     final data = await _invoke('nexus.opportunity.list', {
       'include_completed': includeCompleted,
+      if (mandateId != null) 'mandate_id': mandateId,
       'limit': limit,
     });
     return _list(data['journeys'])
@@ -1010,6 +1014,13 @@ class LiveNexusService {
     int maxContacts = 3,
     int maxFollowups = 1,
     bool allowSmsRcs = false,
+    String completionGoal = 'agreement',
+    bool allowWhatsapp = false,
+    bool allowPublicBusiness = false,
+    bool allowBlindMessage = true,
+    int quantity = 1,
+    String deliveryTerms = '',
+    String acceptanceTerms = '',
     int durationHours = 72,
     int scanIntervalMinutes = 60,
   }) =>
@@ -1025,6 +1036,13 @@ class LiveNexusService {
         'max_followups': maxFollowups,
         'allow_sms_rcs': allowSmsRcs,
         'duration_hours': durationHours,
+        'completion_goal': completionGoal,
+        'allow_whatsapp': allowWhatsapp,
+        'allow_public_business': allowPublicBusiness,
+        'allow_blind_message': allowBlindMessage,
+        'quantity': quantity,
+        'delivery_terms': deliveryTerms,
+        'acceptance_terms': acceptanceTerms,
         'scan_interval_minutes': scanIntervalMinutes,
         'origin_surface': 'flutter_avatar',
       });
@@ -1037,12 +1055,20 @@ class LiveNexusService {
     String? status,
     String? autonomyMode,
     bool? allowSmsRcs,
+    bool? allowWhatsapp,
+    bool? allowPublicBusiness,
+    bool? allowBlindMessage,
+    int? durationHours,
   }) =>
       _invoke('nexus.mandate.update', {
         'mandate_id': mandateId,
         if (status != null) 'status': status,
         if (autonomyMode != null) 'autonomy_mode': autonomyMode,
         if (allowSmsRcs != null) 'allow_sms_rcs': allowSmsRcs,
+        if (allowWhatsapp != null) 'allow_whatsapp': allowWhatsapp,
+        if (allowPublicBusiness != null) 'allow_public_business': allowPublicBusiness,
+        if (allowBlindMessage != null) 'allow_blind_message': allowBlindMessage,
+        if (durationHours != null) 'duration_hours': durationHours,
       });
 
   Future<Map<String, dynamic>> runMandate(String mandateId) =>
