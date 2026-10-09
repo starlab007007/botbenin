@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Hourglass, Loader2, MessageCircleReply, Phone, Radar, RefreshCw, Send, UserPlus } from "lucide-react";
 import { listNexusMandates, listNexusOpportunityJourneys } from "@/lib/waouh/nexus";
+import { supabase } from "@/integrations/supabase/client";
 import { BUCKET_LABEL, buildLedger, type ContactBucket, type ContactLedger } from "@/lib/waouh/contactLedger";
 
 const FILTERS: Array<{ id: "all" | ContactBucket; label: string }> = [
@@ -29,8 +30,11 @@ const nextRun = (iso: string | null) => {
 };
 
 /** Tableau de bord des contacts de Bot : qui, combien, où en est-on. Numéros toujours masqués. */
+type ExactStats = { total: number; to_contact: number; pending: number; replied: number; contacted: number; with_number: number; active_missions: number; actions_7d: number };
+
 export function WaouhContactLedger() {
   const [ledger, setLedger] = useState<ContactLedger | null>(null);
+  const [exact, setExact] = useState<ExactStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [filter, setFilter] = useState<"all" | ContactBucket>("all");
@@ -43,6 +47,12 @@ export function WaouhContactLedger() {
         listNexusMandates().catch(() => ({ mandates: [], intents: [] })),
       ]);
       setLedger(buildLedger(journeys.journeys ?? journeys.items ?? [], mandates.mandates ?? []));
+      try {
+        const { data, error } = await (supabase as any).rpc("waouh_contact_stats");
+        setExact(!error && data && typeof data.total === "number" ? (data as ExactStats) : null);
+      } catch {
+        setExact(null);
+      }
       setFailed(false);
     } catch {
       setFailed(true);
@@ -64,10 +74,10 @@ export function WaouhContactLedger() {
 
   const tiles = ledger
     ? [
-        { label: "Contactés", value: ledger.contacted, icon: Send, tone: "from-blue-600 to-indigo-600 text-white" },
-        { label: "En attente", value: ledger.pending, icon: Hourglass, tone: "bg-white text-amber-700" },
-        { label: "Réponses", value: ledger.replied, icon: MessageCircleReply, tone: "bg-white text-emerald-700" },
-        { label: "À contacter", value: ledger.toContact, icon: UserPlus, tone: "bg-white text-slate-700" },
+        { label: "Contactés", value: exact?.contacted ?? ledger.contacted, icon: Send, tone: "from-blue-600 to-indigo-600 text-white" },
+        { label: "En attente", value: exact?.pending ?? ledger.pending, icon: Hourglass, tone: "bg-white text-amber-700" },
+        { label: "Réponses", value: exact?.replied ?? ledger.replied, icon: MessageCircleReply, tone: "bg-white text-emerald-700" },
+        { label: "À contacter", value: exact?.to_contact ?? ledger.toContact, icon: UserPlus, tone: "bg-white text-slate-700" },
       ]
     : [];
 
@@ -93,7 +103,7 @@ export function WaouhContactLedger() {
               </div>
             ))}
           </div>
-          <p className="mt-2 text-[11px] font-semibold text-slate-500">{ledger.withNumber} sur {ledger.total} avec un numéro masqué disponible.</p>
+          <p className="mt-2 text-[11px] font-semibold text-slate-500">{exact?.with_number ?? ledger.withNumber} sur {exact?.total ?? ledger.total} avec un numéro masqué disponible.</p>
 
           {ledger.missions.length > 0 && (
             <div className="mt-3 space-y-2">

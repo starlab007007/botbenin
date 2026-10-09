@@ -54,6 +54,7 @@ class _LiveContactLedgerState extends State<LiveContactLedger> {
   late final LiveNexusService _service = LiveNexusService(legacy.supabase);
   List<NexusOpportunityJourney> _journeys = const <NexusOpportunityJourney>[];
   List<Map<String, dynamic>> _missions = const <Map<String, dynamic>>[];
+  Map<String, dynamic>? _exact;
   bool _loading = true;
   bool _failed = false;
   Timer? _timer;
@@ -77,6 +78,13 @@ class _LiveContactLedgerState extends State<LiveContactLedger> {
         _service.listOpportunities(includeCompleted: true, limit: 50),
         _service.listMandates().catchError((Object _) => <String, dynamic>{}),
       ]);
+      Map<String, dynamic>? exact;
+      try {
+        final data = await legacy.supabase.rpc('waouh_contact_stats');
+        if (data is Map && data['total'] is num) {
+          exact = Map<String, dynamic>.from(data);
+        }
+      } catch (_) {}
       final mandates = (results[1] as Map<String, dynamic>)['mandates'];
       if (!mounted) return;
       setState(() {
@@ -88,6 +96,7 @@ class _LiveContactLedgerState extends State<LiveContactLedger> {
                 .where((m) => m['status'] == 'active')
                 .toList(growable: false)
             : const <Map<String, dynamic>>[];
+        _exact = exact;
         _loading = false;
         _failed = false;
       });
@@ -101,11 +110,15 @@ class _LiveContactLedgerState extends State<LiveContactLedger> {
 
   @override
   Widget build(BuildContext context) {
-    final pending = _count(_Bucket.pending);
-    final replied = _count(_Bucket.replied);
-    final toContact = _count(_Bucket.toContact);
-    final contacted = pending + replied;
-    final withNumber = _journeys.where((j) => _journeyPhone(j) != null).length;
+    int exactOr(String key, int fallback) =>
+        (_exact?[key] as num?)?.toInt() ?? fallback;
+    final pending = exactOr('pending', _count(_Bucket.pending));
+    final replied = exactOr('replied', _count(_Bucket.replied));
+    final toContact = exactOr('to_contact', _count(_Bucket.toContact));
+    final contacted = exactOr('contacted', pending + replied);
+    final withNumber = exactOr(
+        'with_number', _journeys.where((j) => _journeyPhone(j) != null).length);
+    final total = exactOr('total', _journeys.length);
 
     Widget tile(String label, int value, {bool primary = false}) => Expanded(
           child: Container(
@@ -175,7 +188,7 @@ class _LiveContactLedgerState extends State<LiveContactLedger> {
                       tile('À contacter', toContact),
                     ]),
                     const SizedBox(height: 6),
-                    Text('$withNumber sur ${_journeys.length} avec un numéro masqué disponible.',
+                    Text('$withNumber sur $total avec un numéro masqué disponible.',
                         style: const TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
