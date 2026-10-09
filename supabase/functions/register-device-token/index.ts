@@ -194,6 +194,29 @@ Deno.serve(async (req) => {
     const body: any = await req.json().catch(() => ({}));
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
 
+    // Contrôle de la clé FCM sans envoyer de notification : obtient un jeton OAuth puis fait une validation
+    // à blanc (validate_only) vers un jeton factice. 400/404 sur le jeton = clé acceptée par Google.
+    if (body?.action === "fcm_check") {
+      if (!isServiceCaller(req, SERVICE_ROLE) && !(await isTickCaller(req, admin))) {
+        return json({ ok: false, code: "service_role_required" }, 401);
+      }
+      const st = serviceAccountStatus();
+      if (!st.account) return json({ ok: true, fcm: "not_configured", reason: st.reason });
+      try {
+        const bearer = await accessToken(st.account);
+        const res = await fetch(`https://fcm.googleapis.com/v1/projects/${st.account.project_id}/messages:send`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${bearer}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ validate_only: true, message: { token: "waouh-fcm-check-invalid-token", notification: { title: "check", body: "check" } } }),
+          signal: AbortSignal.timeout(10_000),
+        });
+        const err = await res.json().catch(() => ({}));
+        return json({ ok: true, fcm: "oauth_ok", project_id: st.account.project_id, fcm_http: res.status, fcm_status: err?.error?.status ?? null, fcm_message: String(err?.error?.message ?? "").slice(0, 160) });
+      } catch (e) {
+        return json({ ok: true, fcm: "oauth_failed", reason: String((e as Error)?.message || e).slice(0, 120) });
+      }
+    }
+
     if (body?.action === "tick") {
       if (!isServiceCaller(req, SERVICE_ROLE) && !(await isTickCaller(req, admin))) {
         return json({ ok: false, code: "service_role_required" }, 401);
