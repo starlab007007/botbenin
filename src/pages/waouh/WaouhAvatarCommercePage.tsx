@@ -5,7 +5,7 @@ import { progressiveNexusDiscovery } from "@/lib/waouh/progressiveDiscovery";
 import type { DiscoveryRefresh } from "@/components/waouh/WaouhDiscoveryCoverage";
 import { BotLiveAvatar } from "@/components/waouh/bot/BotLiveAvatar";
 import { WaouhReasoningFeed, useReasoningFeed } from "@/components/waouh/WaouhReasoningFeed";
-import { buildSummary, externalSteps, planSteps, summaryStep, type ReasonSummary } from "@/lib/waouh/liveReasoning";
+import { buildSummary, externalSteps, methodSteps, planSteps, summaryStep, type ReasonSummary } from "@/lib/waouh/liveReasoning";
 import "@/components/waouh/waouh-message-text.css";
 import { WaouhJourneyProgress } from "@/components/waouh/WaouhJourneyProgress";
 import { userFacingErrorText } from "@/lib/userFacingError";
@@ -314,7 +314,7 @@ export default function WaouhAvatarCommercePage() {
       const found = { results: response.results || [], source_mix: response.source_mix, refresh: response.refresh as any };
       const summary = buildSummary(null, found, ctx);
       setReasonSummary(summary);
-      feed.push([...externalSteps(found, ctx), summaryStep(summary, ctx)]);
+      feed.push([...methodSteps(response.intelligence), ...externalSteps(found, ctx), summaryStep(summary, ctx)]);
     } catch (error: any) {
       if (version !== searchVersion.current) return;
       feed.push([{ id: "search-error", tone: "warn", text: "La recherche n’a pas abouti. Réessayez dans un instant." }]);

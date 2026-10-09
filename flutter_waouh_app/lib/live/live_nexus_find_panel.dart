@@ -142,7 +142,7 @@ class _LiveNexusFindPanelState extends State<LiveNexusFindPanel> {
         .timeout(const Duration(seconds: 35))
         .then<NexusDiscoveryResponse?>((response) {
       if (mounted) setState(() => _result = response);
-      _push(externalSteps(response, ctx));
+      _push(<ReasonStep>[...methodSteps(response.intelligence), ...externalSteps(response, ctx)]);
       return response;
     }).catchError((Object _) {
       _push(<ReasonStep>[externalDownStep()]);

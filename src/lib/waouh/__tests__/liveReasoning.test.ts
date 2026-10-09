@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSummary, externalSteps, internalSteps, maskPhone, planSteps, sameZone } from "../liveReasoning";
+import { buildSummary, externalSteps, internalSteps, maskPhone, methodSteps, planSteps, sameZone } from "../liveReasoning";
 
 const ctx = { query: "Moto Bajaj", city: "Cotonou", budget: 500000 };
 
@@ -29,6 +29,18 @@ describe("liveReasoning", () => {
     const steps = planSteps(ctx);
     expect(steps[0].text).toContain("Moto Bajaj");
     expect(steps[0].chips).toContain("📍 Cotonou");
+  });
+
+  it("explique la méthode et le plan réel sans rien inventer", () => {
+    expect(planSteps(ctx).some((step) => step.id === "method")).toBe(true);
+    expect(methodSteps(null)).toEqual([]);
+    const steps = methodSteps({
+      mode: "find_sellers", normalized_query: "moto bajaj", priorities: ["price", "proximity"], source_families: [],
+      missing: ["année"], next_actions: [], confidence: 0.8, rationale: "",
+    });
+    expect(steps[0].text).toContain("80 %");
+    expect(steps.find((step) => step.id === "criteria")?.chips).toEqual(["prix", "proximité"]);
+    expect(steps.some((step) => step.id === "missing")).toBe(true);
   });
 
   it("n'invente aucun contact : sans canal masqué, pas de téléphone", () => {

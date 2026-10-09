@@ -5,7 +5,7 @@
  * renvoyé (sources, villes, prix, canaux de contact). Rien n'est inventé :
  * si une source n'a rien donné ou est indisponible, l'Avatar le dit.
  */
-import type { NexusDiscoveryResult, type NexusSearchResponse } from "./nexus";
+import type { NexusDiscoveryResult, NexusSearchResponse, NexusSmartDiscoveryPlan } from "./nexus";
 
 export type ReasonTone = "think" | "search" | "found" | "zone" | "contact" | "next" | "warn";
 
@@ -84,11 +84,54 @@ export function planSteps(ctx: ReasonContext): ReasonStep[] {
       chips,
     },
     {
+      id: "method",
+      tone: "think",
+      text: "Ma méthode : je cherche d’abord dans le catalogue WAOUH, puis plus largement. Je classe ensuite chaque offre selon le prix, la proximité, la confiance et la fraîcheur.",
+      chips: ["1 Comprendre", "2 Chercher", "3 Comparer", "4 Proposer"],
+    },
+    {
       id: "plan",
       tone: "search",
       text: "Je lance la recherche, partout où je peux trouver des offres et des contacts.",
     },
   ];
+}
+
+const PRIORITY_LABEL: Record<string, string> = {
+  price: "prix", proximity: "proximité", location: "proximité", trust: "confiance", freshness: "fraîcheur",
+  relevance: "pertinence", contactability: "joignabilité", availability: "disponibilité", quality: "qualité",
+};
+
+/** Analyse de l'Avatar à partir du plan réellement renvoyé par NEXUS (rien d'inventé). */
+export function methodSteps(plan: NexusSmartDiscoveryPlan | null | undefined): ReasonStep[] {
+  if (!plan) return [];
+  const steps: ReasonStep[] = [];
+  const direction = plan.mode === "find_buyers" ? "vous voulez vendre, je cherche des acheteurs" : "vous voulez acheter, je cherche des vendeurs";
+  steps.push({
+    id: "analysis",
+    tone: "think",
+    text: `Mon analyse : ${direction}${plan.normalized_query ? ` — « ${plan.normalized_query} »` : ""}. Confiance de ma compréhension : ${Math.round((plan.confidence ?? 0) * 100)} %.`,
+  });
+  const priorities = (plan.priorities ?? []).slice(0, 5).map((p) => PRIORITY_LABEL[p] ?? p.replace(/_/g, " "));
+  if (priorities.length) {
+    steps.push({
+      id: "criteria",
+      tone: "search",
+      text: "Voici ce qui compte le plus pour classer les offres.",
+      chips: priorities,
+    });
+  }
+  if (plan.rationale?.trim()) {
+    steps.push({ id: "rationale", tone: "think", text: plan.rationale.trim() });
+  }
+  if ((plan.missing ?? []).length) {
+    steps.push({
+      id: "missing",
+      tone: "warn",
+      text: `Pour affiner : ${(plan.missing ?? []).slice(0, 3).join(", ")}.`,
+    });
+  }
+  return steps;
 }
 
 export function internalSteps(response: NexusSearchResponse, ctx: ReasonContext): ReasonStep[] {

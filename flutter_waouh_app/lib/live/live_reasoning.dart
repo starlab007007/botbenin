@@ -138,11 +138,67 @@ List<ReasonStep> planSteps(ReasonContext ctx) {
       chips: chips,
     ),
     const ReasonStep(
+      id: 'method',
+      tone: ReasonTone.think,
+      text:
+          'Ma méthode : je cherche d’abord dans le catalogue WAOUH, puis plus largement. Je classe ensuite chaque offre selon le prix, la proximité, la confiance et la fraîcheur.',
+      chips: <String>['1 Comprendre', '2 Chercher', '3 Comparer', '4 Proposer'],
+    ),
+    const ReasonStep(
       id: 'plan',
       tone: ReasonTone.search,
       text:
           'Je lance la recherche, partout où je peux trouver des offres et des contacts.',
     ),
+  ];
+}
+
+const Map<String, String> _priorityLabel = <String, String>{
+  'price': 'prix',
+  'proximity': 'proximité',
+  'location': 'proximité',
+  'trust': 'confiance',
+  'freshness': 'fraîcheur',
+  'relevance': 'pertinence',
+  'contactability': 'joignabilité',
+  'availability': 'disponibilité',
+  'quality': 'qualité',
+};
+
+/// Analyse de Bot à partir du plan réellement renvoyé par NEXUS.
+List<ReasonStep> methodSteps(NexusSmartDiscoveryPlan? plan) {
+  if (plan == null) return const <ReasonStep>[];
+  final direction = plan.mode == 'find_buyers'
+      ? 'vous voulez vendre, je cherche des acheteurs'
+      : 'vous voulez acheter, je cherche des vendeurs';
+  final query = plan.normalizedQuery.trim();
+  final priorities = plan.priorities
+      .take(5)
+      .map((p) => _priorityLabel[p] ?? p.replaceAll('_', ' '))
+      .toList(growable: false);
+  final rationale = plan.rationale.trim();
+  return <ReasonStep>[
+    ReasonStep(
+      id: 'analysis',
+      tone: ReasonTone.think,
+      text:
+          'Mon analyse : $direction${query.isNotEmpty ? ' — « $query »' : ''}. Confiance de ma compréhension : ${(plan.confidence * 100).round()} %.',
+    ),
+    if (priorities.isNotEmpty)
+      ReasonStep(
+        id: 'criteria',
+        tone: ReasonTone.search,
+        text: 'Voici ce qui compte le plus pour classer les offres.',
+        chips: priorities,
+      ),
+    if (rationale.isNotEmpty)
+      ReasonStep(id: 'rationale', tone: ReasonTone.think, text: rationale),
+    if (plan.missing.isNotEmpty)
+      ReasonStep(
+        id: 'missing',
+        tone: ReasonTone.warn,
+        text: 'Pour affiner : ${plan.missing.take(3).join(', ')}.',
+      ),
   ];
 }
 

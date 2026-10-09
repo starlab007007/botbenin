@@ -2,7 +2,7 @@ import { WaouhOfferComparison } from "./WaouhOfferComparison";
 import { WaouhJourneyProgress } from "./WaouhJourneyProgress";
 import { progressiveNexusDiscovery } from "@/lib/waouh/progressiveDiscovery";
 import { WaouhReasoningFeed, useReasoningFeed } from "./WaouhReasoningFeed";
-import { buildSummary, externalSteps, planSteps, summaryStep, type ReasonSummary } from "@/lib/waouh/liveReasoning";
+import { buildSummary, externalSteps, methodSteps, planSteps, summaryStep, type ReasonSummary } from "@/lib/waouh/liveReasoning";
 import { userFacingErrorText } from "@/lib/userFacingError";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -180,7 +180,7 @@ export function WaouhGlobalDiscoveryPanel() {
         const found = { results: response.results, source_mix: response.source_mix, refresh: (response.refresh ?? {}) as any };
         const summary = buildSummary(null, found, ctx);
         setReasonSummary(summary);
-        feed.push([...externalSteps(found, ctx), summaryStep(summary, ctx)]);
+        feed.push([...methodSteps(response.intelligence), ...externalSteps(found, ctx), summaryStep(summary, ctx)]);
       }
       if (mode === "auto" && response.intelligence?.city && !city.trim()) {
         setCity(response.intelligence.city);
