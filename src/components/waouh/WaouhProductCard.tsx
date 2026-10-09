@@ -136,6 +136,28 @@ const isBuyerOpportunity = (result: WaouhResultCard): boolean => {
   return intent === "BUY" || intent === "RFQ" || actor === "buyer";
 };
 
+/** Phrases de provenance ou de remplissage : jamais affichées, seules les informations réelles le sont. */
+const FILLER = /signal découvert|source publique|détect(?:ée|é) par nexus|annonce waouh|source (?:nexus|waouh)|en cours d[’']enrichissement|aucun détail complémentaire/i;
+const cleanLine = (value?: string | null): string | null => {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  const kept = text
+    .split(/\s*[·|]\s*/)
+    .filter((part) => part && !FILLER.test(part) && !/^source\b/i.test(part))
+    .join(" · ")
+    .trim();
+  return kept || null;
+};
+const SOURCE_LABEL = /^(annonce|source|signal|nexus|waouh|partenaire|radar|google|facebook|instagram|tiktok|telegram|web)\b/i;
+const CONDITION_FR: Record<string, string> = {
+  new: "Neuf", like_new: "Comme neuf", good: "Bon état", used: "Occasion", fair: "État correct", poor: "À réparer", refurbished: "Reconditionné",
+};
+const conditionLabel = (value?: string | null): string | null => {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  return CONDITION_FR[text.toLowerCase().replace(/[\s-]+/g, "_")] ?? text;
+};
+
 const marketIntelligence = (result: WaouhResultCard) => {
   const score = metric(result, "total_score");
   const trust = metric(result, "trust_score");
@@ -148,32 +170,26 @@ const marketIntelligence = (result: WaouhResultCard) => {
   const actionability = actionabilityRaw != null && Number.isFinite(Number(actionabilityRaw)) ? Number(actionabilityRaw) : null;
   const bestChannel = String(result.best_channel || (result.contact_pack as any)?.best_channel || "");
   const reasons = resultReasons(result);
-  const source = String(result.source || (result.intelligence_provenance as any)?.source || "NEXUS");
 
   return {
     market:
-      result.market_comparison ||
-      result.market_line ||
+      cleanLine(result.market_comparison) ||
+      cleanLine(result.market_line) ||
       [
-        price != null ? `score prix ${Math.round(price)}%` : null,
-        location != null ? `zone ${Math.round(location)}%` : null,
-        freshness != null ? `fraîcheur ${Math.round(freshness)}%` : null,
-        `source ${source}`,
+        price != null ? `Prix ${Math.round(price)}/100` : null,
+        location != null ? `Proximité ${Math.round(location)}/100` : null,
+        freshness != null ? `Fraîcheur ${Math.round(freshness)}/100` : null,
       ].filter(Boolean).join(" · "),
     comparison:
-      result.comparative_analysis ||
+      cleanLine(result.comparative_analysis) ||
       [
-        score != null ? `match ${Math.round(score)}%` : null,
-        trust != null ? `confiance ${Math.round(trust)}%` : null,
-        level ? `contact ${level}` : null,
-        readiness ? `prêt ${readiness}` : null,
-        actionability != null ? `action ${Math.round(actionability)}%` : null,
-        bestChannel ? `canal ${bestChannel}` : null,
+        score != null ? `Correspondance ${Math.round(score)}%` : null,
+        trust != null ? `Confiance ${Math.round(trust)}%` : null,
       ].filter(Boolean).join(" · "),
     recommendation:
-      result.recommendation ||
-      reasons.join(" · ") ||
-      "Vérifier disponibilité, état et conditions avant de confirmer.",
+      cleanLine(result.recommendation) ||
+      reasons.map((reason) => cleanLine(reason)).filter(Boolean).join(" · ") ||
+      "",
   };
 };
 
@@ -315,6 +331,7 @@ export function WaouhProductCard({
     evidence.summary ||
     ""
   ).trim();
+  const cleanDetails = cleanLine(details);
 
   useEffect(() => {
     setFailed(false);
@@ -549,31 +566,39 @@ export function WaouhProductCard({
           </div>
         )}
 
-        <details className="waouh-message-details rounded-xl border border-slate-200 px-2.5">
-          <summary>Analyse de l’offre</summary>
-        <div className="grid gap-1.5 sm:grid-cols-2">
-          <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-2.5 py-2">
-            <div className="mb-1 text-[9px] font-black uppercase tracking-wide text-slate-700">Détails</div>
-            <div className="text-[10px] leading-snug text-slate-700">
-              {details || [result.condition, result.city, result.quartier].filter(Boolean).join(" · ") || "Aucun détail complémentaire n’est fourni par la source."}
+        {(cleanDetails || intelligence.market || intelligence.comparison || intelligence.recommendation) && (
+          <details className="waouh-message-details rounded-xl border border-slate-200 px-2.5">
+            <summary>Analyse de Bot</summary>
+            <div className="grid gap-1.5 pb-2">
+              {cleanDetails && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-2.5 py-2">
+                  <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-slate-700">Détails</div>
+                  <div className="text-[11px] leading-snug text-slate-700 break-words">{cleanDetails}</div>
+                </div>
+              )}
+              {intelligence.market && (
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50/55 px-2.5 py-2">
+                  <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-emerald-800">Marché</div>
+                  <div className="text-[11px] leading-snug text-emerald-950 break-words">{intelligence.market}</div>
+                </div>
+              )}
+              {intelligence.comparison && (
+                <div className="rounded-xl border border-blue-100 bg-blue-50/55 px-2.5 py-2">
+                  <div className="mb-1 text-[10px] font-black uppercase tracking-wide text-blue-800">Comparaison</div>
+                  <div className="text-[11px] leading-snug text-blue-950 break-words">{intelligence.comparison}</div>
+                </div>
+              )}
+              {intelligence.recommendation && (
+                <div className="rounded-xl border border-amber-100 bg-amber-50/65 px-2.5 py-2">
+                  <div className="mb-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-amber-800">
+                    <Bot className="h-3 w-3" /> Avis de Bot
+                  </div>
+                  <div className="text-[11px] leading-snug text-amber-950 break-words">{intelligence.recommendation}</div>
+                </div>
+              )}
             </div>
-          </div>
-          <div className="rounded-xl border border-emerald-100 bg-emerald-50/55 px-2.5 py-2">
-            <div className="mb-1 text-[9px] font-black uppercase tracking-wide text-emerald-800">Marché réel</div>
-            <div className="text-[10px] leading-snug text-emerald-950">{intelligence.market || "Signal marché en cours d’enrichissement."}</div>
-          </div>
-          <div className="rounded-xl border border-blue-100 bg-blue-50/55 px-2.5 py-2">
-            <div className="mb-1 text-[9px] font-black uppercase tracking-wide text-blue-800">Analyse comparative</div>
-            <div className="text-[10px] leading-snug text-blue-950">{intelligence.comparison || "Signal comparatif en cours d’enrichissement."}</div>
-          </div>
-          <div className="rounded-xl border border-amber-100 bg-amber-50/65 px-2.5 py-2">
-            <div className="mb-1 flex items-center gap-1 text-[9px] font-black uppercase tracking-wide text-amber-800">
-              <Bot className="h-3 w-3" /> Pourquoi WAOUH le recommande
-            </div>
-            <div className="text-[10px] leading-snug text-amber-950">{intelligence.recommendation}</div>
-          </div>
-        </div>
-        </details>
+          </details>
+        )}
 
         <div className="flex flex-wrap gap-1 text-[11px] text-muted-foreground">
           {(result.city || result.quartier) && (
@@ -588,42 +613,42 @@ export function WaouhProductCard({
               {result.distance_km} km
             </span>
           )}
-          {result.condition && <span className="rounded bg-muted px-1.5 py-0.5">{result.condition}</span>}
-          {result.badge && <span className="rounded bg-muted px-1.5 py-0.5">{result.badge}</span>}
+          {conditionLabel(result.condition) && <span className="rounded bg-muted px-1.5 py-0.5">{conditionLabel(result.condition)}</span>}
+          {result.badge && !SOURCE_LABEL.test(String(result.badge)) && !FILLER.test(String(result.badge)) && <span className="rounded bg-muted px-1.5 py-0.5">{result.badge}</span>}
         </div>
 
-        {result.market_line && (
-          <p className="text-[11px] leading-snug text-muted-foreground line-clamp-3">{result.market_line}</p>
+        {cleanLine(result.market_line) && (
+          <p className="text-[11px] leading-snug text-muted-foreground break-words">{cleanLine(result.market_line)}</p>
         )}
 
         {(onAction || externalDeal) && v3Entry && (!externalOpportunity || externalDeal) && (
           <div className="mt-1 space-y-1.5">
             <Button
               size="sm"
-              className="w-full h-11 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="h-auto min-h-11 w-full whitespace-normal rounded-xl px-2 py-2 text-[13px] font-black leading-tight bg-emerald-600 hover:bg-emerald-700 text-white"
               onClick={handleWant}
             >
               {v3Entry.label}
             </Button>
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-1 gap-1.5">
               {/* Bouton intelligent : le prix suggéré est dans le libellé et part en un geste dans la fenêtre de négociation. */}
-              <Button size="sm" variant="outline" className="h-11 min-w-0 px-2 text-[11px]" onClick={smartAmount ? sendSmartOffer : openOffer}>
-                <span className="truncate">{smartAmount ? `Proposer ${fmt(smartAmount)}` : "Proposer un prix"}</span>
+              <Button size="sm" variant="outline" className="h-auto min-h-11 w-full min-w-0 whitespace-normal px-2 py-1.5 text-center text-[12px] leading-tight" onClick={smartAmount ? sendSmartOffer : openOffer}>
+                <span>{smartAmount ? `Proposer ${fmt(smartAmount)}` : "Proposer un prix"}</span>
               </Button>
               {externalDeal ? (
                 // Vendeur externe : la question passe par l'offre transmise, pas par un relais inexistant.
                 result.source_url ? (
-                  <Button size="sm" variant="outline" className="h-11 min-w-0 px-2 text-[11px]" asChild>
+                  <Button size="sm" variant="outline" className="h-auto min-h-11 w-full min-w-0 whitespace-normal px-2 py-1.5 text-center text-[12px] leading-tight" asChild>
                     <a href={result.source_url} target="_blank" rel="noreferrer">
-                      <ExternalLink className="mr-1 h-3.5 w-3.5" />
+                      <ExternalLink className="mr-1 h-3.5 w-3.5 shrink-0" />
                       Voir l'annonce
                     </a>
                   </Button>
                 ) : <span />
               ) : (
-                <Button size="sm" variant="outline" className="h-11 min-w-0 px-2 text-[11px]" onClick={() => { setAsking((a) => !a); setOffering(false); }}>
+                <Button size="sm" variant="outline" className="h-auto min-h-11 w-full min-w-0 whitespace-normal px-2 py-1.5 text-center text-[12px] leading-tight" onClick={() => { setAsking((a) => !a); setOffering(false); }}>
                   <MessageCircleQuestion className="h-3.5 w-3.5 mr-1 shrink-0" />
-                  <span className="truncate">Poser une question</span>
+                  <span>Poser une question</span>
                 </Button>
               )}
             </div>
@@ -672,7 +697,7 @@ export function WaouhProductCard({
             {interestAction && !externalOpportunity && (
               <Button
                 size="sm"
-                className="w-full h-11 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="h-auto min-h-11 w-full whitespace-normal rounded-xl px-2 py-2 text-[13px] font-black leading-tight bg-emerald-600 hover:bg-emerald-700 text-white"
                 onClick={handleInterest}
               >
                 {opportunity
@@ -680,7 +705,7 @@ export function WaouhProductCard({
                   : "Je suis intéressé · ouvrir le Deal Room"}
               </Button>
             )}
-            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-1.5">
+            <div className="grid grid-cols-1 gap-1.5">
               {result.fabric_id && (externalOpportunity || !interestAction) ? (
                 <WaouhNexusContactSheet
                   fabricId={result.fabric_id}
@@ -689,16 +714,16 @@ export function WaouhProductCard({
                   contactabilityLevel={level}
                 />
               ) : result.source_url ? (
-                <Button size="sm" variant="outline" className="h-11 min-w-0 px-2 text-[11px]" asChild>
+                <Button size="sm" variant="outline" className="h-auto min-h-11 w-full min-w-0 whitespace-normal px-2 py-1.5 text-center text-[12px] leading-tight" asChild>
                   <a href={result.source_url} target="_blank" rel="noreferrer">
-                    <ExternalLink className="mr-1 h-3.5 w-3.5" />
-                    Source
+                    <ExternalLink className="mr-1 h-3.5 w-3.5 shrink-0" />
+                    Voir l’annonce
                   </a>
                 </Button>
               ) : null}
-              <Button size="sm" variant="outline" className="h-11 min-w-0 px-2 text-[11px]" onClick={() => setAsking((a) => !a)}>
+              <Button size="sm" variant="outline" className="h-auto min-h-11 w-full min-w-0 whitespace-normal px-2 py-1.5 text-center text-[12px] leading-tight" onClick={() => setAsking((a) => !a)}>
                 <MessageCircleQuestion className="h-3.5 w-3.5 mr-1 shrink-0" />
-                <span className="truncate">{opportunity ? "Question à l’acheteur" : `Question au ${counterpartWord}`}</span>
+                <span>{opportunity ? "Question à l’acheteur" : `Question au ${counterpartWord}`}</span>
               </Button>
               <Button size="sm" variant="ghost" className="h-8 px-2 text-[11px] text-muted-foreground hover:text-destructive" onClick={() => onAction(`annuler ${result.index}`)}>
                 <X className="h-3.5 w-3.5 mr-1" />

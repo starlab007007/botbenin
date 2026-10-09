@@ -225,8 +225,8 @@ export function WaouhNexusContactSheet({
       }
     }}>
       <SheetTrigger asChild>
-        <Button size="sm" className="min-h-11 rounded-xl px-3 text-xs">
-          <MessageCircle className="mr-1 h-3.5 w-3.5" />
+        <Button size="sm" className="h-auto min-h-11 w-full whitespace-normal rounded-xl px-2 py-1.5 text-center text-[12px] leading-tight">
+          <MessageCircle className="mr-1 h-3.5 w-3.5 shrink-0" />
           {label}
         </Button>
       </SheetTrigger>
