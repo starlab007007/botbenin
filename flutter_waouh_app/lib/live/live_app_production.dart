@@ -92,12 +92,16 @@ class LiveWaouhProductionApp extends StatelessWidget {
           ),
         ],
         child: Builder(
-          builder: (context) => MaterialApp.router(
-            title: 'WaouhApp',
-            debugShowCheckedModeBanner: false,
-            theme: legacy.buildWaouhTheme(),
-            routerConfig: _router(context.read<legacy.AuthController>()),
-          ),
+          builder: (context) {
+            final router = _router(context.read<legacy.AuthController>());
+            LivePushService.onOpenRoute = (route) => router.go(route);
+            return MaterialApp.router(
+              title: 'WaouhApp',
+              debugShowCheckedModeBanner: false,
+              theme: legacy.buildWaouhTheme(),
+              routerConfig: router,
+            );
+          },
         ),
       );
 }

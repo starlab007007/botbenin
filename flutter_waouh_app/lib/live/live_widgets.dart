@@ -16,6 +16,7 @@ import 'live_commerce_workflow.dart';
 import 'live_commerce_agent_ui.dart';
 import 'live_thread_flow.dart';
 import 'live_hot_labels.dart';
+import 'live_transaction_card.dart';
 import 'live_avatar_progress.dart';
 import 'live_avatar_guide.dart';
 
@@ -275,6 +276,12 @@ class LiveMessageBubble extends StatelessWidget {
                   child: _LivePremiumMessageContent(text: displayText),
                 ),
               if (products.isEmpty && !outgoing) liveAvatarBlocks(message.meta),
+              if (!outgoing &&
+                  '${message.meta['transaction_id'] ?? ''}'.trim().isNotEmpty)
+                LiveTransactionCard(
+                  key: ValueKey('tx-${message.meta['transaction_id']}'),
+                  transactionId: '${message.meta['transaction_id']}'.trim(),
+                ),
               if (products.isNotEmpty) ...[
                 if (_premiumIntro(displayText).isNotEmpty) ...[
                   SelectionArea(

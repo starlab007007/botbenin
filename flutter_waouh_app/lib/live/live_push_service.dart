@@ -17,7 +17,32 @@ class LivePushService {
   final SupabaseClient client;
   StreamSubscription<String>? _tokenSubscription;
   StreamSubscription<AuthState>? _authSubscription;
+  StreamSubscription<RemoteMessage>? _openedSubscription;
   bool _ready = false;
+
+  /// Ouvre une route interne (renseignée par l'application au démarrage du routeur).
+  static void Function(String route)? onOpenRoute;
+
+  /// Route interne sûre portée par la notification (`route` ou `url`), sinon null.
+  /// Seuls les chemins `/app/...` sont acceptés : jamais d'URL externe ni de `//`.
+  static String? safeRouteFromData(Map<String, dynamic> data) {
+    final raw = '${data['route'] ?? data['url'] ?? data['link'] ?? ''}'.trim();
+    if (raw.isEmpty) return null;
+    var path = raw;
+    final uri = Uri.tryParse(raw);
+    if (uri != null && uri.hasScheme) {
+      const hosts = {'bot.bj', 'www.bot.bj'};
+      if (!(uri.scheme == 'https' && hosts.contains(uri.host))) return null;
+      path = uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path;
+    }
+    if (!path.startsWith('/app/') || path.startsWith('//')) return null;
+    return path;
+  }
+
+  void _openFromMessage(RemoteMessage message) {
+    final route = safeRouteFromData(message.data);
+    if (route != null) onOpenRoute?.call(route);
+  }
 
   Future<void> initialize() async {
     try {
@@ -48,6 +73,22 @@ class LivePushService {
     _authSubscription = client.auth.onAuthStateChange.listen((_) {
       unawaited(_registerCurrentToken());
     });
+
+    // Toucher une notification (application en arrière-plan ou fermée) ouvre le bon écran.
+    _openedSubscription =
+        FirebaseMessaging.onMessageOpenedApp.listen(_openFromMessage);
+    try {
+      final initial = await FirebaseMessaging.instance.getInitialMessage();
+      if (initial != null) {
+        // Le routeur doit exister avant l'ouverture : on laisse le premier écran se monter.
+        Future<void>.delayed(
+          const Duration(milliseconds: 600),
+          () => _openFromMessage(initial),
+        );
+      }
+    } catch (error) {
+      debugPrint('[WAOUH push] initial message unavailable: $error');
+    }
   }
 
   Future<void> _registerCurrentToken() async {
@@ -84,5 +125,6 @@ class LivePushService {
   Future<void> dispose() async {
     await _tokenSubscription?.cancel();
     await _authSubscription?.cancel();
+    await _openedSubscription?.cancel();
   }
 }
