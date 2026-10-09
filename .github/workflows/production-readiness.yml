@@ -1,6 +1,11 @@
 name: WAOUH production readiness
 on:
   workflow_dispatch:
+    inputs:
+      live_whatsapp:
+        description: 'Envoyer le parcours réel aux deux numéros du propriétaire'
+        required: false
+        default: 'false'
 permissions:
   contents: read
 concurrency:
@@ -29,4 +34,6 @@ jobs:
               print('::error title=Deploy waouh-e2e-test::'+d); raise SystemExit(r.returncode)
           PY
       - name: Production readiness checks
+        env:
+          LIVE_WHATSAPP: ${{ github.event.inputs.live_whatsapp == 'true' && '1' || '0' }}
         run: python3 scripts/verify-production-readiness.py

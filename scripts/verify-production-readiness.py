@@ -69,6 +69,29 @@ for letter in ['A', 'B', 'C']:
                 print(line); report.append(line)
             check(p['status'] == 'ok', f"parcours {p['parcours']} ({p['label']})")
 
+# 5b. Parcours RÉEL WhatsApp avec les deux numéros du propriétaire (autorisé explicitement) : acheteur 2290191299191, vendeur 279319607771317@lid
+if os.environ.get('LIVE_WHATSAPP') == '1':
+    t0 = time.time()
+    st, res = request(base + 'waouh-e2e-test', {'mode': 'parcours', 'parcours': ['A'], 'cleanup': True,
+        'state': {'sellerPhone': '279319607771317@lid', 'buyerPhone': '2290191299191'}}, H, timeout=170)
+    check(st == 200 and isinstance(res, dict), 'parcours WhatsApp RÉEL (vos deux numéros)', f'HTTP {st}')
+    if isinstance(res, dict):
+        for p in res.get('results', []):
+            for s_ in p['steps']:
+                line = f"   {'✅' if s_['status']=='ok' else '❌'} LIVE.{s_['step']} : {s_['got']}"[:230]
+                print(line); report.append(line)
+            check(p['status'] == 'ok', 'parcours WhatsApp réel')
+    time.sleep(20)
+    st, rows = request(management + '/database/query', {'query': "select q.status, q.template, left(coalesce(q.last_error,''),70) err, q.to_phone from waouh_outbound_queue q where q.created_at > now() - interval '6 minutes' and (q.to_phone like '%279319607771317%' or q.to_phone like '%91299191%') order by q.created_at"},
+                       {'Authorization': 'Bearer ' + os.environ['SUPABASE_ACCESS_TOKEN'], 'Content-Type': 'application/json'})
+    if st in (200, 201) and isinstance(rows, list):
+        sent = [r for r in rows if r['status'] == 'sent']
+        bad = [r for r in rows if r['status'] in ('failed',)]
+        for r in rows: report.append(f"   📨 {r['template']} → {r['to_phone']} : {r['status']} {r['err']}")
+        check(not bad, 'notifications WhatsApp réelles livrées', f'{len(sent)} envoyées, {len(bad)} en échec')
+    else:
+        check(False, 'lecture de la file WhatsApp', f'HTTP {st}')
+
 # 6. Hygiène de la file d'envoi (24 h) : échecs « numéro invalide / sans WhatsApp »
 st, rows = request(management + '/database/query', {'query': "select coalesce(left(last_error,40),'-') e, count(*) n from waouh_outbound_queue where created_at > now() - interval '24 hours' and status='failed' and coalesce(last_error,'') not like 'e2e%' group by 1 order by 2 desc limit 8"},
                    {'Authorization': 'Bearer ' + os.environ['SUPABASE_ACCESS_TOKEN'], 'Content-Type': 'application/json'})
