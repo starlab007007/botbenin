@@ -1,11 +1,11 @@
 """Repair the verified central WAHA container; keep credentials and backups on its host."""
 import datetime
-import gzip
 import json
 import os
 from pathlib import Path
 import re
 import shutil
+import signal
 import subprocess
 import time
 import urllib.request
@@ -114,19 +114,25 @@ backup.mkdir(parents=True,mode=0o700);os.chmod(backup,0o700)
 config_backup=backup/'docker-compose.original';config_backup.write_bytes(original);os.chmod(config_backup,0o600)
 old_image=item['Image'];rollback_tag='waouh-waha-rollback:'+stamp.lower()
 command(['docker','tag',old_image,rollback_tag],stdout=subprocess.DEVNULL)
+def interrupted(signum,frame):
+    # An SSH timeout or disconnect must restore the stopped container instead of leaving WhatsApp offline.
+    raise SystemExit(128+signum)
+for signum in (signal.SIGTERM,signal.SIGHUP,signal.SIGINT): signal.signal(signum,interrupted)
 changed=False
 try:
     command(['docker','stop','--time','30',cid],stdout=subprocess.DEVNULL)
-    archive=backup/'sessions.tar.gz'
-    os.chmod(archive,0o600) if archive.exists() else None
-    # Stream the stopped container's session directory; unlike `docker run`, this creates no container layer.
-    with gzip.open(archive,'wb') as target:
-        copier=subprocess.Popen(['docker','cp',cid+':/app/.sessions','-'],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
-        shutil.copyfileobj(copier.stdout,target)
-        copier_error=copier.stderr.read();copier.wait()
-    os.chmod(archive,0o600)
-    assert copier.returncode==0, 'WhatsApp session backup failed: '+copier_error.decode(errors='replace')[-200:]
+    archive=backup/'sessions.tar'
+    # Back up only authentication data: Chromium caches make /app/.sessions tens of GiB and are rebuilt automatically.
+    # Uncompressed and time-boxed so the container is never left stopped by a slow copy.
+    excluded=['Cache','Code Cache','GPUCache','GrShaderCache','ShaderCache','DawnCache','GraphiteDawnCache','CacheStorage','ScriptCache','Crashpad','component_crx_cache','Media Cache']
+    arguments=['docker','run','--rm','--volumes-from',cid+':ro','--entrypoint','tar',old_image]
+    for name in excluded: arguments.append('--exclude='+name)
+    arguments+=['-cf','-','-C','/app','.sessions']
+    with archive.open('wb') as target:
+        os.chmod(archive,0o600)
+        subprocess.run(arguments,check=True,stdout=target,stderr=subprocess.PIPE,timeout=420)
     assert archive.stat().st_size>0, 'WhatsApp session backup is empty'
+    print('::notice title=Central WAHA backup::Authentication backup %.0f MiB; caches excluded.' % (archive.stat().st_size/2**20))
     updated=re.sub(pattern,lambda m:m[1]+digest+m[2],original.decode())
     config_path.write_text(updated);changed=True
     command(compose+['up','-d','--no-deps',service],stdout=subprocess.DEVNULL)
