@@ -6,6 +6,7 @@ import '../main.dart' as legacy;
 import 'agentic/live_agentic_models.dart';
 import 'agentic/live_agentic_workspace.dart';
 import 'avatar/bot_character.dart';
+import 'live_contact_ledger.dart';
 import 'live_controller.dart';
 import 'live_nexus_find_panel.dart';
 import 'live_widgets.dart';
@@ -155,10 +156,17 @@ class _LiveMissionsScreenState extends State<LiveMissionsScreen> {
                           },
                           onAsk: _askInNewChat,
                         )
-                      : LiveAgenticWorkspace(
-                          controller: agentic,
-                          onResumeMission: _resumeMission,
-                          standalone: true,
+                      : Column(
+                          children: [
+                            const LiveContactLedger(),
+                            Expanded(
+                              child: LiveAgenticWorkspace(
+                                controller: agentic,
+                                onResumeMission: _resumeMission,
+                                standalone: true,
+                              ),
+                            ),
+                          ],
                         ),
                 ),
               ],
