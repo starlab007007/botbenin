@@ -445,6 +445,10 @@ try {
   }
 
   console.log("WAOUH browser smoke: desktop + tablet + mobile OK");
+} catch (error) {
+  const msg = (error instanceof Error ? error.message : String(error)).replace(/[\r\n]+/g, " ").slice(0, 900);
+  console.error(`::error title=Responsive smoke::${msg}`);
+  process.exitCode = 1;
 } finally {
   try {
     if (ws && ws.readyState < 2) {
