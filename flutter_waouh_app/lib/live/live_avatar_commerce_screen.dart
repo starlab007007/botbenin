@@ -14,6 +14,7 @@ import 'live_thread_flow.dart';
 import 'live_theme.dart';
 import 'live_widgets.dart';
 import 'live_hot_labels.dart';
+import 'live_reasoning.dart' as rs;
 
 enum LiveAvatarCommerceMode { buy, sell, ask }
 
@@ -1236,11 +1237,6 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
   Widget build(BuildContext context) {
     final avatar = context.watch<LiveAvatarController>();
     final results = _response?.results ?? const <NexusDiscoveryItem>[];
-    final sources = _response?.sourceMix.entries
-            .where((entry) => entry.value > 0)
-            .map((entry) => entry.key)
-            .toList() ??
-        const <String>[];
 
     return Scaffold(
       backgroundColor: WaouhPalette.pearl,
@@ -1294,6 +1290,23 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
               onSearch: _search,
             ),
             const SizedBox(height: 12),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: const Color(0xFFDCE7F8)),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Theme(
+                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  initiallyExpanded: _mandate != null,
+                  tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+                  childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                  leading: const Icon(Icons.bolt_rounded, color: WaouhPalette.blue),
+                  title: const Text('Mission automatique · 72 h',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5)),
+                  children: [
             DropdownButtonFormField<String>(
               value: _mandates.any((m) => m['id'] == _mandate?['id']) ? (_mandate?['id'] as String?) : '',
               isExpanded: true, decoration: const InputDecoration(labelText: 'Mission suivie'),
@@ -1302,6 +1315,10 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
             ),
             const SizedBox(height: 10),
             _mandateSurface(),
+                  ],
+                ),
+              ),
+            ),
             if (_error != null) ...[
               const SizedBox(height: 10),
               _InfoStrip(
@@ -1312,11 +1329,7 @@ class _LiveAvatarCommerceScreenState extends State<LiveAvatarCommerceScreen> {
             ],
             if (_response != null) ...[
               const SizedBox(height: 14),
-              _IntelligenceSummary(
-                avatarName: avatar.name,
-                response: _response!,
-                sources: sources,
-              ),
+              _SearchPoint(response: _response!, query: _goal.text, city: _city.text),
               const SizedBox(height: 12),
               if (results.isEmpty)
                 _EmptyDiscovery(avatarName: avatar.name)
@@ -1705,7 +1718,7 @@ class _AvatarCommerceHero extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 3),
                   const Text(
-                    'Un parcours guidé · recherche réelle · contact protégé · Deal Room',
+                    loading ? 'Je cherche pour vous…' : 'Dites-moi ce qu’il vous faut.',
                     style: TextStyle(
                       color: WaouhPalette.muted,
                       fontSize: 11,
@@ -1754,8 +1767,8 @@ class _GoalSurface extends StatelessWidget {
           children: [
             TextField(
               controller: controller,
-              minLines: 2,
-              maxLines: 4,
+              minLines: 1,
+              maxLines: 3,
               decoration: InputDecoration(
                 hintText: hint,
                 prefixIcon: const Icon(Icons.auto_awesome_rounded),
@@ -1806,75 +1819,68 @@ class _GoalSurface extends StatelessWidget {
       );
 }
 
-class _IntelligenceSummary extends StatelessWidget {
-  const _IntelligenceSummary({
-    required this.avatarName,
-    required this.response,
-    required this.sources,
-  });
-  final String avatarName;
+class _SearchPoint extends StatelessWidget {
+  const _SearchPoint({required this.response, required this.query, required this.city});
   final NexusDiscoveryResponse response;
-  final List<String> sources;
+  final String query;
+  final String city;
 
   @override
   Widget build(BuildContext context) {
-    final plan = response.intelligence;
+    final ctx = rs.ReasonContext(query: query.trim(), city: city.trim());
+    final summary = rs.buildSummary(const <Map<String, dynamic>>[], response, ctx);
+    final line = rs.summaryStep(summary, ctx).text;
+    final best = rs.reasonMoney(summary.bestPrice);
+    Widget chip(String label, String value) => Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 9),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFDCE7F8)),
+            ),
+            child: Column(children: [
+              Text(value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: WaouhPalette.blue, fontWeight: FontWeight.w900, fontSize: 14)),
+              const SizedBox(height: 2),
+              Text(label,
+                  style: const TextStyle(color: WaouhPalette.muted, fontWeight: FontWeight.w700, fontSize: 10)),
+            ]),
+          ),
+        );
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
         color: const Color(0xFFF2F6FF),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
         border: Border.all(color: const Color(0xFFDCE7F8)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.psychology_alt_rounded,
-                  color: WaouhPalette.blue, size: 20),
-              const SizedBox(width: 7),
-              Expanded(
-                child: Text(
-                  '$avatarName a étudié le marché',
-                  style: const TextStyle(
-                    color: WaouhPalette.ink,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              Text(
-                '${response.results.length} opportunité(s)',
-                style: const TextStyle(
-                  color: WaouhPalette.blue,
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-          if ((plan?.rationale ?? response.explanation ?? '').trim().isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              plan?.rationale ?? response.explanation ?? '',
-              style: const TextStyle(
-                color: WaouhPalette.muted,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
+          Row(children: [
+            const Icon(Icons.psychology_alt_rounded, color: WaouhPalette.blue, size: 20),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Text(line,
+                  style: const TextStyle(color: WaouhPalette.ink, fontSize: 12.5, fontWeight: FontWeight.w800, height: 1.3)),
             ),
-          ],
-          if (sources.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 5,
-              runSpacing: 5,
-              children: sources
-                  .take(6)
-                  .map((source) => _SourceChip(label: source))
-                  .toList(),
-            ),
+          ]),
+          const SizedBox(height: 10),
+          Row(children: [
+            chip('Trouvés', '${summary.found}'),
+            const SizedBox(width: 6),
+            chip('Dans la zone', '${summary.inZone}'),
+            const SizedBox(width: 6),
+            chip('Joignables', '${summary.contactable}'),
+            if (best != null) ...[const SizedBox(width: 6), chip('Meilleur prix', best)],
+          ]),
+          if (summary.nextSteps.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(summary.nextSteps.first,
+                style: const TextStyle(color: WaouhPalette.muted, fontSize: 11.5, fontWeight: FontWeight.w600, height: 1.3)),
           ],
         ],
       ),
