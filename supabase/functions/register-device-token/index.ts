@@ -22,13 +22,20 @@ type ServiceAccount = { client_email: string; private_key: string; project_id: s
 let cachedToken: { value: string; exp: number } | null = null;
 
 function loadServiceAccount(): ServiceAccount | null {
+  return serviceAccountStatus().account;
+}
+
+/** Diagnostic sans fuite : indique seulement POURQUOI la clé n'est pas utilisable. */
+function serviceAccountStatus(): { account: ServiceAccount | null; reason: string } {
   const raw = Deno.env.get("FCM_SERVICE_ACCOUNT_JSON");
-  if (!raw) return null;
+  if (!raw || !raw.trim()) return { account: null, reason: "secret_missing" };
   try {
-    const sa = JSON.parse(raw);
-    return sa?.client_email && sa?.private_key && sa?.project_id ? sa : null;
+    const sa = JSON.parse(raw.trim());
+    const missing = ["client_email", "private_key", "project_id"].filter((k) => !sa?.[k]);
+    if (missing.length) return { account: null, reason: `missing_fields:${missing.join(",")}` };
+    return { account: sa, reason: "ready" };
   } catch {
-    return null;
+    return { account: null, reason: "invalid_json" };
   }
 }
 
@@ -119,6 +126,11 @@ function pushContent(n: any) {
   return { title, body, route };
 }
 
+async function countTokens(admin: any): Promise<number> {
+  const { count } = await admin.from("device_tokens").select("id", { count: "exact", head: true });
+  return count ?? 0;
+}
+
 // ───────── Tick ─────────
 async function runTick(admin: any, limit: number) {
   const since = new Date(Date.now() - PUSH_MAX_AGE_MS).toISOString();
@@ -141,7 +153,7 @@ async function runTick(admin: any, limit: number) {
   const rows = pending.filter((n: any) => claimedIds.has(n.id) && !n.read_at);
 
   const sa = loadServiceAccount();
-  if (!sa || !rows.length) return { processed: claimedIds.size, sent: 0, fcm: sa ? "ready" : "not_configured" };
+  if (!sa || !rows.length) return { processed: claimedIds.size, sent: 0, fcm: sa ? "ready" : "not_configured", fcm_reason: serviceAccountStatus().reason, tokens: await countTokens(admin) };
 
   const waouhIds = [...new Set(rows.map((n: any) => n.user_id).filter(Boolean))];
   const { data: users } = await admin.from("waouh_users").select("id,auth_user_id").in("id", waouhIds);
