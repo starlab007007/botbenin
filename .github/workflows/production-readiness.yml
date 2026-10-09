@@ -20,6 +20,12 @@ jobs:
       - name: Deploy the end-to-end test runner
         run: |
           printf 'project_id = "%s"\n[api]\nenabled = true\nport = 54321\n[edge_runtime]\nenabled = true\npolicy = "per_worker"\n' "$SUPABASE_PROJECT_REF" > supabase/config.toml
-          supabase functions deploy waouh-e2e-test --project-ref "$SUPABASE_PROJECT_REF" --use-api --no-verify-jwt
+          python3 - <<'PY'
+          import os,subprocess
+          r=subprocess.run(['supabase','functions','deploy','waouh-e2e-test','--project-ref',os.environ['SUPABASE_PROJECT_REF'],'--use-api','--no-verify-jwt'],capture_output=True,text=True)
+          if r.returncode:
+              d=(r.stdout+r.stderr)[-2400:].replace(os.environ['SUPABASE_ACCESS_TOKEN'],'[redacted]').replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+              print('::error title=Deploy waouh-e2e-test::'+d); raise SystemExit(r.returncode)
+          PY
       - name: Production readiness checks
         run: python3 scripts/verify-production-readiness.py
