@@ -244,21 +244,33 @@ async function testRoot(viewport) {
       href: a.getAttribute("href"),
       cls: a.className
     }))`);
-    const expected = [
-      ["Chat", "/app/chat"],
-      ["Bots", "/app/bots"],
-      ["IA", "/app/ia"],
-      ["Avatar", "/app/avatar"],
-      ["Partenaire", "/app/partner"],
-    ];
+    const tablet = viewport.width >= 640;
+    const expected = tablet
+      ? [
+          ["Chat", "/app/chat"],
+          ["Radar", "/app/radar-map"],
+          ["Avatar", "/app/avatar"],
+          ["Missions", "/app/missions"],
+          ["IA", "/app/ia"],
+          ["Bots", "/app/bots"],
+        ]
+      : [
+          ["Chat", "/app/chat"],
+          ["Missions", "/app/missions"],
+          ["IA", "/app/ia"],
+          ["Avatar", "/app/avatar"],
+        ];
     for (const [label, href] of expected) {
       const item = nav.find((entry) => entry.text === label);
-      if (!item || item.href !== href) fail(`${viewport.name}: bottom tab ${label} -> ${href} missing`);
+      if (!item || item.href !== href) fail(`${viewport.name}: nav ${label} -> ${href} missing`);
     }
     const avatar = nav.find((entry) => entry.text === "Avatar");
-    if (!String(avatar?.cls || "").includes("font-medium")) {
+    const selected = tablet ? "bg-[hsl(var(--wa-green))]" : "font-medium";
+    if (!String(avatar?.cls || "").includes(selected)) {
       fail(`${viewport.name}: root must visually select Avatar tab`);
     }
+    const hasMenu = await evaluate(`[...document.querySelectorAll("button")].some((b) => /Menu|Modules/.test((b.innerText || "").trim()))`);
+    if (!hasMenu) fail(`${viewport.name}: full modules menu button missing`);
   }
 
   const actionPaths = {
