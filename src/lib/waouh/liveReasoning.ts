@@ -5,14 +5,13 @@
  * renvoyé (sources, villes, prix, canaux de contact). Rien n'est inventé :
  * si une source n'a rien donné ou est indisponible, l'Avatar le dit.
  */
-import { nexusSourceLabel, type NexusDiscoveryResult, type NexusSearchResponse } from "./nexus";
+import type { NexusDiscoveryResult, type NexusSearchResponse } from "./nexus";
 
 export type ReasonTone = "think" | "search" | "found" | "zone" | "contact" | "next" | "warn";
 
 export type ReasonEvidence = {
   key: string;
   title: string;
-  source: string;
   city?: string | null;
   inZone?: boolean;
   price?: string | null;
@@ -43,7 +42,6 @@ export type ReasonSummary = {
   external: number;
   inZone: number;
   contactable: number;
-  sources: string[];
   bestPrice: number | null;
   nextSteps: string[];
 };
@@ -88,7 +86,7 @@ export function planSteps(ctx: ReasonContext): ReasonStep[] {
     {
       id: "plan",
       tone: "search",
-      text: "Je lance deux recherches en parallèle : le catalogue WAOUH, puis les sources externes (cartes, réseaux, web public).",
+      text: "Je lance la recherche, partout où je peux trouver des offres et des contacts.",
     },
   ];
 }
@@ -96,7 +94,7 @@ export function planSteps(ctx: ReasonContext): ReasonStep[] {
 export function internalSteps(response: NexusSearchResponse, ctx: ReasonContext): ReasonStep[] {
   const items = response.results ?? [];
   if (!items.length) {
-    return [{ id: "int-none", tone: "warn", text: "Catalogue WAOUH : aucune offre assez proche pour l’instant." }];
+    return [{ id: "int-none", tone: "warn", text: "Aucune offre publiée assez proche pour l’instant." }];
   }
   const inZone = items.filter((item) => sameZone(item.city, ctx.city));
   const prices = items.map((item) => item.price).filter((p): p is number => typeof p === "number" && p > 0);
@@ -105,7 +103,7 @@ export function internalSteps(response: NexusSearchResponse, ctx: ReasonContext)
     {
       id: "int-found",
       tone: "found",
-      text: `Catalogue WAOUH : ${plural(items.length, "offre trouvée", "offres trouvées")}${
+      text: `J’ai trouvé ${plural(items.length, "offre", "offres")} publiée${items.length > 1 ? "s" : ""}${
         response.market?.median ? `, prix médian ${money(response.market.median)}` : ""
       }.`,
       chips: [cheapest ? `Dès ${money(cheapest)}` : null].filter(Boolean) as string[],
@@ -121,7 +119,6 @@ export function internalSteps(response: NexusSearchResponse, ctx: ReasonContext)
       evidence: inZone.slice(0, 2).map((item) => ({
         key: `int-${item.article_id ?? item.catalog_id ?? item.title}`,
         title: item.title,
-        source: "WAOUH",
         city: item.city,
         inZone: true,
         price: money(item.price, item.currency),
@@ -136,24 +133,19 @@ export function externalUnavailableStep(): ReasonStep {
   return {
     id: "ext-down",
     tone: "warn",
-    text: "Les sources externes ne répondent pas pour le moment. Je continue avec le catalogue WAOUH et je pourrai réessayer via une veille.",
+    text: "Une partie de la recherche n’a pas répondu pour le moment. Je continue avec ce que j’ai déjà trouvé ; une veille me permettra de réessayer.",
   };
 }
 
 export function externalSteps(response: ExternalDiscovery, ctx: ReasonContext): ReasonStep[] {
   const results = response.results ?? [];
-  const mix = Object.entries(response.source_mix ?? {}).filter(([, count]) => count > 0);
-  const refreshed = Object.entries(response.refresh ?? {}).filter(([, info]) => (info?.inserted ?? 0) > 0);
   const steps: ReasonStep[] = [];
 
-  const sourceNames = Array.from(new Set([...mix.map(([k]) => nexusSourceLabel(k)), ...refreshed.map(([k]) => nexusSourceLabel(k))]));
   if (!results.length) {
     steps.push({
       id: "ext-none",
       tone: "warn",
-      text: sourceNames.length
-        ? `Sources externes (${sourceNames.join(", ")}) : rien d’exploitable pour cette recherche.`
-        : "Sources externes : aucune annonce publique trouvée pour cette recherche.",
+      text: "Je n’ai trouvé aucune annonce publique exploitable en plus.",
     });
     return steps;
   }
@@ -161,10 +153,7 @@ export function externalSteps(response: ExternalDiscovery, ctx: ReasonContext): 
   steps.push({
     id: "ext-found",
     tone: "found",
-    text: `Sources externes : ${plural(results.length, "signal pertinent", "signaux pertinents")}${
-      sourceNames.length ? ` via ${sourceNames.join(", ")}` : ""
-    }.`,
-    chips: mix.slice(0, 4).map(([key, count]) => `${nexusSourceLabel(key)} · ${count}`),
+    text: `J’ai aussi repéré ${plural(results.length, "annonce pertinente", "annonces pertinentes")} en ligne.`,
   });
 
   const inZone = results.filter((item) => sameZone(item.city, ctx.city));
@@ -174,7 +163,7 @@ export function externalSteps(response: ExternalDiscovery, ctx: ReasonContext): 
       tone: "zone",
       text: inZone.length
         ? `J’ai trouvé ${plural(inZone.length, "vendeur", "vendeurs")} à ${ctx.city}. Je continue de chercher autour.`
-        : `Aucun résultat externe à ${ctx.city} pour l’instant ; je regarde les villes voisines.`,
+        : `Aucun autre résultat à ${ctx.city} pour l’instant ; je regarde les villes voisines.`,
       evidence: inZone.slice(0, 3).map((item) => evidenceFromDiscovery(item, true)),
     });
   }
@@ -209,7 +198,6 @@ function evidenceFromDiscovery(item: NexusDiscoveryResult, inZone: boolean): Rea
   return {
     key: `ext-${item.fabric_id}`,
     title: item.subject || item.raw_text?.slice(0, 70) || "Annonce publique",
-    source: nexusSourceLabel(item.source_key),
     city: item.city,
     inZone,
     price: money(item.price_min ?? item.price_max, item.currency || "XOF"),
@@ -232,10 +220,6 @@ export function buildSummary(
   ].filter((p): p is number => typeof p === "number" && p > 0);
   const inZone = int.filter((i) => sameZone(i.city, ctx.city)).length + ext.filter((e) => sameZone(e.city, ctx.city)).length;
   const contactable = ext.filter((e) => (e.contact_pack?.masked_contacts?.length ?? 0) > 0).length + int.filter((i) => !!i.article_id).length;
-  const sources = Array.from(new Set([
-    ...(int.length ? ["WAOUH"] : []),
-    ...Object.entries(external?.source_mix ?? {}).filter(([, n]) => n > 0).map(([k]) => nexusSourceLabel(k)),
-  ]));
 
   const next: string[] = [];
   const act = (a: string) => ext.filter((e) => e.next_best_action === a || e.contact_pack?.next_best_action === a).length;
@@ -251,7 +235,6 @@ export function buildSummary(
     external: ext.length,
     inZone,
     contactable,
-    sources,
     bestPrice: prices.length ? Math.min(...prices) : null,
     nextSteps: next.slice(0, 3),
   };

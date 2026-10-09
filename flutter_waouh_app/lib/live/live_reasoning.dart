@@ -7,7 +7,6 @@ enum ReasonTone { think, search, found, zone, contact, next, warn }
 class ReasonEvidence {
   const ReasonEvidence({
     required this.title,
-    required this.source,
     this.city,
     this.inZone = false,
     this.price,
@@ -17,7 +16,6 @@ class ReasonEvidence {
   });
 
   final String title;
-  final String source;
   final String? city;
   final bool inZone;
   final String? price;
@@ -54,7 +52,6 @@ class ReasonSummary {
     required this.found,
     required this.inZone,
     required this.contactable,
-    required this.sources,
     required this.bestPrice,
     required this.nextSteps,
   });
@@ -62,7 +59,6 @@ class ReasonSummary {
   final int found;
   final int inZone;
   final int contactable;
-  final List<String> sources;
   final double? bestPrice;
   final List<String> nextSteps;
 }
@@ -145,7 +141,7 @@ List<ReasonStep> planSteps(ReasonContext ctx) {
       id: 'plan',
       tone: ReasonTone.search,
       text:
-          'Je lance deux recherches en parallèle : le catalogue WAOUH, puis les sources externes (cartes, réseaux, web public).',
+          'Je lance la recherche, partout où je peux trouver des offres et des contacts.',
     ),
   ];
 }
@@ -159,7 +155,7 @@ List<ReasonStep> catalogSteps(List<Map<String, dynamic>> items, ReasonContext ct
       ReasonStep(
         id: 'int-none',
         tone: ReasonTone.warn,
-        text: 'Catalogue WAOUH : aucune offre assez proche pour l’instant.',
+        text: 'Aucune offre publiée assez proche pour l’instant.',
       ),
     ];
   }
@@ -169,7 +165,7 @@ List<ReasonStep> catalogSteps(List<Map<String, dynamic>> items, ReasonContext ct
     ReasonStep(
       id: 'int-found',
       tone: ReasonTone.found,
-      text: 'Catalogue WAOUH : ${_plural(items.length, 'offre trouvée', 'offres trouvées')}.',
+      text: 'J’ai trouvé ${_plural(items.length, 'offre publiée', 'offres publiées')}.',
       chips: <String>[if (cheapest != null) 'Dès ${reasonMoney(cheapest)}'],
     ),
   ];
@@ -186,7 +182,6 @@ List<ReasonStep> catalogSteps(List<Map<String, dynamic>> items, ReasonContext ct
           .take(2)
           .map((i) => ReasonEvidence(
                 title: '${i['title'] ?? 'Offre'}',
-                source: 'WAOUH',
                 city: '${i['city'] ?? ''}',
                 inZone: true,
                 price: reasonMoney(_num(i['price']), '${i['currency'] ?? 'XOF'}'),
@@ -201,7 +196,7 @@ ReasonStep externalDownStep() => const ReasonStep(
       id: 'ext-down',
       tone: ReasonTone.warn,
       text:
-          'Les sources externes ne répondent pas pour le moment. Je continue avec le catalogue WAOUH et je pourrai réessayer via une veille.',
+          'Une partie de la recherche n’a pas répondu pour le moment. Je continue avec ce que j’ai déjà trouvé ; une veille me permettra de réessayer.',
     );
 
 ReasonEvidence _evidence(NexusDiscoveryItem item, bool inZone) {
@@ -209,7 +204,6 @@ ReasonEvidence _evidence(NexusDiscoveryItem item, bool inZone) {
   final channel = masked.isEmpty ? null : masked.first;
   return ReasonEvidence(
     title: item.title.isEmpty ? 'Annonce publique' : item.title,
-    source: reasonSourceLabel(item.sourceKey),
     city: item.city,
     inZone: inZone,
     price: reasonMoney(item.priceMin ?? item.priceMax, item.currency),
@@ -221,16 +215,12 @@ ReasonEvidence _evidence(NexusDiscoveryItem item, bool inZone) {
 
 List<ReasonStep> externalSteps(NexusDiscoveryResponse response, ReasonContext ctx) {
   final results = response.results;
-  final mix = response.sourceMix.entries.where((e) => e.value > 0).toList();
-  final names = mix.map((e) => reasonSourceLabel(e.key)).toSet().toList();
   if (results.isEmpty) {
     return <ReasonStep>[
       ReasonStep(
         id: 'ext-none',
         tone: ReasonTone.warn,
-        text: names.isNotEmpty
-            ? 'Sources externes (${names.join(', ')}) : rien d’exploitable pour cette recherche.'
-            : 'Sources externes : aucune annonce publique trouvée pour cette recherche.',
+        text: 'Je n’ai trouvé aucune annonce publique exploitable en plus.',
       ),
     ];
   }
@@ -240,8 +230,7 @@ List<ReasonStep> externalSteps(NexusDiscoveryResponse response, ReasonContext ct
       id: 'ext-found',
       tone: ReasonTone.found,
       text:
-          'Sources externes : ${_plural(results.length, 'signal pertinent', 'signaux pertinents')}${names.isNotEmpty ? ' via ${names.join(', ')}' : ''}.',
-      chips: mix.take(4).map((e) => '${reasonSourceLabel(e.key)} · ${e.value}').toList(growable: false),
+          'J’ai aussi repéré ${_plural(results.length, 'annonce pertinente', 'annonces pertinentes')} en ligne.',
     ),
   ];
   if (city.isNotEmpty) {
@@ -251,7 +240,7 @@ List<ReasonStep> externalSteps(NexusDiscoveryResponse response, ReasonContext ct
       tone: ReasonTone.zone,
       text: inZone.isNotEmpty
           ? 'J’ai trouvé ${_plural(inZone.length, 'vendeur', 'vendeurs')} à $city. Je continue de chercher autour.'
-          : 'Aucun résultat externe à $city pour l’instant ; je regarde les villes voisines.',
+          : 'Aucun autre résultat à $city pour l’instant ; je regarde les villes voisines.',
       evidence: inZone.take(3).map((i) => _evidence(i, true)).toList(growable: false),
     ));
   }
@@ -301,10 +290,6 @@ ReasonSummary buildSummary(
       ext.where((e) => sameZone(e.city, city)).length;
   final contactable = ext.where((e) => e.contactPack?.maskedContacts.isNotEmpty ?? false).length +
       catalog.where((i) => '${i['article_id'] ?? ''}'.isNotEmpty).length;
-  final sources = <String>{
-    if (catalog.isNotEmpty) 'WAOUH',
-    ...?external?.sourceMix.entries.where((e) => e.value > 0).map((e) => reasonSourceLabel(e.key)),
-  }.toList();
 
   int act(String action) =>
       ext.where((e) => (e.nextBestAction ?? e.contactPack?.nextBestAction) == action).length;
@@ -325,7 +310,6 @@ ReasonSummary buildSummary(
     found: catalog.length + ext.length,
     inZone: inZone,
     contactable: contactable,
-    sources: sources,
     bestPrice: prices.isEmpty ? null : prices.reduce((a, b) => a < b ? a : b),
     nextSteps: next.take(3).toList(growable: false),
   );

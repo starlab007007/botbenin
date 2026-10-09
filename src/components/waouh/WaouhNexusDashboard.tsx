@@ -35,7 +35,6 @@ import {
   getSellerOpportunities,
   nexusBadgeLabel,
   nexusScoreLabel,
-  nexusSourceLabel,
   notifyMatchingBuyers,
   saveNexusPreference,
   searchNexus,
@@ -164,7 +163,7 @@ export function WaouhNexusDashboard({ onAsk, onActivity }: { onAsk?: (prompt: st
       setReasonSummary(summary);
       feed.push([summaryStep(summary, ctx)]);
       if (!internalData && !externalData) {
-        toast({ title: "Recherche impossible", description: "Aucune source n’a répondu. Réessayez dans un instant.", variant: "destructive" });
+        toast({ title: "Recherche impossible", description: "La recherche n’a pas abouti. Réessayez dans un instant.", variant: "destructive" });
       }
       await refreshSummary();
     } finally {
@@ -370,8 +369,7 @@ export function WaouhNexusDashboard({ onAsk, onActivity }: { onAsk?: (prompt: st
                         <div className="flex flex-1 flex-col gap-2.5 p-3.5">
                           <div className="flex flex-wrap gap-1">
                             {item.badges.slice(0, 2).map((badge) => <Badge key={badge} variant={badge === "recommended" ? "default" : "secondary"} className="text-[10px]">{nexusBadgeLabel(badge)}</Badge>)}
-                            <Badge variant="outline" className="text-[10px]">{nexusSourceLabel(item.source)}</Badge>
-                          </div>
+                            </div>
                           <div>
                             <h4 className="line-clamp-2 text-sm font-bold leading-snug text-slate-900">{item.title}</h4>
                             <div className="mt-1 flex items-baseline justify-between gap-2">
@@ -400,7 +398,7 @@ export function WaouhNexusDashboard({ onAsk, onActivity }: { onAsk?: (prompt: st
                 {external && external.results.length > 0 && (
                   <div className="space-y-2 pt-1">
                     <div>
-                      <h3 className="text-sm font-black text-slate-900">Trouvé sur les sources externes</h3>
+                      <h3 className="text-sm font-black text-slate-900">Autres annonces trouvées</h3>
                       <p className="text-[11px] font-medium text-slate-500">Numéros masqués · contact uniquement avec votre accord.</p>
                     </div>
                     <div className="grid gap-2.5 sm:grid-cols-2">
@@ -412,7 +410,6 @@ export function WaouhNexusDashboard({ onAsk, onActivity }: { onAsk?: (prompt: st
                         return (
                           <article key={item.fabric_id} className="space-y-2 rounded-3xl border border-slate-200 bg-white p-3.5 shadow-sm">
                             <div className="flex flex-wrap gap-1">
-                              <Badge variant="secondary" className="text-[10px]">{nexusSourceLabel(item.source_key)}</Badge>
                               {inZone && <Badge className="bg-emerald-100 text-[10px] text-emerald-800 hover:bg-emerald-100">Dans votre zone</Badge>}
                               {item.contact_policy?.label && <Badge variant="outline" className="text-[10px]">{item.contact_policy.label}</Badge>}
                             </div>
@@ -474,7 +471,7 @@ export function WaouhNexusDashboard({ onAsk, onActivity }: { onAsk?: (prompt: st
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <div className="truncate text-sm font-semibold text-slate-900">{opportunity.query}</div>
-                            <div className="mt-0.5 text-[11px] text-slate-500">{opportunity.budget_max ? `Budget ${moneyXof(opportunity.budget_max)} · ` : ""}{nexusSourceLabel(opportunity.source)}</div>
+                            <div className="mt-0.5 text-[11px] text-slate-500">{opportunity.budget_max ? `Budget ${moneyXof(opportunity.budget_max)}` : ""}</div>
                           </div>
                           <Badge variant="secondary">{Math.round(opportunity.scores.total_score)}%</Badge>
                         </div>

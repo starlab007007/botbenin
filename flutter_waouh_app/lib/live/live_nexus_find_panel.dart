@@ -125,7 +125,7 @@ class _LiveNexusFindPanelState extends State<LiveNexusFindPanel> {
         ReasonStep(
           id: 'int-error',
           tone: ReasonTone.warn,
-          text: 'Catalogue WAOUH indisponible : ${error is NexusApiException ? error.message : 'réessayez dans un instant'}.',
+          text: 'Une partie de la recherche est indisponible : ${error is NexusApiException ? error.message : 'réessayez dans un instant'}.',
         ),
       ]);
       return null;
@@ -158,7 +158,7 @@ class _LiveNexusFindPanelState extends State<LiveNexusFindPanel> {
       _summary = summary;
       _searching = false;
       if (catalogRows == null && external == null) {
-        _error = 'Aucune source n’a répondu. Réessayez dans un instant.';
+        _error = 'La recherche n’a pas abouti. Réessayez dans un instant.';
       }
     });
     _push(<ReasonStep>[summaryStep(summary, ctx)]);
@@ -354,7 +354,7 @@ class _LiveNexusFindPanelState extends State<LiveNexusFindPanel> {
             const Padding(
               padding: EdgeInsets.fromLTRB(2, 6, 2, 2),
               child: Text(
-                'Trouvé sur les sources externes · numéros masqués',
+                'Autres annonces trouvées · numéros masqués',
                 style: TextStyle(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w700,
@@ -527,7 +527,7 @@ class _ReasoningFeed extends StatelessWidget {
                 const SizedBox(width: 6),
                 _Metric(label: 'Joignables', value: '${summary.contactable}'),
                 const SizedBox(width: 6),
-                _Metric(label: 'Sources', value: '${summary.sources.length}'),
+                _Metric(label: 'Meilleur prix', value: reasonMoney(summary.bestPrice)?.replaceAll(' FCFA', '') ?? '—'),
               ],
             ),
             if (summary.nextSteps.isNotEmpty) ...[
@@ -651,7 +651,6 @@ class _EvidenceTile extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               [
-                item.source,
                 if ((item.city ?? '').isNotEmpty)
                   item.inZone ? '${item.city} · dans votre zone' : item.city!,
                 if ((item.note ?? '').isNotEmpty) item.note!,
@@ -799,7 +798,6 @@ class _ResultCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   [
-                    reasonSourceLabel(item.sourceKey),
                     if (inZone) 'dans votre zone',
                     item.contactPolicy.label,
                   ].join(' · '),
