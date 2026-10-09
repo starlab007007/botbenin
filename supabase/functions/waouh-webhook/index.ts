@@ -364,7 +364,7 @@ const DEFAULT_NOT_UNDERSTOOD = "Désolé, je n'ai pas compris. Tapez 'aide' pour
 
 /** Terme de clôture explicite d'une discussion terminée. Pure. */
 export function isCloseDiscussionText(text: string): boolean {
-  return /^\s*(cl[oô]turer|cl[oô]ture|fermer|ferme|terminer|fin|c['’]?est\s+(bon|fini|termin[ée]))(\s+(la|cette)?\s*(discussion|conversation|chat|commande))?\s*[.!]?\s*$/i
+  return /^\s*(cl[oô]turer|cl[oô]ture|fermer|ferme|terminer|fin|c['’]?est\s+(fini|termin[ée]))(\s+(la|cette)?\s*(discussion|conversation|chat|commande))?\s*[.!]?\s*$/i
     .test(text || "");
 }
 
