@@ -53,6 +53,9 @@ const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const WAHA_BASE_URL = Deno.env.get("WAHA_BASE_URL");
 const WAHA_API_KEY = Deno.env.get("WAHA_API_KEY");
 const WAHA_SESSION = CENTRAL_WAHA_SESSION;
+// Le slug « waouh-agentic-core » n'est pas déployé (quota de fonctions Supabase) : le cœur agentique est servi par l'alias
+// de production utilisé aussi par le Web et Flutter. Sans cela, tout mandat créé depuis le chat/WhatsApp échouait en 404.
+const AGENTIC_CORE_FUNCTION = Deno.env.get("WAOUH_AGENTIC_CORE_FUNCTION") || "waouh-studio-e2e-v21465";
 
 const normalizeBeninPhone = (value: string) => {
   const original = String(value || "");
@@ -2286,7 +2289,7 @@ Deno.serve(async (req) => {
             : inboundMessageId
               ? `chat-message:${inboundMessageId}`
               : null;
-          const mandateRes = await fetch(`${SUPABASE_URL}/functions/v1/waouh-agentic-core`, {
+          const mandateRes = await fetch(`${SUPABASE_URL}/functions/v1/${AGENTIC_CORE_FUNCTION}`, {
             method: "POST",
             headers: {
               Authorization: `Bearer ${SERVICE}`,
