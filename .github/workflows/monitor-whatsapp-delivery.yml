@@ -1,0 +1,22 @@
+name: Monitor WhatsApp delivery
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17,47 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: monitor-whatsapp-delivery
+  cancel-in-progress: true
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 5
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF || secrets.SUPABASE_PROJECT_REF || 'mvynepqulhflxtyymtzs' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check central session and notification delivery
+        run: python3 scripts/monitor-whatsapp-delivery.py

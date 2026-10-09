@@ -798,6 +798,18 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Numéro absent : retrouver celui du destinataire WAOUH avant de déclarer l'échec.
+      if (!it.to_phone && it.channel !== "web" && it.to_user_id) {
+        try {
+          const { data: recipient } = await sb.from("waouh_users").select("phone_number").eq("id", it.to_user_id).maybeSingle();
+          const known = typeof recipient?.phone_number === "string" ? recipient.phone_number.trim() : "";
+          if (known) {
+            it.to_phone = known;
+            await sb.from("waouh_outbound_queue").update({ to_phone: known }).eq("id", it.id);
+          }
+        } catch (_) { /* repli : échec explicite ci-dessous */ }
+      }
+
       // Web-only : pas de téléphone → realtime web suffit
       if ((it.channel && it.channel === "web") || !it.to_phone) {
         await sb.from("waouh_outbound_queue").update({
@@ -875,10 +887,19 @@ Deno.serve(async (req) => {
       }
 
 
-      const phone = normalizeBeninPhone(toPhone);
+      let phone = normalizeBeninPhone(toPhone);
+      if ((!phone || (phone.includes("@") && !phone.includes("@lid"))) && it.to_user_id) {
+        try {
+          const { data: recipient } = await sb.from("waouh_users").select("phone_number").eq("id", it.to_user_id).maybeSingle();
+          const known = typeof recipient?.phone_number === "string" ? recipient.phone_number.trim() : "";
+          const alternative = known && known !== toPhone ? normalizeBeninPhone(known) : null;
+          if (alternative && !(alternative.includes("@") && !alternative.includes("@lid"))) { toPhone = known; phone = alternative; }
+        } catch (_) { /* échec explicite ci-dessous */ }
+      }
       if (!phone || (phone.includes("@") && !phone.includes("@lid"))) {
-        await sb.from("waouh_outbound_queue").update({ status: "failed", last_error: "invalid phone" }).eq("id", it.id);
-        failed++; continue;
+        // Définitif et tracé : ne pas retenter un numéro inutilisable.
+        await finishFailed("invalid phone", false);
+        continue;
       }
       if (isCentralWhatsAppPhone(phone)) {
         await sb.from("waouh_outbound_queue").update({ status: "failed", last_error: "central_sender_is_not_external_contact" }).eq("id", it.id);
