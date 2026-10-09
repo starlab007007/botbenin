@@ -46,6 +46,18 @@ async function callFn(name: string, body: unknown) {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Une offre chiffrée demande une confirmation explicite (« CONFIRMER ») avant d'être transmise : on suit le vrai parcours. */
+async function sendOfferAndConfirm(body: Record<string, unknown>, text: string) {
+  const first = await callFn("waouh-channel-in", { ...body, text });
+  await sleep(500);
+  if (/CONFIRMER/i.test(String(first.json?.reply ?? ""))) {
+    const second = await callFn("waouh-channel-in", { ...body, text: "CONFIRMER" });
+    await sleep(700);
+    return second;
+  }
+  return first;
+}
+
 function randPhone(prefix: string) {
   // Plage de test 2299000xxxx (jamais un vrai abonné actif du parc WAOUH)
   return `2299000${prefix}${Math.floor(Math.random() * 90 + 10)}`;
@@ -224,10 +236,8 @@ export async function runParcours(
   }
 
   // ── 4. Contre-offre acheteur ──────────────────────────────────────────────
-  const buyerOffer = await callFn("waouh-channel-in",
-    buyerIsWA ? { channel: "whatsapp", phone: buyerPhone, text: "20000" }
-              : { channel: "web", sessionId: buyerSession, text: "20000" });
-  await sleep(600);
+  const buyerOffer = await sendOfferAndConfirm(
+    buyerIsWA ? { channel: "whatsapp", phone: buyerPhone } : { channel: "web", sessionId: buyerSession }, "Je propose 20000");
   const { data: neg2 } = await sb.from("waouh_negotiations")
     .select("state, last_offer_price, last_actor").eq("id", neg.id).maybeSingle();
   push({
@@ -238,10 +248,8 @@ export async function runParcours(
   });
 
   // ── 5. Contre-offre vendeur ───────────────────────────────────────────────
-  const sellerOffer = await callFn("waouh-channel-in",
-    sellerIsWA ? { channel: "whatsapp", phone: sellerPhone, text: "22000" }
-               : { channel: "web", sessionId: sellerSession, text: "22000" });
-  await sleep(600);
+  const sellerOffer = await sendOfferAndConfirm(
+    sellerIsWA ? { channel: "whatsapp", phone: sellerPhone } : { channel: "web", sessionId: sellerSession }, "Je propose 22000");
   const { data: neg3 } = await sb.from("waouh_negotiations")
     .select("state, last_offer_price, last_actor").eq("id", neg.id).maybeSingle();
   push({
@@ -271,7 +279,7 @@ export async function runParcours(
     got: deal?.id
       ? `deal ${deal.id.slice(0, 8)} · montant=${deal.amount} · statut=${deal.status} · neg=${neg4?.state}`
       : `aucun deal — neg=${neg4?.state} · reply="${String(accept.json?.reply ?? "").slice(0, 140)}"`,
-    status: deal?.id ? "ok" : "fail",
+    status: deal?.id && Number(deal.amount) === 22000 ? "ok" : "fail",
   });
 
   // ── 7. Visibilité admin /admin/waouh/deals ────────────────────────────────
