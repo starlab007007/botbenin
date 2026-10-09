@@ -287,7 +287,7 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
       icon: ShoppingBag,
       card: "from-blue-50 to-blue-100/80 border-blue-100",
       iconTone: "text-blue-600",
-      action: () => setQuickAsk("acheter"),
+      action: () => (user ? setQuickAsk("acheter") : navigate("/app/avatar/acheter")),
     },
     {
       title: "Vendre",
@@ -295,7 +295,7 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
       icon: Tag,
       card: "from-amber-50 to-orange-100/75 border-amber-100",
       iconTone: "text-amber-600",
-      action: () => setQuickAsk("vendre"),
+      action: () => (user ? setQuickAsk("vendre") : navigate("/app/avatar/vendre")),
     },
     {
       title: "Trouver",
@@ -303,7 +303,7 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
       icon: Globe2,
       card: "from-cyan-50 to-sky-100/80 border-cyan-100",
       iconTone: "text-cyan-600",
-      action: () => setQuickAsk("trouver"),
+      action: () => (user ? setQuickAsk("trouver") : navigate("/app/nexus")),
     },
     {
       title: "Demander",
@@ -311,7 +311,7 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
       icon: MessageSquareText,
       card: "from-violet-50 to-purple-100/80 border-violet-100",
       iconTone: "text-violet-600",
-      action: () => setQuickAsk("demander"),
+      action: () => (user ? setQuickAsk("demander") : navigate("/app/avatar/demander")),
     },
   ] as const;
 
