@@ -324,11 +324,18 @@ async function sendWahaReply(base: string, session: string, chatIds: string[], t
   if (session === CENTRAL_WAHA_SESSION && !(await centralWhatsAppHealth()).working) return {ok:false,error:"central_whatsapp_unavailable"};
   let lastError = "";
   for (const chatId of chatIds) {
-    const res = actions.length > 0
+    let res = actions.length > 0
       ? await sendWahaButtons(base, session, chatId, text, actions, imageUrl)
       : imageUrl
         ? await sendWahaImage(base, session, chatId, imageUrl, text)
         : await sendWahaText(base, session, chatId, text);
+    if (!res.ok && (actions.length > 0 || imageUrl)) {
+      // Rich WhatsApp messages (image/buttons) can be unsupported by the provider engine: never lose the reply.
+      const richBody = await res.clone().text().catch(() => "");
+      console.warn("[waouh-channel-in] waha rich reply failed; sending plain text", { chatId, status: res.status, body: richBody.slice(0, 200) });
+      const plain = actions.length > 0 ? `${text}\n\n${actions.map((a, i) => `${i + 1}. ${a.label}`).join("\n")}` : text;
+      res = await sendWahaText(base, session, chatId, plain);
+    }
     if (res.ok) {
       log("waha reply sent", { chatId, status: res.status });
       return { ok: true, chatId };
