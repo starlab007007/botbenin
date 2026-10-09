@@ -133,7 +133,7 @@ export async function runParcours(
     .from("waouh_users").select("id, phone_number, web_session_id, channel").eq("id", article.seller_id).maybeSingle();
   artifacts.seller_id = sellerUser?.id ?? null;
   const sellerOk = sellerIsWA
-    ? !!sellerUser?.phone_number && sellerUser.phone_number.includes(String(sellerPhone).slice(-8))
+    ? !!sellerUser?.phone_number && sellerUser.phone_number.includes(String(sellerPhone).replace(/\D/g, "").slice(-8))
     : sellerUser?.web_session_id === sellerSession;
   push({
     step: "1b_identite_vendeur",

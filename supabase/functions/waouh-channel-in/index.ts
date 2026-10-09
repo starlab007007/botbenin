@@ -1479,8 +1479,14 @@ Deno.serve(async (req) => {
           : metaRole)
       : metaRole;
     let confirmedPendingOffer: { amount: number; negotiationId: string; threadId: string } | null = null;
-    const confirmOfferText = /^confirmer(?:\s+(?:l['’]?offre|cette\s+offre))?[.!]?$/i.test(String(text || "").trim());
-    if (confirmOfferText && openNeg?.thread_id) {
+    const trimmedReply = String(text || "").trim();
+    const confirmOfferText = /^confirmer(?:\s+(?:l['’]?offre|cette\s+offre))?[.!]?$/i.test(trimmedReply);
+    // « Oui / OK / d'accord » juste après « Confirmez-vous l'offre de X ? » confirme CETTE offre : sans cela, le « OK » était lu
+    // comme l'acceptation du prix du vendeur et concluait l'accord au mauvais montant.
+    const affirmOfferText = /^(?:oui|ok|okay|d['’]?accord|yes|valider|je\s+confirme|c['’]?est\s+bon)\s*[.!]?$/i.test(trimmedReply);
+    const cancelOfferText = /^(?:non|annuler|annule|stop)\s*[.!]?$/i.test(trimmedReply);
+    let cancelledPendingOffer: { amount: number } | null = null;
+    if ((confirmOfferText || affirmOfferText || cancelOfferText) && openNeg?.thread_id) {
       try {
         const { data: recentPrompts } = await sb.from("waouh_messages")
           .select("created_at,meta")
@@ -1490,19 +1496,43 @@ Deno.serve(async (req) => {
           .order("created_at", { ascending: false })
           .limit(10);
         const cutoff = Date.now() - 15 * 60_000;
+        let rowIndex = -1;
         for (const row of recentPrompts || []) {
+          rowIndex++;
+          // Oui/OK/Non ne valent que pour la question posée en dernier ; « CONFIRMER » reste valable plus longtemps.
+          if (!confirmOfferText && rowIndex > 0) break;
           const pendingOffer = (row?.meta as any)?.pending_offer;
           if (!pendingOffer || (row?.meta as any)?.intent !== "offer_confirmation_required") continue;
           if (new Date(row.created_at).getTime() < cutoff) continue;
           if (String(pendingOffer.negotiation_id || "") !== String(openNeg.id)) continue;
           const amount = Number(pendingOffer.amount || 0);
           if (!Number.isFinite(amount) || amount <= 0) continue;
-          confirmedPendingOffer = { amount: Math.round(amount), negotiationId: openNeg.id, threadId: openNeg.thread_id };
+          if (cancelOfferText) cancelledPendingOffer = { amount: Math.round(amount) };
+          else confirmedPendingOffer = { amount: Math.round(amount), negotiationId: openNeg.id, threadId: openNeg.thread_id };
           break;
         }
       } catch (e) {
         console.warn("[waouh-channel-in] pending offer lookup failed", e);
       }
+    }
+
+    if (cancelledPendingOffer && openNeg) {
+      const cancelReply = `Offre de ${cancelledPendingOffer.amount.toLocaleString("fr-FR")} FCFA annulée, rien n'a été envoyé.\n\nPrix en cours : ${Number(openNeg.last_offer_price || 0).toLocaleString("fr-FR")} FCFA.\n💬 Envoyez un autre montant (ex. *Je propose ${Math.max(100, Math.round(Number(openNeg.last_offer_price || cancelledPendingOffer.amount) * 0.95 / 25) * 25)}*)\n✅ ou *OUI* pour accepter le prix en cours.`;
+      const { data: cancelRow } = await sb.from("waouh_messages").insert({
+        conversation_id: convId, user_id: user.id, channel, direction: "out", text: cancelReply,
+        web_session_id: sessionId, phone_number: phone, attachments: [],
+        article_id: openNeg.article_id ?? null, thread_id: openNeg.thread_id ?? null,
+        meta: { intent: "offer_confirmation_cancelled", negotiation_id: openNeg.id, correlation_id: correlationId, actions: [] },
+      }).select("id").maybeSingle();
+      if (channel === "whatsapp" && phone && WAHA_BASE_URL) {
+        try { await sendWahaReply(WAHA_BASE_URL, wahaSession, replyChatIds, cancelReply, []); }
+        catch (e) { console.error("[waouh-channel-in] cancel offer reply failed", e); }
+      }
+      return new Response(JSON.stringify({
+        ok: true, intent: "offer_confirmation_cancelled", reply: cancelReply, actions: [],
+        negotiation_id: openNeg.id, thread_id: openNeg.thread_id ?? null, outbound_message_id: cancelRow?.id ?? null,
+        inbound_message_id: inboundMessageId, conversation_id: convId, user_id: user.id, correlation_id: correlationId,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const typedOfferForConfirmation = extractOfferAmount(text);
