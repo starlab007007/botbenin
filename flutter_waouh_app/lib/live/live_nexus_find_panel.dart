@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../main.dart' as legacy;
 import 'avatar/bot_character.dart';
 import 'live_nexus_service.dart';
+import 'live_reasoning.dart';
 import 'live_theme.dart';
 
 /// « Trouver pour moi » — même parcours que l'onglet NEXUS du Web :
@@ -41,9 +44,48 @@ class _LiveNexusFindPanelState extends State<LiveNexusFindPanel> {
   bool _watching = false;
   String? _error;
   NexusDiscoveryResponse? _result;
+  List<Map<String, dynamic>> _catalog = const <Map<String, dynamic>>[];
+  final List<ReasonStep> _steps = <ReasonStep>[];
+  final List<ReasonStep> _queue = <ReasonStep>[];
+  Timer? _ticker;
+  ReasonSummary? _summary;
+  bool _searched = false;
+
+  bool get _revealing => _queue.isNotEmpty;
+
+  void _push(List<ReasonStep> steps) {
+    if (steps.isEmpty || !mounted) return;
+    _queue.addAll(steps);
+    _ticker ??= Timer.periodic(const Duration(milliseconds: 650), (_) {
+      if (!mounted) return;
+      if (_queue.isEmpty) {
+        _ticker?.cancel();
+        _ticker = null;
+        return;
+      }
+      final next = _queue.removeAt(0);
+      setState(() => _steps.add(next));
+      widget.onSpeak(next.text);
+      if (_queue.isEmpty) {
+        _ticker?.cancel();
+        _ticker = null;
+      }
+    });
+    setState(() {});
+  }
+
+  void _skip() {
+    _ticker?.cancel();
+    _ticker = null;
+    setState(() {
+      _steps.addAll(_queue);
+      _queue.clear();
+    });
+  }
 
   @override
   void dispose() {
+    _ticker?.cancel();
     _query.dispose();
     _budget.dispose();
     _city.dispose();
@@ -54,37 +96,73 @@ class _LiveNexusFindPanelState extends State<LiveNexusFindPanel> {
     final text = _query.text.trim();
     if (text.isEmpty || _searching) return;
     FocusScope.of(context).unfocus();
+    final city = _city.text.trim();
+    final budget = double.tryParse(_budget.text.replaceAll(RegExp(r'\D'), ''));
+    final ctx = ReasonContext(query: text, city: city, budget: budget);
+    _ticker?.cancel();
+    _ticker = null;
     setState(() {
       _searching = true;
+      _searched = true;
       _error = null;
+      _result = null;
+      _catalog = const <Map<String, dynamic>>[];
+      _summary = null;
+      _steps.clear();
+      _queue.clear();
     });
     widget.onExpression(BotExpression.think);
-    widget.onSpeak('Je cherche et je compare les offres…');
-    try {
-      final budget = double.tryParse(_budget.text.replaceAll(RegExp(r'\D'), ''));
-      final response = await _service.search(
-        query: text,
-        findSellers: true,
-        city: _city.text,
-        budgetMax: budget,
-        limit: 9,
-      );
-      if (!mounted) return;
-      setState(() => _result = response);
-      widget.onExpression(BotExpression.talk);
-      widget.onSpeak(response.results.isEmpty
-          ? 'Rien d’assez proche, activons une veille ?'
-          : 'J’ai trouvé ${response.results.length} option(s) pour vous.');
-    } catch (error) {
-      if (!mounted) return;
-      setState(() => _error = error is NexusApiException
-          ? error.message
-          : 'Recherche impossible pour le moment.');
-      widget.onExpression(BotExpression.idle);
-      widget.onSpeak('Je n’ai pas pu chercher, réessayons.');
-    } finally {
-      if (mounted) setState(() => _searching = false);
-    }
+    _push(planSteps(ctx));
+
+    final catalogCall = _service
+        .catalogSearch(query: text, city: city, budgetMax: budget)
+        .then<List<Map<String, dynamic>>?>((rows) {
+      if (mounted) setState(() => _catalog = rows);
+      _push(catalogSteps(rows, ctx));
+      return rows;
+    }).catchError((Object error) {
+      _push(<ReasonStep>[
+        ReasonStep(
+          id: 'int-error',
+          tone: ReasonTone.warn,
+          text: 'Catalogue WAOUH indisponible : ${error is NexusApiException ? error.message : 'réessayez dans un instant'}.',
+        ),
+      ]);
+      return null;
+    });
+
+    final externalCall = _service
+        .search(
+          query: text,
+          findSellers: true,
+          city: city,
+          budgetMax: budget,
+          limit: 12,
+        )
+        .timeout(const Duration(seconds: 35))
+        .then<NexusDiscoveryResponse?>((response) {
+      if (mounted) setState(() => _result = response);
+      _push(externalSteps(response, ctx));
+      return response;
+    }).catchError((Object _) {
+      _push(<ReasonStep>[externalDownStep()]);
+      return null;
+    });
+
+    widget.onExpression(BotExpression.work);
+    final catalogRows = await catalogCall;
+    final external = await externalCall;
+    if (!mounted) return;
+    final summary = buildSummary(catalogRows ?? const <Map<String, dynamic>>[], external, ctx);
+    setState(() {
+      _summary = summary;
+      _searching = false;
+      if (catalogRows == null && external == null) {
+        _error = 'Aucune source n’a répondu. Réessayez dans un instant.';
+      }
+    });
+    _push(<ReasonStep>[summaryStep(summary, ctx)]);
+    widget.onExpression(BotExpression.talk);
   }
 
   Future<void> _watch() async {
@@ -236,59 +314,429 @@ class _LiveNexusFindPanelState extends State<LiveNexusFindPanel> {
                 style: const TextStyle(
                     color: WaouhPalette.red, fontWeight: FontWeight.w600)),
           ),
-        if (_result == null && !_searching && _error == null)
+        if (!_searched)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 28),
             child: Center(
               child: Text(
-                'Vos meilleures offres apparaîtront ici.',
+                'Lancez une recherche : Bot vous explique tout en direct.',
+                textAlign: TextAlign.center,
                 style: TextStyle(
                     color: WaouhPalette.muted, fontWeight: FontWeight.w600),
               ),
             ),
           ),
-        if (_result != null) ...[
+        if (_steps.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _ReasoningFeed(
+            steps: _steps,
+            running: _searching || _revealing,
+            summary: _summary,
+            onSkip: _skip,
+            onWatch: _watching ? null : _watch,
+            onAdvice: () => widget.onAsk(
+                'Voici ma recherche : « ${_query.text.trim()} »${_city.text.trim().isNotEmpty ? ' à ${_city.text.trim()}' : ''}. Que me conseilles-tu pour la suite ?'),
+          ),
+        ],
+        if (!_searching && !_revealing && (_catalog.isNotEmpty || results.isNotEmpty)) ...[
           const SizedBox(height: 14),
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'Meilleures options',
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                      color: WaouhPalette.ink),
-                ),
-              ),
-              OutlinedButton.icon(
-                onPressed: _watching ? null : _watch,
-                icon: const Icon(Icons.notifications_active_outlined, size: 16),
-                label: const Text('Surveiller'),
-              ),
-            ],
+          const Text(
+            'Meilleures options',
+            style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: WaouhPalette.ink),
           ),
           const SizedBox(height: 8),
-          if (results.isEmpty)
+          for (final row in _catalog)
+            _CatalogCard(row: row, onAsk: widget.onAsk),
+          if (results.isNotEmpty) ...[
             const Padding(
-              padding: EdgeInsets.symmetric(vertical: 20),
-              child: Center(
-                child: Text(
-                  'Rien d’assez proche. Activez la veille.',
-                  style: TextStyle(color: WaouhPalette.muted),
-                ),
+              padding: EdgeInsets.fromLTRB(2, 6, 2, 2),
+              child: Text(
+                'Trouvé sur les sources externes · numéros masqués',
+                style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: WaouhPalette.muted),
               ),
             ),
-          for (final item in results) _ResultCard(item: item, onAsk: widget.onAsk),
+            for (final item in results)
+              _ResultCard(
+                item: item,
+                inZone: sameZone(item.city, _city.text),
+                onAsk: widget.onAsk,
+              ),
+          ],
         ],
       ],
     );
   }
 }
 
+class _ReasoningFeed extends StatelessWidget {
+  const _ReasoningFeed({
+    required this.steps,
+    required this.running,
+    required this.summary,
+    required this.onSkip,
+    required this.onWatch,
+    required this.onAdvice,
+  });
+
+  final List<ReasonStep> steps;
+  final bool running;
+  final ReasonSummary? summary;
+  final VoidCallback onSkip;
+  final VoidCallback? onWatch;
+  final VoidCallback onAdvice;
+
+  static IconData _icon(ReasonTone tone) => switch (tone) {
+        ReasonTone.think => Icons.psychology_alt_outlined,
+        ReasonTone.search => Icons.radar_rounded,
+        ReasonTone.found => Icons.check_circle_outline_rounded,
+        ReasonTone.zone => Icons.place_outlined,
+        ReasonTone.contact => Icons.phone_in_talk_outlined,
+        ReasonTone.next => Icons.arrow_forward_rounded,
+        ReasonTone.warn => Icons.warning_amber_rounded,
+      };
+
+  static Color _color(ReasonTone tone) => switch (tone) {
+        ReasonTone.think => const Color(0xFF7C3AED),
+        ReasonTone.search => const Color(0xFF2563EB),
+        ReasonTone.found => const Color(0xFF059669),
+        ReasonTone.zone => const Color(0xFF0284C7),
+        ReasonTone.contact => const Color(0xFF4F46E5),
+        ReasonTone.next => const Color(0xFF2563EB),
+        ReasonTone.warn => const Color(0xFFD97706),
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final summary = this.summary;
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFDDE8F9)),
+        boxShadow: WaouhShadows.card,
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  running ? 'Bot travaille pour vous' : 'Voici ce que j’ai fait',
+                  style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: WaouhPalette.ink),
+                ),
+              ),
+              if (running)
+                TextButton.icon(
+                  onPressed: onSkip,
+                  icon: const Icon(Icons.skip_next_rounded, size: 16),
+                  label: const Text('Passer'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          for (final step in steps)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      color: _color(step.tone).withOpacity(0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(_icon(step.tone), size: 15, color: _color(step.tone)),
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          step.text,
+                          style: TextStyle(
+                            fontSize: 13,
+                            height: 1.3,
+                            fontWeight: step.tone == ReasonTone.next
+                                ? FontWeight.w900
+                                : FontWeight.w600,
+                            color: WaouhPalette.ink,
+                          ),
+                        ),
+                        if (step.chips.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 5),
+                            child: Wrap(
+                              spacing: 5,
+                              runSpacing: 4,
+                              children: [
+                                for (final chip in step.chips)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF1F5FB),
+                                      borderRadius: BorderRadius.circular(99),
+                                    ),
+                                    child: Text(chip,
+                                        style: const TextStyle(
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: WaouhPalette.muted)),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        for (final item in step.evidence)
+                          _EvidenceTile(item: item),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (running)
+            const Padding(
+              padding: EdgeInsets.only(left: 4),
+              child: Text('je continue…',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: WaouhPalette.muted)),
+            ),
+          if (!running && summary != null) ...[
+            const Divider(height: 22),
+            Row(
+              children: [
+                _Metric(label: 'Trouvés', value: '${summary.found}'),
+                const SizedBox(width: 6),
+                _Metric(label: 'Zone', value: '${summary.inZone}'),
+                const SizedBox(width: 6),
+                _Metric(label: 'Joignables', value: '${summary.contactable}'),
+                const SizedBox(width: 6),
+                _Metric(label: 'Sources', value: '${summary.sources.length}'),
+              ],
+            ),
+            if (summary.nextSteps.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              const Text('PROCHAINES ÉTAPES',
+                  style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.8,
+                      color: WaouhPalette.muted)),
+              const SizedBox(height: 4),
+              for (final text in summary.nextSteps)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 3),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.arrow_forward_rounded,
+                          size: 14, color: WaouhPalette.blue),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(text,
+                            style: const TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w600)),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: onWatch,
+                    icon: const Icon(Icons.notifications_active_outlined, size: 16),
+                    label: const Text('Surveiller'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: onAdvice,
+                    icon: const Icon(Icons.psychology_alt_outlined, size: 16),
+                    label: const Text('Conseil de Bot'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _Metric extends StatelessWidget {
+  const _Metric({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Expanded(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF6F9FE),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE2EAF5)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(value,
+                  style: const TextStyle(
+                      fontSize: 17, fontWeight: FontWeight.w900)),
+              Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      color: WaouhPalette.muted)),
+            ],
+          ),
+        ),
+      );
+}
+
+class _EvidenceTile extends StatelessWidget {
+  const _EvidenceTile({required this.item});
+  final ReasonEvidence item;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.only(top: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFE),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE2EAF5)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(item.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w800)),
+                ),
+                if (item.price != null)
+                  Text(item.price!,
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w900)),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              [
+                item.source,
+                if ((item.city ?? '').isNotEmpty)
+                  item.inZone ? '${item.city} · dans votre zone' : item.city!,
+                if ((item.note ?? '').isNotEmpty) item.note!,
+              ].join(' · '),
+              style: const TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  color: WaouhPalette.muted),
+            ),
+            if (item.phone != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '${item.phone}${(item.channel ?? '').isNotEmpty ? '  ·  ${item.channel}' : ''}',
+                  style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.4),
+                ),
+              ),
+          ],
+        ),
+      );
+}
+
+class _CatalogCard extends StatelessWidget {
+  const _CatalogCard({required this.row, required this.onAsk});
+  final Map<String, dynamic> row;
+  final ValueChanged<String> onAsk;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = '${row['title'] ?? 'Offre'}';
+    final price = reasonMoney(
+        row['price'] is num ? (row['price'] as num).toDouble() : null,
+        '${row['currency'] ?? 'XOF'}');
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: WaouhPalette.line),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 13.5, fontWeight: FontWeight.w700)),
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    price ?? 'Prix sur demande',
+                    if ('${row['city'] ?? ''}'.isNotEmpty) '${row['city']}',
+                  ].join(' · '),
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: WaouhPalette.muted),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () => onAsk(
+                'Analyse $title${price != null ? ' à $price' : ''}. Est-ce un bon prix et que dois-je vérifier avant de négocier ?'),
+            child: const Text('Conseil IA'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ResultCard extends StatelessWidget {
-  const _ResultCard({required this.item, required this.onAsk});
+  const _ResultCard({required this.item, required this.onAsk, this.inZone = false});
 
   final NexusDiscoveryItem item;
+  final bool inZone;
   final ValueChanged<String> onAsk;
 
   @override
@@ -348,6 +796,29 @@ class _ResultCard extends StatelessWidget {
                               fontSize: 11, color: WaouhPalette.muted)),
                   ],
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  [
+                    reasonSourceLabel(item.sourceKey),
+                    if (inZone) 'dans votre zone',
+                    item.contactPolicy.label,
+                  ].join(' · '),
+                  style: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w700,
+                      color: WaouhPalette.muted),
+                ),
+                if (_maskedPhone(item) != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      _maskedPhone(item)!,
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.4),
+                    ),
+                  ),
                 const SizedBox(height: 8),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(99),
@@ -395,4 +866,13 @@ class _ResultCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String? _maskedPhone(NexusDiscoveryItem item) {
+  final masked = item.contactPack?.maskedContacts ?? const <Map<String, dynamic>>[];
+  for (final channel in masked) {
+    final phone = maskPhone('${channel['last4'] ?? ''}');
+    if (phone != null) return phone;
+  }
+  return null;
 }

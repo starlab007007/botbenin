@@ -881,6 +881,23 @@ class LiveNexusService {
     return NexusDiscoveryResponse.fromJson(data);
   }
 
+  /// Catalogue WAOUH (articles publiés) — même action que le Web (`nexus.search`).
+  Future<List<Map<String, dynamic>>> catalogSearch({
+    required String query,
+    String? city,
+    double? budgetMax,
+    int limit = 9,
+  }) async {
+    final data = await _invoke('nexus.search', {
+      'query': query.trim(),
+      if (city != null && city.trim().isNotEmpty) 'city': city.trim(),
+      if (budgetMax != null) 'budget_max': budgetMax,
+      'limit': limit,
+      'persist_intent': true,
+    });
+    return _list(data['results']).map(_map).where((row) => row.isNotEmpty).toList(growable: false);
+  }
+
   Future<Map<String, dynamic>> sourceHealth() => _invoke('nexus.sources');
 
   Future<List<NexusSourceInfo>> sources() async {
