@@ -188,7 +188,7 @@ export const WAOUH_CHAT_SYNC_LOCK = Object.freeze({
       file: "supabase/functions/waouh-channel-in/index.ts",
       mustContain: [
         "resolveSiblingUserIds",
-        "siblingOrFilter",
+        "openNegotiationsForSiblings",
       ],
     },
     routerUsesSiblingIds: {

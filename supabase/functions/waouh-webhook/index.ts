@@ -12,7 +12,7 @@ import {
   beninPhoneCandidates,
 } from "../_shared/waouh-phone.ts";
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
-import { openNegotiationsForSiblings, resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
+import { openNegotiationsForSiblings, resolveSiblingUserIds } from "../_shared/waouh-identity.ts";
 import { resolveProductThread, bindThreadState } from "../_shared/waouh-thread.ts";
 import { chatCatalogV3Enabled, chatInterestFastPathEnabled, chatRouterV2Enabled, chatWriterV2Enabled, recordChatMessage, resolveThreadIdForEvent } from "../_shared/waouh-chat-writer.ts";
 import { articleEntryActionsV3, negotiationActions as registryNegotiationActions, negotiationActionsV3 } from "../_shared/waouh-commands.ts";
