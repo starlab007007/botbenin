@@ -6,6 +6,7 @@ project = os.environ['SUPABASE_PROJECT_REF']
 management = 'https://api.supabase.com/v1/projects/' + project
 base = 'https://' + project + '.supabase.co/functions/v1/'
 failures, notes = [], []
+report = []
 
 def request(url, data=None, headers=None, timeout=150):
     req = urllib.request.Request(url, headers=headers or {}, data=None if data is None else json.dumps(data).encode())
@@ -20,7 +21,8 @@ def request(url, data=None, headers=None, timeout=150):
         except json.JSONDecodeError: return e.code, raw.decode(errors='replace')
 
 def check(ok, label, detail=''):
-    print(('✅ ' if ok else '❌ ') + label + (' — ' + str(detail) if detail else ''), flush=True)
+    line = ('✅ ' if ok else '❌ ') + label + (' — ' + str(detail) if detail else '')
+    print(line, flush=True); report.append(line)
     if not ok: failures.append(label)
 
 st, keys = request(management + '/api-keys', headers={'Authorization': 'Bearer ' + os.environ['SUPABASE_ACCESS_TOKEN']})
@@ -62,7 +64,8 @@ if isinstance(res, dict):
     for p in res.get('results', []):
         print(f"\n— Parcours {p['parcours']} · {p['label']} → {p['status']}")
         for s in p['steps']:
-            print(f"   {'✅' if s['status']=='ok' else ('⚠️' if s['status']=='warn' else '❌')} {s['step']} : {s['got']}")
+            line = f"   {'✅' if s['status']=='ok' else ('⚠️' if s['status']=='warn' else '❌')} {s['step']} : {s['got']}"[:230]
+            print(line); report.append(line)
         check(p['status'] == 'ok', f"parcours {p['parcours']} ({p['label']})")
 
 # 6. Hygiène de la file d'envoi (24 h) : échecs « numéro invalide / sans WhatsApp »
@@ -70,5 +73,11 @@ st, rows = request(management + '/database/query', {'query': "select coalesce(le
                    {'Authorization': 'Bearer ' + os.environ['SUPABASE_ACCESS_TOKEN'], 'Content-Type': 'application/json'})
 print('\nÉchecs de la file (24 h) :', json.dumps(rows, ensure_ascii=False) if st in (200, 201) else f'HTTP {st}')
 
+def emit(lines, level):
+    text = '\n'.join(lines)[:3900].replace('%', '%25').replace('\r', '').replace('\n', '%0A')
+    print('::' + level + ' title=Readiness::' + text, flush=True)
+bad = [l for l in report if l.startswith('❌') or '❌' in l[:6]]
+if bad: emit(bad, 'error')
+emit([l for l in report if l not in bad][:60], 'notice')
 print('\nRÉSULTAT :', 'PRÊT' if not failures else 'À CORRIGER → ' + '; '.join(failures))
 sys.exit(1 if failures else 0)
