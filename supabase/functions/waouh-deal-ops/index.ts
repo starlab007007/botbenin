@@ -129,6 +129,16 @@ async function chooseAutoCourier(sb: any, deal: any) {
 }
 
 
+/** Cible WhatsApp d'un participant : numéro béninois, ou identifiant privé (LID) pour qui n'a jamais donné son numéro. */
+function waChatId(raw: string | null | undefined): string | null {
+  const value = String(raw || "").trim();
+  if (!value || /[A-Za-z]/.test(value.replace(/@lid$|@c\.us$/i, ""))) return null;
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return null;
+  if (/@lid$/i.test(value) || (digits.length >= 14 && !digits.startsWith("229"))) return `${digits}@lid`;
+  return `${digits}@c.us`;
+}
+
 async function sendWhatsApp(
   chatId: string,
   text: string,
@@ -1118,15 +1128,19 @@ async function handlePayment(sb: any, body: any, actor: DealActor) {
   const sellerText = v3
     ? `*Vente terminée*\n${fmt(amount)} encaissés. Commission WAOUH : ${fmt(commission)}.`
     : `💰 *Vente finalisée* — ${fmt(amount)} pour « ${title} ». Commission WAOUH : ${fmt(commission)}.`;
+  // Fin de parcours : guider chacun pour fermer proprement la discussion.
+  const closeHint = "\n\n✅ Tout est réglé. Répondez *FERMER* pour clore cette discussion.\n🛒 Un autre besoin ? *Je cherche …* · 📦 *Je vends …*";
+  const buyerFinal = buyerText + closeHint;
+  const sellerFinal = sellerText + closeHint;
   const opsText = `💸 Deal #${String(deal_id).slice(0, 8)} terminé — ${fmt(amount)} · commission ${fmt(commission)}.`;
 
   await Promise.all([
-    insertInAppNotif(sb, deal.buyer_user_id, deal.article_id, "deal_paid", buyerText, { deal_id, method, amount, commission, workflow_state: "completed" }),
-    insertInAppNotif(sb, deal.seller_user_id, deal.article_id, "deal_paid", sellerText, { deal_id, method, amount, commission, workflow_state: "completed" }),
-    pushDealChatEvent(sb, deal.buyer_user_id, deal.article_id, v3 ? buyerText : "✅ Paiement confirmé. Transaction terminée.", { deal_id, event: "completed", role: "buyer", workflow_state: "completed" }),
-    pushDealChatEvent(sb, deal.seller_user_id, deal.article_id, v3 ? sellerText : "✅ Paiement confirmé. Vente terminée.", { deal_id, event: "completed", role: "seller", workflow_state: "completed" }),
-    buyer.phone_number && !/@lid$/i.test(buyer.phone_number) ? sendWhatsApp(`${buyer.phone_number}@c.us`, buyerText) : Promise.resolve(),
-    seller.phone_number && !/@lid$/i.test(seller.phone_number) ? sendWhatsApp(`${seller.phone_number}@c.us`, sellerText) : Promise.resolve(),
+    insertInAppNotif(sb, deal.buyer_user_id, deal.article_id, "deal_paid", buyerFinal, { deal_id, method, amount, commission, workflow_state: "completed" }),
+    insertInAppNotif(sb, deal.seller_user_id, deal.article_id, "deal_paid", sellerFinal, { deal_id, method, amount, commission, workflow_state: "completed" }),
+    pushDealChatEvent(sb, deal.buyer_user_id, deal.article_id, v3 ? buyerFinal : "✅ Paiement confirmé. Transaction terminée." + closeHint, { deal_id, event: "completed", role: "buyer", workflow_state: "completed" }),
+    pushDealChatEvent(sb, deal.seller_user_id, deal.article_id, v3 ? sellerFinal : "✅ Paiement confirmé. Vente terminée." + closeHint, { deal_id, event: "completed", role: "seller", workflow_state: "completed" }),
+    waChatId(buyer.phone_number) ? sendWhatsApp(waChatId(buyer.phone_number)!, buyerFinal) : Promise.resolve(),
+    waChatId(seller.phone_number) ? sendWhatsApp(waChatId(seller.phone_number)!, sellerFinal) : Promise.resolve(),
     WAOUH_OPS_WHATSAPP ? sendWhatsApp(`${WAOUH_OPS_WHATSAPP}@c.us`, opsText) : Promise.resolve(),
   ]);
 
@@ -1138,7 +1152,7 @@ async function handlePayment(sb: any, body: any, actor: DealActor) {
   });
 
   return json({
-    success: true, ok: true, reply: v3 ? buyerText : "✅ Livraison et paiement confirmés. Transaction WAOUH terminée.",
+    success: true, ok: true, reply: v3 ? buyerFinal : "✅ Livraison et paiement confirmés. Transaction WAOUH terminée." + closeHint,
     intent: "deal_completed", workflow_state: "completed", deal_id,
     article_id: deal.article_id, thread_id: deal.thread_id, transaction_id: tx?.id ?? null,
     commission, commission_rate: rate, actions: [],

@@ -110,7 +110,7 @@ jobs:
           for alias,source in [('waouh-studio-e2e-v21465','waouh-agentic-core'),('waouh-e2e-v3-relay','waouh-opportunity-worker')]:
               path=Path('supabase/functions')/alias;path.mkdir(exist_ok=True)
               shutil.copyfile(Path('supabase/functions')/source/'index.ts',path/'index.ts')
-          for name in ['waouh-waha-control','waha-webhook','waouh-channel-in','waouh-webhook','waouh-outbound-dispatch','waouh-negotiation-router','waouh-notify-dispatch','waouh-radar-process','waouh-payment','waouh-studio-e2e-v21465','waouh-e2e-v3-relay']:
+          for name in ['waouh-waha-control','waha-webhook','waouh-channel-in','waouh-webhook','waouh-outbound-dispatch','waouh-negotiation-router','waouh-deal-ops','waouh-notify-dispatch','waouh-radar-process','waouh-payment','waouh-studio-e2e-v21465','waouh-e2e-v3-relay']:
               result=subprocess.run(['supabase','functions','deploy',name,'--project-ref',os.environ['SUPABASE_PROJECT_REF'],'--use-api','--no-verify-jwt'],capture_output=True,text=True)
               if result.returncode:
                   detail=(result.stdout+result.stderr)[-2400:].replace(os.environ['SUPABASE_ACCESS_TOKEN'],'[redacted]').replace('%','%25').replace('\r','%0D').replace('\n','%0A')

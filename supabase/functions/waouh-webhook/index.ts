@@ -360,6 +360,92 @@ async function findOpenNegotiationForArticle(
   return Array.isArray(data) && data.length === 1 ? data[0] : null;
 }
 
+const DEFAULT_NOT_UNDERSTOOD = "Désolé, je n'ai pas compris. Tapez 'aide' pour les commandes.";
+
+/** Terme de clôture explicite d'une discussion terminée. Pure. */
+export function isCloseDiscussionText(text: string): boolean {
+  return /^\s*(cl[oô]turer|cl[oô]ture|fermer|ferme|terminer|fin|c['’]?est\s+(bon|fini|termin[ée]))(\s+(la|cette)?\s*(discussion|conversation|chat|commande))?\s*[.!]?\s*$/i
+    .test(text || "");
+}
+
+/** Remerciement après une vente : lu comme une clôture seulement si une discussion terminée attend. Pure. */
+export function isThanksText(text: string): boolean {
+  return /^\s*(merci|merci\s+beaucoup|ok\s+merci|super\s+merci|thanks?)\s*[.!]*\s*$/i.test(text || "");
+}
+
+const money = (n: number | string | null | undefined) =>
+  new Intl.NumberFormat("fr-FR").format(Math.round(Number(n) || 0)) + " FCFA";
+const roundTo25 = (n: number) => Math.max(25, Math.round(n / 25) * 25);
+
+/**
+ * Remplace le « je n'ai pas compris » sec : lit la situation réelle de la personne (négociations, résultats de recherche)
+ * et propose l'action concrète à taper. Texte WhatsApp (*gras*), identique sur Web et App.
+ */
+export async function buildSmartFallback(
+  // deno-lint-ignore no-explicit-any
+  sb: any, user: any, conv: any, text: string,
+): Promise<{ reply: string; actions: Array<{ id: string; label: string }> }> {
+  const echo = String(text || "").trim().replace(/\s+/g, " ").slice(0, 60);
+  const intro = echo ? `🤔 Je n'ai pas bien saisi « ${echo} ».` : "🤔 Je n'ai pas bien saisi votre message.";
+  const outro = "Besoin de toutes les commandes ? Tapez *aide*.";
+  try {
+    const ids = await resolveSiblingUserIds(sb, user);
+    const open = await openNegotiationsForSiblings(sb, ids, { limit: 6 });
+    if (open.length > 0) {
+      const articleIds = [...new Set(open.map((n: any) => n.article_id).filter(Boolean))];
+      const { data: arts } = await sb.from("waouh_articles").select("id,title,price").in("id", articleIds);
+      const byId = new Map((arts || []).map((a: any) => [a.id, a]));
+      const rows = open.map((n: any) => {
+        const art: any = byId.get(n.article_id);
+        const role = ids.includes(n.buyer_user_id) ? "buyer" : "seller";
+        const myTurn = String(n.last_actor || "").toLowerCase() !== role;
+        return { n, art, role, myTurn, title: String(art?.title || "l'article").trim() };
+      });
+      if (rows.length === 1) {
+        const { n, art, role, myTurn, title } = rows[0];
+        const offer = Number(n.last_offer_price || 0);
+        const listed = Number(art?.price || 0);
+        const mid = role === "seller" && listed > offer && offer > 0 ? roundTo25((listed + offer) / 2)
+          : role === "buyer" && listed > 0 ? roundTo25(Math.min(listed, Math.max(offer, listed * 0.9))) : offer;
+        if (myTurn) {
+          return {
+            reply: `${intro}\n\n📩 *${title}* : offre de *${money(offer)}* en attente de *votre* réponse.\n\n✅ *OUI* pour accepter\n❌ *NON* pour refuser\n💬 *Je propose ${mid}* pour contre-proposer\n\n${outro}`,
+            actions: [],
+          };
+        }
+        return {
+          reply: `${intro}\n\n⏳ *${title}* : votre offre de *${money(offer)}* est chez ${role === "buyer" ? "le vendeur" : "l'acheteur"}. Je vous préviens dès sa réponse.\n\n💬 Changer votre prix : *Je propose ${mid}*\n🔎 Autre produit : *Je cherche …*\n\n${outro}`,
+          actions: [],
+        };
+      }
+      const lines = rows.slice(0, 4).map((r: any) =>
+        `• *${r.title}* — ${money(r.n.last_offer_price)} (${r.myTurn ? "à vous de répondre" : "en attente de l'autre partie"})`);
+      return {
+        reply: `${intro}\n\nVous avez *${rows.length} négociations* en cours :\n${lines.join("\n")}\n\n👉 Répondez depuis le message de l'article concerné (boutons *Accepter / Contre-proposer / Refuser*), ou rappelez d'abord l'article avec *Intéressé N*.\n\n${outro}`,
+        actions: [],
+      };
+    }
+    const matches = Array.isArray(conv?.context?.last_matches) ? conv.context.last_matches : [];
+    if (matches.length > 0) {
+      const lines = matches.slice(0, 3).map((m: any, i: number) => `${i + 1}. *${String(m.title || "Article").trim()}* — ${money(m.price)}`);
+      return {
+        reply: `${intro}\n\n🔎 Voici vos derniers résultats :\n${lines.join("\n")}\n\n👉 Écrivez *Intéressé 1* pour contacter le vendeur, ou *Je cherche …* pour une nouvelle recherche.\n\n${outro}`,
+        actions: [],
+      };
+    }
+  } catch (e) {
+    console.warn("[waouh-webhook] smart fallback context failed", e);
+  }
+  const hasAmount = /\d{3,}/.test(echo);
+  const hint = hasAmount
+    ? "Je vois un montant, mais aucune négociation n'est ouverte. Cherchez d'abord le produit : *Je cherche un téléphone à Cotonou*, puis *Intéressé 1*."
+    : "Dites-moi simplement ce que vous voulez faire :";
+  return {
+    reply: `${intro}\n\n${hint}\n\n🛒 *Je cherche* un ventilateur à Cotonou, budget 25000\n📦 *Je vends* mes chaussures à 15000 (joignez une photo)\n💬 *Je propose 1300* (après avoir choisi un article)\n\n${outro}`,
+    actions: [],
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -1073,7 +1159,13 @@ Deno.serve(async (req) => {
 
     let intent: any = {};
     // CONFIRM_RECEIVED et PAY sont désactivés : pas de paiement dans le nouveau parcours.
-    if (numMatch && interestedKw) intent = { intent: "CONFIRM", article_index: parseInt(numMatch[1], 10) };
+    // Après « Demande envoyée » : « 1 » = accepter le prix, « 2 » = proposer le sien (menu numéroté du message).
+    const menuDigit = lower.trim().match(/^([12])$/);
+    const afterRequestSent = !!menuDigit && conv?.last_intent === "CONFIRM" && !!conv?.current_article_id;
+    if (isCloseDiscussionText(text) || isThanksText(text)) intent = { intent: "CLOSE" };
+    else if (afterRequestSent && menuDigit![1] === "1") intent = { intent: "DECIDE_YES" };
+    else if (afterRequestSent && menuDigit![1] === "2") intent = { intent: "NEGOTIATE" };
+    else if (numMatch && interestedKw) intent = { intent: "CONFIRM", article_index: parseInt(numMatch[1], 10) };
     else if (INTEREST_RE.test(lower)) intent = { intent: "CONFIRM", article_index: 1 };
     else if (sellKw) intent = { intent: "SELL" };
     else if (buyKw) intent = { intent: "BUY" };
@@ -1096,7 +1188,7 @@ Deno.serve(async (req) => {
     }
 
 
-    let reply = "Désolé, je n'ai pas compris. Tapez 'aide' pour les commandes.";
+    let reply = DEFAULT_NOT_UNDERSTOOD;
     let returnedArticleId: string | null = null;
     // v13 — contrepartie renvoyée au client pour isoler la fenêtre de chat
     // (1 fenêtre = 1 article × 1 interlocuteur).
@@ -2585,10 +2677,58 @@ Deno.serve(async (req) => {
           reply = `❌ Négociation terminée. L'autre partie a été notifiée.`;
         }
       }
+    } else if (intent.intent === "CLOSE") {
+      // Clôture explicite d'une discussion terminée (fin de livraison / paiement).
+      const closeIds = await resolveSiblingUserIds(sb, user as any);
+      let closedTitle: string | null = null;
+      let closedThread: string | null = null;
+      if (closeIds.length > 0) {
+        const finished: any[] = [];
+        for (let i = 0; i < closeIds.length; i += 40) {
+          const list = closeIds.slice(i, i + 40).join(",");
+          const { data } = await sb.from("waouh_chat_threads")
+            .select("id,article_id,status,metadata,updated_at,buyer_user_id,seller_user_id")
+            .eq("status", "concluded")
+            .gte("updated_at", new Date(Date.now() - 7 * 86400_000).toISOString())
+            .or(`buyer_user_id.in.(${list}),seller_user_id.in.(${list})`)
+            .order("updated_at", { ascending: false })
+            .limit(10);
+          finished.push(...(data || []));
+        }
+        finished.sort((x, y) => String(y.updated_at).localeCompare(String(x.updated_at)));
+        const pending = finished.find((t: any) => !t?.metadata?.closed_by?.[user!.id]);
+        if (pending) {
+          closedThread = pending.id;
+          await sb.from("waouh_chat_threads").update({
+            metadata: { ...(pending.metadata || {}), closed_by: { ...(pending.metadata?.closed_by || {}), [user!.id]: new Date().toISOString() } },
+            updated_at: new Date().toISOString(),
+          }).eq("id", pending.id);
+          if (pending.article_id) {
+            const { data: art } = await sb.from("waouh_articles").select("title").eq("id", pending.article_id).maybeSingle();
+            closedTitle = art?.title ?? null;
+          }
+        }
+      }
+      if (closedThread) {
+        returnedThreadId = closedThread;
+        returnedStage = "closed";
+        reply = `${waouhHeader("✅ Discussion fermée")}\n\n${closedTitle ? `📦 *${closedTitle}*\n` : ""}Merci de votre confiance, la transaction est terminée.\n\n🛒 Un autre besoin ? *Je cherche …*\n📦 Quelque chose à vendre ? *Je vends …*\n\n${waouhFooter()}`;
+      } else if (isThanksText(text)) {
+        reply = `Avec plaisir ! 😊 Dites-moi si vous voulez *chercher* ou *vendre* autre chose.`;
+      } else {
+        reply = `Aucune discussion terminée à fermer pour le moment.\n\nPour une négociation en cours, répondez *OUI*, *NON* ou *Je propose X*.\n\n🛒 Nouveau besoin ? *Je cherche …*`;
+      }
     } else if (intent.intent === "HELP") {
       reply = `${waouhHeader("🤖 WAOUH — Commandes")}\n\n• *Je vends ...* — publier une annonce\n• *Je cherche ...* — trouver un produit\n• *intéressé 1* — contacter un vendeur\n• *Je propose X FCFA* — négocier\n• *OUI* / *NON* — répondre au vendeur ou à l'acheteur\n\n${waouhFooter()}`;
     }
 
+
+    // Aucune branche n'a répondu : réponse guidée selon la situation réelle (plus de « tapez aide » sec).
+    if (reply === DEFAULT_NOT_UNDERSTOOD) {
+      const guided = await buildSmartFallback(sb, user, conv, text);
+      reply = guided.reply;
+      if (returnedActions.length === 0) returnedActions = guided.actions;
+    }
 
     // Save conversation (avec contexte)
     await sb.from("waouh_conversations").upsert({
