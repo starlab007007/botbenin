@@ -1,22 +1,23 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { MessageCircle, Bot, Sparkles, UserCircle, Store, LockKeyhole } from 'lucide-react';
+import { MessageCircle, Workflow, Sparkles, UserCircle, Menu as MenuIcon, LockKeyhole } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMobileAuth } from '../hooks/useMobileAuth';
 import { requiresWaouhAuthentication } from '@/lib/waouhAccessPolicy';
 
+// Bots, Partenaires, Boutiques, Ventes, Diffusion… : accessibles via « Menu » (liste complète, identique au PC).
 const tabs = [
   { to: '/app/chat', icon: MessageCircle, label: 'Chat' },
-  { to: '/app/bots', icon: Bot, label: 'Bots' },
+  { to: '/app/missions', icon: Workflow, label: 'Missions' },
   { to: '/app/ia', icon: Sparkles, label: 'IA' },
   { to: '/app/avatar', icon: UserCircle, label: 'Avatar' },
-  { to: '/app/partner', icon: Store, label: 'Partenaire' },
 ];
 
 interface Props {
   unreadChat?: number;
+  onOpenMenu?: () => void;
 }
 
-export const BottomTabBar = ({ unreadChat = 0 }: Props) => {
+export const BottomTabBar = ({ unreadChat = 0, onOpenMenu }: Props) => {
   const { pathname } = useLocation();
   const { user } = useMobileAuth();
 
@@ -63,6 +64,17 @@ export const BottomTabBar = ({ unreadChat = 0 }: Props) => {
             </li>
           );
         })}
+        <li>
+          <button
+            type="button"
+            onClick={onOpenMenu}
+            aria-label="Ouvrir tous les modules"
+            className="relative flex min-h-14 w-full flex-col items-center justify-center gap-1 py-2 text-xs text-muted-foreground transition-colors"
+          >
+            <MenuIcon className="h-5 w-5" aria-hidden="true" />
+            <span>Menu</span>
+          </button>
+        </li>
       </ul>
     </nav>
   );

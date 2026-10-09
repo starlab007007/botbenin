@@ -1,3 +1,4 @@
+import { useVisualViewportHeight } from "../hooks/useVisualViewportHeight";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation, Navigate } from "react-router-dom";
 import { Info, User, MessageSquareText, ArrowLeft, Plus, Sparkles } from "lucide-react";
@@ -58,6 +59,7 @@ export default function WaouhChatScreen() {
 }
 
 function WaouhChatScreenInner() {
+  useVisualViewportHeight();
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useMobileAuth();
@@ -205,7 +207,7 @@ function WaouhChatScreenInner() {
   );
 
   return (
-    <div className="flex flex-col bg-background overflow-hidden" style={{ height: "100dvh" }}>
+    <div className="flex flex-col bg-background overflow-hidden" style={{ height: "var(--vvh, 100dvh)" }}>
       {/* Unified native header */}
       <header
         className="flex items-center justify-between gap-2 px-2 bg-[hsl(var(--wa-green,142_70%_24%))] text-white shrink-0 shadow-md z-10"

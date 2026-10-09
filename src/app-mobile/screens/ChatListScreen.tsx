@@ -637,7 +637,7 @@ export default function ChatListScreen() {
       </button>
     ) : null;
     return (
-      <div className="flex h-[calc(100dvh-64px)] w-full bg-background">
+      <div className="flex h-[calc(100dvh-var(--shell-bottom,64px))] w-full bg-background">
         {spaceMode === "pinned" && (
           <aside className="w-[380px] shrink-0 overflow-y-auto border-r border-border waouh-chat-list-bg">
             {listContent}

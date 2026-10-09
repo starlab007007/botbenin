@@ -49,67 +49,14 @@ type WebErpShellProps = {
   unreadChat?: number;
 };
 
-type NavigationItem = {
-  label: string;
-  to: string;
-  icon: typeof MessageSquareText;
-  /** When set, the item swaps the central canvas instead of navigating. */
-  brick?: BrickId;
-  accent?: 'chat' | 'ai' | 'stock' | 'bi' | 'store';
-  /** Page publique hors de l'espace de travail : s'ouvre dans un nouvel onglet. */
-  external?: boolean;
-};
-
-type NavigationSection = {
-  title: string;
-  items: NavigationItem[];
-};
-
-const HOME_PATH = '/';
-const CHAT_PATH = '/app/chat';
-
-const navigationSections: NavigationSection[] = [
-  {
-    title: 'Communication',
-    items: [
-      { label: 'Chat Command Center', to: CHAT_PATH, icon: MessageSquareText, accent: 'chat' },
-      { label: 'Radar', to: '/app/radar-map', icon: RadarIcon, brick: 'radar' },
-      { label: 'WhatsApp IA', to: '/app/whatsapp', icon: UsersRound, brick: 'whatsapp' },
-      { label: 'Diffusion', to: '/app/diffusion', icon: Megaphone, brick: 'diffusion' },
-    ],
-  },
-  {
-    title: 'Agents IA',
-    items: [
-      { label: 'Avatar', to: '/app/avatar', icon: Sparkles, accent: 'ai' },
-      { label: 'Missions & veille', to: '/app/missions', icon: Workflow, accent: 'ai' },
-      { label: 'Bots', to: '/app/bots', icon: Bot, brick: 'bots', accent: 'ai' },
-      { label: 'Agents IA', to: '/app/whatsapp/select-agent', icon: Sparkles, brick: 'agents', accent: 'ai' },
-      { label: 'Conversationnel', to: '/app/whatsapp/conversationnel', icon: MessagesSquare, brick: 'conversational' },
-      { label: 'BI WAOUH IA', to: '/app/whatsapp/bi', icon: BarChart3, brick: 'bi', accent: 'bi' },
-      { label: 'Stock WAOUH IA', to: '/app/stock', icon: Package, brick: 'stock', accent: 'stock' },
-      { label: 'Présence QR', to: '/app/presence', icon: QrCode, brick: 'presence' },
-      { label: 'PrivatAI (IA locale)', to: '/privatia', icon: ShieldCheck, external: true },
-    ],
-  },
-  {
-    title: 'Commerce',
-    items: [
-      { label: 'Boutiques & magasins', to: '/app/partner/businesses', icon: Store, brick: 'store', accent: 'store' },
-      { label: 'Ventes', to: '/app/partner/sales', icon: ShoppingCart, brick: 'sales' },
-      { label: 'Partenaires', to: '/app/partner', icon: Handshake, brick: 'partner' },
-    ],
-  },
-  {
-    title: 'Services IA',
-    items: [
-      { label: 'AprèsBac IA', to: '/app/apresbac', icon: GraduationCap, brick: 'apresbac' },
-      { label: 'FA IA', to: '/app/fa-ia', icon: BookOpenText, brick: 'fa' },
-    ],
-  },
-];
-
-const navigation: NavigationItem[] = navigationSections.flatMap((section) => section.items);
+import {
+  type NavigationItem,
+  type NavigationSection,
+  HOME_PATH,
+  CHAT_PATH,
+  navigationSections,
+  navigation,
+} from './navigation';
 
 
 
@@ -281,7 +228,8 @@ export const WebErpShell = ({ children, unreadChat = 0 }: WebErpShellProps) => {
   const navigate = useNavigate();
   const { user } = useMobileAuth();
   const { profile } = useMobileProfile();
-  const [collapsed, setCollapsed] = useState(false);
+  // Sous 1440 px la barre latérale démarre repliée en rail d'icônes (même contenu, plus de place pour le travail).
+  const [collapsed, setCollapsed] = useState(() => typeof window !== 'undefined' && window.innerWidth < 1440);
 
   const activeBrick = useMemo(
     () => brickForLocation(location.pathname, location.search),
