@@ -81,3 +81,8 @@ dependencies {
 flutter {
     source = "../.."
 }
+
+// Firebase (push) : le plugin n'est appliqué que si la configuration est fournie par l'environnement de release.
+if (file("google-services.json").exists()) {
+    apply plugin: "com.google.gms.google-services"
+}

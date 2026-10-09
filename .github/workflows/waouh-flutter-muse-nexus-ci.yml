@@ -59,6 +59,17 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
 
+      - name: Firebase config (push) si fournie
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+            echo "google-services.json installé : push activé dans cette build"
+          else
+            echo "GOOGLE_SERVICES_JSON absent : build sans push (Firebase désactivé)"
+          fi
+
       - name: Dependencies
         run: flutter pub get
 

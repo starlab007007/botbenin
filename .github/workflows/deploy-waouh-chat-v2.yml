@@ -87,6 +87,7 @@ on:
       - "supabase/functions/waouh-notify-dispatch/**"
       - "supabase/functions/waouh-webhook/**"
       - "supabase/functions/waouh-channel-in/**"
+      - "supabase/functions/register-device-token/**"
       - ".github/workflows/deploy-waouh-chat-v2.yml"
       - ".github/workflows/deploy-waouh-native-messaging.yml"
   workflow_dispatch:
@@ -406,6 +407,7 @@ jobs:
             waha-webhook
             waouh-waha-control
             waouh-channel-in
+            register-device-token
             waouh-status-publish
             waouh-sell-handler
             waouh-negotiate-handler
