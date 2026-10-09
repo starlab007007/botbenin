@@ -401,6 +401,16 @@ class _ReasoningFeed extends StatelessWidget {
         ReasonTone.warn => Icons.warning_amber_rounded,
       };
 
+  static String _label(ReasonTone tone) => switch (tone) {
+        ReasonTone.think => 'ANALYSE',
+        ReasonTone.search => 'RECHERCHE',
+        ReasonTone.found => 'TROUVÉ',
+        ReasonTone.zone => 'ZONE',
+        ReasonTone.contact => 'CONTACT',
+        ReasonTone.next => 'BILAN',
+        ReasonTone.warn => 'INFO',
+      };
+
   static Color _color(ReasonTone tone) => switch (tone) {
         ReasonTone.think => const Color(0xFF7C3AED),
         ReasonTone.search => const Color(0xFF2563EB),
@@ -429,7 +439,7 @@ class _ReasoningFeed extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  running ? 'Bot travaille pour vous' : 'Voici ce que j’ai fait',
+                  running ? 'Bot réfléchit…' : 'Mon raisonnement',
                   style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w900,
@@ -462,18 +472,40 @@ class _ReasoningFeed extends StatelessWidget {
                   ),
                   const SizedBox(width: 9),
                   Expanded(
-                    child: Column(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+                      decoration: BoxDecoration(
+                        gradient: step.tone == ReasonTone.next
+                            ? const LinearGradient(colors: [Color(0xFF2563EB), Color(0xFF4F46E5)])
+                            : null,
+                        color: step.tone == ReasonTone.next ? null : const Color(0xFFF7FAFF),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: const Color(0xFFE3ECFA)),
+                      ),
+                      child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Text(
+                          _label(step.tone),
+                          style: TextStyle(
+                            fontSize: 9,
+                            letterSpacing: 1.2,
+                            fontWeight: FontWeight.w900,
+                            color: step.tone == ReasonTone.next
+                                ? const Color(0xFFDBEAFE)
+                                : const Color(0xFF94A3B8),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
                         Text(
                           step.text,
                           style: TextStyle(
                             fontSize: 13,
                             height: 1.3,
-                            fontWeight: step.tone == ReasonTone.next
-                                ? FontWeight.w900
-                                : FontWeight.w600,
-                            color: WaouhPalette.ink,
+                            fontWeight: FontWeight.w800,
+                            color: step.tone == ReasonTone.next
+                                ? Colors.white
+                                : WaouhPalette.ink,
                           ),
                         ),
                         if (step.chips.isNotEmpty)
@@ -503,6 +535,7 @@ class _ReasoningFeed extends StatelessWidget {
                         for (final item in step.evidence)
                           _EvidenceTile(item: item),
                       ],
+                    ),
                     ),
                   ),
                 ],

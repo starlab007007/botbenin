@@ -80,19 +80,19 @@ export function planSteps(ctx: ReasonContext): ReasonStep[] {
     {
       id: "understand",
       tone: "think",
-      text: `Je comprends : vous cherchez « ${ctx.query.trim()} »${ctx.city ? ` près de ${ctx.city}` : ""}${ctx.budget ? `, dans votre budget` : ""}.`,
+      text: `Je cherche « ${ctx.query.trim()} »${ctx.city ? ` à ${ctx.city}` : ""}.`,
       chips,
     },
     {
       id: "method",
       tone: "think",
-      text: "Ma méthode : je cherche d’abord dans le catalogue WAOUH, puis plus largement. Je classe ensuite chaque offre selon le prix, la proximité, la confiance et la fraîcheur.",
+      text: "Je compare prix, proximité, confiance et fraîcheur.",
       chips: ["1 Comprendre", "2 Chercher", "3 Comparer", "4 Proposer"],
     },
     {
       id: "plan",
       tone: "search",
-      text: "Je lance la recherche, partout où je peux trouver des offres et des contacts.",
+      text: "Je lance la recherche.",
     },
   ];
 }
@@ -106,29 +106,32 @@ const PRIORITY_LABEL: Record<string, string> = {
 export function methodSteps(plan: NexusSmartDiscoveryPlan | null | undefined): ReasonStep[] {
   if (!plan) return [];
   const steps: ReasonStep[] = [];
-  const direction = plan.mode === "find_buyers" ? "vous voulez vendre, je cherche des acheteurs" : "vous voulez acheter, je cherche des vendeurs";
+  const direction = plan.mode === "find_buyers" ? "Je cherche des acheteurs" : "Je cherche des vendeurs";
   steps.push({
     id: "analysis",
     tone: "think",
-    text: `Mon analyse : ${direction}${plan.normalized_query ? ` — « ${plan.normalized_query} »` : ""}. Confiance de ma compréhension : ${Math.round((plan.confidence ?? 0) * 100)} %.`,
+    text: `${direction} · compris à ${Math.round((plan.confidence ?? 0) * 100)} %.`,
   });
   const priorities = (plan.priorities ?? []).slice(0, 5).map((p) => PRIORITY_LABEL[p] ?? p.replace(/_/g, " "));
   if (priorities.length) {
     steps.push({
       id: "criteria",
       tone: "search",
-      text: "Voici ce qui compte le plus pour classer les offres.",
+      text: "Mes critères.",
       chips: priorities,
     });
   }
   if (plan.rationale?.trim()) {
-    steps.push({ id: "rationale", tone: "think", text: plan.rationale.trim() });
+    {
+    const why = plan.rationale.trim();
+    steps.push({ id: "rationale", tone: "think", text: why.length > 130 ? `${why.slice(0, 127).trimEnd()}…` : why });
+  }
   }
   if ((plan.missing ?? []).length) {
     steps.push({
       id: "missing",
       tone: "warn",
-      text: `Pour affiner : ${(plan.missing ?? []).slice(0, 3).join(", ")}.`,
+      text: `À préciser : ${(plan.missing ?? []).slice(0, 3).join(", ")}.`,
     });
   }
   return steps;
@@ -137,7 +140,7 @@ export function methodSteps(plan: NexusSmartDiscoveryPlan | null | undefined): R
 export function internalSteps(response: NexusSearchResponse, ctx: ReasonContext): ReasonStep[] {
   const items = response.results ?? [];
   if (!items.length) {
-    return [{ id: "int-none", tone: "warn", text: "Aucune offre publiée assez proche pour l’instant." }];
+    return [{ id: "int-none", tone: "warn", text: "Rien d’assez proche au catalogue." }];
   }
   const inZone = items.filter((item) => sameZone(item.city, ctx.city));
   const prices = items.map((item) => item.price).filter((p): p is number => typeof p === "number" && p > 0);
@@ -146,8 +149,8 @@ export function internalSteps(response: NexusSearchResponse, ctx: ReasonContext)
     {
       id: "int-found",
       tone: "found",
-      text: `J’ai trouvé ${plural(items.length, "offre", "offres")} publiée${items.length > 1 ? "s" : ""}${
-        response.market?.median ? `, prix médian ${money(response.market.median)}` : ""
+      text: `${plural(items.length, "offre", "offres")} au catalogue${
+        response.market?.median ? ` · médiane ${money(response.market.median)}` : ""
       }.`,
       chips: [cheapest ? `Dès ${money(cheapest)}` : null].filter(Boolean) as string[],
     },
@@ -157,8 +160,8 @@ export function internalSteps(response: NexusSearchResponse, ctx: ReasonContext)
       id: "int-zone",
       tone: "zone",
       text: inZone.length
-        ? `${plural(inZone.length, "vendeur est", "vendeurs sont")} dans votre zone (${ctx.city}).`
-        : `Aucun vendeur du catalogue n’est à ${ctx.city} ; je garde les plus proches.`,
+        ? `${plural(inZone.length, "vendeur", "vendeurs")} à ${ctx.city}.`
+        : `Aucun à ${ctx.city} : je prends les plus proches.`,
       evidence: inZone.slice(0, 2).map((item) => ({
         key: `int-${item.article_id ?? item.catalog_id ?? item.title}`,
         title: item.title,
@@ -176,7 +179,7 @@ export function externalUnavailableStep(): ReasonStep {
   return {
     id: "ext-down",
     tone: "warn",
-    text: "Une partie de la recherche n’a pas répondu pour le moment. Je continue avec ce que j’ai déjà trouvé ; une veille me permettra de réessayer.",
+    text: "Une partie n’a pas répondu. Je continue.",
   };
 }
 
@@ -188,7 +191,7 @@ export function externalSteps(response: ExternalDiscovery, ctx: ReasonContext): 
     steps.push({
       id: "ext-none",
       tone: "warn",
-      text: "Je n’ai trouvé aucune annonce publique exploitable en plus.",
+      text: "Rien de plus en ligne.",
     });
     return steps;
   }
@@ -196,7 +199,7 @@ export function externalSteps(response: ExternalDiscovery, ctx: ReasonContext): 
   steps.push({
     id: "ext-found",
     tone: "found",
-    text: `J’ai aussi repéré ${plural(results.length, "annonce pertinente", "annonces pertinentes")} en ligne.`,
+    text: `${plural(results.length, "annonce", "annonces")} en ligne.`,
   });
 
   const inZone = results.filter((item) => sameZone(item.city, ctx.city));
@@ -205,8 +208,8 @@ export function externalSteps(response: ExternalDiscovery, ctx: ReasonContext): 
       id: "ext-zone",
       tone: "zone",
       text: inZone.length
-        ? `J’ai trouvé ${plural(inZone.length, "vendeur", "vendeurs")} à ${ctx.city}. Je continue de chercher autour.`
-        : `Aucun autre résultat à ${ctx.city} pour l’instant ; je regarde les villes voisines.`,
+        ? `${plural(inZone.length, "vendeur", "vendeurs")} à ${ctx.city}. Je regarde autour.`
+        : `Rien de plus à ${ctx.city} : je regarde autour.`,
       evidence: inZone.slice(0, 3).map((item) => evidenceFromDiscovery(item, true)),
     });
   }
@@ -217,9 +220,7 @@ export function externalSteps(response: ExternalDiscovery, ctx: ReasonContext): 
     steps.push({
       id: "ext-contact",
       tone: "contact",
-      text: `${plural(contactable.length, "contact est joignable", "contacts sont joignables")}${
-        withPhone.length ? ` ; les numéros restent masqués (seuls les 4 derniers chiffres sont visibles)` : ""
-      }.`,
+      text: `${plural(contactable.length, "contact joignable", "contacts joignables")}${withPhone.length ? " · numéros masqués" : ""}.`,
       evidence: contactable.slice(0, 3).map((item) => evidenceFromDiscovery(item, sameZone(item.city, ctx.city))),
     });
   }
@@ -229,7 +230,7 @@ export function externalSteps(response: ExternalDiscovery, ctx: ReasonContext): 
     steps.push({
       id: "ext-interest",
       tone: "found",
-      text: `${plural(interested.length, "personne exprime", "personnes expriment")} un besoin similaire : de quoi croiser offre et demande.`,
+      text: `${plural(interested.length, "personne cherche", "personnes cherchent")} la même chose.`,
       evidence: interested.slice(0, 2).map((item) => evidenceFromDiscovery(item, sameZone(item.city, ctx.city))),
     });
   }
@@ -266,11 +267,11 @@ export function buildSummary(
 
   const next: string[] = [];
   const act = (a: string) => ext.filter((e) => e.next_best_action === a || e.contact_pack?.next_best_action === a).length;
-  if (act("CONTACT_NOW") + act("REQUEST_APPROVAL") > 0) next.push(`Je peux contacter ${plural(act("CONTACT_NOW") + act("REQUEST_APPROVAL"), "vendeur", "vendeurs")}, mais seulement avec votre accord.`);
-  else if (contactable > 0) next.push("Choisissez une offre : je prépare le contact et la négociation.");
-  if (act("ENRICH") > 0) next.push(`Je poursuis pour compléter les coordonnées de ${plural(act("ENRICH"), "annonce", "annonces")}.`);
-  if (int.length + ext.length < 4) next.push("Peu de résultats : activez une veille, je continue à chercher pour vous.");
-  else next.push("Activez une veille pour être alerté si le prix baisse.");
+  if (act("CONTACT_NOW") + act("REQUEST_APPROVAL") > 0) next.push(`Je peux contacter ${plural(act("CONTACT_NOW") + act("REQUEST_APPROVAL"), "vendeur", "vendeurs")}, avec votre accord.`);
+  else if (contactable > 0) next.push("Choisissez une offre : je prépare le contact.");
+  if (act("ENRICH") > 0) next.push(`Je complète ${plural(act("ENRICH"), "annonce", "annonces")}.`);
+  if (int.length + ext.length < 4) next.push("Peu de résultats : activez une veille.");
+  else next.push("Veille : alerte si le prix baisse.");
 
   return {
     found: int.length + ext.length,
@@ -285,12 +286,12 @@ export function buildSummary(
 
 export function summaryStep(summary: ReasonSummary, ctx: ReasonContext): ReasonStep {
   if (!summary.found) {
-    return { id: "summary", tone: "next", text: "Point de recherche : rien d’assez proche pour le moment. Je vous propose de lancer une veille, je continuerai pour vous." };
+    return { id: "summary", tone: "next", text: "Bilan : rien d’assez proche. Je peux surveiller pour vous." };
   }
   const best = money(summary.bestPrice);
   return {
     id: "summary",
     tone: "next",
-    text: `Point de recherche : ${plural(summary.found, "résultat", "résultats")}${ctx.city ? `, dont ${summary.inZone} à ${ctx.city}` : ""}${best ? `, meilleur prix ${best}` : ""}.`,
+    text: `Bilan : ${plural(summary.found, "résultat", "résultats")}${ctx.city ? ` · ${summary.inZone} à ${ctx.city}` : ""}${best ? ` · dès ${best}` : ""}.`,
   };
 }

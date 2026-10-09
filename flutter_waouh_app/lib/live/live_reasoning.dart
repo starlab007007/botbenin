@@ -134,21 +134,21 @@ List<ReasonStep> planSteps(ReasonContext ctx) {
       id: 'understand',
       tone: ReasonTone.think,
       text:
-          'Je comprends : vous cherchez « ${ctx.query.trim()} »${city.isNotEmpty ? ' près de $city' : ''}${ctx.budget != null ? ', dans votre budget' : ''}.',
+          'Je cherche « ${ctx.query.trim()} »${city.isNotEmpty ? ' à $city' : ''}.',
       chips: chips,
     ),
     const ReasonStep(
       id: 'method',
       tone: ReasonTone.think,
       text:
-          'Ma méthode : je cherche d’abord dans le catalogue WAOUH, puis plus largement. Je classe ensuite chaque offre selon le prix, la proximité, la confiance et la fraîcheur.',
+          'Je compare prix, proximité, confiance et fraîcheur.',
       chips: <String>['1 Comprendre', '2 Chercher', '3 Comparer', '4 Proposer'],
     ),
     const ReasonStep(
       id: 'plan',
       tone: ReasonTone.search,
       text:
-          'Je lance la recherche, partout où je peux trouver des offres et des contacts.',
+          'Je lance la recherche.',
     ),
   ];
 }
@@ -169,8 +169,8 @@ const Map<String, String> _priorityLabel = <String, String>{
 List<ReasonStep> methodSteps(NexusSmartDiscoveryPlan? plan) {
   if (plan == null) return const <ReasonStep>[];
   final direction = plan.mode == 'find_buyers'
-      ? 'vous voulez vendre, je cherche des acheteurs'
-      : 'vous voulez acheter, je cherche des vendeurs';
+      ? 'Je cherche des acheteurs'
+      : 'Je cherche des vendeurs';
   final query = plan.normalizedQuery.trim();
   final priorities = plan.priorities
       .take(5)
@@ -182,22 +182,25 @@ List<ReasonStep> methodSteps(NexusSmartDiscoveryPlan? plan) {
       id: 'analysis',
       tone: ReasonTone.think,
       text:
-          'Mon analyse : $direction${query.isNotEmpty ? ' — « $query »' : ''}. Confiance de ma compréhension : ${(plan.confidence * 100).round()} %.',
+          '$direction · compris à ${(plan.confidence * 100).round()} %.',
     ),
     if (priorities.isNotEmpty)
       ReasonStep(
         id: 'criteria',
         tone: ReasonTone.search,
-        text: 'Voici ce qui compte le plus pour classer les offres.',
+        text: 'Mes critères.',
         chips: priorities,
       ),
     if (rationale.isNotEmpty)
-      ReasonStep(id: 'rationale', tone: ReasonTone.think, text: rationale),
+      ReasonStep(
+          id: 'rationale',
+          tone: ReasonTone.think,
+          text: rationale.length > 130 ? '${rationale.substring(0, 127).trimRight()}…' : rationale),
     if (plan.missing.isNotEmpty)
       ReasonStep(
         id: 'missing',
         tone: ReasonTone.warn,
-        text: 'Pour affiner : ${plan.missing.take(3).join(', ')}.',
+        text: 'À préciser : ${plan.missing.take(3).join(', ')}.',
       ),
   ];
 }
@@ -211,7 +214,7 @@ List<ReasonStep> catalogSteps(List<Map<String, dynamic>> items, ReasonContext ct
       ReasonStep(
         id: 'int-none',
         tone: ReasonTone.warn,
-        text: 'Aucune offre publiée assez proche pour l’instant.',
+        text: 'Rien d’assez proche au catalogue.',
       ),
     ];
   }
@@ -221,7 +224,7 @@ List<ReasonStep> catalogSteps(List<Map<String, dynamic>> items, ReasonContext ct
     ReasonStep(
       id: 'int-found',
       tone: ReasonTone.found,
-      text: 'J’ai trouvé ${_plural(items.length, 'offre publiée', 'offres publiées')}.',
+      text: '${_plural(items.length, 'offre', 'offres')} au catalogue.',
       chips: <String>[if (cheapest != null) 'Dès ${reasonMoney(cheapest)}'],
     ),
   ];
@@ -232,8 +235,8 @@ List<ReasonStep> catalogSteps(List<Map<String, dynamic>> items, ReasonContext ct
       id: 'int-zone',
       tone: ReasonTone.zone,
       text: inZone.isNotEmpty
-          ? '${_plural(inZone.length, 'vendeur est', 'vendeurs sont')} dans votre zone ($city).'
-          : 'Aucun vendeur du catalogue n’est à $city ; je garde les plus proches.',
+          ? '${_plural(inZone.length, 'vendeur', 'vendeurs')} à $city.'
+          : 'Aucun à $city : je prends les plus proches.',
       evidence: inZone
           .take(2)
           .map((i) => ReasonEvidence(
@@ -252,7 +255,7 @@ ReasonStep externalDownStep() => const ReasonStep(
       id: 'ext-down',
       tone: ReasonTone.warn,
       text:
-          'Une partie de la recherche n’a pas répondu pour le moment. Je continue avec ce que j’ai déjà trouvé ; une veille me permettra de réessayer.',
+          'Une partie n’a pas répondu. Je continue.',
     );
 
 ReasonEvidence _evidence(NexusDiscoveryItem item, bool inZone) {
@@ -276,7 +279,7 @@ List<ReasonStep> externalSteps(NexusDiscoveryResponse response, ReasonContext ct
       ReasonStep(
         id: 'ext-none',
         tone: ReasonTone.warn,
-        text: 'Je n’ai trouvé aucune annonce publique exploitable en plus.',
+        text: 'Rien de plus en ligne.',
       ),
     ];
   }
@@ -286,7 +289,7 @@ List<ReasonStep> externalSteps(NexusDiscoveryResponse response, ReasonContext ct
       id: 'ext-found',
       tone: ReasonTone.found,
       text:
-          'J’ai aussi repéré ${_plural(results.length, 'annonce pertinente', 'annonces pertinentes')} en ligne.',
+          '${_plural(results.length, 'annonce', 'annonces')} en ligne.',
     ),
   ];
   if (city.isNotEmpty) {
@@ -295,8 +298,8 @@ List<ReasonStep> externalSteps(NexusDiscoveryResponse response, ReasonContext ct
       id: 'ext-zone',
       tone: ReasonTone.zone,
       text: inZone.isNotEmpty
-          ? 'J’ai trouvé ${_plural(inZone.length, 'vendeur', 'vendeurs')} à $city. Je continue de chercher autour.'
-          : 'Aucun autre résultat à $city pour l’instant ; je regarde les villes voisines.',
+          ? '${_plural(inZone.length, 'vendeur', 'vendeurs')} à $city. Je regarde autour.'
+          : 'Rien de plus à $city : je regarde autour.',
       evidence: inZone.take(3).map((i) => _evidence(i, true)).toList(growable: false),
     ));
   }
@@ -311,7 +314,7 @@ List<ReasonStep> externalSteps(NexusDiscoveryResponse response, ReasonContext ct
       id: 'ext-contact',
       tone: ReasonTone.contact,
       text:
-          '${_plural(contactable.length, 'contact est joignable', 'contacts sont joignables')}${withPhone ? ' ; les numéros restent masqués (seuls les 4 derniers chiffres sont visibles)' : ''}.',
+          '${_plural(contactable.length, 'contact joignable', 'contacts joignables')}${withPhone ? ' · numéros masqués' : ''}.',
       evidence: contactable.take(3).map((i) => _evidence(i, sameZone(i.city, city))).toList(growable: false),
     ));
   }
@@ -324,7 +327,7 @@ List<ReasonStep> externalSteps(NexusDiscoveryResponse response, ReasonContext ct
       id: 'ext-interest',
       tone: ReasonTone.found,
       text:
-          '${_plural(interested.length, 'personne exprime', 'personnes expriment')} un besoin similaire : de quoi croiser offre et demande.',
+          '${_plural(interested.length, 'personne cherche', 'personnes cherchent')} la même chose.',
       evidence: interested.take(2).map((i) => _evidence(i, sameZone(i.city, city))).toList(growable: false),
     ));
   }
@@ -352,15 +355,15 @@ ReasonSummary buildSummary(
   final now = act('CONTACT_NOW') + act('REQUEST_APPROVAL');
   final next = <String>[
     if (now > 0)
-      'Je peux contacter ${_plural(now, 'vendeur', 'vendeurs')}, mais seulement avec votre accord.'
+      'Je peux contacter ${_plural(now, 'vendeur', 'vendeurs')}, avec votre accord.'
     else if (contactable > 0)
-      'Choisissez une offre : je prépare le contact et la négociation.',
+      'Choisissez une offre : je prépare le contact.',
     if (act('ENRICH') > 0)
-      'Je poursuis pour compléter les coordonnées de ${_plural(act('ENRICH'), 'annonce', 'annonces')}.',
+      'Je complète ${_plural(act('ENRICH'), 'annonce', 'annonces')}.',
     if (catalog.length + ext.length < 4)
-      'Peu de résultats : activez une veille, je continue à chercher pour vous.'
+      'Peu de résultats : activez une veille.'
     else
-      'Activez une veille pour être alerté si le prix baisse.',
+      'Veille : alerte si le prix baisse.',
   ];
   return ReasonSummary(
     found: catalog.length + ext.length,
@@ -377,7 +380,7 @@ ReasonStep summaryStep(ReasonSummary summary, ReasonContext ctx) {
       id: 'summary',
       tone: ReasonTone.next,
       text:
-          'Point de recherche : rien d’assez proche pour le moment. Je vous propose de lancer une veille, je continuerai pour vous.',
+          'Bilan : rien d’assez proche. Je peux surveiller pour vous.',
     );
   }
   final city = (ctx.city ?? '').trim();
@@ -386,6 +389,6 @@ ReasonStep summaryStep(ReasonSummary summary, ReasonContext ctx) {
     id: 'summary',
     tone: ReasonTone.next,
     text:
-        'Point de recherche : ${_plural(summary.found, 'résultat', 'résultats')}${city.isNotEmpty ? ', dont ${summary.inZone} à $city' : ''}${best != null ? ', meilleur prix $best' : ''}.',
+        'Bilan : ${_plural(summary.found, 'résultat', 'résultats')}${city.isNotEmpty ? ' · ${summary.inZone} à $city' : ''}${best != null ? ' · dès $best' : ''}.',
   );
 }
