@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -3818,7 +3819,7 @@ class _LivePremiumMessageContent extends StatelessWidget {
             recognizer: tappable
                 ? (TapGestureRecognizer()
                   ..onTap = () {
-                    launchUrl(uri, mode: LaunchMode.externalApplication);
+                    launchUrl(uri!, mode: LaunchMode.externalApplication);
                   })
                 : null,
             style: style.copyWith(
