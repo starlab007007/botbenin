@@ -447,10 +447,12 @@ function beninPhoneCandidates(canonical: string): string[] {
 async function sendWahaText(base: string, session: string, chatId: string, rawText: string, headers: Record<string, string>) {
   const text = richWhatsAppText(rawText);
   const payload = JSON.stringify({ session, chatId, text });
-  let r = await wahaFetch(`${base}/api/sendText`, { method: "POST", headers, body: payload });
-  if (r.ok) return r;
-  r = await wahaFetch(`${base}/api/${session}/sendText`, { method: "POST", headers, body: JSON.stringify({ chatId, text }) });
-  return r;
+  const first = await wahaFetch(`${base}/api/sendText`, { method: "POST", headers, body: payload });
+  if (first.ok) return first;
+  const second = await wahaFetch(`${base}/api/${session}/sendText`, { method: "POST", headers, body: JSON.stringify({ chatId, text }) });
+  if (second.ok) return second;
+  // La route de repli renvoie presque toujours 404 : conserver l'erreur réelle du premier essai pour le diagnostic.
+  return first.status === 404 ? second : first;
 }
 
 async function sendWahaImage(base: string, session: string, chatId: string, imageUrl: string, rawCaption: string, headers: Record<string, string>) {
