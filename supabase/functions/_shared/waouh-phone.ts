@@ -24,28 +24,30 @@ export type ResolvedWaouhUser = {
  */
 export function normalizeBeninPhone(value: string | null | undefined): string | null {
   const original = String(value || "");
-  if (original.includes("@lid")) return original.replace(/[^0-9@.a-z]/gi, "");
+  if (original.includes("@lid")) {
+    const lid = original.replace(/\D/g, "");
+    return lid ? `${lid}@lid` : null;
+  }
   // Refus strict : tout caractère lettre non-LID = stub/fake (E2E).
   if (/[A-Za-z]/.test(original)) return null;
   const digits = original.replace(/\D/g, "");
   if (!digits) return null;
+  // 🔒 Jamais de numéro fabriqué : une longue suite de chiffres (≥ 14) qui n'est pas
+  // un numéro béninois valide est un identifiant WhatsApp privé (LID), pas un MSISDN.
+  // Avant, « last8 » transformait un LID en faux numéro 229XXXXXXXX.
   let candidate: string | null = null;
   if (digits.startsWith("00229")) candidate = digits.slice(2);
   else if (digits.startsWith("229")) candidate = digits;
   else if (digits.length === 8) candidate = `229${digits}`;
   else if (digits.length === 10 && digits.startsWith("01")) candidate = `229${digits}`;
-  else {
-    const last10 = digits.slice(-10);
-    if (last10.length === 10 && last10.startsWith("01")) candidate = `229${last10}`;
-    else {
-      const last8 = digits.slice(-8);
-      if (last8.length === 8) candidate = `229${last8}`;
-    }
-  }
-  if (!candidate) return null;
-  // Valide la forme finale : 229 + 8 chiffres OU 22901 + 8 chiffres.
-  if (!/^229(\d{8}|01\d{8})$/.test(candidate)) return null;
-  return candidate;
+  if (candidate && /^229(\d{8}|01\d{8})$/.test(candidate)) return candidate;
+  if (digits.length >= 14) return `${digits}@lid`;
+  return null;
+}
+
+/** true si la valeur normalisée est un identifiant WhatsApp privé (LID) et non un MSISDN. */
+export function isWhatsAppLid(value: string | null | undefined): boolean {
+  return /@lid$/.test(String(value || ""));
 }
 
 /**
@@ -59,7 +61,7 @@ export function beninPhoneCandidates(value: string | null | undefined): string[]
   const out = new Set<string>();
   if (canon) out.add(canon);
 
-  if (canon && canon.startsWith("229")) {
+  if (canon && !canon.includes("@") && canon.startsWith("229")) {
     const local = canon.slice(3);
     // Ancien -> nouveau (8 -> 10)
     if (local.length === 8) {

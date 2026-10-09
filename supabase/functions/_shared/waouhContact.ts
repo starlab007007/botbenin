@@ -17,21 +17,29 @@ export function normalizeBeninPhone(value?: string | null): string | null {
   if (/[A-Za-z]/.test(raw)) return null;
   const digits = raw.replace(/\D/g, "");
   if (!digits) return null;
+  // 🔒 Jamais de numéro fabriqué (pas de repli « 8 derniers chiffres ») : un LID WhatsApp
+  // ou toute suite de chiffres non béninoise n'est pas un MSISDN.
   let candidate: string | null = null;
-  if (digits.startsWith("229")) candidate = digits;
+  if (digits.startsWith("00229")) candidate = digits.slice(2);
+  else if (digits.startsWith("229")) candidate = digits;
   else if (digits.length === 8) candidate = `229${digits}`;
   else if (digits.length === 10 && digits.startsWith("01")) candidate = `229${digits}`;
-  else {
-    const last10 = digits.slice(-10);
-    if (last10.length === 10 && last10.startsWith("01")) candidate = `229${last10}`;
-    else {
-      const last8 = digits.slice(-8);
-      if (last8.length === 8) candidate = `229${last8}`;
-    }
-  }
   if (!candidate) return null;
   if (!/^229(\d{8}|01\d{8})$/.test(candidate)) return null;
   return candidate;
+}
+
+/**
+ * Cible WhatsApp d'un contact : numéro béninois canonique, sinon identifiant privé WhatsApp (LID) sous la forme
+ * `<chiffres>@lid` — le seul moyen d'écrire à un contact qui n'a jamais révélé son numéro (vendeur arrivé par WhatsApp).
+ */
+export function normalizeWhatsAppTarget(value?: string | null): string | null {
+  const msisdn = normalizeBeninPhone(value);
+  if (msisdn) return msisdn;
+  const raw = String(value || "");
+  if (/[A-Za-z]/.test(raw.replace(/@lid|@c\.us/g, ""))) return null;
+  const digits = raw.replace(/\D/g, "");
+  return digits.length >= 14 && digits.length <= 16 ? `${digits}@lid` : null;
 }
 
 /**
@@ -101,7 +109,7 @@ export async function resolveContact(
   let wa = rowWa;
   if (!wa && userId) {
     const { data: u } = await sb.from("waouh_users").select("phone, phone_number").eq("id", userId).maybeSingle();
-    wa = normalizeBeninPhone(u?.phone || u?.phone_number);
+    wa = normalizeBeninPhone(u?.phone) || normalizeWhatsAppTarget(u?.phone_number);
   }
   return { channel: channel || "waouh_app", whatsapp: wa, waouhUserId: userId ?? null, partnerId: row?.partner_id ?? null };
 }

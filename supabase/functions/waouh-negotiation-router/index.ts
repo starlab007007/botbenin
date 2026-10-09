@@ -9,7 +9,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 import { contactExchangeText, waouhHeader, waouhFooter, waouhSep, distanceKm, formatDistance, resolveRealPhoneE164 } from "../_shared/waouh-format.ts";
-import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
+import { openNegotiationsForSiblings, resolveSiblingUserIds } from "../_shared/waouh-identity.ts";
 import { geminiJson } from "../_shared/gemini.ts";
 import { bindThreadState } from "../_shared/waouh-thread.ts";
 import { closeCompetingNegotiations } from "../_shared/waouh-evict.ts";
@@ -240,24 +240,10 @@ Deno.serve(async (req) => {
 
     let neg: any = null;
     if (negotiation_id) {
-      const { data } = await sb.from("waouh_negotiations")
-        .select("*")
-        .eq("id", negotiation_id)
-        .or(siblingOrFilter(siblingIds))
-        .in("state", ["proposed", "countered"])
-        .maybeSingle();
-      neg = data;
+      neg = (await openNegotiationsForSiblings(sb, siblingIds, { negotiationId: negotiation_id, limit: 1 }))[0] ?? null;
     }
     if (!neg && thread_id) {
-      const { data } = await sb.from("waouh_negotiations")
-        .select("*")
-        .eq("thread_id", thread_id)
-        .or(siblingOrFilter(siblingIds))
-        .in("state", ["proposed", "countered"])
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      neg = data;
+      neg = (await openNegotiationsForSiblings(sb, siblingIds, { threadId: thread_id, limit: 1 }))[0] ?? null;
     }
     if (!neg && !thread_id && !negotiation_id) {
       return new Response(JSON.stringify({

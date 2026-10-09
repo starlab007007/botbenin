@@ -204,14 +204,15 @@ export async function openBuyerDeal(args: OpenBuyerDealArgs): Promise<OpenBuyerD
   const threadId: string = thread.id;
 
   // Intérêt (dédupliqué sur article × acheteur × thread).
-  const { error: insErr } = await sb.from("waouh_interests").upsert({
+  // Index d'unicité PARTIEL en base : un upsert avec onConflict échoue (42P10). Insert simple, doublon (23505) ignoré.
+  const { error: insErr } = await sb.from("waouh_interests").insert({
     thread_id: threadId,
     article_id: articleId,
     buyer_user_id: buyerUserId,
     seller_user_id: article.seller_id ?? null,
     source,
     payload: { thread_id: threadId, source },
-  }, { onConflict: "article_id,buyer_user_id,thread_id", ignoreDuplicates: true });
+  });
   const duplicateInterest = !!insErr &&
     ((insErr as any).code === "23505" || /duplicate/i.test((insErr as any).message || ""));
   if (insErr && !duplicateInterest) console.error("[waouh-deal-open] interest insert", insErr);

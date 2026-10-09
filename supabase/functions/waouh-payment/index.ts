@@ -37,7 +37,6 @@ const normalizeBeninMsisdn = (value: string) => {
   if (local.startsWith("00229")) local = local.slice(5);
   if (local.startsWith("229")) local = local.slice(3);
   if (local.length === 9 && local.startsWith("1")) local = `0${local}`;
-  if (local.length > 10) local = local.slice(-10).startsWith("01") ? local.slice(-10) : local.slice(-8);
   if (local.length === 8 || (local.length === 10 && local.startsWith("01"))) return local;
   return null;
 };

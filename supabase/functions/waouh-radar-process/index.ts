@@ -14,13 +14,13 @@ const DISPATCH_URL = `${SUPABASE_URL}/functions/v1/waouh-outbound-dispatch`;
 function normalizeBeninPhone(value: string | null | undefined) {
   const digits = String(value || "").replace(/\D/g, "");
   if (!digits) return null;
-  if (digits.startsWith("00229")) return digits.slice(2);
-  if (digits.startsWith("229")) return digits;
-  if (digits.length === 8 || (digits.length === 10 && digits.startsWith("01"))) return `229${digits}`;
-  const last10 = digits.slice(-10);
-  if (last10.length === 10 && last10.startsWith("01")) return `229${last10}`;
-  const last8 = digits.slice(-8);
-  return last8.length === 8 ? `229${last8}` : null;
+  let candidate: string | null = null;
+  if (digits.startsWith("00229")) candidate = digits.slice(2);
+  else if (digits.startsWith("229")) candidate = digits;
+  else if (digits.length === 8 || (digits.length === 10 && digits.startsWith("01"))) candidate = `229${digits}`;
+  if (candidate) return /^229(\d{8}|01\d{8})$/.test(candidate) ? candidate : null;
+  // 🔒 Pas de repli « derniers chiffres » : un identifiant trop long (LID) ou invalide est rejeté.
+  return null;
 }
 
 function normalizeCategory(value: string | null | undefined) {

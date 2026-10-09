@@ -407,6 +407,8 @@ function normalizeBeninPhone(value: string) {
   if (!digits) return null;
   // 🚧 Garde-fou : refuse les numéros impossiblement longs (typiquement un LID camouflé).
   if (digits.length > 15) return null;
+  // Suite de 14-15 chiffres non béninoise = identifiant privé WhatsApp (LID) : jamais un MSISDN.
+  if (digits.length >= 14 && !digits.startsWith("229") && !digits.startsWith("00229")) return `${digits}@lid`;
   let candidate: string | null = null;
   if (digits.startsWith("00229")) candidate = digits.slice(2);
   else if (digits.startsWith("229")) candidate = digits;

@@ -196,3 +196,48 @@ export function siblingOrFilter(ids: string[]): string {
   const list = `(${safe.join(",")})`;
   return `buyer_user_id.in.${list},seller_user_id.in.${list}`;
 }
+
+const NEG_SIBLING_CHUNK = 40;
+
+/**
+ * Négociations ouvertes d'une personne (toutes ses identités), sans faire exploser l'URL PostgREST.
+ * Un compte App peut avoir ~200 lignes waouh_users : `buyer_user_id.in.(…200 uuid…)` dépasse la limite d'URL, la requête
+ * échoue en silence (data = null) et le parcours croit qu'aucune négociation n'existe (contre-offre perdue, constaté en production).
+ * Les identités sont donc interrogées par paquets, puis fusionnées (plus récente d'abord).
+ */
+export async function openNegotiationsForSiblings(
+  sb: any,
+  ids: string[],
+  opts: {
+    select?: string;
+    articleId?: string | null;
+    threadId?: string | null;
+    negotiationId?: string | null;
+    side?: "buyer" | "seller" | "any";
+    states?: string[];
+    limit?: number;
+  } = {},
+): Promise<any[]> {
+  const unique = [...new Set((ids || []).filter((x) => typeof x === "string" && x.length > 0))];
+  if (unique.length === 0) return [];
+  const side = opts.side ?? "any";
+  const states = opts.states ?? ["proposed", "countered"];
+  const select = opts.select ?? "*";
+  const merged = new Map<string, any>();
+  for (let i = 0; i < unique.length; i += NEG_SIBLING_CHUNK) {
+    const chunk = unique.slice(i, i + NEG_SIBLING_CHUNK);
+    let q: any = sb.from("waouh_negotiations").select(select).in("state", states);
+    if (opts.negotiationId) q = q.eq("id", opts.negotiationId);
+    if (opts.threadId) q = q.eq("thread_id", opts.threadId);
+    if (opts.articleId) q = q.eq("article_id", opts.articleId);
+    if (side === "buyer") q = q.in("buyer_user_id", chunk);
+    else if (side === "seller") q = q.in("seller_user_id", chunk);
+    else q = q.or(siblingOrFilter(chunk));
+    const { data, error } = await q.order("updated_at", { ascending: false }).limit(opts.limit ?? 25);
+    if (error) console.warn("[openNegotiationsForSiblings]", error.message);
+    for (const row of data || []) merged.set(row.id, row);
+  }
+  return [...merged.values()]
+    .sort((a, b) => String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? "")))
+    .slice(0, opts.limit ?? 25);
+}

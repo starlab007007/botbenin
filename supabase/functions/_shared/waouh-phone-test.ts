@@ -1,0 +1,13 @@
+import { normalizeBeninPhone, beninPhoneCandidates } from "./waouh-phone.ts";
+const eq = (a: unknown, b: unknown, m: string) => { if (JSON.stringify(a) !== JSON.stringify(b)) { throw new Error(`FAIL ${m}: ${JSON.stringify(a)} != ${JSON.stringify(b)}`); } };
+eq(normalizeBeninPhone("+229 91 29 91 91"), "22991299191", "8 digits");
+eq(normalizeBeninPhone("0191299191"), "2290191299191", "01 form");
+eq(normalizeBeninPhone("2290191299191"), "2290191299191", "229 01");
+eq(normalizeBeninPhone("0022991299191"), "22991299191", "00229");
+eq(normalizeBeninPhone("279319607771317"), "279319607771317@lid", "lid raw");
+eq(normalizeBeninPhone("273091318042723@lid"), "273091318042723@lid", "lid");
+eq(normalizeBeninPhone("229E2ECS64284"), null, "stub");
+eq(normalizeBeninPhone("12345"), null, "short");
+eq(beninPhoneCandidates("91299191").slice(0, 2), ["22991299191", "2290191299191"], "cands 8");
+eq(beninPhoneCandidates("0191299191").slice(0, 2), ["2290191299191", "22991299191"], "cands 10");
+console.log("ok phone");

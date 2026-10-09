@@ -12,7 +12,7 @@ import {
   beninPhoneCandidates,
 } from "../_shared/waouh-phone.ts";
 import { promoteCatalogToArticle } from "../_shared/waouh-promote.ts";
-import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
+import { openNegotiationsForSiblings, resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
 import { resolveProductThread, bindThreadState } from "../_shared/waouh-thread.ts";
 import { chatCatalogV3Enabled, chatInterestFastPathEnabled, chatRouterV2Enabled, chatWriterV2Enabled, recordChatMessage, resolveThreadIdForEvent } from "../_shared/waouh-chat-writer.ts";
 import { articleEntryActionsV3, negotiationActions as registryNegotiationActions, negotiationActionsV3 } from "../_shared/waouh-commands.ts";
@@ -286,6 +286,7 @@ async function delegateToNegotiationRouter(
   neg: any,
   siblingIds: string[],
   command: { text: string; buttonPayload?: string | null },
+  opts: { scoped?: boolean } = {},
 ): Promise<Record<string, any> | null> {
   if (!neg?.id || !neg?.thread_id) return null;
   if (!(await chatRouterV2Enabled(sb))) return null;
@@ -305,13 +306,9 @@ async function delegateToNegotiationRouter(
   // Plusieurs négociations ouvertes : on ne devine pas laquelle est visée
   // (le moteur prenait « la plus récente »), on demande de répondre depuis
   // le bon produit ou le bouton du dernier message.
-  if (siblingIds.length > 0) {
-    const list = `(${siblingIds.join(",")})`;
-    const { data: openNegs } = await sb.from("waouh_negotiations")
-      .select("id")
-      .or(`buyer_user_id.in.${list},seller_user_id.in.${list}`)
-      .in("state", ["proposed", "countered"])
-      .limit(2);
+  // Négociation déjà ciblée par son article / son fil (scoped) : aucune ambiguïté à lever.
+  if (siblingIds.length > 0 && !opts.scoped) {
+    const openNegs = await openNegotiationsForSiblings(sb, siblingIds, { select: "id, updated_at", limit: 2 });
     if (Array.isArray(openNegs) && openNegs.length > 1) {
       return {
         reply: "🤝 Vous avez plusieurs négociations en cours. Répondez depuis la fenêtre du produit concerné, ou touchez le bouton du dernier message de cette négociation.",
@@ -357,13 +354,7 @@ async function findOpenNegotiationForArticle(
   // deno-lint-ignore no-explicit-any
 ): Promise<any | null> {
   if (!articleId || siblingIds.length === 0) return null;
-  const { data } = await sb.from("waouh_negotiations")
-    .select("*")
-    .eq("article_id", articleId)
-    .or(siblingOrFilter(siblingIds))
-    .in("state", ["proposed", "countered"])
-    .order("updated_at", { ascending: false })
-    .limit(2);
+  const data = await openNegotiationsForSiblings(sb, siblingIds, { articleId, limit: 2 });
   // Plusieurs négociations sur le même article (vendeur avec deux acheteurs) :
   // on ne devine pas, l'appelant garde son chemin historique.
   return Array.isArray(data) && data.length === 1 ? data[0] : null;
@@ -2409,15 +2400,9 @@ Deno.serve(async (req) => {
       let neg: any = fastPathOn
         ? await findOpenNegotiationForArticle(sb, negContextArticleId, negSiblingIds)
         : null;
+      const negScoped = !!neg;
       if (!neg && !(fastPathOn && articleHint)) {
-        const { data: globalNeg } = await sb.from("waouh_negotiations")
-          .select("*")
-          .or(siblingOrFilter(negSiblingIds))
-          .in("state", ["proposed", "countered"])
-          .order("updated_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        neg = globalNeg;
+        neg = (await openNegotiationsForSiblings(sb, negSiblingIds, { limit: 1 }))[0] ?? null;
       }
       if (neg && fastPathOn) {
         returnedThreadId = neg.thread_id ?? null;
@@ -2427,7 +2412,7 @@ Deno.serve(async (req) => {
       const negDelegated = neg
         ? await delegateToNegotiationRouter(sb, neg, negSiblingIds, amount
           ? { text: `je propose ${amount}` }
-          : { text: String(text || ""), buttonPayload: `contre-proposition:${neg.id}` })
+          : { text: String(text || ""), buttonPayload: `contre-proposition:${neg.id}` }, { scoped: negScoped })
         : null;
       if (!neg && fastPathOn && amount && negContextArticleId) {
         // Capture 1 : un prix sur un article connu OUVRE la négociation au lieu
@@ -2506,15 +2491,9 @@ Deno.serve(async (req) => {
       let neg: any = fastPathOn
         ? await findOpenNegotiationForArticle(sb, decContextArticleId, decSiblingIds)
         : null;
+      const decScoped = !!neg;
       if (!neg && !(fastPathOn && articleHint)) {
-        const { data: globalNeg } = await sb.from("waouh_negotiations")
-          .select("*")
-          .or(siblingOrFilter(decSiblingIds))
-          .in("state", ["proposed", "countered"])
-          .order("updated_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        neg = globalNeg;
+        neg = (await openNegotiationsForSiblings(sb, decSiblingIds, { limit: 1 }))[0] ?? null;
       }
       if (neg && fastPathOn) {
         returnedThreadId = neg.thread_id ?? null;
@@ -2525,7 +2504,7 @@ Deno.serve(async (req) => {
         ? await delegateToNegotiationRouter(sb, neg, decSiblingIds, {
           text: String(text || ""),
           buttonPayload: `${intent.intent === "DECIDE_YES" ? "accepter" : "refuser"}:${neg.id}`,
-        })
+        }, { scoped: decScoped })
         : null;
       if (!neg) {
         reply = noOpenDealReply();

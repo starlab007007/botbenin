@@ -4,7 +4,7 @@ import { readWaouhEngineResponse } from "../_shared/waouh-response.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.8";
 import { lidToPhoneInline } from "../_shared/waouh-format.ts";
 import { richWhatsAppText } from "../_shared/waouh-whatsapp-rich.ts";
-import { resolveSiblingUserIds, siblingOrFilter } from "../_shared/waouh-identity.ts";
+import { openNegotiationsForSiblings, resolveSiblingUserIds } from "../_shared/waouh-identity.ts";
 import { isServiceRoleRequest } from "../_shared/waouh-auth.ts";
 import { getWaouhModuleControl } from "../_shared/waouh-admin-control.ts";
 import { resolveProductThread } from "../_shared/waouh-thread.ts";
@@ -960,15 +960,17 @@ Deno.serve(async (req) => {
     // We key on user_id + channel (one open conversation per user/channel).
     const convPhone = phone || (sessionId ? `web:${sessionId}` : "unknown");
     let convId: string | null = null;
+    let convCurrentArticleId: string | null = null;
     {
       const { data: existingConv } = await sb
         .from("waouh_conversations")
-        .select("id")
+        .select("id, current_article_id")
         .eq("user_id", user.id)
         .eq("phone_number", convPhone)
         .maybeSingle();
       if (existingConv?.id) {
         convId = existingConv.id;
+        convCurrentArticleId = (existingConv as any).current_article_id ?? null;
       } else {
         const { data: createdConv } = await sb
           .from("waouh_conversations")
@@ -1293,39 +1295,19 @@ Deno.serve(async (req) => {
     let ambiguousNegotiation = false;
 
     if (metaNegotiationId) {
-      const { data } = await sb.from("waouh_negotiations")
-        .select(OPEN_NEG_COLUMNS)
-        .eq("id", metaNegotiationId)
-        .or(siblingOrFilter(siblingIds))
-        .in("state", ["proposed", "countered"])
-        .maybeSingle();
-      openNeg = data as OpenNeg | null;
+      openNeg = ((await openNegotiationsForSiblings(sb, siblingIds, { select: OPEN_NEG_COLUMNS + ", updated_at", negotiationId: metaNegotiationId, limit: 1 }))[0] ?? null) as OpenNeg | null;
     }
 
     if (!openNeg && metaThreadId) {
-      const { data } = await sb.from("waouh_negotiations")
-        .select(OPEN_NEG_COLUMNS)
-        .eq("thread_id", metaThreadId)
-        .or(siblingOrFilter(siblingIds))
-        .in("state", ["proposed", "countered"])
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      openNeg = data as OpenNeg | null;
+      openNeg = ((await openNegotiationsForSiblings(sb, siblingIds, { select: OPEN_NEG_COLUMNS + ", updated_at", threadId: metaThreadId, limit: 1 }))[0] ?? null) as OpenNeg | null;
     }
 
     if (!openNeg && metaArticleId && metaCounterpartId && metaRole) {
-      let q: any = sb.from("waouh_negotiations")
-        .select(OPEN_NEG_COLUMNS)
-        .eq("article_id", metaArticleId)
-        .in("state", ["proposed", "countered"]);
-      if (metaRole === "seller") {
-        q = q.eq("buyer_user_id", metaCounterpartId).in("seller_user_id", siblingIds);
-      } else {
-        q = q.eq("seller_user_id", metaCounterpartId).in("buyer_user_id", siblingIds);
-      }
-      const { data } = await q.order("updated_at", { ascending: false }).limit(1).maybeSingle();
-      openNeg = data as OpenNeg | null;
+      const mine = await openNegotiationsForSiblings(sb, siblingIds, {
+        select: OPEN_NEG_COLUMNS + ", updated_at", articleId: metaArticleId,
+        side: metaRole === "seller" ? "seller" : "buyer", limit: 25,
+      });
+      openNeg = (mine.find((n: any) => metaRole === "seller" ? n.buyer_user_id === metaCounterpartId : n.seller_user_id === metaCounterpartId) ?? null) as OpenNeg | null;
     }
 
     // Lot 1 : un message qui porte son article cherche d'abord la négociation
@@ -1339,25 +1321,19 @@ Deno.serve(async (req) => {
       articleScopedLookupDone = true;
       // Côté ACHETEUR uniquement : un vendeur peut avoir plusieurs acheteurs
       // sur le même article ; sans fil ni contrepartie, on ne devine pas.
-      const { data } = await sb.from("waouh_negotiations")
-        .select(OPEN_NEG_COLUMNS)
-        .eq("article_id", scopedArticleId)
-        .in("buyer_user_id", siblingIds)
-        .in("state", ["proposed", "countered"])
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      openNeg = data as OpenNeg | null;
+      openNeg = ((await openNegotiationsForSiblings(sb, siblingIds, { select: OPEN_NEG_COLUMNS + ", updated_at", articleId: scopedArticleId, side: "buyer", limit: 1 }))[0] ?? null) as OpenNeg | null;
+    }
+
+    // WhatsApp ne porte pas de métadonnées d'article : l'article courant de la
+    // conversation (dernier article présenté) borne la recherche. Sans cela, un
+    // acheteur avec plusieurs négociations ouvertes voyait « Je propose 1300 »
+    // ignoré car ambigu. Si rien ne correspond, on retombe sur la recherche globale.
+    if (!openNeg && !scopedArticleId && convCurrentArticleId && fastPathEnabled && !actorIsArticleSeller && metaRole !== "seller") {
+      openNeg = ((await openNegotiationsForSiblings(sb, siblingIds, { select: OPEN_NEG_COLUMNS + ", updated_at", articleId: convCurrentArticleId, side: "buyer", limit: 1 }))[0] ?? null) as OpenNeg | null;
     }
 
     if (!openNeg && !articleScopedLookupDone) {
-      const { data } = await sb.from("waouh_negotiations")
-        .select(OPEN_NEG_COLUMNS)
-        .or(siblingOrFilter(siblingIds))
-        .in("state", ["proposed", "countered"])
-        .order("updated_at", { ascending: false })
-        .limit(2);
-      const candidates = (data || []) as OpenNeg[];
+      const candidates = (await openNegotiationsForSiblings(sb, siblingIds, { select: OPEN_NEG_COLUMNS + ", updated_at", limit: 2 })) as OpenNeg[];
       if (candidates.length === 1) openNeg = candidates[0];
       else if (candidates.length > 1) ambiguousNegotiation = true;
     }
