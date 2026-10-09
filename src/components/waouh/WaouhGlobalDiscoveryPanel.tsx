@@ -4,7 +4,7 @@ import { progressiveNexusDiscovery } from "@/lib/waouh/progressiveDiscovery";
 import { WaouhReasoningFeed, useReasoningFeed } from "./WaouhReasoningFeed";
 import { buildSummary, externalSteps, planSteps, summaryStep, type ReasonSummary } from "@/lib/waouh/liveReasoning";
 import { userFacingErrorText } from "@/lib/userFacingError";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Building2, Camera, ExternalLink, Globe2, Loader2, MapPin, MessageCircle, Radar,
@@ -91,12 +91,17 @@ export function WaouhGlobalDiscoveryPanel() {
   const shareImageInput = useRef<HTMLInputElement>(null);
   const searchVersion = useRef(0);
   useEffect(() => () => { searchVersion.current += 1; }, []);
-  const [mode, setMode] = useState<NexusDiscoveryMode>("auto");
+  const [urlParams] = useSearchParams();
+  const urlMode = urlParams.get("mode");
+  const [mode, setMode] = useState<NexusDiscoveryMode>(
+    urlMode === "find_sellers" || urlMode === "find_buyers" ? urlMode : "auto",
+  );
+  const autoStarted = useRef(false);
   const [resolvedMode, setResolvedMode] = useState<NexusResolvedDiscoveryMode>("find_sellers");
   const [intelligence, setIntelligence] = useState<NexusSmartDiscoveryPlan | null>(null);
-  const [query, setQuery] = useState("");
-  const [city, setCity] = useState("");
-  const [budget, setBudget] = useState("");
+  const [query, setQuery] = useState(() => urlParams.get("q") || "");
+  const [city, setCity] = useState(() => urlParams.get("city") || "");
+  const [budget, setBudget] = useState(() => (urlParams.get("budget") || "").replace(/\D/g, ""));
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<NexusDiscoveryResult[]>([]);
   const [sourceMix, setSourceMix] = useState<Record<string, number>>({});
@@ -199,6 +204,12 @@ export function WaouhGlobalDiscoveryPanel() {
       if (version === searchVersion.current) setBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (autoStarted.current || urlParams.get("go") !== "1" || !query.trim()) return;
+    autoStarted.current = true;
+    void searchEverywhere();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const delegateSearchToBot = async () => {
     if (!query.trim() || mandateBusy) return;

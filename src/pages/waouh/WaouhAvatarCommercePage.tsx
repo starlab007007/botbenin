@@ -10,7 +10,7 @@ import "@/components/waouh/waouh-message-text.css";
 import { WaouhJourneyProgress } from "@/components/waouh/WaouhJourneyProgress";
 import { userFacingErrorText } from "@/lib/userFacingError";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   BadgeCheck,
@@ -182,9 +182,10 @@ export default function WaouhAvatarCommercePage() {
   const [priceFloor, setPriceFloor] = useState("");
   useEffect(() => { if (mode === "vendre") void listNexusOwnedArticles().then(data => setOwnedArticles(data.articles)).catch(() => {}); }, [mode]);
 
-  const [goal, setGoal] = useState("");
-  const [city, setCity] = useState("");
-  const [budget, setBudget] = useState("");
+  const [urlParams] = useSearchParams();
+  const [goal, setGoal] = useState(() => urlParams.get("q") || "");
+  const [city, setCity] = useState(() => urlParams.get("city") || "");
+  const [budget, setBudget] = useState(() => (urlParams.get("budget") || "").replace(/\D/g, ""));
   const [busy, setBusy] = useState(false);
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [searchCompleted, setSearchCompleted] = useState(false);
@@ -276,6 +277,7 @@ export default function WaouhAvatarCommercePage() {
 
   const feed = useReasoningFeed();
   const [reasonSummary, setReasonSummary] = useState<ReasonSummary | null>(null);
+  const autoStarted = useRef(false);
   useEffect(() => { feed.reset(); setReasonSummary(null); }, [mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const search = async () => {
@@ -325,6 +327,12 @@ export default function WaouhAvatarCommercePage() {
       if (version === searchVersion.current) setBusy(false);
     }
   };
+
+  useEffect(() => {
+    if (autoStarted.current || urlParams.get("go") !== "1" || !goal.trim()) return;
+    autoStarted.current = true;
+    void search();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const createMandate = async () => {
     const query = goal.trim();

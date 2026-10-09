@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { WaouhQuickAsk, type QuickAskKind } from "@/components/waouh/WaouhQuickAsk";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { newChatRoute, openNewChat } from "@/lib/waouh/newChat";
@@ -277,6 +278,8 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
     toast({ title: `${next.name} est prêt`, description: "La présence de votre Avatar a été mise à jour." });
   };
 
+  const [quickAsk, setQuickAsk] = useState<QuickAskKind | null>(null);
+
   const actions = [
     {
       title: "Acheter",
@@ -284,7 +287,7 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
       icon: ShoppingBag,
       card: "from-blue-50 to-blue-100/80 border-blue-100",
       iconTone: "text-blue-600",
-      action: () => navigate("/app/avatar/acheter"),
+      action: () => setQuickAsk("acheter"),
     },
     {
       title: "Vendre",
@@ -292,7 +295,7 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
       icon: Tag,
       card: "from-amber-50 to-orange-100/75 border-amber-100",
       iconTone: "text-amber-600",
-      action: () => navigate("/app/avatar/vendre"),
+      action: () => setQuickAsk("vendre"),
     },
     {
       title: "Trouver",
@@ -300,7 +303,7 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
       icon: Globe2,
       card: "from-cyan-50 to-sky-100/80 border-cyan-100",
       iconTone: "text-cyan-600",
-      action: () => navigate("/app/nexus"),
+      action: () => setQuickAsk("trouver"),
     },
     {
       title: "Demander",
@@ -308,7 +311,7 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
       icon: MessageSquareText,
       card: "from-violet-50 to-purple-100/80 border-violet-100",
       iconTone: "text-violet-600",
-      action: () => navigate("/app/avatar/demander"),
+      action: () => setQuickAsk("demander"),
     },
   ] as const;
 
@@ -392,13 +395,6 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
                 firstName={user ? mobileProfile?.full_name : null}
                 thirdLine={botActivityLine(summary.missions, "mission")}
                 onExpressionChange={setGreetExpression}
-                choices={[
-                  { label: "Acheter", onSelect: () => glideThen(() => navigate("/app/avatar/acheter")) },
-                  { label: "Vendre", onSelect: () => glideThen(() => navigate("/app/avatar/vendre")) },
-                  summary.missions + summary.approvals > 0
-                    ? { label: "Voir mes missions", onSelect: () => glideThen(() => navigate("/app/missions")) }
-                    : { label: "Explorer", onSelect: () => glideThen(() => navigate("/app/nexus")) },
-                ]}
               />
 
             </div>
@@ -458,38 +454,12 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
                   </button>
                 ))}
               </div>
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                <Button
-                  type="button"
-                  className="h-11 min-w-0 rounded-xl px-2 text-xs bg-gradient-to-r from-teal-500 to-cyan-600 font-black shadow-sm hover:from-teal-600 hover:to-cyan-700"
-                  onClick={() => askAvatar("Bonjour Bot, aide-moi à démarrer.")}
-                >
-                  <MessageSquareText className="mr-2 h-4 w-4" /> Démarrer
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-11 min-w-0 rounded-xl px-2 text-xs border-blue-100 bg-white/85 font-black text-blue-700"
-                  onClick={() => askAvatar("Bot, cherche la meilleure opportunité pour moi.")}
-                >
-                  <Search className="mr-2 h-4 w-4" /> Chercher
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-11 min-w-0 rounded-xl px-2 text-xs border-violet-100 bg-white/85 font-black text-violet-700"
-                  onClick={() => askAvatar("Bot, aide-moi à négocier et conclure ce deal.")}
-                >
-                  <Sparkles className="mr-2 h-4 w-4" /> Négocier
-                </Button>
-              </div>
-              <BotWorkingStrip className="mt-3" />
             </div>
           </div>
         </section>
 
         <section>
-          <h2 className="text-base sm:text-xl font-bold tracking-tight text-slate-950">À vous de choisir</h2>
+          <h2 className="text-base sm:text-xl font-black tracking-tight text-slate-950">Que voulez-vous faire ?</h2>
           <div className="mt-2 grid grid-cols-2 gap-2 xl:grid-cols-4">
             {actions.map(({ title, subtitle, icon: Icon, card, iconTone, action }, index) => (
               <motion.button
@@ -508,9 +478,6 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
                 </span>
                 <span className="mt-2 sm:mt-5 block text-sm sm:text-lg font-bold text-slate-950">{title}</span>
                 <span className="mt-1 block text-xs sm:text-sm font-medium text-slate-500">{subtitle}</span>
-                <span className="mt-2 sm:mt-4 inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition group-hover:text-slate-900">
-                  Ouvrir <ArrowRight className="h-3.5 w-3.5" />
-                </span>
               </motion.button>
             ))}
           </div>
@@ -643,6 +610,11 @@ export default function WaouhAvatarHomePage({ onAsk }: WaouhAvatarHomePageProps)
           </div>
         </DialogContent>
       </Dialog>
+      <WaouhQuickAsk
+        kind={quickAsk}
+        onClose={() => setQuickAsk(null)}
+        onSubmit={(path) => { setQuickAsk(null); navigate(path); }}
+      />
     </main>
   );
 }
