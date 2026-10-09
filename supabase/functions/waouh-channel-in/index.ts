@@ -324,7 +324,7 @@ async function resolveReplyChatIds(sb: any, rawFrom: string | null, phone: strin
   return [...out];
 }
 
-async function sendWahaReply(base: string, session: string, chatIds: string[], rawText: string, actions: WaouhAction[] = [], imageUrl?: string | null) {
+async function sendWahaReplyDirect(base: string, session: string, chatIds: string[], rawText: string, actions: WaouhAction[] = [], imageUrl?: string | null) {
   // Mise en forme premium WhatsApp (gras, puces, numéros emoji, signature) appliquée une seule fois, pour toutes les réponses.
   const text = richWhatsAppText(rawText);
   if (session === CENTRAL_WAHA_SESSION && !(await centralWhatsAppHealth()).working) return {ok:false,error:"central_whatsapp_unavailable"};
@@ -351,6 +351,45 @@ async function sendWahaReply(base: string, session: string, chatIds: string[], r
     console.warn("[waouh-channel-in] waha reply failed", lastError);
   }
   return { ok: false, error: lastError || "no chatId" };
+}
+
+
+/**
+ * Envoi WhatsApp d'une réponse avec filet de sécurité : si l'envoi direct échoue
+ * (WAHA indisponible, timeout…), la réponse est remise dans waouh_outbound_queue
+ * pour être renvoyée par le dispatcher (retry/backoff) au lieu d'être perdue.
+ */
+async function sendWahaReply(base: string, session: string, chatIds: string[], rawText: string, actions: WaouhAction[] = [], imageUrl?: string | null) {
+  const res = await sendWahaReplyDirect(base, session, chatIds, rawText, actions, imageUrl);
+  if (res.ok) return res;
+  try {
+    const first = String(chatIds[0] || "");
+    const toPhone = first.replace(/@(c\.us|s\.whatsapp\.net)$/i, "");
+    if (!toPhone) return res;
+    const admin = createClient(SUPABASE_URL, SERVICE);
+    const day = new Date().toISOString().slice(0, 13);
+    const { error } = await admin.rpc("waouh_enqueue_outbound_v2", {
+      p_to_phone: toPhone,
+      p_to_user_id: null,
+      p_template: "chat_reply_retry",
+      p_payload: { text: richWhatsAppText(rawText), actions: actions.slice(0, 3), waha_session: session, image_url: imageUrl ?? null },
+      p_web_session_id: null,
+      p_image_url: imageUrl ?? null,
+      p_channel: "whatsapp",
+      p_message_id: null,
+      p_transaction_id: null,
+      p_dedupe_key: `chatreply:${toPhone}:${day}:${(await sha1Hex(rawText)).slice(0, 16)}`,
+      p_event_type: "chat_reply_retry",
+    });
+    if (error) console.warn("[waouh-channel-in] reply requeue failed", error.message);
+    else console.warn("[waouh-channel-in] reply requeued after direct send failure", { toPhone, err: (res as any).error });
+  } catch (e) { console.warn("[waouh-channel-in] reply requeue exception", e); }
+  return res;
+}
+
+async function sha1Hex(input: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(input));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 
@@ -838,10 +877,19 @@ Deno.serve(async (req) => {
       if (wahaEventId) {
         const { error: dupErr } = await sb.from("waouh_processed_events").insert({ event_id: String(wahaEventId), source: "waha" });
         if (dupErr && (dupErr.code === "23505" || /duplicate/i.test(dupErr.message))) {
-          log("skip duplicate waha event", { wahaEventId });
-          return new Response(JSON.stringify({ ok: true, skipped: true, reason: "duplicate" }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+          // Une ligne ancienne = traitement interrompu (timeout/arrêt plateforme) : on reprend
+          // au lieu d'ignorer définitivement le renvoi de WAHA. Les vrais doublons arrivent en quelques secondes.
+          const { data: prior } = await sb.from("waouh_processed_events").select("created_at").eq("event_id", String(wahaEventId)).maybeSingle();
+          const ageMs = prior?.created_at ? Date.now() - Date.parse(prior.created_at) : 0;
+          if (ageMs > 180_000) {
+            await sb.from("waouh_processed_events").update({ created_at: new Date().toISOString() }).eq("event_id", String(wahaEventId));
+            log("retake stale waha event", { wahaEventId, ageMs });
+          } else {
+            log("skip duplicate waha event", { wahaEventId });
+            return new Response(JSON.stringify({ ok: true, skipped: true, reason: "duplicate" }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
         }
       }
       processedWahaEventId = String(wahaEventId);
@@ -1172,6 +1220,7 @@ Deno.serve(async (req) => {
       };
       const dealRes = await fetch(`${SUPABASE_URL}/functions/v1/waouh-deal-ops`, {
         method: "POST",
+      signal: AbortSignal.timeout(60000),
         headers: { Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
         body: JSON.stringify(dealBody),
       });
@@ -1480,11 +1529,15 @@ Deno.serve(async (req) => {
       : metaRole;
     let confirmedPendingOffer: { amount: number; negotiationId: string; threadId: string } | null = null;
     const trimmedReply = String(text || "").trim();
-    const confirmOfferText = /^confirmer(?:\s+(?:l['’]?offre|cette\s+offre))?[.!]?$/i.test(trimmedReply);
+    // Boutons « ✅ Confirmer / ❌ Annuler » (ids stables) : équivalents à CONFIRMER / NON.
+    const offerButtonPayload = String(clientMeta?.button_payload || "").trim().toLowerCase();
+    const confirmOfferText = offerButtonPayload === "confirmer-offre"
+      || /^confirmer(?:\s+(?:l['’]?offre|cette\s+offre))?[.!]?$/i.test(trimmedReply);
     // « Oui / OK / d'accord » juste après « Confirmez-vous l'offre de X ? » confirme CETTE offre : sans cela, le « OK » était lu
     // comme l'acceptation du prix du vendeur et concluait l'accord au mauvais montant.
     const affirmOfferText = /^(?:oui|ok|okay|d['’]?accord|yes|valider|je\s+confirme|c['’]?est\s+bon)\s*[.!]?$/i.test(trimmedReply);
-    const cancelOfferText = /^(?:non|annuler|annule|stop)\s*[.!]?$/i.test(trimmedReply);
+    const cancelOfferText = offerButtonPayload === "annuler-offre"
+      || /^(?:non|annuler|annule|stop)\s*[.!]?$/i.test(trimmedReply);
     let cancelledPendingOffer: { amount: number } | null = null;
     if ((confirmOfferText || affirmOfferText || cancelOfferText) && openNeg?.thread_id) {
       try {
@@ -1552,6 +1605,10 @@ Deno.serve(async (req) => {
     ) {
       const amount = Math.round(typedOfferForConfirmation);
       const prompt = `Confirmez-vous l'offre de ${amount.toLocaleString("fr-FR")} FCFA ? Répondez « CONFIRMER » pour l'envoyer, ou saisissez un autre montant.`;
+      const offerConfirmActions = [
+        { id: "confirmer-offre", label: "✅ Confirmer" },
+        { id: "annuler-offre", label: "❌ Annuler" },
+      ];
       const pendingOffer = {
         action: "offer",
         amount,
@@ -1576,7 +1633,7 @@ Deno.serve(async (req) => {
           text: prompt,
           channel,
           intent: "offer_confirmation_required",
-          actions: [],
+          actions: offerConfirmActions,
           correlationId,
           payloadExtra: {
             pending_offer: pendingOffer,
@@ -1608,7 +1665,7 @@ Deno.serve(async (req) => {
             thread_id: openNeg.thread_id,
             article_id: openNeg.article_id,
             role: actorRoleForNegotiation,
-            actions: [],
+            actions: offerConfirmActions,
             correlation_id: correlationId,
           },
         }).select("id").maybeSingle();
@@ -1629,7 +1686,7 @@ Deno.serve(async (req) => {
         commerce_event: "offer_pending_confirmation",
         reply: prompt,
         pending: pendingOffer,
-        actions: [],
+        actions: offerConfirmActions,
         thread_id: openNeg.thread_id,
         negotiation_id: openNeg.id,
         article_id: openNeg.article_id,
@@ -2114,6 +2171,7 @@ Deno.serve(async (req) => {
     if (openNeg && (forceRouter || (!shouldStayInCore && explicitNegotiationCommand))) {
       const negRes = await fetch(`${SUPABASE_URL}/functions/v1/waouh-negotiation-router`, {
         method: "POST",
+      signal: AbortSignal.timeout(60000),
         headers: { Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           phone,
@@ -2257,6 +2315,7 @@ Deno.serve(async (req) => {
     // Call core engine
     const coreRes = await fetch(`${SUPABASE_URL}/functions/v1/waouh-webhook`, {
       method: "POST",
+      signal: AbortSignal.timeout(100000),
       headers: { Authorization: `Bearer ${SERVICE}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         phone_number: phone || `web:${sessionId}`,

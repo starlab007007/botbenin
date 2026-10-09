@@ -488,6 +488,15 @@ Deno.serve(async (req) => {
     const articleHint: string | null = typeof body.article_hint === "string" && body.article_hint ? body.article_hint : null;
     const nativeMessagingRequest = requiresNativeEngineAuthorization(body);
 
+    // 🔒 Le cœur n'est appelable que par les fonctions internes (service role) ou
+    // par le moteur natif authentifié. Jamais directement depuis un navigateur.
+    if (!nativeMessagingRequest && !isServiceRoleRequest(req)) {
+      return new Response(JSON.stringify({ error: "service_role_required" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (nativeMessagingRequest) {
       const expected = await telRuntimeSecret("internal_secret");
       const authorization = req.headers.get("authorization") || "";

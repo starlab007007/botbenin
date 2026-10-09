@@ -738,6 +738,7 @@ Deno.serve(async (req) => {
           if (rl && rl.count >= 10) {
             await sb.from("waouh_outbound_queue").update({
               status: "pending",
+              attempts: it.attempts, // un report pour limite de débit ne consomme pas de tentative
               next_attempt_at: new Date(Date.now() + 60_000).toISOString(),
               last_error: "rate_limited",
             }).eq("id", it.id);

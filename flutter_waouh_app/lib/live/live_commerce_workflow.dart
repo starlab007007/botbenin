@@ -181,6 +181,9 @@ String liveCommerceOutboundText(String payload) {
       if (command.startsWith('je-veux:')) return 'Je le veux';
       if (command.startsWith('proposer-prix:')) return 'Proposer un prix';
       if (command.startsWith('poser-question:')) return 'Poser une question';
+      if (command == 'confirmer-offre') return 'CONFIRMER';
+      if (command == 'annuler-offre') return 'NON';
+      if (command == 'fermer-discussion') return 'Fermer la discussion';
       return liveCommerceRawCommand(payload);
   }
 }

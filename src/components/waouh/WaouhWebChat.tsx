@@ -593,6 +593,11 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
     metaOverride: Record<string, unknown> = {}
   ) => {
     if ((!text && atts.length === 0) || sendingRef.current) return;
+    // Hors ligne : on ne simule pas un envoi (aucune file locale). Le texte reste dans le composeur.
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      toast({ title: "Hors ligne", description: "Message non envoyé : reconnectez-vous puis réessayez.", variant: "destructive" });
+      throw new Error("offline");
+    }
     sendingRef.current = true;
     setSending(true);
     const now = new Date().toISOString();
@@ -649,7 +654,7 @@ export const WaouhWebChat = forwardRef<WaouhWebChatHandle, { embedded?: boolean;
 
     } catch (e: any) {
       setMessages((prev) => prev.filter((m) => m.id !== tempInId));
-      toast({ title: "Envoi échoué", description: e.message, variant: "destructive" });
+      toast({ title: "Envoi échoué", description: userFacingErrorText(e, "send"), variant: "destructive" });
       throw e;
     } finally {
       sendingRef.current = false;

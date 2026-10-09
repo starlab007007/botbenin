@@ -355,6 +355,7 @@ export async function openBuyerDeal(args: OpenBuyerDealArgs): Promise<OpenBuyerD
     try {
       const dispatchRes = await fetch(`${supabaseUrl}/functions/v1/waouh-notify-dispatch`, {
         method: "POST",
+      signal: AbortSignal.timeout(30000),
         headers: { Authorization: `Bearer ${serviceRole}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           kind: "new_buyer",

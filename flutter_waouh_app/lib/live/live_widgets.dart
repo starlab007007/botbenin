@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../main.dart' as legacy;
 import 'brand_mark.dart';
@@ -3795,9 +3796,10 @@ class _LivePremiumMessageContent extends StatelessWidget {
             text: raw.substring(2, raw.length - 2),
             style: style.copyWith(fontWeight: FontWeight.w900)));
       } else if (raw.startsWith('*')) {
+        // WhatsApp : *texte* = gras (aligné sur le web, qui convertit *x* en **x**).
         spans.add(TextSpan(
             text: raw.substring(1, raw.length - 1),
-            style: style.copyWith(fontStyle: FontStyle.italic)));
+            style: style.copyWith(fontWeight: FontWeight.w900)));
       } else if (raw.startsWith('__')) {
         spans.add(TextSpan(
             text: raw.substring(2, raw.length - 2),
@@ -3808,8 +3810,17 @@ class _LivePremiumMessageContent extends StatelessWidget {
             style: style.copyWith(fontStyle: FontStyle.italic)));
       } else {
         final label = raw.substring(1, raw.indexOf(']('));
+        final href = raw.substring(raw.indexOf('](') + 2, raw.length - 1).trim();
+        final uri = Uri.tryParse(href);
+        final tappable = uri != null && (uri.scheme == 'https' || uri.scheme == 'http');
         spans.add(TextSpan(
             text: label,
+            recognizer: tappable
+                ? (TapGestureRecognizer()
+                  ..onTap = () {
+                    launchUrl(uri, mode: LaunchMode.externalApplication);
+                  })
+                : null,
             style: style.copyWith(
                 color: const Color(0xFF08756A),
                 fontWeight: FontWeight.w800,

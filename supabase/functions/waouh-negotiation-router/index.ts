@@ -137,7 +137,7 @@ Deno.serve(async (req) => {
         ? "web"
         : (target.auth_user_id ? "app" : "system");
       try {
-        const { data: msg } = await sb.from("waouh_messages").insert({
+        const { data: msg, error: msgErr } = await sb.from("waouh_messages").insert({
           thread_id: (payload as any)?.thread_id ?? (directMeta as any)?.thread_id ?? null,
           user_id: target.id,
           channel: msgChannel,
@@ -157,12 +157,13 @@ Deno.serve(async (req) => {
             actions,
           },
         }).select("id").maybeSingle();
+        if (msgErr) console.error("[neg-router] msg insert error", { code: (msgErr as any).code, message: msgErr.message, template });
         insertedMsgId = msg?.id ?? null;
       } catch (e) { console.warn("[neg-router] msg", e); }
     }
     try {
       const notificationThreadId = (payload as any)?.thread_id ?? (directMeta as any)?.thread_id ?? null;
-      await sb.from("waouh_notifications").insert({
+      const { error: notifErr } = await sb.from("waouh_notifications").insert({
         thread_id: notificationThreadId,
         user_id: target.id,
         web_session_id: target.web_session_id ?? null,
@@ -182,6 +183,7 @@ Deno.serve(async (req) => {
         delivery_status: "delivered",
         delivered_at: new Date().toISOString(),
       });
+      if (notifErr && (notifErr as any).code !== "23505") console.error("[neg-router] notification insert error", { code: (notifErr as any).code, message: notifErr.message, template });
     } catch (e) {
       console.warn("[neg-router] notification", e);
     }
@@ -203,7 +205,7 @@ Deno.serve(async (req) => {
     }
     if (!outboundPhone) outboundPhone = directReachablePhone(target.phone_number);
     try {
-      await sb.rpc("waouh_enqueue_outbound_v2", {
+      const { error: enqErr } = await sb.rpc("waouh_enqueue_outbound_v2", {
         p_to_phone: outboundPhone,
         p_to_user_id: target.id,
         p_template: template,
@@ -216,6 +218,7 @@ Deno.serve(async (req) => {
         p_dedupe_key: dedupeKey,
         p_event_type: eventType,
       });
+      if (enqErr) console.error("[neg-router] enqueue error", { message: enqErr.message, template, to: target.id });
     } catch (e) { console.warn("[neg-router] enqueue", e); }
   }
 

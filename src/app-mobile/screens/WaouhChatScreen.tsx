@@ -50,9 +50,14 @@ export default function WaouhChatScreen() {
   // Desktop ERP only → unified entry point is /app/chat.
   // Tablet web (768–1179px) keeps this mobile-style chat so Avatar
   // prefill/autosend deep-links are preserved exactly like Flutter.
+  // Le retour anticipé est dans ce wrapper : les hooks de l'écran ne sont jamais appelés conditionnellement.
   if (typeof window !== "undefined" && window.innerWidth >= 1180) {
     return <Navigate to="/app/chat" replace />;
   }
+  return <WaouhChatScreenInner />;
+}
+
+function WaouhChatScreenInner() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useMobileAuth();

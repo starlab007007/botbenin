@@ -16,7 +16,7 @@ export const OfflineBanner = () => {
     if (!online) {
       wasOffline.current = true;
       toast.error('Pas de connexion internet', {
-        description: 'Vos messages seront envoyés dès le retour du réseau.',
+        description: "L'envoi est impossible hors ligne : réessayez au retour du réseau.",
         id: 'offline-toast',
         duration: 4000,
       });
@@ -40,7 +40,7 @@ export const OfflineBanner = () => {
       style={{ paddingTop: 'max(env(safe-area-inset-top), 6px)' }}
     >
       <WifiOff className="w-3.5 h-3.5 shrink-0" />
-      <span className="truncate">Hors ligne — vos actions seront envoyées à la reconnexion</span>
+      <span className="truncate">Hors ligne — l'envoi reprendra au retour du réseau</span>
     </div>
   );
 };

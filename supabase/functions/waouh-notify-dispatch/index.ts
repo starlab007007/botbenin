@@ -425,8 +425,11 @@ serve(async (req) => {
     }
 
 
+    // ✅ Succès réel : un échec d'enqueue WhatsApp n'est plus annoncé comme « vendeur prévenu ».
+    const waFailed = waResult?.ok === false && !waResult?.skipped && !waResult?.reason;
     return new Response(JSON.stringify({
-      success: true,
+      success: !waFailed,
+      ...(waFailed ? { error: "whatsapp_enqueue_failed" } : {}),
       channel: channelUsed,
       whatsapp: target.whatsapp,
       waouh_user_id: target.waouhUserId,

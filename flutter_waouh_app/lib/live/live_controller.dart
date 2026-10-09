@@ -610,7 +610,22 @@ class LiveWaouhController extends ChangeNotifier {
         cacheLoader: _cachedMainMessages,
         remoteLoader: _loadMainMessages,
         interval: const Duration(seconds: 4),
+        bindRefresh: (refresh) => _refreshMainNow = refresh,
       );
+
+  /// Rafraîchissement immédiat du chat principal (bind par mainMessages()).
+  Future<void> Function()? _refreshMainNow;
+
+  /// Après un envoi : la réponse du moteur arrive en base avant la fin de la requête,
+  /// on la lit tout de suite (puis deux relectures rapprochées) au lieu d'attendre 4 s.
+  void _burstRefreshMain() {
+    final refresh = _refreshMainNow;
+    if (refresh == null) return;
+    unawaited(refresh());
+    for (final delay in const [900, 2200]) {
+      Timer(Duration(milliseconds: delay), () => unawaited(refresh()));
+    }
+  }
 
   Stream<List<LiveConversation>> conversations({bool archived = false}) =>
       _conversationStreams.putIfAbsent(
@@ -1157,6 +1172,7 @@ class LiveWaouhController extends ChangeNotifier {
       requestMeta: resolutionMeta,
       response: response,
     );
+    _burstRefreshMain();
 
     // Parité avec le Web : la réponse structurée du backend est un second
     // arbitre. Elle rattrape les anciens boutons Flutter, les alias anglais,
@@ -1463,6 +1479,7 @@ class LiveWaouhController extends ChangeNotifier {
     required Future<T> Function() cacheLoader,
     required Future<T> Function() remoteLoader,
     required Duration interval,
+    void Function(Future<void> Function() refresh)? bindRefresh,
   }) {
     late StreamController<T> streamController;
     Timer? timer;
@@ -1481,6 +1498,7 @@ class LiveWaouhController extends ChangeNotifier {
       }
     }
 
+    bindRefresh?.call(refresh);
     streamController = StreamController<T>.broadcast(
       onListen: () {
         unawaited(() async {

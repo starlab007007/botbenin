@@ -24,8 +24,15 @@ serve(async (req) => {
     const auth = await requireAuthOrGuestSession(req, raw?.sessionId || null);
     if (!auth.ok) return auth.response;
 
+    // 🔒 Liste blanche : le client web/app ne doit jamais pouvoir injecter un
+    // corps de type webhook WAHA (event/payload/session/phone) ni usurper un
+    // numéro WhatsApp. Seuls les champs du contrat chat sont relayés.
+    const allowed: Record<string, unknown> = {};
+    for (const key of ["sessionId", "text", "attachments", "lat", "lng", "city", "source", "origin_surface", "correlation_id"]) {
+      if (raw?.[key] !== undefined) allowed[key] = raw[key];
+    }
     const cleanBody = {
-      ...raw,
+      ...allowed,
       channel: "web",
       // Ne jamais faire confiance à authUserId envoyé par le client :
       // il est dérivé du JWT Supabase quand il existe.
@@ -45,6 +52,7 @@ serve(async (req) => {
         "x-waouh-session": auth.bodySessionId ?? "",
       },
       body: JSON.stringify(cleanBody),
+      signal: AbortSignal.timeout(55000),
     });
 
     const rawText = await upstream.text();

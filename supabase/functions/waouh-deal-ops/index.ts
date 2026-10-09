@@ -12,6 +12,7 @@ import { renderCatalog } from "../_shared/waouh-message-catalog.ts";
 import { notifyArticleReopened } from "../_shared/waouh-evict.ts";
 import { checkOperatorDealTransition, OPERATOR_DEAL_STATUSES } from "../_shared/waouh-commerce-states.ts";
 import { beninPhoneCandidates } from "../_shared/waouh-phone.ts";
+import { resolveSiblingUserIds } from "../_shared/waouh-identity.ts";
 import { resolveNotifThreadId } from "../_shared/waouh-notif-thread.ts";
 import {
   buyerPaymentActions as registryBuyerPaymentActions,
@@ -421,6 +422,18 @@ async function resolveDealActor(req: Request, sb: any, body: any): Promise<DealA
 
   if (bearer && bearer === SERVICE_ROLE) {
     const actorId = String(body?.actor_user_id || "").trim();
+    // Une même personne peut avoir plusieurs identités (web, WhatsApp, LID) : l'acteur
+    // interne couvre toutes ses identités, pas seulement la ligne qui a reçu le message.
+    let actorIds: string[] = actorId ? [actorId] : [];
+    if (actorId) {
+      try {
+        const { data: actorRow } = await sb.from("waouh_users").select("id, phone_number, auth_user_id, web_session_id").eq("id", actorId).maybeSingle();
+        if (actorRow) {
+          const sib = await resolveSiblingUserIds(sb, actorRow);
+          if (sib?.length) actorIds = [...new Set([actorId, ...sib])];
+        }
+      } catch (e) { console.warn("[waouh-deal-ops] sibling actor resolution failed", e); }
+    }
     return {
       ok: !!actorId,
       status: actorId ? 200 : 403,
@@ -428,7 +441,7 @@ async function resolveDealActor(req: Request, sb: any, body: any): Promise<DealA
       internal: true,
       isAdmin: false,
       authUserId: null,
-      waouhUserIds: actorId ? [actorId] : [],
+      waouhUserIds: actorIds,
     };
   }
 
@@ -1129,6 +1142,7 @@ async function handlePayment(sb: any, body: any, actor: DealActor) {
     ? `*Vente terminée*\n${fmt(amount)} encaissés. Commission WAOUH : ${fmt(commission)}.`
     : `💰 *Vente finalisée* — ${fmt(amount)} pour « ${title} ». Commission WAOUH : ${fmt(commission)}.`;
   // Fin de parcours : guider chacun pour fermer proprement la discussion.
+  const closeActions = [{ id: "fermer-discussion", label: "Fermer la discussion" }];
   const closeHint = "\n\n✅ Tout est réglé. Répondez *FERMER* pour clore cette discussion.\n🛒 Un autre besoin ? *Je cherche …* · 📦 *Je vends …*";
   const buyerFinal = buyerText + closeHint;
   const sellerFinal = sellerText + closeHint;
@@ -1137,8 +1151,8 @@ async function handlePayment(sb: any, body: any, actor: DealActor) {
   await Promise.all([
     insertInAppNotif(sb, deal.buyer_user_id, deal.article_id, "deal_paid", buyerFinal, { deal_id, method, amount, commission, workflow_state: "completed" }),
     insertInAppNotif(sb, deal.seller_user_id, deal.article_id, "deal_paid", sellerFinal, { deal_id, method, amount, commission, workflow_state: "completed" }),
-    pushDealChatEvent(sb, deal.buyer_user_id, deal.article_id, v3 ? buyerFinal : "✅ Paiement confirmé. Transaction terminée." + closeHint, { deal_id, event: "completed", role: "buyer", workflow_state: "completed" }),
-    pushDealChatEvent(sb, deal.seller_user_id, deal.article_id, v3 ? sellerFinal : "✅ Paiement confirmé. Vente terminée." + closeHint, { deal_id, event: "completed", role: "seller", workflow_state: "completed" }),
+    pushDealChatEvent(sb, deal.buyer_user_id, deal.article_id, v3 ? buyerFinal : "✅ Paiement confirmé. Transaction terminée." + closeHint, { deal_id, event: "completed", role: "buyer", workflow_state: "completed", actions: closeActions }),
+    pushDealChatEvent(sb, deal.seller_user_id, deal.article_id, v3 ? sellerFinal : "✅ Paiement confirmé. Vente terminée." + closeHint, { deal_id, event: "completed", role: "seller", workflow_state: "completed", actions: closeActions }),
     waChatId(buyer.phone_number) ? sendWhatsApp(waChatId(buyer.phone_number)!, buyerFinal) : Promise.resolve(),
     waChatId(seller.phone_number) ? sendWhatsApp(waChatId(seller.phone_number)!, sellerFinal) : Promise.resolve(),
     WAOUH_OPS_WHATSAPP ? sendWhatsApp(`${WAOUH_OPS_WHATSAPP}@c.us`, opsText) : Promise.resolve(),
@@ -1155,7 +1169,7 @@ async function handlePayment(sb: any, body: any, actor: DealActor) {
     success: true, ok: true, reply: v3 ? buyerFinal : "✅ Livraison et paiement confirmés. Transaction WAOUH terminée." + closeHint,
     intent: "deal_completed", workflow_state: "completed", deal_id,
     article_id: deal.article_id, thread_id: deal.thread_id, transaction_id: tx?.id ?? null,
-    commission, commission_rate: rate, actions: [],
+    commission, commission_rate: rate, actions: closeActions,
   });
 }
 
